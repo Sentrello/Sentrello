@@ -1,0 +1,31 @@
+name: ci
+on: { push: {}, pull_request: {} }
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env: { POSTGRES_USER: sentrello, POSTGRES_PASSWORD: sentrello, POSTGRES_DB: sentrello }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U sentrello" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://sentrello:sentrello@localhost:5432/sentrello
+      BETTER_AUTH_SECRET: ci-secret-not-used-outside-ci-0123456789abcdef
+      SENTRELLO_BASE_URL: http://localhost:3000
+      SENTRELLO_LICENSE_PUBLIC_KEY_PATH: ./secrets/license_public.pem
+      SENTRELLO_LICENSE_TOKEN_PATH: ./secrets/license_token.jwt
+      SENTRELLO_INSTANCE_ID: ci-instance
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with: { bun-version: 1.3.14 }
+      - run: bun install
+      - run: bash scripts/gen-keys.sh          # ephemeral keys for the test run
+      - run: bun run lint
+      - run: bun run typecheck
+      - run: bun run db:migrate
+      - run: bun test
+      - run: bun run build:web

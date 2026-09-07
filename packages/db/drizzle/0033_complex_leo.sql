@@ -1,0 +1,1 @@
+ALTER TABLE "invoices" ADD COLUMN "rate_micro" integer DEFAULT 1000000 NOT NULL;

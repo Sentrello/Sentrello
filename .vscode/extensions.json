@@ -1,0 +1,8 @@
+{
+  "recommendations": ["biomejs.biome"],
+  // Prettier and ESLint would fight Biome over the same files.
+  "unwantedRecommendations": [
+    "esbenp.prettier-vscode",
+    "dbaeumer.vscode-eslint"
+  ]
+}

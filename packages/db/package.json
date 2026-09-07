@@ -1,0 +1,33 @@
+{
+  "name": "@sentrello/db",
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./money": "./src/money.ts",
+    "./currency": "./src/currency.ts",
+    "./ledger": "./src/ledger.ts",
+    "./list-query": "./src/list-query.ts",
+    "./numbering": "./src/numbering.ts",
+    "./orm": "./src/orm.ts",
+    "./testing": "./src/testing.ts",
+    "./ssl": "./src/ssl.ts",
+    "./module-migrations": "./src/module-migrations.ts",
+    "./portal": "./src/portal.ts",
+    "./documents": "./src/documents.ts",
+    "./payments": "./src/payments.ts",
+    "./modules": "./src/modules.ts",
+    "./security-events": "./src/security-events.ts",
+    "./lockout": "./src/lockout.ts"
+  },
+  "scripts": {
+    "migrate": "bun run src/migrate.ts"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.0",
+    "postgres": "^3.4.0"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.30.0"
+  }
+}

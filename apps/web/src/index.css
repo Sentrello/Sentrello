@@ -1,0 +1,374 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens (Build Plan §8.4): one confident brand hue, warm neutrals,
+ * semantic status colors. Light and dark from day one — every component reads
+ * these variables, so the whole app themes from one place.
+ */
+@theme {
+  --color-brand-50: oklch(0.97 0.02 190);
+  --color-brand-100: oklch(0.93 0.04 190);
+  --color-brand-300: oklch(0.78 0.09 190);
+  --color-brand-500: oklch(0.58 0.11 190);
+  --color-brand-600: oklch(0.5 0.1 190);
+  --color-brand-700: oklch(0.42 0.09 190);
+
+  --color-neutral-50: oklch(0.98 0.004 80);
+  --color-neutral-100: oklch(0.96 0.005 80);
+  --color-neutral-200: oklch(0.92 0.006 80);
+  --color-neutral-500: oklch(0.62 0.008 80);
+  --color-neutral-700: oklch(0.42 0.008 80);
+  --color-neutral-900: oklch(0.24 0.008 80);
+
+  --color-success: oklch(0.62 0.14 150);
+  --color-warning: oklch(0.75 0.14 75);
+  --color-danger: oklch(0.6 0.18 25);
+  --color-info: oklch(0.62 0.12 250);
+}
+
+:root {
+  --surface: var(--color-neutral-50);
+  --surface-raised: white;
+  --border: var(--color-neutral-200);
+  --text: var(--color-neutral-900);
+  --text-muted: var(--color-neutral-500);
+  --link: var(--color-brand-600);
+  --link-hover: var(--color-brand-700);
+}
+
+/*
+ * Dark comes from three places, in this order: the system, then an explicit
+ * choice, then the account's saved preference once it loads.
+ *
+ * The attribute selectors have to beat the media query in both directions —
+ * somebody on a dark system who picks light must actually get light — so both
+ * are spelled out rather than relying on the media query alone.
+ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface: oklch(0.19 0.008 80);
+    --surface-raised: oklch(0.24 0.008 80);
+    --border: oklch(0.32 0.008 80);
+    --text: var(--color-neutral-100);
+    --text-muted: oklch(0.68 0.008 80);
+    --link: var(--color-brand-300);
+    --link-hover: var(--color-brand-100);
+  }
+}
+
+:root[data-theme="dark"] {
+  --surface: oklch(0.19 0.008 80);
+  --surface-raised: oklch(0.24 0.008 80);
+  --border: oklch(0.32 0.008 80);
+  --text: var(--color-neutral-100);
+  --text-muted: oklch(0.68 0.008 80);
+  --link: var(--color-brand-300);
+  --link-hover: var(--color-brand-100);
+}
+
+:root[data-theme="light"] {
+  --surface: var(--color-neutral-50);
+  --surface-raised: white;
+  --border: var(--color-neutral-200);
+  --text: var(--color-neutral-900);
+  --text-muted: var(--color-neutral-500);
+  --link: var(--color-brand-600);
+  --link-hover: var(--color-brand-700);
+}
+
+/*
+ * A hand over anything you can click.
+ *
+ * Tailwind v4's preflight sets `cursor: default` on buttons, and this app
+ * navigates with buttons rather than anchors — so every link in the product
+ * showed an arrow, which reads as "not clickable" to anyone who has used a
+ * browser. `:disabled` is excluded: a hand over a control that will not
+ * respond is a worse lie than an arrow over one that will.
+ */
+button:not(:disabled),
+[role="button"],
+summary,
+a,
+label:has(input[type="checkbox"]),
+label:has(input[type="radio"]) {
+  cursor: pointer;
+}
+
+/*
+ * Links in body text: colour, never a rule under the word.
+ *
+ * An underline in a dense table or a card of contact details is visual noise
+ * on every row; the colour already says the word is a link, and the change on
+ * hover says which one you are about to follow. Applied through `.link`
+ * rather than a bare `a` selector because most of this app's links are
+ * buttons — there is no URL routing yet — and both have to look the same.
+ */
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+.link {
+  color: var(--link);
+  text-decoration: none;
+}
+.link:hover {
+  color: var(--link-hover);
+}
+
+/*
+ * Secondary actions written as text — Cancel, Done, Remove, Export.
+ *
+ * They are not links to anywhere, so they keep the muted weight that stops a
+ * form looking like a page of hyperlinks. They still have to answer the
+ * pointer: quiet until hovered, full text colour once it is.
+ */
+.link-muted {
+  color: var(--text-muted);
+  text-decoration: none;
+}
+.link-muted:hover {
+  color: var(--text);
+}
+
+/* The same, for the ones that delete something. */
+.link-danger {
+  color: var(--color-danger);
+  text-decoration: none;
+}
+.link-danger:hover {
+  filter: brightness(1.25);
+}
+
+/*
+ * The shell. A header that stays put, and everything else scrolling under it —
+ * so the way back is always on screen. In a system where a contact leads to a
+ * deal leads to an invoice, being three records deep with no visible way out is
+ * how people end up lost.
+ */
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--surface-raised);
+  border-bottom: 1px solid var(--border);
+}
+
+/* The rail: sections as icons, always visible, so switching part of the
+   business is one click from anywhere rather than a scroll. */
+.app-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  width: 3.25rem;
+  flex-shrink: 0;
+  padding: 0.5rem 0;
+  border-right: 1px solid var(--border);
+  background: var(--surface-sunk, var(--surface-raised));
+  position: sticky;
+  top: 3.25rem;
+  height: calc(100vh - 3.25rem);
+  overflow-y: auto;
+}
+
+.rail-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.6rem;
+  color: var(--text-muted);
+}
+.rail-button:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+.rail-button[aria-current="true"] {
+  background: var(--color-brand-500);
+  color: var(--color-neutral-50);
+}
+
+.panel-title {
+  padding: 0.35rem 0.7rem 0.5rem;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* A module's own pages, indented under it and hung off a line so the
+   relationship is visible without a second colour. */
+.nav-children {
+  margin: 0.1rem 0 0.35rem 1.15rem;
+  padding-left: 0.6rem;
+  border-left: 1px solid var(--border);
+}
+
+/* Both selectors are equally specific and `.app-sidebar .nav-link` comes
+   later, so it won and stacked the icon above the label. Naming both classes
+   settles it without moving code around. */
+.app-sidebar .nav-link.nav-parent {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+/* Sidebar. Fixed width, its own scroll, so a long module list never pushes the
+   work off screen. */
+.app-sidebar {
+  width: 15rem;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  background: var(--surface-raised);
+  position: sticky;
+  top: 3.25rem;
+  height: calc(100vh - 3.25rem);
+  overflow-y: auto;
+}
+
+/*
+ * Collapsing the section panel, in CSS and nothing else.
+ *
+ * `#sidebar-collapse` is a visually-hidden checkbox sitting between the rail
+ * and the panel, and the label that drives it lives in the rail — so it stays
+ * on screen once the panel is gone. `~` rather than `:has()` because the
+ * checkbox is already a sibling of the thing it hides, and the simpler
+ * selector needs no support caveat.
+ *
+ * Width and padding animate; `visibility` is what actually takes the panel's
+ * contents out of the tab order, which `width: 0` alone does not do.
+ */
+.app-sidebar {
+  transition: width 150ms ease, padding 150ms ease;
+}
+
+#sidebar-collapse:checked ~ .app-sidebar {
+  width: 0;
+  padding-left: 0;
+  padding-right: 0;
+  border-right-width: 0;
+  overflow: hidden;
+  visibility: hidden;
+}
+
+.nav-group-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.nav-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.4rem;
+}
+.nav-group-toggle:hover {
+  background: var(--surface);
+}
+.nav-caret {
+  display: flex;
+  align-items: center;
+  transition: transform 120ms ease;
+  color: var(--text-muted);
+}
+.nav-caret[data-open="true"] {
+  transform: rotate(90deg);
+}
+
+.nav-link {
+  border-radius: 0.5rem;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.nav-link:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+.nav-link[aria-current="page"] {
+  background: var(--color-brand-500);
+  color: var(--color-neutral-50);
+}
+
+.app-sidebar .nav-link {
+  display: block;
+  width: 100%;
+  text-align: left;
+}
+
+.app-sidebar .nav-child {
+  padding-left: 0.7rem;
+  font-size: 0.8125rem;
+}
+
+.menu-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.4rem);
+  min-width: 13rem;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
+  overflow: hidden;
+}
+.menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+}
+.menu-item:hover {
+  background: var(--surface);
+}
+
+/* Where a record came from, shown above it. */
+.breadcrumb {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+.breadcrumb button:hover {
+  color: var(--link-hover);
+}
+
+body {
+  background: var(--surface);
+  color: var(--text);
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+}
+
+/*
+ * Room between columns.
+ *
+ * There was none: cells sat flush against each other, so "Henderson Roofing"
+ * and the email beside it read as one string, and a phone number ran into the
+ * status dot after it. One rule here rather than padding classes on every
+ * `<td>` in the product — there are hundreds of them, and the next screen
+ * somebody writes would start the problem again.
+ */
+.app-table th,
+.app-table td {
+  padding-right: 1.25rem;
+  vertical-align: middle;
+}
+.app-table th:last-child,
+.app-table td:last-child {
+  padding-right: 0;
+}
+
+/* Non-negotiable for an accounting product: money lines up in columns. */
+.money,
+td.money,
+th.money {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}

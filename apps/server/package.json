@@ -1,0 +1,28 @@
+{
+  "name": "@sentrello/server",
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --hot src/index.ts",
+    "start": "bun run src/index.ts"
+  },
+  "dependencies": {
+    "hono": "^4.6.0",
+    "@sentrello/module-sdk": "*",
+    "@sentrello/licensing-client": "*",
+    "@sentrello/db": "*",
+    "@sentrello/auth": "*",
+    "@sentrello/jobs": "*",
+    "@sentrello/module-crm": "*",
+    "@sentrello/module-invoicing": "*",
+    "@sentrello/module-accounting": "*",
+    "@sentrello/module-profile": "*",
+    "@sentrello/module-settings": "*",
+    "@sentrello/email": "*",
+    "@sentrello/module-dashboard": "*",
+    "@sentrello/module-users": "*"
+  },
+  "devDependencies": {
+    "jose": "^6.0.0"
+  }
+}

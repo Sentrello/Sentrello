@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "skipLibCheck": true,
+    "types": ["bun"],
+    "composite": true,
+    "declaration": true,
+    // Bun runs the TS sources directly; emitting .js would make `bun test`
+    // discover a second, stale copy of every test file under dist/
+    "emitDeclarationOnly": true,
+    "verbatimModuleSyntax": true
+  }
+}

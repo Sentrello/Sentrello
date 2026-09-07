@@ -1,0 +1,25 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+# NEVER commit private keys
+secrets/
+*.pem
+!scripts/*.example
+.DS_Store
+
+# Local-only working notes and build plans. They carry commercial and
+# control-plane strategy, and this repository is public.
+docs/plan/
+00-START-HERE.md
+MANIFEST.txt
+
+dist-types/
+
+# a checkout's own data directory (see SENTRELLO_DATA_DIR). Both spellings:
+# a relative path is resolved against the process's working directory, and the
+# API server runs from apps/server while tests run from the root.
+/data/
+apps/server/data/
