@@ -5,6 +5,7 @@ import { toCents } from "../lib/money";
 import {
   Button,
   Card,
+  Dialog,
   Empty,
   ErrorNote,
   Field,
@@ -57,6 +58,124 @@ type Transaction = {
   receiptFileKey: string | null;
   reversedAt: string | null;
 };
+
+/**
+ * Putting right a line that was entered wrong.
+ *
+ * Kept to the four things people actually mistype — the date, what it says,
+ * how much, and which category it belongs under. Everything else on a
+ * transaction is set by the thing that created it.
+ *
+ * The category list is filtered by the kind, the same rule the server
+ * enforces: money out must land on an expense account and money in on an
+ * income account, and a screen that offered the wrong ones would be asking for
+ * a 400 the person cannot act on.
+ */
+function CorrectTransaction({
+  transaction,
+  accounts,
+  onClose,
+  onSave,
+  saving,
+  error,
+}: {
+  transaction: Transaction | null;
+  accounts: Account[];
+  onClose: () => void;
+  onSave: (input: {
+    id: string;
+    description: string;
+    amount: string;
+    accountId: string;
+    occurredAt: string;
+  }) => void;
+  saving: boolean;
+  error: unknown;
+}) {
+  const [draft, setDraft] = useState({
+    description: "",
+    amount: "",
+    accountId: "",
+    occurredAt: "",
+  });
+  // Reset to the row being corrected each time a different one is opened.
+  const [openedFor, setOpenedFor] = useState<string | null>(null);
+  if (transaction && openedFor !== transaction.id) {
+    setOpenedFor(transaction.id);
+    setDraft({
+      description: transaction.description ?? "",
+      amount: (transaction.amountCents / 100).toFixed(2),
+      accountId: transaction.accountId ?? "",
+      occurredAt: transaction.occurredAt.slice(0, 10),
+    });
+  }
+
+  const categories = accounts.filter((a) =>
+    transaction?.kind === "expense"
+      ? a.type === "expense"
+      : a.type === "income",
+  );
+
+  return (
+    <Dialog
+      title="Correct this entry"
+      open={Boolean(transaction)}
+      onClose={onClose}
+    >
+      <p className="text-xs mb-3" style={muted}>
+        The books are put right as well: the entry that was posted is reversed
+        and the corrected one posted in its place, so a report printed last week
+        can still be explained.
+      </p>
+      <Field label="Date">
+        <Input
+          type="date"
+          value={draft.occurredAt}
+          onChange={(e) => setDraft({ ...draft, occurredAt: e.target.value })}
+        />
+      </Field>
+      <Field label="Detail">
+        <Input
+          value={draft.description}
+          onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+        />
+      </Field>
+      <Field label="Amount">
+        <Input
+          value={draft.amount}
+          inputMode="decimal"
+          onChange={(e) => setDraft({ ...draft, amount: e.target.value })}
+        />
+      </Field>
+      <Field label="Category">
+        <Select
+          value={draft.accountId}
+          onChange={(e) => setDraft({ ...draft, accountId: e.target.value })}
+        >
+          {categories.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.code} {a.name}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      {error ? <ErrorNote error={error} /> : null}
+      <div className="flex justify-end gap-2 mt-4">
+        <Button variant="secondary" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button
+          disabled={saving || !transaction}
+          onClick={() =>
+            transaction && onSave({ id: transaction.id, ...draft })
+          }
+        >
+          Save the correction
+        </Button>
+      </div>
+    </Dialog>
+  );
+}
 
 type AccountTotal = {
   accountId: string;
@@ -392,6 +511,39 @@ export function Money() {
     onSuccess: refresh,
   });
 
+  /**
+   * Correcting one that was typed wrong.
+   *
+   * Until now the only answer to a wrong figure was Undo — which is honest,
+   * because it leaves the reversing entry in the ledger, and heavy-handed for
+   * a date a day out or a line filed under the wrong category. The server has
+   * always taken a correction: it reverses the old journal entry and posts the
+   * new one, so the books stay explainable either way. Nothing called it.
+   */
+  const [editing, setEditing] = useState<Transaction | null>(null);
+  const edit = useMutation({
+    mutationFn: (input: {
+      id: string;
+      description: string;
+      amount: string;
+      accountId: string;
+      occurredAt: string;
+    }) =>
+      api(`/api/transactions/${input.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          description: input.description || null,
+          amountCents: toCents(input.amount),
+          accountId: input.accountId,
+          occurredAt: input.occurredAt || null,
+        }),
+      }),
+    onSuccess: () => {
+      setEditing(null);
+      refresh();
+    },
+  });
+
   const accountName = (id: string | null) =>
     accounts.data?.accounts.find((a) => a.id === id)?.name ?? "—";
 
@@ -553,6 +705,15 @@ export function Money() {
             : "What you spend and take in goes here, and straight into the profit and loss."}
         </Empty>
       ) : null}
+      <CorrectTransaction
+        transaction={editing}
+        accounts={accounts.data?.accounts ?? []}
+        onClose={() => setEditing(null)}
+        onSave={(input) => edit.mutate(input)}
+        saving={edit.isPending}
+        error={edit.error}
+      />
+
       {transactions.data && transactions.data.transactions.length > 0 ? (
         <Table
           headers={[
@@ -586,14 +747,24 @@ export function Money() {
               </td>
               <td>
                 {t.reversedAt ? null : (
-                  <button
-                    type="button"
-                    className="text-xs underline"
-                    style={muted}
-                    onClick={() => undo.mutate(t.id)}
-                  >
-                    Undo
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      className="text-xs underline"
+                      style={muted}
+                      onClick={() => setEditing(t)}
+                    >
+                      Correct
+                    </button>
+                    <button
+                      type="button"
+                      className="text-xs underline ml-3"
+                      style={muted}
+                      onClick={() => undo.mutate(t.id)}
+                    >
+                      Undo
+                    </button>
+                  </>
                 )}
               </td>
             </Row>
@@ -657,7 +828,12 @@ export function Accounts() {
       ),
   });
 
-  const refresh = () => qc.invalidateQueries({ queryKey: ["accounts"] });
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ["accounts"] });
+    // The balances are a second query over the same thing; refreshing one and
+    // not the other is how a deleted account keeps its figure on the screen.
+    qc.invalidateQueries({ queryKey: ["account-balances"] });
+  };
 
   const add = useMutation({
     mutationFn: () =>
@@ -676,6 +852,28 @@ export function Accounts() {
     mutationFn: () => api("/api/accounts/standard", { method: "POST" }),
     onSuccess: refresh,
   });
+
+  /**
+   * What is in each account.
+   *
+   * The chart listed every account and told you nothing about any of them,
+   * which makes it a form rather than a report — "is 6100 the one we actually
+   * use" is answered by the balance and by nothing else on this screen. The
+   * route computed it from the journal and was fetched by nothing.
+   *
+   * Signed the way an accountant reads it: assets and expenses positive when
+   * debited, everything else positive when credited, so no figure here needs a
+   * minus sign explaining that liabilities work the other way round.
+   */
+  const balances = useQuery({
+    queryKey: ["account-balances"],
+    queryFn: () =>
+      api<{ balances: { id: string; balanceCents: number }[] }>(
+        "/api/accounts/balances",
+      ),
+  });
+  const balanceOf = (id: string) =>
+    balances.data?.balances.find((b) => b.id === id)?.balanceCents;
 
   const archive = useMutation({
     mutationFn: (input: { id: string; archived: boolean }) =>
@@ -700,6 +898,21 @@ export function Accounts() {
         method: "PATCH",
         body: JSON.stringify({ parentId: input.parentId || null }),
       }),
+    onSuccess: refresh,
+  });
+
+  /**
+   * Removing one that was a mistake.
+   *
+   * Archiving is the right answer for an account with history, and the server
+   * says so: it refuses to delete anything carrying postings or holding other
+   * accounts under it. What was missing was the answer for the other case — a
+   * code typed wrong five minutes ago, which archiving leaves in the chart for
+   * ever. The route has always existed with nothing calling it.
+   */
+  const remove = useMutation({
+    mutationFn: (id: string) =>
+      api(`/api/accounts/${id}`, { method: "DELETE" }),
     onSuccess: refresh,
   });
 
@@ -768,7 +981,16 @@ export function Accounts() {
       {rows.length === 0 ? (
         <Empty title="No accounts yet" />
       ) : (
-        <Table headers={["Code", "Name", "Type", "Under", ""]}>
+        <Table
+          headers={[
+            "Code",
+            "Name",
+            "Type",
+            { label: "Balance", money: true },
+            "Under",
+            "",
+          ]}
+        >
           {inTreeOrder(rows).map(({ account: a, depth }) => (
             <Row key={a.id}>
               <td className="py-2 font-medium">{a.code}</td>
@@ -779,6 +1001,11 @@ export function Accounts() {
                 </span>
               </td>
               <td style={muted}>{a.type}</td>
+              <td className="money">
+                {balanceOf(a.id) === undefined
+                  ? "—"
+                  : formatMoney(balanceOf(a.id) as number)}
+              </td>
               <td>
                 <Select
                   value={a.parentId ?? ""}
@@ -809,6 +1036,24 @@ export function Accounts() {
                 >
                   {a.archivedAt ? "Restore" : "Archive"}
                 </button>
+                {/*
+                  Offered on every account, and refused by the server where it
+                  must be: "this account has postings against it — archive it
+                  instead so the history stays" is a better answer than a
+                  missing button, because it says what to do next. Whether an
+                  account has postings is not on this screen — a zero balance
+                  is not an empty account, since debits and credits can cancel
+                  — so hiding it would mean hiding it from the wrong rows.
+                */}
+                <button
+                  type="button"
+                  className="text-xs underline ml-3"
+                  style={muted}
+                  disabled={remove.isPending}
+                  onClick={() => remove.mutate(a.id)}
+                >
+                  Delete
+                </button>
               </td>
             </Row>
           ))}
@@ -816,6 +1061,8 @@ export function Accounts() {
       )}
       {reparent.error ? <ErrorNote error={reparent.error} /> : null}
       {archive.error ? <ErrorNote error={archive.error} /> : null}
+      {/* "archive it instead so the history stays" is the useful half. */}
+      {remove.error ? <ErrorNote error={remove.error} /> : null}
     </div>
   );
 }
