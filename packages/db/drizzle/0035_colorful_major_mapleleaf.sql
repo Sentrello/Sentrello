@@ -1,0 +1,1 @@
+ALTER TABLE "document_templates" ADD COLUMN "layout" text DEFAULT 'classic' NOT NULL;

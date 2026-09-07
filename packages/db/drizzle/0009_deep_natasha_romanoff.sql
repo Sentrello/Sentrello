@@ -1,0 +1,1 @@
+ALTER TABLE "deals" ADD COLUMN "source_submission_id" uuid;

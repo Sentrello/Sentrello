@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sentrello</title>
+      <script>
+      // Before first paint. Without this a dark-mode user sees a white flash on
+      // every load while React mounts and applies the saved choice.
+      try {
+        var t = localStorage.getItem("sentrello.theme");
+        if (t === "dark" || t === "light")
+          document.documentElement.setAttribute("data-theme", t);
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

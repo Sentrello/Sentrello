@@ -1,0 +1,28 @@
+{
+  "name": "@sentrello/auth",
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./hono": "./src/hono.ts",
+    "./bootstrap": "./src/bootstrap.ts",
+    "./permissions": "./src/permissions.ts",
+    "./testing": "./src/testing.ts",
+    "./reset-password": "./src/reset-password.ts",
+    "./unlock": "./src/unlock.ts",
+    "./signup-policy": "./src/signup-policy.ts"
+  },
+  "dependencies": {
+    "@better-auth/sso": "1.6.26",
+    "@sentrello/db": "*",
+    "@sentrello/email": "*",
+    "@sentrello/module-sdk": "*",
+    "better-auth": "^1.6.0",
+    "hono": "^4.6.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@better-auth/utils": "0.4.2",
+    "drizzle-orm": "^0.45.0"
+  }
+}

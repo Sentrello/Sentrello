@@ -1,0 +1,16 @@
+{
+  "name": "@sentrello/jobs",
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./dates": "./src/dates.ts"
+  },
+  "dependencies": {
+    "pg-boss": "^10.1.5",
+    "@sentrello/db": "*",
+    "@sentrello/email": "*",
+    "drizzle-orm": "^0.45.0",
+    "@sentrello/licensing-client": "*"
+  }
+}

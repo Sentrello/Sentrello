@@ -1,0 +1,24 @@
+{
+  // Use the TypeScript this repo pins, not the one VS Code ships with.
+  // They are a major version apart, so without this the editor reports
+  // different errors from `bun run typecheck` — and the one you believe is
+  // whichever you happened to look at last.
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+
+  // Biome is what `bun run lint` runs. Formatting on save with anything else
+  // means every file arrives at review with changes nobody made on purpose.
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "biomejs.biome",
+  "[typescript]": { "editor.defaultFormatter": "biomejs.biome" },
+  "[typescriptreact]": { "editor.defaultFormatter": "biomejs.biome" },
+  "[json]": { "editor.defaultFormatter": "biomejs.biome" },
+
+  // Generated and vendored trees: searching them buries real results.
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/drizzle/meta": true
+  },
+  "files.watcherExclude": { "**/node_modules/**": true, "**/dist/**": true }
+}

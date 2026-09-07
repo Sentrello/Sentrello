@@ -1,0 +1,15 @@
+{
+  "name": "@sentrello/email",
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./templates": "./src/templates.ts"
+  },
+  "dependencies": {
+    "nodemailer": "^9.0.5"
+  },
+  "devDependencies": {
+    "@types/nodemailer": "^7.0.0"
+  }
+}

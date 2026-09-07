@@ -1,0 +1,30 @@
+{
+  "name": "sentrello-core",
+  "private": true,
+  "packageManager": "bun@1.3.14",
+  "workspaces": ["packages/*", "packages/modules-free/*", "apps/*"],
+  "scripts": {
+    "dev": "bun run --filter '@sentrello/server' --filter '@sentrello/web' dev",
+    "typecheck": "tsc -b",
+    "test": "bun test",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "db:generate": "bun run --cwd packages/db drizzle-kit generate",
+    "db:migrate": "bun run packages/db/src/migrate.ts",
+    "keys:gen": "bash scripts/gen-keys.sh",
+    "dev:token": "bun run scripts/mint-dev-token.ts",
+    "dev:api": "bun run --cwd apps/server dev",
+    "build:web": "bun run --cwd apps/web build",
+    "verify": "bash scripts/verify.sh"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/bun": "latest",
+    "jose": "^6.0.0",
+    "typescript": "^5.6.0"
+  },
+  "dependencies": {
+    "lucide-react": "^1.33.0",
+    "sharp": "^0.35.3"
+  }
+}
