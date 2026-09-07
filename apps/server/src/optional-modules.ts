@@ -90,6 +90,40 @@ function isModule(value: unknown): value is SentrelloModule {
  */
 export const failedBundles: { name: string; reason: string }[] = [];
 
+/**
+ * The core a bundle says it needs, against the core that is running.
+ *
+ * A bundle is source, linked in at startup and run by the host's own Bun
+ * against the host's own packages. So a bundle built against a core that has
+ * something the running one does not simply throws on import, and the reason
+ * lands in a log: `Export named 'date' not found`. That happened — a paid
+ * module went dark on a customer's instance for a release that was one version
+ * behind, and the only visible symptom was a feature that was not there.
+ *
+ * `sentrelloCore` in a bundle's package.json is the bundle saying so in
+ * advance. Comparing it here turns a cryptic import error into a sentence
+ * naming both versions, on /healthz and on the settings screen, where the
+ * answer is `sentrello update`.
+ *
+ * Deliberately a minimum and not a range: bundles are published with the core
+ * they were built beside, and a bundle refusing a *newer* core would make
+ * every core release a coordinated release of everything ever sold.
+ */
+export function coreIsTooOld(running: string, needs: string): boolean {
+  // An instance that cannot say what it is running is not told it is wrong;
+  // a dev checkout has no version baked in and every bundle would refuse.
+  if (!running || running === "unknown") return false;
+  const parts = (v: string) => v.split(".").map((n) => Number.parseInt(n, 10));
+  const [a, b] = [parts(running), parts(needs)];
+  if (a.some(Number.isNaN) || b.some(Number.isNaN)) return false;
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const left = a[i] ?? 0;
+    const right = b[i] ?? 0;
+    if (left !== right) return left < right;
+  }
+  return false;
+}
+
 async function discoverFromBundlesDir(dir: string): Promise<SentrelloModule[]> {
   const found: SentrelloModule[] = [];
   let entries: string[];
@@ -100,9 +134,25 @@ async function discoverFromBundlesDir(dir: string): Promise<SentrelloModule[]> {
     return found; // no bundles directory: a Free instance
   }
 
+  const running = process.env.SENTRELLO_VERSION ?? "unknown";
+
   for (const name of entries) {
     if (name.startsWith(".")) continue;
     try {
+      // Asked before the import, because the import is what fails obscurely.
+      const manifest = await import(`${dir}/${name}/package.json`, {
+        with: { type: "json" },
+      }).catch(() => null);
+      const needs = (
+        manifest as { default?: { sentrelloCore?: string } } | null
+      )?.default?.sentrelloCore;
+      if (needs && coreIsTooOld(running, needs)) {
+        const reason = `it needs Sentrello ${needs} or newer, and this instance is running ${running}. Run \`sentrello update\`.`;
+        failedBundles.push({ name, reason });
+        console.error(`[modules] bundle ${name} did not load: ${reason}`);
+        continue;
+      }
+
       const mod: unknown = await import(`${dir}/${name}/src/index.ts`);
       const candidate = (mod as { default?: unknown }).default;
       if (isModule(candidate)) found.push(candidate);
