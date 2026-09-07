@@ -56,8 +56,32 @@ const CALLED_BY_SOMETHING_ELSE: Record<string, string> = {
  * Asserted **exactly**, so it is a ratchet rather than an excuse: a newly
  * unreachable route fails this test, and so does fixing one of these without
  * deleting its line. A list that only ever grows is a list nobody reads.
+ *
+ * Every entry below appeared the day this comparison started including the
+ * HTTP method. Until then a screen that fetched a path made every other verb
+ * on it look reached, which is why the list was empty and wrong: almost all of
+ * these are a **delete** or an **edit**, because screens get built for the
+ * happy path and the destructive half is left as a route with no button.
  */
-const KNOWN_GAPS: Record<string, string[]> = {};
+const KNOWN_GAPS: Record<string, string[]> = {
+  accounting: [
+    // No screen deletes an account: the chart can be added to and renamed,
+    // and a mistake stays in it for ever.
+    "DELETE /api/accounts/:id",
+    // The presets are applied blind. Nothing lists them first, so a business
+    // picks its tax rates without being shown what it is about to get.
+    "GET /api/accounting/taxes/presets",
+    // A balance per account, fetched by nothing anywhere in the platform.
+    "GET /api/accounts/balances",
+    // A transaction can be created and deleted but never corrected, so fixing
+    // a typo means deleting the entry and its journal lines and retyping it.
+    "PATCH /api/transactions/:id",
+  ],
+  settings: [
+    // A business can connect a payment provider and cannot disconnect one.
+    "DELETE /api/payments/accounts/:provider/:mode",
+  ],
+};
 
 test.each(modules)("%s: every route has a caller", (name) => {
   const unreachable = unreachableRoutes({
