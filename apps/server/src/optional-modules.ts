@@ -149,9 +149,24 @@ export async function discoverOptionalModules(
 
   // production: bundles the installer unpacked
   if (bundlesDir) {
+    // Ids already loaded, growing as the directory is walked.
+    //
+    // It used to be built once and never added to, which deduplicated a bundle
+    // against a linked package and not against another bundle. Two directories
+    // carrying the same module id — what a renamed bundle leaves behind, since
+    // the installer only removes the names it is fetching — would both
+    // register, and a module whose routes are registered twice is answered by
+    // whichever won the race. Half-working is worse to diagnose than dark.
     const seen = new Set(found.map((m) => m.id));
     for (const module of await discoverFromBundlesDir(bundlesDir)) {
-      if (!seen.has(module.id)) found.push(module);
+      if (seen.has(module.id)) {
+        console.error(
+          `[modules] ${module.id} is installed more than once; using the first`,
+        );
+        continue;
+      }
+      seen.add(module.id);
+      found.push(module);
     }
   }
 
