@@ -2,7 +2,11 @@ import { expect, test } from "bun:test";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { discoverOptionalModules, failedBundles } from "./optional-modules";
+import {
+  coreIsTooOld,
+  discoverOptionalModules,
+  failedBundles,
+} from "./optional-modules";
 
 /**
  * A module a customer just bought turns up without anybody editing this repo.
@@ -121,4 +125,75 @@ test("a module found both ways is registered once", async () => {
   // Two directories, one module id between them.
   const deduped = await discoverOptionalModules([], both);
   expect(deduped).toHaveLength(1);
+});
+
+/**
+ * A bundle that needs a newer core says so, instead of throwing on import.
+ *
+ * The failure this replaces is on record: a `pro-projects` bundle built beside
+ * a core that had just gained a `date` export was installed on an instance one
+ * release behind, and every screen it carried was simply absent. The loader
+ * failed safe and reported it, which is the design working — but what it
+ * reported was `Export named 'date' not found`, which names neither the fix
+ * nor the versions involved.
+ */
+test("a bundle built for a newer core says which one it needs", async () => {
+  const before = failedBundles.length;
+  const dir = await bundleDir("mod-ahead", A_MODULE);
+  await writeFile(
+    join(dir, "mod-ahead", "package.json"),
+    JSON.stringify({ name: "mod-ahead", sentrelloCore: "0.27.0" }),
+  );
+
+  const was = process.env.SENTRELLO_VERSION;
+  process.env.SENTRELLO_VERSION = "0.26.3";
+  try {
+    expect(await discoverOptionalModules([], dir)).toEqual([]);
+  } finally {
+    if (was === undefined) process.env.SENTRELLO_VERSION = undefined;
+    else process.env.SENTRELLO_VERSION = was;
+  }
+
+  const reported = failedBundles.slice(before);
+  expect(reported[0]?.reason).toContain("0.27.0 or newer");
+  expect(reported[0]?.reason).toContain("0.26.3");
+  expect(reported[0]?.reason).toContain("sentrello update");
+});
+
+test("a core new enough loads it", async () => {
+  const dir = await bundleDir("mod-fine", A_MODULE);
+  await writeFile(
+    join(dir, "mod-fine", "package.json"),
+    JSON.stringify({ name: "mod-fine", sentrelloCore: "0.26.0" }),
+  );
+
+  const was = process.env.SENTRELLO_VERSION;
+  process.env.SENTRELLO_VERSION = "0.26.3";
+  try {
+    expect(await discoverOptionalModules([], dir)).toHaveLength(1);
+  } finally {
+    if (was === undefined) process.env.SENTRELLO_VERSION = undefined;
+    else process.env.SENTRELLO_VERSION = was;
+  }
+});
+
+/**
+ * Version ordering, where string comparison is wrong.
+ *
+ * `"0.9.0" < "0.10.0"` is false as strings and true as versions, and a check
+ * that got this backwards would refuse to load bundles that were fine — which
+ * is the same outcome as the bug it was written to prevent.
+ */
+test("versions compare as numbers, not as strings", () => {
+  expect(coreIsTooOld("0.9.0", "0.10.0")).toBe(true);
+  expect(coreIsTooOld("0.10.0", "0.9.0")).toBe(false);
+  expect(coreIsTooOld("1.0.0", "0.26.3")).toBe(false);
+  expect(coreIsTooOld("0.26.3", "0.26.3")).toBe(false);
+  expect(coreIsTooOld("0.26", "0.26.1")).toBe(true);
+
+  // A checkout with no version baked in refuses nothing: every bundle would
+  // fail to load on a developer's machine, which is where they are written.
+  expect(coreIsTooOld("unknown", "9.9.9")).toBe(false);
+  expect(coreIsTooOld("", "9.9.9")).toBe(false);
+  expect(coreIsTooOld("0.26.3", "not-a-version")).toBe(false);
 });
