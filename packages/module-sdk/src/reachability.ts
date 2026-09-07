@@ -178,7 +178,28 @@ export function requestedPaths(files: string[]): AskedPath[] {
      * the segments after it identify the route.
      */
     if (shape.length === 2 && shape[1] === "*") continue;
-    asked.push({ shape, methods: methodsAfter(text, m.index + m[0].length) });
+    /**
+     * A path kept in a variable is used somewhere this text cannot see.
+     *
+     * `const path = \`/api/payments/accounts/${provider}/${mode}\`` is then
+     * passed as `api(path, { method: "DELETE" })` several lines and several
+     * mutations later, and reading the verb that happens to follow the
+     * *binding* picks whichever one was written first — which said the Forget
+     * button did not exist while it was on the screen.
+     *
+     * So a binding carries every verb. It weakens the check for these paths
+     * and it cannot invent a false alarm, and of the two that is the error to
+     * make: this test is only useful for as long as it is believed.
+     */
+    const isBinding = /=\s*$/.test(
+      text.slice(Math.max(0, m.index - 8), m.index),
+    );
+    asked.push({
+      shape,
+      methods: isBinding
+        ? new Set(ALL_METHODS)
+        : methodsAfter(text, m.index + m[0].length),
+    });
   }
   return asked;
 }

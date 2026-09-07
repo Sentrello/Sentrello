@@ -3355,12 +3355,38 @@ type BookTax = {
 
 type Rate = { id: string; code: string; rateMicro: number; asOf: string };
 
-const REGIMES: { code: string; label: string }[] = [
-  { code: "us", label: "United States" },
-  { code: "ca", label: "Canada" },
-  { code: "uk", label: "United Kingdom" },
-  { code: "eu", label: "European Union" },
-];
+/**
+ * What a regime's rates are called where a person reads them.
+ *
+ * The regimes themselves come from the server — it holds the presets, and a
+ * second list here was a second list to remember: adding one there and not
+ * here would have left it unofferable, and the route that serves them was
+ * fetched by nothing at all.
+ */
+const REGIME_LABELS: Record<string, string> = {
+  us: "United States",
+  ca: "Canada",
+  uk: "United Kingdom",
+  eu: "European Union",
+};
+
+/**
+ * One rate a regime would add, as the server describes it.
+ *
+ * Only the name, the rate and the tax category are on every preset. The rest
+ * are set where they say something — a US sales tax rate is not reclaimable
+ * and says so; UK VAT carries no such field, and rendering its absence as
+ * "no" told a business it could not reclaim its VAT, which is both wrong and
+ * exactly the kind of wrong a screen should never invent.
+ */
+type TaxPreset = {
+  name: string;
+  rateBp: number;
+  categoryCode: string;
+  description?: string;
+  appliesTo?: string;
+  recoverable?: boolean;
+};
 
 /** 875 → "8.75%". Rates are basis points everywhere they are stored. */
 function asPercent(rateBp: number): string {
@@ -4688,6 +4714,21 @@ export function TaxAndCurrency() {
       ),
   });
 
+  /**
+   * The regimes on offer, and what each of them would add.
+   *
+   * Pressing "Add these rates" used to be blind: a business chose a country
+   * and found out what it had bought afterwards, on another screen. The route
+   * that answers both questions has always existed and nothing called it.
+   */
+  const presets = useQuery({
+    queryKey: ["tax-presets"],
+    queryFn: () =>
+      api<{ regimes: string[]; presets: Record<string, TaxPreset[]> }>(
+        "/api/accounting/taxes/presets",
+      ),
+  });
+
   const install = useMutation({
     mutationFn: () =>
       api("/api/accounting/taxes/presets", {
@@ -4763,17 +4804,59 @@ export function TaxAndCurrency() {
         <div className="flex items-end gap-3">
           <Field label="Where you trade">
             <Select value={regime} onChange={(e) => setRegime(e.target.value)}>
-              {REGIMES.map((r) => (
-                <option key={r.code} value={r.code}>
-                  {r.label}
+              {(presets.data?.regimes ?? []).map((code) => (
+                <option key={code} value={code}>
+                  {REGIME_LABELS[code] ?? code}
                 </option>
               ))}
             </Select>
           </Field>
-          <Button onClick={() => install.mutate()} disabled={install.isPending}>
+          <Button
+            onClick={() => install.mutate()}
+            disabled={install.isPending || !presets.data}
+          >
             Add these rates
           </Button>
         </div>
+
+        {/* What pressing that button will actually add. */}
+        {presets.data?.presets[regime]?.length ? (
+          <Table
+            headers={["Rate", { label: "Percent", money: true }, "Category"]}
+          >
+            {(presets.data.presets[regime] ?? []).map((preset) => (
+              <Row key={preset.name}>
+                <td className="py-2">
+                  {preset.name}
+                  {preset.description ? (
+                    <span className="block text-xs" style={muted}>
+                      {preset.description}
+                    </span>
+                  ) : null}
+                  {preset.appliesTo || preset.recoverable !== undefined ? (
+                    <span className="block text-xs" style={muted}>
+                      {[
+                        preset.appliesTo
+                          ? `charged on ${preset.appliesTo}`
+                          : "",
+                        preset.recoverable === undefined
+                          ? ""
+                          : preset.recoverable
+                            ? "reclaimable"
+                            : "not reclaimable",
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  ) : null}
+                </td>
+                <td className="money">{asPercent(preset.rateBp)}</td>
+                <td style={muted}>{preset.categoryCode}</td>
+              </Row>
+            ))}
+          </Table>
+        ) : null}
+
         <p className="mt-2 text-xs" style={muted}>
           Rates move, so these are a starting point you edit — nothing is ever
           added twice, and US sales tax has no national figure to ship.

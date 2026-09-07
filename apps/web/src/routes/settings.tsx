@@ -496,6 +496,20 @@ function Connection({
     onSuccess: onChanged,
   });
 
+  /**
+   * Removing the keys, which "Stop using it" does not do.
+   *
+   * Disabling leaves the secret key and the webhook secret in the database.
+   * That is right while a business is switching between sandbox and live, and
+   * wrong when it has closed the account, changed processor, or handed the
+   * instance to somebody else — and until now there was no way to do the
+   * second from any screen. The route has always been there.
+   */
+  const forget = useMutation({
+    mutationFn: () => api(path, { method: "DELETE" }),
+    onSuccess: onChanged,
+  });
+
   return (
     <Card>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -610,6 +624,20 @@ function Connection({
             Use this one
           </Button>
         )}
+        {/*
+          Only where there is something to forget, and never on the account
+          currently taking money — that one is stopped first, deliberately, so
+          removing the keys cannot be the thing that stops payments working.
+        */}
+        {account && !account.enabled ? (
+          <Button
+            variant="danger"
+            onClick={() => forget.mutate()}
+            disabled={forget.isPending}
+          >
+            Forget these keys
+          </Button>
+        ) : null}
       </div>
 
       {save.error ? <ErrorNote error={save.error} /> : null}
