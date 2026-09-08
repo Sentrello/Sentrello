@@ -612,6 +612,15 @@ function QuoteActions({
     },
   });
 
+  const unshare = useMutation({
+    mutationFn: () =>
+      api(`/api/quotes/${quote.id}/unshare`, { method: "POST" }),
+    onSuccess: () => {
+      setOpen(false);
+      onDone();
+    },
+  });
+
   /** Out of the bin. Deleting is soft, so there is something to come back. */
   const restore = useMutation({
     mutationFn: () =>
@@ -681,6 +690,23 @@ function QuoteActions({
           >
             {copied ? "Link copied" : "Copy a link to send"}
           </button>
+
+          {/*
+            Taking it back offline. A quote could be published to a link
+            anybody holding it can open, and never withdrawn — which matters
+            more here than on an invoice: a price offered and thought better of
+            stays readable for as long as somebody keeps the link.
+          */}
+          {quote.published ? (
+            <button
+              type="button"
+              className="menu-item"
+              onClick={() => unshare.mutate()}
+              disabled={unshare.isPending}
+            >
+              Stop sharing
+            </button>
+          ) : null}
 
           {/* Once, and only once. A second conversion is a second bill for
               the same work. */}

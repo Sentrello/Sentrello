@@ -19,7 +19,10 @@ import {
   Card,
   Empty,
   ErrorNote,
+  Field,
+  Input,
   Loading,
+  Select,
   border,
   formatDate,
   formatMoney,
@@ -189,6 +192,8 @@ function Notes({
 }: { contactId: string; notes: Related["notes"] }) {
   const qc = useQueryClient();
   const [text, setText] = useState("");
+  const settle = () =>
+    qc.invalidateQueries({ queryKey: ["contact-related", contactId] });
 
   const add = useMutation({
     mutationFn: () =>
@@ -202,8 +207,38 @@ function Notes({
       }),
     onSuccess: () => {
       setText("");
-      qc.invalidateQueries({ queryKey: ["contact-related", contactId] });
+      settle();
     },
+  });
+
+  /**
+   * Putting a note right, and taking one back.
+   *
+   * A note could be written and never touched again — no correction, no
+   * removal — so a name spelled wrong or a line meant for another customer
+   * stayed on the record for good. Both routes were registered by the CRM's
+   * generic helper and called by nothing, which is how they went unnoticed:
+   * the sweep that finds this could not read a route built from a template
+   * until today.
+   */
+  const [editing, setEditing] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
+
+  const amend = useMutation({
+    mutationFn: (input: { id: string; text: string }) =>
+      api(`/api/notes/${input.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ text: input.text }),
+      }),
+    onSuccess: () => {
+      setEditing(null);
+      settle();
+    },
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: string) => api(`/api/notes/${id}`, { method: "DELETE" }),
+    onSuccess: settle,
   });
 
   return (
@@ -230,6 +265,8 @@ function Notes({
         </Button>
       </div>
       {add.error ? <ErrorNote error={add.error} /> : null}
+      {amend.error ? <ErrorNote error={amend.error} /> : null}
+      {remove.error ? <ErrorNote error={remove.error} /> : null}
 
       <div className="mt-3 space-y-2">
         {notes.length === 0 ? (
@@ -243,7 +280,38 @@ function Notes({
               className="border-t pt-2 text-sm"
               style={{ borderColor: "var(--border)" }}
             >
-              <p className="whitespace-pre-wrap">{n.text}</p>
+              {editing === n.id ? (
+                <>
+                  <textarea
+                    rows={2}
+                    value={draft}
+                    aria-label="Correct this note"
+                    onChange={(e) => setDraft(e.target.value)}
+                    className="w-full rounded border px-2 py-1.5 text-sm"
+                    style={{
+                      background: "var(--surface-raised)",
+                      borderColor: "var(--border)",
+                      color: "var(--text)",
+                    }}
+                  />
+                  <div className="mt-1 flex gap-2">
+                    <Button
+                      disabled={!draft.trim() || amend.isPending}
+                      onClick={() => amend.mutate({ id: n.id, text: draft })}
+                    >
+                      Save
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => setEditing(null)}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <p className="whitespace-pre-wrap">{n.text}</p>
+              )}
 
               {n.attachments?.length ? (
                 <ul className="mt-1 space-y-0.5">
@@ -268,14 +336,24 @@ function Notes({
                 style={muted}
               >
                 {formatDate(n.createdAt)}
-                <Attach
-                  noteId={n.id}
-                  onDone={() =>
-                    qc.invalidateQueries({
-                      queryKey: ["contact-related", contactId],
-                    })
-                  }
-                />
+                <Attach noteId={n.id} onDone={settle} />
+                <button
+                  type="button"
+                  className="link-muted"
+                  onClick={() => {
+                    setEditing(n.id);
+                    setDraft(n.text);
+                  }}
+                >
+                  Correct
+                </button>
+                <button
+                  type="button"
+                  className="link-muted"
+                  onClick={() => remove.mutate(n.id)}
+                >
+                  Delete
+                </button>
               </p>
             </div>
           ))
@@ -525,6 +603,24 @@ export function HistoryPanel({
       ? `companyId=${companyId}`
       : "";
 
+  const qc = useQueryClient();
+  const [logging, setLogging] = useState(false);
+  const [kind, setKind] = useState("call");
+  const [said, setSaid] = useState("");
+
+  const log = useMutation({
+    mutationFn: () =>
+      api("/api/activities", {
+        method: "POST",
+        body: JSON.stringify({ contactId, type: kind, body: said }),
+      }),
+    onSuccess: () => {
+      setSaid("");
+      setLogging(false);
+      qc.invalidateQueries({ queryKey: ["crm-history"] });
+    },
+  });
+
   const { data, isLoading } = useQuery({
     queryKey: ["crm-history", query],
     queryFn: () =>
@@ -607,7 +703,52 @@ export function HistoryPanel({
 
   return (
     <Card>
-      <p className="mb-2 font-medium">History</p>
+      <div className="mb-2 flex items-center gap-2">
+        <p className="flex-1 font-medium">History</p>
+        {contactId ? (
+          <Button variant="secondary" onClick={() => setLogging((was) => !was)}>
+            {logging ? "Close" : "Log a call"}
+          </Button>
+        ) : null}
+      </div>
+
+      {/*
+        What the person actually did, written by the person who did it.
+        Everything else on this panel is written by the platform — a form
+        submitted, an invoice sent — and there was no way to add "rang them on
+        Tuesday, calling back Friday" to a customer's record at all. The route
+        has always been there, registered by the CRM's generic helper and
+        called by nothing.
+      */}
+      {logging && contactId ? (
+        <div className="mb-3 grid gap-2 sm:grid-cols-[9rem_1fr_auto] items-end">
+          <Field label="What it was">
+            <Select
+              value={kind}
+              onChange={(e) => setKind(e.currentTarget.value)}
+            >
+              <option value="call">A call</option>
+              <option value="meeting">A meeting</option>
+              <option value="email">An email</option>
+            </Select>
+          </Field>
+          <Field label="What happened">
+            <Input
+              value={said}
+              placeholder="Rang about the quote; calling back Friday"
+              onChange={(e) => setSaid(e.currentTarget.value)}
+            />
+          </Field>
+          <Button
+            disabled={!said.trim() || log.isPending}
+            onClick={() => log.mutate()}
+          >
+            Save it
+          </Button>
+          {log.error ? <ErrorNote error={log.error} /> : null}
+        </div>
+      ) : null}
+
       {isLoading ? (
         <Loading />
       ) : entries.length === 0 ? (

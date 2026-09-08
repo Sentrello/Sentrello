@@ -292,7 +292,19 @@ export function unreachableRoutes(args: {
   const asked = requestedPaths(args.screenFiles);
   const unreachable = new Set<string>();
 
-  for (const route of registeredRoutes(args.routeFiles)) {
+  /**
+   * Both kinds of registration.
+   *
+   * Template ones were invisible here until their variables could be resolved,
+   * so the CRM's whole CRUD surface and every share link went unchecked and
+   * nothing said so. Twelve unreachable routes were sitting in them.
+   */
+  const all = [
+    ...registeredRoutes(args.routeFiles),
+    ...templateRoutes(args.routeFiles),
+  ];
+
+  for (const route of all) {
     const method = route.slice(0, route.indexOf(" "));
     const path = route.slice(route.indexOf(" ") + 1);
     // An excuse may name the verb or just the path: a route reached by a
@@ -375,13 +387,22 @@ function resolvableIn(source: string): Map<string, string[]> {
     }
   }
 
-  // `path: "contacts"` — a field of that name anywhere in the file.
+  /**
+   * `path: "contacts"` — a field of that name anywhere in the file.
+   *
+   * Only for names a loop did not already pin down. `kind` is the loop over
+   * `["invoices", "quotes"]` in one file and also an unrelated field on a
+   * ledger entry — merging the two invented `/api/credit_note/:id/share`,
+   * a route nobody registered, and a route that does not exist is a false
+   * alarm waiting for whoever reads the report.
+   */
+  const fromLoops = new Set(values.keys());
   for (const m of source.matchAll(
     /\b([A-Za-z_$][\w$]*)\s*:\s*["'`]([A-Za-z0-9_-]+)["'`]/g,
   )) {
     const name = m[1];
     const value = m[2];
-    if (!name || !value) continue;
+    if (!name || !value || fromLoops.has(name)) continue;
     const seen = values.get(name) ?? [];
     if (!seen.includes(value)) values.set(name, [...seen, value]);
   }
