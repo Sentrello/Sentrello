@@ -199,6 +199,7 @@ export * from "./public-endpoints";
  * matching subtly wrong in one repository only.
  */
 export * from "./reachability";
+export * from "./unregistered";
 /**
  * Bank connections. Kept beside the payment processors because it is the same
  * argument: one contract, two providers, and the credentials belong to the
