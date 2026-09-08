@@ -54,19 +54,27 @@ export function sourceFiles(dir: string, extensions: string[]): string[] {
 export function pathShape(path: string): string[] {
   return (
     path
-      // A template literal nested inside a template literal —
-      // `/api/transactions${filter ? `?${filter}` : ""}` — is captured only as
-      // far as the inner backtick, leaving an opening `${` with no close. Cut it
-      // off before anything else: the `?` inside it used to be read as the start
-      // of a query string, which reduced a real path to `/api/*` and made two
-      // live screens look like they called nothing.
+      /**
+       * Template expressions first, before anything looks for a `?`.
+       *
+       * Both orders were tried and only this one is right, because a `?` can
+       * live *inside* an expression: `${project?.id}` is optional chaining and
+       * `${filter ? `?${filter}` : ""}` is a nested template. Stripping the
+       * query string first cut the path at that `?` and reduced a real route
+       * to `/api/projects/*`, which reported three live screens as calling
+       * nothing at all.
+       */
+      .replace(/\$\{[^}]*\}/g, "\u0000")
+      // What a nested template leaves behind: an opening `${` with no close,
+      // because the capture stopped at the inner backtick. It runs to the end
+      // by definition and everything after it is unknowable.
       .replace(/\$\{[^}]*$/, "")
       .replace(/[?#].*$/, "")
       .split("/")
       .filter(Boolean)
       .map((segment) =>
         // `:id`, `${id}` and Hono's `:token{.+\.ics}` are all one variable.
-        segment.startsWith(":") || segment.includes("${") ? "*" : segment,
+        segment.startsWith(":") || segment.includes("\u0000") ? "*" : segment,
       )
   );
 }
