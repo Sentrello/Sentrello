@@ -187,6 +187,15 @@ export function requestedPaths(files: string[]): AskedPath[] {
      */
     if (shape.length === 2 && shape[1] === "*") continue;
     /**
+     * `/api/` and nothing else identifies no route at all.
+     *
+     * `` `/api/${asQuote ? "quotes" : "invoices"}/${id}` `` is captured only as
+     * far as the quote inside the expression, so what survives is the prefix.
+     * Reading that as a request for `/api` reported one real screen as calling
+     * a route nobody had registered.
+     */
+    if (shape.length <= 1) continue;
+    /**
      * A path kept in a variable is used somewhere this text cannot see.
      *
      * `const path = \`/api/payments/accounts/${provider}/${mode}\`` is then
@@ -228,11 +237,27 @@ export function requestedPaths(files: string[]): AskedPath[] {
  */
 function methodsAfter(text: string, from: number): Set<string> {
   const ahead = text.slice(from, from + 400);
-  const next = ahead.search(/["`'`]\/api\//);
-  // A path immediately followed by another — `cond ? "/api/a" : "/api/b"` — is
-  // two paths sharing one call, so a nearly empty window means look further,
-  // not conclude GET.
-  const window = next > 40 ? ahead.slice(0, next) : ahead;
+
+  /**
+   * The window ends at the next request, stepping over the ones beside it.
+   *
+   * `query ? "/api/documents?q=…" : folderId ? "/api/documents?folderId=…" :
+   * "/api/documents"` is one call with three paths in it, and the verb belongs
+   * to all three. Stopping at the first neighbour would read the first branch
+   * as a bare GET; widening blindly past all of them reads the *next*
+   * mutation's `method: "DELETE"` as this call's. So: step over a literal that
+   * sits right beside the last one, and stop at the first that does not.
+   */
+  let at = 0;
+  let window = ahead;
+  for (const m of ahead.matchAll(/["`'](\/api\/[^"`'\n]*)/g)) {
+    const offset = m.index;
+    if (offset - at > 40) {
+      window = ahead.slice(0, offset);
+      break;
+    }
+    at = offset + m[0].length;
+  }
 
   const literal = window.match(
     /\bmethod\s*:\s*["`'](GET|POST|PUT|PATCH|DELETE)["`']/i,
@@ -281,4 +306,99 @@ export function unreachableRoutes(args: {
     if (!reached) unreachable.add(route);
   }
   return [...unreachable].sort();
+}
+
+/**
+ * Routes registered from a template rather than a literal.
+ *
+ * `ctx.app.get(`/api/${path}`, …)` inside a helper, and
+ * `ctx.app.post(`/api/${kind}/:id/share`, …)` inside a loop over two kinds.
+ * Both are good code — one CRUD implementation for seven resources beats seven
+ * — and both are invisible to `registeredRoutes`, which reads double-quoted
+ * paths only.
+ *
+ * That blind spot was silent, which is the part worth fixing: the whole of the
+ * CRM's contacts, companies, deals, tags, tasks, notes and activities, and
+ * every invoice and quote share link, were never checked by any sweep, and
+ * nothing said so. A guard is only worth what it admits it cannot see.
+ *
+ * The `${…}` becomes a wildcard, so `/api/${kind}/:id/share` matches a screen
+ * asking for `/api/invoices/${id}/share`. That is too loose to *find* an
+ * unreachable route — `/api/${path}` would stand for half the platform — so
+ * these are used only to avoid crying wolf in the other direction, and are
+ * inventoried by a test of their own.
+ */
+export function templateRoutes(files: string[]): string[] {
+  const found = new Set<string>();
+  for (const file of files) {
+    const source = readFileSync(file, "utf8");
+    const values = resolvableIn(source);
+
+    for (const m of source.matchAll(
+      /\bapp\.(get|post|put|patch|delete)\(\s*`(\/api\/[^`]*)`/g,
+    )) {
+      const method = (m[1] as string).toUpperCase();
+      const path = m[2];
+      if (!path) continue;
+      for (const real of expand(path, values)) found.add(`${method} ${real}`);
+    }
+  }
+  return [...found].sort();
+}
+
+/**
+ * What each `${…}` in this file can actually be.
+ *
+ * The variables in these paths are not mysteries: `${path}` is a field in a
+ * table of resource definitions — `path: "contacts"` — and `${kind}` is the
+ * loop it sits in, `for (const kind of ["invoices", "quotes"])`. Reading them
+ * turns one generic pattern into the seven or two real routes it registers.
+ *
+ * Worth the twenty lines, because the alternative is a wildcard: `/api/${path}
+ * /:id` as `api/*​/*` matches any three-segment path in the platform, and a
+ * matcher that matches everything proves nothing. It masked a screen calling a
+ * verb no route answered — the very bug this file was extended to find.
+ */
+function resolvableIn(source: string): Map<string, string[]> {
+  const values = new Map<string, string[]>();
+
+  // `for (const kind of ["invoices", "quotes"])`
+  for (const m of source.matchAll(
+    /for\s*\(\s*const\s+([A-Za-z_$][\w$]*)\s+of\s*\[([^\]]*)\]/g,
+  )) {
+    const name = m[1];
+    const items = [...(m[2] ?? "").matchAll(/["'`]([^"'`]+)["'`]/g)].map(
+      (x) => x[1] as string,
+    );
+    if (name && items.length) {
+      values.set(name, [...(values.get(name) ?? []), ...items]);
+    }
+  }
+
+  // `path: "contacts"` — a field of that name anywhere in the file.
+  for (const m of source.matchAll(
+    /\b([A-Za-z_$][\w$]*)\s*:\s*["'`]([A-Za-z0-9_-]+)["'`]/g,
+  )) {
+    const name = m[1];
+    const value = m[2];
+    if (!name || !value) continue;
+    const seen = values.get(name) ?? [];
+    if (!seen.includes(value)) values.set(name, [...seen, value]);
+  }
+
+  return values;
+}
+
+/** One template, as every concrete path it can stand for. */
+function expand(path: string, values: Map<string, string[]>): string[] {
+  const m = path.match(/\$\{([A-Za-z_$][\w$]*)\}/);
+  if (!m) return [path];
+
+  const options = values.get(m[1] as string);
+  // Nothing to resolve it with: keep the wildcard, and let whoever reads the
+  // inventory decide whether that is good enough.
+  if (!options?.length) {
+    return expand(path.replace(m[0], "*"), values);
+  }
+  return options.flatMap((value) => expand(path.replace(m[0], value), values));
 }
