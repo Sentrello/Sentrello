@@ -26,6 +26,15 @@ export interface HistoryEntry {
   detail?: string | null;
   /** What to open when somebody clicks it. */
   link?: { moduleId: string; recordId: string; title: string } | null;
+  /**
+   * The activity this entry is, where a person wrote it.
+   *
+   * Only activities carry one, and only so the screen can offer to correct or
+   * remove what somebody typed. Everything else in this stream is written by
+   * the platform — a form submitted, an invoice sent, a task finished — and is
+   * a record of what happened rather than a thing to edit.
+   */
+  activityId?: string;
 }
 
 /**
@@ -168,6 +177,7 @@ export function registerCrmHistory(ctx: ModuleContext) {
           kind: ACTIVITY_KINDS[activity.type] ?? ("note" as const),
           title: activity.body ?? activity.type,
           detail: null,
+          activityId: activity.id,
         })),
         ...tasks.flatMap((task) => {
           const rows: HistoryEntry[] = [];

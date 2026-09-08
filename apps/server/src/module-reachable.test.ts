@@ -86,17 +86,12 @@ const KNOWN_GAPS: Record<string, string[]> = {
   // the route would have vanished from the product and stayed in this list,
   // which is worse than an honest gap.
   //
-  // Editing and deleting a logged activity is the one real gap left: a call
-  // can now be recorded, and a call recorded against the wrong customer has to
-  // stay. Worth a screen; not worth inventing one badly at the end of a long
-  // day.
-  crm: [
-    "DELETE /api/activities/:id",
-    "DELETE /api/tags/:id",
-    "GET /api/activities",
-    "GET /api/notes",
-    "PATCH /api/activities/:id",
-  ],
+  // Nothing else is left: what a person logs on a contact's history can be
+  // written, corrected and removed, and the entry carries an id for exactly
+  // that reason — nothing else in that stream does, because everything else
+  // in it is the platform recording what happened, and a history somebody can
+  // edit is not a history.
+  crm: ["DELETE /api/tags/:id", "GET /api/activities", "GET /api/notes"],
 };
 
 test.each(modules)("%s: every route has a caller", (name) => {
