@@ -57,14 +57,47 @@ const CALLED_BY_SOMETHING_ELSE: Record<string, string> = {
  * unreachable route fails this test, and so does fixing one of these without
  * deleting its line. A list that only ever grows is a list nobody reads.
  *
- * Empty, and it took work to be: the five that appeared the day this
- * comparison started including the HTTP method were all a **delete** or an
- * **edit** — screens get built for the happy path and the destructive half is
- * left as a route with no button. A business could add an account to its chart
- * and never remove one, correct nothing about a transaction it typed wrong,
- * and connect a payment provider without being able to forget its keys.
+ * These twelve appeared the day the sweep learned to read routes registered
+ * from a **template**. `ctx.app.get(`/api/${path}`, …)` inside a generic CRUD
+ * helper, and `/api/${kind}/:id/share` inside a loop over two kinds: forty
+ * routes across the CRM, accounting and invoicing that no sweep had ever
+ * looked at, and nothing said so.
+ *
+ * Like the five before them, almost all are a **delete** — screens get built
+ * for the happy path and the destructive half is left as a route with no
+ * button.
  */
-const KNOWN_GAPS: Record<string, string[]> = {};
+const KNOWN_GAPS: Record<string, string[]> = {
+  // Sorted, because that is how they come back. The reasons are grouped in
+  // the comment rather than beside each line, so the order can stay.
+  //
+  // What is left after the screens were written, and why each stays.
+  //
+  // `DELETE /api/tags/:id` is the generic helper's delete, superseded by
+  // `/api/crm/tags/:id` — which is what the settings screen calls, because it
+  // answers with how many records the tag came off. Two ways to delete a tag
+  // is one more than anybody needs.
+  //
+  // The two whole-business lists are `crud()` registering `GET /api/<resource>`
+  // for everything in its table. For these two the record's own history is the
+  // screen: an unordered, unpaged list of every note in the business answers
+  // no question anybody has. Making the helper skip them was tried and
+  // reverted — the sweep reads source text and cannot see a runtime `if`, so
+  // the route would have vanished from the product and stayed in this list,
+  // which is worse than an honest gap.
+  //
+  // Editing and deleting a logged activity is the one real gap left: a call
+  // can now be recorded, and a call recorded against the wrong customer has to
+  // stay. Worth a screen; not worth inventing one badly at the end of a long
+  // day.
+  crm: [
+    "DELETE /api/activities/:id",
+    "DELETE /api/tags/:id",
+    "GET /api/activities",
+    "GET /api/notes",
+    "PATCH /api/activities/:id",
+  ],
+};
 
 test.each(modules)("%s: every route has a caller", (name) => {
   const unreachable = unreachableRoutes({

@@ -62,11 +62,14 @@ function EditDeal({
   companyId,
   contactIds,
   onDone,
+  onDeleted,
 }: {
   deal: Related["deal"];
   companyId: string | null;
   contactIds: string[];
   onDone: () => void;
+  /** Deleting leaves nothing to come back to, so the screen navigates away. */
+  onDeleted: () => void;
 }) {
   const qc = useQueryClient();
   const settings = useCrmSettings();
@@ -94,6 +97,19 @@ function EditDeal({
     queryKey: ["companies"],
     queryFn: () =>
       api<{ companies: { id: string; name: string }[] }>("/api/companies"),
+  });
+
+  const remove = useMutation({
+    mutationFn: () => api(`/api/deals/${deal.id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["deals"] });
+      qc.invalidateQueries({ queryKey: ["contact-related"] });
+      qc.invalidateQueries({ queryKey: ["company-related"] });
+      // Not `onDone`: that closes the form and leaves somebody looking at a
+      // record that is no longer there, which is what the first run of this
+      // did — the row was gone from the database and still on the screen.
+      onDeleted();
+    },
   });
 
   const save = useMutation({
@@ -221,6 +237,19 @@ function EditDeal({
         >
           {save.isPending ? "Saving…" : "Save"}
         </Button>
+        {/*
+          A deal could be made, moved through every stage and marked won, and
+          never removed — so one opened by mistake or entered twice sat in the
+          pipeline and in its figures for good. The route was there and nothing
+          called it.
+        */}
+        <Button
+          variant="danger"
+          disabled={remove.isPending}
+          onClick={() => remove.mutate()}
+        >
+          Delete
+        </Button>
         <button type="button" className="text-sm link-muted" onClick={onDone}>
           Cancel
         </button>
@@ -317,6 +346,7 @@ export function DealDetail() {
         companyId={company?.id ?? null}
         contactIds={contacts.map((p) => p.id)}
         onDone={() => setEditing(false)}
+        onDeleted={() => open({ moduleId: "deals", title: "Deals" })}
       />
     );
   }

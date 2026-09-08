@@ -113,15 +113,37 @@ export function Receipt({
     onSuccess: onDone,
   });
 
+  const detach = useMutation({
+    mutationFn: () => api(`/api/${holder}/${id}/receipt`, { method: "DELETE" }),
+    onSuccess: onDone,
+  });
+
   if (has) {
     return (
-      <a
-        className="text-xs underline"
-        href={`/api/${holder}/${id}/receipt`}
-        style={muted}
-      >
-        Receipt
-      </a>
+      <span className="flex items-center gap-2">
+        <a
+          className="text-xs underline"
+          href={`/api/${holder}/${id}/receipt`}
+          style={muted}
+        >
+          Receipt
+        </a>
+        {/*
+          Taking one off, which nothing could do. A photo attached to the wrong
+          line stayed on it, and re-attaching only replaced one wrong file with
+          another. The route was registered from a template and so was invisible
+          to every sweep in the platform until today.
+        */}
+        <button
+          type="button"
+          className="text-xs underline"
+          style={muted}
+          disabled={detach.isPending}
+          onClick={() => detach.mutate()}
+        >
+          remove
+        </button>
+      </span>
     );
   }
   return (

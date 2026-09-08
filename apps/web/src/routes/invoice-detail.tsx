@@ -387,6 +387,22 @@ export function InvoiceDetail() {
             >
               {copied ? "Link copied" : "Copy a link"}
             </Button>
+            {/*
+              Taking it back offline. A document could be published to a link
+              anybody holding it can open, and never withdrawn — the route to
+              do so has existed since sharing did, called by nothing, and only
+              looked reached because a generic action caller beside it matches
+              any word in that position.
+            */}
+            {invoice.published ? (
+              <Button
+                variant="secondary"
+                onClick={() => act.mutate("unshare")}
+                disabled={act.isPending}
+              >
+                Stop sharing
+              </Button>
+            ) : null}
             <Button
               variant="secondary"
               onClick={() => act.mutate("duplicate")}
