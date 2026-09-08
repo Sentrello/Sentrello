@@ -608,6 +608,34 @@ export function HistoryPanel({
   const [kind, setKind] = useState("call");
   const [said, setSaid] = useState("");
 
+  /**
+   * Putting right what somebody typed, and taking it back.
+   *
+   * Only what a person logged: everything else in this stream is the platform
+   * recording what happened, and a history somebody can edit is not a history.
+   * That is why the entry carries an id at all — nothing else in it does.
+   */
+  const [correcting, setCorrecting] = useState<string | null>(null);
+  const [correction, setCorrection] = useState("");
+
+  const amendLog = useMutation({
+    mutationFn: (input: { id: string; body: string }) =>
+      api(`/api/activities/${input.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ body: input.body }),
+      }),
+    onSuccess: () => {
+      setCorrecting(null);
+      qc.invalidateQueries({ queryKey: ["crm-history"] });
+    },
+  });
+
+  const dropLog = useMutation({
+    mutationFn: (id: string) =>
+      api(`/api/activities/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["crm-history"] }),
+  });
+
   const log = useMutation({
     mutationFn: () =>
       api("/api/activities", {
@@ -630,6 +658,8 @@ export function HistoryPanel({
           kind: string;
           title: string;
           detail: string | null;
+          /** Present where a person wrote it, and only then. */
+          activityId?: string;
         }[];
       }>(`/api/crm/history?${query}`),
     enabled: query !== "",
@@ -686,6 +716,9 @@ export function HistoryPanel({
             : `Paid${row.summary ? ` by ${row.summary}` : ""}`,
         detail:
           row.amountCents === undefined ? null : formatMoney(row.amountCents),
+        // An invoice or a payment is a record of what happened, not something
+        // typed; naming the field keeps the merged list one shape.
+        activityId: undefined as string | undefined,
       })),
   ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
 
@@ -748,6 +781,8 @@ export function HistoryPanel({
           {log.error ? <ErrorNote error={log.error} /> : null}
         </div>
       ) : null}
+      {amendLog.error ? <ErrorNote error={amendLog.error} /> : null}
+      {dropLog.error ? <ErrorNote error={dropLog.error} /> : null}
 
       {isLoading ? (
         <Loading />
@@ -765,11 +800,64 @@ export function HistoryPanel({
               <span className="mt-0.5" style={muted}>
                 <Icon name={icon[entry.kind] ?? "clipboard"} size={14} />
               </span>
-              <span className="min-w-0">
-                <span className="block whitespace-pre-line">{entry.title}</span>
-                <span className="text-xs" style={muted}>
+              <span className="min-w-0 flex-1">
+                {correcting && correcting === entry.activityId ? (
+                  <span className="flex items-center gap-2">
+                    <Input
+                      value={correction}
+                      aria-label="Correct this entry"
+                      onChange={(e) => setCorrection(e.currentTarget.value)}
+                    />
+                    <Button
+                      disabled={!correction.trim() || amendLog.isPending}
+                      onClick={() =>
+                        amendLog.mutate({
+                          id: entry.activityId as string,
+                          body: correction,
+                        })
+                      }
+                    >
+                      Save
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => setCorrecting(null)}
+                    >
+                      Cancel
+                    </Button>
+                  </span>
+                ) : (
+                  <span className="block whitespace-pre-line">
+                    {entry.title}
+                  </span>
+                )}
+                <span className="text-xs flex items-center gap-2" style={muted}>
                   {formatDate(entry.at)}
                   {entry.detail ? ` · ${entry.detail}` : ""}
+                  {/* Only what a person typed can be changed. */}
+                  {entry.activityId && correcting !== entry.activityId ? (
+                    <>
+                      <button
+                        type="button"
+                        className="link-muted"
+                        onClick={() => {
+                          setCorrecting(entry.activityId as string);
+                          setCorrection(entry.title);
+                        }}
+                      >
+                        Correct
+                      </button>
+                      <button
+                        type="button"
+                        className="link-muted"
+                        onClick={() =>
+                          dropLog.mutate(entry.activityId as string)
+                        }
+                      >
+                        Delete
+                      </button>
+                    </>
+                  ) : null}
                 </span>
               </span>
             </li>
