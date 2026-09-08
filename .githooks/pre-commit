@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Run the gate, and refuse the commit if it fails.
+#
+# Twice now a commit has landed on a failing gate — once because `bun run
+# verify | tail` made the pipeline's exit code tail's, and once because the
+# exit code was read into a variable and then not obeyed. Both times the gate
+# worked perfectly and the commit went through anyway.
+#
+# Reading a result is not the same as acting on it, and remembering to act on
+# it is not a control. This is.
+#
+# Enable once per clone:  git config core.hooksPath .githooks
+# Bypass deliberately:    git commit --no-verify   (say why in the message)
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+
+if ! command -v bun >/dev/null 2>&1; then
+  echo "pre-commit: bun is not on PATH — skipping the gate" >&2
+  exit 0
+fi
+
+LOG="$(mktemp)"
+trap 'rm -f "$LOG"' EXIT
+
+if bun run verify > "$LOG" 2>&1; then
+  grep -E '^  [a-z]' "$LOG" || true
+  exit 0
+fi
+
+# Show the failure rather than making somebody go and find it.
+echo
+echo "pre-commit: the gate failed, so this commit was not made." >&2
+echo >&2
+tail -40 "$LOG" >&2
+exit 1
