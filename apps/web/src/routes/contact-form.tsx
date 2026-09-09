@@ -196,6 +196,16 @@ export function ContactForm({
   const [hasNewsletter, setHasNewsletter] = useState(
     contact?.hasNewsletter ?? false,
   );
+  /**
+   * The CCPA right to opt out of a business selling or sharing your data.
+   *
+   * Deliberately not the same control as the newsletter tick above it, and the
+   * distinction is the one businesses get wrong: unsubscribing is about being
+   * *contacted*, this is about the data going elsewhere. Somebody can be happy
+   * to hear from you monthly and object to being on a list you hand to an
+   * agency, and treating the two as one control loses one of them.
+   */
+  const [doNotSell, setDoNotSell] = useState(contact?.doNotSell ?? false);
   const [customValues, setCustomValues] = useState<
     Record<string, string | number | boolean | null>
   >(contact?.customValues ?? {});
@@ -221,6 +231,7 @@ export function ContactForm({
         gender: gender || null,
         ownerId: ownerId || null,
         hasNewsletter,
+        doNotSell,
         email: email.first,
         emails: email.rest,
         phone: phone.first,
@@ -372,6 +383,23 @@ export function ContactForm({
             onChange={(e) => setHasNewsletter(e.target.checked)}
           />
           They agreed to receive the newsletter
+        </label>
+
+        <label className="flex items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            className="mt-1"
+            checked={doNotSell}
+            onChange={(e) => setDoNotSell(e.target.checked)}
+          />
+          <span>
+            They asked not to have their information sold or shared
+            <span className="block" style={muted}>
+              Marked on every export of your contacts, so whoever opens the file
+              can see it. Different from unsubscribing, which is about
+              contacting them.
+            </span>
+          </span>
         </label>
 
         <div className="flex items-center gap-2">

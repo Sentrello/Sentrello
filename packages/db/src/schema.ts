@@ -125,6 +125,21 @@ export const contacts = pgTable(
      * people notice first. A list rather than more columns, because the number
      * of them is not knowable in advance.
      */
+    /**
+     * "Do not sell or share my personal information" — the CCPA right.
+     *
+     * A choice a person makes, recorded against them and honoured wherever
+     * their details would otherwise be handed to somebody else. The date is
+     * kept because the obligation is to act on it within fifteen business days
+     * and to be able to show when it was received.
+     *
+     * Not the same as unsubscribing from a mailing list, which is about
+     * *contacting* them. This is about their data going elsewhere, and a
+     * business can be doing the second while honouring the first.
+     */
+    doNotSell: boolean("do_not_sell").notNull().default(false),
+    doNotSellOn: timestamp("do_not_sell_on"),
+
     emails: jsonb("emails").$type<{ label: string; value: string }[]>(),
     phones: jsonb("phones").$type<{ label: string; value: string }[]>(),
     /**

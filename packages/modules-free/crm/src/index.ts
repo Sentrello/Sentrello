@@ -316,6 +316,18 @@ function crud<T extends keyof typeof tables>(
         const name = displayName(parsed.value);
         if (name) parsed.value.name = name;
         normaliseStatus(parsed.value);
+        /**
+         * The date the request was received, stamped by the server.
+         *
+         * Not taken from the caller: the CCPA gives fifteen business days to
+         * act on an opt-out and the evidence that matters is when it arrived,
+         * which a browser is in no position to assert. Cleared when the choice
+         * is reversed, so the field never describes a request that is no longer
+         * in force.
+         */
+        if (parsed.value.doNotSell !== undefined) {
+          parsed.value.doNotSellOn = parsed.value.doNotSell ? new Date() : null;
+        }
       }
       await withCustomValues(resource, orgId, parsed.value);
       if (resource === "deals") await withDecidedAt(orgId, parsed.value);
@@ -904,6 +916,21 @@ export const EXPORT_COLUMNS = [
   "Other emails",
   "Other phones",
   "LinkedIn",
+  /**
+   * Carried into the file, because the file is where the obligation gets lost.
+   *
+   * A contact export is the moment a customer list becomes something a person
+   * can hand to somebody else — an agency, a mailing tool, a spreadsheet that
+   * ends up somewhere. Somebody who has asked not to have their information
+   * sold or shared has to be identifiable *in that file*, or the choice was
+   * recorded and then quietly dropped at the one point it mattered.
+   *
+   * Marked rather than removed. Silently dropping rows from an export makes a
+   * business believe it has a complete list when it does not, and they need
+   * the row for their own purposes — it is the *sharing* the person objected
+   * to, not the business knowing who they are.
+   */
+  "Do not sell or share",
 ] as const;
 
 export function displayName(body: Record<string, unknown>): string | undefined {
@@ -1086,6 +1113,9 @@ function registerCrmScreens(
           (r.emails ?? []).map((e) => `${e.label}: ${e.value}`).join("; "),
           (r.phones ?? []).map((e) => `${e.label}: ${e.value}`).join("; "),
           r.linkedinUrl ?? "",
+          // Words rather than a boolean: this row is read by a person deciding
+          // what to do with the file, and "true" in a column is easy to miss.
+          r.doNotSell ? "DO NOT SELL OR SHARE" : "",
         ]),
       );
 
