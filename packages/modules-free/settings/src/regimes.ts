@@ -138,6 +138,31 @@ export const REGIMES: Regime[] = [
     suggestedFor: { places: ["ca"] },
   },
   {
+    id: "eu-einvoicing",
+    label: "EU e-invoicing",
+    where: "Italy, France, Germany, Poland and, before long, the whole EU",
+    when: "You invoice businesses in a country that requires structured e-invoices. In several of them a PDF is no longer an invoice.",
+    turnsOn: [
+      "A structured e-invoice on each invoice, in the European standard",
+      "A check before issuing, saying what is missing rather than letting a tax authority reject it",
+    ],
+    yourJob: [
+      {
+        what: "Your own address and VAT number, in Settings",
+        why: "The standard makes your country mandatory. A free-text address cannot supply it.",
+      },
+      {
+        what: "Your customers' addresses on their company records",
+        why: "An address lives on a company here, so a customer saved only as a person has none — and their country is mandatory too.",
+      },
+      {
+        what: "Sending it, which is not the same as producing it",
+        why: "Italy files through SDI, France through a registered platform, and Peppol needs an access point. This produces the document; delivery is the country's own arrangement.",
+      },
+    ],
+    suggestedFor: { places: ["eu"] },
+  },
+  {
     id: "accessibility",
     label: "Accessibility (WCAG 2.2 AA)",
     where: "Everywhere, and required by law in most of it",
