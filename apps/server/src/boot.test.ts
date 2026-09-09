@@ -773,3 +773,28 @@ test("a caller with settings:read alone is offered none of the Users console", a
     .where(eq(schema.user.id, reader.response.user.id));
   await owner.cleanUp();
 });
+
+/**
+ * A researcher can find where to report something.
+ *
+ * RFC 9116. A scanner checks this path, procurement questionnaires ask whether
+ * it exists, and a researcher who cannot find a contact address either gives up
+ * or posts publicly — which is the outcome the file exists to prevent.
+ *
+ * Unauthenticated on purpose: the person who needs it does not have an account,
+ * and requiring one would be the same as not having the file.
+ */
+test("security.txt says where to report a vulnerability, without a session", async () => {
+  const server = (await import("./index")).default;
+  const res = await server.fetch(
+    new Request("http://localhost/.well-known/security.txt"),
+  );
+  expect(res.status).toBe(200);
+  expect(res.headers.get("content-type")).toContain("text/plain");
+
+  const body = await res.text();
+  expect(body).toContain("Contact: mailto:security@sentrello.com");
+  // The distinction a researcher needs: this instance belongs to a business,
+  // the software belongs to us.
+  expect(body).toContain("self-hosted instance");
+});

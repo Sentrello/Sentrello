@@ -126,6 +126,41 @@ async function databaseHealth(): Promise<"ok" | "unmigrated" | "unreachable"> {
   }
 }
 
+/**
+ * Where to report a vulnerability, at the address a researcher will look.
+ *
+ * RFC 9116. A scanner checks this path, a government procurement questionnaire
+ * asks whether it exists, and a researcher who cannot find a contact address
+ * either gives up or posts publicly — which is the outcome the file prevents.
+ *
+ * Served by the application rather than dropped in a web server's document
+ * root, because every instance of this product is somebody else's server and
+ * none of them will place a file by hand.
+ *
+ * No `Expires` date. RFC 9116 asks for one and it is the field that makes these
+ * files go stale: a date a year out becomes a lie in a year, on thousands of
+ * instances nobody will revisit. The contact address is the part a researcher
+ * needs, and a stale expiry is worse than none because it says the rest cannot
+ * be trusted either.
+ */
+app.get("/.well-known/security.txt", (c) =>
+  c.text(
+    [
+      "Contact: mailto:security@sentrello.com",
+      "Preferred-Languages: en",
+      "Canonical: https://sentrello.com/.well-known/security.txt",
+      "Policy: https://github.com/sentrello/sentrello/blob/main/SECURITY.md",
+      "",
+      "# This is a self-hosted instance. Reports about this particular",
+      "# server should go to whoever runs it; reports about the software",
+      "# itself go to the address above.",
+      "",
+    ].join("\n"),
+    200,
+    { "content-type": "text/plain; charset=utf-8" },
+  ),
+);
+
 app.get("/healthz", async (c) => {
   const database = await databaseHealth();
   return c.json({
