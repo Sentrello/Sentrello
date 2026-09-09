@@ -4524,6 +4524,23 @@ export function Reports() {
     queryKey: ["tax-summary", from, to],
     queryFn: () => api<TaxSummary>(`/api/reports/tax-summary?${range}`),
   });
+  /**
+   * The nine boxes of a UK VAT return.
+   *
+   * Beside the tax summary rather than instead of it: the summary answers "what
+   * is owed", and this is the form somebody signs. A business wants to see the
+   * boxes it is going to attest to, in a form it can disagree with, before
+   * anything is filed.
+   */
+  const vat = useQuery({
+    queryKey: ["vat-return", from, to],
+    queryFn: () =>
+      api<{
+        boxes: Record<string, number>;
+        asSubmitted: Record<string, number>;
+        notCovered: string[];
+      }>(`/api/reports/vat-return?${range}`),
+  });
   const categories = useQuery({
     queryKey: ["by-category", from, to],
     queryFn: () => api<CategoryTotals>(`/api/reports/by-category?${range}`),
@@ -4587,6 +4604,75 @@ export function Reports() {
               with a second opinion about them. Check it against the return
               before filing.
             </p>
+          </>
+        ) : null}
+      </Card>
+
+      <Card>
+        <h2 className="mb-2 font-semibold text-sm">VAT return</h2>
+        {vat.isLoading ? <Loading /> : null}
+        {vat.error ? <ErrorNote error={vat.error} /> : null}
+        {vat.data ? (
+          <>
+            <p className="mb-2 text-xs" style={muted}>
+              The nine boxes for the dates above, as HMRC numbers them. Check
+              them before you file — this is a declaration you are liable for.
+            </p>
+            <Table
+              headers={["Box", "What it is", { label: "Amount", money: true }]}
+            >
+              {[
+                ["1", "VAT due on sales", vat.data.boxes.vatDueSales],
+                [
+                  "2",
+                  "VAT due on EU acquisitions",
+                  vat.data.boxes.vatDueAcquisitions,
+                ],
+                ["3", "Total VAT due", vat.data.boxes.totalVatDue],
+                [
+                  "4",
+                  "VAT reclaimed on purchases",
+                  vat.data.boxes.vatReclaimedCurrPeriod,
+                ],
+                ["5", "Net VAT to pay or reclaim", vat.data.boxes.netVatDue],
+                [
+                  "6",
+                  "Total sales, excluding VAT",
+                  vat.data.boxes.totalValueSalesExVAT,
+                ],
+                [
+                  "7",
+                  "Total purchases, excluding VAT",
+                  vat.data.boxes.totalValuePurchasesExVAT,
+                ],
+                [
+                  "8",
+                  "Supplies to the EU",
+                  vat.data.boxes.totalValueGoodsSuppliedExVAT,
+                ],
+                [
+                  "9",
+                  "Acquisitions from the EU",
+                  vat.data.boxes.totalAcquisitionsExVAT,
+                ],
+              ].map(([box, label, cents]) => (
+                <Row key={String(box)}>
+                  <td style={muted}>{box}</td>
+                  <td>{label}</td>
+                  <td className="money">{formatMoney(Number(cents))}</td>
+                </Row>
+              ))}
+            </Table>
+            {/*
+              Said with the numbers rather than in documentation nobody opens.
+              A business that needs boxes 2, 8 or 9 has to know these are zero
+              because nothing filled them in — not because the answer is nought.
+            */}
+            {vat.data.notCovered.map((note) => (
+              <p key={note} className="mt-2 text-xs" style={muted}>
+                {note}
+              </p>
+            ))}
           </>
         ) : null}
       </Card>
