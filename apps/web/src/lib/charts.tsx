@@ -69,7 +69,7 @@ export function Bars({
                 // Always at least a hairline: a bar of zero height reads as a
                 // missing month rather than an empty one.
                 height: `${Math.max(2, (Math.max(0, p.value) / top) * 100)}%`,
-                background: "var(--color-brand-500)",
+                background: "var(--brand-on-white-text)",
               }}
             />
           </div>

@@ -640,7 +640,7 @@ export function Money() {
             style={
               tab === t.id
                 ? {
-                    background: "var(--color-brand-500)",
+                    background: "var(--brand-on-white-text)",
                     color: "var(--color-neutral-50)",
                   }
                 : undefined

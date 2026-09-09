@@ -126,7 +126,7 @@ export function ForgotPassword({ onBack }: { onBack: () => void }) {
               disabled={busy}
               className="w-full rounded px-3 py-2 text-sm font-medium"
               style={{
-                background: "var(--color-brand-500)",
+                background: "var(--brand-on-white-text)",
                 color: "var(--color-neutral-50)",
                 opacity: busy ? 0.6 : 1,
               }}
@@ -191,7 +191,7 @@ export function ResetPassword() {
               href="/"
               className="inline-block rounded px-3 py-2 text-sm font-medium"
               style={{
-                background: "var(--color-brand-500)",
+                background: "var(--brand-on-white-text)",
                 color: "var(--color-neutral-50)",
               }}
             >
@@ -225,7 +225,7 @@ export function ResetPassword() {
               disabled={busy || !token}
               className="w-full rounded px-3 py-2 text-sm font-medium"
               style={{
-                background: "var(--color-brand-500)",
+                background: "var(--brand-on-white-text)",
                 color: "var(--color-neutral-50)",
                 opacity: busy || !token ? 0.6 : 1,
               }}

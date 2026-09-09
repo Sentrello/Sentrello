@@ -283,6 +283,10 @@ export function CrmSettings() {
               <Input
                 value={type}
                 className="w-36"
+                // A row of identical boxes announces as "edit text" over and
+                // over; the position on screen is the only thing telling them
+                // apart, and that is what a screen reader user does not have.
+                aria-label={`Task type ${index + 1}`}
                 onChange={(e) => {
                   const next = [...currentTypes];
                   next[index] = e.target.value;
