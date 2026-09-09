@@ -10,6 +10,18 @@
   --color-brand-100: oklch(0.93 0.04 190);
   --color-brand-300: oklch(0.78 0.09 190);
   --color-brand-500: oklch(0.58 0.11 190);
+  /**
+   * The brand colour, dark enough to put white text on.
+   *
+   * brand-500 with neutral-50 on it measures 3.77:1, under the 4.5:1 AA asks —
+   * which put the selected nav item and the account avatar, the two most
+   * prominent brand moments in the product, below the line on every screen.
+   *
+   * Rather than darken the brand itself, which is an identity decision and
+   * changes every place it appears, this is the shade used *behind white text*.
+   * It measures 5.17:1. Everything else keeps brand-500.
+   */
+  --brand-on-white-text: var(--color-brand-600);
   --color-brand-600: oklch(0.5 0.1 190);
   --color-brand-700: oklch(0.42 0.09 190);
 
@@ -36,7 +48,12 @@
 
   --color-success: oklch(0.62 0.14 150);
   --color-warning: oklch(0.75 0.14 75);
-  --color-danger: oklch(0.6 0.18 25);
+  /*
+   * Darkened from 0.6, which measured 4.31:1 with white on it — just under the
+   * 4.5:1 line, and this is the colour on every Delete button in the product.
+   * 0.55 measures 5.32:1 and is still unmistakably red.
+   */
+  --color-danger: oklch(0.55 0.18 25);
   --color-info: oklch(0.62 0.12 250);
 }
 
@@ -200,7 +217,7 @@ a {
   color: var(--text);
 }
 .rail-button[aria-current="true"] {
-  background: var(--color-brand-500);
+  background: var(--brand-on-white-text);
   color: var(--color-neutral-50);
 }
 
@@ -308,7 +325,7 @@ a {
   color: var(--text);
 }
 .nav-link[aria-current="page"] {
-  background: var(--color-brand-500);
+  background: var(--brand-on-white-text);
   color: var(--color-neutral-50);
 }
 
