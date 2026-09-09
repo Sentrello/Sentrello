@@ -146,7 +146,7 @@ export function registerPrivacy(ctx: ModuleContext) {
   ctx.app.post(
     "/api/privacy/erase",
     requireSession(),
-    requirePermission({ settings: ["write"] }),
+    requirePermission({ settings: ["update"] }),
     async (c: RouteContext) => {
       const orgId = activeOrganizationId(c.get("session"));
       const body = (await c.req.json().catch(() => ({}))) as Record<
