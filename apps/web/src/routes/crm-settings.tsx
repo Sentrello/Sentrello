@@ -216,6 +216,12 @@ export function CrmSettings() {
             <li key={stage.id} className="flex items-center gap-2">
               <Input
                 value={stage.label}
+                /*
+                 * A row of identical boxes is unusable with a screen reader
+                 * without this: every one announces as "edit text", and the
+                 * only thing distinguishing them is a visual position.
+                 */
+                aria-label={`Stage ${index + 1} name`}
                 onChange={(e) => {
                   const next = [...current];
                   next[index] = { ...stage, label: e.target.value };
