@@ -9,6 +9,7 @@
     "test": "bun test",
     "lint": "biome check .",
     "format": "biome format --write .",
+    "sbom": "bun run scripts/sbom.ts",
     "db:generate": "bun run --cwd packages/db drizzle-kit generate",
     "db:migrate": "bun run packages/db/src/migrate.ts",
     "keys:gen": "bash scripts/gen-keys.sh",
