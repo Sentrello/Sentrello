@@ -9,6 +9,7 @@ import {
   record as recordSecurityEvent,
 } from "@sentrello/db/security-events";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
+import { REGIMES, suggestedRegimes } from "./regimes";
 
 /**
  * HIPAA safeguards, for the businesses that need them.
@@ -35,6 +36,21 @@ import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
  * covered entities, and imposing a fifteen-minute timeout and mandatory
  * two-factor on a florist would be a cost for nothing.
  */
+/**
+ * The regime list a request is asking for, or null where it is not asking.
+ *
+ * Only ids this build knows are kept. A regime removed in a later release, or
+ * a typo, would otherwise sit in the column for ever and read as switched on.
+ */
+function settingsBefore(
+  body: Record<string, unknown>,
+  before: { regimes?: string[] } | undefined,
+): string[] | null {
+  if (!Array.isArray(body.regimes)) return null;
+  const known = new Set(REGIMES.map((r) => r.id));
+  return [...new Set(body.regimes.map(String).filter((id) => known.has(id)))];
+}
+
 export function registerCompliance(ctx: ModuleContext) {
   const settingsFor = async (orgId: string) => {
     const [row] = await db
@@ -57,49 +73,95 @@ export function registerCompliance(ctx: ModuleContext) {
     async (c: RouteContext) => {
       const orgId = activeOrganizationId(c.get("session"));
       const settings = await settingsFor(orgId);
+      const chosen = new Set(settings?.regimes ?? []);
 
       /**
-       * What the business still has to do itself, listed rather than implied.
+       * Everything on offer, with the chosen ones marked — rather than only
+       * what is switched on.
        *
-       * Every item here is something the Security Rule requires and no software
-       * can perform. A screen that switches on three technical controls and
-       * says nothing about the rest leaves a practice believing it is finished,
-       * which is the failure mode this whole feature could most easily cause.
+       * A business that starts selling into the EU has to be able to *find*
+       * the thing it now needs, and a screen showing only what is already on
+       * cannot tell them it exists. The cost of showing the rest is a few
+       * paragraphs; the cost of hiding it is a business that does not know
+       * what it is missing.
        */
       return c.json({
         settings,
-        yourOwnObligations: [
-          {
-            what: "A written risk assessment",
-            rule: "§164.308(a)(1)(ii)(A)",
-            why: "The commonest finding in a small practice is that nobody can produce one, or a date.",
-            done: Boolean(settings?.riskAssessmentOn),
-          },
-          {
-            what: "A Business Associate Agreement with anybody who can see the data",
-            rule: "§164.308(b)(1)",
-            why: "Your hosting provider, your backup storage, your email relay. Sentrello is self-hosted, so if you run it yourself we never see your data and no agreement with us is needed — but the server it sits on is somebody's.",
-            done: null,
-          },
-          {
-            what: "Workforce training, and a record of who had it",
-            rule: "§164.308(a)(5)",
-            why: "The control that fails is a person, not a server.",
-            done: null,
-          },
-          {
-            what: "A breach notification plan",
-            rule: "§164.400–414",
-            why: "Sixty days, and the clock starts when somebody discovers it rather than when you finish investigating.",
-            done: null,
-          },
-          {
-            what: "Encryption at rest on this server, and on your backups",
-            rule: "§164.312(a)(2)(iv)",
-            why: "This application cannot see the disk it runs on. Full-disk encryption is set up where the server is, not here.",
-            done: null,
-          },
-        ],
+        regimes: REGIMES.map((r) => ({
+          id: r.id,
+          label: r.label,
+          where: r.where,
+          when: r.when,
+          turnsOn: r.turnsOn,
+          chosen: chosen.has(r.id),
+        })),
+        /**
+         * Only the obligations that follow from what they chose.
+         *
+         * A shop in Texas being shown five HIPAA duties learns to scroll past
+         * this panel, and then misses the one that did apply. Relevance is what
+         * makes a list like this get read.
+         */
+        yourOwnObligations: REGIMES.filter((r) => chosen.has(r.id)).flatMap(
+          (r) =>
+            r.yourJob.map((j) => ({
+              regime: r.label,
+              what: j.what,
+              why: j.why,
+              done:
+                r.id === "hipaa" && j.what.startsWith("A written risk")
+                  ? Boolean(settings?.riskAssessmentOn)
+                  : null,
+            })),
+        ),
+      });
+    },
+  );
+
+  /**
+   * What a business is likely to need, from two questions it can answer.
+   *
+   * Asked during setup, because the alternative is a settings screen nobody
+   * opens until an authority writes to them. Two questions — where do you
+   * operate, what do you do — and the answers are things anybody knows about
+   * their own business without looking anything up.
+   *
+   * **Suggested, never applied.** The business knows what this cannot: whether
+   * it clears the CCPA thresholds, whether it is a covered entity, whether one
+   * German customer is worth the paperwork. This offers; they decide.
+   */
+  ctx.app.post(
+    "/api/compliance/suggest",
+    requireSession(),
+    requirePermission({ settings: ["read"] }),
+    async (c: RouteContext) => {
+      const body = (await c.req.json().catch(() => ({}))) as Record<
+        string,
+        unknown
+      >;
+      const places = Array.isArray(body.places) ? body.places.map(String) : [];
+      const sectors = Array.isArray(body.sectors)
+        ? body.sectors.map(String)
+        : [];
+      const suggested = suggestedRegimes({ places, sectors });
+
+      return c.json({
+        suggested: REGIMES.filter((r) => suggested.includes(r.id)).map((r) => ({
+          id: r.id,
+          label: r.label,
+          when: r.when,
+        })),
+        /**
+         * What was not suggested, and why it is still on the screen.
+         *
+         * A business that reads "we did not suggest HIPAA because you are not
+         * in health" has learned something. One that simply does not see it has
+         * learned nothing, and will not think of it when they take on their
+         * first medical client.
+         */
+        notSuggested: REGIMES.filter((r) => !suggested.includes(r.id)).map(
+          (r) => ({ id: r.id, label: r.label, when: r.when }),
+        ),
       });
     },
   );
@@ -130,9 +192,24 @@ export function registerCompliance(ctx: ModuleContext) {
        * The message says what to do. "Forbidden" with no explanation, on the
        * click that caused it, is how somebody decides the safeguards are broken.
        */
+      /**
+       * The regime list is the input; `hipaa` follows from it.
+       *
+       * Two ways to say the same thing is two things to keep in step, and the
+       * one that drifts is the one enforcing a safeguard.
+       */
+      let regimes = settingsBefore(body, before);
+      if (regimes) {
+        patch.regimes = regimes;
+        patch.hipaa = regimes.includes("hipaa");
+      }
+      regimes = (patch.regimes as string[]) ?? before?.regimes ?? [];
+
       const wantsTwoFactor =
         body.requireTwoFactor === true ||
-        (body.hipaa === true && body.requireTwoFactor === undefined);
+        (regimes.includes("hipaa") &&
+          !before?.hipaa &&
+          body.requireTwoFactor === undefined);
       const me = c.get("session")?.user as
         | { twoFactorEnabled?: boolean | null }
         | undefined;
@@ -146,7 +223,6 @@ export function registerCompliance(ctx: ModuleContext) {
         );
       }
 
-      if (body.hipaa !== undefined) patch.hipaa = body.hipaa === true;
       if (body.logReads !== undefined) patch.logReads = body.logReads === true;
       if (body.requireTwoFactor !== undefined) {
         patch.requireTwoFactor = body.requireTwoFactor === true;

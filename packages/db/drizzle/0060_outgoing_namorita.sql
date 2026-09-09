@@ -1,0 +1,1 @@
+ALTER TABLE "compliance_settings" ADD COLUMN "regimes" jsonb DEFAULT '[]'::jsonb NOT NULL;

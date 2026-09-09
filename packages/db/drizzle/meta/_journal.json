@@ -421,6 +421,13 @@
       "when": 1788968994781,
       "tag": "0059_absent_magus",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1788973256894,
+      "tag": "0060_outgoing_namorita",
+      "breakpoints": true
     }
   ]
 }
