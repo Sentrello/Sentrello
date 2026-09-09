@@ -248,7 +248,7 @@ export function Invoices() {
               style={
                 here
                   ? {
-                      background: "var(--color-brand-500)",
+                      background: "var(--brand-on-white-text)",
                       color: "var(--color-neutral-50)",
                     }
                   : undefined

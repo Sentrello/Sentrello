@@ -459,7 +459,18 @@ export function Deals() {
       {isLoading ? <Loading /> : null}
 
       {/* Scrolls sideways rather than squeezing five columns onto a phone. */}
-      <div className="flex gap-3 overflow-x-auto pb-2">
+      {/*
+        Reachable by keyboard, because it scrolls.
+        A board wider than the window is content somebody using arrow keys
+        cannot reach at all unless the container can take focus — the columns
+        past the fold might as well not exist for them.
+      */}
+      <section
+        className="flex gap-3 overflow-x-auto pb-2"
+        // biome-ignore lint/a11y/noNoninteractiveTabindex: WCAG 2.1.1 requires a scrollable region to be keyboard-operable and tabindex=0 on the scroll container is the documented remedy; the rule does not model scrolling containers
+        tabIndex={0}
+        aria-label="Deal stages"
+      >
         {stages.map((s) => (
           <Column
             key={s.id}
@@ -471,7 +482,7 @@ export function Deals() {
             onMove={(id, stage) => move.mutate({ id, stage })}
           />
         ))}
-      </div>
+      </section>
     </div>
   );
 }

@@ -1121,7 +1121,7 @@ function Letterhead() {
                   <span
                     className="rounded px-1.5 py-0.5 text-xs"
                     style={{
-                      background: "var(--color-brand-500)",
+                      background: "var(--brand-on-white-text)",
                       color: "var(--color-neutral-50)",
                     }}
                   >

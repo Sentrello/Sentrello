@@ -1123,7 +1123,7 @@ function StartHere({ startHere }: { startHere: Dashboard["startHere"] }) {
         target="_blank"
         rel="noreferrer"
         style={{
-          background: "var(--color-brand-500)",
+          background: "var(--brand-on-white-text)",
           color: "var(--color-neutral-50)",
         }}
       >
@@ -1191,7 +1191,7 @@ function AdSlot({ ad }: { ad: Dashboard["ad"] }) {
             <span
               className="shrink-0 rounded px-3 py-1.5 text-sm font-medium"
               style={{
-                background: "var(--color-brand-500)",
+                background: "var(--brand-on-white-text)",
                 color: "var(--color-neutral-50)",
               }}
             >

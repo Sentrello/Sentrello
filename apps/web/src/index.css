@@ -46,8 +46,20 @@
   --color-neutral-700: oklch(0.42 0.008 80);
   --color-neutral-900: oklch(0.24 0.008 80);
 
-  --color-success: oklch(0.62 0.14 150);
-  --color-warning: oklch(0.75 0.14 75);
+  /*
+   * Dark enough to read as text, which is what they are used as.
+   *
+   * The amber measured 2.26:1 and the green 3.42:1 against the 4.5:1 AA asks —
+   * so "overdue", "paid" and every other status word in the product was below
+   * the line, and the amber badly. These are 5.15:1 and 4.74:1 on the tinted
+   * surface, which is the worst case of the two backgrounds they appear on.
+   *
+   * A colour used as a *background* with dark text on it would want the
+   * opposite treatment. Nothing here does that today; if the redesign does, it
+   * needs its own token rather than reusing these.
+   */
+  --color-success: oklch(0.52 0.14 150);
+  --color-warning: oklch(0.52 0.14 75);
   /*
    * Darkened from 0.6, which measured 4.31:1 with white on it — just under the
    * 4.5:1 line, and this is the colour on every Delete button in the product.
@@ -157,6 +169,18 @@ a {
 .link-muted {
   color: var(--text-muted);
   text-decoration: none;
+  /*
+   * A tap target somebody can actually hit. WCAG 2.2 asks for 24px, and these
+   * are the Edit and Remove links at the end of a table row — small text, close
+   * together, on the row a person is trying to act on. The height is added
+   * without changing the text size, so the rows do not grow.
+   */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* Width as well as height: a "×" is a 7px target without it. */
+  min-height: 24px;
+  min-width: 24px;
 }
 .link-muted:hover {
   color: var(--text);
@@ -166,6 +190,13 @@ a {
 .link-danger {
   color: var(--color-danger);
   text-decoration: none;
+  /* Same 24px target as .link-muted; these sit beside each other in a row. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* Width as well as height: a "×" is a 7px target without it. */
+  min-height: 24px;
+  min-width: 24px;
 }
 .link-danger:hover {
   filter: brightness(1.25);

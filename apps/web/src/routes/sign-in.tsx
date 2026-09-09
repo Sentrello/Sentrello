@@ -119,7 +119,7 @@ export function SignIn() {
           disabled={busy}
           className="w-full rounded px-3 py-2 text-sm font-medium"
           style={{
-            background: "var(--color-brand-500)",
+            background: "var(--brand-on-white-text)",
             color: "var(--color-neutral-50)",
             opacity: busy ? 0.6 : 1,
           }}
@@ -216,7 +216,7 @@ function TwoFactorPrompt({ onCancel }: { onCancel: () => void }) {
           disabled={busy}
           className="w-full rounded px-3 py-2 text-sm font-medium"
           style={{
-            background: "var(--color-brand-500)",
+            background: "var(--brand-on-white-text)",
             color: "var(--color-neutral-50)",
             opacity: busy ? 0.6 : 1,
           }}
