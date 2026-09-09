@@ -442,6 +442,13 @@
       "when": 1788995851084,
       "tag": "0062_chief_wendell_rand",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1788997046815,
+      "tag": "0063_violet_black_bolt",
+      "breakpoints": true
     }
   ]
 }

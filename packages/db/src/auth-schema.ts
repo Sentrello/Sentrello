@@ -115,6 +115,22 @@ export const organizations = pgTable(
     /** Labelled by the business, e.g. "VAT number", "ABN", "EIN". */
     taxIdLabel: text("tax_id_label"),
     paymentInstructions: text("payment_instructions"),
+
+    /**
+     * The seller's address, in parts.
+     *
+     * `address` above is one free-text block, which is right for printing at
+     * the top of an invoice and useless for a structured e-invoice: EN 16931
+     * makes the seller's country code mandatory (BT-40) and a country cannot be
+     * reliably read out of a line somebody typed. These are additive and
+     * optional — a business that never sends a structured invoice is not asked
+     * for them — and the e-invoice refuses to generate without the ones it
+     * needs rather than emitting something a tax authority will reject.
+     */
+    city: text("city"),
+    postcode: text("postcode"),
+    /** ISO 3166-1 alpha-2. "DE", not "Germany". */
+    countryCode: text("country_code"),
     /**
      * The currency the books are kept in.
      *
