@@ -14,6 +14,7 @@ import {
   periodFrom,
   totalsByAccount,
 } from "./reports";
+import { forHmrc, vatReturn } from "./vat-return";
 
 /**
  * The rest of the report set — the half a licence pays for.
@@ -179,6 +180,51 @@ export function registerProReports(
           await ledgerRows(activeOrganizationId(c.get("session")), period(c)),
         ),
       ),
+  );
+
+  /**
+   * The nine boxes of a UK VAT return, for the period asked for.
+   *
+   * Separate from the tax summary beside it, which answers "what is owed" in
+   * three figures. A return is a legal declaration with a specific shape, and a
+   * business filling one in wants to see the boxes it is going to attest to —
+   * before anything is submitted anywhere, and in a form it can disagree with.
+   *
+   * Computing is not filing. Filing is Making Tax Digital, needs an authorised
+   * connection to HMRC, and is deliberately a later step: a number that appears
+   * for the first time on a submission screen is a number nobody has checked.
+   */
+  ctx.app.get(
+    "/api/reports/vat-return",
+    requireSession(),
+    requirePermission({ reports: ["read"] }),
+    proOnly,
+    async (c: RouteContext) => {
+      const boxes = vatReturn(
+        await ledgerRows(activeOrganizationId(c.get("session")), period(c)),
+      );
+      return c.json({
+        boxes,
+        /*
+         * Sent alongside, so a screen can show what would go to HMRC without
+         * computing it a second time in the browser — two roundings of the same
+         * figures is how a submission comes to disagree with the report it came
+         * from.
+         */
+        asSubmitted: forHmrc(boxes),
+        /**
+         * Said with the numbers rather than in documentation nobody opens.
+         *
+         * A business in Northern Ireland has boxes 2, 8 and 9 to fill in and
+         * this module has no concept of an EU acquisition. Returning zero is
+         * honest; letting somebody believe the return is complete is not.
+         */
+        notCovered: [
+          "Boxes 2, 8 and 9 — acquisitions from and supplies to the EU — are zero. If you are in Northern Ireland and trade with the EU, these need to come from somewhere else.",
+          "Reverse charge, margin schemes and partial exemption are not modelled. If any apply to you, check these figures against your own records before filing.",
+        ],
+      });
+    },
   );
 
   ctx.app.get(
