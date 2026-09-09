@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "../lib/api";
 import {
@@ -56,6 +56,180 @@ type EraseResult = {
     error?: string;
   }[];
 };
+
+/**
+ * The compliance half of this screen: HIPAA safeguards, and the evidence an
+ * auditor asks for.
+ *
+ * Beside the subject-request tools rather than on a page of its own, because
+ * they are the same job — a business that has to answer a regulator has to
+ * answer all of them, and hunting across three screens is how one gets missed.
+ */
+function Safeguards() {
+  const qc = useQueryClient();
+  const compliance = useQuery({
+    queryKey: ["compliance"],
+    queryFn: () =>
+      api<{
+        settings: {
+          hipaa: boolean;
+          idleTimeoutMinutes: number;
+          logReads: boolean;
+          requireTwoFactor: boolean;
+          riskAssessmentOn: string | null;
+        };
+        yourOwnObligations: {
+          what: string;
+          rule: string;
+          why: string;
+          done: boolean | null;
+        }[];
+      }>("/api/compliance"),
+  });
+
+  const save = useMutation({
+    mutationFn: (patch: Record<string, unknown>) =>
+      api("/api/compliance", { method: "PUT", body: JSON.stringify(patch) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["compliance"] }),
+  });
+
+  const evidence = useMutation({
+    mutationFn: () => api<unknown>("/api/compliance/evidence"),
+    onSuccess: (data) => {
+      const blob = new Blob([JSON.stringify(data, null, 2)], {
+        type: "application/json",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `audit-evidence-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    },
+  });
+
+  const on = compliance.data?.settings.hipaa ?? false;
+
+  return (
+    <>
+      <Card className="space-y-3">
+        <div>
+          <p className="text-sm font-medium">HIPAA safeguards</p>
+          <p className="text-sm" style={muted}>
+            For a medical practice or anyone else handling health information.
+            Turning this on applies the technical safeguards the Security Rule
+            asks for. It does not make a business HIPAA compliant — that is a
+            programme you run, and the list below is the part no software can do
+            for you.
+          </p>
+        </div>
+
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={on}
+            disabled={save.isPending}
+            onChange={(e) => save.mutate({ hipaa: e.target.checked })}
+          />
+          Apply HIPAA safeguards to this business
+        </label>
+
+        {on && compliance.data ? (
+          <div className="space-y-2 pt-1">
+            <Field
+              label="Sign out after"
+              hint="Minutes of inactivity. The screen left open in a room patients walk through is the reason for this one."
+            >
+              <Input
+                type="number"
+                min={1}
+                max={60}
+                style={{ width: "6rem" }}
+                value={String(compliance.data.settings.idleTimeoutMinutes)}
+                onChange={(e) =>
+                  save.mutate({
+                    idleTimeoutMinutes: Number(e.currentTarget.value),
+                  })
+                }
+              />
+            </Field>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={compliance.data.settings.requireTwoFactor}
+                onChange={(e) =>
+                  save.mutate({ requireTwoFactor: e.target.checked })
+                }
+              />
+              Require a second factor from everybody
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={compliance.data.settings.logReads}
+                onChange={(e) => save.mutate({ logReads: e.target.checked })}
+              />
+              Record every time somebody opens a patient's record
+            </label>
+            <Field
+              label="Your risk assessment was completed on"
+              hint="Nothing enforces this. It is asked because the commonest audit finding in a small practice is that nobody can produce a date."
+            >
+              <Input
+                type="date"
+                value={
+                  compliance.data.settings.riskAssessmentOn?.slice(0, 10) ?? ""
+                }
+                onChange={(e) =>
+                  save.mutate({ riskAssessmentOn: e.currentTarget.value })
+                }
+              />
+            </Field>
+          </div>
+        ) : null}
+
+        {save.error ? <ErrorNote error={save.error} /> : null}
+
+        {on && compliance.data ? (
+          <div className="pt-2">
+            <p className="text-sm font-medium">What is still yours to do</p>
+            {compliance.data.yourOwnObligations.map((o) => (
+              <div key={o.what} className="mt-2">
+                <p className="text-sm">
+                  {o.done === true ? "✓ " : ""}
+                  {o.what} <span style={muted}>({o.rule})</span>
+                </p>
+                <p className="text-sm" style={muted}>
+                  {o.why}
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </Card>
+
+      <Card className="space-y-2">
+        <p className="text-sm font-medium">Evidence for an audit</p>
+        <p className="text-sm" style={muted}>
+          For a SOC 2 audit, ISO 27001, or a large customer's security
+          questionnaire: who has access and at what level, every change to that
+          access, what personal data is held and for how long. It also names the
+          four things an auditor will ask for that this software cannot see.
+        </p>
+        <div>
+          <Button
+            variant="secondary"
+            disabled={evidence.isPending}
+            onClick={() => evidence.mutate()}
+          >
+            {evidence.isPending ? "Gathering…" : "Download the evidence pack"}
+          </Button>
+        </div>
+        {evidence.error ? <ErrorNote error={evidence.error} /> : null}
+      </Card>
+    </>
+  );
+}
 
 export function Privacy() {
   const [email, setEmail] = useState("");
@@ -291,6 +465,8 @@ export function Privacy() {
           ))
         )}
       </Card>
+
+      <Safeguards />
 
       <Card className="space-y-2">
         <p className="text-sm font-medium">Requests you have answered</p>

@@ -860,6 +860,68 @@ export const documentTemplates = pgTable(
  * because the modules are the part that keeps growing. A rule that lives in one
  * caller is a rule the next module has to remember.
  */
+/**
+ * Whether this business is running under HIPAA, and what that switches on.
+ *
+ * HIPAA is not a mode software can grant. It is a programme a business runs —
+ * risk assessments, workforce training, business associate agreements, a
+ * breach response plan — and a vendor claiming to make anybody compliant by
+ * flipping a switch is selling something that does not exist.
+ *
+ * What software can do is provide the controls the Security Rule asks for and
+ * refuse to be the weak part. That is what this row does. It is off by default
+ * because most businesses running this are not covered entities, and the
+ * controls it turns on — a short idle timeout, two-factor for everybody, a log
+ * of every *read* of a patient's record — are a real cost to impose on a
+ * builder or a florist.
+ *
+ * The name on the switch matters. It says "HIPAA safeguards", not "HIPAA
+ * compliant", because the second is a statement about the business and this
+ * table cannot make it true.
+ */
+export const complianceSettings = pgTable("compliance_settings", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: text("organization_id").notNull().unique(),
+
+  /** Turns on every safeguard below. */
+  hipaa: boolean("hipaa").notNull().default(false),
+
+  /**
+   * Minutes of inactivity before a session ends. §164.312(a)(2)(iii).
+   *
+   * Fifteen is the number most covered entities settle on and none of the rule
+   * text names one — it says "electronic procedures that terminate an
+   * electronic session after a predetermined time of inactivity", and the
+   * predetermining is the business's job.
+   */
+  idleTimeoutMinutes: integer("idle_timeout_minutes").notNull().default(15),
+
+  /**
+   * Record every *read* of a record that may hold health information, not only
+   * every change. §164.312(b).
+   *
+   * This is the safeguard most systems lack, and the one an investigation
+   * actually asks for: "who looked at this patient's record" is the question
+   * after a suspected snooping incident, and a log of writes cannot answer it.
+   */
+  logReads: boolean("log_reads").notNull().default(true),
+
+  /** Refuse to serve anybody without a second factor. §164.312(d). */
+  requireTwoFactor: boolean("require_two_factor").notNull().default(true),
+
+  /**
+   * The date the business says it completed its own risk assessment.
+   *
+   * Stored because §164.308(a)(1)(ii)(A) requires one and the commonest audit
+   * finding in small practices is that nobody can produce a date. Nothing
+   * enforces it; it is here so the screen can ask.
+   */
+  riskAssessmentOn: timestamp("risk_assessment_on"),
+
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const ledgerSettings = pgTable("ledger_settings", {
   id: uuid("id").defaultRandom().primaryKey(),
   organizationId: text("organization_id").notNull().unique(),
