@@ -414,6 +414,13 @@
       "when": 1788724063644,
       "tag": "0058_legal_pride",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1788968994781,
+      "tag": "0059_absent_magus",
+      "breakpoints": true
     }
   ]
 }

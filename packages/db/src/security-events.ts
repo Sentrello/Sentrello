@@ -48,6 +48,13 @@ export type SecurityAction =
    */
   | "privacy.exported"
   | "privacy.erased"
+  // Switching the safeguards off is the one worth having. It is either a
+  // business that stopped being a covered entity, or somebody trying to make
+  // an audit trail stop.
+  | "hipaa.enabled"
+  | "hipaa.disabled"
+  // Somebody opened a record that may hold health information. §164.312(b).
+  | "phi.read"
   /**
    * A bank, connected or disconnected, and the details behind it changed.
    *
@@ -131,6 +138,9 @@ export type SecurityAction =
 
 /** What each one says in a sentence, for the screen and for support. */
 export const ACTION_TEXT: Record<SecurityAction, string> = {
+  "hipaa.enabled": "turned on HIPAA safeguards",
+  "hipaa.disabled": "turned off HIPAA safeguards",
+  "phi.read": "opened a record holding health information",
   "privacy.exported": "answered a request for their own data",
   "privacy.erased": "erased their personal data on request",
   "role.changed": "changed the role of",

@@ -1,4 +1,4 @@
-import { asActor } from "@sentrello/db";
+import { and, asActor, db, eq, schema } from "@sentrello/db";
 import type { SentrelloEnv, SentrelloSession } from "@sentrello/module-sdk";
 import type { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
@@ -65,8 +65,127 @@ export function requireSession() {
      * and cannot be told any other way without threading an actor through
      * thirty functions that have no other reason to know about sessions.
      */
+    /**
+     * HIPAA safeguards, where a business has switched them on.
+     *
+     * Enforced here rather than in each route because here is the one place
+     * every guarded request already passes through, and a safeguard applied in
+     * most places is not a safeguard. It costs one indexed lookup per request
+     * on organisations that have the row, and nothing at all on the ones that
+     * do not.
+     */
+    const refusal = await hipaaRefusal(session);
+    if (refusal) return c.json({ error: refusal.error }, refusal.status);
+
     await asActor(session.user.id, () => next());
   });
+}
+
+/**
+ * The safeguards for one organisation, cached for a few seconds.
+ *
+ * This sits on the hot path: every authenticated request in the product passes
+ * through `requireSession`, and most businesses running this are not covered
+ * entities and will never switch HIPAA on. An uncached lookup would add a round
+ * trip to every request in the platform to serve a minority — a real cost
+ * imposed on everybody for a feature almost nobody uses.
+ *
+ * Ten seconds is the compromise. A practice switching the safeguards on waits
+ * at most that long for them to apply, which is nothing next to the paperwork
+ * they are doing at the same time; and a practice switching them *off* has
+ * decided to, so the lag is in the harmless direction. What is not acceptable
+ * is caching for minutes: the failure would be a session staying alive past its
+ * timeout, which is the safeguard silently not working.
+ */
+const RULES_TTL_MS = 10_000;
+const rulesCache = new Map<
+  string,
+  { at: number; rules: typeof schema.complianceSettings.$inferSelect | null }
+>();
+
+async function hipaaRules(orgId: string) {
+  const cached = rulesCache.get(orgId);
+  if (cached && Date.now() - cached.at < RULES_TTL_MS) return cached.rules;
+
+  const [row] = await db
+    .select()
+    .from(schema.complianceSettings)
+    .where(
+      and(
+        eq(schema.complianceSettings.organizationId, orgId),
+        eq(schema.complianceSettings.hipaa, true),
+      ),
+    )
+    .limit(1);
+  const rules = row ?? null;
+  rulesCache.set(orgId, { at: Date.now(), rules });
+  return rules;
+}
+
+/** For the settings route, so switching it on takes effect at once. */
+export function forgetHipaaRules(organizationId: string): void {
+  rulesCache.delete(organizationId);
+}
+
+/**
+ * Why this request must not proceed under HIPAA safeguards, if it must not.
+ *
+ * Two rules, both from §164.312, and both meaningless unless the server is the
+ * one applying them — a timeout the browser enforces is a timeout anybody can
+ * turn off with the developer tools open.
+ */
+async function hipaaRefusal(session: {
+  session: { activeOrganizationId?: string | null; updatedAt?: Date | string };
+  user: { twoFactorEnabled?: boolean | null };
+}): Promise<{ error: string; status: 401 | 403 } | null> {
+  const orgId = session.session.activeOrganizationId;
+  if (!orgId) return null;
+
+  const rules = await hipaaRules(orgId);
+  if (!rules) return null;
+
+  /**
+   * Automatic logoff, §164.312(a)(2)(iii).
+   *
+   * Measured from the session's own last update, which better-auth refreshes as
+   * the person uses it. The scenario is not an attacker: it is a receptionist's
+   * screen left open in a room patients walk through, and fifteen minutes is
+   * the number most practices settle on.
+   */
+  /*
+   * Absent `updatedAt` is not treated as "idle for ever". A session shape that
+   * does not carry the field would sign everybody out on every request, which
+   * is a broken product rather than a safe one — and the failure would look
+   * like the safeguard working.
+   */
+  const lastSeen = session.session.updatedAt
+    ? new Date(session.session.updatedAt).getTime()
+    : Date.now();
+  if (Date.now() - lastSeen > rules.idleTimeoutMinutes * 60_000) {
+    return {
+      error: `signed out after ${rules.idleTimeoutMinutes} minutes of inactivity`,
+      status: 401,
+    };
+  }
+
+  /**
+   * Person or entity authentication, §164.312(d).
+   *
+   * Refused rather than nagged. A prompt somebody can dismiss is a prompt
+   * everybody dismisses, and the whole point of switching this on is that the
+   * business has decided a password alone is not enough for these records.
+   * The message says what to do, because a flat "forbidden" on every screen
+   * with no explanation is how a practice turns the safeguards back off.
+   */
+  if (rules.requireTwoFactor && !session.user.twoFactorEnabled) {
+    return {
+      error:
+        "this business requires a second factor before you can sign in. Set one up in your profile.",
+      status: 403,
+    };
+  }
+
+  return null;
 }
 
 /**

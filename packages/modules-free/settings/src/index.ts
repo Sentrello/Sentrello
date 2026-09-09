@@ -18,6 +18,8 @@ import {
 } from "@sentrello/licensing-client";
 import { defineModule } from "@sentrello/module-sdk";
 import { eq } from "drizzle-orm";
+import { registerCompliance } from "./compliance";
+import { registerEvidence } from "./evidence";
 import { registerPaymentAccounts } from "./payments";
 import { registerPrivacy } from "./privacy";
 import {
@@ -74,6 +76,8 @@ export default defineModule({
   tier: "free",
   register(ctx) {
     registerPrivacy(ctx);
+    registerCompliance(ctx);
+    registerEvidence(ctx);
     ctx.registerNav({
       id: "settings",
       icon: "settings",
