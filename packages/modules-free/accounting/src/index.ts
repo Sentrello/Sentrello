@@ -7,6 +7,7 @@ import {
 import { and, db, desc, eq, schema } from "@sentrello/db";
 import { defineModule } from "@sentrello/module-sdk";
 import { registerChart } from "./chart";
+import { registerMtd } from "./mtd-routes";
 import { registerPeriodLock } from "./period";
 import { registerAccountingPersonalData } from "./personal-data";
 import { registerPro } from "./pro";
@@ -33,6 +34,7 @@ export default defineModule({
   tier: "free",
   register(ctx) {
     registerAccountingPersonalData(ctx);
+    registerMtd(ctx);
     ctx.registerNav({
       id: "accounting",
       icon: "wallet",
@@ -58,6 +60,13 @@ export default defineModule({
       { id: "accounting-money", label: "Money in and out", icon: "wallet" },
       { id: "accounting-accounts", label: "Accounts", icon: "boxes" },
       { id: "accounting-journal", label: "Journal", icon: "file-text" },
+      /*
+       * Its own page rather than a panel on the reports screen. Filing a VAT
+       * return is a deliberate act with a legal declaration attached, and a
+       * business looking for it on a quarter-end deadline should not be hunting
+       * through a report.
+       */
+      { id: "accounting-vat", label: "VAT return", icon: "landmark" },
     ].entries()) {
       ctx.registerNav({
         ...page[1],

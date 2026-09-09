@@ -876,6 +876,49 @@ export const documentTemplates = pgTable(
  * caller is a rule the next module has to remember.
  */
 /**
+ * A business's authorised connection to HMRC, for filing VAT.
+ *
+ * The tokens live here, on the business's own server, sealed the way the Stripe
+ * keys are. They are never sent anywhere but HMRC, and Sentrello never holds
+ * them — which is the whole reason the out-of-band authorisation flow was worth
+ * the extra step of somebody copying a code.
+ *
+ * One connection per organisation. A business has one VAT registration; two
+ * rows would mean a return could be filed against the wrong one, and there is
+ * no undoing a submission.
+ */
+export const mtdConnections = pgTable("mtd_connections", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: text("organization_id").notNull().unique(),
+
+  /** The VAT registration number the returns are filed against. */
+  vrn: text("vrn").notNull(),
+
+  /** Sealed. Four hours, and refreshed before every use. */
+  accessToken: text("access_token").notNull(),
+  /**
+   * Sealed. Eighteen months, and **rotated by HMRC on every refresh** — so it
+   * is written back each time. Keeping the old one works right up until it
+   * suddenly does not, which would be a filing deadline.
+   */
+  refreshToken: text("refresh_token").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+
+  /**
+   * Whether this is the sandbox.
+   *
+   * Stored rather than inferred from a build flag, because a business testing
+   * against the sandbox and then going live is a change of endpoint *and* of
+   * authorisation, and a connection that silently pointed at the wrong one
+   * would file a real return into a test system or, far worse, the reverse.
+   */
+  sandbox: boolean("sandbox").notNull().default(true),
+
+  connectedAt: timestamp("connected_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+/**
  * Whether this business is running under HIPAA, and what that switches on.
  *
  * HIPAA is not a mode software can grant. It is a programme a business runs —

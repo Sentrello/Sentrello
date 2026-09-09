@@ -408,6 +408,9 @@ test("/api/_meta exposes only the nav the loaded modules registered", async () =
     "accounting-money",
     "accounting-accounts",
     "accounting-journal",
+    // Filing a VAT return: its own page, because it is a deliberate act with a
+    // legal declaration attached and not something to hunt for in a report.
+    "accounting-vat",
     "settings",
     // Settings' own pages, so nobody hunts for a VAT number past the licence.
     "settings-business",
