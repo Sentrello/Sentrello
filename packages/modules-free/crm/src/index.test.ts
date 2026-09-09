@@ -1955,3 +1955,79 @@ test("custom fields are Pro, and a Free instance keeps the ones it has", async (
       .customFields,
   ).toEqual([expect.objectContaining({ label: "Boiler model" })]);
 });
+
+/**
+ * "Do not sell or share my personal information", and the moment it matters.
+ *
+ * The CCPA right, and the place a business loses it is not the database — it is
+ * the export. A contact list becomes something a person can hand to an agency
+ * the moment it is a file, and somebody who objected has to be identifiable
+ * *in that file*, or the choice was recorded and then dropped at the one point
+ * it counted.
+ *
+ * Marked rather than filtered out, deliberately. Silently dropping rows makes a
+ * business believe it has a complete list when it does not, and they still need
+ * the row — it is the sharing the person objected to, not the business knowing
+ * who they are.
+ */
+test("a contact who opted out is marked in the export, not removed from it", async () => {
+  /*
+   * The file's own `post`/`req` helpers further up are the unauthenticated
+   * ones, used by the tests about what a stranger cannot do. This test needs
+   * the session, so it builds its requests with `headers` directly.
+   */
+  const call = (path: string, init?: RequestInit) =>
+    app.request(`http://localhost${path}`, { headers, ...init });
+
+  const made = await call("/api/contacts", {
+    method: "POST",
+    body: JSON.stringify({
+      firstName: "Ada",
+      lastName: `Optout${suffix}`,
+      email: `optout-${suffix}@example.test`,
+    }),
+  });
+  expect(made.status).toBe(201);
+  const { contact } = (await made.json()) as { contact: { id: string } };
+
+  await call(`/api/contacts/${contact.id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ doNotSell: true }),
+  });
+
+  const readBack = async () => {
+    const { contacts } = (await (await call("/api/contacts")).json()) as {
+      contacts: {
+        id: string;
+        doNotSell: boolean;
+        doNotSellOn: string | null;
+      }[];
+    };
+    const found = contacts.find((x) => x.id === contact.id);
+    if (!found) throw new Error("the contact went missing");
+    return found;
+  };
+
+  const stored = await readBack();
+  expect(stored.doNotSell).toBe(true);
+  /*
+   * Stamped by the server. The obligation is to act within fifteen business
+   * days of the request arriving, and a browser is in no position to assert
+   * when that was.
+   */
+  expect(stored.doNotSellOn).toBeTruthy();
+
+  const csv = await (await call("/api/contacts/export.csv")).text();
+  expect(csv).toContain("Do not sell or share");
+  const row = csv.split("\n").find((l) => l.includes(`Optout${suffix}`));
+  expect(row).toBeTruthy();
+  expect(row).toContain("DO NOT SELL OR SHARE");
+
+  // Reversing it clears the date, so the field never describes a request that
+  // is no longer in force.
+  await call(`/api/contacts/${contact.id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ doNotSell: false }),
+  });
+  expect((await readBack()).doNotSellOn).toBeNull();
+});

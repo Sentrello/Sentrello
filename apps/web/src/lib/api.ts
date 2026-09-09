@@ -94,6 +94,9 @@ export type Contact = {
   background: string | null;
   linkedinUrl: string | null;
   hasNewsletter: boolean;
+  /** They asked not to have their information sold or shared (CCPA). */
+  doNotSell: boolean;
+  doNotSellOn: string | null;
   gender: string | null;
   ownerId: string | null;
   firstSeenAt: string | null;
