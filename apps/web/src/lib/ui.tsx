@@ -115,7 +115,10 @@ export function Button({
 }) {
   const styles = {
     primary: {
-      background: "var(--color-brand-500)",
+      // The shade dark enough for white text on it: brand-500 measures 3.77:1
+      // against the 4.5:1 AA asks, and this is every primary button in the
+      // product.
+      background: "var(--brand-on-white-text)",
       color: "var(--color-neutral-50)",
     },
     secondary: { background: "transparent", ...border, color: "var(--text)" },

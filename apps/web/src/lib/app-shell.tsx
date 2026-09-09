@@ -404,7 +404,8 @@ function ProfileMenu({
         aria-label="Your account"
         className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold"
         style={{
-          background: "var(--color-brand-500)",
+          // The shade dark enough for white text; brand-500 measures 3.77:1.
+          background: "var(--brand-on-white-text)",
           color: "var(--color-neutral-50)",
         }}
       >
