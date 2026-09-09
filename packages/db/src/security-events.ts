@@ -264,3 +264,86 @@ export async function recent(
     .orderBy(desc(schema.securityEvents.at))
     .limit(limit);
 }
+
+/**
+ * The safeguards for one organisation, cached briefly.
+ *
+ * Lives here rather than in the auth package because two callers need it — the
+ * session guard, which runs on every authenticated request, and the read log
+ * below, which runs whenever somebody opens a record. Two copies would be two
+ * caches with two expiry times, and the one that went stale would be the one
+ * holding a session open past its timeout.
+ *
+ * Ten seconds. Long enough to keep it off the hot path; short enough that a
+ * safeguard cannot be silently absent for meaningfully longer than it takes to
+ * switch on.
+ */
+const RULES_TTL_MS = 10_000;
+const rulesCache = new Map<
+  string,
+  { at: number; rules: typeof schema.complianceSettings.$inferSelect | null }
+>();
+
+export async function hipaaRulesFor(
+  organizationId: string,
+): Promise<typeof schema.complianceSettings.$inferSelect | null> {
+  const cached = rulesCache.get(organizationId);
+  if (cached && Date.now() - cached.at < RULES_TTL_MS) return cached.rules;
+
+  const [row] = await db
+    .select()
+    .from(schema.complianceSettings)
+    .where(
+      and(
+        eq(schema.complianceSettings.organizationId, organizationId),
+        eq(schema.complianceSettings.hipaa, true),
+      ),
+    )
+    .limit(1);
+  const rules = row ?? null;
+  rulesCache.set(organizationId, { at: Date.now(), rules });
+  return rules;
+}
+
+/** So switching the safeguards on from the screen takes effect at once. */
+export function forgetHipaaRules(organizationId: string): void {
+  rulesCache.delete(organizationId);
+}
+
+/**
+ * Somebody opened a record that may hold health information. §164.312(b).
+ *
+ * The safeguard most systems lack. After a suspected snooping incident — a
+ * receptionist looking up a neighbour, a member of staff reading a colleague's
+ * notes — the question is "who opened this record", and a log of *changes*
+ * cannot answer it because nothing was changed. That is the whole point: the
+ * harm was the looking.
+ *
+ * Silent and free where the safeguards are off, which is almost everywhere. It
+ * never throws: a record that could not be logged must still be readable,
+ * because a clinician locked out of a patient's notes by an audit failure is a
+ * worse outcome than a gap in the log — and the gap is visible.
+ */
+export async function recordRead(input: {
+  organizationId: string;
+  actor: { id: string; name?: string | null } | null;
+  /** What was opened, in the words a person would use: "contact", "booking". */
+  what: string;
+  subject?: { id?: string | null; name?: string | null };
+}): Promise<void> {
+  try {
+    const rules = await hipaaRulesFor(input.organizationId);
+    if (!rules?.logReads) return;
+    await record({
+      organizationId: input.organizationId,
+      actor: input.actor
+        ? { id: input.actor.id, name: input.actor.name }
+        : null,
+      subject: input.subject,
+      action: "phi.read",
+      detail: { what: input.what },
+    });
+  } catch {
+    // Deliberately swallowed. See above.
+  }
+}

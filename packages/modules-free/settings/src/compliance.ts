@@ -1,11 +1,13 @@
 import {
   activeOrganizationId,
-  forgetHipaaRules,
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
 import { and, db, eq, schema } from "@sentrello/db";
-import { record as recordSecurityEvent } from "@sentrello/db/security-events";
+import {
+  forgetHipaaRules,
+  record as recordSecurityEvent,
+} from "@sentrello/db/security-events";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 
 /**
@@ -115,6 +117,35 @@ export function registerCompliance(ctx: ModuleContext) {
       const before = await settingsFor(orgId);
 
       const patch: Record<string, unknown> = { updatedAt: new Date() };
+
+      /**
+       * Refused rather than allowed and regretted.
+       *
+       * Switching on a rule that requires a second factor, without having one,
+       * refuses you from every screen in the product — and the way back is the
+       * screen you just used. The guard keeps this route reachable so nobody is
+       * ever truly stuck, and this stops the situation arising at all, which is
+       * better than a rescue.
+       *
+       * The message says what to do. "Forbidden" with no explanation, on the
+       * click that caused it, is how somebody decides the safeguards are broken.
+       */
+      const wantsTwoFactor =
+        body.requireTwoFactor === true ||
+        (body.hipaa === true && body.requireTwoFactor === undefined);
+      const me = c.get("session")?.user as
+        | { twoFactorEnabled?: boolean | null }
+        | undefined;
+      if (wantsTwoFactor && !me?.twoFactorEnabled) {
+        return c.json(
+          {
+            error:
+              "set up your own second factor first, in your profile — otherwise turning this on would lock you out of everything except this screen",
+          },
+          400,
+        );
+      }
+
       if (body.hipaa !== undefined) patch.hipaa = body.hipaa === true;
       if (body.logReads !== undefined) patch.logReads = body.logReads === true;
       if (body.requireTwoFactor !== undefined) {
