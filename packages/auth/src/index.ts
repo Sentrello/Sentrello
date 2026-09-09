@@ -8,13 +8,16 @@ import {
 } from "@sentrello/email/templates";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { APIError } from "better-auth/api";
 import { createAuthMiddleware } from "better-auth/api";
+import { hashPassword as defaultHashPassword } from "better-auth/crypto";
 import { organization, twoFactor } from "better-auth/plugins";
 import type { Context } from "hono";
 import { getConnInfo } from "hono/bun";
 import { ac, roles } from "./permissions";
 import { signInEventsPlugin, signInLockGuard } from "./sign-in-events";
 import { signUpGuard } from "./signup-policy";
+import { weakPasswordReason } from "./weak-passwords";
 
 // BYO Google OAuth: only enabled if the instance owner configured it.
 const google =
@@ -120,6 +123,45 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: false, // flip on once email is wired
+    /**
+     * Twelve characters, and no composition rules.
+     *
+     * NIST SP 800-63B is explicit that forcing a capital, a digit and a symbol
+     * makes passwords *worse* — people produce `Password1!` and reuse it — and
+     * that length plus a check against known-bad values is what actually helps.
+     * So: a longer minimum, no rules about shape, and the blocklist below.
+     *
+     * Set here rather than only in the setup form, which is where it was: a
+     * rule enforced by a screen is a rule the API does not have, and every
+     * other way an account is created — an invitation, a password reset, the
+     * CLI — went past it.
+     */
+    minPasswordLength: 12,
+    /**
+     * Refuse the passwords that are actually used.
+     *
+     * 800-63B §5.1.1.2 asks that a chosen password be compared against a list
+     * of commonly-used or compromised values. Checking an online breach service
+     * would be the thorough version and is the wrong trade for a self-hosted
+     * product: it sends a hash of a customer's password to a third party from a
+     * machine that otherwise talks to nobody, and it has to decide what to do
+     * when that service is unreachable — fail open and the check is theatre,
+     * fail closed and an outage stops people setting passwords.
+     *
+     * Hooked on hashing rather than validated in each route, because hashing is
+     * the one thing every path that sets a password does: sign-up, invitation,
+     * reset, and the CLI. A check in the routes we happen to remember is a
+     * check the other ways round it.
+     */
+    password: {
+      hash: async (password: string) => {
+        const reason = weakPasswordReason(password);
+        if (reason) {
+          throw new APIError("BAD_REQUEST", { message: reason });
+        }
+        return defaultHashPassword(password);
+      },
+    },
     /**
      * Without this an owner who forgets their password has no way back in
      * except editing the database — and on a self-hosted instance they are
