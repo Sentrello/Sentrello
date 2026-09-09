@@ -36,6 +36,7 @@ import { Invoices } from "./routes/invoices";
 import { InvoicingDashboard } from "./routes/invoicing-dashboard";
 import { InvoicingSettings } from "./routes/invoicing-settings";
 import { ModuleScreen } from "./routes/module-screen";
+import { Privacy } from "./routes/privacy";
 import { type Profile, ProfileScreen } from "./routes/profile";
 import { Quotes } from "./routes/quotes";
 import { Recurring } from "./routes/recurring";
@@ -109,6 +110,7 @@ const SCREENS: Record<string, () => React.ReactElement | null> = {
   "settings-integrations": SettingsIntegrations,
   "settings-licence": SettingsLicence,
   "settings-modules": SettingsModules,
+  "settings-privacy": Privacy,
   users: People,
   "user-groups": Groups,
   "user-policies": Policies,

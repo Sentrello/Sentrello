@@ -5,6 +5,7 @@ import type {
   SentrelloModule,
   SentrelloSession,
 } from "@sentrello/module-sdk";
+import { addPersonalData } from "@sentrello/module-sdk";
 import { addSummary, clearSummaries } from "@sentrello/module-sdk";
 import type { Hono } from "hono";
 
@@ -70,6 +71,12 @@ export function loadModules(
         registerPermission: (p) => permissions.push(p),
         registerSummary: (summary) =>
           addSummary({ ...summary, moduleId: m.id }),
+        // What this module holds about a person. A subject access or erasure
+        // request runs whatever is registered here, so a module loaded on this
+        // instance answers and one that is not contributes nothing — which is
+        // the correct answer rather than a gap.
+        registerPersonalData: (source) =>
+          addPersonalData({ ...source, moduleId: m.id }),
         // namespaced: two modules may both want a job called "reminders"
         registerJob: (j) => jobs.push({ ...j, name: `${m.id}:${j.name}` }),
       });

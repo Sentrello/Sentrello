@@ -22,6 +22,7 @@ beforeAll(async () => {
     registerNav: () => {},
     registerPermission: () => {},
     registerSummary: () => {},
+    registerPersonalData: () => {},
     registerJob: () => {},
   });
 

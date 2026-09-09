@@ -38,6 +38,16 @@ export type SecurityAction =
   | "account.disabled"
   | "account.enabled"
   | "events.pruned"
+  /*
+   * The two a data-protection regulator asks to see.
+   *
+   * They belong in this log rather than one of their own: the same kind of
+   * fact — somebody did something consequential to somebody else's data, here
+   * is when and who — and a second audit trail is a second thing to forget to
+   * read.
+   */
+  | "privacy.exported"
+  | "privacy.erased"
   /**
    * A bank, connected or disconnected, and the details behind it changed.
    *
@@ -121,6 +131,8 @@ export type SecurityAction =
 
 /** What each one says in a sentence, for the screen and for support. */
 export const ACTION_TEXT: Record<SecurityAction, string> = {
+  "privacy.exported": "answered a request for their own data",
+  "privacy.erased": "erased their personal data on request",
   "role.changed": "changed the role of",
   "password.reset": "issued a new password for",
   "two-factor.revoked": "turned off two-factor for",

@@ -19,6 +19,7 @@ import {
 import { defineModule } from "@sentrello/module-sdk";
 import { eq } from "drizzle-orm";
 import { registerPaymentAccounts } from "./payments";
+import { registerPrivacy } from "./privacy";
 import {
   agentPresent,
   canCheckForUpdates,
@@ -72,6 +73,7 @@ export default defineModule({
   id: "settings",
   tier: "free",
   register(ctx) {
+    registerPrivacy(ctx);
     ctx.registerNav({
       id: "settings",
       icon: "settings",
@@ -94,6 +96,12 @@ export default defineModule({
       { id: "settings-integrations", label: "Connections", icon: "at-sign" },
       { id: "settings-licence", label: "Licence and updates", icon: "key" },
       { id: "settings-modules", label: "Modules", icon: "boxes" },
+      /*
+       * Beside the other settings rather than buried in one: answering a
+       * subject access request has a legal deadline, and a screen somebody has
+       * to hunt for is a screen they find on day twenty-nine.
+       */
+      { id: "settings-privacy", label: "Personal data", icon: "shield" },
     ].entries()) {
       ctx.registerNav({
         ...page[1],

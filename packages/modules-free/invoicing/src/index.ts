@@ -50,6 +50,7 @@ import {
 } from "./documents";
 import { registerLifecycle } from "./lifecycle";
 import { registerLists } from "./lists";
+import { registerInvoicingPersonalData } from "./personal-data";
 import { portalPage } from "./portal";
 import { registerRecurring } from "./recurring";
 import { registerShare } from "./share";
@@ -168,6 +169,7 @@ export default defineModule({
   id: "invoicing",
   tier: "free",
   register(ctx) {
+    registerInvoicingPersonalData(ctx);
     ctx.registerNav({
       id: "invoicing",
       label: "Invoices",

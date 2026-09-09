@@ -41,6 +41,7 @@ import { registerCrmHistory } from "./history";
 import { registerCrmImages } from "./images";
 import { registerInboundEmail } from "./inbound";
 import { registerCrmManagers } from "./managers";
+import { registerCrmPersonalData } from "./personal-data";
 import {
   DEFAULT_LOST_STAGES,
   DEFAULT_WON_STAGES,
@@ -1613,6 +1614,8 @@ export default defineModule({
   id: "crm",
   tier: "free",
   register(ctx) {
+    registerCrmPersonalData(ctx);
+
     /**
      * The CRM, as one thing with five pages under it.
      *
