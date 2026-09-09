@@ -4,6 +4,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { and, db, desc, eq, inArray, schema } from "@sentrello/db";
+import { recordRead } from "@sentrello/db/security-events";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 
 /**
@@ -71,6 +72,33 @@ export function registerCrmHistory(ctx: ModuleContext) {
       const contactId = c.req.query("contactId");
       const companyId = c.req.query("companyId");
       const dealId = c.req.query("dealId");
+
+      /**
+       * Somebody opened one person's whole record. §164.312(b).
+       *
+       * This route, rather than the list beside it, because this is the one
+       * that returns everything held about a named individual — the notes, the
+       * calls, what was said. In a practice using the CRM as its patient book
+       * that is the record, and "who opened it" is the question after a
+       * suspected snooping incident.
+       *
+       * Only where a specific person was asked for: logging a list of two
+       * hundred contacts as a read of each would fill the log with noise and
+       * bury the one line that mattered.
+       *
+       * Silent and free unless the business has switched HIPAA safeguards on,
+       * and it never fails the read — a clinician locked out of notes by an
+       * audit failure is a worse outcome than a gap in the log.
+       */
+      if (contactId) {
+        const session = c.get("session");
+        await recordRead({
+          organizationId: orgId,
+          actor: { id: session?.user?.id ?? "", name: session?.user?.name },
+          subject: { id: contactId },
+          what: "a contact's full history",
+        });
+      }
 
       /**
        * A company's history is its people's history.

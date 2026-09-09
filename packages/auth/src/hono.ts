@@ -1,4 +1,5 @@
-import { and, asActor, db, eq, schema } from "@sentrello/db";
+import { asActor } from "@sentrello/db";
+import { hipaaRulesFor } from "@sentrello/db/security-events";
 import type { SentrelloEnv, SentrelloSession } from "@sentrello/module-sdk";
 import type { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
@@ -74,57 +75,11 @@ export function requireSession() {
      * on organisations that have the row, and nothing at all on the ones that
      * do not.
      */
-    const refusal = await hipaaRefusal(session);
+    const refusal = await hipaaRefusal(session, c.req.path);
     if (refusal) return c.json({ error: refusal.error }, refusal.status);
 
     await asActor(session.user.id, () => next());
   });
-}
-
-/**
- * The safeguards for one organisation, cached for a few seconds.
- *
- * This sits on the hot path: every authenticated request in the product passes
- * through `requireSession`, and most businesses running this are not covered
- * entities and will never switch HIPAA on. An uncached lookup would add a round
- * trip to every request in the platform to serve a minority — a real cost
- * imposed on everybody for a feature almost nobody uses.
- *
- * Ten seconds is the compromise. A practice switching the safeguards on waits
- * at most that long for them to apply, which is nothing next to the paperwork
- * they are doing at the same time; and a practice switching them *off* has
- * decided to, so the lag is in the harmless direction. What is not acceptable
- * is caching for minutes: the failure would be a session staying alive past its
- * timeout, which is the safeguard silently not working.
- */
-const RULES_TTL_MS = 10_000;
-const rulesCache = new Map<
-  string,
-  { at: number; rules: typeof schema.complianceSettings.$inferSelect | null }
->();
-
-async function hipaaRules(orgId: string) {
-  const cached = rulesCache.get(orgId);
-  if (cached && Date.now() - cached.at < RULES_TTL_MS) return cached.rules;
-
-  const [row] = await db
-    .select()
-    .from(schema.complianceSettings)
-    .where(
-      and(
-        eq(schema.complianceSettings.organizationId, orgId),
-        eq(schema.complianceSettings.hipaa, true),
-      ),
-    )
-    .limit(1);
-  const rules = row ?? null;
-  rulesCache.set(orgId, { at: Date.now(), rules });
-  return rules;
-}
-
-/** For the settings route, so switching it on takes effect at once. */
-export function forgetHipaaRules(organizationId: string): void {
-  rulesCache.delete(organizationId);
 }
 
 /**
@@ -134,14 +89,36 @@ export function forgetHipaaRules(organizationId: string): void {
  * one applying them — a timeout the browser enforces is a timeout anybody can
  * turn off with the developer tools open.
  */
-async function hipaaRefusal(session: {
-  session: { activeOrganizationId?: string | null; updatedAt?: Date | string };
-  user: { twoFactorEnabled?: boolean | null };
-}): Promise<{ error: string; status: 401 | 403 } | null> {
+/**
+ * The routes a safeguard must never lock anybody out of.
+ *
+ * The way back. Requiring a second factor from everybody is correct and it is
+ * also a door that closes behind you: an administrator who switches it on
+ * without having set one up is refused by every route in the product, including
+ * the one that would switch it off again. That is not a hypothetical — it is
+ * what this rule did the first time it was tested, and it is the same mistake
+ * as closing a firewall port from the far side of the firewall.
+ *
+ * So the compliance settings themselves stay reachable. It is a narrow
+ * exemption: the routes still require a session and the settings permission, so
+ * this is an administrator with a password, not the public.
+ */
+const ALWAYS_REACHABLE = ["/api/compliance", "/api/users/me/security"];
+
+async function hipaaRefusal(
+  session: {
+    session: {
+      activeOrganizationId?: string | null;
+      updatedAt?: Date | string;
+    };
+    user: { twoFactorEnabled?: boolean | null };
+  },
+  path: string,
+): Promise<{ error: string; status: 401 | 403 } | null> {
   const orgId = session.session.activeOrganizationId;
   if (!orgId) return null;
 
-  const rules = await hipaaRules(orgId);
+  const rules = await hipaaRulesFor(orgId);
   if (!rules) return null;
 
   /**
@@ -177,7 +154,11 @@ async function hipaaRefusal(session: {
    * The message says what to do, because a flat "forbidden" on every screen
    * with no explanation is how a practice turns the safeguards back off.
    */
-  if (rules.requireTwoFactor && !session.user.twoFactorEnabled) {
+  if (
+    rules.requireTwoFactor &&
+    !session.user.twoFactorEnabled &&
+    !ALWAYS_REACHABLE.some((p) => path.startsWith(p))
+  ) {
     return {
       error:
         "this business requires a second factor before you can sign in. Set one up in your profile.",
