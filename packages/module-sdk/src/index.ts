@@ -118,6 +118,18 @@ export interface ModuleContext {
    * and the dashboard draws whatever is registered.
    */
   registerSummary: (summary: ModuleSummary) => void;
+  /**
+   * What this module holds about a person, and what it can do about it.
+   *
+   * A subject access or erasure request arrives once and every module has to
+   * answer it. Core cannot name the modules in other repositories, so each says
+   * what it holds and Core runs whatever this instance loaded.
+   *
+   * A module that stores anything identifying a person — a name, an email, an
+   * address, an IP — registers one of these. A module that stores none does
+   * not, and its absence is the honest answer.
+   */
+  registerPersonalData: (source: PersonalDataSource) => void;
   registerJob: (job: {
     name: string;
     cron?: string;
@@ -186,6 +198,7 @@ export interface SentrelloModule {
   register(ctx: ModuleContext): void;
 }
 
+import { type PersonalDataSource, addPersonalData } from "./personal-data";
 import { type ModuleSummary, addSummary } from "./summaries";
 
 export * from "./attachments";
@@ -209,6 +222,7 @@ export * as banking from "./banking";
 export * as secrets from "./secrets";
 export * from "./stripe-signature";
 export * from "./summaries";
+export * from "./personal-data";
 export * from "./unread-fields";
 
 /**
@@ -286,6 +300,10 @@ export function registerForTest(
     // Registered for real, so a module's own tests can assert its figures.
     registerSummary: (summary) =>
       addSummary({ ...summary, moduleId: module.id }),
+    // Registered for real, like summaries, so a module's own tests can ask it
+    // what it would hand over about somebody.
+    registerPersonalData: (source) =>
+      addPersonalData({ ...source, moduleId: module.id }),
     registerJob: () => {},
     ...overrides,
   });
