@@ -883,7 +883,25 @@ export const complianceSettings = pgTable("compliance_settings", {
   id: uuid("id").defaultRandom().primaryKey(),
   organizationId: text("organization_id").notNull().unique(),
 
-  /** Turns on every safeguard below. */
+  /**
+   * Which regimes this business has said apply to it.
+   *
+   * A t-shirt shop in Texas and the same shop in Berlin are the same software
+   * and not the same obligations. Chosen during setup and changed whenever the
+   * business changes — an American shop that starts selling into the EU, a
+   * practice that stops handling health records. Nothing here is a one-way
+   * door.
+   */
+  regimes: jsonb("regimes").$type<string[]>().notNull().default([]),
+
+  /**
+   * Kept as its own column rather than read out of `regimes`.
+   *
+   * The session guard reads this on every authenticated request. A boolean is
+   * an index lookup; a containment test on a json array is not, and this sits
+   * on the hot path of the whole product. It is set from the regime list and
+   * never independently.
+   */
   hipaa: boolean("hipaa").notNull().default(false),
 
   /**

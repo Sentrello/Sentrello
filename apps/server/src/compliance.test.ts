@@ -75,26 +75,85 @@ afterAll(async () => {
   );
 });
 
-test("the safeguards are off until a business turns them on", async () => {
-  const { settings: s } = await json<{ settings: { hipaa: boolean } }>(
-    await req("/api/compliance"),
-  );
-  // Most businesses running this are a builder or a florist. A fifteen-minute
-  // timeout and mandatory two-factor would be a cost imposed for nothing.
+test("nothing applies until a business says it does", async () => {
+  const { settings: s, regimes } = await json<{
+    settings: { hipaa: boolean; regimes: string[] };
+    regimes: { id: string; chosen: boolean }[];
+  }>(await req("/api/compliance"));
+
+  // A t-shirt shop in Texas carries none of this until it says otherwise.
+  expect(s.regimes).toEqual([]);
   expect(s.hipaa).toBe(false);
+
+  /*
+   * And every regime is still listed. A business that starts selling into the
+   * EU has to be able to find the thing it now needs; a screen showing only
+   * what is already on cannot tell them it exists.
+   */
+  expect(regimes.length).toBeGreaterThan(3);
+  expect(regimes.every((r) => !r.chosen)).toBe(true);
 });
 
-test("the screen names what no software can do for them", async () => {
+test("two questions suggest what is likely to apply, and say what is not", async () => {
+  const shop = await json<{
+    suggested: { id: string }[];
+    notSuggested: { id: string; when: string }[];
+  }>(
+    await req("/api/compliance/suggest", {
+      method: "POST",
+      body: JSON.stringify({ places: ["us"], sectors: ["retail"] }),
+    }),
+  );
+  // A US shop is not offered European paperwork.
+  expect(shop.suggested.map((r) => r.id)).not.toContain("uk-eu-gdpr");
+
+  const berlin = await json<{ suggested: { id: string }[] }>(
+    await req("/api/compliance/suggest", {
+      method: "POST",
+      body: JSON.stringify({ places: ["eu"], sectors: ["retail"] }),
+    }),
+  );
+  // The same shop in Berlin is.
+  expect(berlin.suggested.map((r) => r.id)).toContain("uk-eu-gdpr");
+
+  /*
+   * And what was not suggested is still returned with its reason. A business
+   * that reads "not suggested, because you are not in health" has learned
+   * something; one that never sees it will not think of HIPAA when it takes on
+   * its first medical client.
+   */
+  expect(shop.notSuggested.length).toBeGreaterThan(0);
+  expect(shop.notSuggested.every((r) => r.when.length > 10)).toBe(true);
+});
+
+test("obligations shown are only the ones that follow from what was chosen", async () => {
+  // Nothing chosen: nothing to do. A shop in Texas shown five HIPAA duties
+  // learns to scroll past this panel, and then misses the one that did apply.
+  const quiet = await json<{ yourOwnObligations: unknown[] }>(
+    await req("/api/compliance"),
+  );
+  expect(quiet.yourOwnObligations).toEqual([]);
+
+  await req("/api/compliance", {
+    method: "PUT",
+    body: JSON.stringify({ regimes: ["hipaa"], requireTwoFactor: false }),
+  });
+
   const { yourOwnObligations } = await json<{
-    yourOwnObligations: { what: string; rule: string }[];
+    yourOwnObligations: { what: string; why: string; regime: string }[];
   }>(await req("/api/compliance"));
 
   // A page that switches on three controls and says nothing about the rest
   // leaves a practice believing it is finished.
   expect(yourOwnObligations.length).toBeGreaterThanOrEqual(4);
-  const rules = yourOwnObligations.map((o) => o.rule).join(" ");
-  expect(rules).toContain("164.308"); // risk assessment, training, BAAs
-  expect(rules).toContain("164.400"); // breach notification
+  const all = yourOwnObligations.map((o) => o.what).join(" ");
+  expect(all).toContain("risk assessment");
+  expect(all).toContain("Business Associate");
+
+  await req("/api/compliance", {
+    method: "PUT",
+    body: JSON.stringify({ regimes: [] }),
+  });
 });
 
 test("an idle timeout longer than an hour is refused", async () => {
@@ -129,7 +188,7 @@ test("opening one person's record is logged once the safeguards are on", async (
   const enabled = await req("/api/compliance", {
     method: "PUT",
     body: JSON.stringify({
-      hipaa: true,
+      regimes: ["hipaa"],
       logReads: true,
       requireTwoFactor: false,
     }),
@@ -201,7 +260,7 @@ test("the compliance screen stays reachable even when everything else is not", a
 test("turning the safeguards off is itself recorded", async () => {
   await req("/api/compliance", {
     method: "PUT",
-    body: JSON.stringify({ hipaa: false }),
+    body: JSON.stringify({ regimes: [] }),
   });
 
   const events = await db

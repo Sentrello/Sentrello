@@ -72,15 +72,24 @@ function Safeguards() {
     queryFn: () =>
       api<{
         settings: {
+          regimes: string[];
           hipaa: boolean;
           idleTimeoutMinutes: number;
           logReads: boolean;
           requireTwoFactor: boolean;
           riskAssessmentOn: string | null;
         };
+        regimes: {
+          id: string;
+          label: string;
+          where: string;
+          when: string;
+          turnsOn: string[];
+          chosen: boolean;
+        }[];
         yourOwnObligations: {
+          regime: string;
           what: string;
-          rule: string;
           why: string;
           done: boolean | null;
         }[];
@@ -109,30 +118,53 @@ function Safeguards() {
   });
 
   const on = compliance.data?.settings.hipaa ?? false;
+  const regimes = compliance.data?.regimes ?? [];
+
+  /** Chosen ones plus or minus one, sent as the whole list. */
+  const toggle = (id: string, wanted: boolean) =>
+    save.mutate({
+      regimes: regimes
+        .filter((r) => (r.id === id ? wanted : r.chosen))
+        .map((r) => r.id),
+    });
 
   return (
     <>
       <Card className="space-y-3">
         <div>
-          <p className="text-sm font-medium">HIPAA safeguards</p>
+          <p className="text-sm font-medium">What applies to this business</p>
           <p className="text-sm" style={muted}>
-            For a medical practice or anyone else handling health information.
-            Turning this on applies the technical safeguards the Security Rule
-            asks for. It does not make a business HIPAA compliant — that is a
-            programme you run, and the list below is the part no software can do
-            for you.
+            Compliance works like modules here: you switch on what applies to
+            you. A t-shirt shop in Texas and the same shop in Berlin are the
+            same software and not the same obligations. Change these whenever
+            the business changes — none of it is a one-way door.
           </p>
         </div>
 
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={on}
-            disabled={save.isPending}
-            onChange={(e) => save.mutate({ hipaa: e.target.checked })}
-          />
-          Apply HIPAA safeguards to this business
-        </label>
+        {regimes.map((r) => (
+          <div key={r.id} className="pb-2">
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={r.chosen}
+                disabled={save.isPending}
+                onChange={(e) => toggle(r.id, e.target.checked)}
+              />
+              <span>
+                {r.label}
+                <span className="block" style={muted}>
+                  {r.when}
+                </span>
+                {r.chosen && r.turnsOn.length ? (
+                  <span className="block mt-1" style={muted}>
+                    Turns on: {r.turnsOn.join("; ")}.
+                  </span>
+                ) : null}
+              </span>
+            </label>
+          </div>
+        ))}
 
         {on && compliance.data ? (
           <div className="space-y-2 pt-1">
@@ -190,14 +222,14 @@ function Safeguards() {
 
         {save.error ? <ErrorNote error={save.error} /> : null}
 
-        {on && compliance.data ? (
+        {compliance.data?.yourOwnObligations.length ? (
           <div className="pt-2">
             <p className="text-sm font-medium">What is still yours to do</p>
             {compliance.data.yourOwnObligations.map((o) => (
               <div key={o.what} className="mt-2">
                 <p className="text-sm">
                   {o.done === true ? "✓ " : ""}
-                  {o.what} <span style={muted}>({o.rule})</span>
+                  {o.what} <span style={muted}>({o.regime})</span>
                 </p>
                 <p className="text-sm" style={muted}>
                   {o.why}
