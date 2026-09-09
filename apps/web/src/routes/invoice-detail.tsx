@@ -145,6 +145,26 @@ export function InvoiceDetail() {
    * so the portal could only be reached from an emailed invoice. This is where
    * somebody is standing when a customer asks "can you send me everything".
    */
+  /**
+   * Whether this invoice could be sent as a structured e-invoice, and what is
+   * stopping it.
+   *
+   * Asked before the button is offered rather than discovered by pressing it.
+   * In Italy, France, Germany and Poland a PDF is not an invoice any more, and
+   * the first a business should hear of a missing country is not a failed
+   * download at the moment they need to issue.
+   */
+  const eInvoice = useQuery({
+    queryKey: ["einvoice", id],
+    queryFn: () =>
+      api<{
+        ready: boolean;
+        missing: string[];
+        addressedTo: string;
+        country: string | null;
+      }>(`/api/invoices/${id}/einvoice`),
+  });
+
   const portalLink = useMutation({
     mutationFn: (contactId: string) =>
       api<{ url: string }>(`/api/contacts/${contactId}/portal-link`, {
@@ -427,6 +447,41 @@ export function InvoiceDetail() {
               >
                 Credit note
               </Button>
+            ) : null}
+            {/*
+              A structured e-invoice, where the data allows one. Offered only
+              when it would actually validate: a download that fails is worse
+              than a button that explains itself.
+            */}
+            {eInvoice.data?.ready ? (
+              <Button
+                variant="secondary"
+                onClick={() =>
+                  window.open(
+                    `/api/invoices/${id}/einvoice.xml`,
+                    "_blank",
+                    "noopener",
+                  )
+                }
+              >
+                E-invoice (XML)
+              </Button>
+            ) : null}
+            {/*
+              Why the button above is absent, when it is.
+
+              Silence would be the wrong answer here: a business in the EU that
+              needs a structured invoice would never learn the feature exists,
+              and would find out from a rejected submission instead. Shown only
+              once somebody has set their own country — a business that has
+              never engaged with structured invoicing is not nagged about it on
+              every invoice.
+            */}
+            {eInvoice.data && !eInvoice.data.ready && eInvoice.data.country ? (
+              <p className="w-full text-xs" style={muted}>
+                Not yet sendable as a structured e-invoice:{" "}
+                {eInvoice.data.missing.join("; ")}.
+              </p>
             ) : null}
             <button
               type="button"
