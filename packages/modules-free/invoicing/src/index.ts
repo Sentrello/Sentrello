@@ -48,6 +48,7 @@ import {
   prepareDocument,
   writeTaxBands,
 } from "./documents";
+import { registerEInvoice } from "./einvoice-route";
 import { registerLifecycle } from "./lifecycle";
 import { registerLists } from "./lists";
 import { registerInvoicingPersonalData } from "./personal-data";
@@ -170,6 +171,7 @@ export default defineModule({
   tier: "free",
   register(ctx) {
     registerInvoicingPersonalData(ctx);
+    registerEInvoice(ctx);
     ctx.registerNav({
       id: "invoicing",
       label: "Invoices",
