@@ -55,6 +55,12 @@ export type SecurityAction =
   | "hipaa.disabled"
   // Somebody opened a record that may hold health information. §164.312(b).
   | "phi.read"
+  /*
+   * A VAT return is a declaration a named person made to a tax authority and
+   * cannot withdraw. "Who filed this, and when" is the question afterwards, and
+   * the receipt number is what HMRC asks for.
+   */
+  | "vat.filed"
   /**
    * A bank, connected or disconnected, and the details behind it changed.
    *
@@ -141,6 +147,7 @@ export const ACTION_TEXT: Record<SecurityAction, string> = {
   "hipaa.enabled": "turned on HIPAA safeguards",
   "hipaa.disabled": "turned off HIPAA safeguards",
   "phi.read": "opened a record holding health information",
+  "vat.filed": "filed a VAT return to HMRC",
   "privacy.exported": "answered a request for their own data",
   "privacy.erased": "erased their personal data on request",
   "role.changed": "changed the role of",

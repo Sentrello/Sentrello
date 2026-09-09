@@ -59,6 +59,7 @@ import { Policies } from "./routes/users/policies";
 import { PolicyDetail } from "./routes/users/policy";
 import { Providers } from "./routes/users/providers";
 import { Sessions } from "./routes/users/sessions";
+import { VatFiling } from "./routes/vat-filing";
 
 /**
  * Which screen a nav entry opens.
@@ -111,6 +112,7 @@ const SCREENS: Record<string, () => React.ReactElement | null> = {
   "settings-licence": SettingsLicence,
   "settings-modules": SettingsModules,
   "settings-privacy": Privacy,
+  "accounting-vat": VatFiling,
   users: People,
   "user-groups": Groups,
   "user-policies": Policies,
