@@ -8,6 +8,7 @@ import { and, db, desc, eq, schema } from "@sentrello/db";
 import { defineModule } from "@sentrello/module-sdk";
 import { registerChart } from "./chart";
 import { registerPeriodLock } from "./period";
+import { registerAccountingPersonalData } from "./personal-data";
 import { registerPro } from "./pro";
 import { registerReceipts } from "./receipts";
 import { registerReports } from "./reports";
@@ -31,6 +32,7 @@ export default defineModule({
   id: "accounting",
   tier: "free",
   register(ctx) {
+    registerAccountingPersonalData(ctx);
     ctx.registerNav({
       id: "accounting",
       icon: "wallet",
