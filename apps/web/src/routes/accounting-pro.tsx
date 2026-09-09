@@ -4913,6 +4913,7 @@ export function TaxAndCurrency() {
               <td>
                 <Select
                   value={tax.appliesTo}
+                  aria-label={`What ${tax.name} applies to`}
                   onChange={(e) =>
                     setFlag.mutate({
                       id: tax.id,

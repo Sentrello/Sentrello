@@ -17,6 +17,20 @@
   --color-neutral-100: oklch(0.96 0.005 80);
   --color-neutral-200: oklch(0.92 0.006 80);
   --color-neutral-500: oklch(0.62 0.008 80);
+  /**
+   * Muted text, dark enough to read.
+   *
+   * neutral-500 on the light surface measures 3.34:1, and WCAG AA asks 4.5:1
+   * for text this size — so every muted line in the product failed, which is
+   * most of the sidebar, every hint under a field and every secondary figure.
+   * It was 63 of 97 screens, one token.
+   *
+   * 0.54 measures 4.64:1: past the line with enough margin that a future tweak
+   * to the surface does not silently drop back under it. Dark mode already
+   * measured 6.41:1 and is left alone — the same value there would be a change
+   * made to look consistent in a stylesheet rather than to help anybody.
+   */
+  --color-neutral-550: oklch(0.54 0.008 80);
   --color-neutral-700: oklch(0.42 0.008 80);
   --color-neutral-900: oklch(0.24 0.008 80);
 
@@ -31,7 +45,7 @@
   --surface-raised: white;
   --border: var(--color-neutral-200);
   --text: var(--color-neutral-900);
-  --text-muted: var(--color-neutral-500);
+  --text-muted: var(--color-neutral-550);
   --link: var(--color-brand-600);
   --link-hover: var(--color-brand-700);
 }
@@ -71,7 +85,7 @@
   --surface-raised: white;
   --border: var(--color-neutral-200);
   --text: var(--color-neutral-900);
-  --text-muted: var(--color-neutral-500);
+  --text-muted: var(--color-neutral-550);
   --link: var(--color-brand-600);
   --link-hover: var(--color-brand-700);
 }

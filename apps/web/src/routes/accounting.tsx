@@ -1009,6 +1009,10 @@ export function Accounts() {
               <td>
                 <Select
                   value={a.parentId ?? ""}
+                  // A column of identical dropdowns announces as "combo box"
+                  // forty times over without this. The account's own name is
+                  // what tells them apart.
+                  aria-label={`Parent account for ${a.name}`}
                   onChange={(e) =>
                     reparent.mutate({ id: a.id, parentId: e.target.value })
                   }
@@ -1387,6 +1391,7 @@ function NewEntry({ onDone }: { onDone: () => void }) {
             <td className="py-2">
               <Select
                 value={line.accountId}
+                aria-label={`Account for line ${i + 1}`}
                 onChange={(e) => setLine(i, { accountId: e.target.value })}
               >
                 <option value="">Choose an account…</option>
