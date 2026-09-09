@@ -26,10 +26,33 @@ export function fieldsRead(files: string[]): Map<string, Set<string>> {
   const out = new Map<string, Set<string>>();
   for (const file of files) {
     const text = readFileSync(file, "utf8");
+
+    /**
+     * `body` only counts where a request body is actually read.
+     *
+     * Some route files embed the browser's own script as a string — the shop's
+     * storefront pages do — and in that script `const body = await res.json()`
+     * makes `body.checkout` a *response* field. Sixteen of the shop's
+     * twenty-one findings were that, none of them real, which is a guard nobody
+     * would keep.
+     *
+     * A file with no `c.req.json()` in it parses no request body, so nothing in
+     * it can be a field somebody sends.
+     */
+    if (!/c\.req\.json\s*\(/.test(text)) continue;
+
     const found = new Set<string>();
 
-    for (const m of text.matchAll(/\bbody\.([A-Za-z_$][\w$]*)/g)) {
-      if (m[1]) found.add(m[1]);
+    /**
+     * `body.x` — but not `body.x(...)`.
+     *
+     * A request body is sometimes a string rather than an object, and
+     * `body.slice(0, MAX)` is a method call, not a field anybody can send.
+     * Reporting it teaches people this check cries wolf, which is how a guard
+     * gets switched off.
+     */
+    for (const m of text.matchAll(/\bbody\.([A-Za-z_$][\w$]*)\s*(\()?/g)) {
+      if (m[1] && !m[2]) found.add(m[1]);
     }
     for (const m of text.matchAll(/\bbody\[\s*["'`]([^"'`]+)["'`]\s*\]/g)) {
       if (m[1]) found.add(m[1]);
@@ -44,10 +67,17 @@ export function fieldsRead(files: string[]): Map<string, Set<string>> {
       /(?:const|let)\s*\{([^}]*)\}\s*=\s*(?:await\s+)?(?:c\.req\.json\(\)|body\b)/g,
     )) {
       for (const part of (m[1] ?? "").split(",")) {
-        const name = part
-          .split(":")[0]
-          ?.trim()
-          .replace(/^\.\.\./, "");
+        const [wire, local] = part.split(":").map((x) => x.trim());
+        // `...rest` names the leftovers, not a field. It is a local.
+        if (wire?.startsWith("...")) continue;
+        const name = wire;
+        /**
+         * A field renamed to `_something` is being thrown away on purpose.
+         * `const { organizationId: _ignored, ...rest } = body` is a handler
+         * refusing to let a caller set that field — the opposite of a gap, and
+         * reporting it would be reporting the guard as the hole.
+         */
+        if (local?.startsWith("_")) continue;
         if (name && /^[A-Za-z_$][\w$]*$/.test(name)) found.add(name);
       }
     }
@@ -79,11 +109,23 @@ export function fieldsWritten(files: string[]): Set<string> {
     for (const m of text.matchAll(/([A-Za-z_$][\w$]*)\s*:/g)) {
       if (m[1]) out.add(m[1]);
     }
-    for (const m of text.matchAll(/\{([^{}]*)\}/g)) {
-      for (const part of (m[1] ?? "").split(",")) {
-        const name = part.trim();
-        if (/^[A-Za-z_$][\w$]*$/.test(name)) out.add(name);
-      }
+    /**
+     * Shorthand — `{ proceedsCents, note }` — matched by the punctuation around
+     * it rather than by finding the whole object.
+     *
+     * The first version looked for `{…}` with no nested braces, which misses
+     * every shorthand in a multi-line body that contains another object. That
+     * reported `proceedsCents` as unreachable while the disposal screen was
+     * sending it three lines further down, and a wrong finding is worse here
+     * than a missed one.
+     *
+     * The closing delimiter is a lookahead rather than part of the match.
+     * Consuming it means two adjacent shorthand names share a comma and only
+     * the first is seen — `{ provider, startToken }` reported `startToken` as
+     * unreachable while the bank-connection screen sent both in that object.
+     */
+    for (const m of text.matchAll(/[{,]\s*([A-Za-z_$][\w$]*)\s*(?=[,}])/g)) {
+      if (m[1]) out.add(m[1]);
     }
   }
   return out;

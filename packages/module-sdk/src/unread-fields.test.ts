@@ -19,6 +19,9 @@ const route = write(
      if (body.companyId !== undefined) patch.companyId = body.companyId;
      const { startsOn, endsOn: finish } = body;
      const mode = body["scheduling"];
+     // Neither of these is a field anybody can send.
+     const trimmed = body.slice(0, 100);
+     const { organizationId: _ignored, ...rest } = body;
    });`,
 );
 
@@ -27,6 +30,10 @@ const screen = write(
   `const save = () => api("/api/projects/1", {
      method: "PATCH",
      body: JSON.stringify({ status, startsOn: day }),
+   });
+   const finish = () => api("/api/bank-feeds/connect/finish", {
+     method: "POST",
+     body: JSON.stringify({ provider, scheduling }),
    });`,
 );
 
@@ -51,6 +58,22 @@ test("a renamed destructure is recorded under the name that goes over the wire",
   expect(fieldsRead([route]).get(route)?.has("finish")).toBe(false);
 });
 
+/**
+ * Two things that look like fields and are not. Both were reported the first
+ * time this ran across Core, and both would have taught somebody that this
+ * check cries wolf — which is how a guard gets switched off.
+ */
+test("a method call on a string body is not a field", () => {
+  // `body.slice(0, MAX)` — a request body is sometimes a string.
+  expect(fieldsRead([route]).get(route)?.has("slice")).toBe(false);
+});
+
+test("a field destructured into `_name` is being refused, not missed", () => {
+  // `const { organizationId: _ignored, ...rest } = body` is a handler stopping
+  // a caller setting it. Reporting that is reporting the guard as the hole.
+  expect(fieldsRead([route]).get(route)?.has("organizationId")).toBe(false);
+});
+
 test("fields the screen sends are seen, shorthand and all", () => {
   const written = fieldsWritten([screen]);
   expect(written.has("status")).toBe(true);
@@ -58,17 +81,46 @@ test("fields the screen sends are seen, shorthand and all", () => {
 });
 
 /**
+ * Two shorthand names in a row share the comma between them. Consuming it
+ * meant only the first was ever seen — which reported `startToken` as
+ * unreachable while the bank-connection screen sent `{ provider, startToken }`.
+ */
+test("both of two adjacent shorthand names are seen", () => {
+  const written = fieldsWritten([screen]);
+  expect(written.has("provider")).toBe(true);
+  expect(written.has("scheduling")).toBe(true);
+});
+
+/**
  * The whole point: `companyId` is read by the route and sent by nothing. This
  * is the shape of gap that route-level sweeps cannot see, because the route
  * itself *is* reached — by the status field beside it.
  */
+/**
+ * A file that embeds the browser's own script reads `body.x` off a *response*.
+ * The shop's storefront pages do exactly this, and it produced sixteen
+ * findings, none of them real.
+ */
+test("a file that never parses a request body has no fields", () => {
+  const clientScript = write(
+    "storefront.ts",
+    `const page = () => c.html(\`<script>
+       const res = await fetch("/api/shop/basket");
+       const body = await res.json();
+       draw(body.checkout, body.orderToken);
+     </script>\`);`,
+  );
+  expect(fieldsRead([clientScript]).size).toBe(0);
+});
+
 test("a field read but never sent is reported", () => {
   const hits = unreadFields({ routeFiles: [route], screenFiles: [screen] }).map(
     (h) => h.split(": ")[1],
   );
   // `endsOn` too: the screen sends startsOn and not its pair, which is
   // exactly the sort of half-reachable field this is for.
-  expect(hits).toEqual(["companyId", "endsOn", "scheduling"]);
+  // `scheduling` is sent by the second call in the screen fixture now.
+  expect(hits).toEqual(["companyId", "endsOn"]);
 });
 
 test("a field written by something that is not a screen can be excused", () => {
@@ -77,7 +129,7 @@ test("a field written by something that is not a screen can be excused", () => {
       routeFiles: [route],
       screenFiles: [screen],
       writtenElsewhere: { companyId: "the importer" },
-      ignore: ["scheduling", "endsOn"],
+      ignore: ["endsOn"],
     }),
   ).toEqual([]);
 });
