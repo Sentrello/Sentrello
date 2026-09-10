@@ -4,6 +4,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { and, db, desc, eq, inArray, schema } from "@sentrello/db";
+import { consentHistory, describeConsent } from "@sentrello/db/consent";
 import { recordRead } from "@sentrello/db/security-events";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 
@@ -22,7 +23,15 @@ import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 
 export interface HistoryEntry {
   at: string;
-  kind: "note" | "email" | "call" | "meeting" | "task" | "deal" | "contact";
+  kind:
+    | "note"
+    | "email"
+    | "call"
+    | "meeting"
+    | "task"
+    | "deal"
+    | "contact"
+    | "consent";
   title: string;
   detail?: string | null;
   /** What to open when somebody clicks it. */
@@ -255,6 +264,33 @@ export function registerCrmHistory(ctx: ModuleContext) {
             link: { moduleId: "deals", recordId: deal.id, title: deal.name },
           })),
       ];
+
+      /*
+       * What they agreed to, alongside everything else that happened.
+       *
+       * On the timeline rather than a panel of its own, because "she asked to
+       * be taken off the list the day after that call" is one story and two
+       * lists tell it badly. Only for a named person: a company or a deal has
+       * no consent of its own.
+       */
+      const consents = contactIds.length
+        ? (
+            await Promise.all(
+              contactIds.map((id) =>
+                consentHistory(orgId, { kind: "contact", id }),
+              ),
+            )
+          ).flat()
+        : [];
+
+      for (const row of consents) {
+        entries.push({
+          at: row.at.toISOString(),
+          kind: "consent" as const,
+          title: row.granted ? "Agreed" : "Withdrew consent",
+          detail: describeConsent(row),
+        });
+      }
 
       return c.json({ history: mergeHistory(entries) });
     },

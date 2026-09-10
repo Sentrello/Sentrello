@@ -17,6 +17,7 @@
     "./documents": "./src/documents.ts",
     "./payments": "./src/payments.ts",
     "./modules": "./src/modules.ts",
+    "./consent": "./src/consent.ts",
     "./security-events": "./src/security-events.ts",
     "./lockout": "./src/lockout.ts"
   },

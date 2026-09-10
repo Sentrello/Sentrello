@@ -2462,6 +2462,82 @@ export const securityEvents = pgTable(
 );
 
 /**
+ * When somebody agreed to something, and how.
+ *
+ * A boolean says what is true now. Every privacy law this product sells into
+ * asks a different question: **prove they agreed.** GDPR Article 7(1) puts the
+ * burden on the business, Quebec's Law 25 wants the record kept, and the CCPA
+ * wants to know when an opt-out arrived. `contacts.has_newsletter` answered
+ * none of them — it is a tick with no history, and a tick is not evidence.
+ *
+ * So this is append-only and it records both directions. Withdrawing consent
+ * is as much a fact worth proving as giving it, and a business that cannot
+ * show when somebody unsubscribed cannot defend the mail it sent before.
+ *
+ * The wording is stored rather than referenced, on purpose. What matters in a
+ * complaint is what the person actually read, and a settings page that has
+ * been edited twice since cannot tell anybody that.
+ */
+export const consentRecords = pgTable(
+  "consent_records",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: text("organization_id").notNull(),
+
+    /**
+     * Who agreed, as "contact" | "subscriber" | "user" and their id.
+     *
+     * Not a foreign key to contacts: a newsletter subscriber may never become
+     * one, and a record that has to be deleted when the row it points at goes
+     * is not much of a record.
+     */
+    subjectKind: text("subject_kind").notNull(),
+    subjectId: text("subject_id").notNull(),
+    /**
+     * The name or address as it stood at the time.
+     *
+     * Same reasoning as the audit log: the id is the truth, and a record that
+     * reads "somebody agreed to something" is worth nothing at the moment it
+     * is needed.
+     */
+    subjectLabel: text("subject_label"),
+
+    /** What was agreed to: "marketing.email", "data.sale", "terms". */
+    purpose: text("purpose").notNull(),
+    /** True where it was given, false where it was withdrawn. */
+    granted: boolean("granted").notNull(),
+
+    /** How it happened: "form" | "staff" | "import" | "checkout" | "api". */
+    source: text("source").notNull(),
+    /** Exactly what they were shown, where anything was. */
+    wording: text("wording"),
+    /**
+     * Whatever else proves it — an address, a page, a confirmation click.
+     *
+     * Deliberately open: what counts as evidence differs by how consent was
+     * taken, and a fixed set of columns here would mean the interesting one is
+     * always missing.
+     */
+    evidence: jsonb("evidence").$type<Record<string, unknown>>(),
+
+    /** Who recorded it, where a member of staff did rather than the person. */
+    actorId: text("actor_id"),
+    actorName: text("actor_name"),
+
+    at: timestamp("at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("consent_records_subject_idx").on(
+      t.organizationId,
+      t.subjectKind,
+      t.subjectId,
+      t.at,
+    ),
+    index("consent_records_purpose_idx").on(t.organizationId, t.purpose, t.at),
+  ],
+);
+
+/**
  * A group of people who share a job.
  *
  * The reference's idea, and the right one: an administrator does not want to think
