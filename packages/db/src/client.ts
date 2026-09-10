@@ -74,5 +74,21 @@ if (!held) {
 }
 
 const sql = held.sql;
-export const db = drizzle(sql, { schema });
+
+/**
+ * A seam for watching the SQL this process runs.
+ *
+ * Nothing sets `onQuery` in production, where this costs one undefined check
+ * per query. It exists for the one property no response body can be made to
+ * show: that a business read *names the business*. A missing
+ * `organizationId` filter is invisible to any assertion about what came back,
+ * because a test database with one business in it returns the same rows
+ * either way — so the test reads the query rather than the answer.
+ */
+export const watchQueries: { onQuery?: (query: string) => void } = {};
+
+export const db = drizzle(sql, {
+  schema,
+  logger: { logQuery: (query) => watchQueries.onQuery?.(query) },
+});
 export { schema };
