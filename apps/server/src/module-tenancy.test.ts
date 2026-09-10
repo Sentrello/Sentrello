@@ -5,8 +5,10 @@ import { db, eq, inArray, schema } from "@sentrello/db";
 import { postJournalEntry } from "@sentrello/db/ledger";
 import accounting from "@sentrello/module-accounting";
 import crm from "@sentrello/module-crm";
+import dashboard from "@sentrello/module-dashboard";
 import invoicing from "@sentrello/module-invoicing";
 import { registerForTest } from "@sentrello/module-sdk";
+import settings from "@sentrello/module-settings";
 import users from "@sentrello/module-users";
 
 /**
@@ -49,7 +51,19 @@ import users from "@sentrello/module-users";
  * Free module" and enumerated two of them, so the routes that read a ledger or
  * an account list were checked by nothing here.
  */
-const MODULES = { crm, invoicing, accounting, users };
+/*
+ * Every Free module that reads business data.
+ *
+ * `dashboard` and `settings` were added on 2026-09-09. The dashboard is the
+ * first screen anybody opens and summarises invoices, quotes and tasks — and
+ * unscoping one of its queries was caught only by two *arithmetic* tests
+ * reacting to rows a previous run had left behind. Incidental coverage is not
+ * coverage; it holds until the database is clean.
+ *
+ * `profile` is deliberately absent: it reads only the caller's own account, so
+ * there is no second business's row for it to return.
+ */
+const MODULES = { crm, invoicing, accounting, users, dashboard, settings };
 
 const suffix = crypto.randomUUID().slice(0, 8);
 /** In the second business's rows, and in none of the first's. */
@@ -267,3 +281,62 @@ test("no read returns another business's marked rows", async () => {
   // Named rather than counted, so a regression says which door opened.
   expect(leaked).toEqual([]);
 }, 120_000);
+
+/**
+ * The dashboard is a screen of *figures*, and both markers are blind to it.
+ *
+ * It returns counts and totals, so a name never appears and the marker amount
+ * is not one of the sums it makes — unscoping its contact query and its
+ * invoice query in turn changed nothing the sweep above could see. That is
+ * exactly the case every one of these files says wants "assertions where the
+ * figures are computed", and this is one.
+ *
+ * The assertion is that **the first business's dashboard is empty**, because
+ * the first business has nothing: no invoice, no quote, no task, no deal. Any
+ * query that stops being scoped brings in the second business's rows — or a
+ * previous run's — and something stops being zero.
+ *
+ * Shape-independent on purpose. Naming the fields would pin today's payload
+ * and quietly stop covering whatever is added next; walking it means a figure
+ * added tomorrow is covered the day it is written.
+ */
+test("the dashboard shows a business nothing but its own", async () => {
+  const app = registerForTest(dashboard);
+  const res = await app.request("http://localhost/api/dashboard", {
+    headers: aHeaders,
+  });
+  expect(res.status).toBe(200);
+  const payload = (await res.json()) as unknown;
+
+  const nonEmpty: string[] = [];
+  const walk = (value: unknown, path: string) => {
+    if (Array.isArray(value)) {
+      // `widgets` and `tabs` are the screen's own furniture — what it can
+      // show, not what this business has.
+      if (!/widgets|tabs|startHere/.test(path) && value.length > 0) {
+        nonEmpty.push(`${path} has ${value.length}`);
+      }
+      value.forEach((v, i) => walk(v, `${path}[${i}]`));
+      return;
+    }
+    if (value && typeof value === "object") {
+      for (const [k, v] of Object.entries(value)) walk(v, `${path}.${k}`);
+      return;
+    }
+    /*
+     * `health` is the server, not the business — uptime, disk, memory, the
+     * size of the database. The same numbers for everybody on this instance,
+     * and nobody's data.
+     */
+    if (
+      typeof value === "number" &&
+      value !== 0 &&
+      !/health|tier|Version/.test(path)
+    ) {
+      nonEmpty.push(`${path} is ${value}`);
+    }
+  };
+  walk(payload, "dashboard");
+
+  expect(nonEmpty).toEqual([]);
+}, 60_000);
