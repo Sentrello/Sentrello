@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/images/logo.png" alt="Sentrello" width="440">
+  <img src="docs/images/sentrello-header.gif" alt="Sentrello" width="100%">
 </p>
 
 <p align="center">
