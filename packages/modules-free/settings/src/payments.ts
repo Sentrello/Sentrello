@@ -333,6 +333,141 @@ export function registerPaymentAccounts(ctx: ModuleContext) {
    * switched to live on untested keys is one whose first real customer sees an
    * error at the moment they try to pay.
    */
+  /**
+   * Connecting a processor, in one press.
+   *
+   * The old shape was three buttons in an order nobody was told: save the
+   * keys, test them, turn it on. Every pair of steps had a state in between
+   * that looks broken — keys saved but untested, tested but not on — and the
+   * error somebody actually hit was being told a webhook secret was needed
+   * while it sat unsaved in the box in front of them.
+   *
+   * It is one action because it is one intention. Paste the keys, press
+   * connect. Each stage reports what happened, and the first one to fail stops
+   * the rest: a processor is never switched on because a later step papered
+   * over an earlier one.
+   *
+   * **The webhook sets itself up.** Stripe can be asked to register an
+   * endpoint and hands back the signing secret, so the worst part of
+   * connecting a processor — go to another company's dashboard, find webhooks,
+   * paste a URL, pick the right events out of two hundred, copy a secret
+   * back — is simply gone. Where it cannot be done, which is any instance a
+   * processor cannot reach, the screen asks for the secret by hand and says
+   * why.
+   */
+  ctx.app.post(
+    "/api/payments/accounts/:provider/:mode/connect",
+    requireSession(),
+    requirePermission({ settings: ["update"] }),
+    async (c: RouteContext) => {
+      const orgId = activeOrganizationId(c.get("session"));
+      const provider = c.req.param("provider") ?? "";
+      const mode = c.req.param("mode") ?? "";
+      const account = await accountFor(orgId, provider, mode);
+
+      if (!account?.secretKey) {
+        return c.json({ error: "paste the keys first" }, 400);
+      }
+
+      const steps: { step: string; ok: boolean; detail?: string }[] = [];
+      const stop = (status: 400 | 409 | 503) =>
+        c.json({ steps, account: forDisplay(account) }, status);
+
+      let live: PaymentProvider;
+      try {
+        live = providerFrom(account);
+      } catch (err) {
+        steps.push({
+          step: "read the stored keys",
+          ok: false,
+          detail: (err as Error).message,
+        });
+        return stop(503);
+      }
+
+      const tested = await live.testConnection().catch((err: Error) => ({
+        ok: false,
+        message: `could not reach the processor: ${err.message}`,
+      }));
+      steps.push({
+        step: "check the keys with the processor",
+        ok: tested.ok,
+        detail: tested.message,
+      });
+      await db
+        .update(schema.paymentAccounts)
+        .set({
+          lastTestedAt: new Date(),
+          lastTestOk: tested.ok,
+          lastTestMessage: tested.message,
+          accountLabel:
+            ("label" in tested ? tested.label : null) ?? account.accountLabel,
+        })
+        .where(eq(schema.paymentAccounts.id, account.id));
+      if (!tested.ok) return stop(409);
+
+      /*
+       * Already stored means somebody pasted one deliberately — for an
+       * instance the processor cannot reach, or an endpoint they manage
+       * themselves. Replacing it would break their setup to save a step they
+       * had already taken.
+       */
+      let webhookSecret = account.webhookSecret;
+      if (!webhookSecret && live.ensureWebhook) {
+        const base =
+          process.env.SENTRELLO_BASE_URL ?? new URL(c.req.url).origin;
+        try {
+          const made = await live.ensureWebhook(
+            `${base}/api/shop/webhook/${provider}`,
+          );
+          if (made) {
+            webhookSecret = secrets.seal(made.secret);
+            await db
+              .update(schema.paymentAccounts)
+              .set({ webhookSecret })
+              .where(eq(schema.paymentAccounts.id, account.id));
+            steps.push({ step: "set up the webhook", ok: true });
+          } else {
+            steps.push({
+              step: "set up the webhook",
+              ok: false,
+              detail:
+                "this instance has no address the processor can reach, so the signing secret has to be pasted in by hand",
+            });
+          }
+        } catch (err) {
+          steps.push({
+            step: "set up the webhook",
+            ok: false,
+            detail: (err as Error).message,
+          });
+        }
+      }
+
+      if (!webhookSecret) {
+        // Refused rather than switched on: without it money is taken and no
+        // order is ever confirmed, which is the worst failure this screen has.
+        return stop(409);
+      }
+
+      await db
+        .update(schema.paymentAccounts)
+        .set({ enabled: false })
+        .where(eq(schema.paymentAccounts.organizationId, orgId));
+      const [enabled] = await db
+        .update(schema.paymentAccounts)
+        .set({ enabled: true, updatedAt: new Date() })
+        .where(eq(schema.paymentAccounts.id, account.id))
+        .returning();
+      steps.push({ step: "start taking payments", ok: true });
+
+      return c.json({
+        steps,
+        account: enabled ? forDisplay(enabled) : forDisplay(account),
+      });
+    },
+  );
+
   ctx.app.post(
     "/api/payments/accounts/:provider/:mode/enable",
     requireSession(),

@@ -493,6 +493,37 @@ function Connection({
     },
   });
 
+  /**
+   * Save, check, set up the webhook and switch on — one press.
+   *
+   * Three buttons in an unstated order is what this was, and every pair of
+   * them had a half-done state that looks like a fault. Pasting a key and
+   * being told a webhook secret was missing, while it sat unsaved in the box
+   * above, is the one that actually happened.
+   */
+  const connect = useMutation({
+    mutationFn: async () => {
+      await api(path, {
+        method: "PUT",
+        body: JSON.stringify({
+          publicKey: publicKey || undefined,
+          secretKey: secretKey || undefined,
+          webhookSecret: webhookSecret || undefined,
+        }),
+      });
+      return api<{ steps: { step: string; ok: boolean; detail?: string }[] }>(
+        `${path}/connect`,
+        { method: "POST" },
+      );
+    },
+    onSuccess: () => {
+      // Never held in the browser longer than the request needs them.
+      setSecretKey("");
+      setWebhookSecret("");
+      onChanged();
+    },
+  });
+
   const test = useMutation({
     mutationFn: () => api(`${path}/test`, { method: "POST" }),
     onSuccess: onChanged,
@@ -595,7 +626,7 @@ function Connection({
         </Field>
         <Field
           label="Webhook secret"
-          hint="Without it, payments are never confirmed."
+          hint="Usually blank — we set this up with the processor for you."
         >
           <Input
             type="password"
@@ -606,36 +637,40 @@ function Connection({
         </Field>
       </div>
 
-      {unsaved ? (
+      {connect.data?.steps?.length ? (
         /*
-         * Typed and not yet sent.
+         * What happened, stage by stage.
          *
-         * Without this, somebody pastes a webhook secret, presses "Use this
-         * one", and is told a webhook secret is needed — which is true of the
-         * database and a lie about what they just did. The buttons below act
-         * on what is *stored*, and nothing on the screen said so.
+         * Connecting a processor fails in several different places and they
+         * are not interchangeable: a wrong key is not an unreachable instance,
+         * and neither is a webhook the processor refused. One flat "it did not
+         * work" makes somebody re-paste a perfectly good key.
          */
-        <p className="mt-2 text-sm" style={{ color: "var(--color-warning)" }}>
-          Typed but not saved yet. Press <strong>Save keys</strong> before
-          testing or turning this on.
-        </p>
+        <ul className="mt-3 space-y-1 text-sm">
+          {connect.data.steps.map((step) => (
+            <li
+              key={step.step}
+              style={{
+                color: step.ok ? "var(--color-success)" : "var(--color-danger)",
+              }}
+            >
+              {step.ok ? "\u2713" : "\u2717"} {step.step}
+              {step.detail ? <span style={muted}> — {step.detail}</span> : null}
+            </li>
+          ))}
+        </ul>
       ) : null}
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <Button onClick={() => save.mutate()} disabled={save.isPending}>
-          {save.isPending ? "Saving…" : "Save keys"}
-        </Button>
         <Button
-          variant="secondary"
-          onClick={() => test.mutate()}
-          disabled={!account || test.isPending || unsaved}
-          title={
-            unsaved
-              ? "Save the keys first — this tests what is stored"
-              : undefined
-          }
+          onClick={() => connect.mutate()}
+          disabled={connect.isPending || (!secretKey && !account?.secretHint)}
         >
-          {test.isPending ? "Asking…" : "Test connection"}
+          {connect.isPending
+            ? "Connecting…"
+            : account?.enabled
+              ? "Reconnect"
+              : "Connect"}
         </Button>
         {account?.enabled ? (
           <Button
@@ -645,20 +680,7 @@ function Connection({
           >
             Stop using it
           </Button>
-        ) : (
-          <Button
-            variant="secondary"
-            onClick={() => enable.mutate()}
-            disabled={!account?.lastTestOk || enable.isPending || unsaved}
-            title={
-              unsaved
-                ? "Save the keys first — this turns on what is stored"
-                : undefined
-            }
-          >
-            Use this one
-          </Button>
-        )}
+        ) : null}
         {/*
           Only where there is something to forget, and never on the account
           currently taking money — that one is stopped first, deliberately, so
