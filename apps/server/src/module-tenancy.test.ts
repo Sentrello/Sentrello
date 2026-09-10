@@ -2,6 +2,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, eq, inArray, schema } from "@sentrello/db";
+import { postJournalEntry } from "@sentrello/db/ledger";
 import accounting from "@sentrello/module-accounting";
 import crm from "@sentrello/module-crm";
 import invoicing from "@sentrello/module-invoicing";
@@ -30,10 +31,15 @@ import users from "@sentrello/module-users";
  * rebuilt from a leak proven visible first: create through the route, neuter
  * `listWhere`, watch the marker cross.
  *
- * **What this does not cover**, said plainly rather than left to be assumed: a
- * leak that is a *number*. A dashboard total or a ledger sum quietly counting
- * both businesses has no marker in it and would pass. Those want assertions
- * where the figures are computed.
+ * **A leak that is a number is covered too, since 2026-09-09.** A report total
+ * quietly counting both businesses carries no name to search for, so the
+ * marker is an *amount*: the second business posts a journal entry for a sum
+ * nothing else would produce, and no figure the first business is shown may
+ * contain it. Same sweep, same shape, a different kind of marker.
+ *
+ * **What is still not covered**: a leak that is neither a name nor this
+ * amount — a count, an average, a figure this entry does not move. Those want
+ * assertions where they are computed.
  */
 
 /*
@@ -48,6 +54,13 @@ const MODULES = { crm, invoicing, accounting, users };
 const suffix = crypto.randomUUID().slice(0, 8);
 /** In the second business's rows, and in none of the first's. */
 const MARKER = `zztenant${suffix}`;
+/**
+ * The other kind of marker: a sum no real figure would land on.
+ *
+ * £8,675,309.11 — large enough that no seeded row or default reaches it, and
+ * odd enough that a rounded total cannot arrive at it by chance.
+ */
+const AMOUNT = 867_530_911;
 
 /**
  * One create per module, chosen because the thing it makes is what that
@@ -115,6 +128,43 @@ beforeAll(async () => {
     .update(schema.user)
     .set({ name: MARKER })
     .where(eq(schema.user.id, bUserId));
+
+  /*
+   * Money for the second business, in a sum nothing else would produce.
+   *
+   * `postJournalEntry` because that is the funnel every module's money goes
+   * through, so a report reading the ledger reads this the same way it reads
+   * anything real. Two accounts of its own, created through the route that
+   * creates accounts.
+   */
+  for (const [code, name, type] of [
+    ["9101", "Tenancy marker debit", "asset"],
+    ["9102", "Tenancy marker credit", "income"],
+  ] as const) {
+    const made = await registerForTest(accounting).request(
+      "http://localhost/api/accounts",
+      {
+        method: "POST",
+        headers: bHeaders,
+        body: JSON.stringify({ code, name, type }),
+      },
+    );
+    if (made.status >= 400) {
+      throw new Error(`seeding account ${code} answered ${made.status}`);
+    }
+  }
+  const bAccounts = await db
+    .select({ id: schema.accounts.id, code: schema.accounts.code })
+    .from(schema.accounts)
+    .where(eq(schema.accounts.organizationId, bOrgId));
+  const debit = bAccounts.find((a) => a.code === "9101");
+  const credit = bAccounts.find((a) => a.code === "9102");
+  if (!debit || !credit) throw new Error("the marker accounts went missing");
+
+  await postJournalEntry(bOrgId, "tenancy marker", "test", [
+    { accountId: debit.id, debitCents: AMOUNT },
+    { accountId: credit.id, creditCents: AMOUNT },
+  ]);
 
   for (const [module, path, body] of SEEDS) {
     const app = registerForTest(MODULES[module]);
@@ -200,8 +250,15 @@ test("no read returns another business's marked rows", async () => {
       const res = await app.request(`http://localhost${path}`, {
         headers: aHeaders,
       });
-      if ((await res.text()).includes(MARKER)) {
+      const body = await res.text();
+      if (body.includes(MARKER)) {
         leaked.push(`${name}: GET ${route.path} → ${res.status}`);
+      } else if (body.includes(String(AMOUNT))) {
+        // The figure rather than the name: a total counting both businesses
+        // has nobody's name in it.
+        leaked.push(
+          `${name}: GET ${route.path} → ${res.status} (the other business's money)`,
+        );
       }
     }
   }
