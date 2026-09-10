@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "./api";
-import { Button, ErrorNote, Input, muted } from "./ui";
+import { Button, ErrorNote, Input, muted, textOn } from "./ui";
 
 /**
  * The tag editor, for anything that can wear a tag.
@@ -108,7 +108,7 @@ export function TagChips({
           onClick={() => detach.mutate(t.id)}
           title="Remove"
           className="rounded-full px-2 py-0.5 text-xs"
-          style={{ background: t.color, color: "#111" }}
+          style={{ background: t.color, color: textOn(t.color) }}
         >
           {t.name} ×
         </button>
@@ -131,7 +131,9 @@ export function TagChips({
               type="button"
               onClick={() => attach.mutate(t.id)}
               className="rounded-full px-2 py-0.5 text-xs"
-              style={{ background: t.color, color: "#111", opacity: 0.75 }}
+              // No opacity: it multiplies against the text as well as the chip, which
+              // is how a measured colour arrives on screen failing.
+              style={{ background: t.color, color: textOn(t.color) }}
             >
               {t.name}
             </button>

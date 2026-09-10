@@ -490,17 +490,37 @@ export function CrmSettings() {
                     <button
                       key={colour}
                       type="button"
-                      aria-label={`Colour ${tag.name}`}
-                      className="size-4 rounded-full border"
-                      style={{
-                        background: colour,
-                        borderColor:
-                          colour === tag.color ? "var(--text)" : "transparent",
-                      }}
+                      // Named per colour rather than per tag: eight buttons
+                      // all announced "Colour Retainer" say nothing about
+                      // which one you are on.
+                      aria-label={`${colour} for ${tag.name}`}
+                      aria-pressed={colour === tag.color}
+                      /*
+                       * The dot stays 16px and the target around it is 24.
+                       *
+                       * WCAG 2.2 asks 24px, and a 16px circle is something you
+                       * can see and cannot reliably hit — which is most of the
+                       * point for somebody whose hands are not steady. Making
+                       * the dot itself bigger would have changed the design;
+                       * this changes only what a finger has to find.
+                       */
+                      className="grid size-6 place-items-center rounded-full"
                       onClick={() =>
                         recolour.mutate({ id: tag.id, color: colour })
                       }
-                    />
+                    >
+                      <span
+                        aria-hidden="true"
+                        className="block size-4 rounded-full border"
+                        style={{
+                          background: colour,
+                          borderColor:
+                            colour === tag.color
+                              ? "var(--text)"
+                              : "transparent",
+                        }}
+                      />
+                    </button>
                   ))}
                 </span>
                 <button

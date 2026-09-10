@@ -2059,6 +2059,10 @@ function StatementLine({
       <Select
         value={accountId}
         onChange={(e) => setAccountId(e.target.value)}
+        // One of these per statement line, and the column heading is not a
+        // label — every one of them was announced as "combo box" and nothing
+        // else, on the screen where a bookkeeper works down a page of them.
+        aria-label={`Where to put ${row.description ?? "this line"}`}
         // The bank side of the entry is the account the statement is of, so
         // offering it here would be both sides of one line.
       >

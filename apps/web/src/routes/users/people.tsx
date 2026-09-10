@@ -362,6 +362,10 @@ export function People() {
               ) : (
                 <Select
                   value={p.baseRole}
+                  // A column heading is not a label. One of these per row, all
+                  // announced as "combo box" and nothing else, on the screen
+                  // that decides what everybody can do.
+                  aria-label={`Role for ${p.name || p.email}`}
                   onChange={(e) =>
                     setRole.mutate({ userId: p.userId, role: e.target.value })
                   }
