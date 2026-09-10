@@ -412,6 +412,35 @@ app.post(
 app.get("/api/_signin", (c) => c.json({ mailConfigured: mailConfigured() }));
 
 /**
+ * Where to get the source of the thing you are talking to.
+ *
+ * The AGPL's section 13 is the clause that separates it from the GPL: someone
+ * who interacts with this over a network, without ever receiving a copy, is
+ * still owed the corresponding source. Publishing this repository discharges
+ * that for us and for nobody else — **the obligation belongs to whoever is
+ * running the instance**, and a business that has modified it and put it in
+ * front of its customers owes them *its* version, not ours.
+ *
+ * Which is what `SENTRELLO_SOURCE_URL` is for. The default is honest for an
+ * unmodified instance and wrong for a modified one, so the knob is documented
+ * where the operator will meet it rather than left for them to discover they
+ * needed.
+ *
+ * Public on purpose. A clause about people who are not signed in cannot be
+ * satisfied behind a sign-in.
+ */
+app.get("/api/_source", (c) =>
+  c.json({
+    licence: "AGPL-3.0-or-later",
+    source:
+      process.env.SENTRELLO_SOURCE_URL ??
+      "https://github.com/Sentrello/Sentrello",
+    version: process.env.SENTRELLO_VERSION ?? "unknown",
+    modified: Boolean(process.env.SENTRELLO_SOURCE_URL),
+  }),
+);
+
+/**
  * What this instance is licensed for.
  *
  * The first question anyone asks when a feature disappears is "has something

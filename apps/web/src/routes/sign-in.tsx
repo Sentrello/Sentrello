@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { authClient } from "../lib/auth";
 import { ForgotPassword } from "./forgot-password";
 
@@ -135,7 +135,46 @@ export function SignIn() {
           Forgot your password?
         </button>
       </form>
+      <SourceOffer />
     </div>
+  );
+}
+
+/**
+ * The AGPL's section 13 offer, where somebody who is not signed in can read it.
+ *
+ * The licence owes the corresponding source to anybody who interacts with this
+ * over a network, whether or not they ever hold a copy — so an offer only
+ * visible after signing in satisfies the clause for precisely the people who
+ * did not need it. This is the first screen everybody meets.
+ *
+ * The address comes from the server rather than being written here, because a
+ * business that has modified Sentrello owes its customers *its* source and not
+ * ours, and the instance is the only thing that knows which it is.
+ */
+function SourceOffer() {
+  const [source, setSource] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/_source")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((body: { source?: string } | null) =>
+        setSource(body?.source ?? null),
+      )
+      // A missing offer is not worth an error on the sign-in screen; the
+      // endpoint is public and static, so silence here means the instance is
+      // already in trouble in louder ways.
+      .catch(() => {});
+  }, []);
+
+  if (!source) return null;
+  return (
+    <p className="mt-6 text-center text-xs link-muted">
+      <a href={source} target="_blank" rel="noreferrer noopener">
+        Source code
+      </a>{" "}
+      — AGPL-3.0
+    </p>
   );
 }
 

@@ -402,6 +402,29 @@ silently stopped working.
 
 ---
 
+## If you change the code
+
+Sentrello is AGPL-3.0, and section 13 of that licence is the part that makes it
+different from the GPL: anybody who *interacts with the software over a
+network* is owed its source, whether or not they ever receive a copy. That is
+everybody who signs in, and every customer who opens a portal link to read an
+invoice.
+
+Running it unmodified, there is nothing to do. The instance offers the
+published repository, and that is the truthful answer.
+
+**Change anything and the obligation becomes yours.** Our repository does not
+contain what you are serving, so pointing your users at it satisfies nothing.
+Put your version somewhere they can reach and tell the instance where:
+
+```
+SENTRELLO_SOURCE_URL=https://git.example.com/acme/sentrello
+```
+
+The sign-in screen links to whatever this names, and `/api/_source` answers it
+without a session — which is the point, since the people the clause protects
+are the ones who have not signed in.
+
 ## Reporting something
 
 Bugs and questions: open an issue. Please include the `healthz` output and what
