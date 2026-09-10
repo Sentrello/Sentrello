@@ -465,6 +465,16 @@ function Connection({
   const live = accounts.find((a) => a.provider === provider && a.enabled);
   const path = `/api/payments/accounts/${provider}/${mode}`;
 
+  /**
+   * Something is typed into a box and has not reached the server.
+   *
+   * Every button beside "Save keys" acts on what is *stored*, which is obvious
+   * from the inside and invisible from the outside — and the failure it
+   * produces is the worst kind, an error message that contradicts what the
+   * person is looking at.
+   */
+  const unsaved = Boolean(publicKey || secretKey || webhookSecret);
+
   const save = useMutation({
     mutationFn: () =>
       api(path, {
@@ -596,14 +606,34 @@ function Connection({
         </Field>
       </div>
 
+      {unsaved ? (
+        /*
+         * Typed and not yet sent.
+         *
+         * Without this, somebody pastes a webhook secret, presses "Use this
+         * one", and is told a webhook secret is needed — which is true of the
+         * database and a lie about what they just did. The buttons below act
+         * on what is *stored*, and nothing on the screen said so.
+         */
+        <p className="mt-2 text-sm" style={{ color: "var(--color-warning)" }}>
+          Typed but not saved yet. Press <strong>Save keys</strong> before
+          testing or turning this on.
+        </p>
+      ) : null}
+
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Button onClick={() => save.mutate()} disabled={save.isPending}>
-          Save keys
+          {save.isPending ? "Saving…" : "Save keys"}
         </Button>
         <Button
           variant="secondary"
           onClick={() => test.mutate()}
-          disabled={!account || test.isPending}
+          disabled={!account || test.isPending || unsaved}
+          title={
+            unsaved
+              ? "Save the keys first — this tests what is stored"
+              : undefined
+          }
         >
           {test.isPending ? "Asking…" : "Test connection"}
         </Button>
@@ -619,7 +649,12 @@ function Connection({
           <Button
             variant="secondary"
             onClick={() => enable.mutate()}
-            disabled={!account?.lastTestOk || enable.isPending}
+            disabled={!account?.lastTestOk || enable.isPending || unsaved}
+            title={
+              unsaved
+                ? "Save the keys first — this turns on what is stored"
+                : undefined
+            }
           >
             Use this one
           </Button>
