@@ -8,6 +8,7 @@ import {
   Field,
   Input,
   Loading,
+  SecretInput,
   muted,
 } from "../lib/ui";
 
@@ -617,8 +618,7 @@ function Connection({
           />
         </Field>
         <Field label="Secret key" hint="Leave blank to keep the stored one.">
-          <Input
-            type="password"
+          <SecretInput
             value={secretKey}
             placeholder="sk_…"
             onChange={(e) => setSecretKey(e.target.value)}
@@ -628,8 +628,7 @@ function Connection({
           label="Webhook secret"
           hint="Usually blank — we set this up with the processor for you."
         >
-          <Input
-            type="password"
+          <SecretInput
             value={webhookSecret}
             placeholder="whsec_…"
             onChange={(e) => setWebhookSecret(e.target.value)}

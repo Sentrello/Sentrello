@@ -13,6 +13,7 @@ import {
   Input,
   Loading,
   Row,
+  SecretInput,
   Select,
   StatusBadge,
   Table,
@@ -1566,8 +1567,7 @@ function ProviderDetails({
         label="Secret"
         hint="Stored encrypted and never shown again, like a password."
       >
-        <Input
-          type="password"
+        <SecretInput
           value={secret}
           placeholder={provider.connected ? "•••••• (unchanged)" : ""}
           onChange={(e) => setSecret(e.target.value)}

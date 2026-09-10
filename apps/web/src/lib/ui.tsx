@@ -232,6 +232,49 @@ export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   );
 }
 
+/**
+ * A secret that is not a login.
+ *
+ * An API key, a webhook signing secret, a bank token. They are masked for the
+ * same reason a password is — somebody is often looking at the screen — and a
+ * browser reasonably concludes from `type="password"` that it has found a
+ * credential worth keeping.
+ *
+ * It then does two harmful things. It offers to save a Stripe secret key into
+ * a password vault, where it syncs to a phone and a laptop and outlives the
+ * key itself. And having saved it against this site, it *autofills* it into
+ * the next password box it sees — which is the sign-in screen, so the owner of
+ * the business is told their password is wrong and cannot get in.
+ *
+ * That is not hypothetical: it happened to James within a minute of pasting a
+ * key, and the two symptoms looked like unrelated faults.
+ *
+ * So these fields say plainly that they are not credentials, in the several
+ * dialects that matter — the standard attribute, plus the opt-outs 1Password
+ * and LastPass read. `autocomplete="off"` alone is widely ignored on password
+ * inputs; `new-password` is the value managers actually respect for "do not
+ * fill this".
+ */
+export function SecretInput(
+  props: React.InputHTMLAttributes<HTMLInputElement>,
+) {
+  return (
+    <Input
+      {...props}
+      type="password"
+      autoComplete="new-password"
+      // Never a useful thing to correct, and a source of noise on a key.
+      autoCorrect="off"
+      autoCapitalize="off"
+      spellCheck={false}
+      data-1p-ignore=""
+      data-lpignore="true"
+      data-bwignore="true"
+      data-form-type="other"
+    />
+  );
+}
+
 export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select

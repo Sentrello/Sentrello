@@ -8,6 +8,7 @@ import {
   Field,
   Input,
   Loading,
+  SecretInput,
   Select,
   muted,
 } from "../../lib/ui";
@@ -169,8 +170,7 @@ export function Providers() {
               />
             </Field>
             <Field label="Client secret">
-              <Input
-                type="password"
+              <SecretInput
                 value={clientSecret}
                 onChange={(e) => setClientSecret(e.target.value)}
               />
