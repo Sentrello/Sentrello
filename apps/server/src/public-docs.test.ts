@@ -15,10 +15,10 @@ import { join } from "node:path";
  * instruction, and the rule holds for every platform or module build after
  * this one: the audit is written, and it is written somewhere private.
  *
- * A test rather than a note in CLAUDE.md, because the note has been true for a
+ * A test rather than a written-down rule, because the rule has been true for a
  * while and the files were here anyway. The failure mode is not somebody
- * disagreeing with the rule, it is somebody writing `docs/booking.md` on a
- * Friday without thinking about it.
+ * disagreeing with it, it is somebody writing `docs/booking.md` on a Friday
+ * without thinking about it.
  *
  * `docs/site/` is deliberately not covered: it is the published product
  * documentation, written for customers, and belongs in the open.
