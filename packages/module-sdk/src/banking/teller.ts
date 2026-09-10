@@ -72,6 +72,8 @@ export const teller: BankProvider = {
         "A free account covers up to a hundred connected banks. It works with " +
         "United States banks only, and it can send a one-off payment but not " +
         "set up a repeating one.",
+      // Its enrolment is a widget, and this application does not load one.
+      hostedConnection: false,
     };
   },
 

@@ -63,6 +63,21 @@ export interface BankCapabilities {
    * up a supplier payment has been misled by the screen that offered it.
    */
   onboarding: string;
+  /**
+   * Whether this instance can actually open its connection flow.
+   *
+   * True where the provider hosts the flow on its own page and hands back a
+   * redirect. False where it needs its widget loading into the application —
+   * which is deliberately not done here, for the reason `url` gives below: a
+   * third party's JavaScript inside the books is a script with the run of
+   * every page it lands on.
+   *
+   * The screen reads this rather than discovering it: a provider offered with
+   * a Connect button that throws is worse than one shown as not ready, and
+   * this product recommends its cheaper provider to United States businesses
+   * by name.
+   */
+  hostedConnection: boolean;
 }
 
 /** A bank account as the provider describes it. */

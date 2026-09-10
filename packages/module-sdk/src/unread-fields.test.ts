@@ -133,3 +133,56 @@ test("a field written by something that is not a screen can be excused", () => {
     }),
   ).toEqual([]);
 });
+
+/**
+ * A comment is not code, in either direction.
+ *
+ * Explaining why a field was removed means writing its name down, and the
+ * sweep used to read that as the route still accepting it — so the only way
+ * to write the explanation was to avoid naming the thing being explained.
+ *
+ * The other direction is the one that matters more: a commented-out line in a
+ * screen made a field look reachable, which hides exactly the gap this exists
+ * to find.
+ */
+test("a field named only in a comment is neither read nor sent", () => {
+  const commented = write(
+    "commented.ts",
+    `export const r = (app) => app.post("/x", async (c) => {
+       const body = await c.req.json();
+       // This used to read \`body.lock\`, and no longer does.
+       /* Nor body.legacy, which went with it. */
+       return c.json({ ok: Boolean(body.real) });
+     });`,
+  );
+  expect([...(fieldsRead([commented]).values().next().value ?? [])]).toEqual([
+    "real",
+  ]);
+
+  const screenWithDeadCode = write(
+    "dead-code.tsx",
+    `export function S() {
+       // body: JSON.stringify({ lock: true }),
+       return fetch("/x", { body: JSON.stringify({ real: 1 }) });
+     }`,
+  );
+  const hits = unreadFields({
+    routeFiles: [commented],
+    screenFiles: [screenWithDeadCode],
+  }).map((h) => h.split(": ")[1]);
+  expect(hits).toEqual([]);
+});
+
+test("a url inside a string is not mistaken for a comment", () => {
+  const withUrl = write(
+    "with-url.ts",
+    `export const r = (app) => app.post("/x", async (c) => {
+       const body = await c.req.json();
+       const to = "https://example.test/hook";
+       return c.json({ to, id: body.callbackId });
+     });`,
+  );
+  expect([...(fieldsRead([withUrl]).values().next().value ?? [])]).toEqual([
+    "callbackId",
+  ]);
+});
