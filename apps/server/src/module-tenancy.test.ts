@@ -2,9 +2,11 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, eq, inArray, schema } from "@sentrello/db";
+import accounting from "@sentrello/module-accounting";
 import crm from "@sentrello/module-crm";
 import invoicing from "@sentrello/module-invoicing";
 import { registerForTest } from "@sentrello/module-sdk";
+import users from "@sentrello/module-users";
 
 /**
  * No Free module hands one business another business's rows.
@@ -34,7 +36,14 @@ import { registerForTest } from "@sentrello/module-sdk";
  * where the figures are computed.
  */
 
-const MODULES = { crm, invoicing };
+/*
+ * Which modules are swept.
+ *
+ * Accounting and Users were added on 2026-09-09: the test was named for "any
+ * Free module" and enumerated two of them, so the routes that read a ledger or
+ * an account list were checked by nothing here.
+ */
+const MODULES = { crm, invoicing, accounting, users };
 
 const suffix = crypto.randomUUID().slice(0, 8);
 /** In the second business's rows, and in none of the first's. */
@@ -48,6 +57,17 @@ const MARKER = `zztenant${suffix}`;
 const SEEDS: [keyof typeof MODULES, string, Record<string, unknown>][] = [
   ["crm", "/api/contacts", { name: MARKER }],
   ["crm", "/api/companies", { name: MARKER }],
+  /*
+   * A tag, because tags take a different road out of the CRM.
+   *
+   * A resource with no list spec is served by a separate branch — every row,
+   * unordered, unpaged — and that branch has its own `organizationId` filter.
+   * Removing it leaked nothing this test could see, because nothing it seeded
+   * was a tag. The marker has to exist in the table the query reads, or the
+   * sweep walks past the open door.
+   */
+  ["crm", "/api/tags", { name: MARKER }],
+  ["crm", "/api/deals", { name: MARKER }],
 ];
 
 let aHeaders: Headers;
@@ -148,7 +168,16 @@ test("the business that owns the rows can see them", async () => {
   expect(await mine.text()).toContain(MARKER);
 });
 
-test("no read in any Free module returns another business's rows", async () => {
+/*
+ * Named for what it can see.
+ *
+ * The sweep visits every GET route in the modules above, and can only *detect*
+ * a leak where the other business has a row carrying the marker. A module with
+ * no seed still has its reads swept and contributes nothing to catch them
+ * with — which is why the seed list matters more than the module list, and why
+ * it grew on 2026-09-09 after a removed filter went unnoticed.
+ */
+test("no read returns another business's marked rows", async () => {
   const leaked: string[] = [];
   let checked = 0;
 
