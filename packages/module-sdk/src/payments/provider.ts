@@ -116,6 +116,25 @@ export interface PaymentProvider {
     reference: string,
   ): Promise<{ paid: boolean; amountCents?: number; feeCents?: number }>;
 
+  /**
+   * Sets up the webhook itself, and hands back the secret to store.
+   *
+   * The step this removes is the worst part of connecting a processor: go to
+   * another company's dashboard, find webhooks, paste a URL, choose the right
+   * events from a list of two hundred, copy a signing secret back. Get any of
+   * it wrong and payments are taken and never confirmed — silently, because
+   * everything looks fine until an order sits unpaid with the money gone.
+   *
+   * A provider that can be asked to do it should be asked. The business pastes
+   * its API keys and nothing else.
+   *
+   * Returns null when it cannot be done rather than throwing: an instance on
+   * `localhost` has no address the processor can reach, and that is a normal
+   * state during development rather than a failure. The screen then asks for
+   * the secret by hand.
+   */
+  ensureWebhook?(url: string): Promise<{ secret: string; id: string } | null>;
+
   /** Sends money back. Returns what was actually refunded. */
   refund?(
     reference: string,

@@ -166,6 +166,69 @@ export function stripeProvider(credentials: Credentials): PaymentProvider {
       };
     },
 
+    /**
+     * Registers the endpoint with Stripe and returns its signing secret.
+     *
+     * Stripe only ever discloses a signing secret when the endpoint is
+     * created, so an endpoint that already exists for this URL is deleted and
+     * remade rather than reused — there is no way to read the old secret back,
+     * and an instance that cannot verify events is one taking money it never
+     * confirms.
+     *
+     * Only the three events this product acts on are subscribed. Subscribing
+     * to everything works and is worse: it doubles a busy shop's webhook
+     * traffic and buries the events that matter among ones nothing reads.
+     */
+    async ensureWebhook(url: string) {
+      /*
+       * A processor cannot reach a private address, and a development instance
+       * is the ordinary case rather than a mistake. Null means "ask the person
+       * to paste one", which is what the screen does.
+       */
+      if (
+        !/^https:\/\//.test(url) ||
+        /localhost|127\.0\.0\.1|\.local/.test(url)
+      ) {
+        return null;
+      }
+
+      const existing = await call("/webhook_endpoints?limit=100");
+      if (existing.ok) {
+        const endpoints = (existing.body.data ?? []) as {
+          id: string;
+          url: string;
+        }[];
+        for (const endpoint of endpoints) {
+          if (endpoint.url === url) {
+            await call(`/webhook_endpoints/${endpoint.id}`, {
+              method: "DELETE",
+            });
+          }
+        }
+      }
+
+      const body = new URLSearchParams({ url });
+      for (const event of [
+        "checkout.session.completed",
+        "checkout.session.async_payment_failed",
+        "charge.refunded",
+      ]) {
+        body.append("enabled_events[]", event);
+      }
+
+      const made = await call("/webhook_endpoints", { method: "POST", body });
+      if (!made.ok) {
+        const error = made.body.error as { message?: string } | undefined;
+        throw new Error(
+          `stripe would not create the webhook: ${error?.message ?? made.status}`,
+        );
+      }
+
+      const secret = made.body.secret as string | undefined;
+      if (!secret) return null;
+      return { secret, id: made.body.id as string };
+    },
+
     async verifyWebhook(raw: string, headers: Headers): Promise<boolean> {
       if (!webhookSecret) return false;
       return verifyStripeSignature(

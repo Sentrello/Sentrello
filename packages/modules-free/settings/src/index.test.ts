@@ -570,3 +570,69 @@ test("no environment key means no warning", async () => {
     process.env.STRIPE_SECRET_KEY = previousKey;
   }
 });
+
+/**
+ * Connecting in one press, and refusing to go halfway.
+ *
+ * The old shape was three buttons in an order nobody was told — save, test,
+ * turn on — and every pair had a state in between that looks like a fault.
+ * What James actually hit: paste a webhook secret, press the third button, and
+ * be told a webhook secret is needed. True of the database, and a lie about
+ * what he was looking at.
+ *
+ * The property that matters is not "it is easier". It is that **a processor is
+ * never switched on because a later step papered over an earlier one.** Taking
+ * money the shop cannot confirm is the worst outcome this screen has, so the
+ * first failure stops everything after it.
+ */
+test("connecting reports each stage and stops at the first failure", async () => {
+  await app.request("http://localhost/api/payments/accounts/stripe/test", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({
+      publicKey: "pk_test_visible",
+      secretKey: "sk_test_definitely_not_a_real_key",
+    }),
+  });
+
+  const res = await app.request(
+    "http://localhost/api/payments/accounts/stripe/test/connect",
+    { method: "POST", headers },
+  );
+
+  // Stripe will not accept that key, so the connection is refused.
+  expect(res.status).toBe(409);
+  const body = (await res.json()) as {
+    steps: { step: string; ok: boolean }[];
+  };
+
+  // Named stages rather than one flat failure: a wrong key is not an
+  // unreachable instance, and telling somebody only that "it did not work"
+  // makes them re-paste a key that was fine.
+  expect(body.steps[0]?.step).toContain("check the keys");
+  expect(body.steps[0]?.ok).toBe(false);
+  // Nothing after the failure ran.
+  expect(body.steps.some((s) => s.step.includes("start taking payments"))).toBe(
+    false,
+  );
+
+  // And the shop is not taking payments on a key the processor rejected.
+  const [row] = await db
+    .select()
+    .from(schema.paymentAccounts)
+    .where(eq(schema.paymentAccounts.organizationId, orgId));
+  expect(row?.enabled).toBe(false);
+});
+
+test("connecting refuses without keys rather than pretending", async () => {
+  await db
+    .delete(schema.paymentAccounts)
+    .where(eq(schema.paymentAccounts.organizationId, orgId));
+
+  const res = await app.request(
+    "http://localhost/api/payments/accounts/stripe/test/connect",
+    { method: "POST", headers },
+  );
+  expect(res.status).toBe(400);
+  expect(await res.text()).toContain("paste the keys first");
+});
