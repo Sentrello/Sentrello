@@ -1742,9 +1742,14 @@ export function Banking() {
       <Card>
         <p className="mb-2 text-sm font-medium">Import a statement</p>
         <div className="flex flex-wrap items-end gap-3">
+          {/* A file input with no label is announced as "button" and nothing
+              else, so somebody using a screen reader cannot tell what it takes.
+              Critical under WCAG 4.1.2, and it was invisible until the suite
+              ran against an entitled instance — this screen needs Pro. */}
           <input
             type="file"
             accept=".csv,text/csv"
+            aria-label="The statement file to import, as CSV"
             className="text-sm"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
           />

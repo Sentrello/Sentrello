@@ -519,8 +519,14 @@ export function Tabs({
           style={
             tab.id === current?.id
               ? {
+                  // The border may be brand-500; the *text* may not.
+                  // brand-500 on the light surface measures 3.78:1 against the
+                  // 4.5:1 AA asks for text this size, so the selected tab —
+                  // the one word on the strip that says where you are — was
+                  // the hardest thing on it to read. A border is a graphical
+                  // object at 3:1 and passes; text is not.
                   borderColor: "var(--color-brand-500)",
-                  color: "var(--color-brand-500)",
+                  color: "var(--brand-on-white-text)",
                 }
               : { borderColor: "transparent", ...muted }
           }
