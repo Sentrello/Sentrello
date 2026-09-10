@@ -625,6 +625,16 @@ export function registerForms(ctx: ModuleContext) {
     }
 
     const payload = await readSubmission(c.req.raw);
+    if (payload === null) {
+      return wantsHtml(c)
+        ? c.html(
+            problemPage(
+              "That message is too long to send through this form. Shorten it, or contact the business directly.",
+            ),
+            413,
+          )
+        : c.json({ error: "too_large" }, 413, corsHeaders(decision.echo));
+    }
 
     // Silent success for the honeypot: telling a bot it was detected only
     // teaches it to stop filling the trap.
@@ -730,22 +740,107 @@ async function formByKey(key: string) {
   return form;
 }
 
-/** Accepts JSON or a plain HTML form post, so a snippet needs no JavaScript. */
-async function readSubmission(req: Request): Promise<Record<string, string>> {
-  const type = req.headers.get("content-type") ?? "";
-  if (type.includes("application/json")) {
-    const body = await req.json().catch(() => ({}));
-    return Object.fromEntries(
-      Object.entries(body as Record<string, unknown>).map(([k, v]) => [
-        k,
-        String(v ?? ""),
-      ]),
-    );
+/**
+ * The largest submission this endpoint will read.
+ *
+ * A contact form is a name, an address and a few sentences; 64KB is a long
+ * message and a generous allowance for the field names around it. The inbound
+ * email endpoint — the other thing on this product's public surface that a
+ * stranger may post to — has had a cap since it was written, and this had
+ * none: `/api/embed/forms/:key` is reachable by anybody on the internet, by
+ * design, and read whatever was sent.
+ *
+ * The rate limit above bounds how *often* somebody may post. It does nothing
+ * about how much they may post at once.
+ */
+export const MAX_SUBMISSION_BYTES = 64 * 1024;
+
+/** Too many boxes to be a form somebody filled in. */
+const MAX_SUBMISSION_FIELDS = 100;
+
+/**
+ * The body, refused rather than read once it is past the cap.
+ *
+ * `content-length` is checked first because it costs nothing and rejects the
+ * ordinary case before a byte of payload arrives — but it is a claim by the
+ * sender, absent on a chunked request and free to lie, so the stream is
+ * counted as it comes in and abandoned the moment it goes over. Whichever
+ * arrives first, nothing larger than the cap is ever held in memory.
+ */
+async function readCapped(req: Request): Promise<string | null> {
+  const declared = Number(req.headers.get("content-length") ?? Number.NaN);
+  if (Number.isFinite(declared) && declared > MAX_SUBMISSION_BYTES) return null;
+
+  const reader = req.body?.getReader();
+  if (!reader) return "";
+
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    total += value.byteLength;
+    if (total > MAX_SUBMISSION_BYTES) {
+      await reader.cancel().catch(() => {});
+      return null;
+    }
+    chunks.push(value);
   }
-  const form = await req.formData().catch(() => new FormData());
-  const out: Record<string, string> = {};
-  for (const [k, v] of form.entries()) out[k] = String(v);
-  return out;
+
+  const joined = new Uint8Array(total);
+  let at = 0;
+  for (const chunk of chunks) {
+    joined.set(chunk, at);
+    at += chunk.byteLength;
+  }
+  return new TextDecoder().decode(joined);
+}
+
+/**
+ * Accepts JSON or a plain HTML form post, so a snippet needs no JavaScript.
+ *
+ * Returns `null` when the submission is too large, which the route answers
+ * with a 413 rather than treating as an empty form.
+ */
+async function readSubmission(
+  req: Request,
+): Promise<Record<string, string> | null> {
+  const text = await readCapped(req);
+  if (text === null) return null;
+
+  const type = req.headers.get("content-type") ?? "";
+  const capped = (entries: [string, unknown][]) =>
+    Object.fromEntries(
+      entries
+        // A form with more boxes than this was not filled in by a person.
+        .slice(0, MAX_SUBMISSION_FIELDS)
+        .map(([k, v]) => [k, String(v ?? "")]),
+    );
+
+  if (type.includes("application/json")) {
+    try {
+      const body = JSON.parse(text) as Record<string, unknown>;
+      if (!body || typeof body !== "object") return {};
+      return capped(Object.entries(body));
+    } catch {
+      return {};
+    }
+  }
+
+  /*
+   * Rebuilt from the text already read, rather than parsed from the request a
+   * second time: the body has been consumed by the cap, and this keeps
+   * multipart and url-encoded posts on exactly the same leash as JSON.
+   */
+  const form = await new Request("http://form.invalid", {
+    method: "POST",
+    headers: { "content-type": type },
+    body: text,
+  })
+    .formData()
+    .catch(() => new FormData());
+  return capped([...form.entries()]);
 }
 
 /**

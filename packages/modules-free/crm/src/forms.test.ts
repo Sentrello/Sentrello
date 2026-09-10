@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
-import { and, db, eq, inArray, schema } from "@sentrello/db";
+import { and, db, desc, eq, inArray, schema } from "@sentrello/db";
 import { registerForTest } from "@sentrello/module-sdk";
 import { HONEYPOT_FIELD, resetRateLimits } from "@sentrello/module-sdk";
-import { splitName } from "./forms";
+import { MAX_SUBMISSION_BYTES, splitName } from "./forms";
 import crm from "./index";
 
 const suffix = crypto.randomUUID().slice(0, 8);
@@ -936,4 +936,77 @@ test("a refusing mail server still leaves the submission", async () => {
     .from(schema.formSubmissions)
     .where(eq(schema.formSubmissions.formId, form.id));
   expect(rows).toHaveLength(1);
+});
+
+/**
+ * The public form is on the internet, and the internet sends what it likes.
+ *
+ * The rate limit above bounds how *often* a stranger may post. It says nothing
+ * about how much they may post at once, and this endpoint read whatever
+ * arrived: `req.json()` on an unauthenticated route with no cap. The inbound
+ * email endpoint — the only other thing on this product's public surface a
+ * stranger may post to — has had a 256KB cap since it was written. This had
+ * none.
+ *
+ * Refused with 413 rather than accepted and truncated, because a message
+ * silently cut in half is worse than one the sender is told to shorten: the
+ * business would answer a question it could not see the end of.
+ */
+test("a submission larger than the cap is refused, not read", async () => {
+  /*
+   * A fixed megabyte, not `MAX_SUBMISSION_BYTES + 1`.
+   *
+   * Deriving the payload from the constant makes the test agree with whatever
+   * the constant says — raise the cap to a gigabyte and it still passes, which
+   * is a test of arithmetic rather than of the product. A megabyte through a
+   * contact form is wrong at any setting somebody would defend, so the number
+   * is written here and the cap has to stay under it.
+   */
+  const huge = "x".repeat(1024 * 1024);
+  const res = await submit(contactFormKey, {
+    name: "Too Much",
+    email: "toomuch@buyer.example",
+    message: huge,
+  });
+  expect(res.status).toBe(413);
+  // And the cap itself stays a form's worth rather than drifting upwards
+  // until the assertion above is unreachable.
+  expect(MAX_SUBMISSION_BYTES).toBeLessThanOrEqual(256 * 1024);
+
+  // And nothing was written: a refusal that still filed the lead would be a
+  // cap in name only.
+  const [row] = await db
+    .select({ id: schema.contacts.id })
+    .from(schema.contacts)
+    .where(
+      and(
+        eq(schema.contacts.organizationId, orgId),
+        eq(schema.contacts.email, "toomuch@buyer.example"),
+      ),
+    );
+  expect(row).toBeUndefined();
+});
+
+test("a submission with a great many fields keeps only a form's worth", async () => {
+  // Not a person filling in a form. Bounded so a thousand-key body cannot turn
+  // into a thousand custom values on a contact record.
+  const many: Record<string, string> = {
+    name: "Wide Load",
+    email: "wide@buyer.example",
+  };
+  for (let i = 0; i < 500; i += 1) many[`field${i}`] = "x";
+
+  const res = await submit(contactFormKey, many);
+  expect(res.status).toBeLessThan(400);
+
+  const [submission] = await db
+    .select({ payload: schema.formSubmissions.payload })
+    .from(schema.formSubmissions)
+    .where(eq(schema.formSubmissions.organizationId, orgId))
+    .orderBy(desc(schema.formSubmissions.createdAt))
+    .limit(1);
+  const kept = Object.keys(
+    (submission?.payload ?? {}) as Record<string, unknown>,
+  );
+  expect(kept.length).toBeLessThanOrEqual(100);
 });
