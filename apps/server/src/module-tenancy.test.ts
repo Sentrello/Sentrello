@@ -113,6 +113,8 @@ let bUserId: string;
  * nobody thought about goes unswept.
  */
 const bIds: string[] = [];
+/** The second business's contact, because an invoice has to be billed to one. */
+let bContactId = "";
 
 async function business(label: string) {
   const signUp = await signUpAsOwner({
@@ -208,9 +210,40 @@ beforeAll(async () => {
     for (const value of Object.values(made)) {
       if (value && typeof value === "object" && typeof value.id === "string") {
         bIds.push(value.id);
+        if (path === "/api/contacts") bContactId = value.id;
       }
     }
   }
+
+  /*
+   * An invoice for the second business, because it is the record a small
+   * business cares most about and the one most routes touch.
+   *
+   * It cannot be seeded from the list above — it has to be billed to a
+   * contact, so it needs the id of the one that list just made. It carries the
+   * marker in a line description, and issuing it posts to the ledger through
+   * the same funnel everything else does.
+   */
+  const invoice = await registerForTest(invoicing).request(
+    "http://localhost/api/invoices",
+    {
+      method: "POST",
+      headers: bHeaders,
+      body: JSON.stringify({
+        contactId: bContactId,
+        currency: "USD",
+        lines: [
+          { description: MARKER, quantity: 1, unitPrice: 12345, taxRateBp: 0 },
+        ],
+      }),
+    },
+  );
+  if (invoice.status >= 400) {
+    throw new Error(`seeding an invoice answered ${invoice.status}`);
+  }
+  const invoiceBody = (await invoice.json()) as { invoice?: { id?: string } };
+  if (!invoiceBody.invoice?.id) throw new Error("the seeded invoice has no id");
+  bIds.push(invoiceBody.invoice.id);
 
   const bAccountIds = await db
     .select({ id: schema.accounts.id })
@@ -283,6 +316,25 @@ async function whatBeeHas(): Promise<string> {
       .from(schema.journalEntries)
       .where(eq(schema.journalEntries.organizationId, bOrgId))
       .orderBy(schema.journalEntries.id),
+    db
+      .select()
+      .from(schema.invoices)
+      .where(eq(schema.invoices.organizationId, bOrgId))
+      .orderBy(schema.invoices.id),
+    /*
+     * The lines are reached through their invoice, which is the only
+     * `organizationId` they have — so a line edited without the invoice row
+     * changing is exactly the kind of write this has to be able to see.
+     */
+    db
+      .select()
+      .from(schema.invoiceLines)
+      .innerJoin(
+        schema.invoices,
+        eq(schema.invoiceLines.invoiceId, schema.invoices.id),
+      )
+      .where(eq(schema.invoices.organizationId, bOrgId))
+      .orderBy(schema.invoiceLines.id),
     db.select().from(schema.member).where(eq(schema.member.userId, bUserId)),
     db.select().from(schema.user).where(eq(schema.user.id, bUserId)),
   ]);
