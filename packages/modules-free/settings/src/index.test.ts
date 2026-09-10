@@ -441,15 +441,31 @@ test("keys are stored sealed and never returned", async () => {
 });
 
 test("nothing goes live until the connection has been proven", async () => {
+  /*
+   * The separate "turn it on" route is gone — connecting is one press now, and
+   * a route nothing calls is a route nobody maintains. The property it guarded
+   * is unchanged and matters as much: an instance switched on with keys the
+   * processor has not accepted is one whose first real customer meets an error
+   * at the moment they try to pay.
+   *
+   * So it is asserted where it now lives. The key stored above is not a real
+   * one, Stripe refuses it, and the connection stops there.
+   */
   const refused = await app.request(
-    "http://localhost/api/payments/accounts/stripe/test/enable",
+    "http://localhost/api/payments/accounts/stripe/test/connect",
     { method: "POST", headers },
   );
-  // An instance switched on with untested keys is one whose first real
-  // customer meets an error at the moment they try to pay.
   expect(refused.status).toBe(409);
-  expect(((await refused.json()) as { error: string }).error).toContain(
-    "test the connection",
+
+  const body = (await refused.json()) as {
+    steps: { step: string; ok: boolean }[];
+  };
+  expect(
+    body.steps.some((s) => s.step.includes("check the keys") && !s.ok),
+  ).toBe(true);
+  // Nothing after the failing stage ran.
+  expect(body.steps.some((s) => s.step.includes("start taking payments"))).toBe(
+    false,
   );
 
   const [row] = await db
