@@ -115,6 +115,10 @@ let bUserId: string;
 const bIds: string[] = [];
 /** The second business's contact, because an invoice has to be billed to one. */
 let bContactId = "";
+/** One of the second business's tax rates, for the routes that price a line. */
+let bTaxId = "";
+/** The second business's two draft invoices, for the route that merges drafts. */
+const bDraftIds: string[] = [];
 
 async function business(label: string) {
   const signUp = await signUpAsOwner({
@@ -244,6 +248,37 @@ beforeAll(async () => {
   const invoiceBody = (await invoice.json()) as { invoice?: { id?: string } };
   if (!invoiceBody.invoice?.id) throw new Error("the seeded invoice has no id");
   bIds.push(invoiceBody.invoice.id);
+  bDraftIds.push(invoiceBody.invoice.id);
+
+  /*
+   * A second draft for the second business.
+   *
+   * The second draft exists for the route that merges drafts, which needs two
+   * of them and which no sweep can reach with an empty body.
+   */
+  const secondDraft = await registerForTest(invoicing).request(
+    "http://localhost/api/invoices",
+    {
+      method: "POST",
+      headers: bHeaders,
+      body: JSON.stringify({
+        contactId: bContactId,
+        currency: "USD",
+        lines: [
+          { description: MARKER, quantity: 2, unitPrice: 5000, taxRateBp: 0 },
+        ],
+      }),
+    },
+  );
+  if (secondDraft.status >= 400) {
+    throw new Error(`seeding a second draft answered ${secondDraft.status}`);
+  }
+  const secondBody = (await secondDraft.json()) as {
+    invoice?: { id?: string };
+  };
+  if (!secondBody.invoice?.id) throw new Error("the second draft has no id");
+  bIds.push(secondBody.invoice.id);
+  bDraftIds.push(secondBody.invoice.id);
 
   /*
    * And two records in accounting, which owned less of the second business's
@@ -317,6 +352,7 @@ beforeAll(async () => {
     .from(schema.taxDefinitions)
     .where(eq(schema.taxDefinitions.organizationId, bOrgId));
   bIds.push(...bTaxIds.map((t) => t.id));
+  bTaxId = bTaxIds[0]?.id ?? "";
 
   const bAccountIds = await db
     .select({ id: schema.accounts.id })
@@ -709,3 +745,85 @@ test("no write reaches another business's rows", async () => {
   // And the other direction: nothing of B's ended up in A's books.
   expect(await whatAlphaTook()).toEqual([]);
 }, 300_000);
+
+/**
+ * The two routes an empty body cannot reach, reached with a real one.
+ *
+ * The write sweep above sends `{}` to every route it can find, which is what
+ * lets it cover a hundred and fifty of them without a hand-written body each.
+ * Two refuse an empty body before they get as far as a query, so the sweep
+ * passes over them and their tenancy filters were held by nothing:
+ * `invoicing/consolidate.ts` and `invoicing/documents.ts`, the last two of the
+ * forty-four measured on 2026-09-10.
+ *
+ * They are not swept. They are called, deliberately, with the body each one
+ * needs and the second business's ids inside it.
+ */
+test("one business cannot merge another's drafts", async () => {
+  const app = registerForTest(invoicing);
+  const before = await whatBeeHas();
+
+  const res = await app.request("http://localhost/api/invoices/consolidate", {
+    method: "POST",
+    headers: aHeaders,
+    body: JSON.stringify({ invoiceIds: bDraftIds }),
+  });
+
+  // 404 rather than 403: the drafts are not this business's to see, so the
+  // honest answer is that they do not exist.
+  expect(res.status).toBe(404);
+  // And nothing was merged, cancelled or taken. A merge that half-succeeded
+  // would leave B's drafts marked and A holding the total.
+  expect(await whatBeeHas()).toEqual(before);
+  expect(await whatAlphaTook()).toEqual([]);
+}, 60_000);
+
+test("one business cannot price a line with another's tax rate", async () => {
+  /*
+   * The expensive direction, said plainly in `prepareDocument` itself: a rate
+   * that cannot be found must be refused rather than treated as zero. Unscope
+   * that lookup and the first business raises an invoice charging the second
+   * business's VAT — a real rate, on a document that goes to a customer, from
+   * a business that may not even be registered for it.
+   */
+  const crmApp = registerForTest(crm);
+  const made = await crmApp.request("http://localhost/api/contacts", {
+    method: "POST",
+    headers: aHeaders,
+    body: JSON.stringify({ name: `Alpha's own ${suffix}` }),
+  });
+  expect(made.status).toBeLessThan(400);
+  const contactId = ((await made.json()) as { contact: { id: string } }).contact
+    .id;
+
+  try {
+    const res = await registerForTest(invoicing).request(
+      "http://localhost/api/invoices",
+      {
+        method: "POST",
+        headers: aHeaders,
+        body: JSON.stringify({
+          contactId,
+          currency: "USD",
+          lines: [
+            {
+              description: "An hour",
+              quantity: 1,
+              unitPrice: 10_000,
+              taxDefinitionId: bTaxId,
+            },
+          ],
+        }),
+      },
+    );
+
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    // Refused, and refused for the right reason rather than by a validator
+    // that happened to dislike something else about the body.
+    expect(await res.text()).toContain("tax rate");
+  } finally {
+    // Left behind, the first business would no longer own nothing, and the
+    // dashboard test above asserts precisely that it does.
+    await db.delete(schema.contacts).where(eq(schema.contacts.id, contactId));
+  }
+}, 60_000);
