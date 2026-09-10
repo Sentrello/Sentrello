@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { db, eq, schema } from "@sentrello/db";
+import { and, db, eq, schema } from "@sentrello/db";
 import { lockState } from "@sentrello/db/lockout";
 import { auth } from "./index";
 import { signUpAsOwner } from "./testing";
@@ -73,10 +73,25 @@ test("clears a lock without a session, the way the login route cannot", async ()
 
   expect((await lockState(orgId, email)).locked).toBe(false);
 
+  /*
+   * Scoped to this business, which it was not.
+   *
+   * It asked for every `account.unlocked` event in the database, unordered,
+   * took the first row and asserted it belonged here — so any such event left
+   * by another test, or another run, could be the one it picked. It failed
+   * under mutations of files it has nothing to do with, which is how it was
+   * found: a test that reads across businesses is a test that reports on
+   * somebody else's data, and this suite exists to say that is not allowed.
+   */
   const [event] = await db
     .select()
     .from(schema.securityEvents)
-    .where(eq(schema.securityEvents.action, "account.unlocked"));
+    .where(
+      and(
+        eq(schema.securityEvents.organizationId, orgId),
+        eq(schema.securityEvents.action, "account.unlocked"),
+      ),
+    );
   expect(event?.organizationId).toBe(orgId);
   expect(event?.detail).toEqual({ email });
 });
