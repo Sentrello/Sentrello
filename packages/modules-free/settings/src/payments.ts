@@ -319,8 +319,22 @@ export function registerPaymentAccounts(ctx: ModuleContext) {
       }
 
       const steps: { step: string; ok: boolean; detail?: string }[] = [];
-      const stop = (status: 400 | 409 | 503) =>
-        c.json({ steps, account: forDisplay(account) }, status);
+      /*
+       * The stages are the answer, and they travel in the failure as well as
+       * the success — a caller that only reads `error` still gets the sentence
+       * that matters rather than a status code to guess from.
+       */
+      const stop = (status: 400 | 409 | 503) => {
+        const failed = steps.find((s) => !s.ok);
+        return c.json(
+          {
+            steps,
+            error: failed?.detail ?? `could not ${failed?.step ?? "connect"}`,
+            account: forDisplay(account),
+          },
+          status,
+        );
+      };
 
       let live: PaymentProvider;
       try {
