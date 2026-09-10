@@ -90,6 +90,7 @@ const memberEmail = `gates-sweep-member-${suffix}@example.test`;
 
 let orgId: string;
 let memberHeaders: Headers;
+let ownerHeaders: Headers;
 let ownerId: string;
 let memberId: string;
 
@@ -103,15 +104,21 @@ beforeAll(async () => {
   if (!ownerCookie) throw new Error("sign-up returned no session cookie");
   ownerId = owner.response.user.id;
 
+  ownerHeaders = new Headers({
+    cookie: ownerCookie,
+    "content-type": "application/json",
+  });
+
   const org = await auth.api.createOrganization({
     body: { name: `Gate sweep ${suffix}`, slug: `gate-sweep-${suffix}` },
-    headers: new Headers({
-      cookie: ownerCookie,
-      "content-type": "application/json",
-    }),
+    headers: ownerHeaders,
   });
   if (!org) throw new Error("could not create organization");
   orgId = org.id;
+  await auth.api.setActiveOrganization({
+    body: { organizationId: org.id },
+    headers: ownerHeaders,
+  });
 
   // A real member of the business holding the compiled `member` role, which
   // carries no statement for any module — an ordinary employee before anybody
@@ -198,4 +205,67 @@ test("no Free module answers a member who holds no permissions", async () => {
   expect(checked).toBeGreaterThan(100);
   // Named rather than counted, so a regression says which door opened.
   expect(answered).toEqual([]);
+}, 120_000);
+
+/**
+ * And the mirror image, which is the half nobody had written.
+ *
+ * The sweep above proves a gate *refuses*. Every way of getting a gate wrong
+ * that refuses harder passes it: a guard naming a permission that does not
+ * exist refuses the member, refuses the owner, refuses everybody, and the
+ * suite calls it correct. `hasPermission` denies an unknown resource rather
+ * than throwing, so the mistake is a silent one — and the mistake is a typo.
+ *
+ * It had already happened. All six Making Tax Digital routes guarded on
+ * `accounting: [...]`, and the resource in the permission model is
+ * `bookkeeping` — every other route in that module says so. Connecting to
+ * HMRC, reading obligations and filing a VAT return answered 403 to every
+ * role including the owner, which is to say **the feature was not reachable
+ * in the product at all**, while its own tests passed and the sweep above
+ * called the gates correct.
+ *
+ * So: an owner holds every permission a business has, and no route may refuse
+ * them. Anything that does is naming something nobody can hold.
+ *
+ * **Reads only, deliberately.** Calling every POST and DELETE as somebody
+ * whose permissions let them through would send email, reach for HMRC and
+ * Stripe, and delete rows — a sweep with side effects is one nobody dares
+ * run. The defect this catches is in the guard rather than the verb, and the
+ * six MTD routes were caught by the one GET among them.
+ *
+ * The ceiling that leaves: a module whose *only* route with a misspelt
+ * permission is a write has nothing here to catch it. Every resource named by
+ * a guard in this repository was checked against the model by hand on
+ * 2026-09-10 and `accounting` was the only one that did not exist.
+ */
+test("no Free module refuses the owner of the business", async () => {
+  const refused: string[] = [];
+  let checked = 0;
+
+  for (const [name, mod] of Object.entries(MODULES)) {
+    const app = registerForTest(mod) as unknown as {
+      routes?: { method: string; path: string }[];
+      request: (url: string, init?: RequestInit) => Promise<Response>;
+    };
+
+    const seen = new Set<string>();
+    for (const route of app.routes ?? []) {
+      if (route.method !== "GET") continue;
+      const key = `${route.method} ${route.path}`;
+      if (seen.has(key) || PUBLIC_BY_DESIGN.has(key)) continue;
+      seen.add(key);
+      checked += 1;
+
+      const path = route.path.replace(/:[A-Za-z]+/g, "nothing");
+      const res = await app.request(`http://localhost${path}`, {
+        headers: ownerHeaders,
+      });
+      // Only 403 is the failure. A fictional id answering 404, or a route
+      // that needs a query parameter answering 400, is the route working.
+      if (res.status === 403) refused.push(`${name}: ${key}`);
+    }
+  }
+
+  expect(checked).toBeGreaterThan(50);
+  expect(refused).toEqual([]);
 }, 120_000);
