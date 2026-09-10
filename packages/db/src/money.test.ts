@@ -280,3 +280,61 @@ test("nothing offered is nothing owed differently", () => {
   expect(terms.discountedTotalCents).toBe(10_000);
   expect(terms.open).toBe(false);
 });
+
+/**
+ * The two implementations of one calculation must not drift apart.
+ *
+ * `lineTotals` and `documentTotals` both work out a net per line as
+ * `round(quantity × unitPrice)` and tax as `round(net × rateBp / 10000)`. With
+ * no discount, `documentTotals` is doing exactly what `lineTotals` does with
+ * banding on top, so the two must agree to the penny.
+ *
+ * Each was already covered on its own: removing the rounding from either one
+ * fails a test. Neither covered the thing that actually goes wrong with two
+ * copies of a calculation — somebody changes one. A quote priced through one
+ * and invoiced through the other would then differ by pennies, which is the
+ * kind of discrepancy a customer finds and an accountant cannot explain.
+ *
+ * Swept rather than sampled: the interesting cases are fractional quantities
+ * and rates that do not divide evenly, and picking three by hand is how the
+ * fourth gets missed.
+ */
+test("both ways of totalling a document agree, to the penny", () => {
+  const quantities = [1, 2, 3, 0.5, 1.5, 2.25, 7, 0.333];
+  const prices = [1, 99, 100, 333, 1234, 99_999, 7];
+  const rates = [0, 500, 1750, 2000, 2350, 875];
+
+  let checked = 0;
+  for (const quantity of quantities) {
+    for (const unitPrice of prices) {
+      for (const taxRateBp of rates) {
+        const lines = [
+          { quantity, unitPrice, taxRateBp },
+          // A second line at a different rate, because banding is where the
+          // two could diverge and a single-line document would never show it.
+          {
+            quantity: 1,
+            unitPrice: 1999,
+            taxRateBp: rates[0] === taxRateBp ? 2000 : 0,
+          },
+        ];
+
+        const one = lineTotals(lines);
+        const other = documentTotals(lines, null);
+
+        expect(other.subtotal, `subtotal for ${quantity}×${unitPrice}`).toBe(
+          one.subtotal,
+        );
+        expect(
+          other.tax,
+          `tax for ${quantity}×${unitPrice} @ ${taxRateBp}`,
+        ).toBe(one.tax);
+        expect(other.total).toBe(one.total);
+        checked += 1;
+      }
+    }
+  }
+
+  // A sweep that swept nothing passes every assertion above it.
+  expect(checked).toBeGreaterThan(300);
+});
