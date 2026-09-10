@@ -98,18 +98,24 @@ const PUBLIC_BY_DESIGN = new Set([
 /**
  * Tables that carry `organization_id` but are read without it, for a reason.
  *
- * Every entry has been read, and each is a table the *platform* owns rather
- * than a module: the caller's own identity, resolved before anybody knows
- * which business is being asked about. A module read of one of these is not
- * covered here — `packages/modules-free/users/src/tenancy.test.ts` covers
- * those behaviourally, with two businesses and a marker.
+ * One entry, and it has been checked against the database rather than
+ * remembered: `member` is the only table here that has the column at all. A
+ * module read of it is not covered by this test —
+ * `packages/modules-free/users/src/tenancy.test.ts` covers those behaviourally,
+ * with two businesses and a marker.
+ *
+ * **Two earlier entries named tables that do not exist**, which is the failure
+ * mode an allowlist invites: `modules` (the table is `module_state`, and it is
+ * per-business, not per-instance) and `session` (it carries
+ * `active_organization_id`, not `organization_id`, so it was never a candidate).
+ * Neither exempted anything. An exemption that matches nothing is not harmless —
+ * it reads as a considered decision and hides that nobody checked.
  */
 const PLATFORM_TABLES = new Set([
-  // Who is asking, and which business they have open. Better Auth resolves
-  // the session by its token and the membership by user id — there is no
-  // organization to filter by until this query has answered.
+  // Who is asking, and which business they have open. Better Auth resolves the
+  // membership by user id — there is no organization to filter by until this
+  // query has answered.
   "member",
-  "session",
 ]);
 
 const suffix = crypto.randomUUID().slice(0, 8);

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { db, desc, eq, inArray, schema } from "@sentrello/db";
+import { and, db, desc, eq, inArray, schema } from "@sentrello/db";
 import { runRecurringInvoices } from "./recurring";
 
 /**
@@ -442,20 +442,39 @@ test("a plan's new price does not reach an existing subscriber", async () => {
     nextRunAt: new Date("2026-05-01"),
     unitPriceCents: 4_000,
   });
+  // Named as well as repriced, so the invoice it raises can be found by the
+  // line it bills rather than by being the newest one this business has.
   await db
     .update(schema.billableItems)
-    .set({ unitPriceCents: 9_900 })
+    .set({ unitPriceCents: 9_900, name: `Repriced plan ${suffix}` })
     .where(eq(schema.billableItems.id, subscription.planItemId as string));
 
   await runRecurringInvoices(new Date("2026-05-02"));
 
-  const [invoice] = await db
-    .select()
-    .from(schema.invoices)
-    .where(eq(schema.invoices.organizationId, orgId))
-    .orderBy(desc(schema.invoices.issueDate))
-    .limit(1);
-  expect(invoice?.totalCents).toBe(4_000);
+  /*
+   * Found through the line that bills the plan, not by taking the newest
+   * invoice this business has.
+   *
+   * Several profiles in this suite fall due on the same day, and `issueDate`
+   * is a date rather than a moment — so "most recent" was a tie, broken
+   * however the database felt like breaking it, and this asserted the total of
+   * whichever invoice came back first. The test below says exactly this about
+   * itself and counts on the subscription instead; this one did not.
+   */
+  const [row] = await db
+    .select({ totalCents: schema.invoices.totalCents })
+    .from(schema.invoiceLines)
+    .innerJoin(
+      schema.invoices,
+      eq(schema.invoiceLines.invoiceId, schema.invoices.id),
+    )
+    .where(
+      and(
+        eq(schema.invoices.organizationId, orgId),
+        eq(schema.invoiceLines.description, `Repriced plan ${suffix}`),
+      ),
+    );
+  expect(row?.totalCents).toBe(4_000);
 });
 
 test("a paused subscription bills nothing and keeps its date", async () => {
