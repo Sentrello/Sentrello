@@ -109,7 +109,7 @@ export function registerMtd(ctx: ModuleContext) {
   ctx.app.get(
     "/api/accounting/mtd",
     requireSession(),
-    requirePermission({ accounting: ["read"] }),
+    requirePermission({ bookkeeping: ["read"] }),
     async (c: RouteContext) => {
       const orgId = activeOrganizationId(c.get("session"));
       const cfg = config();
@@ -133,7 +133,7 @@ export function registerMtd(ctx: ModuleContext) {
   ctx.app.post(
     "/api/accounting/mtd/authorise",
     requireSession(),
-    requirePermission({ accounting: ["update"] }),
+    requirePermission({ bookkeeping: ["update"] }),
     async (c: RouteContext) => {
       const cfg = config();
       if (!cfg) {
@@ -164,7 +164,7 @@ export function registerMtd(ctx: ModuleContext) {
   ctx.app.post(
     "/api/accounting/mtd/finish",
     requireSession(),
-    requirePermission({ accounting: ["update"] }),
+    requirePermission({ bookkeeping: ["update"] }),
     async (c: RouteContext) => {
       const orgId = activeOrganizationId(c.get("session"));
       const cfg = config();
@@ -220,7 +220,7 @@ export function registerMtd(ctx: ModuleContext) {
   ctx.app.post(
     "/api/accounting/mtd/obligations",
     requireSession(),
-    requirePermission({ accounting: ["read"] }),
+    requirePermission({ bookkeeping: ["read"] }),
     async (c: RouteContext) => {
       const orgId = activeOrganizationId(c.get("session"));
       const body = (await c.req.json().catch(() => ({}))) as Record<
@@ -260,7 +260,7 @@ export function registerMtd(ctx: ModuleContext) {
   ctx.app.post(
     "/api/accounting/mtd/submit",
     requireSession(),
-    requirePermission({ accounting: ["update"] }),
+    requirePermission({ bookkeeping: ["update"] }),
     async (c: RouteContext) => {
       const orgId = activeOrganizationId(c.get("session"));
       const body = (await c.req.json().catch(() => ({}))) as Record<
@@ -341,7 +341,7 @@ export function registerMtd(ctx: ModuleContext) {
   ctx.app.delete(
     "/api/accounting/mtd",
     requireSession(),
-    requirePermission({ accounting: ["update"] }),
+    requirePermission({ bookkeeping: ["update"] }),
     async (c: RouteContext) => {
       const orgId = activeOrganizationId(c.get("session"));
       await db
