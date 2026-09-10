@@ -4,6 +4,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { db, schema } from "@sentrello/db";
+import { recordConsent } from "@sentrello/db/consent";
 import {
   type ListSpec,
   allConditions,
@@ -331,13 +332,98 @@ function crud<T extends keyof typeof tables>(
       }
       await withCustomValues(resource, orgId, parsed.value);
       if (resource === "deals") await withDecidedAt(orgId, parsed.value);
-      const [row] = await db
-        .update(table)
-        .set(parsed.value)
-        .where(
-          and(eq(table.id, c.req.param("id")), eq(table.organizationId, orgId)),
-        )
-        .returning();
+
+      /**
+       * Two of these fields are legal positions rather than preferences, and
+       * a tick is not evidence of one.
+       *
+       * GDPR Article 7(1) puts the burden of demonstrating consent on the
+       * business; the CCPA cares when an opt-out arrived. `hasNewsletter` had
+       * no history at all, and `doNotSellOn` had a date and nothing about how
+       * it happened. Both write a record now, in the same transaction as the
+       * change, so the tick and its evidence cannot disagree — and the change
+       * is refused rather than recorded unprovably if the record cannot be
+       * written.
+       *
+       * Only when the value actually moves. Saving a contact's phone number
+       * is not somebody consenting to anything, and a history full of
+       * unchanged ticks is a history nobody reads.
+       */
+      const consentFields =
+        resource === "contacts"
+          ? ([
+              ["hasNewsletter", "marketing.email"],
+              ["doNotSell", "data.sale"],
+            ] as const)
+          : [];
+      const watched = consentFields.filter(
+        ([field]) => parsed.value[field] !== undefined,
+      );
+
+      const [row] = await db.transaction(async (tx) => {
+        const before = watched.length
+          ? (
+              await tx
+                .select()
+                .from(table)
+                .where(
+                  and(
+                    eq(table.id, c.req.param("id")),
+                    eq(table.organizationId, orgId),
+                  ),
+                )
+                .limit(1)
+            )[0]
+          : undefined;
+
+        const updated = await tx
+          .update(table)
+          .set(parsed.value)
+          .where(
+            and(
+              eq(table.id, c.req.param("id")),
+              eq(table.organizationId, orgId),
+            ),
+          )
+          .returning();
+
+        const saved = updated[0] as Record<string, unknown> | undefined;
+        if (saved && before) {
+          const session = c.get("session");
+          for (const [field, purpose] of watched) {
+            const was = (before as Record<string, unknown>)[field] === true;
+            const now = saved[field] === true;
+            if (was === now) continue;
+            await recordConsent(
+              {
+                organizationId: orgId,
+                subject: {
+                  kind: "contact",
+                  id: String(saved.id),
+                  label:
+                    (saved.name as string | null) ??
+                    (saved.email as string | null),
+                },
+                purpose,
+                /*
+                 * "Do not sell" reads backwards from every other consent here:
+                 * ticking it is a refusal, so the record says consent was
+                 * withdrawn rather than given.
+                 */
+                granted: purpose === "data.sale" ? !now : now,
+                source: "staff",
+                actor: {
+                  id: session.user.id,
+                  name: session.user.name ?? session.user.email,
+                },
+              },
+              tx,
+            );
+          }
+        }
+        return updated;
+      });
+
       if (!row) return c.json({ error: "not found" }, 404);
       return c.json({ [singular]: row });
     },

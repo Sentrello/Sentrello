@@ -77,6 +77,7 @@ afterAll(async () => {
     [schema.notes, schema.notes.organizationId],
     [schema.tasks, schema.tasks.organizationId],
     [schema.activities, schema.activities.organizationId],
+    [schema.consentRecords, schema.consentRecords.organizationId],
     [schema.tags, schema.tags.organizationId],
     [schema.deals, schema.deals.organizationId],
     [schema.companies, schema.companies.organizationId],
@@ -2030,4 +2031,82 @@ test("a contact who opted out is marked in the export, not removed from it", asy
     body: JSON.stringify({ doNotSell: false }),
   });
   expect((await readBack()).doNotSellOn).toBeNull();
+});
+
+/**
+ * Proving somebody agreed, rather than asserting they did.
+ *
+ * `hasNewsletter` was a tick with no history, and a tick is not evidence. GDPR
+ * Article 7(1) puts the burden of demonstrating consent on the business,
+ * Quebec's Law 25 asks for the record, and the CCPA asks when an opt-out
+ * arrived. So both directions are written down, with who recorded them.
+ */
+test("a change of consent is written down, and an unchanged one is not", async () => {
+  const call = (path: string, init?: RequestInit) =>
+    app.request(`http://localhost${path}`, { headers, ...init });
+
+  const made = await call("/api/contacts", {
+    method: "POST",
+    body: JSON.stringify({
+      firstName: "Grace",
+      lastName: `Consent${suffix}`,
+      email: `consent-${suffix}@example.test`,
+    }),
+  });
+  expect(made.status).toBe(201);
+  const { contact } = (await made.json()) as { contact: { id: string } };
+
+  const records = () =>
+    db
+      .select()
+      .from(schema.consentRecords)
+      .where(eq(schema.consentRecords.subjectId, contact.id));
+
+  // Agreeing.
+  await call(`/api/contacts/${contact.id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ hasNewsletter: true }),
+  });
+  let rows = await records();
+  expect(rows).toHaveLength(1);
+  expect(rows[0]?.purpose).toBe("marketing.email");
+  expect(rows[0]?.granted).toBe(true);
+  expect(rows[0]?.source).toBe("staff");
+  // Who recorded it, because "somebody ticked a box" is not a defence.
+  expect(rows[0]?.actorId).toBeTruthy();
+  expect(rows[0]?.subjectLabel).toContain("Grace");
+
+  /*
+   * Saving the contact again without touching consent must not write another.
+   * A history full of unchanged ticks is a history nobody reads, and it would
+   * make the date somebody actually agreed impossible to find.
+   */
+  await call(`/api/contacts/${contact.id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ phone: "0113 496 0000", hasNewsletter: true }),
+  });
+  expect(await records()).toHaveLength(1);
+
+  // Withdrawing is as much a fact worth proving as agreeing: it is what
+  // defends the mail sent the week before.
+  await call(`/api/contacts/${contact.id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ hasNewsletter: false }),
+  });
+  rows = await records();
+  expect(rows).toHaveLength(2);
+  expect(rows.filter((r) => !r.granted)).toHaveLength(1);
+
+  /*
+   * "Do not sell" reads backwards from the others: ticking it is a refusal.
+   * Recording that as consent *given* would put the wrong answer in front of
+   * whoever handles the next access request.
+   */
+  await call(`/api/contacts/${contact.id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ doNotSell: true }),
+  });
+  const sale = (await records()).find((r) => r.purpose === "data.sale");
+  expect(sale).toBeTruthy();
+  expect(sale?.granted).toBe(false);
 });

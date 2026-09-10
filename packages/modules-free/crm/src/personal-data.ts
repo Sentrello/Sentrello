@@ -1,4 +1,5 @@
 import { and, db, eq, inArray, or, schema, sql } from "@sentrello/db";
+import { consentHistory, describeConsent } from "@sentrello/db/consent";
 import type {
   DataSubject,
   EraseOutcome,
@@ -110,6 +111,33 @@ export function registerCrmPersonalData(ctx: ModuleContext) {
           kind: a.type === "call" ? "Call" : "Activity",
           reference: String(a.occurredAt),
           data: { type: a.type, body: a.body, occurredAt: a.occurredAt },
+        });
+      }
+
+      /*
+       * What they agreed to, and when. The record rather than the tick.
+       *
+       * An access request under GDPR or Law 25 that answers "marketing: yes"
+       * has not answered the question the person asked, which is usually how
+       * this business came to have their address in the first place.
+       */
+      const consents = (
+        await Promise.all(
+          ids.map((id) => consentHistory(orgId, { kind: "contact", id })),
+        )
+      ).flat();
+      for (const row of consents) {
+        out.push({
+          kind: "Consent",
+          reference: describeConsent(row),
+          data: {
+            purpose: row.purpose,
+            granted: row.granted,
+            how: row.source,
+            wording: row.wording,
+            recordedBy: row.actorName,
+            at: row.at,
+          },
         });
       }
 

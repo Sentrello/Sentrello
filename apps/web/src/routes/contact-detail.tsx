@@ -732,6 +732,9 @@ export function HistoryPanel({
     contact: "contact",
     invoice: "file-text",
     payment: "wallet",
+    // A tick has no history; this is the record of it, so it reads on the
+    // timeline beside the call that prompted it.
+    consent: "shield",
   };
 
   return (
