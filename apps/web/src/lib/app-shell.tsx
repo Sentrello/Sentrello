@@ -491,6 +491,43 @@ export function AppShell({
   const settings = nav.find((n) => n.id === "settings");
   const first = nav.find((n) => n.id !== "settings") ?? nav[0];
 
+  /**
+   * The tab says which screen you are on.
+   *
+   * `index.html` sets `<title>Sentrello</title>` and nothing ever changed it,
+   * so all ninety-nine screens shared one title. Axe passes that — its rule
+   * asks whether a title exists — and WCAG 2.4.2 asks for one that describes
+   * the page, which "Sentrello" does not once there is more than one page.
+   *
+   * It is announced on navigation, so for somebody using a screen reader it is
+   * the sentence that says where they have arrived; hearing "Sentrello" every
+   * time is the same as hearing nothing. It is also what a person with six
+   * tabs open is reading, and what goes into history and bookmarks.
+   *
+   * The screen's own name first, because a tab is truncated from the right.
+   */
+  const { current } = useNavigation();
+  const here = nav.find((n) => n.id === current.moduleId);
+  /*
+   * A name for a screen the sidebar does not list.
+   *
+   * Profile is reached from the account menu and is in no nav list, so looking
+   * the label up returns nothing and it kept the shared title — the one screen
+   * in ninety-nine that did. Its own id, tidied, rather than a list of
+   * exceptions somebody has to remember to extend.
+   */
+  const label =
+    here?.label ??
+    (current.moduleId
+      ? current.moduleId
+          .split("-")
+          .join(" ")
+          .replace(/^./, (c) => c.toUpperCase())
+      : "");
+  useEffect(() => {
+    document.title = label ? `${label} · Sentrello` : "Sentrello";
+  }, [label]);
+
   return (
     <div className="min-h-screen">
       {/* Global: who you are, and the way home. The modules are not up here —
