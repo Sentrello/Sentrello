@@ -6,7 +6,12 @@ import type {
   SentrelloSession,
 } from "@sentrello/module-sdk";
 import { addPersonalData } from "@sentrello/module-sdk";
-import { addSummary, clearSummaries } from "@sentrello/module-sdk";
+import {
+  addSummary,
+  clearServices,
+  clearSummaries,
+  provideService,
+} from "@sentrello/module-sdk";
 import type { Hono } from "hono";
 
 export function loadModules(
@@ -44,6 +49,13 @@ export function loadModules(
   // The boot tests load modules more than once in one process, and a summary
   // registered by a run that is over would be drawn by the next one.
   clearSummaries();
+  /*
+   * And what one module offers another. The boot tests load modules more than
+   * once in a process, and a host's functions left behind by a run that is over
+   * would be handed to a plugin in the next one — which is worse than missing,
+   * because they close over the previous run's state.
+   */
+  clearServices();
 
   // simple dependency-aware pass; repeat until no progress
   let progress = true;
@@ -71,6 +83,9 @@ export function loadModules(
         registerPermission: (p) => permissions.push(p),
         registerSummary: (summary) =>
           addSummary({ ...summary, moduleId: m.id }),
+        // What a host offers the plugins that require it. A plugin cannot
+        // import its host, so this is how it reaches one.
+        provide: (name, value) => provideService(name, value),
         // What this module holds about a person. A subject access or erasure
         // request runs whatever is registered here, so a module loaded on this
         // instance answers and one that is not contributes nothing — which is

@@ -130,6 +130,17 @@ export interface ModuleContext {
    * not, and its absence is the honest answer.
    */
   registerPersonalData: (source: PersonalDataSource) => void;
+
+  /**
+   * Offer something to the modules that require this one.
+   *
+   * A plugin cannot import its host — a bundle ships alone and the container
+   * links only the platform's packages — so a host that wants to be built on
+   * offers its own functions here, and the plugin asks for them by name with
+   * `moduleService`. `requires` guarantees the host has registered before the
+   * plugin can ask.
+   */
+  provide: (name: string, value: unknown) => void;
   registerJob: (job: {
     name: string;
     cron?: string;
@@ -199,6 +210,7 @@ export interface SentrelloModule {
 }
 
 import { type PersonalDataSource, addPersonalData } from "./personal-data";
+import { provideService } from "./services";
 import { type ModuleSummary, addSummary } from "./summaries";
 
 export * from "./attachments";
@@ -302,6 +314,7 @@ export function registerForTest(
       addSummary({ ...summary, moduleId: module.id }),
     // Registered for real, like summaries, so a module's own tests can ask it
     // what it would hand over about somebody.
+    provide: (name, value) => provideService(name, value),
     registerPersonalData: (source) =>
       addPersonalData({ ...source, moduleId: module.id }),
     registerJob: () => {},
@@ -338,6 +351,7 @@ export function registerForTest(
   return app;
 }
 export * from "./custom-fields";
+export * from "./services";
 export * from "./payments/provider";
 export * from "./payments/stripe";
 export * from "./payments/paypal";

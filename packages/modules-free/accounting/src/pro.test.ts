@@ -34,6 +34,7 @@ beforeAll(async () => {
     registerPermission: () => {},
     registerSummary: () => {},
     registerPersonalData: () => {},
+    provide: () => {},
     registerJob: () => {},
   });
   accounting.register(context(true, pro));
