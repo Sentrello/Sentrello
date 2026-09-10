@@ -286,6 +286,38 @@ beforeAll(async () => {
   const madeRule = (await rule.json()) as { rule?: { id?: string } };
   if (madeRule.rule?.id) bIds.push(madeRule.rule.id);
 
+  /*
+   * Tax definitions, from the preset route rather than one at a time.
+   *
+   * These are in the comparison below rather than in the sweep's reach, and the
+   * difference is worth being straight about. `accounting/taxes.ts` survives
+   * every mutation round even now: its one write route is a PATCH that reads
+   * `appliesTo`, `compound` and the rest out of the body, and an empty body
+   * leaves nothing to set — so the query never runs and the filter on it is
+   * never exercised. Seeding did not fix that; only a body written for that
+   * route would.
+   *
+   * What the seed does buy is the comparison: a tax definition altered by any
+   * *other* route — an import, a regime switch, a module that touches the
+   * bands — is now something this test would see.
+   */
+  const taxes = await registerForTest(accounting).request(
+    "http://localhost/api/accounting/taxes/presets",
+    {
+      method: "POST",
+      headers: bHeaders,
+      body: JSON.stringify({ regime: "uk" }),
+    },
+  );
+  if (taxes.status >= 400) {
+    throw new Error(`seeding tax definitions answered ${taxes.status}`);
+  }
+  const bTaxIds = await db
+    .select({ id: schema.taxDefinitions.id })
+    .from(schema.taxDefinitions)
+    .where(eq(schema.taxDefinitions.organizationId, bOrgId));
+  bIds.push(...bTaxIds.map((t) => t.id));
+
   const bAccountIds = await db
     .select({ id: schema.accounts.id })
     .from(schema.accounts)
@@ -372,6 +404,11 @@ async function whatBeeHas(): Promise<string> {
       .from(schema.bankRules)
       .where(eq(schema.bankRules.organizationId, bOrgId))
       .orderBy(schema.bankRules.id),
+    db
+      .select()
+      .from(schema.taxDefinitions)
+      .where(eq(schema.taxDefinitions.organizationId, bOrgId))
+      .orderBy(schema.taxDefinitions.id),
     /*
      * The lines are reached through their invoice, which is the only
      * `organizationId` they have — so a line edited without the invoice row
