@@ -7,7 +7,7 @@
     "./templates": "./src/templates.ts"
   },
   "dependencies": {
-    "nodemailer": "^9.0.5"
+    "nodemailer": "^9.1.1"
   },
   "devDependencies": {
     "@types/nodemailer": "^7.0.0"

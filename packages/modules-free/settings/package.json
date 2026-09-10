@@ -10,7 +10,7 @@
     "@sentrello/auth": "*",
     "@sentrello/db": "*",
     "drizzle-orm": "^0.45.0",
-    "hono": "^4.6.0",
+    "hono": "^4.13.5",
     "@sentrello/licensing-client": "*",
     "@sentrello/jobs": "*",
     "@sentrello/email": "*"
