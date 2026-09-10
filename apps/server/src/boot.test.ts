@@ -801,3 +801,48 @@ test("security.txt says where to report a vulnerability, without a session", asy
   // the software belongs to us.
   expect(body).toContain("self-hosted instance");
 });
+
+/**
+ * The AGPL's section 13 offer, which is the clause that separates this licence
+ * from the GPL: somebody who interacts with the software over a network is
+ * owed the corresponding source even though they never receive a copy.
+ *
+ * Tested for two things, and the first matters more. **It must answer without
+ * a session** — a clause about people who are not signed in cannot be
+ * satisfied behind a sign-in, and every other `/api/_` route on this host
+ * requires one, so this is the exception and exceptions drift back.
+ *
+ * And it must be able to point somewhere other than our repository. A business
+ * that has modified Sentrello and put it in front of its customers owes them
+ * its own source; publishing ours discharges nothing on their behalf.
+ */
+test("the source offer answers anybody, and can name the operator's own repository", async () => {
+  process.env.SENTRELLO_LICENSE_PUBLIC_KEY_PATH = "secrets/license_public.pem";
+  process.env.SENTRELLO_LICENSE_TOKEN_PATH = "secrets/does-not-exist.jwt";
+  const server = (await import("./index")).default;
+
+  const anonymous = await server.fetch(
+    new Request("http://localhost/api/_source"),
+  );
+  expect(anonymous.status).toBe(200);
+  const body = (await anonymous.json()) as {
+    licence: string;
+    source: string;
+    modified: boolean;
+  };
+  expect(body.licence).toBe("AGPL-3.0-or-later");
+  expect(body.source).toBe("https://github.com/Sentrello/Sentrello");
+  // Unmodified until an operator says otherwise, which is the honest default
+  // for an instance running the published image.
+  expect(body.modified).toBe(false);
+
+  process.env.SENTRELLO_SOURCE_URL = "https://git.example.test/their-fork";
+  const theirs = await (
+    await server.fetch(new Request("http://localhost/api/_source"))
+  ).json();
+  expect(theirs).toMatchObject({
+    source: "https://git.example.test/their-fork",
+    modified: true,
+  });
+  process.env.SENTRELLO_SOURCE_URL = undefined;
+});
