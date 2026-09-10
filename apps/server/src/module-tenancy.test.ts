@@ -103,6 +103,16 @@ let aOrgId: string;
 let bOrgId: string;
 let aUserId: string;
 let bUserId: string;
+/**
+ * Every id the second business owns, whatever kind of thing it names.
+ *
+ * The write sweep tries each of them in every path parameter of every write
+ * route, rather than matching a kind of id to a kind of route. A contact id
+ * offered to the route that archives a deal is a wasted call and costs
+ * milliseconds; deciding by hand which id belongs where is how the one route
+ * nobody thought about goes unswept.
+ */
+const bIds: string[] = [];
 
 async function business(label: string) {
   const signUp = await signUpAsOwner({
@@ -192,7 +202,21 @@ beforeAll(async () => {
     if (res.status >= 400) {
       throw new Error(`seeding ${path} answered ${res.status}`);
     }
+    // The id of whatever was just made, whatever the route calls the thing:
+    // every create here answers with a single object under a single key.
+    const made = (await res.json()) as Record<string, { id?: string }>;
+    for (const value of Object.values(made)) {
+      if (value && typeof value === "object" && typeof value.id === "string") {
+        bIds.push(value.id);
+      }
+    }
   }
+
+  const bAccountIds = await db
+    .select({ id: schema.accounts.id })
+    .from(schema.accounts)
+    .where(eq(schema.accounts.organizationId, bOrgId));
+  bIds.push(...bAccountIds.map((a) => a.id), bOrgId, bUserId);
 });
 
 afterAll(async () => {
@@ -220,6 +244,50 @@ afterAll(async () => {
     .delete(schema.user)
     .where(inArray(schema.user.id, [aUserId, bUserId]));
 });
+
+/**
+ * Everything the second business owns, in a form two of them can be compared.
+ *
+ * Ordered by id so the comparison is about content rather than the order a
+ * database felt like returning rows in.
+ */
+async function whatBeeHas(): Promise<string> {
+  const rows = await Promise.all([
+    db
+      .select()
+      .from(schema.contacts)
+      .where(eq(schema.contacts.organizationId, bOrgId))
+      .orderBy(schema.contacts.id),
+    db
+      .select()
+      .from(schema.companies)
+      .where(eq(schema.companies.organizationId, bOrgId))
+      .orderBy(schema.companies.id),
+    db
+      .select()
+      .from(schema.deals)
+      .where(eq(schema.deals.organizationId, bOrgId))
+      .orderBy(schema.deals.id),
+    db
+      .select()
+      .from(schema.tags)
+      .where(eq(schema.tags.organizationId, bOrgId))
+      .orderBy(schema.tags.id),
+    db
+      .select()
+      .from(schema.accounts)
+      .where(eq(schema.accounts.organizationId, bOrgId))
+      .orderBy(schema.accounts.id),
+    db
+      .select()
+      .from(schema.journalEntries)
+      .where(eq(schema.journalEntries.organizationId, bOrgId))
+      .orderBy(schema.journalEntries.id),
+    db.select().from(schema.member).where(eq(schema.member.userId, bUserId)),
+    db.select().from(schema.user).where(eq(schema.user.id, bUserId)),
+  ]);
+  return JSON.stringify(rows);
+}
 
 test("the business that owns the rows can see them", async () => {
   // The other half of the pair, and the one that keeps the sweep honest: if
@@ -340,3 +408,91 @@ test("the dashboard shows a business nothing but its own", async () => {
 
   expect(nonEmpty).toEqual([]);
 }, 60_000);
+
+/**
+ * And nothing one business does changes another business's records.
+ *
+ * Every sweep in this file until now has been about *reading*. A read that
+ * crosses businesses shows somebody what they should not see; a write that
+ * crosses businesses edits somebody else's books, and no sweep asked about
+ * those at all. Only the Users module tried, by hand, with a list of fifteen
+ * routes written out.
+ *
+ * Measured on 2026-09-10, the same way as everything else here: the
+ * `organizationId` filter was removed from the update and delete queries in
+ * each file in turn. Twenty-nine files of thirty-seven survived it with the
+ * whole suite green, and the eight that did not were each caught by a test
+ * written on purpose for exactly one route — which is the shape this
+ * generalises.
+ *
+ * **That twenty-nine is not twenty-nine holes, and reading it as one would be
+ * the mistake this file has already made once.** The chart of accounts is
+ * typical: both its write routes call `ownedAccount(orgId, id)` first and
+ * answer 404 before touching anything, so the filter on the update behind it
+ * changes no behaviour when it goes. It is belt and braces, and a redundant
+ * guard hides a missing one — the same lesson the ledger join taught on
+ * 2026-09-09, in the other direction.
+ *
+ * So the mutation this stands against is a file losing tenancy *altogether*,
+ * guard and filter together, which is what a wrong `orgId` or a copied helper
+ * actually looks like. Done to CRM settings, it fails here by name.
+ *
+ * **The assertion is that B is untouched, not that A was refused.** A refusal
+ * is easy to check and easy to get wrong in the flattering direction: a route
+ * that answers 404 because a fictional id matched nothing looks identical to
+ * one that refused, and a route with a path parameter that is not an id at all
+ * — a settings key, a currency code — can answer 200 without anybody's rows
+ * moving. What cannot be argued with is the second business's records before
+ * and after, byte for byte.
+ *
+ * **Every id against every route**, rather than matching a kind of id to a
+ * kind of route. Offering a contact id to the route that archives a deal
+ * costs a millisecond and proves nothing; deciding by hand which id belongs
+ * where is how the one route nobody thought about stays unswept.
+ *
+ * **What limits it is the seed list, again.** A route can only be caught
+ * changing something the second business owns, so the price book — where B has
+ * no items — survives having every filter in the file removed. The same was
+ * true of tags until a tag was seeded, and of the ledger until a journal entry
+ * was. The list at the top of this file is the reach of every sweep in it.
+ *
+ * The bodies are `{}`, which several routes reject before reaching their
+ * query; a route whose validation refuses an empty body is swept without being
+ * tried. Filling in a plausible body per route is the hand-written list this
+ * deliberately is not.
+ */
+test("no write reaches another business's rows", async () => {
+  const before = await whatBeeHas();
+  let attempts = 0;
+
+  for (const mod of Object.values(MODULES)) {
+    const app = registerForTest(mod) as unknown as {
+      routes?: { method: string; path: string }[];
+      request: (url: string, init?: RequestInit) => Promise<Response>;
+    };
+
+    const seen = new Set<string>();
+    for (const route of app.routes ?? []) {
+      if (route.method === "GET" || route.method === "ALL") continue;
+      if (!route.path.includes(":")) continue;
+      const key = `${route.method} ${route.path}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      for (const id of bIds) {
+        const path = route.path.replace(/:[A-Za-z]+/g, id);
+        attempts += 1;
+        await app.request(`http://localhost${path}`, {
+          method: route.method,
+          headers: aHeaders,
+          ...(route.method === "DELETE" ? {} : { body: "{}" }),
+        });
+      }
+    }
+  }
+
+  // A sweep that quietly tried nothing would otherwise pass as "nothing was
+  // changed".
+  expect(attempts).toBeGreaterThan(200);
+  expect(await whatBeeHas()).toEqual(before);
+}, 300_000);
