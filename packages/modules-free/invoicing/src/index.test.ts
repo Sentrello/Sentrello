@@ -24,6 +24,7 @@ beforeAll(async () => {
     registerPermission: () => {},
     registerSummary: () => {},
     registerPersonalData: () => {},
+    provide: () => {},
     registerJob: () => {},
   });
 
@@ -2500,6 +2501,7 @@ test("a Free instance has no subscriptions, in the routes or the sidebar", async
     registerPermission: () => {},
     registerSummary: () => {},
     registerPersonalData: () => {},
+    provide: () => {},
     registerJob: () => {},
   });
 
@@ -3511,6 +3513,7 @@ test("a statement of account is Pro, and Free is told the endpoint is not there"
     registerPermission: () => {},
     registerSummary: () => {},
     registerPersonalData: () => {},
+    provide: () => {},
     registerJob: () => {},
   });
 
@@ -3541,6 +3544,7 @@ test("recurring invoicing is Pro, at the route as well as in the sidebar", async
     registerPermission: () => {},
     registerSummary: () => {},
     registerPersonalData: () => {},
+    provide: () => {},
     registerJob: () => {},
   });
 
