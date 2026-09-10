@@ -2428,6 +2428,26 @@ export const securityEvents = pgTable(
     /** Anything worth knowing that is not a person — an old and new role. */
     detail: jsonb("detail").$type<Record<string, unknown>>(),
     at: timestamp("at").defaultNow().notNull(),
+
+    /**
+     * A keyed hash of this row and the one before it, per organization.
+     *
+     * Append-only from the application's side was already true and was never
+     * evidence of anything: the application is not the only thing that can
+     * reach the table. Anybody with SQL access could edit a role change or
+     * delete a sign-in and leave no sign of it, which is precisely the log
+     * that HIPAA, SOC 2 and 800-171 lean on.
+     *
+     * Keyed with the instance secret rather than a bare digest, because a
+     * plain hash chain can be recomputed by whoever edited the row. With a key
+     * they need the application's secret as well as the database.
+     *
+     * Null on rows written before this existed, and on any row an instance
+     * with no secret key writes. See `verifyChain` for what each of those
+     * means when the log is checked.
+     */
+    hash: text("hash"),
+    prevHash: text("prev_hash"),
   },
   (t) => [
     index("security_events_org_idx").on(t.organizationId),

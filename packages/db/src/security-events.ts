@@ -1,4 +1,5 @@
-import { and, desc, eq, inArray, not } from "drizzle-orm";
+import { createHmac, hkdfSync, randomUUID } from "node:crypto";
+import { and, asc, desc, eq, inArray, not, sql } from "drizzle-orm";
 import { db } from "./client";
 import * as schema from "./schema";
 
@@ -224,7 +225,13 @@ export async function record(input: {
   // worse outcome than a gap in the log — and the gap is visible, which the
   // failure would not be.
   try {
-    await db.insert(schema.securityEvents).values({
+    /*
+     * The id and the timestamp are chosen here rather than by the database,
+     * because both go into the hash and a value the database picks after the
+     * fact cannot be hashed before it is written.
+     */
+    const row = {
+      id: randomUUID(),
       organizationId: input.organizationId,
       actorId: input.actor?.id ?? null,
       actorName: input.actor ? who(input.actor) : null,
@@ -232,6 +239,41 @@ export async function record(input: {
       subjectName: input.subject ? who(input.subject) : null,
       action: input.action,
       detail: input.detail ?? null,
+      at: new Date(),
+    };
+
+    const key = chainKey();
+    if (!key) {
+      // No key, no chain. The row is still written — a log with an
+      // uncheckable entry beats an action nobody recorded — and `verifyChain`
+      // says plainly that this instance cannot be checked at all.
+      await db.insert(schema.securityEvents).values(row);
+      return;
+    }
+
+    /*
+     * One writer at a time, per organization.
+     *
+     * Two events recorded at once would otherwise read the same last row and
+     * both claim to follow it, which forks the chain and reads afterwards as
+     * exactly the tampering this is for. The lock is held for the transaction
+     * and is per organization, so one busy business does not serialise
+     * another's.
+     */
+    await db.transaction(async (tx) => {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtext(${`security-events:${input.organizationId}`}))`,
+      );
+      const [last] = await tx
+        .select({ hash: schema.securityEvents.hash })
+        .from(schema.securityEvents)
+        .where(eq(schema.securityEvents.organizationId, input.organizationId))
+        .orderBy(desc(schema.securityEvents.at), desc(schema.securityEvents.id))
+        .limit(1);
+      const prevHash = last?.hash ?? null;
+      await tx
+        .insert(schema.securityEvents)
+        .values({ ...row, prevHash, hash: linkOf(row, prevHash, key) });
     });
   } catch (err) {
     console.error(
@@ -353,4 +395,205 @@ export async function recordRead(input: {
   } catch {
     // Deliberately swallowed. See above.
   }
+}
+
+/**
+ * Making an edit to the log detectable.
+ *
+ * "Append-only from the application's side" was already true and was never
+ * evidence of anything, because the application is not the only thing that can
+ * reach the table. Anybody with SQL access could soften a role change, remove
+ * a failed sign-in, or move a timestamp, and nothing anywhere would disagree.
+ * That log is what HIPAA, SOC 2 and 800-171 are asking to see.
+ *
+ * Each row carries a keyed hash of its own contents and the hash of the row
+ * before it, per organization. Change a row and its hash stops matching;
+ * remove one and the next row's `prevHash` points at nothing.
+ *
+ * **Keyed, not a bare digest.** A plain SHA-256 chain is recomputable by
+ * exactly the person who has just edited the row — they rewrite every hash
+ * after it and the chain is whole again. An HMAC under the instance secret
+ * means forging the chain needs the application's key as well as the database,
+ * which is the difference between a determined attacker and a careless one.
+ *
+ * **What this does not do**, stated because a control believed to do more than
+ * it does is worse than none:
+ *
+ * - **Deleting the newest rows leaves nothing behind.** A chain knows its
+ *   links are intact; it does not know how long it should be. `verifyChain`
+ *   returns the head hash so it can be written down somewhere the database
+ *   cannot reach — an export, a monitoring check — which is what turns
+ *   truncation into something detectable.
+ * - **The secret plus database write access defeats it entirely.** Nothing
+ *   short of writing to somewhere outside the instance would fix that, and
+ *   this product's whole argument is that the data stays on the customer's
+ *   machine.
+ * - **Retention pruning breaks the front of the chain on purpose**, because it
+ *   is supposed to remove old rows. Verification therefore starts at the
+ *   oldest row still present and reports how far back it can see.
+ */
+function chainKey(): Buffer | null {
+  const source =
+    process.env.SENTRELLO_SECRET_KEY || process.env.BETTER_AUTH_SECRET || "";
+  if (!source) return null;
+  // Its own HKDF info string, so this key is not the one credentials are
+  // sealed with. One purpose, one key.
+  return Buffer.from(
+    hkdfSync(
+      "sha256",
+      Buffer.from(source),
+      Buffer.alloc(0),
+      "sentrello:audit-chain",
+      32,
+    ),
+  );
+}
+
+/**
+ * What gets hashed: the row, in a fixed order, and the link before it.
+ *
+ * Field order is written out rather than taken from `Object.keys`, because a
+ * hash whose input depends on key order is one that starts failing the day
+ * somebody reorders a literal. `null` and `undefined` are distinguished, so a
+ * detail that was absent cannot be edited into one that was explicitly empty.
+ */
+function chainInput(
+  row: {
+    id: string;
+    organizationId: string;
+    actorId: string | null;
+    actorName: string | null;
+    subjectId: string | null;
+    subjectName: string | null;
+    action: string;
+    detail: Record<string, unknown> | null;
+    at: Date;
+  },
+  prevHash: string | null,
+): string {
+  return JSON.stringify([
+    prevHash,
+    row.id,
+    row.organizationId,
+    row.actorId,
+    row.actorName,
+    row.subjectId,
+    row.subjectName,
+    row.action,
+    // Stable regardless of how the object was built: a detail written as
+    // `{b, a}` must hash the same as one written `{a, b}`, or a round trip
+    // through anything that reorders keys reads as tampering.
+    row.detail === null || row.detail === undefined
+      ? null
+      : stableJson(row.detail),
+    row.at.toISOString(),
+  ]);
+}
+
+/** JSON with object keys in sorted order, all the way down. */
+function stableJson(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+  const entries = Object.entries(value as Record<string, unknown>).sort(
+    ([a], [b]) => (a < b ? -1 : a > b ? 1 : 0),
+  );
+  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${stableJson(v)}`).join(",")}}`;
+}
+
+function linkOf(
+  row: Parameters<typeof chainInput>[0],
+  prevHash: string | null,
+  key: Buffer,
+): string {
+  return createHmac("sha256", key)
+    .update(chainInput(row, prevHash))
+    .digest("base64url");
+}
+
+export interface ChainVerdict {
+  /** False the moment anything does not line up. */
+  intact: boolean;
+  /** How many rows were checked, oldest still present to newest. */
+  checked: number;
+  /**
+   * The newest row's hash, for writing down outside the database.
+   *
+   * A chain proves its own links; only an outside copy of this proves nothing
+   * was cut off the end.
+   */
+  head: string | null;
+  /** Rows written before the chain existed, or by an instance with no key. */
+  unchained: number;
+  /** In the words somebody reading a report would want them. */
+  problems: string[];
+}
+
+/**
+ * Walk one organization's log and say whether it has been edited.
+ *
+ * Oldest first, which is the order the chain was built in. Reads everything
+ * rather than a page: this answers a question somebody asks occasionally and
+ * expects to be true, not something on a screen's hot path.
+ */
+export async function verifyChain(
+  organizationId: string,
+): Promise<ChainVerdict> {
+  const key = chainKey();
+  const rows = await db
+    .select()
+    .from(schema.securityEvents)
+    .where(eq(schema.securityEvents.organizationId, organizationId))
+    .orderBy(asc(schema.securityEvents.at), asc(schema.securityEvents.id));
+
+  const problems: string[] = [];
+  let checked = 0;
+  let unchained = 0;
+  let previous: { id: string; hash: string } | null = null;
+  let head: string | null = null;
+
+  if (!key) {
+    return {
+      intact: false,
+      checked: 0,
+      head: null,
+      unchained: rows.length,
+      problems: [
+        "This instance has no secret key, so the log cannot be checked. Set SENTRELLO_SECRET_KEY, or check BETTER_AUTH_SECRET is present.",
+      ],
+    };
+  }
+
+  for (const row of rows) {
+    if (!row.hash) {
+      unchained += 1;
+      // Not a problem in itself — every row written before this existed looks
+      // like this — but it does end the chain, because the next row's link
+      // points at a hash that was never computed.
+      previous = null;
+      continue;
+    }
+
+    const expected = linkOf(row, row.prevHash ?? null, key);
+    if (expected !== row.hash) {
+      problems.push(
+        `The entry from ${row.at.toISOString()} (${row.action}) does not match its own record — it has been altered since it was written.`,
+      );
+    } else if (previous && row.prevHash !== previous.hash) {
+      problems.push(
+        `Something is missing before the entry from ${row.at.toISOString()} (${row.action}) — the entry it followed is no longer here.`,
+      );
+    }
+
+    previous = { id: row.id, hash: row.hash };
+    head = row.hash;
+    checked += 1;
+  }
+
+  return {
+    intact: problems.length === 0,
+    checked,
+    head,
+    unchained,
+    problems,
+  };
 }

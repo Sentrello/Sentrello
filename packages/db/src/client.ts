@@ -34,6 +34,45 @@ export function poolSize(): number {
 }
 
 const ssl = dbSsl();
-const sql = postgres(url, { max: poolSize(), ...(ssl ? { ssl } : {}) });
+
+/**
+ * One pool per process, even when the module is evaluated more than once.
+ *
+ * `bun --hot` re-evaluates this file on every save, and a plain top-level
+ * `postgres(...)` builds a fresh pool each time while the previous one keeps
+ * its sockets. A morning's editing therefore ends with fifteen pools per
+ * server and every connection the database allows already spoken for — which
+ * is what happened here: two dev servers held 300 of 300, and the tests could
+ * not open a single one.
+ *
+ * This has been paid for twice. The database's ceiling was raised from 100 to
+ * 300 to make it go away, which treated the symptom and bought a few more
+ * hours before the same wall.
+ *
+ * Stashed on `globalThis` because that is the one thing a reload does not
+ * replace. In production the module is evaluated once and this is an ordinary
+ * assignment. Keyed on the settings that shape the pool, so changing the URL
+ * or the size still gets a new one — and closes the old one rather than
+ * leaking it in a different way.
+ */
+const POOL = Symbol.for("sentrello.db.pool");
+const poolKey = JSON.stringify([url, poolSize(), Boolean(ssl)]);
+type Held = { key: string; sql: ReturnType<typeof postgres> };
+const holder = globalThis as unknown as Record<symbol, Held | undefined>;
+
+let held = holder[POOL];
+if (held && held.key !== poolKey) {
+  void held.sql.end({ timeout: 5 }).catch(() => {});
+  held = undefined;
+}
+if (!held) {
+  held = {
+    key: poolKey,
+    sql: postgres(url, { max: poolSize(), ...(ssl ? { ssl } : {}) }),
+  };
+  holder[POOL] = held;
+}
+
+const sql = held.sql;
 export const db = drizzle(sql, { schema });
 export { schema };

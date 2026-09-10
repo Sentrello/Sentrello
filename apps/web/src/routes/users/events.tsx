@@ -2,6 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "../../lib/api";
 import {
+  Button,
+  Card,
   Empty,
   ErrorNote,
   Field,
@@ -132,6 +134,29 @@ export function Events() {
     queryFn: () => api<{ groups: GroupRow[] }>("/api/users/groups"),
   });
 
+  /**
+   * Has anybody edited this log?
+   *
+   * Not run on load. It walks every entry, the answer is expected to be yes,
+   * and a check nobody asked for that runs on every visit is one somebody
+   * eventually turns off. It is a question you ask before an auditor does.
+   */
+  const [checking, setChecking] = useState(false);
+  const check = useQuery({
+    queryKey: ["users-events-verify"],
+    enabled: checking,
+    staleTime: 0,
+    gcTime: 0,
+    queryFn: () =>
+      api<{
+        intact: boolean;
+        checked: number;
+        head: string | null;
+        unchained: number;
+        problems: string[];
+      }>("/api/users/events/verify"),
+  });
+
   const events = useQuery({
     queryKey: ["users-events", filter],
     queryFn: () =>
@@ -152,8 +177,77 @@ export function Events() {
   const perPage = events.data?.perPage ?? 25;
   const pages = Math.max(1, Math.ceil(total / perPage));
 
+  const verdict = check.data;
+
   return (
     <div className="space-y-4">
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-sm font-medium">Has this log been altered?</p>
+            <p className="text-sm" style={muted}>
+              Every entry is signed with the one before it, so an entry that was
+              changed or removed after it was written can be found. Checking
+              reads the whole log.
+            </p>
+          </div>
+          <Button
+            variant="secondary"
+            disabled={check.isFetching}
+            onClick={() => {
+              setChecking(true);
+              check.refetch();
+            }}
+          >
+            {check.isFetching ? "Checking…" : "Check the log"}
+          </Button>
+        </div>
+
+        {check.error ? <ErrorNote error={check.error} /> : null}
+
+        {verdict ? (
+          <div className="mt-3 text-sm">
+            <p
+              style={
+                verdict.intact
+                  ? { color: "var(--color-success)" }
+                  : { color: "var(--color-danger)" }
+              }
+            >
+              {verdict.intact
+                ? `Nothing has been altered. ${verdict.checked} ${verdict.checked === 1 ? "entry" : "entries"} checked.`
+                : "This log does not match its own record."}
+            </p>
+            {verdict.problems.map((problem) => (
+              <p key={problem} className="mt-1" style={muted}>
+                {problem}
+              </p>
+            ))}
+            {verdict.unchained > 0 ? (
+              <p className="mt-1" style={muted}>
+                {verdict.unchained}{" "}
+                {verdict.unchained === 1 ? "entry was" : "entries were"} written
+                before this check existed and cannot be verified. Everything
+                after {verdict.unchained === 1 ? "it" : "them"} can.
+              </p>
+            ) : null}
+            {/*
+              The one thing the log cannot prove about itself. Links prove
+              nothing was changed in the middle; only a copy of this kept
+              somewhere the database cannot reach proves nothing was cut off
+              the end.
+            */}
+            {verdict.head ? (
+              <p className="mt-2 break-all text-xs" style={muted}>
+                Latest signature: <code>{verdict.head}</code> — keep a copy of
+                this outside the server and an entry deleted from the end shows
+                up too.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+      </Card>
+
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <Field label="Actor">
           <Select

@@ -16,6 +16,7 @@ import { and, eq, gte, lte, or, sql } from "@sentrello/db/orm";
 import {
   ACTION_TEXT,
   type SecurityAction,
+  verifyChain,
 } from "@sentrello/db/security-events";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 
@@ -151,6 +152,26 @@ export function registerEvents(ctx: ModuleContext) {
         page: params.page,
         perPage: params.perPage,
       });
+    },
+  );
+  /**
+   * Whether the log has been edited since it was written.
+   *
+   * Behind the same permission as reading it: somebody who cannot see the log
+   * has no business learning whether it has been interfered with, and the
+   * answer is the sort of thing worth knowing before an auditor asks rather
+   * than while they are asking.
+   *
+   * A whole-log walk rather than a page. It is asked occasionally and expected
+   * to come back clean.
+   */
+  ctx.app.get(
+    "/api/users/events/verify",
+    requireSession(),
+    requirePermission({ settings: ["update"] }),
+    async (c: RouteContext) => {
+      const orgId = activeOrganizationId(c.get("session"));
+      return c.json(await verifyChain(orgId));
     },
   );
 }
