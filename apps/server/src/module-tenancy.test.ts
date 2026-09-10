@@ -392,6 +392,77 @@ async function whatBeeHas(): Promise<string> {
   return JSON.stringify(rows);
 }
 
+/**
+ * Anything the first business has ended up holding that came from the second.
+ *
+ * The snapshot above asks whether B was damaged. This asks the other question,
+ * and it is not the same one: `POST /api/invoices/:id/copy` reads an invoice
+ * and writes a *new* one into the caller's own books. Unscope the read it
+ * makes and the first business copies the second's invoice, line by line, into
+ * its own accounts — B is untouched, byte for byte, and the snapshot is
+ * satisfied. A cross-business write that takes rather than breaks.
+ *
+ * The marker travels with the thing taken, which is what makes it findable:
+ * the seeded invoice carries it in a line description, the contacts and deals
+ * in their names, the ledger in a sum nothing else would produce.
+ */
+async function whatAlphaTook(): Promise<string[]> {
+  const rows = await Promise.all([
+    db
+      .select()
+      .from(schema.contacts)
+      .where(eq(schema.contacts.organizationId, aOrgId)),
+    db
+      .select()
+      .from(schema.companies)
+      .where(eq(schema.companies.organizationId, aOrgId)),
+    db
+      .select()
+      .from(schema.deals)
+      .where(eq(schema.deals.organizationId, aOrgId)),
+    db.select().from(schema.tags).where(eq(schema.tags.organizationId, aOrgId)),
+    db
+      .select()
+      .from(schema.invoices)
+      .where(eq(schema.invoices.organizationId, aOrgId)),
+    db
+      .select()
+      .from(schema.accounts)
+      .where(eq(schema.accounts.organizationId, aOrgId)),
+    db
+      .select()
+      .from(schema.dimensions)
+      .where(eq(schema.dimensions.organizationId, aOrgId)),
+    db
+      .select()
+      .from(schema.bankRules)
+      .where(eq(schema.bankRules.organizationId, aOrgId)),
+    db
+      .select()
+      .from(schema.invoiceLines)
+      .innerJoin(
+        schema.invoices,
+        eq(schema.invoiceLines.invoiceId, schema.invoices.id),
+      )
+      .where(eq(schema.invoices.organizationId, aOrgId)),
+    db
+      .select()
+      .from(schema.journalLines)
+      .innerJoin(
+        schema.journalEntries,
+        eq(schema.journalLines.entryId, schema.journalEntries.id),
+      )
+      .where(eq(schema.journalEntries.organizationId, aOrgId)),
+  ]);
+
+  const text = JSON.stringify(rows);
+  const took: string[] = [];
+  if (text.includes(MARKER))
+    took.push("a row carrying the other business's marker");
+  if (text.includes(String(AMOUNT))) took.push("the other business's money");
+  return took;
+}
+
 test("the business that owns the rows can see them", async () => {
   // The other half of the pair, and the one that keeps the sweep honest: if
   // the seed stopped working, everything below would pass by returning
@@ -598,4 +669,6 @@ test("no write reaches another business's rows", async () => {
   // changed".
   expect(attempts).toBeGreaterThan(200);
   expect(await whatBeeHas()).toEqual(before);
+  // And the other direction: nothing of B's ended up in A's books.
+  expect(await whatAlphaTook()).toEqual([]);
 }, 300_000);
