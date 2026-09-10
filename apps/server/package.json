@@ -7,7 +7,7 @@
     "start": "bun run src/index.ts"
   },
   "dependencies": {
-    "hono": "^4.6.0",
+    "hono": "^4.13.5",
     "@sentrello/module-sdk": "*",
     "@sentrello/licensing-client": "*",
     "@sentrello/db": "*",
