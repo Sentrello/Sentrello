@@ -237,6 +237,17 @@ sold against the free core.
 | **Project Management** | Projects, tasks, boards, milestones and time against work | **Included with Pro from v1** |
 | **HR** | People records, leave, onboarding and reviews | **Q1 2027** |
 | **Helpdesk** | Tickets, queues, SLAs and a customer-facing portal | **Q1 2027** |
+| **Point of Sale** | A till for counter service — works offline, drives a receipt printer and cash drawer. A plugin for Shop, free with it | **Q3 2027** |
+
+Point of Sale is a **plugin**: a module that plugs into another module. It needs
+Shop, it is free to anyone who has Shop, and it shares Shop's catalogue rather
+than keeping a menu of its own — one price to change, one stock figure, one line
+in the books whether something sold at a counter or on a website.
+
+It arrives for **counter service** first: a queue, an order, cash or card. Table
+service, bars and retail follow, and they are deliberately not given dates here.
+They are each a substantial piece of work and a date we are not certain of is
+worth less to you than no date at all.
 
 Project Management is not sold separately — it arrives **with the v1 release of
 Pro**, for everyone who has Pro. HR and Helpdesk are separate modules, split
