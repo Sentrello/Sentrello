@@ -54,6 +54,52 @@ app.onError((err, c) => {
   return c.json({ error: "something went wrong" }, 500);
 });
 
+/**
+ * The headers every response carries, unless it has a reason not to.
+ *
+ * None of these were set. The screens a business signs into could be framed by
+ * any site on the internet, which is the whole of clickjacking: an invisible
+ * frame over a page somebody wants you to click, and the click lands on
+ * "delete" or "pay" in a session you are already holding.
+ *
+ * `nosniff` and the referrer policy are set on everything. Nothing here is
+ * improved by a browser guessing a content type, and a full URL in a referrer
+ * leaks invoice and contact ids to whatever a customer clicks through to.
+ *
+ * **The embed surface is exempt from the framing rules, on purpose.** A form
+ * on somebody's public website is the one part of this product designed to be
+ * used from another origin, and `frame-ancestors 'none'` there would break the
+ * feature rather than protect anybody: the page is a form belonging to a
+ * business that chose to publish it, and it carries no session.
+ *
+ * Set only when absent, so a route that has already said something more
+ * specific keeps it — attachment downloads serve `default-src 'none'`, which
+ * is stricter than anything here.
+ *
+ * **HSTS is deliberately not here.** The application cannot tell whether it is
+ * behind TLS — it sees a plain HTTP request from a proxy either way — and
+ * guessing from `x-forwarded-proto` trusts a header the client can forge when
+ * the proxy is misconfigured. The nginx in front of it owns that header, which
+ * is where Packet 04 puts it.
+ */
+app.use("*", async (c, next) => {
+  await next();
+  const set = (name: string, value: string) => {
+    if (!c.res.headers.has(name)) c.res.headers.set(name, value);
+  };
+
+  set("x-content-type-options", "nosniff");
+  set("referrer-policy", "strict-origin-when-cross-origin");
+
+  const path = new URL(c.req.url).pathname;
+  const embeddable = path === "/embed.js" || path.startsWith("/api/embed/");
+  if (!embeddable) {
+    set("x-frame-options", "DENY");
+    // The modern spelling, for browsers that stopped reading the old one.
+    set("content-security-policy", "frame-ancestors 'none'");
+  }
+});
+
 mountAuth(app);
 registerBootstrapRoutes(app);
 
