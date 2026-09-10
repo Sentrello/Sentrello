@@ -40,6 +40,19 @@ export const statement = {
   time: ["read", "create", "update", "delete", "approve"],
   scheduling: ["read", "create", "update", "delete"],
   shop: ["read", "create", "update", "delete"],
+  /**
+   * The till, which is a different job from editing the menu.
+   *
+   * `sell` is ringing a sale; `void` and `refund` are the two a business wants
+   * a manager's name against; `manage` is the floor plan, the modifiers and
+   * the drawer. Editing what is *for sale* stays under `shop`, because it is
+   * the same catalogue the website sells from and a business that lets every
+   * counter shift change prices has a different problem.
+   *
+   * Its own resource rather than actions on `shop` for that reason: a till
+   * operator sells all day and should never be able to reprice anything.
+   */
+  pos: ["read", "sell", "void", "refund", "manage"],
   // Sentrello's own storefront, which only ever runs on bmp. It is a separate
   // resource from `shop` because the two can run side by side there, and
   // selling our own subscriptions is not the same job as selling a customer's
@@ -134,6 +147,7 @@ export const admin = ac.newRole({
   time: ["read", "create", "update", "delete", "approve"],
   scheduling: ["read", "create", "update", "delete"],
   shop: ["read", "create", "update", "delete"],
+  pos: ["read", "sell", "void", "refund", "manage"],
   documents: ["read", "create", "update", "delete"],
   newsletter: ["read", "create", "update", "delete", "send"],
   links: ["read", "create", "update", "delete", "domains"],
