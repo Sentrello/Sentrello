@@ -640,6 +640,43 @@ test("connecting reports each stage and stops at the first failure", async () =>
   expect(row?.enabled).toBe(false);
 });
 
+/**
+ * A refusal has to carry its reason, not just its number.
+ *
+ * Written because of what it cost. The route did exactly the right thing —
+ * checked the keys, found the instance had no address the processor could
+ * reach, refused with a sentence saying to paste the signing secret by hand —
+ * and the screen showed "Something went wrong. Try again.", because the body of
+ * a 409 carried `steps` and no `error`, and the client falls back to a generic
+ * line when there is no `error` to read.
+ *
+ * The server being right while the screen is useless is worse than either being
+ * wrong alone: it sends somebody looking for a fault that is not there.
+ */
+test("a refusal says why, in a field any caller reads", async () => {
+  await app.request("http://localhost/api/payments/accounts/stripe/test", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ secretKey: "sk_test_not_a_real_key_at_all" }),
+  });
+
+  const res = await app.request(
+    "http://localhost/api/payments/accounts/stripe/test/connect",
+    { method: "POST", headers },
+  );
+  expect(res.ok).toBe(false);
+
+  const body = (await res.json()) as {
+    error?: string;
+    steps: { step: string; ok: boolean; detail?: string }[];
+  };
+  // Both, deliberately: the stages for a screen that can draw them, and one
+  // sentence for everything else.
+  expect(body.steps.length).toBeGreaterThan(0);
+  expect(typeof body.error).toBe("string");
+  expect(body.error?.length).toBeGreaterThan(0);
+});
+
 test("connecting refuses without keys rather than pretending", async () => {
   await db
     .delete(schema.paymentAccounts)

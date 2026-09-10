@@ -484,10 +484,23 @@ function Connection({
           webhookSecret: webhookSecret || undefined,
         }),
       });
-      return api<{ steps: { step: string; ok: boolean; detail?: string }[] }>(
-        `${path}/connect`,
-        { method: "POST" },
-      );
+      /*
+       * Read whatever came back, succeeded or not.
+       *
+       * The stages are the whole point of this endpoint and they arrive in the
+       * refusal too — an instance the processor cannot reach is a 409 carrying
+       * the sentence "paste the signing secret by hand". Letting the helper
+       * throw on it turned that into "Something went wrong. Try again.", which
+       * is how a screen manages to be less use than the server behind it.
+       */
+      const res = await fetch(`${path}/connect`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+      });
+      const body = (await res.json().catch(() => ({}))) as {
+        steps?: { step: string; ok: boolean; detail?: string }[];
+      };
+      return { ok: res.ok, steps: body.steps ?? [] };
     },
     onSuccess: () => {
       // Never held in the browser longer than the request needs them.
@@ -599,6 +612,12 @@ function Connection({
           />
         </Field>
       </div>
+
+      {connect.data && !connect.data.ok && !connect.data.steps.length ? (
+        <p className="mt-3 text-sm" style={{ color: "var(--color-danger)" }}>
+          The processor could not be connected.
+        </p>
+      ) : null}
 
       {connect.data?.steps?.length ? (
         /*
