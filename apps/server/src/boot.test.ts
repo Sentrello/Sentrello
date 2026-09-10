@@ -846,3 +846,41 @@ test("the source offer answers anybody, and can name the operator's own reposito
   });
   process.env.SENTRELLO_SOURCE_URL = undefined;
 });
+
+/**
+ * Clickjacking, which nothing prevented.
+ *
+ * Every screen a business signs into could be framed by any site on the
+ * internet. That is the whole attack: an invisible frame over a page somebody
+ * wants you to click, and the click lands on "delete" or "pay" inside a session
+ * the browser is already holding.
+ *
+ * The embedded form is checked in the same test rather than a separate one,
+ * because the two facts only mean something together: the rule applies
+ * everywhere *except* the one surface built to be used from another origin, and
+ * a rule with a hole in it is worth testing at the hole.
+ */
+test("every response refuses to be framed, except the one meant to be embedded", async () => {
+  process.env.SENTRELLO_LICENSE_PUBLIC_KEY_PATH = "secrets/license_public.pem";
+  process.env.SENTRELLO_LICENSE_TOKEN_PATH = "secrets/does-not-exist.jwt";
+  const server = (await import("./index")).default;
+
+  const guarded = await server.fetch(new Request("http://localhost/healthz"));
+  expect(guarded.headers.get("x-frame-options")).toBe("DENY");
+  expect(guarded.headers.get("content-security-policy")).toContain(
+    "frame-ancestors 'none'",
+  );
+  // Set on everything, framing aside: nothing here is improved by a browser
+  // guessing a content type, and a full URL in a referrer carries invoice and
+  // contact ids to wherever a customer clicks next.
+  expect(guarded.headers.get("x-content-type-options")).toBe("nosniff");
+  expect(guarded.headers.get("referrer-policy")).toBe(
+    "strict-origin-when-cross-origin",
+  );
+
+  // The exception, and the reason it exists: a form on somebody's public
+  // website is used from another origin by design.
+  const embed = await server.fetch(new Request("http://localhost/embed.js"));
+  expect(embed.headers.get("x-frame-options")).toBeNull();
+  expect(embed.headers.get("x-content-type-options")).toBe("nosniff");
+});
