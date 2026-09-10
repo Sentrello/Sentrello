@@ -713,6 +713,7 @@ export function Bills() {
     Record<string, string | number | boolean | null>
   >({});
   const [classId, setClassId] = useState("");
+  const [locationId, setLocationId] = useState("");
 
   const bills = useQuery({
     queryKey: ["bills"],
@@ -760,6 +761,7 @@ export function Bills() {
               // On the line, because a bill can cover two jobs. This form
               // makes one line; the split lives in the bill editor.
               classId: classId || null,
+              locationId: locationId || null,
             },
           ],
         }),
@@ -770,6 +772,7 @@ export function Bills() {
       setAmount("");
       setCustom({});
       setClassId("");
+      setLocationId("");
       refresh();
     },
   });
@@ -924,6 +927,31 @@ export function Bills() {
                 <option value="">the business as a whole</option>
                 {(dimensions.data?.dimensions ?? [])
                   .filter((d) => d.kind === "class")
+                  .map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+              </Select>
+            </Field>
+          ) : null}
+          {/*
+            The other dimension, which the paragraph above claimed was already
+            rendered from the definitions and was not: a business could define
+            its sites, shops or vans in the settings and never put a cost
+            against one, so every location report came back empty.
+          */}
+          {(dimensions.data?.dimensions ?? []).some(
+            (d) => d.kind === "location",
+          ) ? (
+            <Field label="Where">
+              <Select
+                value={locationId}
+                onChange={(e) => setLocationId(e.target.value)}
+              >
+                <option value="">everywhere</option>
+                {(dimensions.data?.dimensions ?? [])
+                  .filter((d) => d.kind === "location")
                   .map((d) => (
                     <option key={d.id} value={d.id}>
                       {d.name}
@@ -1125,6 +1153,8 @@ type BankTransaction = {
   amountCents: number;
   matchedEntryId: string | null;
   pending: boolean;
+  /** Which account it left, where the statement or the feed said so. */
+  bankAccountId: string | null;
   /** Posted by a rule or a categorisation, so this screen may undo it. */
   undoable: boolean;
 };
@@ -1171,6 +1201,8 @@ type BankProviderInfo = {
   rails: string[];
   recurringPayments: boolean;
   onboarding: string;
+  /** Whether this screen can open its connection flow at all. */
+  hostedConnection: boolean;
   connected: boolean;
   clientId: string | null;
   testMode: boolean;
@@ -1417,12 +1449,24 @@ function BankFeeds() {
                     ? "Details checked"
                     : "Details saved, not checked yet"}
                 </span>
-                <Button
-                  onClick={() => connect.mutate(provider.id)}
-                  disabled={connect.isPending}
-                >
-                  Connect a bank
-                </Button>
+                {provider.hostedConnection ? (
+                  <Button
+                    onClick={() => connect.mutate(provider.id)}
+                    disabled={connect.isPending}
+                  >
+                    Connect a bank
+                  </Button>
+                ) : (
+                  /* Said here rather than thrown after the click. This one
+                     connects through a window we deliberately do not open —
+                     loading somebody else's script into the books would give
+                     it the run of every page. */
+                  <span className="text-xs" style={muted}>
+                    Its details are saved, and connecting a bank through it
+                    needs a window Sentrello does not open. Use the other
+                    provider for now.
+                  </span>
+                )}
                 <button
                   type="button"
                   className="text-xs underline"
@@ -1458,10 +1502,11 @@ function BankFeeds() {
 
       {mayConnect && !anyCredentials ? (
         <p className="mt-3 text-xs" style={muted}>
-          Not sure? Most businesses pick the first. It works with banks in every
-          country Sentrello supports and can pay a supplier every month on its
-          own. The second is simpler and cheaper if you are in the United States
-          and only want to see your transactions.
+          Pick the first. It works with banks in every country Sentrello
+          supports, can pay a supplier every month on its own, and is the one
+          that can connect a bank today. The second is cheaper and United States
+          only, and its own window is not something this application opens yet —
+          so its details can be saved and no bank connected.
         </p>
       ) : null}
     </Card>
@@ -1952,11 +1997,27 @@ function StatementLine({
 }) {
   const [accountId, setAccountId] = useState("");
 
+  /**
+   * Which bank account this line left, when the row does not say.
+   *
+   * A statement import and a live feed both record it, and a feed row whose
+   * reference did not map to an account does not — and neither does anything
+   * imported before a second bank account was opened. With one bank account
+   * the route works it out; with two it refuses, in those words, and until
+   * now there was no way to answer it. Every such line was stuck for good.
+   */
+  const banks = accounts.filter((a) => a.isBank);
+  const mustSay = !row.bankAccountId && banks.length > 1;
+  const [bankAccountId, setBankAccountId] = useState("");
+
   const categorise = useMutation({
     mutationFn: () =>
       api(`/api/bank-transactions/${row.id}/categorise`, {
         method: "POST",
-        body: JSON.stringify({ accountId }),
+        body: JSON.stringify({
+          accountId,
+          ...(mustSay ? { bankAccountId } : {}),
+        }),
       }),
     onSuccess: onDone,
   });
@@ -2005,7 +2066,21 @@ function StatementLine({
             </option>
           ))}
       </Select>
-      {accountId ? (
+      {mustSay ? (
+        <Select
+          value={bankAccountId}
+          aria-label="Which bank account it came out of"
+          onChange={(e) => setBankAccountId(e.target.value)}
+        >
+          <option value="">out of…</option>
+          {banks.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.code} {a.name}
+            </option>
+          ))}
+        </Select>
+      ) : null}
+      {accountId && (!mustSay || bankAccountId) ? (
         <Button
           variant="secondary"
           disabled={categorise.isPending}
@@ -3963,6 +4038,7 @@ type Contractor = {
   hasTaxId: boolean;
   taxIdLast4: string | null;
   addressLine1: string | null;
+  addressLine2: string | null;
   city: string | null;
   region: string | null;
   postalCode: string | null;
@@ -4151,6 +4227,7 @@ function ContractorDetails({
     entityType: existing?.entityType ?? "individual",
     taxId: "",
     addressLine1: existing?.addressLine1 ?? "",
+    addressLine2: existing?.addressLine2 ?? "",
     city: existing?.city ?? "",
     region: existing?.region ?? "",
     postalCode: existing?.postalCode ?? "",
@@ -4213,6 +4290,17 @@ function ContractorDetails({
             value={draft.addressLine1}
             onChange={(e) =>
               setDraft({ ...draft, addressLine1: e.target.value })
+            }
+          />
+        </Field>
+        {/* Apartment, suite, unit — the second line the 1099-NEC has a box
+            for, and a form filed with an incomplete address is a form the
+            IRS may bounce back. */}
+        <Field label="Apartment or suite" hint="Optional.">
+          <Input
+            value={draft.addressLine2}
+            onChange={(e) =>
+              setDraft({ ...draft, addressLine2: e.target.value })
             }
           />
         </Field>

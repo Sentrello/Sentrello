@@ -182,27 +182,33 @@ export function registerYearEnd(
       );
 
       /**
-       * And the year is locked, unless somebody says not to.
+       * And the year is locked. Always, with no way to ask otherwise.
        *
        * A year closed into equity whose months can still be posted into is a
        * balance sheet that stops balancing the moment anybody does — the
        * closing entry emptied accounts that then quietly refill.
+       *
+       * This used to read `if (body.lock !== false)`, an escape hatch into
+       * exactly the state the paragraph above describes as broken. No screen
+       * ever sent it, which is the only reason no set of books ended up there;
+       * a route that accepts an argument for its own worst outcome is one
+       * request away from producing it. The lock can still be lifted
+       * deliberately through the ledger's own closed-through setting, which is
+       * a decision somebody makes rather than a flag on a different action.
        */
-      if (body.lock !== false) {
-        await db
-          .insert(schema.ledgerSettings)
-          .values({
-            organizationId: orgId,
+      await db
+        .insert(schema.ledgerSettings)
+        .values({
+          organizationId: orgId,
+          closedThrough: dayFrom(closing.endsOn),
+        })
+        .onConflictDoUpdate({
+          target: schema.ledgerSettings.organizationId,
+          set: {
             closedThrough: dayFrom(closing.endsOn),
-          })
-          .onConflictDoUpdate({
-            target: schema.ledgerSettings.organizationId,
-            set: {
-              closedThrough: dayFrom(closing.endsOn),
-              updatedAt: new Date(),
-            },
-          });
-      }
+            updatedAt: new Date(),
+          },
+        });
 
       await record({
         organizationId: orgId,

@@ -22,10 +22,28 @@ import { readFileSync } from "node:fs";
  */
 
 /** `body.foo`, `body["foo"]`, and `const { foo, bar } = body`. */
+/**
+ * The same source with its comments blanked out.
+ *
+ * A comment explaining why a field is no longer read still contains the words
+ * `body.lock`, and reporting that as a field somebody can send means the only
+ * way to write the explanation is to avoid naming the thing being explained.
+ * Nothing is lost: a field mentioned in a comment and nowhere else is a field
+ * the route does not read.
+ *
+ * Newlines are kept so that anything counting lines still lines up, and
+ * strings are left alone — a route that reads `body["lock"]` is reading it.
+ */
+function withoutComments(text: string): string {
+  return text
+    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "))
+    .replace(/(^|[^:])\/\/[^\n]*/g, (_m, before: string) => before);
+}
+
 export function fieldsRead(files: string[]): Map<string, Set<string>> {
   const out = new Map<string, Set<string>>();
   for (const file of files) {
-    const text = readFileSync(file, "utf8");
+    const text = withoutComments(readFileSync(file, "utf8"));
 
     /**
      * `body` only counts where a request body is actually read.
@@ -104,7 +122,10 @@ export function fieldsRead(files: string[]): Map<string, Set<string>> {
 export function fieldsWritten(files: string[]): Set<string> {
   const out = new Set<string>();
   for (const file of files) {
-    const text = readFileSync(file, "utf8");
+    // Comments blanked here too, and for the sharper reason: a commented-out
+    // `classId: classId` would make a field look reachable and hide a real
+    // gap, which is the failure this whole sweep exists to catch.
+    const text = withoutComments(readFileSync(file, "utf8"));
     // `foo:` in an object literal, and shorthand `{ foo, bar }`.
     for (const m of text.matchAll(/([A-Za-z_$][\w$]*)\s*:/g)) {
       if (m[1]) out.add(m[1]);

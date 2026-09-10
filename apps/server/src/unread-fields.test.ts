@@ -42,21 +42,24 @@ const WRITTEN_ELSEWHERE: Record<string, string> = {};
  */
 const KNOWN_GAPS: Record<string, string[]> = {
   accounting: [
-    // The second connection path, for a provider whose window this screen
-    // cannot open — which the screen says itself, in those words, when asked.
-    "src/bank-feeds.ts: publicToken",
-    // A bank rule that applies to one account rather than all of them.
-    "src/bank-rules.ts: bankAccountId",
-    "src/contractors.ts: addressLine2",
-    // A location dimension, beside the class dimension that does have a screen.
-    "src/dimensions.ts: locationId",
     /*
-     * Closing a year without locking it. The route's own comment explains that
-     * an unlocked closed year is "a balance sheet that stops balancing the
-     * moment anybody posts" — so this may be worth deleting rather than
-     * exposing. It is here because nobody can reach it either way.
+     * The widget connection path, and the only gap here that is a decision
+     * rather than an oversight.
+     *
+     * A provider that hosts its own page hands back a redirect and the browser
+     * never sees a public token. One that uses a widget gives the token to the
+     * browser, and loading a third party's script into the application a
+     * business keeps its books in would give that script the run of every page
+     * — which `banking/provider.ts` argues against at length, and this is the
+     * branch that would receive the result.
+     *
+     * So it stays unreachable on purpose. What changed on 2026-09-09 is that
+     * the screen no longer offers a Connect button that throws afterwards:
+     * `hostedConnection` is a declared capability now, and a provider that
+     * needs a window says so before anybody clicks. Do not close this gap by
+     * loading the widget.
      */
-    "src/year-end.ts: lock",
+    "src/bank-feeds.ts: publicToken",
   ],
 };
 

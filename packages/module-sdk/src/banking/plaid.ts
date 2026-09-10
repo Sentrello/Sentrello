@@ -78,6 +78,7 @@ export const plaid: BankProvider = {
         "Reading accounts needs a free developer account. Moving money is a " +
         "separate application: they check who you are before you can send a " +
         "payment, and that takes a few days.",
+      hostedConnection: true,
     };
   },
 
