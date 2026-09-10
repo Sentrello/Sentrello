@@ -66,7 +66,13 @@
    * 0.55 measures 5.32:1 and is still unmistakably red.
    */
   --color-danger: oklch(0.55 0.18 25);
-  --color-info: oklch(0.62 0.12 250);
+  /*
+   * Darkened from 0.62 for the same reason as the two above, and missed when
+   * they were done: it measured 3.43:1 on the light surface, which is under
+   * the 4.5:1 line for text. It is the colour of the status chip on every
+   * bill, and it only failed once there were bills to look at.
+   */
+  --color-info: oklch(0.52 0.12 250);
 }
 
 :root {

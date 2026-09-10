@@ -10,6 +10,50 @@ import { type ReactNode, useEffect, useRef } from "react";
 
 export const border = { borderColor: "var(--border)" };
 export const muted = { color: "var(--text-muted)" };
+
+/**
+ * Black or white on a colour somebody else chose.
+ *
+ * A tag's colour is the business's, not ours, so no fixed text colour is right
+ * for all of them: `#1a1a1a` on the purple in the palette measures 4.39:1 —
+ * under the line — while white on it is comfortable. Picking by luminance is
+ * the only version that holds for a colour we have not seen.
+ *
+ * Relative luminance per WCAG, not a brightness eyeball: the two differ most
+ * exactly in the middle of the range, which is where the palette lives.
+ */
+export function textOn(background: string): string {
+  const hex = background.trim().replace("#", "");
+  const full =
+    hex.length === 3
+      ? hex
+          .split("")
+          .map((c) => c + c)
+          .join("")
+      : hex;
+  if (full.length !== 6) return "#1a1a1a";
+
+  const channel = (pair: string): number => {
+    const v = Number.parseInt(pair, 16) / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  };
+  const luminance =
+    0.2126 * channel(full.slice(0, 2)) +
+    0.7152 * channel(full.slice(2, 4)) +
+    0.0722 * channel(full.slice(4, 6));
+
+  /*
+   * Pure black, not the near-black used elsewhere.
+   *
+   * `#1a1a1a` is the body colour and looks the same to the eye, and on the
+   * palette's purple it measures **4.31:1** against black's 5.31 — the wrong
+   * side of the line for the sake of a shade nobody can see. This is the one
+   * place where the darker value is worth having.
+   */
+  return (luminance + 0.05) / 0.05 >= 1.05 / (luminance + 0.05)
+    ? "#000000"
+    : "#ffffff";
+}
 const raised = { background: "var(--surface-raised)", ...border };
 
 /**

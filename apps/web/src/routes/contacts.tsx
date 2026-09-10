@@ -30,6 +30,7 @@ import {
   Select,
   border,
   muted,
+  textOn,
 } from "../lib/ui";
 import { ContactForm } from "./contact-form";
 import { ContactsImport } from "./contacts-import";
@@ -158,7 +159,7 @@ export function Contacts() {
                 label={
                   <span
                     className="rounded px-1.5 py-0.5 text-xs"
-                    style={{ background: tag.color, color: "#1a1a1a" }}
+                    style={{ background: tag.color, color: textOn(tag.color) }}
                   >
                     {tag.name}
                   </span>
@@ -357,7 +358,10 @@ export function Contacts() {
                         <span
                           key={tag.id}
                           className="rounded px-1.5 py-0.5"
-                          style={{ background: tag.color, color: "#1a1a1a" }}
+                          style={{
+                            background: tag.color,
+                            color: textOn(tag.color),
+                          }}
                         >
                           {tag.name}
                         </span>
