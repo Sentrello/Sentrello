@@ -245,6 +245,47 @@ beforeAll(async () => {
   if (!invoiceBody.invoice?.id) throw new Error("the seeded invoice has no id");
   bIds.push(invoiceBody.invoice.id);
 
+  /*
+   * And two records in accounting, which owned less of the second business's
+   * data than any other module and survived every sweep because of it.
+   *
+   * A bank rule needs an account to categorise into, so like the invoice it
+   * cannot go in the list above — it needs an id that list does not have.
+   */
+  const dimension = await registerForTest(accounting).request(
+    "http://localhost/api/dimensions",
+    {
+      method: "POST",
+      headers: bHeaders,
+      body: JSON.stringify({ kind: "class", name: MARKER }),
+    },
+  );
+  if (dimension.status >= 400) {
+    throw new Error(`seeding a dimension answered ${dimension.status}`);
+  }
+  const madeDimension = (await dimension.json()) as {
+    dimension?: { id?: string };
+  };
+  if (madeDimension.dimension?.id) bIds.push(madeDimension.dimension.id);
+
+  const rule = await registerForTest(accounting).request(
+    "http://localhost/api/bank-rules",
+    {
+      method: "POST",
+      headers: bHeaders,
+      body: JSON.stringify({
+        name: MARKER,
+        matchText: MARKER,
+        accountId: debit.id,
+      }),
+    },
+  );
+  if (rule.status >= 400) {
+    throw new Error(`seeding a bank rule answered ${rule.status}`);
+  }
+  const madeRule = (await rule.json()) as { rule?: { id?: string } };
+  if (madeRule.rule?.id) bIds.push(madeRule.rule.id);
+
   const bAccountIds = await db
     .select({ id: schema.accounts.id })
     .from(schema.accounts)
@@ -321,6 +362,16 @@ async function whatBeeHas(): Promise<string> {
       .from(schema.invoices)
       .where(eq(schema.invoices.organizationId, bOrgId))
       .orderBy(schema.invoices.id),
+    db
+      .select()
+      .from(schema.dimensions)
+      .where(eq(schema.dimensions.organizationId, bOrgId))
+      .orderBy(schema.dimensions.id),
+    db
+      .select()
+      .from(schema.bankRules)
+      .where(eq(schema.bankRules.organizationId, bOrgId))
+      .orderBy(schema.bankRules.id),
     /*
      * The lines are reached through their invoice, which is the only
      * `organizationId` they have — so a line edited without the invoice row
