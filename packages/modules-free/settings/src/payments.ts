@@ -282,57 +282,6 @@ export function registerPaymentAccounts(ctx: ModuleContext) {
     },
   );
 
-  /** Asks the processor whether these keys work, and who they belong to. */
-  ctx.app.post(
-    "/api/payments/accounts/:provider/:mode/test",
-    requireSession(),
-    requirePermission({ settings: ["update"] }),
-    async (c: RouteContext) => {
-      const orgId = activeOrganizationId(c.get("session"));
-      const account = await accountFor(
-        orgId,
-        c.req.param("provider") ?? "",
-        c.req.param("mode") ?? "",
-      );
-      if (!account) return c.json({ error: "nothing is stored yet" }, 404);
-
-      let result: { ok: boolean; message: string; label?: string };
-      try {
-        result = await providerFrom(account).testConnection();
-      } catch (err) {
-        // A network failure is not a wrong key, and saying so saves somebody
-        // pasting a perfectly good key three more times.
-        result = {
-          ok: false,
-          message: `could not reach the processor: ${(err as Error).message}`,
-        };
-      }
-
-      const [updated] = await db
-        .update(schema.paymentAccounts)
-        .set({
-          lastTestedAt: new Date(),
-          lastTestOk: result.ok,
-          lastTestMessage: result.message,
-          accountLabel: result.label ?? account.accountLabel,
-        })
-        .where(eq(schema.paymentAccounts.id, account.id))
-        .returning();
-
-      return c.json({
-        result,
-        account: updated ? forDisplay(updated) : forDisplay(account),
-      });
-    },
-  );
-
-  /**
-   * Turning a connection on.
-   *
-   * Only one at a time, and only one that has been tested. An instance
-   * switched to live on untested keys is one whose first real customer sees an
-   * error at the moment they try to pay.
-   */
   /**
    * Connecting a processor, in one press.
    *
@@ -465,53 +414,6 @@ export function registerPaymentAccounts(ctx: ModuleContext) {
         steps,
         account: enabled ? forDisplay(enabled) : forDisplay(account),
       });
-    },
-  );
-
-  ctx.app.post(
-    "/api/payments/accounts/:provider/:mode/enable",
-    requireSession(),
-    requirePermission({ settings: ["update"] }),
-    async (c: RouteContext) => {
-      const orgId = activeOrganizationId(c.get("session"));
-      const account = await accountFor(
-        orgId,
-        c.req.param("provider") ?? "",
-        c.req.param("mode") ?? "",
-      );
-      if (!account) return c.json({ error: "nothing is stored yet" }, 404);
-      if (!account.secretKey) {
-        return c.json({ error: "no keys are stored for that" }, 400);
-      }
-      if (!account.lastTestOk) {
-        return c.json(
-          { error: "test the connection before turning it on" },
-          409,
-        );
-      }
-      if (!account.webhookSecret) {
-        // Without it no payment is ever confirmed, and every invoice sits
-        // unpaid while the money has actually been taken. Better refused here.
-        return c.json(
-          {
-            error:
-              "a webhook secret is needed, or payments will never be confirmed",
-          },
-          409,
-        );
-      }
-
-      await db
-        .update(schema.paymentAccounts)
-        .set({ enabled: false })
-        .where(eq(schema.paymentAccounts.organizationId, orgId));
-      const [enabled] = await db
-        .update(schema.paymentAccounts)
-        .set({ enabled: true })
-        .where(eq(schema.paymentAccounts.id, account.id))
-        .returning();
-
-      return c.json({ account: enabled ? forDisplay(enabled) : null });
     },
   );
 

@@ -467,34 +467,6 @@ function Connection({
   const path = `/api/payments/accounts/${provider}/${mode}`;
 
   /**
-   * Something is typed into a box and has not reached the server.
-   *
-   * Every button beside "Save keys" acts on what is *stored*, which is obvious
-   * from the inside and invisible from the outside — and the failure it
-   * produces is the worst kind, an error message that contradicts what the
-   * person is looking at.
-   */
-  const unsaved = Boolean(publicKey || secretKey || webhookSecret);
-
-  const save = useMutation({
-    mutationFn: () =>
-      api(path, {
-        method: "PUT",
-        body: JSON.stringify({
-          publicKey: publicKey || undefined,
-          secretKey: secretKey || undefined,
-          webhookSecret: webhookSecret || undefined,
-        }),
-      }),
-    onSuccess: () => {
-      // Never held in the browser longer than the request needs them.
-      setSecretKey("");
-      setWebhookSecret("");
-      onChanged();
-    },
-  });
-
-  /**
    * Save, check, set up the webhook and switch on — one press.
    *
    * Three buttons in an unstated order is what this was, and every pair of
@@ -525,14 +497,6 @@ function Connection({
     },
   });
 
-  const test = useMutation({
-    mutationFn: () => api(`${path}/test`, { method: "POST" }),
-    onSuccess: onChanged,
-  });
-  const enable = useMutation({
-    mutationFn: () => api(`${path}/enable`, { method: "POST" }),
-    onSuccess: onChanged,
-  });
   const disable = useMutation({
     mutationFn: () => api("/api/payments/accounts/disable", { method: "POST" }),
     onSuccess: onChanged,
@@ -696,8 +660,16 @@ function Connection({
         ) : null}
       </div>
 
-      {save.error ? <ErrorNote error={save.error} /> : null}
-      {enable.error ? <ErrorNote error={enable.error} /> : null}
+      {/*
+        The failure that has to be visible.
+        
+        This button called a route the running server did not have yet, got a
+        404, and showed nothing at all — because the only error notes on the
+        screen belonged to mutations the button no longer used. "It does
+        nothing" is the worst answer a button can give, and it was produced by
+        an error that was being thrown and discarded.
+      */}
+      {connect.error ? <ErrorNote error={connect.error} /> : null}
 
       {/* Where the processor sends its events. Nothing is confirmed without
           it, so it is on the screen rather than in a document somewhere. */}
