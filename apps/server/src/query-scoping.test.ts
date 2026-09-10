@@ -43,12 +43,20 @@ import users from "@sentrello/module-users";
  * so a table added by a migration is covered without anybody remembering to
  * write it down.
  *
- * **What it cannot see, measured the same way.** Nineteen of the twenty-seven
- * are killed by it. The eight that are not are read by no route and no
- * export: helpers on the write path, and shared code in `packages/db` that a
- * job reaches. A sweep of what a caller can read cannot reach code that only
- * runs while something is being written, and calling every write to find out
- * would send mail and delete rows.
+ * **What it cannot see, measured the same way.** The sweep was run again over
+ * every file, with the pattern widened to catch the generic CRUD helper's
+ * `eq(table.organizationId, orgId)` — which the first pass had never matched,
+ * so thirty-six filters serving contacts, companies, deals, notes and tasks
+ * had gone unmeasured while looking measured. Sixty-seven files of
+ * seventy-six now fail when their read filters go.
+ *
+ * **Seven still do not**, and they have one thing in common: no route and no
+ * export reads them. They are helpers on the write path and shared code in
+ * `packages/db` that a job reaches — `taxes`, three files in invoicing's
+ * document lifecycle, `consent`, `documents`, `payments`. A sweep of what a
+ * caller can read cannot reach code that only runs while something is being
+ * written, and calling every write to find out would send mail and delete
+ * rows.
  *
  * It reads the shape of the query, not its meaning: a filter naming the wrong
  * business, or `organization_id` mentioned in a join
@@ -78,7 +86,14 @@ const MODULES = {
  * key — the visitor filling it in is a member of nothing, and the key is the
  * whole credential.
  */
-const PUBLIC_BY_DESIGN = new Set(["/api/embed/forms/:key"]);
+const PUBLIC_BY_DESIGN = new Set([
+  "/api/embed/forms/:key",
+  // The letterhead on a shared invoice, keyed by template id rather than by a
+  // token on purpose: whoever opens that link has the link and not the
+  // business's session, and the logo is already printed on everything that
+  // business sends.
+  "/share/template/:id/logo",
+]);
 
 /**
  * Tables that carry `organization_id` but are read without it, for a reason.
@@ -95,9 +110,6 @@ const PLATFORM_TABLES = new Set([
   // organization to filter by until this query has answered.
   "member",
   "session",
-  // Which modules this instance runs. An instance-wide answer, the same for
-  // everybody on it.
-  "modules",
 ]);
 
 const suffix = crypto.randomUUID().slice(0, 8);
@@ -214,6 +226,76 @@ test("no read runs a query that leaves out the business", async () => {
   }
 
   /*
+   * The host's own routes, which belong to no module and were swept by
+   * nothing.
+   *
+   * `/api/_meta` is the one that matters: it decides what the browser is
+   * offered — which optional modules this business has switched on, which
+   * role the caller holds, what a custom role permits — and it reads
+   * `module_state`, `member` and `organization_role` to do it. A sweep built
+   * out of module route tables cannot see it, and neither could the marker
+   * sweep, because what it returns is a menu rather than anybody's rows.
+   *
+   * Better Auth's own surface under `/api/auth` is left alone: it is not ours,
+   * it is covered in `packages/auth`, and a GET there can end a session.
+   */
+  const host = (await import("./index")).app as unknown as {
+    routes?: { method: string; path: string }[];
+    request: (url: string, init?: RequestInit) => Promise<Response>;
+  };
+  const hostSeen = new Set<string>();
+  for (const route of host.routes ?? []) {
+    if (route.method !== "GET" || route.path.startsWith("/api/auth")) continue;
+    if (hostSeen.has(route.path)) continue;
+    hostSeen.add(route.path);
+
+    const captured: string[] = [];
+    watchQueries.onQuery = (q) => captured.push(q);
+    const path = route.path.replace(/:[A-Za-z]+/g, "nothing");
+    await host.request(`http://localhost${path}`, { headers });
+    watchQueries.onQuery = undefined;
+
+    if (PUBLIC_BY_DESIGN.has(route.path)) continue;
+    inspect(`host: GET ${route.path}`, captured);
+  }
+
+  /*
+   * `/api/_meta` again, for somebody holding a role their business wrote.
+   *
+   * The permissions of a compiled role are in the binary; a custom one is a
+   * row, and reading it is a branch an owner never takes — so the sweep above
+   * runs `/api/_meta` without ever touching the query that reads it. Two
+   * businesses that both call a role "Bookkeeper" is not a strange case, it is
+   * the expected one, and an unscoped read there hands somebody the other
+   * business's idea of what a bookkeeper may open.
+   */
+  const customRole = `role-${suffix}`;
+  await db.insert(schema.organizationRole).values({
+    id: crypto.randomUUID(),
+    organizationId: orgId,
+    role: customRole,
+    permission: JSON.stringify({ crm: ["read"] }),
+  });
+  await db
+    .update(schema.member)
+    .set({ role: customRole })
+    .where(eq(schema.member.userId, userId));
+
+  const customCaptured: string[] = [];
+  watchQueries.onQuery = (q) => customCaptured.push(q);
+  await host.request("http://localhost/api/_meta", { headers });
+  watchQueries.onQuery = undefined;
+  inspect("host: GET /api/_meta as a custom role", customCaptured);
+
+  await db
+    .delete(schema.organizationRole)
+    .where(eq(schema.organizationRole.organizationId, orgId));
+  await db
+    .update(schema.member)
+    .set({ role: "owner" })
+    .where(eq(schema.member.userId, userId));
+
+  /*
    * And the reads that belong to no route at all.
    *
    * A subject access request runs every source a module registered, and those
@@ -239,8 +321,10 @@ test("no read runs a query that leaves out the business", async () => {
   }
 
   // A sweep that quietly ran nothing would otherwise pass as "every read is
-  // scoped".
+  // scoped". Counted per source, because the host's routes were read off the
+  // wrong export for a while and that loop ran zero times without a word.
   expect(queries).toBeGreaterThan(50);
+  expect(hostSeen.size).toBeGreaterThan(2);
   // Named rather than counted, so a regression says which query opened.
   expect([...new Set(unscoped)].sort()).toEqual([]);
 }, 120_000);

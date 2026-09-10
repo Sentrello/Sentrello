@@ -489,3 +489,10 @@ console.log(
   })`,
 );
 export default { port, fetch: app.fetch };
+
+/**
+ * The assembled application, for tests that need to enumerate what it serves
+ * rather than call one known path. The default export is what Bun wants —
+ * `{ port, fetch }` — and a route table cannot be read from that.
+ */
+export { app };
