@@ -50,8 +50,14 @@ export function FindButton() {
         {/*
           The shortcut shown rather than only bound, because a shortcut nobody
           is told about is a shortcut for the people who did not need it.
+
+          No opacity of its own. The button already carries 0.75, and dimming
+          the dimmed took the hint to 3.49:1 against white — under the 4.5:1 a
+          person with ordinary middle-aged eyesight needs, on every screen in
+          the product, because this button is in the header of all of them.
+          Nested opacity multiplies, and neither number looks wrong on its own.
         */}
-        <kbd className="text-xs opacity-70">⌘K</kbd>
+        <kbd className="text-xs">⌘K</kbd>
       </button>
       {open ? <FindDialog onClose={() => setOpen(false)} /> : null}
     </>
