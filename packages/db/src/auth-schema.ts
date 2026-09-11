@@ -142,6 +142,20 @@ export const organizations = pgTable(
      */
     baseCurrency: text("base_currency").notNull().default("USD"),
     /**
+     * Where the business is, in time.
+     *
+     * An IANA name — "America/New_York", "Europe/London" — because an offset is
+     * wrong twice a year and a business that says nine o'clock means nine
+     * o'clock in both March and November.
+     *
+     * Null means the server's own, which is right for a self-hosted box sitting
+     * in the office and wrong for one rented in another country. Everything
+     * that acts at a *time of day* reads this: an automation that chases quiet
+     * deals every Monday at nine went out on Sunday evening for a business
+     * whose server was in Frankfurt, and nothing anywhere explained why.
+     */
+    timezone: text("timezone"),
+    /**
      * When the default policies and groups were put in place.
      *
      * A marker rather than a count, so seeding happens once and stays undone.
