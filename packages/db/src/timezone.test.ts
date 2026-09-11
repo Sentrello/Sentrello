@@ -16,9 +16,14 @@ test("a name the runtime knows is accepted, and a plausible one is not", () => {
   expect(knownTimezone("Europe/London")).toBe(true);
   expect(knownTimezone("UTC")).toBe(true);
 
-  // The one somebody actually types. It is not an IANA name and every
+  // The ones somebody actually types. Neither is an IANA name, and every
   // calculation would quietly fall back to the server's own.
-  expect(knownTimezone("EST5EDT")).toBe(true); // a real one, oddly
+  //
+  // Only names the product promises are asserted here. The POSIX-style legacy
+  // spellings — "EST5EDT" and its kin — are accepted by some builds of ICU and
+  // refused by others, so asserting either answer tests the machine the tests
+  // happen to run on. This one did exactly that: it passed on a Mac, failed on
+  // Linux, and the difference was nothing to do with Sentrello.
   expect(knownTimezone("Eastern Standard Time")).toBe(false);
   expect(knownTimezone("GMT+5")).toBe(false);
   expect(knownTimezone("")).toBe(false);
