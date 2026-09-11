@@ -60,6 +60,8 @@ export function changedFields(
   return changed.sort();
 }
 
+let warned = false;
+
 /** Anything listening in this process, told as soon as the row is written. */
 type Listener = (event: typeof recordEvents.$inferSelect) => void;
 const listeners = new Set<Listener>();
@@ -103,14 +105,28 @@ export async function recordChanged(change: RecordChange): Promise<void> {
         // sweep will find it, which is the guarantee that actually matters.
       }
     }
-  } catch {
+  } catch (error) {
     /*
-     * Swallowed on purpose, and this is the one place in the codebase where
-     * that is right.
+     * Swallowed on purpose — the alternative is a deal that saved correctly
+     * reporting a failure to the person who saved it, because a feed nothing in
+     * Free even reads could not be written.
      *
-     * The alternative is a deal that saved correctly reporting a failure to the
-     * person who saved it, because the feed nothing in Free even reads could
-     * not be written.
+     * Said once, though, and that is not a detail. An instance whose feed is
+     * not being written has automations that never fire and nothing anywhere
+     * saying why: it looks exactly like a rule that does not match. It happened
+     * within an hour of this being built — a database that had not had the
+     * migration run, a workflow published and correct, a deal won, and complete
+     * silence from every part of the system.
+     *
+     * Once rather than per change, because the failure is the same failure
+     * every time and a log nobody can read is a log nobody reads.
      */
+    if (!warned) {
+      warned = true;
+      console.error(
+        "[records] the change feed cannot be written, so automations will not fire:",
+        (error as Error).message,
+      );
+    }
   }
 }
