@@ -129,7 +129,15 @@ async function discoverFromBundlesDir(dir: string): Promise<SentrelloModule[]> {
   let entries: string[];
   try {
     const { readdir } = await import("node:fs/promises");
-    entries = await readdir(dir);
+    /*
+     * Directories only. A bundle is a directory; a README beside them is not a
+     * bundle that failed to load, and saying so put a line on /healthz and on
+     * the settings screen telling a business one of its paid features was
+     * broken when nothing was.
+     */
+    entries = (await readdir(dir, { withFileTypes: true }))
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
   } catch {
     return found; // no bundles directory: a Free instance
   }

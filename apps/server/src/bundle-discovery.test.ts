@@ -197,3 +197,25 @@ test("versions compare as numbers, not as strings", () => {
   expect(coreIsTooOld("", "9.9.9")).toBe(false);
   expect(coreIsTooOld("0.26.3", "not-a-version")).toBe(false);
 });
+
+/**
+ * A file sitting beside the bundles is not a bundle that failed.
+ *
+ * The walk treated every entry as a directory to import from, so a README next
+ * to them became "bundle README.md did not load" — on /healthz and on the
+ * settings screen, where that sentence means a paid feature is gone. Telling a
+ * business one of its modules is broken when nothing is wrong is the fastest
+ * way to teach it to ignore the place we report real breakage.
+ */
+test("a stray file beside the bundles is not reported as a broken one", async () => {
+  const root = await bundleDir("mod-real", A_MODULE);
+  await writeFile(join(root, "README.md"), "# these are the bundles\n");
+
+  const before = failedBundles.length;
+  const found = await discoverOptionalModules([], root);
+
+  expect(found.map((m) => m.id)).toContain(
+    "mod-something-nobody-here-has-heard-of",
+  );
+  expect(failedBundles.slice(before)).toEqual([]);
+});
