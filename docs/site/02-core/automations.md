@@ -63,6 +63,7 @@ You can reach into a record's shape with a dot: `address.city`.
 | **Put a task on somebody's list** | With a title and a due date |
 | **Send an email** | To an address, or to the record's contact |
 | **Change a field** | On the record the rule is about |
+| **Tell another system** | Calls a web address of yours with what happened |
 
 ### Putting the record into what you write
 
@@ -85,6 +86,41 @@ correctly, not as a failure, because it is.
 Set **What kind of message** to *About something they bought* for messages that
 are not marketing — "your invoice is attached", "your order has shipped". Those
 do not need consent and are not held back.
+
+### Telling another system
+
+Post to a chat channel, nudge a warehouse, call an app somebody wrote. Give it an
+address, a method, and what to send — with the record in it:
+
+```json
+{"deal": "{{record.name}}", "worth": "{{record.value}}"}
+```
+
+Two things it will refuse, and both are deliberate:
+
+- **An address inside your own network.** `localhost`, `192.168.x.x`, `10.x.x.x`,
+  and a cloud host's metadata service are all refused, including domains that
+  point at them. The server making the call is *inside* your network, and an
+  automation that could reach into it would be a way for anybody who can write
+  rules to read the machine.
+- **Plain http**, unless you say so explicitly. A webhook carrying your business
+  data over http can be read by anything on the path.
+
+If the other end answers with an error, the run **fails and says which error**.
+An automation that reported success because a request was made would tell you it
+had informed the warehouse every time the warehouse said no.
+
+## Running one by hand
+
+Open an automation and use **Run it on one record**. Useful twice over: while you
+are deciding whether to trust a new rule, and afterwards for the cases a rule
+cannot describe — *chase this one*, where the judgement is yours and only the
+doing is automatic.
+
+**It is not a preview.** It does everything the rule does: sends the emails,
+writes the tasks. A rehearsal for a different performance would be worth nothing.
+
+A paused automation cannot be run by hand either. Turn it back on first.
 
 ## Nothing runs until you turn it on
 
@@ -142,8 +178,8 @@ A **wait** is exact to the minute it sweeps, not to the second.
 
 - **Branches** — one rule taking two paths. Today a rule is a straight line;
   write two rules with different conditions.
-- **Starting one by hand**, or on a schedule. Today every rule watches a record.
-- **Calling another system** over HTTP.
+- **Running on a schedule** — "every Monday, chase anything that has gone quiet".
+  Today every rule watches a record changing, or is run by hand.
 - **Rolling back to an earlier version** from the screen. Every version is kept,
   so nothing is lost — there is just no button for it yet.
 
