@@ -132,6 +132,16 @@ export interface ModuleContext {
   registerPersonalData: (source: PersonalDataSource) => void;
 
   /**
+   * What this module can find, for the box that searches everything.
+   *
+   * The commonest thing somebody does after looking at today's figures is look
+   * for one particular thing, and every list screen filtering itself only helps
+   * if you are already on the right screen. A module says what it can find;
+   * Core asks whatever this instance loaded and puts the answers in one list.
+   */
+  registerSearch: (provider: SearchProvider) => void;
+
+  /**
    * Offer something to the modules that require this one.
    *
    * A plugin cannot import its host — a bundle ships alone and the container
@@ -210,10 +220,12 @@ export interface SentrelloModule {
 }
 
 import { type PersonalDataSource, addPersonalData } from "./personal-data";
+import { type SearchProvider, addSearchProvider } from "./search";
 import { provideService } from "./services";
 import { type ModuleSummary, addSummary } from "./summaries";
 
 export * from "./attachments";
+export * from "./search";
 export * from "./csv";
 export * from "./images";
 export * from "./public-endpoints";
@@ -312,6 +324,8 @@ export function registerForTest(
     // Registered for real, so a module's own tests can assert its figures.
     registerSummary: (summary) =>
       addSummary({ ...summary, moduleId: module.id }),
+    registerSearch: (provider) =>
+      addSearchProvider({ ...provider, moduleId: module.id }),
     // Registered for real, like summaries, so a module's own tests can ask it
     // what it would hand over about somebody.
     provide: (name, value) => provideService(name, value),

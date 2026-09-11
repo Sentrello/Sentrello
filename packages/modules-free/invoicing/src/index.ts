@@ -57,7 +57,7 @@ import { registerRecurring } from "./recurring";
 import { registerShare } from "./share";
 import { registerStatements } from "./statements";
 import { registerSubscriptions } from "./subscriptions";
-import { registerInvoicingSummary } from "./summary";
+import { registerInvoiceSearch, registerInvoicingSummary } from "./summary";
 import { registerDocumentTags, tagsFor } from "./tags";
 import { registerTemplates } from "./templates";
 
@@ -171,6 +171,7 @@ export default defineModule({
   tier: "free",
   register(ctx) {
     registerInvoicingPersonalData(ctx);
+    registerInvoiceSearch(ctx);
     registerEInvoice(ctx);
     ctx.registerNav({
       id: "invoicing",

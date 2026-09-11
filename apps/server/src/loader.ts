@@ -7,6 +7,7 @@ import type {
 } from "@sentrello/module-sdk";
 import { addPersonalData } from "@sentrello/module-sdk";
 import {
+  addSearchProvider,
   addSummary,
   clearServices,
   clearSummaries,
@@ -83,6 +84,9 @@ export function loadModules(
         registerPermission: (p) => permissions.push(p),
         registerSummary: (summary) =>
           addSummary({ ...summary, moduleId: m.id }),
+        // What this module can find, for the box that searches everything.
+        registerSearch: (provider) =>
+          addSearchProvider({ ...provider, moduleId: m.id }),
         // What a host offers the plugins that require it. A plugin cannot
         // import its host, so this is how it reaches one.
         provide: (name, value) => provideService(name, value),

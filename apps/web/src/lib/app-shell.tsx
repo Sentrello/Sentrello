@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { authClient } from "./auth";
+import { FindButton } from "./find";
 import { Icon, type IconName } from "./icons";
 import { useNavigation } from "./navigation";
 import { type Theme, useTheme } from "./theme";
@@ -543,6 +544,7 @@ export function AppShell({
             Sentrello
           </button>
           <div className="flex-1" />
+          <FindButton />
           <ProfileMenu
             name={user.name}
             email={user.email}

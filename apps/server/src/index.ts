@@ -2,6 +2,7 @@ import { roles } from "@sentrello/auth";
 import { registerBootstrapRoutes } from "@sentrello/auth/bootstrap";
 import {
   activeOrganizationId,
+  mayAccess,
   mountAuth,
   requirePermission,
   requireSession,
@@ -23,6 +24,7 @@ import dashboard from "@sentrello/module-dashboard";
 import invoicing from "@sentrello/module-invoicing";
 import profile from "@sentrello/module-profile";
 import type { SentrelloEnv, SentrelloModule } from "@sentrello/module-sdk";
+import { searchEverything, searchProviders } from "@sentrello/module-sdk";
 import settings from "@sentrello/module-settings";
 import users from "@sentrello/module-users";
 import { Hono } from "hono";
@@ -246,6 +248,56 @@ const uiModules = serveModuleUi(app, modules, loaded);
  * rather than hidden in the browser, so an entry somebody is not offered is
  * genuinely absent from what they are sent.
  */
+/**
+ * Finding anything, from anywhere.
+ *
+ * One box that asks every module what it can find. Core knows none of them: a
+ * shop's products and a booking's diary reach this list by the same mechanism a
+ * contact does, which is the only way a module in another repository could ever
+ * be searchable at all.
+ *
+ * **Permission is checked before a provider is asked**, not after. Filtering
+ * results afterwards means the rows were read, and the reason somebody may not
+ * see the customer book is usually that they are a contractor with access to
+ * one job.
+ */
+app.get("/api/search", requireSession(), async (c) => {
+  const orgId = activeOrganizationId(c.get("session"));
+  const q = c.req.query("q") ?? "";
+
+  /*
+   * Asked once per distinct requirement rather than once per provider: several
+   * modules want `crm: ["read"]`, and each check is a round trip through the
+   * auth layer. A search box runs on every keystroke.
+   */
+  const answers = new Map<string, Promise<boolean>>();
+  const may = (requires?: Record<string, string[]>) => {
+    if (!requires) return Promise.resolve(true);
+    const key = JSON.stringify(requires);
+    const already = answers.get(key);
+    if (already) return already;
+    const asked = mayAccess(c.req.raw.headers, requires);
+    answers.set(key, asked);
+    return asked;
+  };
+
+  // Resolved first, so the search itself is synchronous about who may see what.
+  const allowed = new Map<string, boolean>();
+  for (const provider of searchProviders()) {
+    const key = JSON.stringify(provider.requires ?? null);
+    if (!allowed.has(key)) allowed.set(key, await may(provider.requires));
+  }
+
+  const hits = await searchEverything({
+    organizationId: orgId,
+    q,
+    limit: 20,
+    may: (requires) => allowed.get(JSON.stringify(requires ?? null)) === true,
+  });
+
+  return c.json({ hits });
+});
+
 app.get("/api/_meta", requireSession(), async (c) => {
   const session = c.get("session");
   // Read directly rather than through `activeOrganizationId`, which throws by

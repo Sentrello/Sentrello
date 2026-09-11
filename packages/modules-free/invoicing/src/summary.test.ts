@@ -30,6 +30,7 @@ beforeAll(async () => {
     registerNav: () => {},
     registerPermission: () => {},
     registerSummary: () => {},
+    registerSearch: () => {},
     registerPersonalData: () => {},
     provide: () => {},
     registerJob: () => {},
