@@ -13,6 +13,25 @@ import type { SentrelloApp, SentrelloModule } from "@sentrello/module-sdk";
  *
  * Returns the ids that have screens, for `/api/_meta` to advertise.
  */
+/**
+ * How long a module's screens may be held onto.
+ *
+ * Five minutes in a release, where the file changes once per version and a
+ * customer's browser refetching it constantly is waste.
+ *
+ * **Nothing in development**, where the file changes every time somebody edits
+ * a screen. A cache there does not save anything worth saving and does cost
+ * something real: a fix is made, the person testing reloads, sees the old
+ * behaviour, and reports the bug again. That happened twice in one evening, and
+ * both times the code was already right.
+ *
+ * Keyed on whether this instance was built as a release — `SENTRELLO_VERSION`
+ * is stamped into the image and absent from a checkout.
+ */
+const CACHE = process.env.SENTRELLO_VERSION
+  ? "public, max-age=300"
+  : "no-store";
+
 export function serveModuleUi(
   app: SentrelloApp,
   modules: SentrelloModule[],
@@ -41,7 +60,7 @@ export function serveModuleUi(
     return new Response(file, {
       headers: {
         "content-type": "text/css; charset=utf-8",
-        "cache-control": "public, max-age=300",
+        "cache-control": CACHE,
       },
     });
   });
@@ -59,7 +78,7 @@ export function serveModuleUi(
       headers: {
         "content-type": "text/javascript; charset=utf-8",
         // Rebuilt per release and served by the instance itself.
-        "cache-control": "public, max-age=300",
+        "cache-control": CACHE,
       },
     });
   });
