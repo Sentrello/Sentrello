@@ -34,6 +34,16 @@ front is the one part that is yours. It is the next section.
   one with several optional modules, wants more.
 - **Add swap if your provider gives you none.** A 1 GB server with no swap has
   no margin for a moment of pressure, and most cloud images ship without any.
+  A smaller server needs it rather than merely liking it — 768 MB with no swap
+  is not enough for PostgreSQL and the application together, and the failure
+  comes during the first migration where it reads as a broken install:
+
+  ```bash
+  sudo fallocate -l 2G /swapfile
+  sudo chmod 600 /swapfile
+  sudo mkswap /swapfile && sudo swapon /swapfile
+  echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+  ```
 - **A few GB of disk**, mostly the images and your own data. The database, the
   files you upload and the backups all live under the install directory.
 - Do **not** build the images on a small server. Pull them, which is what the
@@ -223,6 +233,10 @@ on a bare server start with them:
 
 ```bash
 sudo apt install -y nginx certbot python3-certbot-nginx   # Ubuntu, Debian
+
+# Rocky, RHEL, Alma: certbot is in EPEL, not in the base repositories, and
+# without this line dnf answers "Unable to find a match: certbot".
+sudo dnf install -y epel-release
 sudo dnf install -y nginx certbot python3-certbot-nginx   # Rocky, RHEL, Fedora
 ```
 
@@ -251,6 +265,36 @@ Whatever you use, the address must match `SENTRELLO_BASE_URL` in
 `/opt/sentrello/secrets/.env`. Links in emails and on customer-facing pages are
 built from it, and a mismatch is why a customer receives a link pointing at
 `localhost`. Settings tells you when the two disagree.
+
+### On Rocky, RHEL and Alma, SELinux gets in the way twice
+
+Both of these look like something else, which is what makes them worth writing
+down. Verified on a fresh Rocky 10 server.
+
+**nginx cannot reach the application**, and the browser gets 502. SELinux stops
+a web server opening network connections at all until it is told otherwise:
+
+```bash
+sudo setsebool -P httpd_can_network_connect 1
+```
+
+**And nginx cannot read files you put under `/var/www`** — relevant if you also
+serve a static site from the same machine. Files created there are labelled
+`var_t`, not web content, and nginx is refused. The symptom is a **404, not a
+403**: the file is plainly there, `ls` shows it, and nginx's error log is the
+only place that says `Permission denied`.
+
+```bash
+sudo dnf install -y policycoreutils-python-utils
+sudo semanage fcontext -a -t httpd_sys_content_t "/var/www/yoursite(/.*)?"
+sudo restorecon -R /var/www/yoursite
+```
+
+The `semanage` line makes it survive a relabel; `restorecon` applies it now.
+Without the first, the next time the filesystem is relabelled the 404 comes
+back and nothing you changed will explain it.
+
+None of this applies to Debian or Ubuntu, which do not ship SELinux enforcing.
 
 ### Which header carries a visitor's real address
 
