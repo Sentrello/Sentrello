@@ -63,3 +63,19 @@ test("path traversal cannot escape the dist directory", async () => {
     expect(body).not.toContain("TOP SECRET");
   }
 });
+
+/**
+ * The one file the browser must never keep.
+ *
+ * The service worker decides what everything else is allowed to remember, so a
+ * stale copy of it is an instance that cannot be updated by any means it knows
+ * about — the old worker would keep answering with the old application for as
+ * long as the browser felt like holding it.
+ */
+test("the service worker is served, and told not to be cached", async () => {
+  await Bun.write(`${dist}/sw.js`, "self.addEventListener('fetch', () => {});");
+  const res = await app.request("http://localhost/sw.js");
+
+  expect(res.status).toBe(200);
+  expect(res.headers.get("cache-control")).toBe("no-cache");
+});
