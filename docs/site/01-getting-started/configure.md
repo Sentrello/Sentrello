@@ -17,6 +17,14 @@ works — if something is configurable, there is a screen for it.
 registration numbers that appear on invoices, quotes and emails. Fill this in
 first: an invoice sent before it is set carries a blank letterhead.
 
+**Set your timezone while you are there.** It decides what "nine o'clock" means
+for everything that acts at a time of day — an automation that chases quiet
+deals every Monday morning, a report of yesterday. Leave it blank and the
+server's own clock is used, which is right for a computer in your office and
+wrong for one rented in another country: that is how a Monday chase goes out on
+Sunday evening. The **Use mine** button fills in whatever your browser says,
+which is usually the answer.
+
 ## Money
 
 **Settings → Money** sets your currency, your financial year end, and your tax
