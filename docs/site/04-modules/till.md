@@ -185,6 +185,41 @@ them, correctly.
 Products with no stock count at all are never limited. A coffee is made when it
 is ordered; there is no shelf to run out of.
 
+## When the connection goes
+
+**A till that stops trading because the broadband went is a till that gets
+replaced by a tin.** So it does not stop.
+
+With the line down, the terminal keeps the menu and the questions it last saw,
+so a sale can still be rung up and cash can still be taken. Each change is
+written down as an instruction — *add a flat white to ticket 7* — and sent, in
+order, when the connection comes back.
+
+You will see **Offline · 3 changes waiting to send** at the top of the till. A
+sale paid while the line is down is confirmed with the terminal's own name for
+it (`T1-260910-4`) rather than an order number, because the order number is
+minted when it reaches the server.
+
+Some things to know, because they are true rather than because they are
+comfortable:
+
+- **Only cash.** A card needs an authorisation from somebody who is not there.
+  A till that took a card offline would be handing goods over against a payment
+  that might be declined an hour later.
+- **Totals shown offline are advisory.** The server works them out again when
+  the queue arrives, and its figures are the ones that reach your books. They
+  differ only if a price changed elsewhere while this terminal was dark.
+- **Stock is advisory too.** Two tills that cannot see each other can both sell
+  the last croissant. That is a thing that happens in real cafés, and the answer
+  is to notice it afterwards rather than to stop both tills.
+- **Do not reload the page while the line is down.** The till is served by your
+  instance, so a reload has nothing to load. Leave the tab open and it keeps
+  working. (Surviving a reload is planned; it needs the app itself to be held on
+  the device.)
+- **If a queued sale is refused** when it finally reaches the server — the last
+  one really had gone — the till says so and names it, so somebody can put it
+  right under Shop → Orders. It is never silently dropped.
+
 ## Who can use it
 
 The till uses the same people, roles and permissions as the rest of Sentrello.
@@ -208,12 +243,10 @@ list of what it can.
 
 - **Card payment at the counter.** It needs a reader, and a till that pretended
   otherwise would be a button that takes no money. Planned.
-- **Working offline.** The server already accepts each change once however many
-  times a terminal sends it, which is the hard half of selling through a dropped
-  connection. The terminal half — holding the menu and the tickets on the device
-  — is not built yet.
 - **Table service, tabs, and kitchen printing.** The till is built for counter
   service first. The rest is planned through 2027.
+- **Surviving a page reload with no connection.** Selling through an outage
+  works while the tab stays open; see [When the connection goes](#when-the-connection-goes).
 
 ## How it fits with everything else
 
