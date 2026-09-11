@@ -41,6 +41,10 @@ is no second installation and nothing to migrate.
 
 - **Custom fields** on contacts, companies and deals — the boiler model, the
   site access note, the thing this business looks up that no other one does.
+- **[Automations](/core/automations)** — rules your business writes about its own
+  records. When a deal's stage becomes won: wait two days, put a task on
+  somebody's list, email the customer. Nothing runs until you turn it on, and
+  every firing is kept with what each step did.
 
 ## What Pro does not do
 
