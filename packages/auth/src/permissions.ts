@@ -11,7 +11,16 @@ export const statement = {
   // including the ones that can do almost nothing else — a person who cannot
   // see the landing page has nowhere to land.
   dashboard: ["read"],
-  crm: ["read", "create", "update", "delete"],
+  /**
+   * `manage` is writing the automations, and is deliberately its own action.
+   *
+   * Somebody with `update` can change a deal. Somebody who can publish an
+   * automation can change every deal that ever matches a rule, and email every
+   * customer it touches — the same verb at a completely different scale. A
+   * business should be able to let its sales team use the CRM without letting
+   * them write rules that act on the whole book.
+   */
+  crm: ["read", "create", "update", "delete", "manage"],
   invoicing: ["read", "create", "update", "delete", "send"],
   bookkeeping: ["read", "create", "update", "delete"],
   /**
@@ -137,7 +146,7 @@ export const ac = createAccessControl(statement);
 export const admin = ac.newRole({
   ...adminAc.statements,
   dashboard: ["read"],
-  crm: ["read", "create", "update", "delete"],
+  crm: ["read", "create", "update", "delete", "manage"],
   invoicing: ["read", "create", "update", "delete", "send"],
   bookkeeping: ["read", "create", "update", "delete"],
   // The owner of the instance can pay people. Nobody else does by default.
