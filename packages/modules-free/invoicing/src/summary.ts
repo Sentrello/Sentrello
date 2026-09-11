@@ -268,7 +268,7 @@ export function registerInvoiceSearch(ctx: ModuleContext) {
         kind: "Invoice",
         title: row.invoice.number,
         subtitle: row.contact ?? row.invoice.status,
-        opens: { moduleId: "invoices", recordId: row.invoice.id },
+        opens: { moduleId: "invoicing", recordId: row.invoice.id },
         // Scored against the number, which is what somebody typing digits
         // means. A customer's name matching is a weaker signal and lands lower
         // than the contact itself.
