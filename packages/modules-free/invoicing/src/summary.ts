@@ -3,8 +3,20 @@ import {
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
-import { and, at, db, eq, gte, isNull, schema, sql } from "@sentrello/db";
+import {
+  and,
+  at,
+  db,
+  eq,
+  gte,
+  ilike,
+  isNull,
+  or,
+  schema,
+  sql,
+} from "@sentrello/db";
 import type { ModuleContext, SummaryFigure } from "@sentrello/module-sdk";
+import { scoreFor } from "@sentrello/module-sdk";
 
 /**
  * What Invoicing has to say on the dashboard, and on its own first screen.
@@ -216,4 +228,52 @@ export async function invoicingDashboard(organizationId: string) {
     })),
     drafts,
   };
+}
+
+/**
+ * What invoicing can find.
+ *
+ * By number above all — "1042" is what somebody has in front of them on a bit
+ * of paper — and by the customer's name, because the other half of the time
+ * what they have is "that one for the Hendersons".
+ */
+export function registerInvoiceSearch(ctx: ModuleContext) {
+  ctx.registerSearch({
+    requires: { invoicing: ["read"] },
+    find: async ({ organizationId, q, limit }) => {
+      const term = `%${q.replace(/[\\%_]/g, (ch: string) => `\\${ch}`)}%`;
+
+      const rows = await db
+        .select({
+          invoice: schema.invoices,
+          contact: schema.contacts.name,
+        })
+        .from(schema.invoices)
+        .leftJoin(
+          schema.contacts,
+          eq(schema.contacts.id, schema.invoices.contactId),
+        )
+        .where(
+          and(
+            eq(schema.invoices.organizationId, organizationId),
+            or(
+              ilike(schema.invoices.number, term),
+              ilike(schema.contacts.name, term),
+            ),
+          ),
+        )
+        .limit(limit);
+
+      return rows.map((row) => ({
+        kind: "Invoice",
+        title: row.invoice.number,
+        subtitle: row.contact ?? row.invoice.status,
+        opens: { moduleId: "invoices", recordId: row.invoice.id },
+        // Scored against the number, which is what somebody typing digits
+        // means. A customer's name matching is a weaker signal and lands lower
+        // than the contact itself.
+        score: scoreFor(q, row.invoice.number),
+      }));
+    },
+  });
 }

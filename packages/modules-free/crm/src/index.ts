@@ -15,8 +15,12 @@ import {
   searchCondition,
 } from "@sentrello/db/list-query";
 import { recordChanged } from "@sentrello/db/record-events";
-import type { SentrelloSession } from "@sentrello/module-sdk";
-import { defineModule, toCsv } from "@sentrello/module-sdk";
+import type {
+  ModuleContext,
+  SearchHit,
+  SentrelloSession,
+} from "@sentrello/module-sdk";
+import { defineModule, scoreFor, toCsv } from "@sentrello/module-sdk";
 import {
   and,
   desc,
@@ -1815,11 +1819,94 @@ function registerCrmScreens(
 /** Re-exported so the tests and callers here keep their import. */
 export { toCsv };
 
+/**
+ * What the CRM can find, for the box that searches everything.
+ *
+ * Contacts, companies and deals — the three things somebody half-remembers the
+ * name of. Deals are searched by the company and the contact as well as by
+ * their own name, because a deal's own name is the least memorable thing about
+ * it: people say "the Henderson job", meaning whoever it is for.
+ */
+function registerCrmSearch(ctx: ModuleContext) {
+  ctx.registerSearch({
+    requires: { crm: ["read"] },
+    find: async ({ organizationId, q, limit }) => {
+      const term = `%${q.replace(/[\\%_]/g, (ch: string) => `\\${ch}`)}%`;
+      const hits: SearchHit[] = [];
+
+      const people = await db
+        .select()
+        .from(schema.contacts)
+        .where(
+          and(
+            eq(schema.contacts.organizationId, organizationId),
+            or(
+              ilike(schema.contacts.name, term),
+              ilike(schema.contacts.email, term),
+              ilike(schema.contacts.phone, term),
+            ),
+          ),
+        )
+        .limit(limit);
+      for (const person of people) {
+        hits.push({
+          kind: "Contact",
+          title: person.name ?? person.email ?? "Somebody",
+          subtitle: person.email ?? person.phone,
+          opens: { moduleId: "contacts", recordId: person.id },
+          score: scoreFor(q, person.name ?? person.email ?? ""),
+        });
+      }
+
+      const firms = await db
+        .select()
+        .from(schema.companies)
+        .where(
+          and(
+            eq(schema.companies.organizationId, organizationId),
+            ilike(schema.companies.name, term),
+          ),
+        )
+        .limit(limit);
+      for (const firm of firms) {
+        hits.push({
+          kind: "Company",
+          title: firm.name,
+          subtitle: firm.website ?? null,
+          opens: { moduleId: "companies", recordId: firm.id },
+          score: scoreFor(q, firm.name),
+        });
+      }
+
+      const where = await dealSearch(organizationId, q);
+      if (where) {
+        const deals = await db
+          .select()
+          .from(schema.deals)
+          .where(and(eq(schema.deals.organizationId, organizationId), where))
+          .limit(limit);
+        for (const deal of deals) {
+          hits.push({
+            kind: "Deal",
+            title: deal.name,
+            subtitle: deal.stage,
+            opens: { moduleId: "deals", recordId: deal.id },
+            score: scoreFor(q, deal.name),
+          });
+        }
+      }
+
+      return hits;
+    },
+  });
+}
+
 export default defineModule({
   id: "crm",
   tier: "free",
   register(ctx) {
     registerCrmPersonalData(ctx);
+    registerCrmSearch(ctx);
 
     /**
      * The CRM, as one thing with five pages under it.
