@@ -308,6 +308,7 @@ function CurrentScreen({ nav }: { nav: Meta["nav"] }) {
           moduleId={entry?.moduleId ?? current.moduleId}
           screenId={current.moduleId}
           label={entry?.label ?? current.moduleId}
+          recordId={current.recordId}
         />
       )}
     </>
