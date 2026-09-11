@@ -1290,7 +1290,19 @@ export const documentCounters = pgTable(
     kind: text("kind").notNull(), // invoice|quote
     lastNumber: integer("last_number").notNull().default(0),
   },
-  (t) => [index("document_counters_org_kind_idx").on(t.organizationId, t.kind)],
+  (t) => [
+    /*
+     * Unique, not merely indexed.
+     *
+     * The counter is created on first use, and "is there one? no, make one" is
+     * two statements with a gap in the middle: two requests numbering something
+     * at the same moment both found none and both made one, so both took the
+     * same number. A `select … for update` cannot lock a row that does not
+     * exist yet. This is what lets the insert be an upsert and the whole thing
+     * be a single atomic statement.
+     */
+    uniqueIndex("document_counters_org_kind_idx").on(t.organizationId, t.kind),
+  ],
 );
 
 // ---------------------------------------------------------------------------
