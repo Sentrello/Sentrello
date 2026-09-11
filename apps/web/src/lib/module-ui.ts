@@ -45,6 +45,19 @@ interface SentrelloRuntime {
   api: typeof api;
   /** where a module registers its screen as it loads */
   screens: Record<string, ScreenComponent>;
+  /**
+   * The record the screen was opened for, when it was opened for one.
+   *
+   * Core's own screens get this from the router. A module's screen had no way
+   * to know at all — so a search result naming a particular order could only
+   * take somebody to the orders list and leave them to find it, which is most
+   * of the work search exists to remove.
+   *
+   * An object rather than a value because the runtime is published once and a
+   * module reads it on every render; replacing the object would leave every
+   * module holding the old one.
+   */
+  opened: { recordId?: string };
 }
 
 declare global {
@@ -64,9 +77,20 @@ export function installRuntime(): SentrelloRuntime {
     money,
     api,
     screens: {},
+    opened: {},
   };
   window.__sentrello = runtime;
   return runtime;
+}
+
+/**
+ * Say which record a module's screen is being opened for.
+ *
+ * Set before the screen renders, so a screen that cares can read it on its
+ * first render rather than flashing a list and then the record.
+ */
+export function setModuleRecord(recordId?: string): void {
+  installRuntime().opened.recordId = recordId;
 }
 
 const inFlight = new Map<string, Promise<ScreenComponent | null>>();

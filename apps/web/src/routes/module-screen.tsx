@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { loadModuleScreen } from "../lib/module-ui";
+import { loadModuleScreen, setModuleRecord } from "../lib/module-ui";
 import { Empty, Loading } from "../lib/ui";
 
 /**
@@ -13,15 +13,24 @@ export function ModuleScreen({
   moduleId,
   screenId,
   label,
+  recordId,
 }: {
   moduleId: string;
   screenId: string;
   label: string;
+  /** The record this screen was opened for, when it was opened for one. */
+  recordId?: string;
 }) {
   const [state, setState] = useState<{
     status: "loading" | "ready" | "missing";
     Screen?: () => React.ReactElement | null;
   }>({ status: "loading" });
+
+  /*
+   * Set before the screen is asked for, so a screen that opens a record reads
+   * it on its first render rather than drawing a list and then replacing it.
+   */
+  setModuleRecord(recordId);
 
   useEffect(() => {
     let live = true;
