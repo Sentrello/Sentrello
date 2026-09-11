@@ -102,3 +102,30 @@ test.each(modules)("%s: every nav entry has a screen", (name) => {
       .map((e) => e.id),
   ).toEqual([]);
 });
+
+/**
+ * A section does not ask for a bundle that does not exist.
+ *
+ * `/api/_meta` already lists the modules whose screens this instance can serve,
+ * and nothing read it. So opening a section that draws nothing itself — the
+ * CRM's own entry, Shop's, Settings' — asked the server for a script that was
+ * never built: a 404 in plain text, which the browser refuses on MIME grounds
+ * and writes to the console twice.
+ *
+ * It failed no test that talks to the API, because the API was right to say no.
+ * It failed the end-to-end suite, on every screen, for thirty runs — and a
+ * suite that has been red for thirty runs is a suite nobody reads.
+ */
+test("the web app only asks for screens the instance says it has", () => {
+  const app = readFileSync(join(root, "apps/web/src/App.tsx"), "utf8");
+  // The instance's own list reaches the component that decides whether to ask.
+  expect(app).toContain("withScreens");
+  expect(app).toMatch(/shipsScreens=\{withScreens\.includes\(/);
+
+  const screen = readFileSync(
+    join(root, "apps/web/src/routes/module-screen.tsx"),
+    "utf8",
+  );
+  // And the component refuses to ask when the answer is already known.
+  expect(screen).toMatch(/if \(shipsScreens === false\)/);
+});
