@@ -67,6 +67,28 @@ export interface PaymentEvent {
   feeCents?: number;
 }
 
+/**
+ * A payment the buyer completes without leaving the shop's own website.
+ *
+ * The redirect flow sends somebody to the processor's page and hopes they come
+ * back. This is the other shape: the processor's own card fields are put into
+ * the shop's page, and the buyer never goes anywhere.
+ *
+ * **The card details still never touch this software.** They are typed into the
+ * processor's iframe, which is why this arrangement keeps the same light PCI
+ * obligation the redirect has. What comes back here is a secret that authorises
+ * one payment of one amount and nothing else — it is meant to be given to a
+ * browser, and it is useless for anything but confirming this payment.
+ */
+export interface OnSitePayment {
+  /** Handed to the processor's script in the page. Good for this payment only. */
+  clientSecret: string;
+  /** The publishable key, which is public by design. */
+  publicKey: string;
+  /** What the webhook will call this payment when it reports on it. */
+  reference: string;
+}
+
 export interface ConnectionResult {
   ok: boolean;
   /** Who the provider says we are: an account name, or an error to show. */
@@ -87,6 +109,17 @@ export interface PaymentProvider {
   testConnection(): Promise<ConnectionResult>;
 
   createCheckout(req: CheckoutRequest): Promise<HostedCheckout>;
+
+  /**
+   * The same payment, taken in the shop's own page.
+   *
+   * Optional, because not every processor has this shape and a shop should not
+   * lose the ability to take money because one of them does not. A provider
+   * that does not implement it keeps the redirect, which works everywhere —
+   * including on an instance a buyer's browser cannot reach directly, where the
+   * redirect is the only thing that can work at all.
+   */
+  startOnSite?(req: CheckoutRequest): Promise<OnSitePayment>;
 
   /**
    * Verifies a webhook against the raw body — never a parsed object. Parsing
