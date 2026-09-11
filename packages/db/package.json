@@ -19,7 +19,8 @@
     "./modules": "./src/modules.ts",
     "./consent": "./src/consent.ts",
     "./security-events": "./src/security-events.ts",
-    "./lockout": "./src/lockout.ts"
+    "./lockout": "./src/lockout.ts",
+    "./record-events": "./src/record-events.ts"
   },
   "scripts": {
     "migrate": "bun run src/migrate.ts"

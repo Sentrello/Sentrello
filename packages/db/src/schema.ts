@@ -2688,3 +2688,73 @@ export const securityPolicy = pgTable("security_policy", {
   eventRetentionDays: integer("event_retention_days").notNull().default(365),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+/**
+ * Something a business record changed.
+ *
+ * The feed automations fire on. A workflow that sends a follow-up when a deal
+ * is won has to learn that a deal was won, and nothing here was telling anyone
+ * anything: the row changed and the fact of its changing existed only for the
+ * length of the request.
+ *
+ * **In core, and Free does not consume it.** It is plumbing rather than a
+ * feature — an activity stream, notifications and an audit view would each want
+ * the same thing, and one feed written once beats three half-feeds written
+ * later. Emitting costs a business nothing that does not use it.
+ *
+ * **Written from code, not from a database trigger.** A trigger is invisible in
+ * review, invisible to the ORM, and a business rule buried in one is the thing
+ * nobody finds for a year. Writing it beside the change is a line somebody can
+ * read.
+ *
+ * The before and after are kept for the fields that changed, because a
+ * condition worth writing is almost always about the change rather than the
+ * state — "when the stage becomes won", not "when the stage is won", which is
+ * true every time anything else on the deal is edited afterwards.
+ */
+export const recordEvents = pgTable(
+  "record_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: text("organization_id").notNull(),
+    /** What kind of thing: "deal", "contact", "invoice". */
+    entity: text("entity").notNull(),
+    entityId: text("entity_id").notNull(),
+    /** created | updated | deleted */
+    action: text("action").notNull(),
+    /** Which fields differ, so a trigger can be narrowed to one of them. */
+    changed: jsonb("changed").$type<string[]>().notNull().default([]),
+    before: jsonb("before").$type<Record<string, unknown>>(),
+    after: jsonb("after").$type<Record<string, unknown>>(),
+    /**
+     * Who did it, where a person did.
+     *
+     * Null for a job or an automation, which is the distinction that stops a
+     * workflow reacting to its own work for ever.
+     */
+    actorId: text("actor_id"),
+    /**
+     * The workflow run that caused it, when one did.
+     *
+     * How a run knows not to chase its own tail: "on update, update" is the
+     * first automation anybody builds by accident.
+     */
+    causedByRunId: uuid("caused_by_run_id"),
+    at: timestamp("at").defaultNow().notNull(),
+    /**
+     * When everything interested in it had its turn.
+     *
+     * Null means nobody has looked yet, which is what the sweep asks for. Set
+     * even when nothing matched: "considered" is the fact worth recording, and
+     * an event that is reconsidered every minute for ever is a table that only
+     * grows.
+     */
+    handledAt: timestamp("handled_at"),
+  },
+  (t) => [
+    index("record_events_org_idx").on(t.organizationId, t.at),
+    // The sweep's own query: the unhandled ones, oldest first.
+    index("record_events_unhandled_idx").on(t.handledAt, t.at),
+    index("record_events_entity_idx").on(t.entity, t.entityId),
+  ],
+);

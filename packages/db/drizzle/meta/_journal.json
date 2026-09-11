@@ -463,6 +463,13 @@
       "when": 1789008293043,
       "tag": "0065_wide_sabra",
       "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1789096549408,
+      "tag": "0066_soft_supreme_intelligence",
+      "breakpoints": true
     }
   ]
 }
