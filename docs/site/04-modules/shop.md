@@ -16,8 +16,15 @@ Products with descriptions, images, prices and stock levels. Variants — sizes,
 colours — are handled as options on one product rather than as separate
 products that drift apart.
 
-Stock decrements when an order is placed and shows on the product screen. A
-product can be hidden without deleting it.
+An order **claims** stock rather than removing it: the goods are still on the
+shelf until somebody packs them, so a business counting stock this afternoon
+finds what is actually there. The count moves when the parcel goes out — or
+immediately, for a sale made at the counter with the [Till](/modules/till),
+because the customer walks out holding it.
+
+That is why the inventory screen shows three numbers. **Free to sell** — what is
+on the shelf less what is already spoken for — is the one that decides whether a
+sale can happen. A product can be hidden without deleting it.
 
 ## The storefront
 
