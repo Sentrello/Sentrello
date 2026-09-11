@@ -33,6 +33,7 @@ interface SettingsResponse {
     taxId: string;
     taxIdLabel: string;
     paymentInstructions: string;
+    timezone: string;
   };
   instance: { baseUrl: string; baseUrlMatchesRequest: boolean };
   telemetry: { enabled: boolean; fixedOnServer: boolean };
@@ -164,6 +165,7 @@ export function Settings() {
     taxId: data.business.taxId,
     taxIdLabel: data.business.taxIdLabel,
     paymentInstructions: data.business.paymentInstructions,
+    timezone: data.business.timezone,
   };
   const form = details ?? saved;
   const patch = (change: Record<string, string>) =>
@@ -252,6 +254,39 @@ export function Settings() {
                 color: "var(--text)",
               }}
             />
+          </Field>
+
+          {/*
+            Where the business is, in time.
+            
+            Anything that acts at a time of day depends on it: an automation
+            chasing quiet deals every Monday at nine goes out on Sunday evening
+            for a business whose server is in another country, and nothing
+            anywhere says why. Offered with the browser's own answer, because
+            the person filling this in is standing in the business.
+          */}
+          <Field
+            label="Timezone"
+            hint="What 'nine o'clock' means for this business. Leave it blank to use the server's own."
+          >
+            <div className="flex gap-2">
+              <Input
+                value={form.timezone}
+                placeholder="Europe/London"
+                onChange={(e) => patch({ timezone: e.target.value })}
+              />
+              <Button
+                variant="secondary"
+                onClick={() =>
+                  patch({
+                    timezone:
+                      Intl.DateTimeFormat().resolvedOptions().timeZone ?? "",
+                  })
+                }
+              >
+                Use mine
+              </Button>
+            </div>
           </Field>
 
           <Button

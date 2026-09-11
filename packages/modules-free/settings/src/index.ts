@@ -4,6 +4,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { db, schema } from "@sentrello/db";
+import { knownTimezone } from "@sentrello/db/timezone";
 import { mailConfigured } from "@sentrello/email";
 import {
   setTelemetryEnabled,
@@ -146,6 +147,11 @@ export default defineModule({
             taxId: maskTaxId(org?.taxId),
             taxIdLabel: org?.taxIdLabel ?? "",
             paymentInstructions: org?.paymentInstructions ?? "",
+            /*
+             * Empty means the server's own, which is the honest default rather
+             * than guessing. The screen offers to fill it in with the browser's.
+             */
+            timezone: org?.timezone ?? "",
           },
           instance: {
             baseUrl: base,
@@ -510,6 +516,7 @@ export default defineModule({
         let taxId: string | null;
         let taxIdLabel: string | null;
         let paymentInstructions: string | null;
+        let timezone: string | null;
         try {
           address = text(body.address, 500, "address");
           taxId = text(body.taxId, 60, "tax number");
@@ -519,6 +526,7 @@ export default defineModule({
             800,
             "payment instructions",
           );
+          timezone = text(body.timezone, 60, "timezone");
         } catch (err) {
           if (err instanceof RangeError) {
             return c.json({ error: `that ${err.message} is too long` }, 400);
@@ -542,9 +550,34 @@ export default defineModule({
           taxId = before?.taxId ?? null;
         }
 
+        /*
+         * Checked against the ones this machine actually knows, rather than
+         * stored as typed.
+         *
+         * A timezone the server cannot resolve does not fail loudly: every
+         * calculation quietly falls back to the server's own, so a business
+         * that typed "EST" instead of "America/New_York" would see its Monday
+         * chases go out at the wrong hour and find nothing anywhere saying why.
+         * Refused at the door instead, where somebody is looking at the form
+         * they just filled in.
+         */
+        if (timezone && !knownTimezone(timezone)) {
+          return c.json(
+            { error: `"${timezone}" is not a timezone this server knows` },
+            400,
+          );
+        }
+
         const [org] = await db
           .update(schema.organizations)
-          .set({ name, address, taxId, taxIdLabel, paymentInstructions })
+          .set({
+            name,
+            address,
+            taxId,
+            taxIdLabel,
+            paymentInstructions,
+            timezone,
+          })
           .where(eq(schema.organizations.id, orgId))
           .returning();
         return c.json({
@@ -555,6 +588,7 @@ export default defineModule({
             taxId: maskTaxId(org?.taxId),
             taxIdLabel: org?.taxIdLabel ?? "",
             paymentInstructions: org?.paymentInstructions ?? "",
+            timezone: org?.timezone ?? "",
           },
         });
       },

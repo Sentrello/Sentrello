@@ -689,3 +689,42 @@ test("connecting refuses without keys rather than pretending", async () => {
   expect(res.status).toBe(400);
   expect(await res.text()).toContain("paste the keys first");
 });
+
+/**
+ * Where the business is, in time.
+ *
+ * Anything that acts at a time of day depends on it, and a name the runtime
+ * cannot resolve does not fail loudly — every calculation quietly falls back to
+ * the server's own. So a business that typed "EST" would find its Monday chases
+ * going out at the wrong hour with nothing anywhere saying why, which is why it
+ * is refused at the door instead.
+ */
+test("a timezone is saved, and one the server does not know is refused", async () => {
+  const good = await app.request("http://localhost/api/settings", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ name: "A business", timezone: "America/New_York" }),
+  });
+  expect(good.status).toBe(200);
+  expect(
+    ((await good.json()) as { business: { timezone: string } }).business
+      .timezone,
+  ).toBe("America/New_York");
+
+  const bad = await app.request("http://localhost/api/settings", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ name: "A business", timezone: "EST (New York)" }),
+  });
+  expect(bad.status).toBe(400);
+  expect(((await bad.json()) as { error: string }).error).toContain(
+    "not a timezone",
+  );
+
+  // And the one that was already saved is untouched by the refusal.
+  const seen = await app.request("http://localhost/api/settings", { headers });
+  expect(
+    ((await seen.json()) as { business: { timezone: string } }).business
+      .timezone,
+  ).toBe("America/New_York");
+});
