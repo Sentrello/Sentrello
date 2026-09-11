@@ -16,6 +16,7 @@ instance you already run.
 | [Documents](/modules/documents) | The business's files, and warnings before one expires |
 | [Shop](/modules/shop) | Sell online, with orders and money landing in the same books |
 | [Till](/modules/till) | Sell face to face, on the same products, prices and books |
+| [Shop on your own website](/modules/shop-frontend) | Put the shop on a site built with anything |
 | [Newsletter](/modules/newsletter) | Mailing lists and campaigns, done lawfully |
 | [Docs](/modules/docs) | Publish documentation from your own repository |
 
