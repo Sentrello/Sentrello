@@ -93,6 +93,23 @@ You can reach into a record's shape with a dot: `address.city`.
 | **Change a field** | On the record the rule is about |
 | **Tell another system** | Calls a web address of yours with what happened |
 
+### One rule that does two things
+
+Each step has **Only do this step for some records**. Put a condition on it and
+the step runs for the records that match and is skipped for the rest — while the
+rule carries on.
+
+That is how one rule handles both sides of something:
+
+> When a deal changes stage
+> → congratulate them, **only if** the stage is won
+> → ask what happened, **only if** the stage is lost
+
+**This is different from "Only carry on if…".** A filter stops the whole rule; a
+condition on a step skips that step and moves to the next one. Both appear in the
+run log, so a step that was not for this record says so rather than being
+missing.
+
 ### Putting the record into what you write
 
 Anywhere you type text, `{{record.name}}` becomes that record's name.
@@ -204,8 +221,9 @@ A **wait** is exact to the minute it sweeps, not to the second.
 
 ## What is not here yet
 
-- **Branches** — one rule taking two paths. Today a rule is a straight line;
-  write two rules with different conditions.
+- **Branches within branches.** One rule handling two cases is covered by a
+  condition on each step (above). What is not there is nesting — a choice inside
+  a choice. Say if you need one.
 - **Choosing your own times** beyond daily, weekly and monthly — the fourth
   Tuesday, or twice a day. Ask if you need one.
 - **Rolling back to an earlier version** from the screen. Every version is kept,
