@@ -22,6 +22,9 @@ export const OPTIONAL_MODULE_PACKAGES = [
   "@sentrello/pro-projects",
   "@sentrello/mod-scheduling",
   "@sentrello/mod-shop",
+  // The till. Entitled by Shop rather than bought on its own, and still a
+  // bundle of its own — a shop with no counter should not carry it.
+  "@sentrello/mod-pos",
   // sentrello.com only, and additionally gated by SENTRELLO_CONTROL_PLANE=true
   "@sentrello/control-plane",
   /**
