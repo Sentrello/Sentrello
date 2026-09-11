@@ -16,5 +16,6 @@ AGPL. It is not a trial and it does not expire.
 | [Invoicing](/core/invoicing) | Quotes, invoices, payments, and getting paid |
 | [Accounting](/core/accounting) | Double-entry books, expenses, reports |
 | [Dashboard](/core/dashboard) | The first screen, and what each module puts on it |
+| [Finding things](/core/finding-things) | One box that searches everything, from anywhere |
 
 Pro deepens several of these rather than replacing them — see [Pro](/pro).

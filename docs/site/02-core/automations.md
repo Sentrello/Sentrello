@@ -47,8 +47,10 @@ Three things worth knowing about schedules:
   morning runs Monday's chase, not Saturday's and Sunday's as well.
 - **A month too short runs on its last day.** Setting the 31st means month-end,
   including February.
-- **The time is the server's own.** There is no business timezone yet, so "nine
-  o'clock" is nine where your instance runs.
+- **The time is your business's own**, set under Settings → Business. An instance
+  that has not set one uses the server's clock, which is right for a computer in
+  your office and wrong for one rented in another country — that is how a Monday
+  chase goes out on Sunday evening.
 - **At most 200 records a firing.** If more matched, the run list says so rather
   than quietly doing fewer.
 
@@ -180,6 +182,12 @@ running and that what you are looking at is not it.
 **Pause it** stops it without deleting anything, and remembers which version was
 running — usually the thing you want to look at next.
 
+**Every version is kept, and any of them can be made live again.** The Versions
+list shows when each was published and which is running; press *Go back to this*
+on an older one. That is the thing you want at the worst moment this feature can
+give you — a rule you just published doing something wrong to real customers.
+Rewriting it from memory under that pressure is how the second mistake happens.
+
 ## Seeing what it did
 
 Every firing is kept, with each step, what it produced, and why anything stopped.
@@ -219,6 +227,9 @@ automation.
 
 A **wait** is exact to the minute it sweeps, not to the second.
 
+Times are read in the timezone set under Settings → Business, so nine o'clock
+means nine where you are rather than where your server is.
+
 ## What is not here yet
 
 - **Branches within branches.** One rule handling two cases is covered by a
@@ -226,8 +237,6 @@ A **wait** is exact to the minute it sweeps, not to the second.
   a choice. Say if you need one.
 - **Choosing your own times** beyond daily, weekly and monthly — the fourth
   Tuesday, or twice a day. Ask if you need one.
-- **Rolling back to an earlier version** from the screen. Every version is kept,
-  so nothing is lost — there is just no button for it yet.
 
 There is deliberately **no step that runs code**. Some tools offer one; inside a
 server you host yourself, that is a security surface bought for a convenience,
