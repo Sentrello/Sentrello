@@ -186,6 +186,22 @@ export interface SentrelloModule {
   tier: Tier;
   /** ids of modules that must load first */
   requires?: string[];
+  /**
+   * A module that comes free with another one.
+   *
+   * The till is the case: it is a free add-on for anybody who has bought Shop,
+   * not a separate purchase. Without this it would need its own entry in every
+   * licence token, and the day one was signed without it, a paying customer
+   * would lose a feature they were told came with what they bought.
+   *
+   * Saying it here instead means the rule lives in the module, where somebody
+   * reading it can see what it costs, and no licence has to carry it.
+   *
+   * It grants entitlement only. `requires` is still what decides load order and
+   * whether the host is present at all — a module that comes with another one
+   * almost always needs it as well, and must say both.
+   */
+  includedWith?: string;
   migrations?: ModuleMigrations;
   /**
    * Absolute path to this module's prebuilt browser screens, if it has any.

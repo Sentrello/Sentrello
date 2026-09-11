@@ -27,5 +27,6 @@
     "@types/react-dom": "^19.0.0",
     "@sentrello/db": "*",
     "@sentrello/module-crm": "*"
-  }
+  },
+  "license": "AGPL-3.0-or-later"
 }

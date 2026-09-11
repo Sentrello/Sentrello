@@ -2,6 +2,11 @@
   "name": "@sentrello/module-sdk",
   "version": "0.0.0",
   "type": "module",
-  "exports": { ".": "./src/index.ts" },
-  "dependencies": { "hono": "^4.13.5" }
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "hono": "^4.13.5"
+  },
+  "license": "AGPL-3.0-or-later"
 }

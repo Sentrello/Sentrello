@@ -884,3 +884,43 @@ test("every response refuses to be framed, except the one meant to be embedded",
   expect(embed.headers.get("x-frame-options")).toBeNull();
   expect(embed.headers.get("x-content-type-options")).toBe("nosniff");
 });
+
+/**
+ * A module that comes free with another loads when that one is licensed.
+ *
+ * The till is the case: free for anybody who has bought Shop. Without this it
+ * would need its own entry in every licence token, and the day one was signed
+ * without it a paying customer would quietly lose a feature they were told came
+ * with what they bought.
+ */
+test("a module included with another is entitled by it", () => {
+  const host = defineModule({
+    id: "host-module",
+    tier: "module",
+    register() {},
+  });
+  const guest = defineModule({
+    id: "guest-module",
+    tier: "module",
+    requires: ["host-module"],
+    includedWith: "host-module",
+    register() {},
+  });
+
+  const boughtTheHost = (need: { tier?: "pro"; module?: string }) =>
+    need.tier === "pro" || need.module === "host-module";
+
+  const withHost = loadModules(new Hono<SentrelloEnv>(), boughtTheHost, [
+    host,
+    guest,
+  ]);
+  expect(withHost.loaded.sort()).toEqual(["guest-module", "host-module"]);
+
+  // And without the one it comes with, neither loads — the guest is free, not
+  // free-standing.
+  const without = loadModules(new Hono<SentrelloEnv>(), () => false, [
+    host,
+    guest,
+  ]);
+  expect(without.loaded).toEqual([]);
+});

@@ -8,5 +8,6 @@
     "@sentrello/db": "*",
     "@sentrello/module-sdk": "*",
     "drizzle-orm": "^0.45.0"
-  }
+  },
+  "license": "AGPL-3.0-or-later"
 }
