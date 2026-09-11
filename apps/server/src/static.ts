@@ -27,7 +27,23 @@ export function serveWeb(app: SentrelloApp, distDir?: string) {
 
     if (inside) {
       const file = Bun.file(requested);
-      if (await file.exists()) return new Response(file);
+      if (await file.exists()) {
+        /*
+         * The service worker is never cached by the browser's own cache.
+         *
+         * It is the thing that decides what everything else is allowed to
+         * remember, so a stale copy of it is a business that cannot be updated
+         * by any means it knows about. Browsers already bypass the HTTP cache
+         * when checking for a new worker; saying so as well costs nothing and
+         * removes the question.
+         */
+        if (pathname === "/sw.js") {
+          return new Response(file, {
+            headers: { "cache-control": "no-cache" },
+          });
+        }
+        return new Response(file);
+      }
     }
 
     const index = Bun.file(resolve(root, "index.html"));

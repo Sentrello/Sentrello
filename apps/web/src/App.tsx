@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { type Meta, api } from "./lib/api";
 import { AppShell } from "./lib/app-shell";
 import { signOut, useSession } from "./lib/auth";
@@ -143,6 +144,9 @@ const RECORD_SCREENS: Record<string, () => React.ReactElement | null> = {
  */
 function useProfile(signedIn: boolean) {
   return useQuery({
+    // Runs and fails rather than being paused, so the screen can carry on
+    // without it. A person's own name is not worth a blank page.
+    networkMode: "always",
     queryKey: ["profile"],
     enabled: signedIn,
     queryFn: async () => {
@@ -160,14 +164,87 @@ function useMeta(signedIn: boolean) {
     // requests behind the sign-in form on every load — noise in the log of
     // whoever is trying to work out why something is wrong.
     enabled: signedIn,
+    /*
+     * Run it even when the browser says there is no network, so it can fail and
+     * be answered from what this device remembers. Paused, it never settles and
+     * the application waits for ever on a blank page.
+     */
+    networkMode: "always",
     queryFn: async () => {
-      const meta = await api<Meta>("/api/_meta");
-      // Before any module script is requested, so an upgraded instance never
-      // serves the previous release's screen from cache.
-      setModuleRelease(meta.version ?? "");
-      return meta;
+      try {
+        const meta = await api<Meta>("/api/_meta");
+        // Before any module script is requested, so an upgraded instance never
+        // serves the previous release's screen from cache.
+        setModuleRelease(meta.version ?? "");
+        rememberShape(meta);
+        return meta;
+      } catch (error) {
+        const kept = recallShape();
+        if (!kept) throw error;
+        setModuleRelease(kept.version ?? "");
+        return kept;
+      }
     },
   });
+}
+
+/** Re-renders when the connection comes or goes, so the two paths can differ. */
+function useOnline(): boolean {
+  const [online, setOnline] = useState(
+    typeof navigator === "undefined" ? true : navigator.onLine,
+  );
+  useEffect(() => {
+    const update = () => setOnline(navigator.onLine);
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    return () => {
+      window.removeEventListener("online", update);
+      window.removeEventListener("offline", update);
+    };
+  }, []);
+  return online;
+}
+
+function wasSignedIn(): boolean {
+  try {
+    return localStorage.getItem(WAS_SIGNED_IN) === "1";
+  } catch {
+    return false;
+  }
+}
+
+const SHAPE = "sentrello.shape";
+
+/**
+ * What this instance is, kept on the device.
+ *
+ * Not money, and not a record of anything: which modules are loaded, what the
+ * navigation looks like, which release is running. The application asks the
+ * server on every load and, without this, a reload with no connection left it
+ * with nothing to draw — the service worker holds the application, and the
+ * application still did not know its own shape.
+ *
+ * Deliberately the application's own decision rather than the worker quietly
+ * caching an API answer. The worker keeps nothing under /api, and it should
+ * not: a cached figure about stock or a drawer is a wrong number presented as
+ * a fact. This is the shape of the screen, it is stale only after an upgrade,
+ * and the next successful load replaces it.
+ */
+function rememberShape(meta: Meta): void {
+  try {
+    localStorage.setItem(SHAPE, JSON.stringify(meta));
+  } catch {
+    // A device that will not store it simply does not survive a reload offline.
+  }
+}
+
+function recallShape(): Meta | null {
+  try {
+    const held = localStorage.getItem(SHAPE);
+    return held ? (JSON.parse(held) as Meta) : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -177,6 +254,16 @@ function useMeta(signedIn: boolean) {
 function useBootstrap() {
   return useQuery({
     queryKey: ["bootstrap"],
+    /*
+     * Runs and fails rather than being paused.
+     *
+     * A paused query never settles, and the application waits on this one
+     * before it draws anything — so with the line down it stayed on a blank
+     * page for ever. The question it asks ("has anybody claimed this instance
+     * yet?") is one an instance somebody is already signed in to has plainly
+     * answered.
+     */
+    networkMode: "always",
     queryFn: () =>
       api<{
         needed: boolean;
@@ -254,9 +341,49 @@ function NoAccess() {
   );
 }
 
+/**
+ * Whether the person using this device was signed in last time we could ask.
+ *
+ * The difference that matters is between "the server says you are not signed
+ * in" and "we cannot ask the server". The first is a sign-in screen. The second
+ * used to be one too, which meant a till that had kept its menu, kept its
+ * queue and survived a reload was still handed a login form it had no way to
+ * complete — with its session cookie sitting right there.
+ *
+ * Remembering this shows nothing that was not already on the device, and grants
+ * nothing: every request still carries the cookie and the server still decides.
+ * An expired session answers 401 the moment the line comes back, and the
+ * application returns to the sign-in screen then, correctly.
+ */
+const WAS_SIGNED_IN = "sentrello.signed-in";
+
 export default function App() {
   const session = useSession();
-  const signedIn = Boolean(session.data);
+  /*
+   * Whether the server can be asked at all.
+   *
+   * `navigator.onLine` rather than the session call's own error, which does not
+   * distinguish "no" from "could not ask" — it reports a failed fetch the same
+   * way it reports being signed out, and offline that reads as signed out.
+   *
+   * The browser's flag is famously optimistic: it says online behind a captive
+   * portal that answers nothing. That is the safe direction here. Believing it
+   * is online when it is not only shows the sign-in screen, which is what used
+   * to happen anyway; nothing is trusted on the strength of it.
+   */
+  const online = useOnline();
+  const canAsk = online && !session.error;
+  const signedIn = Boolean(session.data) || (!canAsk && wasSignedIn());
+
+  useEffect(() => {
+    if (session.isPending || !canAsk) return;
+    try {
+      if (session.data) localStorage.setItem(WAS_SIGNED_IN, "1");
+      else localStorage.removeItem(WAS_SIGNED_IN);
+    } catch {
+      // A device that will not store it simply asks again next time.
+    }
+  }, [session.data, session.isPending, canAsk]);
   const meta = useMeta(signedIn);
   const data = meta.data;
   const bootstrap = useBootstrap();
@@ -267,7 +394,12 @@ export default function App() {
   // before the sign-in form or the bootstrap screen takes the page.
   if (window.location.pathname === "/reset-password") return <ResetPassword />;
 
-  if (session.isPending || bootstrap.isLoading) return null;
+  /*
+   * Nothing is drawn until we know who this is and whether the instance has an
+   * owner — except when neither can be asked, where waiting is a blank page
+   * that never changes. Somebody signed in on this device has answered both.
+   */
+  if (canAsk && (session.isPending || bootstrap.isLoading)) return null;
   // A fresh instance has no owner yet: claim it before anything else.
   if (bootstrap.data?.needed) {
     return (
@@ -277,10 +409,17 @@ export default function App() {
       />
     );
   }
-  if (!session.data) return <SignIn />;
-  // Signed in, and the shell does not know what to draw yet. Both of these
-  // wait on the session, so they cannot be fetched alongside it.
-  if (meta.isLoading || profile.isLoading) return <Loading />;
+  if (!signedIn) return <SignIn />;
+  /*
+   * Signed in, and the shell does not know what to draw yet. Both of these wait
+   * on the session, so they cannot be fetched alongside it.
+   *
+   * Not while the connection is down: neither will ever arrive, and waiting for
+   * them is a spinner that never stops. The shape of the instance is answered
+   * from what this device remembers instead, which is enough to draw the screen
+   * somebody was on.
+   */
+  if (canAsk && (meta.isLoading || profile.isLoading)) return <Loading />;
 
   /**
    * Signed in, but not part of this business.
@@ -323,7 +462,16 @@ export default function App() {
        */
       known={[...nav, { id: "profile", label: "Your profile" }]}
     >
-      <AppShell nav={nav} user={session.data.user}>
+      {/*
+        The session's own copy of who this is, or the profile's, or nothing but
+        an address. With the line down there is no session answer to read, and
+        the shell only wants a name to put in the corner — not a reason to
+        refuse to draw.
+      */}
+      <AppShell
+        nav={nav}
+        user={session.data?.user ?? { name: null, email: "" }}
+      >
         <CurrentScreen nav={nav} />
       </AppShell>
     </NavigationProvider>
