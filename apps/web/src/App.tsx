@@ -275,7 +275,14 @@ function useBootstrap() {
 }
 
 /** The screen for wherever navigation currently points. */
-function CurrentScreen({ nav }: { nav: Meta["nav"] }) {
+function CurrentScreen({
+  nav,
+  withScreens,
+}: {
+  nav: Meta["nav"];
+  /** The modules this instance can actually serve screens for. */
+  withScreens: string[];
+}) {
   const { current } = useNavigation();
 
   // A module can have a screen for one record as well as a list. Without this
@@ -309,6 +316,9 @@ function CurrentScreen({ nav }: { nav: Meta["nav"] }) {
           screenId={current.moduleId}
           label={entry?.label ?? current.moduleId}
           recordId={current.recordId}
+          shipsScreens={withScreens.includes(
+            entry?.moduleId ?? current.moduleId,
+          )}
         />
       )}
     </>
@@ -473,7 +483,7 @@ export default function App() {
         nav={nav}
         user={session.data?.user ?? { name: null, email: "" }}
       >
-        <CurrentScreen nav={nav} />
+        <CurrentScreen nav={nav} withScreens={data?.ui ?? []} />
       </AppShell>
     </NavigationProvider>
   );
