@@ -356,7 +356,7 @@ test("a custom row under a compiled name adds to it; it does not shadow it", asy
         .filter((g) => g.resource === "crm")
         .map((g) => g.action)
         .sort(),
-    ).toEqual(["create", "delete", "read", "update"]);
+    ).toEqual(["create", "delete", "manage", "read", "update"]);
   } finally {
     await db
       .delete(schema.organizationRole)
