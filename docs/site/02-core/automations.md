@@ -24,6 +24,34 @@ has to change and what has to be true.
 
 **Do this** — steps, in order. Each one runs only if the one before it did.
 
+## Two kinds of rule
+
+**Something changes** — a deal is won, a contact is created, a field moves.
+
+**A time comes round** — every day, every week on a day, every month on a date.
+
+The second is the one people forget they need, and it covers the other half of
+the work: a quote nobody answered, a deal gone quiet, a renewal three weeks out.
+**Nothing changes when something fails to happen**, so no event fires, and the
+follow-up that matters most is the one nothing can trigger.
+
+![A rule that runs every Monday at nine](../../images/crm-automation-schedule.png)
+
+A scheduled rule runs **once for each record that matches its conditions** —
+"for each deal still sitting in proposal, chase it" — so the steps are the same
+steps.
+
+Three things worth knowing about schedules:
+
+- **A missed one is not made up.** If the server was off all weekend, Monday
+  morning runs Monday's chase, not Saturday's and Sunday's as well.
+- **A month too short runs on its last day.** Setting the 31st means month-end,
+  including February.
+- **The time is the server's own.** There is no business timezone yet, so "nine
+  o'clock" is nine where your instance runs.
+- **At most 200 records a firing.** If more matched, the run list says so rather
+  than quietly doing fewer.
+
 ## Choosing what sets it off
 
 | Setting | What it means |
@@ -178,8 +206,8 @@ A **wait** is exact to the minute it sweeps, not to the second.
 
 - **Branches** — one rule taking two paths. Today a rule is a straight line;
   write two rules with different conditions.
-- **Running on a schedule** — "every Monday, chase anything that has gone quiet".
-  Today every rule watches a record changing, or is run by hand.
+- **Choosing your own times** beyond daily, weekly and monthly — the fourth
+  Tuesday, or twice a day. Ask if you need one.
 - **Rolling back to an earlier version** from the screen. Every version is kept,
   so nothing is lost — there is just no button for it yet.
 
