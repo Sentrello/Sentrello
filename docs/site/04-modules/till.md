@@ -212,10 +212,10 @@ comfortable:
 - **Stock is advisory too.** Two tills that cannot see each other can both sell
   the last croissant. That is a thing that happens in real cafés, and the answer
   is to notice it afterwards rather than to stop both tills.
-- **Do not reload the page while the line is down.** The till is served by your
-  instance, so a reload has nothing to load. Leave the tab open and it keeps
-  working. (Surviving a reload is planned; it needs the app itself to be held on
-  the device.)
+- **A reload is fine.** The application is held on the device, so opening the
+  till again with the line still down gives you the till, with anything it has
+  not sent yet still waiting. It does need to have been opened once with a
+  connection first — a brand-new device has nothing to hold.
 - **If a queued sale is refused** when it finally reaches the server — the last
   one really had gone — the till says so and names it, so somebody can put it
   right under Shop → Orders. It is never silently dropped.
@@ -245,8 +245,6 @@ list of what it can.
   otherwise would be a button that takes no money. Planned.
 - **Table service, tabs, and kitchen printing.** The till is built for counter
   service first. The rest is planned through 2027.
-- **Surviving a page reload with no connection.** Selling through an outage
-  works while the tab stays open; see [When the connection goes](#when-the-connection-goes).
 
 ## How it fits with everything else
 
