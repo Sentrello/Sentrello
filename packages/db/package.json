@@ -32,5 +32,6 @@
   },
   "devDependencies": {
     "drizzle-kit": "^0.30.0"
-  }
+  },
+  "license": "AGPL-3.0-or-later"
 }

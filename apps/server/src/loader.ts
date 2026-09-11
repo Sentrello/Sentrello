@@ -64,10 +64,21 @@ export function loadModules(
     progress = false;
     for (const m of modules) {
       if (loaded.has(m.id)) continue;
+      /*
+       * A module that comes free with another is entitled when that one is.
+       *
+       * The till is the case: free for anybody who has bought Shop. Without
+       * this it would need its own entry in every licence token, and the day
+       * one was signed without it a paying customer would quietly lose a
+       * feature they were told came with what they bought.
+       */
+      const licensed =
+        entitled({ module: m.id }) ||
+        (m.includedWith !== undefined && entitled({ module: m.includedWith }));
       const tierOk =
         m.tier === "free" ||
         (m.tier === "pro" && entitled({ tier: "pro" })) ||
-        (m.tier === "module" && entitled({ module: m.id }));
+        (m.tier === "module" && licensed);
       const depsOk = (m.requires ?? []).every((d) => loaded.has(d));
       // A module may decline the host itself — ours do, on the flag that says
       // which machine this is. Checked before anything is registered, so a

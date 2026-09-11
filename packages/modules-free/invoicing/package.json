@@ -12,5 +12,6 @@
     "drizzle-orm": "^0.45.0",
     "hono": "^4.13.5",
     "@sentrello/email": "*"
-  }
+  },
+  "license": "AGPL-3.0-or-later"
 }

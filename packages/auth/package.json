@@ -24,5 +24,6 @@
   "devDependencies": {
     "@better-auth/utils": "0.4.2",
     "drizzle-orm": "^0.45.0"
-  }
+  },
+  "license": "AGPL-3.0-or-later"
 }

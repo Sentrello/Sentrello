@@ -2,9 +2,12 @@
   "name": "@sentrello/licensing-client",
   "version": "0.0.0",
   "type": "module",
-  "exports": { ".": "./src/index.ts" },
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "dependencies": {
     "jose": "^6.0.0",
     "@sentrello/module-sdk": "*"
-  }
+  },
+  "license": "AGPL-3.0-or-later"
 }
