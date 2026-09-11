@@ -2112,3 +2112,129 @@ test("a change of consent is written down, and an unchanged one is not", async (
   expect(sale).toBeTruthy();
   expect(sale?.granted).toBe(false);
 });
+
+/**
+ * The feed an automation fires on.
+ *
+ * Nothing in Free reads it, and it is written here anyway: a workflow that
+ * sends a follow-up when a deal is won has to learn that a deal was won, and
+ * the fact of a row changing used to exist only for the length of the request.
+ *
+ * Written from the one place that writes these records, rather than at each
+ * route. The history screen was built the other way round — derived rather than
+ * logged — on the reasoning that a second write path starts lying the first
+ * time somebody forgets one. That reasoning is right; this is how to hold it.
+ */
+test("changing a deal is written down, with what changed", async () => {
+  const made = await app.request("http://localhost/api/deals", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name: `Henderson job ${suffix}`, stage: "lead" }),
+  });
+  const { deal } = (await made.json()) as { deal: { id: string } };
+
+  const born = await db
+    .select()
+    .from(schema.recordEvents)
+    .where(eq(schema.recordEvents.entityId, deal.id));
+  expect(born).toHaveLength(1);
+  // The word somebody would use out loud, not the table's name.
+  expect(born[0]?.entity).toBe("deal");
+  expect(born[0]?.action).toBe("created");
+  /*
+   * No fields are named on a creation, deliberately. Naming them all would be
+   * defensible and useless: a rule narrowed to "when the stage changes" would
+   * then fire on every new deal, because every deal is created with one.
+   */
+  expect(born[0]?.changed).toEqual([]);
+
+  await app.request(`http://localhost/api/deals/${deal.id}/move`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify({ stage: "won" }),
+  });
+
+  const after = await db
+    .select()
+    .from(schema.recordEvents)
+    .where(eq(schema.recordEvents.entityId, deal.id));
+  const moved = after.find((e) => e.action === "updated");
+  expect(moved).toBeDefined();
+  // The one thing a rule would be narrowed to. `updatedAt` moves on every save
+  // and is expected beside it; what matters is that `stage` is named at all.
+  expect(moved?.changed).toContain("stage");
+  expect((moved?.before as { stage?: string } | null)?.stage).toBe("lead");
+  expect((moved?.after as { stage?: string } | null)?.stage).toBe("won");
+
+  // Nobody has looked at it yet, which is what the sweep asks for.
+  expect(moved?.handledAt).toBeNull();
+});
+
+/**
+ * A save that changes nothing still says so, and names nothing.
+ *
+ * The alternative — reporting every field because the comparison is by
+ * reference — makes "narrow this rule to one field" useless exactly where
+ * records are richest, which is the case the narrowing exists for.
+ */
+test("re-saving a contact unchanged names no fields", async () => {
+  const made = await app.request("http://localhost/api/contacts", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ firstName: "Ruth", lastName: "Adeyemi" }),
+  });
+  const { contact } = (await made.json()) as { contact: { id: string } };
+
+  await app.request(`http://localhost/api/contacts/${contact.id}`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify({ firstName: "Ruth" }),
+  });
+
+  const events = await db
+    .select()
+    .from(schema.recordEvents)
+    .where(eq(schema.recordEvents.entityId, contact.id));
+  const saved = events.find((e) => e.action === "updated");
+  expect(saved).toBeDefined();
+  expect(saved?.changed).toEqual([]);
+});
+
+/**
+ * A partial edit does not take half the name with it.
+ *
+ * `name` is built from the two parts, and it was built from whatever the
+ * request mentioned — so a PATCH carrying only `firstName` rewrote it to just
+ * that, leaving a contact called "Ruth" with "Adeyemi" still in `lastName`
+ * beside it. The record disagreed with itself, and the surname was gone from
+ * every list and search that reads `name`.
+ *
+ * The edit screen sends both fields, so nobody had met it. Anything talking to
+ * the API directly would have, and sending only what changed is the entire
+ * point of a PATCH.
+ */
+test("editing one part of a name keeps the other", async () => {
+  const made = await app.request("http://localhost/api/contacts", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ firstName: "Ruth", lastName: "Adeyemi" }),
+  });
+  const { contact } = (await made.json()) as {
+    contact: { id: string; name: string };
+  };
+  expect(contact.name).toBe("Ruth Adeyemi");
+
+  const edited = await app.request(
+    `http://localhost/api/contacts/${contact.id}`,
+    {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ firstName: "Ruthie" }),
+    },
+  );
+  const after = (await edited.json()) as {
+    contact: { name: string; firstName: string; lastName: string };
+  };
+  expect(after.contact.name).toBe("Ruthie Adeyemi");
+  expect(after.contact.lastName).toBe("Adeyemi");
+});

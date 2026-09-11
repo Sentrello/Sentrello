@@ -14,6 +14,7 @@ import {
   pageWindow,
   searchCondition,
 } from "@sentrello/db/list-query";
+import { recordChanged } from "@sentrello/db/record-events";
 import type { SentrelloSession } from "@sentrello/module-sdk";
 import { defineModule, toCsv } from "@sentrello/module-sdk";
 import {
@@ -296,6 +297,7 @@ function crud<T extends keyof typeof tables>(
         .insert(table)
         .values({ ...parsed.value, organizationId: orgId })
         .returning();
+      await announce(orgId, resource, row, "created", null, row);
       return c.json({ [singular]: row }, 201);
     },
   );
@@ -360,21 +362,50 @@ function crud<T extends keyof typeof tables>(
         ([field]) => parsed.value[field] !== undefined,
       );
 
-      const [row] = await db.transaction(async (tx) => {
-        const before = watched.length
-          ? (
-              await tx
-                .select()
-                .from(table)
-                .where(
-                  and(
-                    eq(table.id, c.req.param("id")),
-                    eq(table.organizationId, orgId),
-                  ),
-                )
-                .limit(1)
-            )[0]
-          : undefined;
+      /*
+       * Read before writing, always.
+       *
+       * It used to be read only when a consent field was in the change, which
+       * was enough for consent and not for anything else. An automation asks
+       * "when the stage *becomes* won", and the difference between that and
+       * "when the stage is won" is the row as it was a moment ago — without it
+       * every rule on a busy record fires on every save.
+       */
+      const [row, before] = await db.transaction(async (tx) => {
+        const before = (
+          await tx
+            .select()
+            .from(table)
+            .where(
+              and(
+                eq(table.id, c.req.param("id")),
+                eq(table.organizationId, orgId),
+              ),
+            )
+            .limit(1)
+        )[0];
+
+        /*
+         * The display name is built from the record as it will be, not from
+         * what this request happened to mention.
+         *
+         * It was built from the body alone, so a PATCH carrying only
+         * `firstName` rewrote `name` to just that — leaving a contact called
+         * "Ruth" with `lastName: "Adeyemi"` still sitting beside it, the record
+         * disagreeing with itself and the surname gone from every list and
+         * search that reads `name`. The screen sends both fields so nobody had
+         * met it; anything talking to the API directly would have, and a
+         * partial update is the whole point of a PATCH.
+         */
+        if (
+          resource === "contacts" &&
+          before &&
+          (parsed.value.firstName !== undefined ||
+            parsed.value.lastName !== undefined)
+        ) {
+          const merged = displayName({ ...before, ...parsed.value });
+          if (merged) parsed.value.name = merged;
+        }
 
         const updated = await tx
           .update(table)
@@ -421,10 +452,11 @@ function crud<T extends keyof typeof tables>(
             );
           }
         }
-        return updated;
+        return [updated[0], before] as const;
       });
 
       if (!row) return c.json({ error: "not found" }, 404);
+      await announce(orgId, resource, row, "updated", before, row);
       return c.json({ [singular]: row });
     },
   );
@@ -457,9 +489,44 @@ function crud<T extends keyof typeof tables>(
         )
         .returning();
       if (!row) return c.json({ error: "not found" }, 404);
+      await announce(orgId, resource, row, "deleted", row, null);
       return c.json({ deleted: row.id });
     },
   );
+}
+
+/**
+ * Say that one of these records changed.
+ *
+ * In the factory rather than at each route, which is the point: contacts,
+ * companies, deals and everything else this builds all announce themselves
+ * because there is one place that writes them. The history screen was built the
+ * other way round — derived from the records rather than written to a log — on
+ * the reasoning that a second write path starts lying the first time somebody
+ * forgets one. That reasoning is right, and this is how to keep it: do not have
+ * a second path, have one.
+ *
+ * The entity name is the singular of the resource, so an automation says
+ * "deal" and "contact" rather than "deals" and "contacts". It is the word
+ * somebody would use out loud.
+ */
+async function announce(
+  orgId: string,
+  resource: string,
+  row: Record<string, unknown> | undefined,
+  action: "created" | "updated" | "deleted",
+  before: Record<string, unknown> | null | undefined,
+  after: Record<string, unknown> | null | undefined,
+): Promise<void> {
+  if (!row?.id) return;
+  await recordChanged({
+    organizationId: orgId,
+    entity: resource.replace(/s$/, ""),
+    entityId: String(row.id),
+    action,
+    before: before ?? null,
+    after: after ?? null,
+  });
 }
 
 /**
@@ -1357,6 +1424,22 @@ function registerCrmScreens(
         return c.json({ error: "a stage or a position is required" }, 400);
       }
 
+      /*
+       * What it was, so a rule can ask about the change rather than the state.
+       * "When the stage becomes won" is a different question from "when the
+       * stage is won", which is true every time anything else is edited after.
+       */
+      const [before] = await db
+        .select()
+        .from(schema.deals)
+        .where(
+          and(
+            eq(schema.deals.id, c.req.param("id")),
+            eq(schema.deals.organizationId, orgId),
+          ),
+        )
+        .limit(1);
+
       const [row] = await db
         .update(schema.deals)
         .set({
@@ -1372,6 +1455,12 @@ function registerCrmScreens(
         )
         .returning();
       if (!row) return c.json({ error: "not found" }, 404);
+      /*
+       * The canonical automation trigger, and the one route that writes a deal
+       * without going through the factory: dragging a card is a stage change,
+       * and "when a deal is won" is the first rule anybody writes.
+       */
+      await announce(orgId, "deals", row, "updated", before, row);
       return c.json({ deal: row });
     },
   );
