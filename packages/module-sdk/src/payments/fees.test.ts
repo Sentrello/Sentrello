@@ -109,3 +109,57 @@ test("Stripe: a fee settled in another currency is not posted", async () => {
   const confirmed = await stripeProvider(credentials).confirmPaid?.("cs_1");
   expect(confirmed?.feeCents).toBeUndefined();
 });
+
+/** A PaymentIntent as Stripe returns it, which is what an on-site sale leaves. */
+function stripeIntent(balance: Record<string, unknown> | null) {
+  globalThis.fetch = (async (url: string) => {
+    asked = String(url);
+    return new Response(
+      JSON.stringify({
+        id: "pi_1",
+        status: "succeeded",
+        amount_received: 10_000,
+        currency: "usd",
+        latest_charge: balance ? { balance_transaction: balance } : {},
+      }),
+      { headers: { "content-type": "application/json" } },
+    );
+  }) as unknown as typeof fetch;
+}
+
+/**
+ * A payment taken in the shop's own page reports as an intent, not a session.
+ *
+ * The reference a shop stores is `pi_…` rather than `cs_…`, and asking the
+ * sessions endpoint for one answers 404 — so the payment could not be confirmed
+ * and the order would never be marked paid. Correct behaviour for entirely the
+ * wrong reason.
+ *
+ * The currency guard is the part worth protecting: a fee Stripe settled in
+ * dollars against a sale priced in pounds is not a number to put in the books,
+ * and the intent has to carry its own currency or there is nothing to compare.
+ */
+test("an on-site payment is confirmed from its intent, fee and all", async () => {
+  stripeIntent({ fee: 62, currency: "usd" });
+  const confirmed = await stripeProvider(credentials).confirmPaid?.("pi_1");
+  expect(confirmed?.paid).toBe(true);
+  expect(confirmed?.amountCents).toBe(10_000);
+  expect(confirmed?.feeCents).toBe(62);
+  // The intent endpoint, not the session one.
+  expect(asked).toContain("/payment_intents/pi_1");
+  expect(asked).toContain("expand[]=latest_charge.balance_transaction");
+});
+
+test("an on-site fee settled in another currency is not posted either", async () => {
+  stripeIntent({ fee: 62, currency: "gbp" });
+  const confirmed = await stripeProvider(credentials).confirmPaid?.("pi_1");
+  expect(confirmed?.paid).toBe(true);
+  expect(confirmed?.feeCents).toBeUndefined();
+});
+
+test("an on-site sale with no balance transaction yet posts no fee", async () => {
+  stripeIntent(null);
+  const confirmed = await stripeProvider(credentials).confirmPaid?.("pi_1");
+  expect(confirmed?.paid).toBe(true);
+  expect(confirmed?.feeCents).toBeUndefined();
+});

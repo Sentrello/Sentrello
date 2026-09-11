@@ -4,6 +4,7 @@ import type {
   ConnectionResult,
   Credentials,
   HostedCheckout,
+  OnSitePayment,
   PaymentEvent,
   PaymentProvider,
 } from "./provider";
@@ -11,7 +12,8 @@ import type {
 /**
  * Stripe, with the shop owner's own keys.
  *
- * Stripe hosts the payment page, so no card details ever reach this instance —
+ * Card details never reach this instance either way — Stripe hosts the payment
+ * page, or Stripe's own frame sits inside the shop's page —
  * which is the difference between a business that has to think about PCI and
  * one that does not.
  *
@@ -167,6 +169,61 @@ export function stripeProvider(credentials: Credentials): PaymentProvider {
     },
 
     /**
+     * The same payment, taken in the shop's own page.
+     *
+     * A payment intent rather than a checkout session: a session owns a page on
+     * Stripe's domain, and the whole point here is that there is no such page.
+     * What comes back is a secret the shop's own page hands to Stripe's script,
+     * which puts the card fields into the page inside its own iframe.
+     *
+     * **The card never reaches this software.** It is typed into Stripe's
+     * frame, which is what keeps the shop's PCI obligation exactly where the
+     * redirect leaves it — and is the reason this is worth doing rather than
+     * building a card form.
+     *
+     * `automatic_payment_methods` so a shop gets whatever Stripe has enabled
+     * for it — cards, wallets, and whatever is normal wherever the buyer is —
+     * without this code learning about each one.
+     */
+    async startOnSite(req: CheckoutRequest): Promise<OnSitePayment> {
+      if (!Number.isInteger(req.amountCents) || req.amountCents <= 0) {
+        throw new Error("amountCents must be a positive integer");
+      }
+      if (!credentials.publicKey) {
+        // The browser cannot start without it, and finding that out in the page
+        // is finding it out in front of a customer.
+        throw new Error(
+          "a publishable key is needed to take payment in a page",
+        );
+      }
+
+      const body = form({
+        amount: String(req.amountCents),
+        currency: req.currency.toLowerCase(),
+        description: req.description,
+        "automatic_payment_methods[enabled]": "true",
+        // The same names the session flow uses, so one webhook handler reads
+        // both and an order can be found from either kind of event.
+        "metadata[order_id]": req.orderId,
+        "metadata[order_number]": req.orderNumber,
+        receipt_email: req.customerEmail ?? undefined,
+      });
+
+      const res = await call("/payment_intents", { method: "POST", body });
+      if (!res.ok) {
+        const error = res.body.error as { message?: string } | undefined;
+        throw new Error(
+          `stripe payment could not be started: ${error?.message ?? res.status}`,
+        );
+      }
+      return {
+        clientSecret: res.body.client_secret as string,
+        publicKey: credentials.publicKey,
+        reference: res.body.id as string,
+      };
+    },
+
+    /**
      * Registers the endpoint with Stripe and returns its signing secret.
      *
      * Stripe only ever discloses a signing secret when the endpoint is
@@ -211,6 +268,13 @@ export function stripeProvider(credentials: Credentials): PaymentProvider {
       for (const event of [
         "checkout.session.completed",
         "checkout.session.async_payment_failed",
+        // A payment taken in the shop's own page reports as an intent rather
+        // than a session. Both are subscribed because a shop can be taking both
+        // at once — an old link finishing on Stripe's page while the new
+        // checkout runs in the shop's — and an unsubscribed event is a payment
+        // taken and an order never confirmed.
+        "payment_intent.succeeded",
+        "payment_intent.payment_failed",
         "charge.refunded",
       ]) {
         body.append("enabled_events[]", event);
@@ -272,6 +336,35 @@ export function stripeProvider(credentials: Credentials): PaymentProvider {
         };
       }
 
+      /*
+       * A payment taken in the shop's own page.
+       *
+       * The order is found by the metadata written when the intent was made,
+       * because there is no `client_reference_id` on an intent. Falling back to
+       * the intent's own id keeps the same shape as the session events above.
+       */
+      if (event.type === "payment_intent.succeeded") {
+        const metadata = (object.metadata ?? {}) as Record<string, string>;
+        return {
+          reference: metadata.order_id ?? (object.id as string),
+          status: "paid",
+          eventId,
+          amountCents:
+            typeof object.amount_received === "number"
+              ? object.amount_received
+              : undefined,
+        };
+      }
+
+      if (event.type === "payment_intent.payment_failed") {
+        const metadata = (object.metadata ?? {}) as Record<string, string>;
+        return {
+          reference: metadata.order_id ?? (object.id as string),
+          status: "failed",
+          eventId,
+        };
+      }
+
       if (event.type === "charge.refunded") {
         const metadata = (object.metadata ?? {}) as Record<string, string>;
         return {
@@ -289,7 +382,40 @@ export function stripeProvider(credentials: Credentials): PaymentProvider {
       return null;
     },
 
+    /**
+     * Which kind of thing a reference points at.
+     *
+     * Stripe prefixes its ids, and a shop now stores one of two: `cs_…` for a
+     * payment made on Stripe's own page, `pi_…` for one made in the shop's.
+     * Asking the wrong endpoint answers 404, and a payment that cannot be
+     * confirmed is one the shop refuses to mark paid — correctly, and for
+     * entirely the wrong reason.
+     */
     async confirmPaid(reference: string) {
+      if (reference.startsWith("pi_")) {
+        const res = await call(
+          `/payment_intents/${reference}?expand[]=latest_charge.balance_transaction`,
+        );
+        if (!res.ok) return { paid: false };
+        return {
+          paid: res.body.status === "succeeded",
+          amountCents:
+            typeof res.body.amount_received === "number"
+              ? res.body.amount_received
+              : undefined,
+          /*
+           * The currency travels with it. `feeFrom` refuses a fee settled in a
+           * different currency from the one the sale was priced in, and without
+           * this it had nothing to compare against — so a converted fee would
+           * have gone into the books as if it were the same money.
+           */
+          feeCents: feeFrom({
+            payment_intent: res.body,
+            currency: res.body.currency,
+          }),
+        };
+      }
+
       // The fee is not on the session, nor on the webhook that announced it:
       // it lives on the balance transaction behind the charge. Expanded onto
       // the call the shop already makes rather than fetched separately, so
@@ -309,12 +435,21 @@ export function stripeProvider(credentials: Credentials): PaymentProvider {
     },
 
     async refund(reference: string, amountCents: number, _currency: string) {
-      // The session holds the payment intent, which is what a refund is
-      // against. Asking for the session first is one call more and means a
-      // shop only ever has to store one reference.
-      const session = await call(`/checkout/sessions/${reference}`);
-      const intent = session.body.payment_intent as string | undefined;
-      if (!session.ok || !intent) {
+      /*
+       * A refund is against the payment intent. A shop that took the money in
+       * its own page already holds one; a shop that sent the buyer to Stripe
+       * holds the session, which names it — one call more, and the shop only
+       * ever has to store the one reference it was given.
+       */
+      let intent: string | undefined;
+      if (reference.startsWith("pi_")) {
+        intent = reference;
+      } else {
+        const session = await call(`/checkout/sessions/${reference}`);
+        intent = session.body.payment_intent as string | undefined;
+        if (!session.ok) intent = undefined;
+      }
+      if (!intent) {
         return { ok: false, amountCents: 0, message: "no payment to refund" };
       }
 
