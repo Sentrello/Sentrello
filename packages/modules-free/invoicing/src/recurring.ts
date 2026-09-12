@@ -127,7 +127,15 @@ export function registerRecurring(ctx: ModuleContext) {
           schema.invoices,
           eq(schema.recurringProfiles.templateInvoiceId, schema.invoices.id),
         )
-        .where(eq(schema.recurringProfiles.organizationId, orgId))
+        .where(
+          and(
+            eq(schema.recurringProfiles.organizationId, orgId),
+            eq(schema.recurringProfiles.kind, "invoice"),
+            // Template profiles only. A subscription belongs to the
+            // subscriptions screen, which knows what cancelling one means.
+            eq(schema.recurringProfiles.kind, "invoice"),
+          ),
+        )
         .orderBy(desc(schema.recurringProfiles.active));
 
       return c.json({ profiles });
@@ -237,6 +245,7 @@ export function registerRecurring(ctx: ModuleContext) {
           and(
             eq(schema.recurringProfiles.id, c.req.param("id") ?? ""),
             eq(schema.recurringProfiles.organizationId, orgId),
+            eq(schema.recurringProfiles.kind, "invoice"),
           ),
         )
         .returning();
@@ -258,6 +267,7 @@ export function registerRecurring(ctx: ModuleContext) {
           and(
             eq(schema.recurringProfiles.id, c.req.param("id") ?? ""),
             eq(schema.recurringProfiles.organizationId, orgId),
+            eq(schema.recurringProfiles.kind, "invoice"),
           ),
         )
         .returning({ id: schema.recurringProfiles.id });

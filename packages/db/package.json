@@ -21,7 +21,8 @@
     "./security-events": "./src/security-events.ts",
     "./lockout": "./src/lockout.ts",
     "./record-events": "./src/record-events.ts",
-    "./timezone": "./src/timezone.ts"
+    "./timezone": "./src/timezone.ts",
+    "./subscriptions": "./src/subscriptions.ts"
   },
   "scripts": {
     "migrate": "bun run src/migrate.ts"
