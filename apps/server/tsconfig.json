@@ -35,6 +35,9 @@
     },
     {
       "path": "../../packages/email"
+    },
+    {
+      "path": "../../packages/modules-free/money"
     }
   ]
 }
