@@ -19,6 +19,42 @@ test("startJobs registers a cron schedule for all three queues", async () => {
   }
 });
 
+/**
+ * A schedule for work nothing does any more is withdrawn.
+ *
+ * A cron lives in the database, not in a file, so a job that is renamed or a
+ * module that is removed leaves its schedule behind — putting a job on a queue
+ * no worker is listening to, every hour, for ever. Nothing fails and nothing
+ * says so; the table just grows.
+ *
+ * Job names carry the module (`accounting:bank-feeds`), so renaming a module
+ * renames all of its jobs at once. That is the case this exists for.
+ */
+test("a schedule nothing works any more is stopped", async () => {
+  boss = boss ?? (await startJobs());
+
+  // A module that was here yesterday and is not here today.
+  await boss.createQueue("departed:nightly");
+  await boss.schedule("departed:nightly", "0 3 * * *");
+  expect(
+    (await boss.getSchedules()).some((s) => s.name === "departed:nightly"),
+  ).toBe(true);
+
+  // Booting again notices nothing works it.
+  await boss.stop({ graceful: false });
+  boss = await startJobs();
+
+  const left = await boss.getSchedules();
+  expect(left.some((s) => s.name === "departed:nightly")).toBe(false);
+
+  // And every schedule that is still wanted survives, which is the half that
+  // matters: a sweep that took the live ones with it would stop the business.
+  const byName = new Map(left.map((s) => [s.name, s.cron]));
+  for (const queue of Object.values(QUEUES)) {
+    expect(byName.get(queue)).toBe(SCHEDULES[queue]);
+  }
+});
+
 test("license-refresh no-ops cleanly on a Free instance", async () => {
   // no license key: a Free instance has nothing to refresh and must not call out
   expect(
