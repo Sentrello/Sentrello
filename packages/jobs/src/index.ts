@@ -188,7 +188,48 @@ export async function startJobs(
     if (job.runAtBoot) await boss.send(job.name, {});
   }
 
+  await forgetOrphanedSchedules(boss, new Set(all.map((job) => job.name)));
+
   return boss;
+}
+
+/**
+ * Schedules for work nothing does any more.
+ *
+ * A cron lives in the database, not in this file. So a job that is renamed, a
+ * module that is removed, or a licence that lapses leaves its schedule behind —
+ * and it keeps firing, putting a job on a queue no worker is listening to,
+ * every hour, for ever. Nothing fails; the table just grows, and the first
+ * anybody knows is a database bigger than the business that owns it.
+ *
+ * Job names are namespaced by module (`accounting:bank-feeds`), so renaming a
+ * module renames every one of its jobs at once. That is the case this was
+ * written for.
+ *
+ * Only schedules are withdrawn, never queues or the jobs on them: an unworked
+ * queue may be holding something somebody still wants, and deciding that is not
+ * a thing to do at boot.
+ */
+async function forgetOrphanedSchedules(
+  boss: PgBoss,
+  wanted: Set<string>,
+): Promise<void> {
+  try {
+    const scheduled = await boss.getSchedules();
+    for (const schedule of scheduled) {
+      if (wanted.has(schedule.name)) continue;
+      await boss.unschedule(schedule.name);
+      console.warn(
+        `[jobs] stopped the schedule for ${schedule.name}: nothing works that queue any more`,
+      );
+    }
+  } catch (err) {
+    /*
+     * Tidying is not worth failing a boot over. An instance that cannot read
+     * its own schedules still has every job it registered a moment ago.
+     */
+    console.warn(`[jobs] could not check for stale schedules: ${err}`);
+  }
 }
 
 export { runRecurringInvoices, sendOverdueReminders, refreshLicenseToken };
