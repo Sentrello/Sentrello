@@ -149,7 +149,20 @@ export function corsHeaders(
   if (!origin) return {};
   return {
     "access-control-allow-origin": origin,
-    "access-control-allow-methods": "POST, GET, OPTIONS",
+    /*
+     * Every method the public routes actually answer.
+     *
+     * PATCH was missing, and a browser refuses a preflight whose method is not
+     * on this list even when the preflight itself returns 204 — so a website on
+     * another domain could read a basket and never change one. No email, no
+     * address, no delivery option, and the failure lands as a CORS error with
+     * nothing in the server log, because the request was never sent.
+     *
+     * It went unnoticed because the shop's own checkout page is served by the
+     * instance, where none of this applies. The only caller that existed was
+     * the one exempt from the rule.
+     */
+    "access-control-allow-methods": "GET, POST, PATCH, DELETE, OPTIONS",
     "access-control-allow-headers": "content-type",
     "access-control-max-age": "600",
     vary: "Origin",
