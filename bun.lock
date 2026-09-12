@@ -28,6 +28,7 @@
         "@sentrello/module-crm": "*",
         "@sentrello/module-dashboard": "*",
         "@sentrello/module-invoicing": "*",
+        "@sentrello/module-money": "*",
         "@sentrello/module-profile": "*",
         "@sentrello/module-sdk": "*",
         "@sentrello/module-settings": "*",
@@ -169,6 +170,15 @@
         "@sentrello/module-sdk": "*",
         "drizzle-orm": "^0.45.0",
         "hono": "^4.13.5",
+      },
+    },
+    "packages/modules-free/money": {
+      "name": "@sentrello/module-money",
+      "version": "0.0.0",
+      "dependencies": {
+        "@sentrello/module-accounting": "*",
+        "@sentrello/module-invoicing": "*",
+        "@sentrello/module-sdk": "*",
       },
     },
     "packages/modules-free/profile": {
@@ -489,6 +499,8 @@
     "@sentrello/module-dashboard": ["@sentrello/module-dashboard@workspace:packages/modules-free/dashboard"],
 
     "@sentrello/module-invoicing": ["@sentrello/module-invoicing@workspace:packages/modules-free/invoicing"],
+
+    "@sentrello/module-money": ["@sentrello/module-money@workspace:packages/modules-free/money"],
 
     "@sentrello/module-profile": ["@sentrello/module-profile@workspace:packages/modules-free/profile"],
 

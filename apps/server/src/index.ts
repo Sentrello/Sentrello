@@ -18,10 +18,9 @@ import {
 import { and, eq, sql } from "@sentrello/db/orm";
 import { mailConfigured } from "@sentrello/email";
 import { startJobs } from "@sentrello/jobs";
-import accounting from "@sentrello/module-accounting";
 import crm from "@sentrello/module-crm";
 import dashboard from "@sentrello/module-dashboard";
-import invoicing from "@sentrello/module-invoicing";
+import money from "@sentrello/module-money";
 import profile from "@sentrello/module-profile";
 import type { SentrelloEnv, SentrelloModule } from "@sentrello/module-sdk";
 import { searchEverything, searchProviders } from "@sentrello/module-sdk";
@@ -112,8 +111,7 @@ const { state, gate } = await resolveLicense();
 const modules: SentrelloModule[] = [
   dashboard,
   crm,
-  invoicing,
-  accounting,
+  money,
   settings,
   profile,
   users,

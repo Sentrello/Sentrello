@@ -39,6 +39,9 @@
     },
     {
       "path": "./packages/modules-free/settings"
+    },
+    {
+      "path": "./packages/modules-free/money"
     }
   ]
 }

@@ -294,8 +294,9 @@ test("/healthz boots and reports Free when no token is present", async () => {
     modules_loaded: [
       "dashboard",
       "crm",
-      "invoicing",
-      "accounting",
+      // One module now: quotes, invoices, the ledger and the returns are one
+      // subject, and the split into two was ours rather than the business's.
+      "money",
       "settings",
       "profile",
       "users",
@@ -392,7 +393,14 @@ test("/api/_meta exposes only the nav the loaded modules registered", async () =
     "user-providers",
     "user-events",
     "crm",
-    // Invoicing's own front page, first among its screens.
+    /*
+     * Money, and then its pages.
+     *
+     * The pages kept their own ids, which is deliberate: a nav id is the address
+     * in the browser, so everything anybody had bookmarked is where it was. Only
+     * the module they belong to changed, and with it the one icon on the rail.
+     */
+    "money",
     "invoicing-dashboard",
     "quotes",
     "invoicing",

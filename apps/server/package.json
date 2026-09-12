@@ -7,20 +7,21 @@
     "start": "bun run src/index.ts"
   },
   "dependencies": {
-    "hono": "^4.13.5",
-    "@sentrello/module-sdk": "*",
-    "@sentrello/licensing-client": "*",
-    "@sentrello/db": "*",
     "@sentrello/auth": "*",
-    "@sentrello/jobs": "*",
-    "@sentrello/module-crm": "*",
-    "@sentrello/module-invoicing": "*",
-    "@sentrello/module-accounting": "*",
-    "@sentrello/module-profile": "*",
-    "@sentrello/module-settings": "*",
+    "@sentrello/db": "*",
     "@sentrello/email": "*",
+    "@sentrello/jobs": "*",
+    "@sentrello/licensing-client": "*",
+    "@sentrello/module-accounting": "*",
+    "@sentrello/module-crm": "*",
     "@sentrello/module-dashboard": "*",
-    "@sentrello/module-users": "*"
+    "@sentrello/module-invoicing": "*",
+    "@sentrello/module-money": "*",
+    "@sentrello/module-profile": "*",
+    "@sentrello/module-sdk": "*",
+    "@sentrello/module-settings": "*",
+    "@sentrello/module-users": "*",
+    "hono": "^4.13.5"
   },
   "devDependencies": {
     "jose": "^6.0.0"

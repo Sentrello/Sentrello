@@ -77,6 +77,12 @@ const SCREENS: Record<string, () => React.ReactElement | null> = {
   deals: Deals,
   "crm-settings": CrmSettings,
   invoicing: Invoices,
+  /*
+   * Money's front page. The same view invoicing opened on its own before the
+   * two halves became one module — one subject, one summary — and the old id
+   * stays mapped so a bookmark of it still opens something.
+   */
+  money: InvoicingDashboard,
   "invoicing-dashboard": InvoicingDashboard,
   "invoicing-settings": InvoicingSettings,
   quotes: Quotes,
