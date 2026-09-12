@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import {
   HONEYPOT_FIELD,
+  corsHeaders,
   looksAutomated,
   originAllowed,
   rateLimit,
@@ -90,4 +91,35 @@ test("a filled honeypot marks the submission automated", () => {
   expect(looksAutomated({ [HONEYPOT_FIELD]: "  " })).toBe(false);
   expect(looksAutomated({ [HONEYPOT_FIELD]: "" })).toBe(false);
   expect(looksAutomated({ name: "A real person" })).toBe(false);
+});
+
+/**
+ * Every method the public routes answer has to be on the list.
+ *
+ * A browser refuses a preflight whose method is not advertised here, even when
+ * the preflight itself returns 204 — so a route can be perfectly willing and
+ * still unreachable from another website. PATCH was missing, which meant a shop
+ * on its own domain could read a basket and never change one: no email, no
+ * address, no delivery option.
+ *
+ * It hid because the instance's own checkout page is served by the instance,
+ * where cross-origin rules do not apply at all. The only caller that existed
+ * was the one exempt from the rule, and it worked perfectly.
+ */
+test("the methods a storefront needs are all advertised", () => {
+  const headers = corsHeaders("https://shop.example");
+  const allowed = (headers["access-control-allow-methods"] ?? "")
+    .split(",")
+    .map((m) => m.trim());
+
+  // Read a basket, make one, change one.
+  expect(allowed).toContain("GET");
+  expect(allowed).toContain("POST");
+  expect(allowed).toContain("PATCH");
+  // And the preflight itself.
+  expect(allowed).toContain("OPTIONS");
+
+  // Nothing is advertised to a caller with no origin: there is nothing to
+  // allow, and an allow-list handed out unasked is one somebody relies on.
+  expect(corsHeaders(undefined)).toEqual({});
 });
