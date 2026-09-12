@@ -244,6 +244,7 @@ export * from "./attachments";
 export * from "./search";
 export * from "./csv";
 export * from "./images";
+export * from "./customer-session";
 export * from "./public-endpoints";
 /**
  * Read from disk, so it is imported by tests rather than by a running
