@@ -26,61 +26,31 @@ import { parseDate } from "./recurring";
  * sells, and a second catalogue would be a second answer to what a thing costs.
  */
 
-export const BILLING_INTERVALS = [
-  "weekly",
-  "monthly",
-  "quarterly",
-  "yearly",
-] as const;
-
-export type BillingInterval = (typeof BILLING_INTERVALS)[number];
-
-export const isBillingInterval = (value: unknown): value is BillingInterval =>
-  typeof value === "string" &&
-  (BILLING_INTERVALS as readonly string[]).includes(value);
-
-/** trialing → active → paused → cancelled. Nothing skips to the front. */
-export const SUBSCRIPTION_STATUSES = [
-  "trialing",
-  "active",
-  "paused",
-  "cancelled",
-] as const;
-
-export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
-
-/**
- * When the next invoice falls, given a start and a trial.
- *
- * A trial bills on the day it ends, not a period later: somebody who takes a
- * fourteen-day trial on the 1st expects to pay on the 15th, and billing them
- * on the 1st of next month would be two free weeks nobody offered.
+/*
+ * The rules themselves moved to `@sentrello/db/subscriptions`, because the shop
+ * now needs them too: a customer signing in to cancel their own subscription
+ * must mean exactly what a member of staff cancelling it means. Re-exported so
+ * every existing importer is unchanged and there is still one implementation.
  */
-export function firstRun(startsOn: Date, trialEndsAt: Date | null): Date {
-  return trialEndsAt && trialEndsAt > startsOn ? trialEndsAt : startsOn;
-}
+import {
+  BILLING_INTERVALS,
+  type BillingInterval,
+  SUBSCRIPTION_STATUSES,
+  type SubscriptionStatus,
+  cancellation,
+  firstRun,
+  isBillingInterval,
+} from "@sentrello/db/subscriptions";
 
-/**
- * What a cancellation means, in dates.
- *
- * "At the end of the period" is the default because the customer has paid for
- * it. Immediately is a business deciding to stop billing now — it still does
- * not refund anything, and saying so is the honest thing for the screen to do.
- */
-export function cancellation(
-  now: Date,
-  nextRunAt: Date,
-  immediately: boolean,
-): {
-  status: SubscriptionStatus;
-  cancelAt: Date;
-  cancelledAt: Date;
-  active: boolean;
-} {
-  return immediately
-    ? { status: "cancelled", cancelAt: now, cancelledAt: now, active: false }
-    : { status: "active", cancelAt: nextRunAt, cancelledAt: now, active: true };
-}
+export {
+  BILLING_INTERVALS,
+  type BillingInterval,
+  isBillingInterval,
+  SUBSCRIPTION_STATUSES,
+  type SubscriptionStatus,
+  firstRun,
+  cancellation,
+};
 
 interface SubscriptionInput {
   contactId?: unknown;
