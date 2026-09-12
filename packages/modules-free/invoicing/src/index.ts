@@ -56,7 +56,6 @@ import { portalPage } from "./portal";
 import { registerRecurring } from "./recurring";
 import { registerShare } from "./share";
 import { registerStatements } from "./statements";
-import { registerSubscriptions } from "./subscriptions";
 import { registerInvoiceSearch, registerInvoicingSummary } from "./summary";
 import { registerDocumentTags, tagsFor } from "./tags";
 import { registerTemplates } from "./templates";
@@ -189,25 +188,18 @@ export default defineModule({
       icon: "file-text",
       requires: { invoicing: ["read"] },
     });
-    /**
-     * The people who pay every month, on a screen of their own.
-     *
-     * Beside Recurring rather than inside it: repeating a document and selling
-     * a subscription are the same scheduler underneath and two different jobs
-     * to a business — one is "bill the Hendersons for the retainer again", the
-     * other is "who is on which plan, and who is leaving".
-     *
-     * Pro only, and offered only where it works: the routes behind it answer
-     * 404 on a Free instance, and a door in the sidebar that opens onto that
-     * tells somebody twice that they cannot do the thing — once by the empty
-     * screen, once by the menu that suggested it.
-     */
     if (ctx.entitled({ tier: "pro" })) {
       /**
        * Billing the same customer the same thing every month without anybody
        * remembering to. Pro, and offered only where it works: the routes
        * behind it answer 404 on a Free instance, and a door in the sidebar
        * that opens onto that tells somebody twice they cannot do the thing.
+       *
+       * Repeating a document is all this is. Selling a subscription — who is
+       * on which plan, whose trial ends this week, who has given notice — is
+       * the Subscriptions plugin, which bills through this same scheduler
+       * because two things that each believe they own a renewal is how
+       * somebody is charged twice.
        */
       ctx.registerNav({
         id: "recurring",
@@ -215,14 +207,6 @@ export default defineModule({
         order: 20.5,
         group: "Money",
         icon: "repeat",
-        requires: { invoicing: ["read"] },
-      });
-      ctx.registerNav({
-        id: "subscriptions",
-        label: "Subscriptions",
-        order: 20.6,
-        group: "Money",
-        icon: "refresh-cw",
         requires: { invoicing: ["read"] },
       });
     }
@@ -244,7 +228,6 @@ export default defineModule({
     registerLifecycle(ctx);
     registerLists(ctx);
     registerRecurring(ctx);
-    registerSubscriptions(ctx);
     registerConsolidate(ctx);
     registerDocumentTags(ctx);
     registerShare(ctx);
