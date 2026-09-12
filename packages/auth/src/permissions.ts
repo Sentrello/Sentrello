@@ -62,10 +62,19 @@ export const statement = {
    * operator sells all day and should never be able to reprice anything.
    */
   pos: ["read", "sell", "void", "refund", "manage"],
-  // Sentrello's own storefront, which only ever runs on bmp. It is a separate
-  // resource from `shop` because the two can run side by side there, and
-  // selling our own subscriptions is not the same job as selling a customer's
-  // products.
+  /**
+   * Selling the same thing every month.
+   *
+   * Two actions rather than the usual four: looking at who is on what, and
+   * changing it. A pause, a plan change and a cancellation are the same
+   * decision about somebody's bill, and splitting them into create/update/
+   * delete would describe the table rather than the job.
+   *
+   * Its own resource rather than actions on `invoicing`, because the two are
+   * different work: raising an invoice for work done is a bookkeeper's, and
+   * ending a customer's membership is not.
+   */
+  subscriptions: ["read", "manage"],
   documents: ["read", "create", "update", "delete"],
   /**
    * The mailing list.
@@ -157,6 +166,7 @@ export const admin = ac.newRole({
   scheduling: ["read", "create", "update", "delete"],
   shop: ["read", "create", "update", "delete"],
   pos: ["read", "sell", "void", "refund", "manage"],
+  subscriptions: ["read", "manage"],
   documents: ["read", "create", "update", "delete"],
   newsletter: ["read", "create", "update", "delete", "send"],
   links: ["read", "create", "update", "delete", "domains"],

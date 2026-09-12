@@ -49,7 +49,6 @@ import {
 } from "./routes/settings";
 import { Setup } from "./routes/setup";
 import { SignIn } from "./routes/sign-in";
-import { Subscriptions } from "./routes/subscriptions";
 import { Authentication } from "./routes/users/authentication";
 import { Events } from "./routes/users/events";
 import { GroupDetail } from "./routes/users/group";
@@ -87,7 +86,6 @@ const SCREENS: Record<string, () => React.ReactElement | null> = {
   "invoicing-settings": InvoicingSettings,
   quotes: Quotes,
   recurring: Recurring,
-  subscriptions: Subscriptions,
   /**
    * Accounting, as the pages the sidebar names.
    *
