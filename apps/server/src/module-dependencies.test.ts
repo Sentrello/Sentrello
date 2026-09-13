@@ -102,27 +102,41 @@ function declared(): Declared[] {
   return out;
 }
 
-test("every module a dependency names is one the host can load", () => {
-  const all = declared();
-  // A listing that came back empty passes the assertion under it.
-  expect(all.length).toBeGreaterThan(5);
+/**
+ * Whether the commercial repositories are beside this one.
+ *
+ * They are on a development machine and they are not in CI, which checks out
+ * this repository alone. An empty listing has to skip rather than fail — but it
+ * must not quietly pass either, because a listing that came back empty for any
+ * other reason would satisfy every assertion under it without reading a line.
+ */
+const siblings = ["Pro", "Modules"].some((repo) =>
+  existsSync(join(import.meta.dir, "../../../..", repo, "packages")),
+);
 
-  const loadable = new Set([
-    ...coreIds(),
-    ...bundleIds(),
-    ...all.map((m) => m.id),
-  ]);
-  const dangling = all.flatMap((m) =>
-    m.requires
-      .filter((r) => !loadable.has(r))
-      .map(
-        (r) =>
-          `${m.where} (${m.id}) requires "${r}", which this host never loads`,
-      ),
-  );
+test.skipIf(!siblings)(
+  "every module a dependency names is one the host can load",
+  () => {
+    const all = declared();
+    expect(all.length).toBeGreaterThan(5);
 
-  expect(dangling).toEqual([]);
-});
+    const loadable = new Set([
+      ...coreIds(),
+      ...bundleIds(),
+      ...all.map((m) => m.id),
+    ]);
+    const dangling = all.flatMap((m) =>
+      m.requires
+        .filter((r) => !loadable.has(r))
+        .map(
+          (r) =>
+            `${m.where} (${m.id}) requires "${r}", which this host never loads`,
+        ),
+    );
+
+    expect(dangling).toEqual([]);
+  },
+);
 
 /**
  * And the merge that caused it is pinned from the other side.
