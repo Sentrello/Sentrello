@@ -13,9 +13,10 @@ instance you already run.
 | Module | What it does |
 |---|---|
 | [Booking](/modules/booking) | A booking page customers use themselves, and a diary that stays honest |
-| [Documents](/modules/documents) | The business's files, and warnings before one expires |
+| [Storage](/modules/documents) | The business's files, and warnings before one expires |
 | [Shop](/modules/shop) | Sell online, with orders and money landing in the same books |
-| [Till](/modules/till) | Sell face to face, on the same products, prices and books |
+| [POS](/modules/pos) | Sell face to face, on the same products, prices and books |
+| [Subscriptions](/modules/subscriptions) | Sell the same thing every month, and let a customer manage their own |
 | [Shop on your own website](/modules/shop-frontend) | Put the shop on a site built with anything |
 | [Newsletter](/modules/newsletter) | Mailing lists and campaigns, done lawfully |
 | [Docs](/modules/docs) | Publish documentation from your own repository |

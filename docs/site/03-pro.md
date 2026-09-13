@@ -17,7 +17,6 @@ is no second installation and nothing to migrate.
 
 - **Recurring invoices** on a schedule — weekly, monthly, quarterly — issued
   automatically, and emailed if you want them to be.
-- **Subscriptions**: plans, subscribers, and what happens when one lapses.
 - **Unbranded reminders.** Automatic chasing of overdue invoices is free; Pro
   removes the Sentrello credit at the foot, so what your customer receives is
   entirely yours.

@@ -1,18 +1,21 @@
 ---
-title: Till
+title: POS
 sidebar_position: 4
 description: Sell face to face, on the same products, prices and books as the shop.
-tags: [module, till, pos, shop]
+tags: [module, pos, shop]
 ---
 
-# Till
+# POS
 
 A point of sale for a counter. It sells the same products at the same prices as
 your online shop, takes the stock off the same shelf, and posts the money to the
 same books — so a business that sells both ways has one set of figures rather
 than two that have to be reconciled on a Sunday evening.
 
-**The Till needs the Shop module.** It is not a separate product with its own
+The till — the screen somebody rings a sale up on — is one part of it, beside
+the drawer, the questions a product asks, and the cash-up at the end of a shift.
+
+**POS needs the Shop module.** It is not a separate product with its own
 catalogue; it is a second way of selling the one you already have.
 
 ![The till: product tiles on the left, the sale on the right](../../images/till-sell.png)
@@ -21,7 +24,7 @@ catalogue; it is a second way of selling the one you already have.
 
 Three things, in this order:
 
-1. **Enable Shop and Till** under Settings → Modules.
+1. **Enable Shop and POS** under Settings → Modules.
 2. **Add your products** under Shop → Products, and publish them. Anything not
    published does not appear on the till, on purpose: the till shows what is for
    sale, and a draft product is not.
@@ -59,7 +62,7 @@ still standing there.
 ## Questions: milk, sizes, extras
 
 A till that cannot ask "which milk?" sends a member of staff back to the counter
-to ask. **Till questions** are the answer, set up under Shop → Till questions.
+to ask. **POS questions** are the answer, set up under Shop → POS questions.
 
 ![Setting up the questions the till asks](../../images/till-questions.png)
 
