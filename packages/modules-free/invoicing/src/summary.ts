@@ -137,6 +137,73 @@ export function registerInvoicingSummary(ctx: ModuleContext) {
     requires: { invoicing: ["read"] },
     load: invoicingFigures,
   });
+
+  /**
+   * What has to happen before an invoice can go out looking like a real one.
+   *
+   * Every step here is a thing somebody discovers by sending the first invoice
+   * and finding it wrong — an address missing from a document a customer will
+   * file, a tax number absent from a VAT invoice that therefore is not one.
+   * Better on a list than in a reply from an accountant.
+   *
+   * Each asks the data rather than being ticked off, so a business that filled
+   * its details in months ago sees them already done.
+   */
+  ctx.registerOnboarding({
+    id: "invoicing",
+    label: "Getting paid",
+    icon: "receipt",
+    requires: { invoicing: ["read"] },
+    steps: [
+      {
+        id: "business-details",
+        label: "Put your address and tax number in Settings",
+        detail:
+          "They appear on every invoice and quote you send. In the UK and the EU an invoice without them is not a valid one to file.",
+        opens: "settings",
+        done: async (orgId) => {
+          const [org] = await db
+            .select({
+              address: schema.organizations.address,
+              taxId: schema.organizations.taxId,
+            })
+            .from(schema.organizations)
+            .where(eq(schema.organizations.id, orgId))
+            .limit(1);
+          return Boolean(org?.address?.trim());
+        },
+      },
+      {
+        id: "first-contact",
+        label: "Add somebody to invoice",
+        detail: "A customer, with an email address to send it to.",
+        opens: "contacts",
+        done: async (orgId) => {
+          const [row] = await db
+            .select({ id: schema.contacts.id })
+            .from(schema.contacts)
+            .where(eq(schema.contacts.organizationId, orgId))
+            .limit(1);
+          return Boolean(row);
+        },
+      },
+      {
+        id: "first-invoice",
+        label: "Raise your first invoice",
+        detail:
+          "Issuing it posts to the ledger there and then, so the books are written as you work rather than afterwards.",
+        opens: "invoicing",
+        done: async (orgId) => {
+          const [row] = await db
+            .select({ id: schema.invoices.id })
+            .from(schema.invoices)
+            .where(eq(schema.invoices.organizationId, orgId))
+            .limit(1);
+          return Boolean(row);
+        },
+      },
+    ],
+  });
 }
 
 /**

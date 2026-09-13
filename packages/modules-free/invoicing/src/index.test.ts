@@ -25,6 +25,7 @@ beforeAll(async () => {
     registerSummary: () => {},
     registerSearch: () => {},
     registerPersonalData: () => {},
+    registerOnboarding: () => {},
     provide: () => {},
     registerJob: () => {},
   });
@@ -3228,6 +3229,7 @@ test("a statement of account is Pro, and Free is told the endpoint is not there"
     registerSummary: () => {},
     registerSearch: () => {},
     registerPersonalData: () => {},
+    registerOnboarding: () => {},
     provide: () => {},
     registerJob: () => {},
   });
@@ -3260,6 +3262,7 @@ test("recurring invoicing is Pro, at the route as well as in the sidebar", async
     registerSummary: () => {},
     registerSearch: () => {},
     registerPersonalData: () => {},
+    registerOnboarding: () => {},
     provide: () => {},
     registerJob: () => {},
   });
