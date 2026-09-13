@@ -2,11 +2,12 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, schema } from "@sentrello/db";
-import { postJournalEntry } from "@sentrello/db/ledger";
+import { CORE_ACCOUNTS, postJournalEntry } from "@sentrello/db/ledger";
 import type { SentrelloEnv } from "@sentrello/module-sdk";
 import { storeAttachment } from "@sentrello/module-sdk";
 import { eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
+import { STANDARD_CHART } from "./chart";
 import accounting from "./index";
 import { packKey } from "./receipts";
 
@@ -889,4 +890,37 @@ test("the money list filters, searches, and totals what it shows", async () => {
     "Job in Barnsley",
   ]);
   expect(takings.totals.outCents).toBe(0);
+});
+
+/**
+ * The core accounts and the starter chart agree, code for code.
+ *
+ * `ensureAccount` resolves by code alone and reuses whatever row it finds, so
+ * a business that got the starter chart uses that row and one that never did
+ * gets a row built from `CORE_ACCOUNTS`. Two lists, in two packages, describing
+ * the same account — and if they disagree about its type, the same code is an
+ * expense on one instance and an asset on another, which the profit and loss
+ * reads straight out of the ledger and reports.
+ *
+ * Nothing made them agree. Three accounts were added on 2026-09-13 when stock
+ * started reaching the books, which is three more chances to drift.
+ */
+test("every core account matches the starter chart it shares a code with", () => {
+  const chart = new Map(STANDARD_CHART.map((a) => [a.code, a]));
+  const disagreements: string[] = [];
+
+  for (const [key, account] of Object.entries(CORE_ACCOUNTS)) {
+    const inChart = chart.get(account.code);
+    // A core account the starter chart does not carry is fine — it is created
+    // on demand. One it carries under another name or type is not.
+    if (!inChart) continue;
+    if (inChart.name !== account.name || inChart.type !== account.type) {
+      disagreements.push(
+        `${key} (${account.code}): core says ${account.name}/${account.type}, ` +
+          `the chart says ${inChart.name}/${inChart.type}`,
+      );
+    }
+  }
+
+  expect(disagreements).toEqual([]);
 });
