@@ -283,7 +283,7 @@ export function FormBuilder({
         <Field label="Accent colour" hint="Hex, to match the site.">
           <Input
             value={accent}
-            placeholder="#0f766e"
+            placeholder="#c4470f"
             onChange={(e) => setAccent(e.target.value)}
           />
         </Field>
