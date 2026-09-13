@@ -1,6 +1,6 @@
 ---
 title: Install
-sidebar_position: 1
+sidebar_position: 2
 description: Put Sentrello on your own server in about five minutes.
 tags: [setup, install]
 ---

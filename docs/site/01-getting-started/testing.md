@@ -1,6 +1,6 @@
 ---
 title: Check it works
-sidebar_position: 3
+sidebar_position: 4
 description: What to try before you put a real business on it.
 tags: [setup]
 ---

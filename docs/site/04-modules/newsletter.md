@@ -1,6 +1,6 @@
 ---
 title: Newsletter
-sidebar_position: 4
+sidebar_position: 6
 description: Mailing lists, campaigns, and the counting — done lawfully.
 tags: [module, newsletter]
 ---
