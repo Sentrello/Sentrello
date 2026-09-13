@@ -1024,11 +1024,47 @@ function since(seconds: number): string {
  * The first they usually hear of a full disk is a failed backup, so the number
  * that predicts it goes where they look every morning.
  */
-function HealthPanel({ health }: { health: Health }) {
+export function HealthPanel({ health }: { health: Health }) {
+  const { open } = useNavigation();
   const disk = health.disk;
   // Named rather than a bar: 91% reads as a number, "running out of space"
   // reads as something to do today.
   const tight = disk ? disk.usedPercent >= 85 : false;
+
+  /**
+   * Whether there is a newer release, on the screen somebody opens anyway.
+   *
+   * Read from Settings' own endpoint rather than worked out again here — that
+   * one already knows the difference between "there is nothing newer" and "we
+   * have not looked", and a second implementation would be a second answer.
+   *
+   * Behind `settings:read`, which not everybody has. A 403 shows nothing
+   * rather than an error: somebody who cannot update the instance does not
+   * need to be told there is an update.
+   */
+  const updates = useQuery({
+    queryKey: ["updates"],
+    queryFn: () =>
+      api<{ current: string; latest: string | null; updateAvailable: boolean }>(
+        "/api/settings/updates",
+      ),
+    retry: false,
+  });
+
+  /*
+   * Three states, not two. A Free instance never phones home unless somebody
+   * asks it to, so `latest` is null until they do — and "up to date" is a
+   * claim we have not earned. It is the exact thing that went wrong once
+   * already: an instance sat a release behind being told it was current.
+   */
+  const release = updates.data;
+  const updateState = !release
+    ? null
+    : release.updateAvailable
+      ? { text: `${release.latest} is out`, colour: "var(--color-warning)" }
+      : release.latest
+        ? { text: "up to date", colour: undefined }
+        : { text: "not checked", colour: undefined };
 
   return (
     <Card>
@@ -1039,6 +1075,16 @@ function HealthPanel({ health }: { health: Health }) {
             Version
           </p>
           <p>{health.version}</p>
+          {updateState ? (
+            <button
+              type="button"
+              className="text-xs link-muted"
+              style={updateState.colour ? { color: updateState.colour } : muted}
+              onClick={() => open({ moduleId: "settings", title: "Settings" })}
+            >
+              {updateState.text}
+            </button>
+          ) : null}
         </div>
         <div>
           <p className="text-xs" style={muted}>
