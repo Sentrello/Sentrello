@@ -226,19 +226,47 @@ test("the server reports on itself", async () => {
 /**
  * The Pro half is not merely hidden on Free — it is not there.
  *
- * Hiding a panel in the browser while the endpoint still answers is how a
- * paid feature becomes a free one for anybody who opens the network tab.
+ * Hiding a panel in the browser while the endpoint still answers is how a paid
+ * feature becomes a free one for anybody who opens the network tab.
+ *
+ * `insights` is that half: twelve months of ledger, which Free does not buy.
+ * **Arranging is not**, since 2026-09-13 — the two tiers get the same screen,
+ * and deciding which of your own panels you look at first was never the thing
+ * being sold. What Pro sells is the panels there are to arrange.
  */
 test("the Pro endpoints do not exist without a Pro licence", async () => {
-  for (const path of ["/api/dashboard/insights", "/api/dashboard/layout"]) {
-    const res = await freeApp.request(`http://localhost${path}`, { headers });
-    expect(res.status).toBe(404);
-  }
+  const insights = await freeApp.request(
+    "http://localhost/api/dashboard/insights",
+    { headers },
+  );
+  expect(insights.status).toBe(404);
+
   expect((await get()).status).toBe(200);
   expect(
     (await app.request("http://localhost/api/dashboard/insights", { headers }))
       .status,
   ).toBe(200);
+});
+
+test("a free instance can arrange its own dashboard", async () => {
+  const res = await freeApp.request("http://localhost/api/dashboard/layout", {
+    headers,
+  });
+  expect(res.status).toBe(200);
+  const body = (await res.json()) as {
+    tabs: { name: string; widgets: string[] }[];
+  };
+  expect(body.tabs.length).toBeGreaterThan(0);
+
+  const saved = await freeApp.request("http://localhost/api/dashboard/layout", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ tabs: [{ name: "Mine", widgets: ["money"] }] }),
+  });
+  expect(saved.status).toBe(200);
+  expect((await saved.json()).tabs).toEqual([
+    { name: "Mine", widgets: ["money"] },
+  ]);
 });
 
 test("insights cover every month in the window, including the quiet ones", async () => {
@@ -262,8 +290,16 @@ test("insights cover every month in the window, including the quiet ones", async
   );
 });
 
-test("a layout survives a save, and cannot grow past six tabs", async () => {
-  const tabs = Array.from({ length: 9 }, (_, i) => ({
+/**
+ * Twelve, not six.
+ *
+ * Six was the limit while every tab was one somebody typed by hand. Tabs are
+ * generated now — one per module this instance loaded — so an instance with
+ * the Shop, Booking, the Newsletter, Storage and SEO needs room for them
+ * beside the four core screens and System.
+ */
+test("a layout survives a save, and cannot grow past the limit", async () => {
+  const tabs = Array.from({ length: 20 }, (_, i) => ({
     name: `Tab ${i}`,
     widgets: ["money", "not-a-widget"],
   }));
@@ -275,7 +311,7 @@ test("a layout survives a save, and cannot grow past six tabs", async () => {
     })
   ).json()) as { tabs: { name: string; widgets: string[] }[] };
 
-  expect(saved.tabs).toHaveLength(6);
+  expect(saved.tabs).toHaveLength(12);
   // Unknown panels are dropped rather than refused: a layout saved by a newer
   // version should lose what it cannot draw and keep the rest.
   expect(saved.tabs[0]?.widgets).toEqual(["money"]);
@@ -283,7 +319,7 @@ test("a layout survives a save, and cannot grow past six tabs", async () => {
   const read = (await (
     await app.request("http://localhost/api/dashboard/layout", { headers })
   ).json()) as { tabs: { name: string }[]; widgets: string[] };
-  expect(read.tabs).toHaveLength(6);
+  expect(read.tabs).toHaveLength(12);
   expect(read.tabs[0]?.name).toBe("Tab 0");
   expect(read.widgets).toContain("revenue-trend");
 

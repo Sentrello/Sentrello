@@ -17,6 +17,7 @@ import {
   normalizeLayout,
   readInsights,
   readLayout,
+  summaryWidget,
   writeLayout,
 } from "./pro";
 import { pastQuietPeriod, readPromos, refreshPromosIfStale } from "./promos";
@@ -367,6 +368,25 @@ export default defineModule({
       },
     );
 
+    /**
+     * The modules this reader may actually see a panel for.
+     *
+     * Loaded is the licence's decision and is already made by the time a
+     * summary is registered at all; `requires` is this reader's. Both, because
+     * a shop assistant with no bookkeeping permission should not be handed a
+     * tab of the books merely because the business bought the module.
+     */
+    const visibleModules = async (headers: Headers) => {
+      const seen = await Promise.all(
+        allSummaries().map(async (summary) =>
+          summary.requires && !(await mayAccess(headers, summary.requires))
+            ? null
+            : { id: summary.id, label: summary.label },
+        ),
+      );
+      return seen.filter((m): m is { id: string; label: string } => m !== null);
+    };
+
     ctx.app.get(
       "/api/dashboard/insights",
       requireSession(),
@@ -376,19 +396,33 @@ export default defineModule({
         c.json(await readInsights(activeOrganizationId(c.get("session")))),
     );
 
+    /*
+     * Arranging is not a paid feature. James, 2026-09-13: the Free and the Pro
+     * dashboard are the same screen, and Free additionally carries the promo
+     * block. Deciding which of your own panels you look at first is not
+     * something to charge for — what Pro sells is the panels there are to
+     * arrange.
+     */
     ctx.app.get(
       "/api/dashboard/layout",
       requireSession(),
       requirePermission({ dashboard: ["read"] }),
-      proOnly,
       async (c) => {
         const session = c.get("session");
+        const modules = await visibleModules(c.req.raw.headers);
         return c.json({
           tabs: await readLayout(
             activeOrganizationId(session),
             session.user.id,
+            modules,
           ),
           widgets: WIDGETS,
+          // What this instance brought with it, so the arranging screen can
+          // offer them by name rather than by an id somebody has to decode.
+          moduleWidgets: modules.map((m) => ({
+            id: summaryWidget(m.id),
+            label: m.label,
+          })),
         });
       },
     );
@@ -399,13 +433,15 @@ export default defineModule({
       // Arranging your own screen is not an administrative act, so it needs no
       // permission beyond the one that let you see the screen.
       requirePermission({ dashboard: ["read"] }),
-      proOnly,
       async (c) => {
         const session = c.get("session");
         const body = (await c.req.json().catch(() => ({}))) as {
           tabs?: unknown;
         };
-        const tabs = normalizeLayout(body.tabs);
+        const tabs = normalizeLayout(
+          body.tabs,
+          await visibleModules(c.req.raw.headers),
+        );
         await writeLayout(activeOrganizationId(session), session.user.id, tabs);
         return c.json({ tabs });
       },
