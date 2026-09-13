@@ -180,13 +180,24 @@ export function Bars({
           </Readout>
         ) : null}
 
-        <div
-          className="absolute inset-0 flex items-end gap-1 pl-10"
-          role="img"
-          aria-label={points
-            .map((p) => `${p.label}: ${p.display ?? p.value}`)
-            .join(", ")}
-        >
+        {/*
+          The whole series in one sentence, for a reader who wants it before
+          tabbing through every bar.
+
+          A sibling rather than a label on the row beneath, which is what it
+          used to be: that row is `role="img"`, and an image may not contain
+          controls. Each bar is a button — added so the readout answers a
+          keyboard as well as a mouse — so the row was an image full of
+          buttons, which axe reports as `nested-interactive` and a screen
+          reader resolves by hiding the buttons inside it. Every bar was
+          unreachable, and the CRM dashboard failed the accessibility run for
+          a fortnight because of it.
+        */}
+        <span className="sr-only">
+          {points.map((p) => `${p.label}: ${p.display ?? p.value}`).join(", ")}
+        </span>
+
+        <div className="absolute inset-0 flex items-end gap-1 pl-10">
           {points.map((p, i) => (
             <button
               key={p.label}
@@ -505,15 +516,16 @@ export function PairedBars({
           </Readout>
         ) : null}
 
-        <div
-          className="absolute inset-0 flex gap-2 pl-10"
-          role="img"
-          aria-label={points
+        {/* The series in one sentence. A sibling, for the reason above. */}
+        <span className="sr-only">
+          {points
             .map(
               (p) => `${p.label}: ${p.display ?? `${p.up} up, ${p.down} down`}`,
             )
             .join(", ")}
-        >
+        </span>
+
+        <div className="absolute inset-0 flex gap-2 pl-10">
           {points.map((p, i) => (
             // `h-full` on the month, not only `items-end` on the row: the bars
             // are sized as a percentage, and a percentage of an auto height is
