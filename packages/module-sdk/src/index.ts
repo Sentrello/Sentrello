@@ -133,6 +133,16 @@ export interface ModuleContext {
    */
   registerOnboarding: (guide: OnboardingGuide) => void;
   /**
+   * A path prefix on this instance that a search engine may follow.
+   *
+   * Almost nothing here is one. An instance is an application behind a
+   * sign-in, so `/robots.txt` refuses everything by default and a module that
+   * genuinely publishes pages — a storefront, a documentation site — says so.
+   * Core cannot name the modules in other repositories, so each declares its
+   * own and Core assembles what this instance loaded.
+   */
+  registerCrawlable: (surface: Omit<CrawlableSurface, "moduleId">) => void;
+  /**
    * What this module holds about a person, and what it can do about it.
    *
    * A subject access or erasure request arrives once and every module has to
@@ -249,6 +259,7 @@ export interface SentrelloModule {
   register(ctx: ModuleContext): void;
 }
 
+import { type CrawlableSurface, addCrawlable } from "./crawlable";
 import { type OnboardingGuide, addOnboarding } from "./onboarding";
 import { type PersonalDataSource, addPersonalData } from "./personal-data";
 import { type SearchProvider, addSearchProvider } from "./search";
@@ -279,6 +290,7 @@ export * as secrets from "./secrets";
 export * from "./stripe-signature";
 export * from "./summaries";
 export * from "./personal-data";
+export * from "./crawlable";
 export * from "./onboarding";
 export * from "./unread-fields";
 
@@ -368,6 +380,8 @@ export function registerForTest(
     // what it would put in front of somebody setting it up.
     registerOnboarding: (guide) =>
       addOnboarding({ ...guide, moduleId: module.id }),
+    registerCrawlable: (surface) =>
+      addCrawlable({ ...surface, moduleId: module.id }),
     registerJob: () => {},
     ...overrides,
   });

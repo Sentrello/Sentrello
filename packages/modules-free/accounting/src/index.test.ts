@@ -28,6 +28,7 @@ beforeAll(async () => {
     registerSearch: () => {},
     registerPersonalData: () => {},
     registerOnboarding: () => {},
+    registerCrawlable: () => {},
     provide: () => {},
     registerJob: () => {},
   });

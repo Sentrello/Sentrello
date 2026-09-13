@@ -7,6 +7,7 @@ import type {
 } from "@sentrello/module-sdk";
 import { addPersonalData } from "@sentrello/module-sdk";
 import {
+  addCrawlable,
   addOnboarding,
   addSearchProvider,
   addSummary,
@@ -117,6 +118,11 @@ export function loadModules(
         // checklist of whatever this instance loaded.
         registerOnboarding: (guide) =>
           addOnboarding({ ...guide, moduleId: m.id }),
+        // A path prefix a search engine may follow. Almost nothing here is
+        // one: robots.txt refuses everything and a module that genuinely
+        // publishes pages says which.
+        registerCrawlable: (surface) =>
+          addCrawlable({ ...surface, moduleId: m.id }),
         // What this module can find, for the box that searches everything.
         registerSearch: (provider) =>
           addSearchProvider({ ...provider, moduleId: m.id }),
