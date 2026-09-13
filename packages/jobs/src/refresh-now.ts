@@ -42,7 +42,8 @@ if (result.error === "invalid_license") {
  * The key is set and is not the right shape.
  *
  * This used to be indistinguishable from an unreachable server, which sends
- * somebody to check a firewall that was never the problem. prodemo sat in
+ * somebody to check a firewall that was never the problem. An instance of
+ * ours sat in
  * exactly this state for four days: a key written by hand with six groups
  * instead of four, a nightly refresh that did nothing, and a token that then
  * expired.
