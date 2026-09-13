@@ -958,3 +958,55 @@ test("/robots.txt refuses crawlers rather than serving the app", async () => {
   expect(body).toContain("User-agent: *");
   expect(body).toContain("Disallow: /");
 });
+
+/**
+ * Everything that is not published says so in a header, not only in a file.
+ *
+ * robots.txt can be overruled. A CDN may prepend its own — Cloudflare's does,
+ * with `Allow: /` for every agent — and a crawler resolving that against our
+ * `Disallow: /` takes the permissive one, because the specificity is equal and
+ * Allow wins. bmp.sentrello.com was crawlable for exactly that reason on the
+ * day `/robots.txt` was written. A header travels with the response and
+ * nothing prepends to it.
+ */
+test("an application path tells crawlers to leave it alone", async () => {
+  const server = (await import("./index")).default;
+  const res = await server.fetch(new Request("http://localhost/contacts"));
+  expect(res.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+});
+
+/** Or a crawler cannot read the file that tells it what it may read. */
+test("robots.txt itself is not marked noindex", async () => {
+  const server = (await import("./index")).default;
+  const res = await server.fetch(new Request("http://localhost/robots.txt"));
+  expect(res.headers.get("x-robots-tag")).toBeNull();
+});
+
+/**
+ * A published prefix keeps no noindex header.
+ *
+ * The half that matters commercially: getting this wrong does not break a
+ * screen, it quietly takes a customer's storefront out of every search result
+ * and nothing on any page says why.
+ */
+test("a path under a published prefix is left alone", async () => {
+  const { addCrawlable, clearCrawlable } = await import(
+    "@sentrello/module-sdk"
+  );
+  clearCrawlable();
+  addCrawlable({ moduleId: "shop", prefix: "/shop" });
+  const server = (await import("./index")).default;
+
+  try {
+    for (const path of ["/shop", "/shop/thing", "/shop/cart"]) {
+      const res = await server.fetch(new Request(`http://localhost${path}`));
+      expect(res.headers.get("x-robots-tag")).toBeNull();
+    }
+
+    // A path that merely begins with the same letters is not the shop.
+    const other = await server.fetch(new Request("http://localhost/shopping"));
+    expect(other.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+  } finally {
+    clearCrawlable();
+  }
+});
