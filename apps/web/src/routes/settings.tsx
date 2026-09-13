@@ -34,6 +34,10 @@ interface SettingsResponse {
     taxIdLabel: string;
     paymentInstructions: string;
     timezone: string;
+    creditText: string;
+    creditUrl: string;
+    /** Free carries ours and cannot change it. */
+    canSetCredit: boolean;
   };
   instance: { baseUrl: string; baseUrlMatchesRequest: boolean };
   telemetry: { enabled: boolean; fixedOnServer: boolean };
@@ -166,6 +170,8 @@ export function Settings() {
     taxIdLabel: data.business.taxIdLabel,
     paymentInstructions: data.business.paymentInstructions,
     timezone: data.business.timezone,
+    creditText: data.business.creditText,
+    creditUrl: data.business.creditUrl,
   };
   const form = details ?? saved;
   const patch = (change: Record<string, string>) =>
@@ -255,6 +261,47 @@ export function Settings() {
               }}
             />
           </Field>
+
+          {/*
+            The line at the foot of a page a visitor lands on.
+
+            Free carries "Powered by Sentrello" and cannot change it — that is
+            part of what Free is, and for most people it is the only place they
+            will ever see the product named. Pro is paid for, so it is the
+            business's: their own credit, or an empty one to say nothing at all.
+
+            Offered only where it does something. A field that silently did
+            nothing is a setting somebody sets and then wonders about.
+          */}
+          {data.business.canSetCredit ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field
+                label="Credit on your thank-you page"
+                hint="Leave it empty for none. Free instances show ours."
+              >
+                <Input
+                  value={form.creditText}
+                  placeholder="Built by Pike & Co"
+                  onChange={(e) => patch({ creditText: e.target.value })}
+                />
+              </Field>
+              <Field
+                label="Where it links"
+                hint="Optional. Opens in a new tab."
+              >
+                <Input
+                  value={form.creditUrl}
+                  placeholder="https://pike.example"
+                  onChange={(e) => patch({ creditUrl: e.target.value })}
+                />
+              </Field>
+            </div>
+          ) : (
+            <p className="text-sm" style={muted}>
+              Your thank-you pages carry <strong>Powered by Sentrello</strong>.
+              Pro replaces it with your own, or removes it.
+            </p>
+          )}
 
           {/*
             Where the business is, in time.
