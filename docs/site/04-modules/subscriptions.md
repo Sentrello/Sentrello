@@ -1,6 +1,6 @@
 ---
 title: Subscriptions
-sidebar_position: 6
+sidebar_position: 8
 description: Sell the same thing every month, and let a customer manage their own.
 tags: [module, subscriptions, invoicing]
 ---

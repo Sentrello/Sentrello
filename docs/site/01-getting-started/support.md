@@ -1,6 +1,6 @@
 ---
 title: Getting help
-sidebar_position: 4
+sidebar_position: 5
 description: Where to look, and what to send us when you write.
 tags: [support]
 ---

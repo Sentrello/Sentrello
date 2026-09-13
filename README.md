@@ -23,7 +23,7 @@
 </ul>
 </div>
 <p align="center">
-  Sentrello is a Unified Business Management Platform (UBM) for small businesses: CRM, Booking, Shop, Accounting, HR, Project Management, Newsletter, Documentation, Storage, Helpdesk, Link Attribution, and more.<br>
+  Sentrello is a Unified Business Management Platform (UBM) for small businesses: CRM, Accounting, Booking, Shop, POS, Subscriptions, Links, Newsletter, Documentation, Storage, SEO and Project Management.<br>
   Start with the free core. If you need more upgrade to Pro, and add only the modules you need.<br>
 </p>
 <div align="center">
@@ -105,120 +105,33 @@ One command puts it on a $6 VPS. Go and take it for a walk.
 
 ## What it looks like
 
-Everything below is **one install, one server, one login** — and every
-screenshot is a real instance running the free core, captured by an automated
-run against a live server. Nothing here is a mock-up, and nothing here needs a
-licence key.
-
-### Dashboard
-
-What is owed, what is overdue, what needs answering — and how the server itself
-is holding up, which matters when the server is yours.
+Every screenshot in the documentation is a real instance running the free core,
+captured by an automated run against a live server. Nothing is a mock-up and
+nothing needs a licence key.
 
 ![Money owed, overdue invoices, pipeline value and the server's own health](docs/images/dashboard.png)
 
-### CRM
-
-Contacts, companies, activities, tasks, notes and tags, with CSV import and
-export so nothing is a one-way door.
-
-![The contact book, searchable and filterable](docs/images/contacts.png)
-
-The pipeline is a board, and every column carries what it is worth.
-
-![Deals as a five-column board with per-stage totals](docs/images/deals.png)
-
-### Quotes and invoicing
-
-Quotes go out, get accepted, and convert into an invoice without being retyped.
-
-![Quotes with status, customer and value](docs/images/quotes.png)
-
-Invoices have per-line tax, sequential numbering, partial payments, a discount
-for paying early, and several drafts can be merged into one bill. Issuing one
-posts it to the ledger there and then.
-
-![Invoices with status, due dates and totals](docs/images/invoices.png)
-
-### Accounting
-
-A chart of accounts, money in and out, and a profit and loss and balance sheet
-for any period — on the cash basis or the accrual basis, from the same books.
-
-![Profit and loss and balance sheet, computed from journal entries](docs/images/accounting.png)
-
-Underneath is a real double-entry journal. Every figure on the screen above is
-derived from these entries, and every entry balances or it was never written.
-
-![The journal, entry by entry, with debits and credits](docs/images/journal.png)
-
-### Forms
-
-Contact and quote forms you embed on any website, posting straight into your own
-instance. Origin allow-list, rate limiting and a honeypot, because they face the
-internet by design.
-
-![Embeddable forms with their allowed sites and submission counts](docs/images/forms.png)
-
-### Accounts and roles
-
-Five policies out of the box — Admins, Executives, Managers, Staff, and an
-external Customers policy that only ever sees its own invoices — plus four
-groups: Sales, Marketing, Accounting and Customer Service. Every one of them is
-data you can edit, copy or throw away.
-
-A **policy** is how senior somebody is, given to a person directly. A **group**
-is what department they are in, so moving somebody between departments is one
-change, not nine.
-
-![Roles and groups, each with the permissions it grants](docs/images/roles.png)
-
-### Settings
-
-Your business name, address and tax number — which appear on every invoice,
-quote and customer page you send — plus connections to third-party services,
-one-click updates and rollback, and which modules are installed.
-
-![Business details, used on every document the business sends out](docs/images/settings.png)
+**[Take the tour →](https://docs.sentrello.com/getting-started/what-it-looks-like)**
+— the dashboard, CRM, quotes and invoicing, accounting, forms, roles and
+settings, screen by screen.
 
 ---
 ## Free vs Pro
 
-The **free core** is this repository, AGPLv3, unlimited users, no licence key,
+The **free core** is this repository: AGPLv3, unlimited users, no licence key,
 no expiry. It is a real product, not a trial.
 
 **Pro** is a subscription that unlocks the paid half of the modules already in
 the core — the same screens, opened up — and gives you access to buy the
-optional modules, which are not sold on their own.
+optional modules, which are not sold on their own. It is **per instance, not per
+person**: hiring somebody costs nothing.
 
-| | Free | Pro |
-|---|:---:|:---:|
-| **Users** | unlimited | unlimited |
-| **Dashboard** — money owed, overdue, what needs answering, server health | ● | ● |
-| **CRM** — contacts, companies, deals board, activities, tasks, notes, tags, attachments, custom fields, inbound email, CSV in and out | ● | ● |
-| 360° customer timeline — activities, invoices and payments in one stream | — | ● |
-| **Forms** — contact and quote forms embedded on any site, origin allow-list, rate limiting, honeypot | ● | ● |
-| **Quotes and invoices** — per-line tax, partial payments, sequential numbering, quote-to-invoice, early-payment discount, merge drafts, price list, CSV export | ● | ● |
-| Shareable invoice page the customer opens without an account | ● | ● |
-| Recurring invoices and subscriptions | — | ● |
-| Credit notes | — | ● |
-| Online payments — card checkout straight from the invoice | — | ● |
-| Customer statements and AR aging | — | ● |
-| **Accounting** — chart of accounts, money in and out, double-entry journal, profit & loss, balance sheet, cash *or* accrual basis | ● | ● |
-| Bills, vendors and vendor credits — the purchase side of the books | — | ● |
-| Live bank feeds, CSV import and reconciliation | — | ● |
-| Budgets, fixed assets and depreciation | — | ● |
-| Tax summary, cash flow and multi-currency | — | ● |
-| **Accounts and access** — five policies, four groups, all editable; sessions, sign-in providers, two-factor, event log | ● | ● |
-| **Settings** — business details on every document, third-party connections, one-click update and rollback | ● | ● |
-| **Link attribution** — short links on your own domains, and the click → lead → sale chain | — | ● |
-| **Optional modules** — Booking, Shop, POS, Subscriptions, Newsletter, Docs, Storage, SEO | — | available to subscribe |
-| Self-hosted, your database, no per-seat pricing | ● | ● |
+Dropping back to free leaves every record you created in place, still readable
+and still exportable. The Pro screens simply stop.
 
-Pro is per instance, not per person. Hiring somebody costs nothing.
+**[The full comparison, line by line →](https://docs.sentrello.com/free-vs-pro)**
 
 ---
-
 ## The optional modules
 
 Each is a whole application, not a feature — and each is built so another
@@ -228,17 +141,18 @@ sold against the free core.
 
 | Module | What it is | Availability |
 |---|---|---|
-| **Booking** | Diary, availability, resources, and a page customers book themselves on | Available |
-| **Shop** | Products, stock by location, storefront, checkout and payments | Available |
-| **Newsletter** | Lists, segments, templates, campaigns and delivery | Available |
-| **Documentation** | Publishes your own documentation site | Available |
-| **Storage** | Folders, versions, sharing and retention, with warnings before a certificate lapses | Available |
-| **SEO** | Keyword research, rank tracking, audits, backlinks, competitors — see below | Available |
+| **[Booking](https://docs.sentrello.com/modules/booking)** | Diary, availability, resources, and a page customers book themselves on | Available |
+| **[Shop](https://docs.sentrello.com/modules/shop)** | Products, stock by location, storefront, checkout and payments | Available |
+| **[POS](https://docs.sentrello.com/modules/pos)** | Sell face to face: works offline, drives a receipt printer and a cash drawer. A plugin for Shop | Available |
+| **[Subscriptions](https://docs.sentrello.com/modules/subscriptions)** | Plans, subscribers, trials, pauses, and a customer who can change or cancel their own | Available |
+| **[Links](https://docs.sentrello.com/modules/links)** | Short links on your own domain, and the click → signup → sale chain | Available |
+| **[Newsletter](https://docs.sentrello.com/modules/newsletter)** | Lists, segments, templates, campaigns and delivery | Available |
+| **[Documentation](https://docs.sentrello.com/modules/docs)** | Publishes your own documentation site | Available |
+| **[Storage](https://docs.sentrello.com/modules/documents)** | Folders, versions, sharing and retention, with warnings before a certificate lapses | Available |
+| **[SEO](https://docs.sentrello.com/modules/seo)** | Keyword research, rank tracking, audits, backlinks, competitors — see below | Available |
 | **Project Management** | Projects, tasks, boards, milestones and time against work | **Included with Pro from v1** |
 | **HR** | People records, leave, onboarding and reviews | **Q1 2027** |
 | **Helpdesk** | Tickets, queues, SLAs and a customer-facing portal | **Q1 2027** |
-| **Subscriptions** | Plans, subscribers, trials, pauses, and a customer who can change or cancel their own | Available |
-| **POS** | Sell face to face: works offline, drives a receipt printer and a cash drawer. A plugin for Shop | Available |
 
 POS is a **plugin**: a module that plugs into another module. It needs Shop, it
 is bought separately at half a module's price, and it shares Shop's catalogue
@@ -261,67 +175,33 @@ calendar in the same week.
 
 Every other module runs entirely on your server. SEO cannot: keyword volumes,
 rankings and backlink graphs come from a search-data provider, because nobody
-self-hosts a search index. So it is the one module with **two ways to buy the
-data**, chosen in a single setting — and nothing else in the module knows which
-you picked.
+self-hosts a search index.
 
-- **Sentrello SEO Cloud** — your instance asks ours, ours asks the provider,
-  and the usage appears on the bill you already have. Nothing to sign up for,
-  no minimum deposit, no second password. Priced at the provider's cost **+40%**,
-  with an allowance included in the module price. A single business tracking its
-  own site typically spends less than the allowance and pays nothing extra.
-- **Your own provider account** — paste your credentials and your instance talks
-  to the provider directly. Nothing about your work passes through us, and you
-  pay the provider at cost. This earns us nothing, and exists because an agency
-  large enough to hit a provider's minimum deposit is exactly the one that would
-  object to its clients' keywords transiting somebody else's server.
+So it is the one module with **two ways to buy the data**, chosen in a single
+setting — our cloud at the provider's cost plus 40% with an allowance included,
+or your own provider account, talking to them directly with nothing passing
+through us. The second earns us nothing and exists because an agency large
+enough to hit a provider's minimum deposit is exactly the one that would object
+to its clients' keywords transiting somebody else's server.
 
-What the module does, across six screens:
-
-- **Keyword research** — ideas, volume, difficulty and intent; a saved
-  workspace, because saved and tracked are two different decisions
-- **Rank tracking** — daily, weekly or monthly per keyword, with the history
-  drawn as a line rather than a number
-- **Clustering** — keywords grouped by which results they share, which costs
-  nothing extra because it reads results already bought for tracking
-- **Site audits** — technical issues grouped by problem rather than by page, so
-  one fix closes one row
-- **Backlinks and competitors** — referring domains as a tracked line, with the
-  full list on demand; any domain, not only your own
-- **AI visibility** — whether the models answering questions about your trade
-  mention you
-- **White-label client reports** — frozen when made, shared by a revocable link,
-  with no account for the client to create
-- **A monthly spending cap** — it refuses before spending rather than erroring
-  once the credits are gone, and shows what it is spending by kind, which is the
-  question everybody asks in the second week
+**[What the module does, and how the two options differ →](https://docs.sentrello.com/modules/seo)**
 
 ---
-
 ## Founder pricing
 
-**v1 beta is coming soon**, and for the **first 90 days** after it lands, Pro
+**v1 lands on 1 October 2026.** For the **first 90 days** after it does, Pro
 subscriptions bought during that window keep their price for as long as they
 stay active. Locked — not an introductory rate that steps up next year.
+
+Modules not finished by launch are sold in that window too, at the founder
+price, and released as they are completed — so buying early never means waiting
+at a worse rate than somebody who waited.
 
 **Watch this repository** to be told the day it does, and **star it** if
 you want to see a business platform exist that nobody has to rent seats on.
 
 [![Star on GitHub](https://img.shields.io/github/stars/Sentrello/Sentrello?style=social)](https://github.com/Sentrello/Sentrello/stargazers)
 [![Watch this repo](https://img.shields.io/github/watchers/Sentrello/Sentrello?style=social)](https://github.com/Sentrello/Sentrello/subscription)
-
----
-
-## How money is handled
-
-Two rules the codebase does not bend on, because getting them wrong quietly
-corrupts a business's books:
-
-- **Money is integer cents.** Never floating point. Tax rates are basis points
-  (`875` = 8.75%), applied per line.
-- **Bookkeeping is double-entry.** Every financial event posts a balanced
-  journal entry or throws. Reports are computed from the ledger, never from the
-  invoice table.
 
 ---
 
@@ -362,6 +242,13 @@ and a missing or expired token degrades to Free rather than breaking.
 | Front end | React, Vite, TanStack Query, Tailwind |
 | Deploy | Docker Compose, multi-arch |
 
+Two rules the codebase does not bend on: **money is integer cents**, never
+floating point, with tax rates in basis points; and **bookkeeping is
+double-entry**, so every financial event posts a balanced journal entry or
+throws, and every report is computed from the ledger rather than summed from the
+invoice table.
+**[Why, and what it means for your books →](https://docs.sentrello.com/core/money)**
+
 ---
 
 ## Development
@@ -390,7 +277,7 @@ what a good pull request looks like.
 
 ## Project status
 
-**Early access, with v1 beta close.** The free core is built and tested, and
+**Early access, with v1 on 1 October 2026.** The free core is built and tested, and
 the install path works end to end on both Docker and Podman. It has not yet been
 run by a large number of businesses, so expect rough edges and please report
 them — the Podman path was fixed in v0.13.0 because somebody did.

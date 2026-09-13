@@ -1,6 +1,6 @@
 ---
 title: Configure
-sidebar_position: 2
+sidebar_position: 3
 description: Your business details, tax, email and payments — all from a screen.
 tags: [setup]
 ---

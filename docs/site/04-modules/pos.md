@@ -1,6 +1,6 @@
 ---
 title: POS
-sidebar_position: 4
+sidebar_position: 5
 description: Sell face to face, on the same products, prices and books as the shop.
 tags: [module, pos, shop]
 ---

@@ -1,6 +1,6 @@
 ---
 title: Docs
-sidebar_position: 5
+sidebar_position: 7
 description: Publish a documentation site or a wiki from your own repository.
 tags: [module, docs]
 ---
