@@ -24,6 +24,7 @@ import money from "@sentrello/module-money";
 import profile from "@sentrello/module-profile";
 import type { SentrelloEnv, SentrelloModule } from "@sentrello/module-sdk";
 import {
+  allCrawlable,
   robotsTxt,
   searchEverything,
   searchProviders,
@@ -95,6 +96,30 @@ app.use("*", async (c, next) => {
 
   set("x-content-type-options", "nosniff");
   set("referrer-policy", "strict-origin-when-cross-origin");
+
+  /*
+   * Told, not asked — because robots.txt can be overruled and this cannot.
+   *
+   * A CDN in front of an instance may prepend its own robots.txt to ours.
+   * Cloudflare's does, with `Allow: /` for every agent, and a crawler
+   * resolving that against our `Disallow: /` takes the permissive one: equal
+   * specificity, and Allow wins. bmp.sentrello.com was crawlable for exactly
+   * that reason on the day the file was written.
+   *
+   * A header travels with the response and nothing prepends to it. So the same
+   * registry decides both: a path under a prefix a module published is left
+   * alone, and everything else says no. `/robots.txt` itself is exempt — a
+   * crawler has to be able to read the thing that tells it what to read.
+   */
+  const requested = new URL(c.req.url).pathname;
+  if (requested !== "/robots.txt") {
+    const published = allCrawlable().some(
+      (surface) =>
+        requested === surface.prefix ||
+        requested.startsWith(`${surface.prefix}/`),
+    );
+    if (!published) set("x-robots-tag", "noindex, nofollow");
+  }
 
   const path = new URL(c.req.url).pathname;
   const embeddable = path === "/embed.js" || path.startsWith("/api/embed/");
