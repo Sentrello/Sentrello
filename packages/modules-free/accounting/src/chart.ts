@@ -50,6 +50,12 @@ export const STANDARD_CHART: {
     type: "asset",
     description: "Invoiced and not yet paid",
   },
+  {
+    code: "1200",
+    name: "Inventory",
+    type: "asset",
+    description: "Stock bought and not yet sold",
+  },
   { code: "1400", name: "Equipment", type: "asset" },
   {
     code: "2000",

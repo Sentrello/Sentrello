@@ -73,6 +73,44 @@ export const CORE_ACCOUNTS = {
     name: "Exchange Gains and Losses",
     type: "expense",
   },
+  /**
+   * Stock the business owns and has not sold yet.
+   *
+   * An asset, because it is: goods on a shelf are worth what was paid for
+   * them until somebody buys them. Without it a delivery is invisible to the
+   * books — the shop's stock count goes up and the balance sheet does not —
+   * and the cost of everything sold falls out of the accounts entirely.
+   *
+   * That is not theoretical. The demo traded for four months, rang up 1,802
+   * sales and $98,750 of income, and reported $272 of expenses: a 99.7%
+   * margin on a shop that buys its stock from suppliers. The chart of
+   * accounts has had a Cost of Sales line since the beginning and nothing
+   * ever posted to it.
+   */
+  inventory: { code: "1200", name: "Inventory", type: "asset" },
+  /**
+   * What the goods sold actually cost, matched to the sale that sold them.
+   *
+   * Posted when stock leaves for a customer rather than when it arrived, which
+   * is the whole point: gross profit is a sale minus the cost of that sale, and
+   * a business that expensed its deliveries on the day they landed would show
+   * a loss every time it restocked and a fortune every quiet week.
+   *
+   * Code 5000, which the default chart already carried under this name.
+   */
+  costOfSales: { code: "5000", name: "Cost of Sales", type: "expense" },
+  /**
+   * Owed to suppliers for stock that has arrived.
+   *
+   * Where a delivery's other half lands. Crediting Cash instead would say the
+   * money left the bank the moment the boxes did, and the books would disagree
+   * with the statement until somebody reconciled it by hand.
+   */
+  accountsPayable: {
+    code: "2000",
+    name: "Accounts Payable",
+    type: "liability",
+  },
 } as const;
 
 /** The account currency movement lands in. */
