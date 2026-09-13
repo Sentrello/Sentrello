@@ -11,6 +11,7 @@ import {
   Loading,
   Tabs,
   activeTab,
+  briefMoney,
   formatMoney,
   muted,
 } from "../lib/ui";
@@ -705,7 +706,7 @@ function InsightWidget({
     return (
       <Card>
         <p className="mb-2 font-medium">Income by month</p>
-        <Bars points={points} />
+        <Bars points={points} format={briefMoney} />
       </Card>
     );
   }

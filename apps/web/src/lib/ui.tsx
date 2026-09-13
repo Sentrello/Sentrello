@@ -97,6 +97,26 @@ export function formatMoney(
   );
 }
 
+/**
+ * Money, short enough for a chart's scale: "$15k", "$1.2M".
+ *
+ * A chart axis has room for four characters and needs five labels of them. The
+ * full figure belongs in the readout, where there is one of it and space for
+ * it — `formatMoney` on an axis is "$15,000.00" five times over, overlapping.
+ *
+ * Built on `Intl` rather than by dividing and appending a symbol, so the
+ * currency is the reader's and not a dollar sign written into a chart.
+ */
+export function briefMoney(cents: number, currency = formats.currency): string {
+  if (!Number.isFinite(cents)) return "—";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency,
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(cents / 100);
+}
+
 /** Basis points to "8.75%". */
 export function formatRate(basisPoints: number): string {
   return `${(basisPoints / 100).toFixed(2).replace(/\.?0+$/, "")}%`;

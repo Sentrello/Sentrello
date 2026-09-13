@@ -6,7 +6,14 @@ import { PairedBars } from "../lib/charts";
 import { Icon } from "../lib/icons";
 import { useNavigation } from "../lib/navigation";
 import { TaskDialog, TaskRow } from "../lib/tasks";
-import { Card, ErrorNote, Loading, formatMoney, muted } from "../lib/ui";
+import {
+  Card,
+  ErrorNote,
+  Loading,
+  briefMoney,
+  formatMoney,
+  muted,
+} from "../lib/ui";
 
 /**
  * The CRM's own front page.
@@ -189,6 +196,7 @@ export function CrmDashboard() {
         </div>
 
         <PairedBars
+          format={briefMoney}
           upLabel={`Won · ${formatMoney(wonTotal)}`}
           downLabel={`Lost · ${formatMoney(lostTotal)}`}
           points={data.dealOutcomes.map((month) => ({
