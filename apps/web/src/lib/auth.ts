@@ -6,6 +6,16 @@ import {
 } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 
+/** The address this page was served from, when that is a thing we can use. */
+function usableOrigin(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  const origin = window.location?.origin;
+  // "null" is what an opaque origin reports, as a string rather than a value.
+  return typeof origin === "string" && origin !== "" && origin !== "null"
+    ? origin
+    : undefined;
+}
+
 // The client mirrors the server's access control, so the UI can hide what the
 // user cannot do. The server still enforces it — this is presentation only.
 export const authClient = createAuthClient({
@@ -27,11 +37,17 @@ export const authClient = createAuthClient({
    * not mention should still be signed in against the address in their own
    * address bar. The server is what refuses an origin it does not trust, and
    * it says so in as many words.
+   *
+   * Checked for a usable value rather than only for a window, because there is
+   * more than one way not to have one. A `window` with a `location` that has
+   * no `origin` is what the CI runner gave us — the same three tests went on
+   * failing there after `typeof window` alone was thought to have settled it,
+   * and they passed on macOS, in a clean clone, and in a Linux container.
+   * `"null"` is the other: an opaque origin, which a sandboxed frame or a
+   * `file://` page reports as that literal string. Either way the client is
+   * handed something it cannot parse and throws during import.
    */
-  baseURL:
-    typeof window === "undefined"
-      ? "http://localhost:3000"
-      : window.location.origin,
+  baseURL: usableOrigin() ?? "http://localhost:3000",
   // the cast is variance-only: `ac` is a concrete AccessControl built from our
   // statement, while the plugin's parameter is typed against the open
   // `Statements` shape
