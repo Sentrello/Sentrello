@@ -13,11 +13,7 @@ import type { SentrelloModule } from "@sentrello/module-sdk";
  */
 export const OPTIONAL_MODULE_PACKAGES = [
   "@sentrello/pro-core",
-  // Ships with Pro, but a package of its own: it is a public redirect service
-  // with a database behind it and shares nothing with pro-core's half of CRM,
-  // invoicing and the books.
-  "@sentrello/pro-links",
-  // Also ships with Pro, and also a package of its own: a business's plan
+  // Ships with Pro, and a package of its own: a business's plan
   // should not come and go with its bookkeeping features.
   "@sentrello/pro-projects",
   "@sentrello/mod-scheduling",
@@ -45,6 +41,9 @@ export const OPTIONAL_MODULE_PACKAGES = [
   "@sentrello/mod-docs",
   "@sentrello/mod-seo",
   "@sentrello/mod-subscriptions",
+  // Sold on its own since 2026-09-12; it rode with Pro before that. A public
+  // redirect service with a database behind it, sharing nothing with pro-core.
+  "@sentrello/mod-links",
 ];
 
 /**
@@ -118,7 +117,20 @@ export function coreIsTooOld(running: string, needs: string): boolean {
   // An instance that cannot say what it is running is not told it is wrong;
   // a dev checkout has no version baked in and every bundle would refuse.
   if (!running || running === "unknown") return false;
-  const parts = (v: string) => v.split(".").map((n) => Number.parseInt(n, 10));
+  /*
+   * A leading `v` and `+` build metadata are stripped first.
+   *
+   * `SENTRELLO_VERSION` is the image tag with the commit on the end —
+   * `v0.26.7+e4e88f1` on a real host. Parsed digit by digit that yields NaN,
+   * which is read below as "cannot tell" and answered `false`: the core is new
+   * enough. So a bundle built against a core this instance does not have would
+   * be imported anyway, and fail on an export it could not find — the cryptic
+   * failure this function exists to turn into a sentence.
+   */
+  const parts = (v: string) =>
+    (v.trim().replace(/^v/i, "").split("+")[0] ?? "")
+      .split(".")
+      .map((n) => Number.parseInt(n, 10));
   const [a, b] = [parts(running), parts(needs)];
   if (a.some(Number.isNaN) || b.some(Number.isNaN)) return false;
   for (let i = 0; i < Math.max(a.length, b.length); i++) {

@@ -52,6 +52,29 @@ test("a version that is not numbers claims nothing", () => {
 });
 
 /**
+ * How a real instance actually stamps itself.
+ *
+ * bmp.sentrello.com reported `v0.26.7+e4e88f1` and was told it was up to date
+ * while 0.27.9 was out. Neither the `v` nor the build metadata says anything
+ * about which release is newer — semver requires build metadata to be ignored
+ * when comparing — but the guard that exists to refuse pre-releases was
+ * refusing these too, and a refusal here reads on the screen as "up to date".
+ *
+ * That is the exact failure the guard was written to prevent, arriving through
+ * the guard itself.
+ */
+test("a v prefix and build metadata do not stop the comparison", () => {
+  expect(isNewer("0.27.9", "v0.26.7+e4e88f1")).toBe(true);
+  expect(isNewer("v0.27.9", "0.26.7")).toBe(true);
+  expect(isNewer("v0.26.7+e4e88f1", "0.27.9")).toBe(false);
+  // Same release, stamped two different ways, is not an update.
+  expect(isNewer("0.26.7", "v0.26.7+e4e88f1")).toBe(false);
+  expect(isNewer("v0.26.7+aaaaaaa", "v0.26.7+bbbbbbb")).toBe(false);
+  // And a pre-release is still refused, however it is written.
+  expect(isNewer("v0.28.0-rc1+abc1234", "v0.27.9")).toBe(false);
+});
+
+/**
  * A finished update clears itself.
  *
  * The agent cannot clear it — the container it would clear it for is the one it

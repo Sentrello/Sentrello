@@ -144,14 +144,9 @@ export function isNewer(candidate: string, current: string): boolean {
   if (candidate === current) return false;
   if (current === "unknown" || candidate === "unknown") return false;
 
-  // Plain releases only. A pre-release sorts as newer on its numbers alone —
-  // 0.2.0-rc1 beats 0.1.28 — and offering a business a release candidate
-  // because the arithmetic allowed it is not a thing this button should do.
-  const plain = /^\d+(\.\d+)*$/;
-  if (!plain.test(candidate) || !plain.test(current)) return false;
-
-  const a = candidate.split(".").map(Number);
-  const b = current.split(".").map(Number);
+  const a = release(candidate);
+  const b = release(current);
+  if (!a || !b) return false;
 
   for (let i = 0; i < Math.max(a.length, b.length); i += 1) {
     const x = a[i] ?? 0;
@@ -159,6 +154,33 @@ export function isNewer(candidate: string, current: string): boolean {
     if (x !== y) return x > y;
   }
   return false;
+}
+
+/**
+ * The numbers of a plain release, or nothing if it is not one.
+ *
+ * Two things are stripped first, because neither says anything about which
+ * release is newer:
+ *
+ * - a leading `v`, which is how the image is tagged;
+ * - `+` build metadata, which semver requires to be ignored when comparing.
+ *
+ * Both are present on a real instance — bmp reported `v0.26.7+e4e88f1` — and
+ * without stripping them the plain-release test below rejected the version it
+ * was running. A rejection here is indistinguishable on the screen from "you
+ * are up to date", so an instance sat a release behind being told it was
+ * current. That is the failure this guard exists to prevent, arriving through
+ * the guard itself.
+ *
+ * A pre-release is still refused. `0.2.0-rc1` beats `0.1.28` on its numbers
+ * alone, and offering a business a release candidate because the arithmetic
+ * allowed it is not a thing this button should do — so the `-suffix` is
+ * deliberately not stripped, and fails the test below.
+ */
+function release(version: string): number[] | null {
+  const bare = version.trim().replace(/^v/i, "").split("+")[0] ?? "";
+  if (!/^\d+(\.\d+)*$/.test(bare)) return null;
+  return bare.split(".").map(Number);
 }
 
 /**

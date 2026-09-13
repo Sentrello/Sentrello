@@ -199,6 +199,25 @@ test("versions compare as numbers, not as strings", () => {
 });
 
 /**
+ * How a real instance stamps itself.
+ *
+ * `SENTRELLO_VERSION` on bmp.sentrello.com is `v0.26.7+e4e88f1` — the image
+ * tag, with the commit on the end. Parsed digit by digit that produced NaN,
+ * which this function reads as "cannot tell" and answers `false` to.
+ *
+ * `false` here means "the core is new enough", so a bundle built against a
+ * core this instance does not have would be imported anyway and fail on an
+ * export it could not find — which is precisely the cryptic failure this
+ * function was written to turn into a sentence.
+ */
+test("a v prefix and build metadata do not defeat the comparison", () => {
+  expect(coreIsTooOld("v0.26.7+e4e88f1", "0.27.9")).toBe(true);
+  expect(coreIsTooOld("v0.27.9+e4e88f1", "0.26.7")).toBe(false);
+  expect(coreIsTooOld("0.26.7", "v0.27.9")).toBe(true);
+  expect(coreIsTooOld("v0.26.7+aaaaaaa", "v0.26.7+bbbbbbb")).toBe(false);
+});
+
+/**
  * A file sitting beside the bundles is not a bundle that failed.
  *
  * The walk treated every entry as a directory to import from, so a README next
