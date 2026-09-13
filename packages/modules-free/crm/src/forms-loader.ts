@@ -51,9 +51,12 @@ const SCRIPT = String.raw`(function () {
     })
     .then(function (form) {
       var style = form.style || {};
+      // The brand, for a business that has not chosen its own. It is drawn on
+      // somebody else's website, so it was the one place the old teal would
+      // have outlived the rest of the product.
       var accent = /^#[0-9a-fA-F]{3,8}$/.test(style.accent || "")
         ? style.accent
-        : "#0f766e";
+        : "#c4470f";
       var radius = /^[0-9.]+(px|rem|em)$/.test(style.radius || "")
         ? style.radius
         : "6px";
