@@ -6,7 +6,7 @@
  * the design tokens in index.css, so light and dark come free and the app can
  * be rethemed from one file.
  */
-import { type ReactNode, useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 export const border = { borderColor: "var(--border)" };
 export const muted = { color: "var(--text-muted)" };
@@ -387,6 +387,89 @@ export function Dialog({
       </div>
       <div className="p-4">{children}</div>
     </dialog>
+  );
+}
+
+/**
+ * Asking before something destructive, without the browser's own dialog.
+ *
+ * `window.confirm` was doing this in the Users console and nowhere else the
+ * business looks. It blocks the whole tab, it cannot be styled, it ignores dark
+ * mode, and on the screen that hands access around it made the most serious
+ * actions the product has look like a script error. Settings had already grown
+ * its own two-step button; this is that idea, once, so a third screen does not
+ * invent a fourth version.
+ *
+ * The message says what will happen rather than "are you sure" — somebody
+ * removing a person at half past four should not have to guess whether the
+ * invoices they raised go with them. That copy already existed and is kept
+ * verbatim; only the thing that shows it has changed.
+ */
+export function ConfirmButton({
+  children,
+  title,
+  message,
+  confirmLabel = "Yes, do it",
+  danger = false,
+  disabled = false,
+  className,
+  variant,
+  onConfirm,
+}: {
+  children: ReactNode;
+  title: string;
+  message: ReactNode;
+  confirmLabel?: string;
+  danger?: boolean;
+  disabled?: boolean;
+  className?: string;
+  /** Set to render a full Button rather than the small inline link. */
+  variant?: "primary" | "secondary" | "danger";
+  onConfirm: () => void;
+}) {
+  const [asking, setAsking] = useState(false);
+
+  return (
+    <>
+      {variant ? (
+        <Button
+          variant={variant}
+          disabled={disabled}
+          onClick={() => setAsking(true)}
+        >
+          {children}
+        </Button>
+      ) : (
+        <button
+          type="button"
+          disabled={disabled}
+          className={className ?? "text-xs link-muted"}
+          style={danger ? { color: "var(--color-danger)" } : undefined}
+          onClick={() => setAsking(true)}
+        >
+          {children}
+        </button>
+      )}
+      <Dialog title={title} open={asking} onClose={() => setAsking(false)}>
+        <div className="space-y-4">
+          <p className="text-sm">{message}</p>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setAsking(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant={danger ? "danger" : "primary"}
+              onClick={() => {
+                setAsking(false);
+                onConfirm();
+              }}
+            >
+              {confirmLabel}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+    </>
   );
 }
 

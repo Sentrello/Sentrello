@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { memberApi } from "../../lib/auth";
 import { useNavigation } from "../../lib/navigation";
 import {
   Button,
   Card,
+  ConfirmButton,
   ErrorNote,
   Field,
   Input,
@@ -16,6 +17,7 @@ import {
   formatDate,
   muted,
 } from "../../lib/ui";
+import { policyLabel } from "./policy-ui";
 
 /**
  * Who is on this instance.
@@ -88,6 +90,18 @@ export function People() {
    * groups, to draw a list nobody could read.
    */
   const [q, setQ] = useState("");
+  /**
+   * What is actually asked of the server, a beat behind what is typed.
+   *
+   * Without this every keystroke was a request: "Samantha" asked eight times
+   * and threw seven answers away. The list already stays on screen while a
+   * request is in flight, so the only thing the delay costs is the request.
+   */
+  const [search, setSearch] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => setSearch(q), 250);
+    return () => clearTimeout(timer);
+  }, [q]);
   const [page, setPage] = useState(1);
   const [issued, setIssued] = useState<{
     email: string;
@@ -95,7 +109,7 @@ export function People() {
   } | null>(null);
 
   const data = useQuery({
-    queryKey: ["users", q, page],
+    queryKey: ["users", search, page],
     queryFn: () =>
       api<{
         people: Person[];
@@ -104,7 +118,7 @@ export function People() {
         invitations: Invitation[];
         history: Change[];
       }>(
-        `/api/users?page=${page}${q.trim() ? `&q=${encodeURIComponent(q.trim())}` : ""}`,
+        `/api/users?page=${page}${search.trim() ? `&q=${encodeURIComponent(search.trim())}` : ""}`,
       ),
     // The list stays on screen while the next page loads, so a keystroke in
     // the search box does not blank the table to a spinner.
@@ -127,6 +141,17 @@ export function People() {
   const roleNames = (policies.data?.roles ?? [])
     .filter((r) => r.kind === "user" || r.kind === "custom")
     .map((r) => r.role);
+  /*
+   * A business that renamed or deleted the default policy would see a picker
+   * showing its first entry while this still said "staff" — and the invitation
+   * would go out as a policy that does not exist. The select can only ever
+   * offer what came back, so the value follows it.
+   */
+  useEffect(() => {
+    if (roleNames.length > 0 && !roleNames.includes(inviteRole)) {
+      setInviteRole(roleNames[0] as string);
+    }
+  }, [roleNames, inviteRole]);
 
   const setRole = useMutation({
     mutationFn: (input: { userId: string; role: string }) =>
@@ -217,7 +242,7 @@ export function People() {
             >
               {roleNames.map((r) => (
                 <option key={r} value={r}>
-                  {r}
+                  {policyLabel(r)}
                 </option>
               ))}
             </Select>
@@ -250,19 +275,17 @@ export function People() {
                       as {i.role} · expires {formatDate(i.expiresAt)}
                     </span>
                   </span>
-                  <button
-                    type="button"
-                    className="text-xs"
-                    style={{ color: "var(--color-danger)" }}
+                  <ConfirmButton
+                    title="Withdraw this invitation?"
+                    message={`The link sent to ${i.email} stops working. You can invite them again at any time.`}
+                    confirmLabel="Withdraw it"
+                    danger
                     disabled={cancelInvite.isPending}
-                    onClick={() =>
-                      confirm(
-                        `Withdraw the invitation to ${i.email}? Their link stops working.`,
-                      ) && cancelInvite.mutate(i.id)
-                    }
+                    className="text-xs"
+                    onConfirm={() => cancelInvite.mutate(i.id)}
                   >
                     Withdraw
-                  </button>
+                  </ConfirmButton>
                 </li>
               ))}
             </ul>
@@ -358,7 +381,7 @@ export function People() {
               {p.you ? (
                 // Changing your own role is how an owner locks the business
                 // out of its own instance, and nobody else can undo it.
-                <span style={muted}>{p.baseRole}</span>
+                <span style={muted}>{policyLabel(p.baseRole)}</span>
               ) : (
                 <Select
                   value={p.baseRole}
@@ -372,7 +395,7 @@ export function People() {
                 >
                   {[...new Set([p.baseRole, ...roleNames])].map((r) => (
                     <option key={r} value={r}>
-                      {r}
+                      {policyLabel(r)}
                     </option>
                   ))}
                 </Select>
@@ -385,23 +408,21 @@ export function People() {
                   {p.role
                     .split(",")
                     .filter((r) => r && r !== p.baseRole)
+                    .map(policyLabel)
                     .join(", ") || "nothing extra"}
                 </div>
               ) : null}
             </td>
             <td>
               {p.twoFactorEnabled ? (
-                <button
-                  type="button"
-                  className="text-xs link-muted"
-                  onClick={() =>
-                    confirm(
-                      `Turn off two-factor for ${p.email}? They will be signed out everywhere and can set it up again.`,
-                    ) && revokeTwoFactor.mutate(p.userId)
-                  }
+                <ConfirmButton
+                  title="Turn off two-factor?"
+                  message={`${p.email} will be signed out everywhere and can set two-factor up again themselves. Do this when somebody has lost the device that generates their codes.`}
+                  confirmLabel="Turn it off"
+                  onConfirm={() => revokeTwoFactor.mutate(p.userId)}
                 >
                   on — turn off
-                </button>
+                </ConfirmButton>
               ) : p.twoFactorRequired ? (
                 // The rules say somebody with their roles must have one. Said
                 // here so an administrator can see who is still without it.
@@ -416,38 +437,33 @@ export function People() {
               {p.lastSeenAt ? formatDate(p.lastSeenAt) : "never"}
             </td>
             <td className="space-x-3 text-right">
-              <button
-                type="button"
-                className="text-xs link-muted"
-                onClick={() =>
-                  confirm(
-                    `Give ${p.email} a new password? Theirs stops working immediately and they are signed out everywhere.`,
-                  ) && resetPassword.mutate(p)
-                }
+              <ConfirmButton
+                title="Issue a new password?"
+                message={`The password ${p.email} has now stops working immediately, and they are signed out everywhere. The new one is shown once, on this screen, and stored nowhere.`}
+                confirmLabel="Issue one"
+                onConfirm={() => resetPassword.mutate(p)}
               >
                 Reset password
-              </button>
+              </ConfirmButton>
               {p.you ? null : (
                 <>
-                  <button
-                    type="button"
-                    className="text-xs link-muted"
-                    onClick={() => signOut.mutate(p.userId)}
+                  <ConfirmButton
+                    title="Sign them out everywhere?"
+                    message={`${p.email} is signed out on every device and will have to sign in again. Anything they were part-way through typing is lost.`}
+                    confirmLabel="Sign them out"
+                    onConfirm={() => signOut.mutate(p.userId)}
                   >
                     Sign out
-                  </button>
-                  <button
-                    type="button"
-                    className="text-xs"
-                    style={{ color: "var(--color-danger)" }}
-                    onClick={() =>
-                      confirm(
-                        `Remove ${p.email}? They lose access immediately. Their invoices, notes and history stay.`,
-                      ) && remove.mutate(p.userId)
-                    }
+                  </ConfirmButton>
+                  <ConfirmButton
+                    title="Remove them from the business?"
+                    message={`${p.email} loses access immediately. The invoices they raised, the notes they wrote and everything they did stay exactly where they are — this removes the person, not their work.`}
+                    confirmLabel="Remove them"
+                    danger
+                    onConfirm={() => remove.mutate(p.userId)}
                   >
                     Remove
-                  </button>
+                  </ConfirmButton>
                 </>
               )}
             </td>

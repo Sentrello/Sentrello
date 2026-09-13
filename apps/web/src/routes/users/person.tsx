@@ -5,6 +5,7 @@ import { useNavigation, useRecordTitle } from "../../lib/navigation";
 import {
   Button,
   Card,
+  ConfirmButton,
   Empty,
   ErrorNote,
   Loading,
@@ -209,23 +210,28 @@ function Details({
         </p>
       ) : (
         <div className="mt-3">
-          <Button
+          <ConfirmButton
             variant={person.disabledAt ? "primary" : "danger"}
             disabled={toggle.isPending}
-            onClick={() =>
-              confirm(
-                person.disabledAt
-                  ? `Let ${person.email} sign in again?`
-                  : `Disable ${person.email}? They lose access immediately and are signed out everywhere.`,
-              ) && toggle.mutate(!person.disabledAt)
+            title={
+              person.disabledAt
+                ? "Let them sign in again?"
+                : "Disable this account?"
             }
+            message={
+              person.disabledAt
+                ? `${person.email} will be able to sign in again with the password they already had.`
+                : `${person.email} loses access immediately and is signed out everywhere. Their record and everything they did stay — this is how somebody leaves without their work leaving with them.`
+            }
+            confirmLabel={person.disabledAt ? "Enable them" : "Disable them"}
+            onConfirm={() => toggle.mutate(!person.disabledAt)}
           >
             {toggle.isPending
               ? "Saving…"
               : person.disabledAt
                 ? "Enable"
                 : "Disable"}
-          </Button>
+          </ConfirmButton>
         </div>
       )}
       {toggle.error ? <ErrorNote error={toggle.error} /> : null}
@@ -285,16 +291,16 @@ function Credentials({
           and have them change it — it is shown once and stored nowhere.
         </p>
         <div className="mt-2">
-          <Button
+          <ConfirmButton
+            variant="primary"
             disabled={resetPassword.isPending}
-            onClick={() =>
-              confirm(
-                `Give ${person.email} a new password? Theirs stops working immediately.`,
-              ) && resetPassword.mutate()
-            }
+            title="Issue a new password?"
+            message={`The password ${person.email} has now stops working immediately, and they are signed out everywhere. The new one is shown once, here, and stored nowhere.`}
+            confirmLabel="Issue one"
+            onConfirm={() => resetPassword.mutate()}
           >
             {resetPassword.isPending ? "Issuing…" : "Issue a new password"}
-          </Button>
+          </ConfirmButton>
         </div>
         {issued ? (
           <p className="money mt-2 text-lg tracking-wide">{issued}</p>
@@ -313,17 +319,16 @@ function Credentials({
         </p>
         {person.twoFactorEnabled ? (
           <div className="mt-2">
-            <Button
+            <ConfirmButton
               variant="danger"
               disabled={revokeTwoFactor.isPending}
-              onClick={() =>
-                confirm(
-                  `Turn off two-factor for ${person.email}? They will be signed out everywhere and can set it up again.`,
-                ) && revokeTwoFactor.mutate()
-              }
+              title="Turn off two-factor?"
+              message={`${person.email} will be signed out everywhere and can set two-factor up again themselves. Do this when somebody has lost the device that generates their codes.`}
+              confirmLabel="Turn it off"
+              onConfirm={() => revokeTwoFactor.mutate()}
             >
               Turn off
-            </Button>
+            </ConfirmButton>
           </div>
         ) : null}
         {revokeTwoFactor.error ? (
@@ -506,16 +511,15 @@ function Sessions({ userId }: { userId: string }) {
     <Card>
       <div className="mb-2 flex items-center justify-between">
         <p className="font-medium">Devices</p>
-        <button
-          type="button"
-          className="text-xs link-muted"
+        <ConfirmButton
+          title="Sign them out everywhere?"
+          message="Every device below is signed out and will have to sign in again. Anything part-way through being typed is lost."
+          confirmLabel="Sign them out"
           disabled={revokeAll.isPending}
-          onClick={() =>
-            confirm("Sign this person out everywhere?") && revokeAll.mutate()
-          }
+          onConfirm={() => revokeAll.mutate()}
         >
           Sign out everywhere
-        </button>
+        </ConfirmButton>
       </div>
       <Table headers={["Device", "IP", "Last active", ""]}>
         {sessions.map((s) => (
