@@ -385,7 +385,14 @@ export function Dialog({
           ×
         </button>
       </div>
-      <div className="p-4">{children}</div>
+      {/*
+        `text-left` is not decoration. A dialog renders where it was written,
+        and these are written inside the thing that opens them — a confirm in
+        a table's actions column sits inside a `text-right` cell and inherited
+        it, so the message came out ragged down the left while its own heading
+        above it did not.
+      */}
+      <div className="p-4 text-left">{children}</div>
     </dialog>
   );
 }

@@ -246,6 +246,10 @@ function Details({
             ) : (
               <Select
                 value={person.baseRole}
+                // Sized to what it holds. A select is a block element, so
+                // inside a definition list it stretched to the full width of
+                // the record beside four short lines of text.
+                className="w-56"
                 aria-label={`Policy for ${person.name || person.email}`}
                 disabled={setRole.isPending}
                 onChange={(e) => setRole.mutate(e.target.value)}

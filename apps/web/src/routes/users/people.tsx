@@ -235,7 +235,7 @@ export function People() {
               onChange={(e) => setInvitee(e.target.value)}
             />
           </Field>
-          <Field label="Role">
+          <Field label="Policy">
             <Select
               value={inviteRole}
               onChange={(e) => setInviteRole(e.target.value)}
@@ -353,7 +353,12 @@ export function People() {
         ) : null}
       </div>
 
-      <Table headers={["Name", "Email", "Role", "Two-factor", "Last seen", ""]}>
+      {/* "Policy", because that is what the nav, the person record and the
+          Policies screen all call it. This table said "Role" — the word the
+          reference used and the one the console deliberately moved away from. */}
+      <Table
+        headers={["Name", "Email", "Policy", "Two-factor", "Last seen", ""]}
+      >
         {people.map((p) => (
           <Row key={p.userId}>
             <td className="py-2 font-medium">
@@ -388,7 +393,7 @@ export function People() {
                   // A column heading is not a label. One of these per row, all
                   // announced as "combo box" and nothing else, on the screen
                   // that decides what everybody can do.
-                  aria-label={`Role for ${p.name || p.email}`}
+                  aria-label={`Policy for ${p.name || p.email}`}
                   onChange={(e) =>
                     setRole.mutate({ userId: p.userId, role: e.target.value })
                   }
@@ -482,7 +487,16 @@ export function People() {
             {(data.data?.history ?? []).map((change) => (
               <li key={`${change.at}-${change.says}-${change.subject ?? ""}`}>
                 <span style={muted}>{formatDate(change.at)}</span>{" "}
-                <strong>{change.actor}</strong> {change.says}{" "}
+                {/*
+                  No actor means nobody was signed in: `sentrello
+                  reset-password`, `sentrello unlock`, or a scheduled prune.
+                  Sign-in attempts, where "nobody" would instead mean an
+                  unknown person, are excluded from this list — so naming the
+                  server here is accurate rather than a guess. It read as
+                  "issued a new password for Owner", a sentence with no
+                  subject at all.
+                */}
+                <strong>{change.actor ?? "The server"}</strong> {change.says}{" "}
                 <strong>{change.subject ?? "—"}</strong>
                 {change.detail && "from" in change.detail ? (
                   <span style={muted}>

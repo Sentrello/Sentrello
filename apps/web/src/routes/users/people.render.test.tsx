@@ -135,3 +135,47 @@ test("your own row offers no policy picker and no way to remove yourself", () =>
   expect(html.match(/<select/g)?.length ?? 0).toBe(1);
   expect(html).not.toContain("Remove");
 });
+
+/**
+ * A change nobody was signed in for still names who did it.
+ *
+ * `sentrello reset-password`, `sentrello unlock` and the scheduled prune all
+ * record with no actor, and the line came out as "issued a new password for
+ * Owner" — a sentence with no subject. Sign-in attempts, where an absent actor
+ * would instead mean an unknown person, are excluded from this list, so naming
+ * the server here is accurate rather than a guess.
+ *
+ * Found by looking at the screen. Nothing here could have caught it before,
+ * because nothing here rendered the history at all.
+ */
+test("a change made on the server says so, rather than starting mid-sentence", () => {
+  const html = renderWith([PERSON], {
+    history: [
+      {
+        at: "2026-09-12T10:00:00.000Z",
+        actor: null,
+        subject: "Owner",
+        says: "issued a new password for",
+        detail: null,
+      },
+      {
+        at: "2026-09-11T10:00:00.000Z",
+        actor: "Owner",
+        subject: "Dana Reyes",
+        says: "unlocked the account of",
+        detail: null,
+      },
+    ],
+  });
+
+  expect(html).toContain("The server</strong> issued a new password for");
+  // And a real person is still named as themselves.
+  expect(html).toContain("Owner</strong> unlocked the account of");
+});
+
+/** The console calls them policies; this table called them roles. */
+test("the column is the word the rest of the console uses", () => {
+  const html = renderWith([PERSON]);
+  expect(html).toContain("Policy");
+  expect(html).not.toContain(">Role<");
+});
