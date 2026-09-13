@@ -33,6 +33,30 @@ Every entry, in order, with both sides of each. This is where you look when a
 figure is not what you expected: the entry that caused it is here, with what it
 came from.
 
+## Stock, and what it cost you
+
+If you sell physical things through the [Shop](/modules/shop) or over the
+counter, your books follow the stock as well as the money.
+
+A delivery puts the goods on your balance sheet as **Inventory** — an asset,
+because that is what stock on a shelf is — and records what you owe the
+supplier. Nothing is treated as an expense yet: you have swapped a debt for
+goods, not spent anything.
+
+When one of those goods is sold and leaves, its cost moves out of Inventory and
+into **Cost of Sales**, against the sale that took it. That is what makes gross
+profit mean something: a sale of $40 on an item that cost you $22 shows $18,
+not $40. Breakages and a stocktake that comes up short are costs too. Something
+a customer brings back goes the other way — the cost of that sale is undone,
+rather than a debt to a supplier being invented.
+
+:::note[Where the cost comes from]
+Each product variant carries a cost, and that is the figure used. A variant
+with no cost recorded posts nothing rather than posting zero — a journal line
+saying an item was free is worse than a gap you can see in the margin. If your
+margins look too good, that is usually the reason.
+:::
+
 ## Reports
 
 Profit and loss and a balance sheet, over any period. Both are read from the

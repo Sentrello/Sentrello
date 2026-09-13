@@ -26,6 +26,12 @@ That is why the inventory screen shows three numbers. **Free to sell** — what 
 on the shelf less what is already spoken for — is the one that decides whether a
 sale can happen. A product can be hidden without deleting it.
 
+Stock also reaches your books. A delivery becomes an asset on the balance sheet
+and a debt to the supplier; when the goods are sold and leave, what they cost
+you moves to Cost of Sales against that sale. It is the difference between a
+profit figure that means something and one that is just your takings — see
+[stock and what it cost you](/core/accounting#stock-and-what-it-cost-you).
+
 ## The storefront
 
 A public shop, listing pages and product pages, that works on a phone. It uses
