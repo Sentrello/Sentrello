@@ -6,10 +6,24 @@
  * these variables, so the whole app themes from one place.
  */
 @theme {
-  --color-brand-50: oklch(0.97 0.02 190);
-  --color-brand-100: oklch(0.93 0.04 190);
-  --color-brand-300: oklch(0.78 0.09 190);
-  --color-brand-500: oklch(0.58 0.11 190);
+  /*
+   * The brand is the one on sentrello.com: a warm orange on a near-black
+   * ground, not the teal this started with. James, 2026-09-13 — the app and
+   * the site should be unmistakably the same product.
+   *
+   * The names are unchanged on purpose. Every screen already reads
+   * `--color-brand-*`, and renaming a token across a hundred files to change
+   * a hue is a large diff that says nothing. Only the values move.
+   *
+   * Taken from the site's own stylesheet rather than sampled by eye: `#ff8a3d`
+   * is what it uses on dark and `#c4470f` on light, converted here.
+   */
+  --color-brand-50: oklch(0.97 0.025 45);
+  --color-brand-100: oklch(0.93 0.05 45);
+  /** The site's dark accent exactly. 7.89:1 on the dark ground. */
+  --color-brand-300: oklch(0.75 0.167 51);
+  /** The site's light accent exactly. White on it measures 4.93:1. */
+  --color-brand-500: oklch(0.564 0.171 40);
   /**
    * The brand colour, dark enough to put white text on.
    *
@@ -21,9 +35,22 @@
    * changes every place it appears, this is the shade used *behind white text*.
    * It measures 5.17:1. Everything else keeps brand-500.
    */
+  /**
+   * The shade used where the brand is *text*, which is a different job.
+   *
+   * The site's light accent measures 4.42:1 on its own paper ground — under
+   * the 4.5:1 AA asks for body text, and this token is on every link and every
+   * brand-coloured label in the product. Darkening the identity itself would
+   * change every fill as well, so the fill keeps `brand-500` and text gets
+   * this: 5.33:1 on the surface, 5.95:1 on white, with enough margin that a
+   * later tweak to the ground does not silently drop back under.
+   *
+   * The same reasoning that produced this token when the brand was teal. The
+   * hue changed; the problem did not.
+   */
   --brand-on-white-text: var(--color-brand-600);
-  --color-brand-600: oklch(0.5 0.1 190);
-  --color-brand-700: oklch(0.42 0.09 190);
+  --color-brand-600: oklch(0.52 0.171 40);
+  --color-brand-700: oklch(0.44 0.16 40);
 
   --color-neutral-50: oklch(0.98 0.004 80);
   --color-neutral-100: oklch(0.96 0.005 80);
@@ -63,9 +90,15 @@
   /*
    * Darkened from 0.6, which measured 4.31:1 with white on it — just under the
    * 4.5:1 line, and this is the colour on every Delete button in the product.
-   * 0.55 measures 5.32:1 and is still unmistakably red.
+   * 0.55 measures 5.33:1 and is still unmistakably red.
+   *
+   * Moved from hue 25 to 20 when the brand became orange. At 25 it was
+   * `#c53637` against a brand of `#b53800` — fifteen degrees apart, which on a
+   * screen is a Delete button that looks like a link. This is a money
+   * application and those two must never be told apart by effort. The lightness
+   * and chroma are unchanged, so the contrast above still holds.
    */
-  --color-danger: oklch(0.55 0.18 25);
+  --color-danger: oklch(0.55 0.18 20);
   /*
    * Darkened from 0.62 for the same reason as the two above, and missed when
    * they were done: it measured 3.43:1 on the light surface, which is under
@@ -75,12 +108,25 @@
   --color-info: oklch(0.52 0.12 250);
 }
 
+/*
+ * The grounds are sentrello.com's own, converted from its stylesheet rather
+ * than sampled: a warm paper on light and a near-black with a blue cast on
+ * dark. The site is dark-first by choice — a visitor lands on dark and light
+ * is opt-in — and the app deliberately is not: this is read for eight hours by
+ * somebody who did not choose to be here, so it still follows the reader's
+ * system preference with a toggle over the top.
+ *
+ * Measured before adopting. Muted text is 5.16:1 on the light ground and
+ * 6.36:1 on the dark; body text is 16.6:1 and 16.3:1. The contrast work
+ * recorded above this was not undone to change a colour.
+ */
 :root {
-  --surface: var(--color-neutral-50);
+  --surface: oklch(0.962 0.007 81);
   --surface-raised: white;
-  --border: var(--color-neutral-200);
-  --text: var(--color-neutral-900);
-  --text-muted: var(--color-neutral-550);
+  --surface-sunken: oklch(0.927 0.012 80);
+  --border: oklch(0.869 0.017 79);
+  --text: oklch(0.189 0.01 248);
+  --text-muted: oklch(0.509 0.023 251);
   --link: var(--color-brand-600);
   --link-hover: var(--color-brand-700);
 }
@@ -95,32 +141,35 @@
  */
 @media (prefers-color-scheme: dark) {
   :root {
-    --surface: oklch(0.19 0.008 80);
-    --surface-raised: oklch(0.24 0.008 80);
-    --border: oklch(0.32 0.008 80);
-    --text: var(--color-neutral-100);
-    --text-muted: oklch(0.68 0.008 80);
+    --surface: oklch(0.189 0.01 248);
+    --surface-raised: oklch(0.241 0.016 252);
+    --surface-sunken: oklch(0.162 0.008 248);
+    --border: oklch(0.317 0.022 251);
+    --text: oklch(0.956 0.007 248);
+    --text-muted: oklch(0.677 0.027 250);
     --link: var(--color-brand-300);
     --link-hover: var(--color-brand-100);
   }
 }
 
 :root[data-theme="dark"] {
-  --surface: oklch(0.19 0.008 80);
-  --surface-raised: oklch(0.24 0.008 80);
-  --border: oklch(0.32 0.008 80);
-  --text: var(--color-neutral-100);
-  --text-muted: oklch(0.68 0.008 80);
+  --surface: oklch(0.189 0.01 248);
+  --surface-raised: oklch(0.241 0.016 252);
+  --surface-sunken: oklch(0.162 0.008 248);
+  --border: oklch(0.317 0.022 251);
+  --text: oklch(0.956 0.007 248);
+  --text-muted: oklch(0.677 0.027 250);
   --link: var(--color-brand-300);
   --link-hover: var(--color-brand-100);
 }
 
 :root[data-theme="light"] {
-  --surface: var(--color-neutral-50);
+  --surface: oklch(0.962 0.007 81);
   --surface-raised: white;
-  --border: var(--color-neutral-200);
-  --text: var(--color-neutral-900);
-  --text-muted: var(--color-neutral-550);
+  --surface-sunken: oklch(0.927 0.012 80);
+  --border: oklch(0.869 0.017 79);
+  --text: oklch(0.189 0.01 248);
+  --text-muted: oklch(0.509 0.023 251);
   --link: var(--color-brand-600);
   --link-hover: var(--color-brand-700);
 }
@@ -412,6 +461,31 @@ body {
   background: var(--surface);
   color: var(--text);
   font-family: Inter, system-ui, -apple-system, sans-serif;
+}
+
+/*
+ * Headings, set the way the site sets them.
+ *
+ * sentrello.com's most visible type decision is its headings: tight tracking,
+ * a line height just above the cap height, and balanced wrapping so a
+ * two-line title does not leave one word alone on the second. That treatment
+ * is most of what makes a heading there look like a heading there, and none
+ * of it costs a webfont.
+ *
+ * The site also sets body copy in monospace. That is not brought over: it is a
+ * landing page somebody reads for ninety seconds, and this is a screen a
+ * business reads all day.
+ */
+h1,
+h2,
+h3 {
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+h1 {
+  letter-spacing: -0.03em;
 }
 
 /*
