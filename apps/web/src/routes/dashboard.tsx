@@ -225,50 +225,57 @@ export function Dashboard() {
   if (error) return <ErrorNote error={error} />;
   if (!data) return null;
 
-  return data.tier === "pro" ? (
-    <ProDashboard data={data} />
-  ) : (
-    <FreeDashboard data={data} />
-  );
-}
-
-function FreeDashboard({ data }: { data: Dashboard }) {
+  /**
+   * One dashboard, both tiers. James, 2026-09-13.
+   *
+   * Free used to be a fixed column of three panels and Pro the arrangeable
+   * one, which made the screen every new instance opens first the half nobody
+   * was looking at. They are the same screen now: the same tabs, the same
+   * panels from the same modules, arranged by whoever is reading it.
+   *
+   * What is still only Free is the block above it. A business that has paid
+   * should not be advertised to on the page it opens each morning — not being
+   * sold to is part of what was bought.
+   */
   return (
     <div className="space-y-4">
       {/* Before anything else, and only while there is nothing else. */}
       <StartHere startHere={data.startHere} />
-
-      {/* Free only, and first on the screen. A business that has paid should
-          not be advertised to on the page it opens each morning — not being
-          sold to is part of what was bought. */}
       <AdSlot ad={data.ad} />
-
-      <MoneyPanel data={data} />
-      <AttentionPanel data={data} />
-      <HealthPanel health={data.health} />
+      <ArrangedDashboard data={data} />
     </div>
   );
 }
 
 /**
- * The Pro dashboard: the same figures, arranged by whoever is reading them.
+ * The dashboard: the same figures, arranged by whoever is reading them.
  *
  * Tabs rather than one long scroll, because the person who wants the ledger
  * charts every Monday is not the person who wants the overdue list every
  * morning, and on most instances they are the same person on different days.
  */
-function ProDashboard({ data }: { data: Dashboard }) {
+function ArrangedDashboard({ data }: { data: Dashboard }) {
   const [active, setActive] = useState("");
   const [arranging, setArranging] = useState(false);
 
   const layout = useQuery({
     queryKey: ["dashboard", "layout"],
     queryFn: () =>
-      api<{ tabs: Tab[]; widgets: string[] }>("/api/dashboard/layout"),
+      api<{
+        tabs: Tab[];
+        widgets: string[];
+        moduleWidgets: { id: string; label: string }[];
+      }>("/api/dashboard/layout"),
   });
+  /*
+   * Twelve months of ledger, which is the half Free does not buy. The endpoint
+   * is not there on Free — not merely hidden — so asking would be a 404 in an
+   * error box on the screen every instance opens first.
+   */
   const insights = useQuery({
     queryKey: ["dashboard", "insights"],
     queryFn: () => api<Insights>("/api/dashboard/insights"),
+    enabled: data.tier === "pro",
   });
 
   if (layout.isLoading) return <Loading />;
@@ -303,7 +310,11 @@ function ProDashboard({ data }: { data: Dashboard }) {
       {arranging ? (
         <Arrange
           tabs={tabs}
-          widgets={layout.data.widgets}
+          widgets={[
+            ...layout.data.widgets,
+            ...(layout.data.moduleWidgets ?? []).map((m) => m.id),
+          ]}
+          moduleWidgets={layout.data.moduleWidgets ?? []}
           onSaved={() => {
             setArranging(false);
             // Back to the first tab, whatever it is now called — arranging is
@@ -379,6 +390,14 @@ function Widget({
         </Card>
       );
     default:
+      /*
+       * A panel a module brought with it. The dashboard knows nothing about
+       * what it contains — Shop and Booking are in another repository and Core
+       * must not import them — only that the module said it was worth showing.
+       */
+      if (id.startsWith("summary:")) {
+        return <SummaryWidget summaryId={id.slice("summary:".length)} />;
+      }
       return <InsightWidget id={id} insights={insights} />;
   }
 }
@@ -412,7 +431,29 @@ function ModulesPanel() {
   const summaries = data?.summaries ?? [];
   if (summaries.length === 0) return null;
 
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      {summaries.map((summary) => (
+        <SummaryCard key={summary.id} summary={summary} />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * One module's figures, in that module's own words.
+ *
+ * The dashboard knows nothing about what is in here. A module registers a
+ * summary, says what each figure is called and whether it is money, a count or
+ * a word, and this draws whatever came back — so Shop and Booking reach the
+ * first screen a business looks at without Core ever naming them.
+ */
+function SummaryCard({ summary }: { summary: ModuleSummary }) {
+  const { open } = useNavigation();
+
   const shown = (figure: ModuleSummary["figures"][number]) => {
+    // Money crosses the wire in cents and is formatted here, in the reader's
+    // own currency and locale rather than the server's.
     if (figure.kind === "money" && typeof figure.value === "number") {
       return formatMoney(figure.value);
     }
@@ -420,42 +461,66 @@ function ModulesPanel() {
   };
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      {summaries.map((summary) => (
-        <Card key={summary.id}>
-          <div className="mb-2 flex items-baseline gap-2">
-            <p className="font-medium">{summary.label}</p>
-            {/* Straight into the module, because a figure somebody reads on
-                the dashboard is a figure they want to go and act on. */}
-            {summary.opens ? (
-              <button
-                type="button"
-                className="ml-auto text-sm link-muted"
-                onClick={() =>
-                  open({
-                    moduleId: summary.opens ?? summary.moduleId,
-                    title: summary.label,
-                  })
-                }
-              >
-                Open
-              </button>
-            ) : null}
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {summary.figures.map((figure) => (
-              <Stat
-                key={figure.label}
-                label={figure.label}
-                value={shown(figure)}
-                tone={figure.tone}
-              />
-            ))}
-          </div>
-        </Card>
-      ))}
-    </div>
+    <Card>
+      <div className="mb-2 flex items-baseline gap-2">
+        <p className="font-medium">{summary.label}</p>
+        {/* Straight into the module, because a figure somebody reads on the
+            dashboard is a figure they want to go and act on. */}
+        {summary.opens ? (
+          <button
+            type="button"
+            className="ml-auto text-sm link-muted"
+            onClick={() =>
+              open({
+                moduleId: summary.opens ?? summary.moduleId,
+                title: summary.label,
+              })
+            }
+          >
+            Open
+          </button>
+        ) : null}
+      </div>
+      {/*
+        Four across on a wide screen, like the health panel. A money figure is
+        right-aligned inside its own column, so two columns in a full-width
+        card left the amount stranded at the far edge with its label back at
+        the other one. These cards used to sit two-to-a-row inside one panel,
+        which hid it; a module's panel is a panel of its own now.
+      */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {summary.figures.map((figure) => (
+          <Stat
+            key={figure.label}
+            label={figure.label}
+            value={shown(figure)}
+            tone={figure.tone}
+          />
+        ))}
+      </div>
+    </Card>
   );
+}
+
+/**
+ * One module's panel, wherever somebody put it.
+ *
+ * Nothing is drawn for a module this instance cannot supply. A layout keeps
+ * the panel of a module that is switched off or whose licence has lapsed —
+ * so it comes back where it was left rather than having been deleted while it
+ * was away — and until it does, there is simply nothing to draw.
+ */
+function SummaryWidget({ summaryId }: { summaryId: string }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["dashboard", "summaries"],
+    queryFn: () =>
+      api<{ summaries: ModuleSummary[] }>("/api/dashboard/summaries"),
+  });
+
+  if (isLoading) return <Loading />;
+  const summary = (data?.summaries ?? []).find((s) => s.id === summaryId);
+  if (!summary) return null;
+  return <SummaryCard summary={summary} />;
 }
 
 /**
@@ -816,10 +881,19 @@ function Stat({
 function Arrange({
   tabs,
   widgets,
+  moduleWidgets,
   onSaved,
 }: {
   tabs: Tab[];
   widgets: string[];
+  /**
+   * The panels this instance's modules brought with them.
+   *
+   * Passed rather than looked up, because their names belong to the modules:
+   * "Shop" is what the Shop called itself, and a list of `summary:shop` ids is
+   * a list nobody can arrange.
+   */
+  moduleWidgets: { id: string; label: string }[];
   onSaved: () => void;
 }) {
   const qc = useQueryClient();
@@ -836,6 +910,11 @@ function Arrange({
       onSaved();
     },
   });
+
+  const labelOf = (widget: string) =>
+    moduleWidgets.find((m) => m.id === widget)?.label ??
+    WIDGET_LABELS[widget] ??
+    widget;
 
   const toggle = (index: number, widget: string) =>
     setDraft((d) =>
@@ -889,7 +968,7 @@ function Arrange({
                     checked={tab.widgets.includes(widget)}
                     onChange={() => toggle(i, widget)}
                   />
-                  {WIDGET_LABELS[widget] ?? widget}
+                  {labelOf(widget)}
                 </label>
               ))}
             </div>

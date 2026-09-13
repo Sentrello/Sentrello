@@ -49,6 +49,33 @@ export const WIDGETS = [
 
 export type Widget = (typeof WIDGETS)[number];
 
+/**
+ * A widget a module brought with it, by the summary it registered.
+ *
+ * The built-in list above is closed and core-only, which is as far as it can
+ * go: Shop and Booking live in another repository and Core must not import
+ * them. Each module already declares what it is worth showing — that is
+ * `registerSummary` in the SDK — and every one of those is now a panel of its
+ * own that can be put on a tab, rather than all of them being lumped into one
+ * "modules" card nobody could arrange.
+ *
+ * A widget exists only for a module this instance loaded, which the licence
+ * already decides, and is only drawn for somebody the summary's own `requires`
+ * lets read it. Two gates, the same pair as everywhere else.
+ */
+const SUMMARY_PREFIX = "summary:";
+
+/** Ids are module-chosen, so the shape is checked rather than a list of them. */
+const SUMMARY_WIDGET = /^summary:[a-z0-9][a-z0-9-]{0,60}$/;
+
+export const isSummaryWidget = (w: string): boolean => SUMMARY_WIDGET.test(w);
+
+export const summaryWidget = (summaryId: string): string =>
+  `${SUMMARY_PREFIX}${summaryId}`;
+
+export const summaryIdOf = (widget: string): string =>
+  widget.slice(SUMMARY_PREFIX.length);
+
 export interface Tab {
   name: string;
   widgets: Widget[];
@@ -60,15 +87,37 @@ export interface Tab {
  * Worth enforcing rather than trusting the screen: the tab strip is built from
  * whatever is stored, and a payload with two hundred tabs is one PUT away.
  */
-const MAX_TABS = 6;
+/**
+ * Six was the limit while every tab was one somebody typed by hand. Tabs are
+ * generated now — one per module this instance loaded — so an instance with
+ * the Shop, Booking, the Newsletter, Storage and SEO needs room for them
+ * beside the four core screens and System.
+ */
+const MAX_TABS = 12;
+
+/** Overview, Performance, Sales, Reports — the four before any module's. */
+const CORE_TABS = 4;
 const MAX_WIDGETS_PER_TAB = 12;
 
-/** What somebody sees before they have arranged anything. */
-export function defaultLayout(): Tab[] {
+/**
+ * What somebody sees before they have arranged anything.
+ *
+ * `modules` — the card listing every module at once — is deliberately not on
+ * it any more. Each module has a panel of its own now, so that card was the
+ * same figures twice, and the one you could not move.
+ *
+ * Given what this instance loaded, every module gets a tab of its own, between
+ * the core screens and System. That is the shape the product is meant to have:
+ * a business with the Shop opens the dashboard and finds a Shop tab, without
+ * arranging anything.
+ */
+export function defaultLayout(
+  modules: { id: string; label: string }[] = [],
+): Tab[] {
   return [
     {
       name: "Overview",
-      widgets: ["modules", "money", "attention", "pipeline", "invoice-aging"],
+      widgets: ["money", "attention", "pipeline", "invoice-aging"],
     },
     {
       name: "Performance",
@@ -79,6 +128,17 @@ export function defaultLayout(): Tab[] {
       name: "Reports",
       widgets: ["who-owes", "balance-sheet", "cash-flow", "trial-balance"],
     },
+    /*
+     * Trimmed here rather than at the end, so it is a module that is dropped
+     * when there are too many and never System. The first cut sliced the whole
+     * list and lost the health tab on any instance with enough modules —
+     * exactly the tab that must always be reachable, because it is where
+     * somebody looks when the instance is the thing that is wrong.
+     */
+    ...modules.slice(0, MAX_TABS - CORE_TABS - 1).map((m) => ({
+      name: m.label,
+      widgets: [summaryWidget(m.id)] as Widget[],
+    })),
     { name: "System", widgets: ["health"] },
   ];
 }
@@ -90,8 +150,11 @@ export function defaultLayout(): Tab[] {
  * downgrades, or a layout saved by a newer version, should lose the panel it
  * cannot draw and keep the rest — not refuse to load anybody's dashboard.
  */
-export function normalizeLayout(input: unknown): Tab[] {
-  if (!Array.isArray(input)) return defaultLayout();
+export function normalizeLayout(
+  input: unknown,
+  modules: { id: string; label: string }[] = [],
+): Tab[] {
+  if (!Array.isArray(input)) return defaultLayout(modules);
 
   const tabs: Tab[] = [];
   for (const raw of input.slice(0, MAX_TABS)) {
@@ -101,10 +164,20 @@ export function normalizeLayout(input: unknown): Tab[] {
       typeof tab.name === "string" && tab.name.trim()
         ? tab.name.trim().slice(0, 40)
         : `Tab ${tabs.length + 1}`;
+    /*
+     * A module's widget is kept even when that module is not loaded right now.
+     * A licence that lapses and is renewed, or a module switched off for a
+     * week, should find its panel where it was left rather than having been
+     * quietly deleted from the layout while it was away. Nothing is drawn for
+     * a widget the instance cannot supply — the screen renders what comes
+     * back, not what is stored.
+     */
     const widgets = Array.isArray(tab.widgets)
       ? (
-          tab.widgets.filter((w): w is Widget =>
-            WIDGETS.includes(w as Widget),
+          tab.widgets.filter(
+            (w): w is Widget =>
+              typeof w === "string" &&
+              (WIDGETS.includes(w as Widget) || isSummaryWidget(w)),
           ) as Widget[]
         ).slice(0, MAX_WIDGETS_PER_TAB)
       : [];
@@ -112,12 +185,13 @@ export function normalizeLayout(input: unknown): Tab[] {
   }
   // A layout with no tabs at all is a blank screen with no way back to a
   // usable one, so an empty save resets rather than empties.
-  return tabs.length ? tabs : defaultLayout();
+  return tabs.length ? tabs : defaultLayout(modules);
 }
 
 export async function readLayout(
   organizationId: string,
   userId: string,
+  modules: { id: string; label: string }[] = [],
 ): Promise<Tab[]> {
   const [row] = await db
     .select({ value: schema.userPreferences.value })
@@ -131,9 +205,9 @@ export async function readLayout(
     )
     .limit(1);
 
-  if (!row) return defaultLayout();
+  if (!row) return defaultLayout(modules);
   const stored = row.value as { tabs?: unknown };
-  return normalizeLayout(stored?.tabs);
+  return normalizeLayout(stored?.tabs, modules);
 }
 
 export async function writeLayout(
