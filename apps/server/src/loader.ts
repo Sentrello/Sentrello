@@ -61,6 +61,9 @@ export function loadModules(
    */
   clearServices();
 
+  /** Entitled and held back by a dependency, as the passes go round. */
+  const blocked = new Map<string, string[]>();
+
   // simple dependency-aware pass; repeat until no progress
   let progress = true;
   while (progress) {
@@ -86,7 +89,19 @@ export function loadModules(
       // A module may decline the host itself — ours do, on the flag that says
       // which machine this is. Checked before anything is registered, so a
       // declined module has no tables, no screens and no place in /healthz.
-      if (!tierOk || !depsOk || m.available?.() === false) continue;
+      const declined = m.available?.() === false;
+      /*
+       * Entitled, willing, and held back only by something it depends on.
+       *
+       * Tracked rather than worked out afterwards, because afterwards cannot
+       * tell the two apart: a module absent for want of a licence is correctly
+       * absent and its dependencies are beside the point, while one that is
+       * paid for and still missing is a fault. Reporting both would fill a
+       * Free instance's health check with modules it never bought.
+       */
+      if (tierOk && !declined && !depsOk) blocked.set(m.id, m.requires ?? []);
+      if (!tierOk || !depsOk || declined) continue;
+      blocked.delete(m.id);
       m.register({
         app,
         entitled,
@@ -122,6 +137,32 @@ export function loadModules(
       progress = true;
     }
   }
+  /**
+   * A module that was entitled, installed, and never loaded anyway.
+   *
+   * The loop above repeats until it stops making progress, and anything still
+   * unloaded is then dropped in silence. That silence hid three modules for
+   * weeks: `invoicing` and `accounting` stopped being modules of their own when
+   * they merged into `money`, and everything that named them as a dependency —
+   * `pro-core`, and the Shop, and the POS behind the Shop — could no longer be
+   * satisfied. Each was bought, installed, entitled and simply absent, with
+   * nothing anywhere saying why.
+   *
+   * A missing dependency is the one failure the loader can describe exactly, so
+   * it says which module wanted what. Reported rather than thrown: an instance
+   * that can run most of itself should.
+   */
+  const unmet: { name: string; reason: string }[] = [];
+  for (const [id, requires] of blocked) {
+    if (loaded.has(id)) continue;
+    const missing = requires.filter((d) => !loaded.has(d));
+    if (missing.length === 0) continue;
+    unmet.push({
+      name: id,
+      reason: `it needs ${missing.join(" and ")}, which this instance did not load`,
+    });
+  }
+
   nav.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   return {
     nav,
@@ -131,5 +172,14 @@ export function loadModules(
     permissions,
     jobs,
     loaded: [...loaded],
+    /*
+     * Returned rather than pushed into the host's own list of failures.
+     *
+     * That list is module scope and outlives a call — so a loader test with a
+     * fixture that has an unmet dependency, which is a thing the loader is
+     * supposed to do, left a phantom module in the next test's health check.
+     * The caller owns reporting; this only answers what happened.
+     */
+    unmet,
   };
 }
