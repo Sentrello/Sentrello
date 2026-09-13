@@ -10,6 +10,7 @@ import {
   ErrorNote,
   Loading,
   Row,
+  Select,
   Table,
   Tabs,
   activeTab,
@@ -17,6 +18,7 @@ import {
   muted,
 } from "../../lib/ui";
 import { AccessMatrix, type Grant } from "./access-matrix";
+import { policyLabel } from "./policy-ui";
 
 /**
  * One person: the six tabs the design gives them
@@ -170,6 +172,38 @@ function Details({
     onSuccess: onChanged,
   });
 
+  /**
+   * What this person may do, on the tab an administrator opens first.
+   *
+   * It was on neither of the first two tabs. Somebody opening a person to
+   * answer "what can they do" got their name, their email and when they last
+   * signed in — and had to go back to the list to change it, which is the one
+   * screen this record exists to save them from.
+   */
+  const policies = useQuery({
+    queryKey: ["users-policies"],
+    queryFn: () =>
+      api<{ roles: { role: string; kind: string }[] }>("/api/users/roles"),
+  });
+  const roleNames = (policies.data?.roles ?? [])
+    .filter((r) => r.kind === "user" || r.kind === "custom")
+    .map((r) => r.role);
+
+  const setRole = useMutation({
+    mutationFn: (role: string) =>
+      api(`/api/users/${person.userId}/role`, {
+        method: "POST",
+        body: JSON.stringify({ role }),
+      }),
+    onSuccess: onChanged,
+  });
+
+  /** Everything they hold, less what was given to them directly. */
+  const throughGroups = person.role
+    .split(",")
+    .filter((r) => r && r !== person.baseRole)
+    .map(policyLabel);
+
   return (
     <Card>
       <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
@@ -202,7 +236,56 @@ function Details({
               : "Enabled"}
           </dd>
         </div>
+        <div>
+          <dt className="font-medium">Policy</dt>
+          <dd className="mt-1">
+            {person.you ? (
+              // Changing your own is how the last administrator locks the
+              // business out of its own instance, and nobody else can undo it.
+              <span style={muted}>{policyLabel(person.baseRole)}</span>
+            ) : (
+              <Select
+                value={person.baseRole}
+                aria-label={`Policy for ${person.name || person.email}`}
+                disabled={setRole.isPending}
+                onChange={(e) => setRole.mutate(e.target.value)}
+              >
+                {[...new Set([person.baseRole, ...roleNames])].map((r) => (
+                  <option key={r} value={r}>
+                    {policyLabel(r)}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt className="font-medium">Groups</dt>
+          <dd style={muted}>
+            {person.groups.length === 0 ? (
+              "none"
+            ) : (
+              <>
+                {person.groups.join(", ")}
+                {/* What a group grants is changed for the group, not for one
+                    person inside it — so it is stated here, not editable. */}
+                <div className="text-xs">
+                  and through them:{" "}
+                  {throughGroups.join(", ") || "nothing extra"}
+                </div>
+              </>
+            )}
+          </dd>
+        </div>
       </dl>
+
+      {setRole.error ? <ErrorNote error={setRole.error} /> : null}
+
+      <p className="mt-3 text-xs" style={muted}>
+        A person's name and email are theirs to change, under their own account.
+        An administrator who could change somebody's email could point it at
+        their own and take the account over.
+      </p>
 
       {person.you ? (
         <p className="mt-3 text-xs" style={muted}>

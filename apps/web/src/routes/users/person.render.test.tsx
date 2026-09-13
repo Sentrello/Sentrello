@@ -55,6 +55,12 @@ function render(person: Record<string, unknown>, search = ""): string {
   withLocation(search);
   const qc = new QueryClient();
   qc.setQueryData(["person", "u1"], { person });
+  qc.setQueryData(["users-policies"], {
+    roles: [
+      { role: "admins", kind: "user" },
+      { role: "staff", kind: "user" },
+    ],
+  });
   return renderToStaticMarkup(
     <QueryClientProvider client={qc}>
       <NavigationProvider
@@ -112,4 +118,43 @@ test("an account nobody has failed to sign into shows no lock card at all", () =
   const html = render(base, "?tab=credentials");
   expect(html).not.toContain("Unlock");
   expect(html).not.toContain("failed attempts");
+});
+
+/**
+ * What this person may do, on the tab an administrator opens first.
+ *
+ * Details showed a name, an email, when they joined and when they last signed
+ * in. Somebody opening a person to answer "what can they do" got none of it,
+ * and had to go back to the list to change it — which is the one screen this
+ * record exists to save them from.
+ */
+test("the details tab names their policy and offers to change it", () => {
+  const html = render({ ...base, baseRole: "staff", role: "staff" });
+
+  expect(html).toContain("Policy");
+  expect(html).toContain("Staff");
+  // Changeable from here, not only from the list.
+  expect(html).toContain("<select");
+  expect(html).toContain('value="staff"');
+});
+
+test("the details tab names their groups, and what those add", () => {
+  const html = render({
+    ...base,
+    baseRole: "staff",
+    role: "staff,sales",
+    groups: ["Sales"],
+  });
+
+  expect(html).toContain("Groups");
+  expect(html).toContain("Sales");
+  expect(html).toContain("and through them");
+});
+
+/** Your own policy is stated, never offered — the last administrator out. */
+test("you cannot change your own policy from your own record", () => {
+  const html = render({ ...base, you: true, baseRole: "admins" });
+
+  expect(html).toContain("Admins");
+  expect(html).not.toContain("<select");
 });

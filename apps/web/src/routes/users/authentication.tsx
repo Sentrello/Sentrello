@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import { Card, ErrorNote, Field, Input, Loading, muted } from "../../lib/ui";
+import { policyLabel } from "./policy-ui";
 
 /**
  * The rules for signing in, and what this instance's own deployment means
@@ -121,7 +122,7 @@ function SignInRules() {
                   })
                 }
               />
-              {role.role}
+              {policyLabel(role.role)}
             </label>
           ))}
         </div>
