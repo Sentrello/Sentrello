@@ -212,7 +212,7 @@ optional modules, which are not sold on their own.
 | **Accounts and access** — five policies, four groups, all editable; sessions, sign-in providers, two-factor, event log | ● | ● |
 | **Settings** — business details on every document, third-party connections, one-click update and rollback | ● | ● |
 | **Link attribution** — short links on your own domains, and the click → lead → sale chain | — | ● |
-| **Optional modules** — Booking, Shop, Newsletter, Documentation, Documents, SEO | — | available to subscribe |
+| **Optional modules** — Booking, Shop, POS, Subscriptions, Newsletter, Docs, Storage, SEO | — | available to subscribe |
 | Self-hosted, your database, no per-seat pricing | ● | ● |
 
 Pro is per instance, not per person. Hiring somebody costs nothing.
@@ -232,17 +232,18 @@ sold against the free core.
 | **Shop** | Products, stock by location, storefront, checkout and payments | Available |
 | **Newsletter** | Lists, segments, templates, campaigns and delivery | Available |
 | **Documentation** | Publishes your own documentation site | Available |
-| **Documents** | Folders, versions, sharing and retention | Available |
+| **Storage** | Folders, versions, sharing and retention, with warnings before a certificate lapses | Available |
 | **SEO** | Keyword research, rank tracking, audits, backlinks, competitors — see below | Available |
 | **Project Management** | Projects, tasks, boards, milestones and time against work | **Included with Pro from v1** |
 | **HR** | People records, leave, onboarding and reviews | **Q1 2027** |
 | **Helpdesk** | Tickets, queues, SLAs and a customer-facing portal | **Q1 2027** |
-| **Point of Sale** | A till for counter service — works offline, drives a receipt printer and cash drawer. A plugin for Shop, free with it | **Q3 2027** |
+| **Subscriptions** | Plans, subscribers, trials, pauses, and a customer who can change or cancel their own | Available |
+| **POS** | Sell face to face: works offline, drives a receipt printer and a cash drawer. A plugin for Shop | Available |
 
-Point of Sale is a **plugin**: a module that plugs into another module. It needs
-Shop, it is free to anyone who has Shop, and it shares Shop's catalogue rather
-than keeping a menu of its own — one price to change, one stock figure, one line
-in the books whether something sold at a counter or on a website.
+POS is a **plugin**: a module that plugs into another module. It needs Shop, it
+is bought separately at half a module's price, and it shares Shop's catalogue
+rather than keeping a menu of its own — one price to change, one stock figure,
+one line in the books whether something sold at a counter or on a website.
 
 It arrives for **counter service** first: a queue, an order, cash or card. Table
 service, bars and retail follow, and they are deliberately not given dates here.

@@ -22,7 +22,8 @@ export const OPTIONAL_MODULE_PACKAGES = [
   "@sentrello/pro-projects",
   "@sentrello/mod-scheduling",
   "@sentrello/mod-shop",
-  // The till. Entitled by Shop rather than bought on its own, and still a
+  // The POS. Bought separately and entitled in its own right; it needs Shop
+  // underneath it, which the module declares rather than this list. Still a
   // bundle of its own — a shop with no counter should not carry it.
   "@sentrello/mod-pos",
   // sentrello.com only, and additionally gated by SENTRELLO_CONTROL_PLANE=true
@@ -43,6 +44,7 @@ export const OPTIONAL_MODULE_PACKAGES = [
   "@sentrello/mod-newsletter",
   "@sentrello/mod-docs",
   "@sentrello/mod-seo",
+  "@sentrello/mod-subscriptions",
 ];
 
 /**

@@ -19,7 +19,7 @@ products that drift apart.
 An order **claims** stock rather than removing it: the goods are still on the
 shelf until somebody packs them, so a business counting stock this afternoon
 finds what is actually there. The count moves when the parcel goes out — or
-immediately, for a sale made at the counter with the [Till](/modules/till),
+immediately, for a sale made at the counter with the [POS](/modules/pos),
 because the customer walks out holding it.
 
 That is why the inventory screen shows three numbers. **Free to sell** — what is

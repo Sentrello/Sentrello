@@ -1,11 +1,11 @@
 ---
-title: Documents
+title: Storage
 sidebar_position: 2
 description: Where the business keeps its files, and what stops one expiring unnoticed.
-tags: [module, documents]
+tags: [module, storage, documents]
 ---
 
-# Documents
+# Storage
 
 Somewhere to put the paperwork, with the one feature that actually saves money:
 knowing when something is about to expire.
