@@ -1256,6 +1256,21 @@ export const recurringProfiles = pgTable(
     cancelAt: timestamp("cancel_at"),
     cancelledAt: timestamp("cancelled_at"),
     /** What this is called by whoever else is involved — a Stripe id, say. */
+    /**
+     * The date this profile has been billed up to. **The invariant.**
+     *
+     * `nextRunAt` is a schedule — it says when we intend to act. It does not
+     * record what has been billed, and the two come apart exactly when it
+     * matters: a scheduler that crashes after raising the invoice but before
+     * writing `nextRunAt`, two workers picking up the same profile, or an admin
+     * re-running a job. In every one of those `nextRunAt` still says January is
+     * due, and January has already been paid for.
+     *
+     * So: never raise an invoice for a period starting before this. Null means
+     * nothing has been billed yet, which is not the same as "billed through the
+     * beginning of time".
+     */
+    billedThroughAt: timestamp("billed_through_at"),
     externalRef: text("external_ref"),
     templateJson: jsonb("template_json").$type<{ lines: unknown[] }>(),
     /** Whether raising it also sends it. Off by default. */
@@ -1265,6 +1280,47 @@ export const recurringProfiles = pgTable(
     active: boolean("active").notNull().default(true),
   },
   (t) => [index("recurring_profiles_org_idx").on(t.organizationId)],
+);
+
+/**
+ * One row per period billed. The whole defence against billing twice.
+ *
+ * `UNIQUE (profile_id, period_start)` makes double-billing structurally
+ * impossible rather than merely unlikely: the second insert throws, in the
+ * database, under concurrency, after a crash, forever. It is written inside the
+ * same transaction as the invoice it belongs to, so a period row exists if and
+ * only if the invoice does.
+ *
+ * One constraint instead of a reconciliation engine. We do not repair invoices
+ * retroactively, so there is nothing for a diff to do — what there is to do is
+ * refuse the second attempt, and a unique index does that better than any code
+ * could.
+ *
+ * Kept for recurring invoices as well as subscriptions. Both run through the
+ * same scheduler, and a maintenance contract billed twice in March is the same
+ * problem as a membership billed twice.
+ */
+export const recurringPeriods = pgTable(
+  "recurring_periods",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: text("organization_id").notNull(),
+    profileId: uuid("profile_id").notNull(),
+    /** The period this invoice pays for. */
+    periodStart: timestamp("period_start").notNull(),
+    periodEnd: timestamp("period_end").notNull(),
+    /** Nullable so a period survives an invoice being deleted. */
+    invoiceId: uuid("invoice_id"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("recurring_periods_org_idx").on(t.organizationId),
+    index("recurring_periods_profile_idx").on(t.profileId),
+    unique("recurring_periods_profile_start_uniq").on(
+      t.profileId,
+      t.periodStart,
+    ),
+  ],
 );
 
 export const creditNotes = pgTable(
