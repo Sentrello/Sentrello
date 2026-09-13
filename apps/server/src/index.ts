@@ -117,11 +117,22 @@ const modules: SentrelloModule[] = [
   users,
   ...(await discoverOptionalModules()),
 ];
-const { nav, navVisibility, navPermissions, tiers, loaded, jobs } = loadModules(
-  app,
-  gate,
-  modules,
-);
+const { nav, navVisibility, navPermissions, tiers, loaded, jobs, unmet } =
+  loadModules(app, gate, modules);
+
+/**
+ * Entitled, installed, and held back by something it depends on.
+ *
+ * Reported beside the bundles that would not import, because from a business's
+ * side they are the same fault: a module that was paid for and is not there.
+ * The loader used to skip these in silence, which hid `pro-core`, the Shop and
+ * the POS for weeks after `invoicing` merged into `money` and stopped being a
+ * module anything could depend on.
+ */
+for (const failure of unmet) {
+  failedBundles.push(failure);
+  console.error(`[modules] ${failure.name} did not load: ${failure.reason}`);
+}
 
 // A module brings its own tables. Applying them here — after the licence has
 // decided what loads — means a customer who buys a module gets its schema on the
