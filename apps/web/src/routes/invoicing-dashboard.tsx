@@ -6,6 +6,7 @@ import {
   Card,
   ErrorNote,
   Loading,
+  briefMoney,
   formatDate,
   formatMoney,
   muted,
@@ -103,7 +104,7 @@ export function InvoicingDashboard() {
       {points.length > 0 ? (
         <Card>
           <p className="mb-2 font-medium">Billed by month</p>
-          <Bars points={points} />
+          <Bars points={points} format={briefMoney} />
         </Card>
       ) : null}
 
