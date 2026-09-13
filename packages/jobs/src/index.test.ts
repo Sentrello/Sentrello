@@ -70,7 +70,7 @@ test("license-refresh no-ops cleanly on a Free instance", async () => {
  *
  * They were the same silent answer, and the terminal reported both as a server
  * that could not be reached — which sends somebody to check a firewall that was
- * never the problem. prodemo sat in exactly that state for four days: a key
+ * never the problem. One of our own instances sat in exactly that state for four days: a key
  * written by hand with six groups instead of four, a nightly refresh that did
  * nothing, and a token that then expired into Free.
  */

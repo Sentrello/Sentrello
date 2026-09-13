@@ -27,7 +27,7 @@ async function configFromEnv(): Promise<LicenseRefreshConfig> {
      * whether to run — and useless for saying why nothing happened. An
      * instance whose key is the wrong shape looks exactly like a Free one,
      * refreshes nothing, and is reported at the terminal as a server that
-     * could not be reached. prodemo sat like that for four days: its key had
+     * could not be reached. One of our own instances sat like that for four days: its key had
      * been written by hand with six groups instead of four, the daily refresh
      * did nothing every night, and the token expired.
      */

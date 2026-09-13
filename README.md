@@ -111,7 +111,7 @@ nothing needs a licence key.
 
 ![Money owed, overdue invoices, pipeline value and the server's own health](docs/images/dashboard.png)
 
-**[Take the tour →](https://docs.sentrello.com/getting-started/what-it-looks-like)**
+**[Take the tour →](https://docs.sentrello.com/docs/getting-started/what-it-looks-like)**
 — the dashboard, CRM, quotes and invoicing, accounting, forms, roles and
 settings, screen by screen.
 
@@ -129,7 +129,7 @@ person**: hiring somebody costs nothing.
 Dropping back to free leaves every record you created in place, still readable
 and still exportable. The Pro screens simply stop.
 
-**[The full comparison, line by line →](https://docs.sentrello.com/free-vs-pro)**
+**[The full comparison, line by line →](https://docs.sentrello.com/docs/free-vs-pro)**
 
 ---
 ## The optional modules
@@ -141,15 +141,15 @@ sold against the free core.
 
 | Module | What it is | Availability |
 |---|---|---|
-| **[Booking](https://docs.sentrello.com/modules/booking)** | Diary, availability, resources, and a page customers book themselves on | Available |
-| **[Shop](https://docs.sentrello.com/modules/shop)** | Products, stock by location, storefront, checkout and payments | Available |
-| **[POS](https://docs.sentrello.com/modules/pos)** | Sell face to face: works offline, drives a receipt printer and a cash drawer. A plugin for Shop | Available |
-| **[Subscriptions](https://docs.sentrello.com/modules/subscriptions)** | Plans, subscribers, trials, pauses, and a customer who can change or cancel their own | Available |
-| **[Links](https://docs.sentrello.com/modules/links)** | Short links on your own domain, and the click → signup → sale chain | Available |
-| **[Newsletter](https://docs.sentrello.com/modules/newsletter)** | Lists, segments, templates, campaigns and delivery | Available |
-| **[Documentation](https://docs.sentrello.com/modules/docs)** | Publishes your own documentation site | Available |
-| **[Storage](https://docs.sentrello.com/modules/documents)** | Folders, versions, sharing and retention, with warnings before a certificate lapses | Available |
-| **[SEO](https://docs.sentrello.com/modules/seo)** | Keyword research, rank tracking, audits, backlinks, competitors — see below | Available |
+| **[Booking](https://docs.sentrello.com/docs/modules/booking)** | Diary, availability, resources, and a page customers book themselves on | Available |
+| **[Shop](https://docs.sentrello.com/docs/modules/shop)** | Products, stock by location, storefront, checkout and payments | Available |
+| **[POS](https://docs.sentrello.com/docs/modules/pos)** | Sell face to face: works offline, drives a receipt printer and a cash drawer. A plugin for Shop | Available |
+| **[Subscriptions](https://docs.sentrello.com/docs/modules/subscriptions)** | Plans, subscribers, trials, pauses, and a customer who can change or cancel their own | Available |
+| **[Links](https://docs.sentrello.com/docs/modules/links)** | Short links on your own domain, and the click → signup → sale chain | Available |
+| **[Newsletter](https://docs.sentrello.com/docs/modules/newsletter)** | Lists, segments, templates, campaigns and delivery | Available |
+| **[Documentation](https://docs.sentrello.com/docs/modules/docs)** | Publishes your own documentation site | Available |
+| **[Storage](https://docs.sentrello.com/docs/modules/documents)** | Folders, versions, sharing and retention, with warnings before a certificate lapses | Available |
+| **[SEO](https://docs.sentrello.com/docs/modules/seo)** | Keyword research, rank tracking, audits, backlinks, competitors — see below | Available |
 | **Project Management** | Projects, tasks, boards, milestones and time against work | **Included with Pro from v1** |
 | **HR** | People records, leave, onboarding and reviews | **Q1 2027** |
 | **Helpdesk** | Tickets, queues, SLAs and a customer-facing portal | **Q1 2027** |
@@ -184,7 +184,7 @@ through us. The second earns us nothing and exists because an agency large
 enough to hit a provider's minimum deposit is exactly the one that would object
 to its clients' keywords transiting somebody else's server.
 
-**[What the module does, and how the two options differ →](https://docs.sentrello.com/modules/seo)**
+**[What the module does, and how the two options differ →](https://docs.sentrello.com/docs/modules/seo)**
 
 ---
 ## Founder pricing
@@ -247,7 +247,7 @@ floating point, with tax rates in basis points; and **bookkeeping is
 double-entry**, so every financial event posts a balanced journal entry or
 throws, and every report is computed from the ledger rather than summed from the
 invoice table.
-**[Why, and what it means for your books →](https://docs.sentrello.com/core/money)**
+**[Why, and what it means for your books →](https://docs.sentrello.com/docs/core/money)**
 
 ---
 
