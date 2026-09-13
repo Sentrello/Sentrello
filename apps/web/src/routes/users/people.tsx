@@ -89,6 +89,16 @@ export function People() {
    * screen used to load every one of them, with their sessions and their
    * groups, to draw a list nobody could read.
    */
+  /**
+   * Staff, or the people who buy from this business.
+   *
+   * A shop's customers are members of the organization — that is how the
+   * portal gives somebody their own invoices and nothing else — so they were
+   * in this list beside the people who work here. At five hundred customers
+   * that is not a list with some noise in it; it is a customer list with the
+   * staff hidden inside.
+   */
+  const [audience, setAudience] = useState<"staff" | "customers">("staff");
   const [q, setQ] = useState("");
   /**
    * What is actually asked of the server, a beat behind what is typed.
@@ -109,7 +119,7 @@ export function People() {
   } | null>(null);
 
   const data = useQuery({
-    queryKey: ["users", search, page],
+    queryKey: ["users", audience, search, page],
     queryFn: () =>
       api<{
         people: Person[];
@@ -117,8 +127,9 @@ export function People() {
         perPage: number;
         invitations: Invitation[];
         history: Change[];
+        otherTotal: number;
       }>(
-        `/api/users?page=${page}${search.trim() ? `&q=${encodeURIComponent(search.trim())}` : ""}`,
+        `/api/users?page=${page}&audience=${audience}${search.trim() ? `&q=${encodeURIComponent(search.trim())}` : ""}`,
       ),
     // The list stays on screen while the next page loads, so a keystroke in
     // the search box does not blank the table to a spinner.
@@ -224,77 +235,84 @@ export function People() {
 
   return (
     <div className="space-y-4">
-      <Card>
-        <p className="mb-2 font-medium">Invite somebody</p>
-        <div className="flex flex-wrap items-end gap-2">
-          <Field label="Email">
-            <Input
-              type="email"
-              value={invitee}
-              placeholder="sam@yourbusiness.com"
-              onChange={(e) => setInvitee(e.target.value)}
-            />
-          </Field>
-          <Field label="Policy">
-            <Select
-              value={inviteRole}
-              onChange={(e) => setInviteRole(e.target.value)}
+      {/*
+        Inviting is for people who work here. A customer account is created by
+        the person themselves, in the shop, so an invite box on that list would
+        offer something that does not happen.
+      */}
+      {audience === "staff" ? (
+        <Card>
+          <p className="mb-2 font-medium">Invite somebody</p>
+          <div className="flex flex-wrap items-end gap-2">
+            <Field label="Email">
+              <Input
+                type="email"
+                value={invitee}
+                placeholder="sam@yourbusiness.com"
+                onChange={(e) => setInvitee(e.target.value)}
+              />
+            </Field>
+            <Field label="Policy">
+              <Select
+                value={inviteRole}
+                onChange={(e) => setInviteRole(e.target.value)}
+              >
+                {roleNames.map((r) => (
+                  <option key={r} value={r}>
+                    {policyLabel(r)}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Button
+              onClick={() => invite.mutate()}
+              disabled={invite.isPending || !invitee.trim()}
             >
-              {roleNames.map((r) => (
-                <option key={r} value={r}>
-                  {policyLabel(r)}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Button
-            onClick={() => invite.mutate()}
-            disabled={invite.isPending || !invitee.trim()}
-          >
-            {invite.isPending ? "Inviting…" : "Send invitation"}
-          </Button>
-        </div>
-        {invite.error ? <ErrorNote error={invite.error} /> : null}
-        {invitations.length > 0 ? (
-          <div className="mt-3">
-            <p className="text-sm font-medium">Waiting to be accepted</p>
-            <p className="text-xs" style={muted}>
-              Only the person invited can accept — the link goes to their email.
-              Until they do, you can withdraw it.
-            </p>
-            <ul className="mt-1 space-y-1 text-sm">
-              {invitations.map((i) => (
-                <li
-                  key={i.id}
-                  className="flex flex-wrap items-baseline justify-between gap-2 border-t pt-1"
-                  style={{ borderColor: "var(--border)" }}
-                >
-                  <span>
-                    {i.email}{" "}
-                    <span className="text-xs" style={muted}>
-                      as {i.role} · expires {formatDate(i.expiresAt)}
-                    </span>
-                  </span>
-                  <ConfirmButton
-                    title="Withdraw this invitation?"
-                    message={`The link sent to ${i.email} stops working. You can invite them again at any time.`}
-                    confirmLabel="Withdraw it"
-                    danger
-                    disabled={cancelInvite.isPending}
-                    className="text-xs"
-                    onConfirm={() => cancelInvite.mutate(i.id)}
-                  >
-                    Withdraw
-                  </ConfirmButton>
-                </li>
-              ))}
-            </ul>
-            {cancelInvite.error ? (
-              <ErrorNote error={cancelInvite.error} />
-            ) : null}
+              {invite.isPending ? "Inviting…" : "Send invitation"}
+            </Button>
           </div>
-        ) : null}
-      </Card>
+          {invite.error ? <ErrorNote error={invite.error} /> : null}
+          {invitations.length > 0 ? (
+            <div className="mt-3">
+              <p className="text-sm font-medium">Waiting to be accepted</p>
+              <p className="text-xs" style={muted}>
+                Only the person invited can accept — the link goes to their
+                email. Until they do, you can withdraw it.
+              </p>
+              <ul className="mt-1 space-y-1 text-sm">
+                {invitations.map((i) => (
+                  <li
+                    key={i.id}
+                    className="flex flex-wrap items-baseline justify-between gap-2 border-t pt-1"
+                    style={{ borderColor: "var(--border)" }}
+                  >
+                    <span>
+                      {i.email}{" "}
+                      <span className="text-xs" style={muted}>
+                        as {i.role} · expires {formatDate(i.expiresAt)}
+                      </span>
+                    </span>
+                    <ConfirmButton
+                      title="Withdraw this invitation?"
+                      message={`The link sent to ${i.email} stops working. You can invite them again at any time.`}
+                      confirmLabel="Withdraw it"
+                      danger
+                      disabled={cancelInvite.isPending}
+                      className="text-xs"
+                      onConfirm={() => cancelInvite.mutate(i.id)}
+                    >
+                      Withdraw
+                    </ConfirmButton>
+                  </li>
+                ))}
+              </ul>
+              {cancelInvite.error ? (
+                <ErrorNote error={cancelInvite.error} />
+              ) : null}
+            </div>
+          ) : null}
+        </Card>
+      ) : null}
 
       {issued ? (
         <Card>
@@ -311,6 +329,27 @@ export function People() {
           </div>
         </Card>
       ) : null}
+
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        {(["staff", "customers"] as const).map((which) => (
+          <button
+            key={which}
+            type="button"
+            className={audience === which ? "nav-link nav-child" : "link-muted"}
+            aria-current={audience === which ? "page" : undefined}
+            onClick={() => {
+              setAudience(which);
+              setPage(1);
+              setQ("");
+            }}
+          >
+            {which === "staff" ? "People who work here" : "Customers"}
+            {audience === which
+              ? ` (${total})`
+              : ` (${data.data?.otherTotal ?? 0})`}
+          </button>
+        ))}
+      </div>
 
       {/* A name or an email. At five hundred people the list is not something
           anybody reads down. */}
@@ -383,9 +422,11 @@ export function People() {
             </td>
             <td style={muted}>{p.email}</td>
             <td>
-              {p.you ? (
-                // Changing your own role is how an owner locks the business
-                // out of its own instance, and nobody else can undo it.
+              {p.you || audience === "customers" ? (
+                // Changing your own policy is how an owner locks the business
+                // out of its own instance, and nobody else can undo it. A
+                // customer's is not chosen from a list either — the shop's
+                // portal assigns it when they create the account.
                 <span style={muted}>{policyLabel(p.baseRole)}</span>
               ) : (
                 <Select

@@ -13,7 +13,7 @@ import {
   record,
 } from "@sentrello/db/security-events";
 import type { ModuleContext } from "@sentrello/module-sdk";
-import { and, asc, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, not, or, sql } from "drizzle-orm";
 import { temporaryPassword } from "./password";
 import { applyRoles, twoFactorRequired as needsTwoFactor } from "./roles";
 
@@ -26,6 +26,17 @@ import { applyRoles, twoFactorRequired as needsTwoFactor } from "./roles";
  * the Events screen (`events.ts`) is where sign-in traffic and prune runs are
  * read, not this one.
  */
+/**
+ * The roles that mean "a customer of this business", not somebody who works
+ * here.
+ *
+ * `customer` is reserved by Better Auth and is what the shop's portal assigns
+ * when somebody creates an account to see their own invoices — it is never
+ * chosen from a list. `customers` is the policy carrying the same idea for a
+ * business that set one up by hand. Both, because an instance can have either.
+ */
+export const CUSTOMER_ROLES = ["customer", "customers"];
+
 const NOISE_ACTIONS: SecurityAction[] = [
   "sign-in.succeeded",
   "sign-in.failed",
@@ -242,11 +253,59 @@ export function registerPeople(ctx: ModuleContext) {
           )
         : undefined;
 
+      /**
+       * Customers are not staff, and a list holding both is neither.
+       *
+       * A business selling online has its shop customers as members of the
+       * organization — that is how the portal gives somebody their own
+       * invoices and nothing else. At twenty-five people they are a curiosity
+       * on this screen; at five hundred they are the screen, and finding the
+       * person you actually employ means paging past everybody who ever
+       * bought a thing.
+       *
+       * `customer` is the reserved role the portal assigns, and `customers` is
+       * the policy that carries the same idea, so the split is on both. Asked
+       * for explicitly rather than inferred: `?audience=customers` is the
+       * other list, and anything else is the people who work here.
+       */
+      const audience = c.req.query("audience") === "customers";
+      /*
+       * `baseRole` is nullable, and the list below falls back to the first of
+       * `role` when it is unset — so this has to as well, or the two disagree
+       * about who somebody is. It also has to coalesce rather than compare
+       * directly: `NOT (NULL IN (...))` is NULL, which is not true, so a plain
+       * negation quietly drops every member whose base role was never written.
+       * That is every member on a fresh instance.
+       */
+      const effectiveRole = sql`coalesce(${schema.member.baseRole}, split_part(${schema.member.role}, ',', 1))`;
+      const isCustomer = inArray(effectiveRole, CUSTOMER_ROLES);
+      const whoFor = (customers: boolean) =>
+        and(
+          eq(schema.member.organizationId, orgId),
+          customers ? isCustomer : not(isCustomer),
+          matches,
+        );
+
       const [counted] = await db
         .select({ total: sql<number>`count(*)::int` })
         .from(schema.member)
         .innerJoin(schema.user, eq(schema.user.id, schema.member.userId))
-        .where(and(eq(schema.member.organizationId, orgId), matches));
+        .where(whoFor(audience));
+
+      /*
+       * How many are on the other list, so the screen can offer it with a
+       * number on it rather than a link into somewhere that may be empty.
+       */
+      const [otherCount] = await db
+        .select({ total: sql<number>`count(*)::int` })
+        .from(schema.member)
+        .innerJoin(schema.user, eq(schema.user.id, schema.member.userId))
+        .where(
+          and(
+            eq(schema.member.organizationId, orgId),
+            audience ? not(isCustomer) : isCustomer,
+          ),
+        );
 
       const members = await db
         .select({
@@ -258,7 +317,7 @@ export function registerPeople(ctx: ModuleContext) {
         })
         .from(schema.member)
         .innerJoin(schema.user, eq(schema.user.id, schema.member.userId))
-        .where(and(eq(schema.member.organizationId, orgId), matches))
+        .where(whoFor(audience))
         .orderBy(asc(schema.user.name))
         .limit(perPage)
         .offset((page - 1) * perPage);
@@ -361,6 +420,8 @@ export function registerPeople(ctx: ModuleContext) {
       return c.json({
         people,
         total: counted?.total ?? people.length,
+        audience: audience ? "customers" : "staff",
+        otherTotal: otherCount?.total ?? 0,
         page,
         perPage,
         invitations,

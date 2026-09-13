@@ -51,9 +51,13 @@ function renderWith(
     removeEventListener() {},
   };
   const qc = new QueryClient();
-  qc.setQueryData(["users", "", 1], {
+  // The key carries the audience: staff and customers are two lists, and a
+  // seeded key that has fallen behind the screen's renders an empty table,
+  // which passes anything asserting an absence.
+  qc.setQueryData(["users", "staff", "", 1], {
     people,
     total: people.length,
+    otherTotal: 0,
     perPage: 50,
     invitations: [],
     history: [],
@@ -130,6 +134,9 @@ test("your own row offers no policy picker and no way to remove yourself", () =>
   const html = renderWith([{ ...PERSON, you: true }]);
 
   expect(html).toContain("you");
+  // The table must actually have drawn: an empty one satisfies every
+  // assertion below by having nothing in it.
+  expect(html).toContain("Dana Reyes");
   // One select on the page would be the invite picker; a second would be this
   // row's, which must not exist.
   expect(html.match(/<select/g)?.length ?? 0).toBe(1);
@@ -178,4 +185,21 @@ test("the column is the word the rest of the console uses", () => {
   const html = renderWith([PERSON]);
   expect(html).toContain("Policy");
   expect(html).not.toContain(">Role<");
+});
+
+/**
+ * The two lists, and the switch between them.
+ *
+ * A shop's customers are members of the organization, so they were in the list
+ * of people who work here — a curiosity at twenty-five people and the whole
+ * screen at five hundred.
+ */
+test("the staff list offers the customers list, with its count", () => {
+  const html = renderWith([PERSON], { otherTotal: 412 });
+
+  expect(html).toContain("People who work here");
+  expect(html).toContain("Customers (412)");
+  // Inviting is for people who work here; a customer account is made by the
+  // customer, in the shop.
+  expect(html).toContain("Invite somebody");
 });
