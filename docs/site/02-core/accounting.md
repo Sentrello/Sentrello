@@ -50,11 +50,33 @@ not $40. Breakages and a stocktake that comes up short are costs too. Something
 a customer brings back goes the other way — the cost of that sale is undone,
 rather than a debt to a supplier being invented.
 
-:::note[Where the cost comes from]
-Each product variant carries a cost, and that is the figure used. A variant
-with no cost recorded posts nothing rather than posting zero — a journal line
-saying an item was free is worse than a gap you can see in the margin. If your
-margins look too good, that is usually the reason.
+### Which cost
+
+When you buy the same thing twice at two different prices, something has to
+decide what the one you just sold cost you. Sentrello offers the two answers
+that are accepted in every country it sells in — the US, the UK, the EU and
+Canada — and you pick one in the Shop's settings:
+
+- **First in, first out** charges the price of the oldest ones you still have.
+  This is the default, and what most businesses use.
+- **Weighted average** charges every one the same: what all your stock is worth,
+  over how many there are.
+
+Each delivery is recorded with what it cost, so both answers come off the same
+history. Changing the setting changes what future sales are charged; it does not
+rewrite what is already in the books.
+
+:::warning[Ask your accountant]
+Once you are trading, this is not a setting to change on a whim — it moves your
+reported profit. It is also the kind of choice an accountant will have an
+opinion about, and in some places a reason for it.
+:::
+
+:::note[If your margins look too good]
+A product with no cost recorded posts nothing rather than posting zero. A
+journal line saying an item was free is worse than a gap you can see in the
+margin, so a variant nobody has priced simply does not reach Cost of Sales.
+That is usually the reason.
 :::
 
 ## Reports
