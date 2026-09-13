@@ -932,3 +932,29 @@ test("a module included with another is entitled by it", () => {
   ]);
   expect(without.loaded).toEqual([]);
 });
+
+/**
+ * `/robots.txt` is a robots file, not the application.
+ *
+ * It used to fall through to the single-page app: a 200 of HTML, which a
+ * crawler reads as *no robots.txt at all* and therefore as permission to index
+ * everything an instance serves. Our own hosts were covered by an nginx header;
+ * a customer on their own domain was not, and the first they would know is
+ * their sign-in page in a search result.
+ */
+test("/robots.txt refuses crawlers rather than serving the app", async () => {
+  const server = (await import("./index")).default;
+  const res = await server.fetch(
+    new Request("http://localhost/robots.txt", {
+      headers: { host: "app.example.test", "x-forwarded-proto": "https" },
+    }),
+  );
+
+  expect(res.status).toBe(200);
+  expect(res.headers.get("content-type")).toContain("text/plain");
+
+  const body = await res.text();
+  expect(body).not.toContain("<!doctype html>");
+  expect(body).toContain("User-agent: *");
+  expect(body).toContain("Disallow: /");
+});

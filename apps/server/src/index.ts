@@ -23,7 +23,11 @@ import dashboard from "@sentrello/module-dashboard";
 import money from "@sentrello/module-money";
 import profile from "@sentrello/module-profile";
 import type { SentrelloEnv, SentrelloModule } from "@sentrello/module-sdk";
-import { searchEverything, searchProviders } from "@sentrello/module-sdk";
+import {
+  robotsTxt,
+  searchEverything,
+  searchProviders,
+} from "@sentrello/module-sdk";
 import settings from "@sentrello/module-settings";
 import users from "@sentrello/module-users";
 import { Hono } from "hono";
@@ -217,6 +221,34 @@ app.get("/.well-known/security.txt", (c) =>
     { "content-type": "text/plain; charset=utf-8" },
   ),
 );
+
+/**
+ * What a search engine may take, which on an instance is almost nothing.
+ *
+ * Sentrello is an application behind a sign-in, and until now `/robots.txt`
+ * fell through to the single-page app: a 200 of HTML, which a crawler reads as
+ * *no robots.txt at all* and therefore as permission to index the lot. On our
+ * own hosts nginx sends `X-Robots-Tag` and nothing came of it; a customer
+ * serving their instance on their own domain had no such cover, and the first
+ * they would know is their sign-in page in a search result.
+ *
+ * So everything is refused and the modules that genuinely publish pages — a
+ * storefront, a documentation site — say which prefix. Longest match wins in
+ * robots.txt, so `Disallow: /` with `Allow: /shop` is exactly "the shop and
+ * nothing else".
+ *
+ * The origin comes from the request rather than from configuration, because a
+ * sitemap line has to be absolute and the address nginx used to reach us is
+ * not the one anybody typed.
+ */
+app.get("/robots.txt", (c) => {
+  const host = c.req.header("host");
+  const proto = c.req.header("x-forwarded-proto")?.split(",")[0]?.trim();
+  const origin = host ? `${proto || "https"}://${host}` : null;
+  return c.text(robotsTxt(origin), 200, {
+    "content-type": "text/plain; charset=utf-8",
+  });
+});
 
 app.get("/healthz", async (c) => {
   const database = await databaseHealth();
