@@ -171,7 +171,6 @@ const WIDGET_LABELS: Record<string, string> = {
   "deals-by-stage": "Deals by stage",
   "top-customers": "Top customers",
   "invoice-aging": "How late the money is",
-  modules: "Your modules",
   "balance-sheet": "Balance sheet",
   "cash-flow": "Cash in and out",
   "trial-balance": "Trial balance",
@@ -361,8 +360,6 @@ function Widget({
       return <AttentionPanel data={data} />;
     case "health":
       return <HealthPanel health={data.health} />;
-    case "modules":
-      return <ModulesPanel />;
     case "balance-sheet":
       return <BalanceSheetPanel />;
     case "cash-flow":
@@ -400,44 +397,6 @@ function Widget({
       }
       return <InsightWidget id={id} insights={insights} />;
   }
-}
-
-/**
- * Every loaded module, in its own words.
- *
- * One panel rather than one per module: the set changes with the licence, and
- * a saved layout naming panels that no longer exist is a dashboard with holes
- * in it. The cards are whatever the server returned, so a module we have never
- * heard of here draws correctly the day it is installed.
- */
-function ModulesPanel() {
-  const { open } = useNavigation();
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["dashboard", "summaries"],
-    queryFn: () =>
-      api<{ summaries: ModuleSummary[] }>("/api/dashboard/summaries"),
-  });
-
-  if (isLoading) {
-    return (
-      <Card>
-        <p className="mb-2 font-medium">Your modules</p>
-        <Loading />
-      </Card>
-    );
-  }
-  if (error) return <ErrorNote error={error} />;
-
-  const summaries = data?.summaries ?? [];
-  if (summaries.length === 0) return null;
-
-  return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      {summaries.map((summary) => (
-        <SummaryCard key={summary.id} summary={summary} />
-      ))}
-    </div>
-  );
 }
 
 /**

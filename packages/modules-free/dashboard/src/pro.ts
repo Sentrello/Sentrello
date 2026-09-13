@@ -26,14 +26,6 @@ export const WIDGETS = [
   "top-customers",
   "invoice-aging",
   /**
-   * Every loaded module, in its own words.
-   *
-   * One panel rather than one per module, because the set changes with the
-   * licence and a layout naming panels that no longer exist is a dashboard
-   * with holes in it.
-   */
-  "modules",
-  /**
    * The reports, which used to be a module of their own.
    *
    * They are not a separate thing: a dashboard *is* a collection of reports,
@@ -57,7 +49,7 @@ export type Widget = (typeof WIDGETS)[number];
  * them. Each module already declares what it is worth showing — that is
  * `registerSummary` in the SDK — and every one of those is now a panel of its
  * own that can be put on a tab, rather than all of them being lumped into one
- * "modules" card nobody could arrange.
+ * card nobody could arrange.
  *
  * A widget exists only for a module this instance loaded, which the licence
  * already decides, and is only drawn for somebody the summary's own `requires`
