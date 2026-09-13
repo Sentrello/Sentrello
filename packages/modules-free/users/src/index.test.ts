@@ -439,3 +439,64 @@ test("a temporary password is readable aloud and not guessable", () => {
   expect(a).toMatch(/^[a-z-]+$/);
   expect(a.length).toBeGreaterThan(12);
 });
+
+/**
+ * A shop's customers are members of the organization, and are not staff.
+ *
+ * That is how the portal gives somebody their own invoices and nothing else,
+ * so they arrived in the list of people who work here. At twenty-five people
+ * that is a curiosity; at five hundred customers the staff are hidden inside a
+ * customer list.
+ *
+ * The trap this also pins: `baseRole` is nullable, and `NOT (NULL IN (...))`
+ * is NULL rather than true — so a plain negation drops every member whose base
+ * role was never written, which on a fresh instance is all of them. The first
+ * cut of this returned an empty list and two existing tests caught it.
+ */
+test("customers are a list of their own, and staff are not in it", async () => {
+  const [customer] = await db
+    .insert(schema.user)
+    .values({
+      id: `cust-${suffix}`,
+      name: "Pat Buyer",
+      email: `pat-${suffix}@example.test`,
+      emailVerified: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .returning();
+  if (!customer) throw new Error("could not create the test customer");
+  await db.insert(schema.member).values({
+    id: `custm-${suffix}`,
+    organizationId: orgId,
+    userId: customer.id,
+    // What the shop's portal assigns. `baseRole` is deliberately left unset,
+    // which is the case the first implementation got wrong.
+    role: "customer",
+    createdAt: new Date(),
+  });
+
+  const staff = await (
+    await app.request("http://localhost/api/users?audience=staff", { headers })
+  ).json();
+  const customers = await (
+    await app.request("http://localhost/api/users?audience=customers", {
+      headers,
+    })
+  ).json();
+
+  const emails = (r: { people: { email: string }[] }) =>
+    r.people.map((p) => p.email);
+
+  expect(emails(staff)).not.toContain(customer.email);
+  // Still everybody who actually works here, `baseRole` unset or not.
+  expect(staff.people).toHaveLength(2);
+  expect(emails(customers)).toEqual([customer.email]);
+
+  // Each list says how many are on the other, so the screen can offer it.
+  expect(staff.otherTotal).toBe(1);
+  expect(customers.otherTotal).toBe(2);
+
+  await db.delete(schema.member).where(eq(schema.member.userId, customer.id));
+  await db.delete(schema.user).where(eq(schema.user.id, customer.id));
+});
