@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import {
+  ConfirmButton,
   Empty,
   ErrorNote,
   Loading,
@@ -79,21 +80,19 @@ export function Sessions() {
           {sessions.length === 1 ? "session" : "sessions"}
         </span>
         {sessions.length > 0 ? (
-          <button
-            type="button"
+          <ConfirmButton
+            title="Sign everybody out?"
+            message={`${sessions.length} ${
+              sessions.length === 1 ? "session ends" : "sessions end"
+            } immediately — including yours, if you are signed in on this list. Everybody will have to sign in again.`}
+            confirmLabel="Sign everybody out"
+            danger
             className="text-xs"
-            style={{ color: "var(--color-danger)" }}
             disabled={revokeAll.isPending}
-            onClick={() =>
-              confirm(
-                `Sign everybody out? ${sessions.length} ${
-                  sessions.length === 1 ? "session ends" : "sessions end"
-                } immediately, including yours if you are signed in on this list.`,
-              ) && revokeAll.mutate()
-            }
+            onConfirm={() => revokeAll.mutate()}
           >
             Sign everybody out
-          </button>
+          </ConfirmButton>
         ) : null}
       </div>
 

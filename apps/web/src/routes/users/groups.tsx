@@ -5,6 +5,7 @@ import { useNavigation } from "../../lib/navigation";
 import {
   Button,
   Card,
+  ConfirmButton,
   Empty,
   ErrorNote,
   Field,
@@ -133,19 +134,17 @@ export function Groups() {
                 {g.roles.map(policyLabel).join(", ") || "nothing"}
               </td>
               <td className="text-right">
-                <button
-                  type="button"
+                <ConfirmButton
+                  title="Delete this group?"
+                  message={`Everybody in ${g.name} keeps the policy given to them directly and loses whatever this group granted on top. Nobody is removed from the business.`}
+                  confirmLabel="Delete it"
+                  danger
                   className="text-xs"
-                  style={{ color: "var(--color-danger)" }}
                   disabled={remove.isPending}
-                  onClick={() =>
-                    confirm(
-                      `Delete ${g.name}? Everybody in it keeps their own policy and loses this group's.`,
-                    ) && remove.mutate(g.id)
-                  }
+                  onConfirm={() => remove.mutate(g.id)}
                 >
                   Delete
-                </button>
+                </ConfirmButton>
               </td>
             </Row>
           ))}
