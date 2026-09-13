@@ -118,6 +118,20 @@ export interface ModuleContext {
    * and the dashboard draws whatever is registered.
    */
   registerSummary: (summary: ModuleSummary) => void;
+
+  /**
+   * What somebody has to do before this module is any use.
+   *
+   * A module arrives switched on and empty, and the person looking at it has
+   * to guess which of six screens to open first. That guess is where a trial
+   * is lost — so a module says what its first few steps are and the host draws
+   * a checklist of whatever this instance loaded.
+   *
+   * Each step asks the data whether it has already happened rather than being
+   * ticked off and remembered, which is what makes a module added on day 200
+   * to a business running for months show its satisfied steps as already done.
+   */
+  registerOnboarding: (guide: OnboardingGuide) => void;
   /**
    * What this module holds about a person, and what it can do about it.
    *
@@ -235,6 +249,7 @@ export interface SentrelloModule {
   register(ctx: ModuleContext): void;
 }
 
+import { type OnboardingGuide, addOnboarding } from "./onboarding";
 import { type PersonalDataSource, addPersonalData } from "./personal-data";
 import { type SearchProvider, addSearchProvider } from "./search";
 import { provideService } from "./services";
@@ -264,6 +279,7 @@ export * as secrets from "./secrets";
 export * from "./stripe-signature";
 export * from "./summaries";
 export * from "./personal-data";
+export * from "./onboarding";
 export * from "./unread-fields";
 
 /**
@@ -348,6 +364,10 @@ export function registerForTest(
     provide: (name, value) => provideService(name, value),
     registerPersonalData: (source) =>
       addPersonalData({ ...source, moduleId: module.id }),
+    // Registered for real, like the others, so a module's own tests can ask
+    // what it would put in front of somebody setting it up.
+    registerOnboarding: (guide) =>
+      addOnboarding({ ...guide, moduleId: module.id }),
     registerJob: () => {},
     ...overrides,
   });

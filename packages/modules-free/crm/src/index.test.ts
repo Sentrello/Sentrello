@@ -27,6 +27,7 @@ beforeAll(async () => {
     registerSummary: () => {},
     registerSearch: () => {},
     registerPersonalData: () => {},
+    registerOnboarding: () => {},
     provide: () => {},
     registerJob: () => {},
   });
@@ -1913,6 +1914,7 @@ test("custom fields are Pro, and a Free instance keeps the ones it has", async (
     registerSummary: () => {},
     registerSearch: () => {},
     registerPersonalData: () => {},
+    registerOnboarding: () => {},
     provide: () => {},
     registerJob: () => {},
   });

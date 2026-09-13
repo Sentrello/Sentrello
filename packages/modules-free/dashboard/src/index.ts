@@ -6,9 +6,11 @@ import {
 } from "@sentrello/auth/hono";
 import { db, schema } from "@sentrello/db";
 import {
+  allOnboarding,
   allSummaries,
   defineMiddleware,
   defineModule,
+  resolveGuide,
 } from "@sentrello/module-sdk";
 import { and, eq, isNull } from "drizzle-orm";
 import { readHealth } from "./health";
@@ -386,6 +388,49 @@ export default defineModule({
       );
       return seen.filter((m): m is { id: string; label: string } => m !== null);
     };
+
+    /**
+     * What is left to set up, across whatever this instance loaded.
+     *
+     * A module arrives switched on and empty, and the person looking at it has
+     * to guess which of six screens to open first. Each module says what its
+     * first steps are and this draws the list — so a module bought on day 200
+     * puts its own checklist in front of somebody the moment it appears, and
+     * the steps a business already satisfied show as already done.
+     *
+     * Guides a reader cannot act on are left out entirely. Setting a module up
+     * is an administrator's job, and a list of things somebody will be refused
+     * is worse than no list.
+     */
+    ctx.app.get(
+      "/api/dashboard/onboarding",
+      requireSession(),
+      requirePermission({ dashboard: ["read"] }),
+      async (c) => {
+        const orgId = activeOrganizationId(c.get("session"));
+        const mine = await Promise.all(
+          allOnboarding().map(async (guide) =>
+            guide.requires &&
+            !(await mayAccess(c.req.raw.headers, guide.requires))
+              ? null
+              : guide,
+          ),
+        );
+
+        const guides = await Promise.all(
+          mine
+            .filter((g) => g !== null)
+            .map((guide) => resolveGuide(guide, orgId)),
+        );
+
+        return c.json({
+          // Finished guides are not sent. A checklist with every box ticked is
+          // a card that says "well done" for ever, on the screen somebody opens
+          // every morning.
+          guides: guides.filter((g) => g.remaining > 0),
+        });
+      },
+    );
 
     ctx.app.get(
       "/api/dashboard/insights",

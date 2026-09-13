@@ -241,6 +241,7 @@ export function Dashboard() {
       {/* Before anything else, and only while there is nothing else. */}
       <StartHere startHere={data.startHere} />
       <AdSlot ad={data.ad} />
+      <SettingUp />
       <ArrangedDashboard data={data} />
     </div>
   );
@@ -1184,6 +1185,113 @@ const AD_HEIGHT = 90;
  * One link to the introduction, and it disappears when the dashboard has
  * something real on it.
  */
+interface Guide {
+  id: string;
+  moduleId: string;
+  label: string;
+  icon: string | null;
+  steps: {
+    id: string;
+    label: string;
+    detail: string | null;
+    opens: string | null;
+    done: boolean;
+  }[];
+  remaining: number;
+}
+
+/**
+ * What is left to set up, for whatever this instance has.
+ *
+ * A module arrives switched on and empty — the Shop with no products, Booking
+ * with no availability — and the person looking at it has to guess which of six
+ * screens to open first. That guess is where a trial is lost.
+ *
+ * A checklist rather than a tour: a tour has to be finished in one sitting and
+ * interrupts the thing somebody came to do, while a list survives a reload, a
+ * week off, and being read in a different order. Every step asks the data
+ * whether it has already happened, so a module bought on day 200 by a business
+ * running for months opens with its satisfied steps already ticked.
+ *
+ * It goes when there is nothing left on it. A card saying "well done" for ever,
+ * on the screen somebody opens every morning, is a card they learn to ignore —
+ * and then do not see the next one.
+ */
+function SettingUp() {
+  const { open } = useNavigation();
+  const { data } = useQuery({
+    queryKey: ["dashboard", "onboarding"],
+    queryFn: () => api<{ guides: Guide[] }>("/api/dashboard/onboarding"),
+    retry: false,
+  });
+
+  const guides = data?.guides ?? [];
+  if (guides.length === 0) return null;
+
+  return (
+    <Card>
+      <p className="font-medium">Setting up</p>
+      <p className="mt-1 text-sm" style={muted}>
+        Nothing here is required. It is what the parts you have work best with.
+      </p>
+
+      <div className="mt-3 space-y-4">
+        {guides.map((guide) => (
+          <div key={guide.id}>
+            <p className="text-sm font-medium">
+              {guide.label}{" "}
+              <span className="text-xs font-normal" style={muted}>
+                {guide.steps.length - guide.remaining} of {guide.steps.length}
+              </span>
+            </p>
+            <ul className="mt-1 space-y-1">
+              {guide.steps.map((step) => (
+                <li key={step.id} className="flex gap-2 text-sm">
+                  <span
+                    aria-hidden="true"
+                    style={
+                      step.done ? { color: "var(--color-success)" } : muted
+                    }
+                  >
+                    {step.done ? "✓" : "○"}
+                  </span>
+                  <span style={step.done ? muted : undefined}>
+                    {step.opens && !step.done ? (
+                      <button
+                        type="button"
+                        className="link text-left"
+                        onClick={() =>
+                          open({
+                            moduleId: step.opens as string,
+                            title: guide.label,
+                          })
+                        }
+                      >
+                        {step.label}
+                      </button>
+                    ) : (
+                      step.label
+                    )}
+                    {/* The why, only while it is still worth reading. */}
+                    {step.detail && !step.done ? (
+                      <span className="block text-xs" style={muted}>
+                        {step.detail}
+                      </span>
+                    ) : null}
+                    <span className="sr-only">
+                      {step.done ? " — done" : " — still to do"}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 function StartHere({ startHere }: { startHere: Dashboard["startHere"] }) {
   if (!startHere) return null;
 

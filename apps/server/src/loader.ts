@@ -7,8 +7,10 @@ import type {
 } from "@sentrello/module-sdk";
 import { addPersonalData } from "@sentrello/module-sdk";
 import {
+  addOnboarding,
   addSearchProvider,
   addSummary,
+  clearOnboarding,
   clearServices,
   clearSummaries,
   provideService,
@@ -50,6 +52,7 @@ export function loadModules(
   // The boot tests load modules more than once in one process, and a summary
   // registered by a run that is over would be drawn by the next one.
   clearSummaries();
+  clearOnboarding();
   /*
    * And what one module offers another. The boot tests load modules more than
    * once in a process, and a host's functions left behind by a run that is over
@@ -95,6 +98,10 @@ export function loadModules(
         registerPermission: (p) => permissions.push(p),
         registerSummary: (summary) =>
           addSummary({ ...summary, moduleId: m.id }),
+        // What somebody has to do before this module is any use. Drawn as a
+        // checklist of whatever this instance loaded.
+        registerOnboarding: (guide) =>
+          addOnboarding({ ...guide, moduleId: m.id }),
         // What this module can find, for the box that searches everything.
         registerSearch: (provider) =>
           addSearchProvider({ ...provider, moduleId: m.id }),
