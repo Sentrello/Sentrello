@@ -38,7 +38,43 @@ export const html = (s: string) =>
       })[ch] ?? ch,
   );
 
-function page(title: string, heading: string, body: string): string {
+/**
+ * What a visitor is told about the software underneath, at the foot.
+ *
+ * A Free instance carries "Powered by Sentrello" on every page a visitor
+ * reaches — that is part of what Free is, and it is the only place most people
+ * will ever see the name. Pro is paid for: a paying business puts its own
+ * credit there, or none at all.
+ *
+ * Opens in a new tab, because the visitor was in the middle of contacting
+ * somebody and the page they are on is the receipt for it.
+ */
+export interface Credit {
+  text: string;
+  url: string | null;
+}
+
+/** The credit a Free instance always shows. */
+export const SENTRELLO_CREDIT: Credit = {
+  text: "Powered by Sentrello",
+  url: "https://sentrello.com",
+};
+
+function creditFooter(credit: Credit | null): string {
+  if (!credit || !credit.text.trim()) return "";
+  const label = html(credit.text.trim());
+  const body = credit.url
+    ? `<a href="${html(credit.url)}" target="_blank" rel="noopener noreferrer">${label}</a>`
+    : label;
+  return `<p class="credit">${body}</p>`;
+}
+
+function page(
+  title: string,
+  heading: string,
+  body: string,
+  credit: Credit | null = null,
+): string {
   return `<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8">
@@ -54,8 +90,10 @@ body { font:16px/1.6 system-ui,-apple-system,sans-serif; color:var(--ink);
 main { max-width:32rem; margin:0 auto; }
 h1 { font-size:1.375rem; margin:0 0 .5rem; }
 p { color:var(--muted); margin:0; }
+.credit { margin-top:2rem; font-size:.8125rem; }
+.credit a { color:var(--muted); }
 </style>
-</head><body><main><h1>${html(heading)}</h1><p>${html(body)}</p></main></body></html>`;
+</head><body><main><h1>${html(heading)}</h1><p>${html(body)}</p>${creditFooter(credit)}</main></body></html>`;
 }
 
 /**
@@ -64,11 +102,16 @@ p { color:var(--muted); margin:0; }
  * Named after the form so the visitor can see which message went through —
  * the same page can be reached from a quote request and a contact form.
  */
-export function thanksPage(formName: string, businessName: string): string {
+export function thanksPage(
+  formName: string,
+  businessName: string,
+  credit: Credit | null = SENTRELLO_CREDIT,
+): string {
   return page(
     `Thank you — ${businessName}`,
     "Thanks — we have got that",
     `Your ${formName.toLowerCase()} has reached ${businessName}. Someone will be in touch.`,
+    credit,
   );
 }
 

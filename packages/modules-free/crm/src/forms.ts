@@ -19,7 +19,14 @@ import {
   rateLimit,
 } from "@sentrello/module-sdk";
 import { embedScript } from "./forms-loader";
-import { html, problemPage, thanksPage, wantsHtml } from "./forms-reply";
+import {
+  type Credit,
+  SENTRELLO_CREDIT,
+  html,
+  problemPage,
+  thanksPage,
+  wantsHtml,
+} from "./forms-reply";
 
 /** Per-form limit for public submissions. Generous for humans, hostile to bots. */
 const SUBMIT_LIMIT = 5;
@@ -641,7 +648,16 @@ export function registerForms(ctx: ModuleContext) {
     if (looksAutomated(payload)) {
       // The same reply a person gets, so a bot learns nothing from it.
       return wantsHtml(c)
-        ? c.html(thanksPage(form.name, await businessName(form.organizationId)))
+        ? c.html(
+            thanksPage(
+              form.name,
+              await businessName(form.organizationId),
+              await creditFor(
+                form.organizationId,
+                ctx.entitled({ tier: "pro" }),
+              ),
+            ),
+          )
         : c.json({ ok: true }, 202, corsHeaders(decision.echo));
     }
 
@@ -704,7 +720,14 @@ export function registerForms(ctx: ModuleContext) {
       return form.redirectUrl
         ? c.redirect(form.redirectUrl, 303)
         : c.html(
-            thanksPage(form.name, await businessName(form.organizationId)),
+            thanksPage(
+              form.name,
+              await businessName(form.organizationId),
+              await creditFor(
+                form.organizationId,
+                ctx.entitled({ tier: "pro" }),
+              ),
+            ),
             201,
           );
     }
@@ -714,6 +737,16 @@ export function registerForms(ctx: ModuleContext) {
         ok: true,
         submissionId: submission?.id,
         redirectUrl: form.redirectUrl ?? null,
+        /*
+         * The same credit the HTML reply carries, for the snippet that draws
+         * its own thank-you. Without this the two paths disagree: a visitor who
+         * arrived with JavaScript saw no credit and one without it did, on the
+         * same form, on the same site.
+         */
+        credit: await creditFor(
+          form.organizationId,
+          ctx.entitled({ tier: "pro" }),
+        ),
       },
       201,
       corsHeaders(decision.echo),
@@ -729,6 +762,34 @@ async function businessName(orgId: string): Promise<string> {
     .where(eq(schema.organizations.id, orgId))
     .limit(1);
   return org?.name ?? "the business";
+}
+
+/**
+ * Whose name goes at the foot of the page a visitor lands on.
+ *
+ * Free always says ours. It is the only place most people will ever see the
+ * product named, and it is part of what Free is.
+ *
+ * Pro is paid for, so it is the business's to set: their own credit, or an
+ * empty one, which is the "remove branding" case. Never set at all is the same
+ * as removed — a paying business that has said nothing is not asking to
+ * advertise us.
+ */
+async function creditFor(
+  orgId: string,
+  isPro: boolean,
+): Promise<Credit | null> {
+  if (!isPro) return SENTRELLO_CREDIT;
+  const [org] = await db
+    .select({
+      text: schema.organizations.creditText,
+      url: schema.organizations.creditUrl,
+    })
+    .from(schema.organizations)
+    .where(eq(schema.organizations.id, orgId))
+    .limit(1);
+  const text = (org?.text ?? "").trim();
+  return text ? { text, url: org?.url?.trim() || null } : null;
 }
 
 async function formByKey(key: string) {

@@ -164,6 +164,20 @@ export const organizations = pgTable(
      * edit reverted — both of which a "create anything missing" seed would do
      * every time it ran.
      */
+    /**
+     * The credit at the foot of a page a visitor sees, for a business that
+     * wants its own there.
+     *
+     * A Free instance carries "Powered by Sentrello" on every thank-you page,
+     * and that is part of what Free is. Pro is paid for, and a paying business
+     * may put its own agency, its own group, or nothing at all — an empty text
+     * is the "remove branding" case and is deliberately distinguishable from
+     * never having set one.
+     *
+     * Ignored on Free, where the credit is not the business's to change.
+     */
+    creditText: text("credit_text"),
+    creditUrl: text("credit_url"),
     accessSeededAt: timestamp("access_seeded_at"),
   },
   (table) => [uniqueIndex("organizations_slug_uidx").on(table.slug)],

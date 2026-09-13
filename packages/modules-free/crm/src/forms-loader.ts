@@ -67,6 +67,7 @@ const SCRIPT = String.raw`(function () {
         ".sentrello-form button{margin-top:.8rem;padding:.55rem 1.1rem;border:0;cursor:pointer;" +
         "border-radius:" + radius + ";background:" + accent + ";color:#fff;font:inherit}" +
         ".sentrello-form .sentrello-msg{margin-top:.6rem;font-size:.9rem}" +
+        ".sentrello-credit{margin-top:1.25rem;font-size:.8125rem;opacity:.7}" +
         ".sentrello-hp{position:absolute!important;left:-9999px!important}";
       host.appendChild(css);
 
@@ -142,6 +143,27 @@ const SCRIPT = String.raw`(function () {
             done.className = "sentrello-msg";
             done.textContent = out.message || "Thanks — we have your message.";
             host.appendChild(done);
+
+            /*
+             * The same credit the plain-HTML reply carries. Built as elements
+             * rather than markup: this runs on somebody else's site, and the
+             * text comes from a business's own settings.
+             */
+            if (out.credit && out.credit.text) {
+              var credit = document.createElement("p");
+              credit.className = "sentrello-credit";
+              if (out.credit.url) {
+                var link = document.createElement("a");
+                link.href = out.credit.url;
+                link.target = "_blank";
+                link.rel = "noopener noreferrer";
+                link.textContent = out.credit.text;
+                credit.appendChild(link);
+              } else {
+                credit.textContent = out.credit.text;
+              }
+              host.appendChild(credit);
+            }
           })
           .catch(function () {
             button.disabled = false;

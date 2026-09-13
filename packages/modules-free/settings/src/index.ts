@@ -152,6 +152,14 @@ export default defineModule({
              * than guessing. The screen offers to fill it in with the browser's.
              */
             timezone: org?.timezone ?? "",
+            /*
+             * What a visitor is told about the software underneath, at the
+             * foot of the thank-you page a form sends them to. Free always
+             * says ours; Pro sets its own, or an empty one to say nothing.
+             */
+            creditText: org?.creditText ?? "",
+            creditUrl: org?.creditUrl ?? "",
+            canSetCredit: ctx.entitled({ tier: "pro" }),
           },
           instance: {
             baseUrl: base,
@@ -517,6 +525,8 @@ export default defineModule({
         let taxIdLabel: string | null;
         let paymentInstructions: string | null;
         let timezone: string | null;
+        let creditText: string | null;
+        let creditUrl: string | null;
         try {
           address = text(body.address, 500, "address");
           taxId = text(body.taxId, 60, "tax number");
@@ -527,6 +537,8 @@ export default defineModule({
             "payment instructions",
           );
           timezone = text(body.timezone, 60, "timezone");
+          creditText = text(body.creditText, 60, "credit");
+          creditUrl = text(body.creditUrl, 200, "credit link");
         } catch (err) {
           if (err instanceof RangeError) {
             return c.json({ error: `that ${err.message} is too long` }, 400);
@@ -577,6 +589,13 @@ export default defineModule({
             taxIdLabel,
             paymentInstructions,
             timezone,
+            /*
+             * Ignored unless this instance is Pro. The credit on a Free
+             * instance is not the business's to change — it is part of what
+             * Free is — and a field that silently did nothing would be a
+             * setting somebody sets and then wonders about.
+             */
+            ...(ctx.entitled({ tier: "pro" }) ? { creditText, creditUrl } : {}),
           })
           .where(eq(schema.organizations.id, orgId))
           .returning();
@@ -589,6 +608,9 @@ export default defineModule({
             taxIdLabel: org?.taxIdLabel ?? "",
             paymentInstructions: org?.paymentInstructions ?? "",
             timezone: org?.timezone ?? "",
+            creditText: org?.creditText ?? "",
+            creditUrl: org?.creditUrl ?? "",
+            canSetCredit: ctx.entitled({ tier: "pro" }),
           },
         });
       },
