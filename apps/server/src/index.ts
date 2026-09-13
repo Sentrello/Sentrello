@@ -243,8 +243,22 @@ app.get("/.well-known/security.txt", (c) =>
  */
 app.get("/robots.txt", (c) => {
   const host = c.req.header("host");
-  const proto = c.req.header("x-forwarded-proto")?.split(",")[0]?.trim();
-  const origin = host ? `${proto || "https"}://${host}` : null;
+  /*
+   * The proxy's word first, then the request's own scheme — not a hardcoded
+   * https. Behind nginx the request arrives over http and the reader is on
+   * https, which is what the forwarded header is for; on an instance served
+   * plainly on a local network there is no proxy and no header, and claiming
+   * https there advertises a sitemap nobody can fetch.
+   */
+  const forwarded = c.req.header("x-forwarded-proto")?.split(",")[0]?.trim();
+  const own = (() => {
+    try {
+      return new URL(c.req.url).protocol.replace(":", "");
+    } catch {
+      return "https";
+    }
+  })();
+  const origin = host ? `${forwarded || own}://${host}` : null;
   return c.text(robotsTxt(origin), 200, {
     "content-type": "text/plain; charset=utf-8",
   });
