@@ -9,6 +9,29 @@ import { createAuthClient } from "better-auth/react";
 // The client mirrors the server's access control, so the UI can hide what the
 // user cannot do. The server still enforces it — this is presentation only.
 export const authClient = createAuthClient({
+  /**
+   * The address this browser reached the app by.
+   *
+   * Said explicitly, though the client derives exactly this when it is left
+   * out: without a window it has nothing to derive from and throws
+   * `Invalid base URL: undefined` while the module is still being imported —
+   * which is not a failing assertion but an unhandled error between tests, so
+   * the run reports three failures and names none of them.
+   *
+   * Three render tests did that on every push for a fortnight. They pass on a
+   * developer's machine, which is the worst shape a break can take: the only
+   * place it shows is the one nobody is looking at.
+   *
+   * `window.location.origin` rather than `SENTRELLO_BASE_URL` on purpose — an
+   * administrator who reached their own instance by a name that variable does
+   * not mention should still be signed in against the address in their own
+   * address bar. The server is what refuses an origin it does not trust, and
+   * it says so in as many words.
+   */
+  baseURL:
+    typeof window === "undefined"
+      ? "http://localhost:3000"
+      : window.location.origin,
   // the cast is variance-only: `ac` is a concrete AccessControl built from our
   // statement, while the plugin's parameter is typed against the open
   // `Statements` shape
