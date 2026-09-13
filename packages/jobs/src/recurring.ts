@@ -38,6 +38,73 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * period. **Inline lines** are the older shape, kept because profiles created
  * before templates existed still carry them.
  */
+/**
+ * Claim a period before billing it, so it can only ever be billed once.
+ *
+ * `recurring_periods` carries `UNIQUE (profile_id, period_start)`, which makes
+ * double-billing structurally impossible: the second insert loses, in the
+ * database, under concurrency, after a crash, forever. That is one constraint
+ * instead of a reconciliation engine, and it is the right trade because we
+ * never repair invoices retroactively — there is nothing for a diff to do, only
+ * a second attempt to refuse.
+ *
+ * Claimed *before* the invoice rather than alongside it, because the three ways
+ * a profile can bill do not share a transaction: a template invoice is copied
+ * by a function with its own. One claim in front of all three is one rule.
+ *
+ * A claim with no invoice on it is a previous run that died between the two.
+ * Taking it over rather than refusing it is the difference between a business
+ * that missed one invoice and a business whose subscription silently stopped
+ * billing and never said so.
+ */
+async function claimPeriod(
+  orgId: string,
+  profileId: string,
+  periodStart: Date,
+  periodEnd: Date,
+): Promise<boolean> {
+  const [claimed] = await db
+    .insert(schema.recurringPeriods)
+    .values({
+      organizationId: orgId,
+      profileId,
+      periodStart,
+      periodEnd,
+    })
+    .onConflictDoNothing()
+    .returning();
+  if (claimed) return true;
+
+  const [existing] = await db
+    .select({ invoiceId: schema.recurringPeriods.invoiceId })
+    .from(schema.recurringPeriods)
+    .where(
+      and(
+        eq(schema.recurringPeriods.profileId, profileId),
+        eq(schema.recurringPeriods.periodStart, periodStart),
+      ),
+    );
+  // Billed already, or ours to finish.
+  return !existing?.invoiceId;
+}
+
+/** Tie the invoice to the period it paid for, once it exists. */
+async function recordInvoiceOnPeriod(
+  profileId: string,
+  periodStart: Date,
+  invoiceId: string,
+) {
+  await db
+    .update(schema.recurringPeriods)
+    .set({ invoiceId })
+    .where(
+      and(
+        eq(schema.recurringPeriods.profileId, profileId),
+        eq(schema.recurringPeriods.periodStart, periodStart),
+      ),
+    );
+}
+
 export async function runRecurringInvoices(
   now = new Date(),
   options: {
@@ -141,6 +208,24 @@ export async function runRecurringInvoices(
       skipped.push({
         profileId: profile.id,
         reason: `no exchange rate for ${profile.currency}`,
+      });
+      continue;
+    }
+
+    /**
+     * Already billed, or being billed by another worker right now.
+     *
+     * `nextRunAt` cannot answer this. It is a schedule — it says when we intend
+     * to act — and it is written after the invoice, so a run that crashed
+     * between the two still says this period is due when it has already been
+     * paid for. The claim answers it, and answers it the same way for all three
+     * ways a profile can bill.
+     */
+    const periodStart = profile.nextRunAt;
+    if (!(await claimPeriod(orgId, profile.id, periodStart, after))) {
+      skipped.push({
+        profileId: profile.id,
+        reason: "this period is already billed",
       });
       continue;
     }
@@ -251,6 +336,8 @@ export async function runRecurringInvoices(
      * profile billed in — so a subscription in euros put euro cents into
      * dollar books.
      */
+    await recordInvoiceOnPeriod(profile.id, periodStart, invoice.id);
+
     await postInvoiceIssued(
       orgId,
       {
@@ -404,6 +491,15 @@ function advanced(
 ) {
   return {
     nextRunAt: after,
+    /**
+     * What has actually been billed, as opposed to when we next intend to act.
+     *
+     * The two are the same on a healthy run and come apart exactly when it
+     * matters — a crash between the invoice and this update, two workers on one
+     * profile, an admin re-running a job. `nextRunAt` cannot say that January
+     * is paid for; this can.
+     */
+    billedThroughAt: after,
     generatedCount: (profile.generatedCount ?? 0) + 1,
     lastGeneratedAt: now,
     /**

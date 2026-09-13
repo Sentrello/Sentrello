@@ -50,6 +50,7 @@ afterAll(async () => {
     [schema.invoiceLines, null],
     [schema.invoices, schema.invoices.organizationId],
     [schema.accounts, schema.accounts.organizationId],
+    [schema.recurringPeriods, schema.recurringPeriods.organizationId],
     [schema.recurringProfiles, schema.recurringProfiles.organizationId],
     [schema.documentTaxes, schema.documentTaxes.organizationId],
     [schema.documentCounters, schema.documentCounters.organizationId],
@@ -702,4 +703,105 @@ test("a foreign subscription posts at its rate, and the entry balances", async (
     .delete(schema.exchangeRates)
     .where(eq(schema.exchangeRates.organizationId, orgId));
   void raised;
+});
+
+/**
+ * The same period cannot be billed twice, whatever happens between runs.
+ *
+ * `nextRunAt` is a schedule and cannot answer this: a run that raised the
+ * invoice and then died before writing it back still says the period is due.
+ * `recurring_periods` answers it, because `UNIQUE (profile_id, period_start)`
+ * means the second attempt loses in the database rather than in code.
+ *
+ * Simulated the way it actually goes wrong — the invoice exists, and the
+ * profile was never advanced — rather than by calling the job twice, which the
+ * advanced `nextRunAt` would have stopped on its own and proved nothing.
+ */
+test("a period already billed is not billed again when the schedule says it is due", async () => {
+  const subscription = await subscribe({ nextRunAt: new Date("2026-06-01") });
+
+  const first = await runRecurringInvoices(new Date("2026-06-02"));
+  expect(first.issued).toBeGreaterThan(0);
+
+  const billed = await db
+    .select()
+    .from(schema.invoices)
+    .where(eq(schema.invoices.organizationId, orgId));
+  const countAfterFirst = billed.length;
+
+  // The crash: the invoice is out, the schedule never moved.
+  await db
+    .update(schema.recurringProfiles)
+    .set({ nextRunAt: new Date("2026-06-01"), billedThroughAt: null })
+    .where(eq(schema.recurringProfiles.id, subscription.id));
+
+  const second = await runRecurringInvoices(new Date("2026-06-02"));
+  expect(
+    second.skipped.some(
+      (s) =>
+        s.profileId === subscription.id &&
+        s.reason === "this period is already billed",
+    ),
+  ).toBe(true);
+
+  const after = await db
+    .select()
+    .from(schema.invoices)
+    .where(eq(schema.invoices.organizationId, orgId));
+  expect(after.length).toBe(countAfterFirst);
+});
+
+/**
+ * A claim with no invoice on it is finished, not refused.
+ *
+ * A run that dies between claiming the period and raising the invoice leaves
+ * the claim behind. Refusing it would be a subscription that silently stops
+ * billing and never says why — much worse than the double invoice the claim
+ * exists to prevent, and the failure nobody notices for a quarter.
+ */
+test("a period claimed but never invoiced is taken over by the next run", async () => {
+  const subscription = await subscribe({ nextRunAt: new Date("2026-07-01") });
+
+  // Exactly what a crash between the two statements leaves behind.
+  await db.insert(schema.recurringPeriods).values({
+    organizationId: orgId,
+    profileId: subscription.id,
+    periodStart: new Date("2026-07-01"),
+    periodEnd: new Date("2026-08-01"),
+  });
+
+  const result = await runRecurringInvoices(new Date("2026-07-02"));
+  expect(result.skipped.some((s) => s.profileId === subscription.id)).toBe(
+    false,
+  );
+  expect(result.issued).toBeGreaterThan(0);
+
+  const [period] = await db
+    .select()
+    .from(schema.recurringPeriods)
+    .where(
+      and(
+        eq(schema.recurringPeriods.profileId, subscription.id),
+        eq(schema.recurringPeriods.periodStart, new Date("2026-07-01")),
+      ),
+    );
+  // Taken over rather than duplicated: one row, now carrying its invoice.
+  expect(period?.invoiceId).toBeTruthy();
+});
+
+/** What has been billed is recorded, separately from when we next intend to act. */
+test("billing a period writes the date it is billed through", async () => {
+  const subscription = await subscribe({ nextRunAt: new Date("2026-09-01") });
+
+  await runRecurringInvoices(new Date("2026-09-02"));
+
+  const [after] = await db
+    .select()
+    .from(schema.recurringProfiles)
+    .where(eq(schema.recurringProfiles.id, subscription.id));
+  expect(after?.billedThroughAt?.toISOString().slice(0, 10)).toBe("2026-10-01");
+  // The same date the schedule moved to, on a healthy run. They are two facts
+  // that agree here and come apart when something goes wrong, which is the
+  // whole reason for keeping both.
+  expect(after?.nextRunAt.toISOString().slice(0, 10)).toBe("2026-10-01");
 });
