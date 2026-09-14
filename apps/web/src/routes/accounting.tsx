@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { Suspense, lazy, useState } from "react";
 import { type Account, type Meta, type ProfitAndLoss, api } from "../lib/api";
 import { toCents } from "../lib/money";
 import {
@@ -20,24 +20,37 @@ import {
   formatMoney,
   muted,
 } from "../lib/ui";
-import {
-  Assets,
-  Banking,
-  Bills,
-  Budgets,
-  Receipt,
-  Reports,
-  TaxAndCurrency,
-} from "./accounting-pro";
 
 /**
- * The Pro half, re-exported.
+ * The Pro half, fetched the first time somebody actually opens one of its
+ * screens rather than downloaded by every Free instance on first paint.
  *
- * Each of these is a page the sidebar names now rather than a tab this file
- * switched between, and the application maps nav ids to screens in one place.
- * Re-exporting keeps that one import rather than two.
+ * One dynamic import shared by all six wrappers below: the chunk is fetched
+ * once, on whichever of them opens first, and every screen after that —
+ * including a different one of the six — finds it already resolved and
+ * renders straight away. `Loading` only ever shows once, on that first open.
  */
-export { Assets, Banking, Bills, Budgets, Reports, TaxAndCurrency };
+function proScreen<K extends keyof typeof import("./accounting-pro")>(
+  name: K,
+): () => React.ReactElement | null {
+  const Lazy = lazy(async () => ({
+    default: (await import("./accounting-pro"))[name] as React.ComponentType,
+  }));
+  return function ProScreen() {
+    return (
+      <Suspense fallback={<Loading />}>
+        <Lazy />
+      </Suspense>
+    );
+  };
+}
+
+export const Assets = proScreen("Assets");
+export const Banking = proScreen("Banking");
+export const Bills = proScreen("Bills");
+export const Budgets = proScreen("Budgets");
+export const Reports = proScreen("Reports");
+export const TaxAndCurrency = proScreen("TaxAndCurrency");
 
 /**
  * The books.
@@ -424,6 +437,97 @@ function Figure({
         {formatMoney(cents)}
       </p>
     </Card>
+  );
+}
+
+/**
+ * The paper behind a figure.
+ *
+ * An inspector, an accountant and a bank all ask for the receipt rather than
+ * the entry, so a row that has one says so and hands it over, and a row that
+ * has none offers to take it.
+ *
+ * Shared with Bills, which is part of the Pro half loaded on demand below —
+ * kept here, in the half every instance already has, so opening the money
+ * screen never has to fetch the Pro bundle just to attach a receipt.
+ */
+export function Receipt({
+  holder,
+  id,
+  has,
+  onDone,
+}: {
+  holder: "transactions" | "bills";
+  id: string;
+  has: boolean;
+  onDone: () => void;
+}) {
+  const upload = useMutation({
+    mutationFn: async (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      // No content-type header: FormData sets its own with the boundary, and
+      // overriding it makes the body unparseable at the other end.
+      const res = await fetch(`/api/${holder}/${id}/receipt`, {
+        method: "POST",
+        body: form,
+        credentials: "same-origin",
+      });
+      if (!res.ok) {
+        throw new Error(
+          ((await res.json().catch(() => ({}))) as { error?: string }).error ??
+            "That file could not be attached.",
+        );
+      }
+    },
+    onSuccess: onDone,
+  });
+
+  const detach = useMutation({
+    mutationFn: () => api(`/api/${holder}/${id}/receipt`, { method: "DELETE" }),
+    onSuccess: onDone,
+  });
+
+  if (has) {
+    return (
+      <span className="flex items-center gap-2">
+        <a
+          className="text-xs underline"
+          href={`/api/${holder}/${id}/receipt`}
+          style={muted}
+        >
+          Receipt
+        </a>
+        {/*
+          Taking one off, which nothing could do. A photo attached to the wrong
+          line stayed on it, and re-attaching only replaced one wrong file with
+          another. The route was registered from a template and so was invisible
+          to every sweep in the platform until today.
+        */}
+        <button
+          type="button"
+          className="text-xs underline"
+          style={muted}
+          disabled={detach.isPending}
+          onClick={() => detach.mutate()}
+        >
+          remove
+        </button>
+      </span>
+    );
+  }
+  return (
+    <label className="cursor-pointer text-xs underline" style={muted}>
+      {upload.isPending ? "Attaching…" : "Attach"}
+      <input
+        type="file"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) upload.mutate(file);
+        }}
+      />
+    </label>
   );
 }
 

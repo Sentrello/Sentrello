@@ -22,6 +22,7 @@ import {
   formatMoney,
   muted,
 } from "../lib/ui";
+import { Receipt } from "./accounting";
 
 /**
  * The half of Accounting a licence pays for.
@@ -75,93 +76,6 @@ type Schedule = {
   active: boolean;
   templateBillId: string;
 };
-
-/**
- * The paper behind a figure.
- *
- * An inspector, an accountant and a bank all ask for the receipt rather than
- * the entry, so a row that has one says so and hands it over, and a row that
- * has none offers to take it.
- */
-export function Receipt({
-  holder,
-  id,
-  has,
-  onDone,
-}: {
-  holder: "transactions" | "bills";
-  id: string;
-  has: boolean;
-  onDone: () => void;
-}) {
-  const upload = useMutation({
-    mutationFn: async (file: File) => {
-      const form = new FormData();
-      form.append("file", file);
-      // No content-type header: FormData sets its own with the boundary, and
-      // overriding it makes the body unparseable at the other end.
-      const res = await fetch(`/api/${holder}/${id}/receipt`, {
-        method: "POST",
-        body: form,
-        credentials: "same-origin",
-      });
-      if (!res.ok) {
-        throw new Error(
-          ((await res.json().catch(() => ({}))) as { error?: string }).error ??
-            "That file could not be attached.",
-        );
-      }
-    },
-    onSuccess: onDone,
-  });
-
-  const detach = useMutation({
-    mutationFn: () => api(`/api/${holder}/${id}/receipt`, { method: "DELETE" }),
-    onSuccess: onDone,
-  });
-
-  if (has) {
-    return (
-      <span className="flex items-center gap-2">
-        <a
-          className="text-xs underline"
-          href={`/api/${holder}/${id}/receipt`}
-          style={muted}
-        >
-          Receipt
-        </a>
-        {/*
-          Taking one off, which nothing could do. A photo attached to the wrong
-          line stayed on it, and re-attaching only replaced one wrong file with
-          another. The route was registered from a template and so was invisible
-          to every sweep in the platform until today.
-        */}
-        <button
-          type="button"
-          className="text-xs underline"
-          style={muted}
-          disabled={detach.isPending}
-          onClick={() => detach.mutate()}
-        >
-          remove
-        </button>
-      </span>
-    );
-  }
-  return (
-    <label className="cursor-pointer text-xs underline" style={muted}>
-      {upload.isPending ? "Attaching…" : "Attach"}
-      <input
-        type="file"
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) upload.mutate(file);
-        }}
-      />
-    </label>
-  );
-}
 
 /**
  * What a bill is actually made of.
