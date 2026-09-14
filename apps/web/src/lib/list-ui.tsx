@@ -159,6 +159,12 @@ export function listQueryString(state: ListState, paginate: boolean): string {
  * `perPage=1` to learn the total, then again for the rows — which doubled
  * every keystroke in the search box to find out something the paged response
  * already carries.
+ *
+ * Some endpoints answer with more than rows and a total — an orders list
+ * with a money summary above the table, say. `response` is the whole body,
+ * so a screen that needs one of those extra fields reads it off what was
+ * already fetched rather than standing up a second query against the same
+ * endpoint to get at it.
  */
 export function useListQuery<T>(
   resource: string,
@@ -169,6 +175,7 @@ export function useListQuery<T>(
   paginated: boolean;
   isLoading: boolean;
   error: unknown;
+  response: (Record<string, unknown> & { total: number }) | undefined;
 } {
   const query = listQueryString(state, true);
   const { data, isLoading, error } = useQuery({
@@ -203,6 +210,7 @@ export function useListQuery<T>(
     paginated: total > PAGINATION_THRESHOLD,
     isLoading,
     error,
+    response: data,
   };
 }
 
