@@ -1,3 +1,5 @@
+import type { CustomField } from "@sentrello/module-sdk";
+import { coerceCustomValues } from "@sentrello/module-sdk";
 import { and, eq, gte, lte } from "drizzle-orm";
 import { currentActor } from "./actor";
 import { RATE_SCALE, toBaseCents } from "./currency";
@@ -179,6 +181,165 @@ export async function closedThrough(orgId: string): Promise<Date | null> {
     .where(eq(schema.ledgerSettings.organizationId, orgId))
     .limit(1);
   return row?.closedThrough ?? null;
+}
+
+/**
+ * The extra fields a business keeps on its bills and its money in and out.
+ *
+ * Read from the same `ledgerSettings` row `closedThrough` lives on, and
+ * needed by both halves of the books: the Free side stores them on a
+ * transaction, the paid side on a bill, and neither owns the other's package.
+ * A purchase-order number, a job reference, which van the fuel went into —
+ * none of it worth a migration, and the rule that matters is the platform's,
+ * in the module SDK's `coerceCustomValues`: a value is only ever written
+ * against a field somebody defined.
+ */
+export const ACCOUNTING_SUBJECTS = ["bill", "transaction"] as const;
+
+/** The definitions this business has, or none. */
+export async function accountingFieldsFor(
+  organizationId: string,
+): Promise<CustomField[]> {
+  const [row] = await db
+    .select({ customFields: schema.ledgerSettings.customFields })
+    .from(schema.ledgerSettings)
+    .where(eq(schema.ledgerSettings.organizationId, organizationId))
+    .limit(1);
+  return row?.customFields ?? [];
+}
+
+/**
+ * The values on one record, checked against what the business defined.
+ *
+ * Anything without a definition is dropped rather than kept "just in case".
+ * The body of a request is not a schema, and without this any caller could
+ * write any key onto any bill or transaction for ever.
+ */
+export async function accountingValues(
+  organizationId: string,
+  subject: (typeof ACCOUNTING_SUBJECTS)[number],
+  input: unknown,
+): Promise<Record<string, string | number | boolean | null>> {
+  if (input === undefined) return {};
+  return coerceCustomValues(
+    await accountingFieldsFor(organizationId),
+    subject,
+    input,
+  );
+}
+
+/**
+ * Which part of the business a journal line belongs to.
+ *
+ * A class is a job, a project, a department, a product line; a location is a
+ * branch, a van, a site. Both live on the journal line rather than the entry,
+ * so one bill can cover two jobs.
+ *
+ * Read from here by both halves of the books for the same reason the custom
+ * field helpers above are: a transaction tags itself on the Free side, a bill
+ * line tags itself on the paid side, and the check — does this id genuinely
+ * belong to this business — has to be one implementation or it drifts.
+ */
+export const KINDS = ["class", "location"] as const;
+export type DimensionKind = (typeof KINDS)[number];
+
+/**
+ * A class or a location this business has, checked before anything posts to it.
+ *
+ * An archived one is still valid to post against — a job closed in March can
+ * still receive a correcting entry in April, and refusing that would send
+ * somebody to un-archive a job to fix a typo.
+ */
+export async function ownedDimension(
+  organizationId: string,
+  kind: DimensionKind,
+  id: unknown,
+): Promise<string | null | "unknown"> {
+  if (id === undefined || id === null || id === "") return null;
+  const [row] = await db
+    .select({ id: schema.dimensions.id })
+    .from(schema.dimensions)
+    .where(
+      and(
+        eq(schema.dimensions.id, String(id)),
+        eq(schema.dimensions.organizationId, organizationId),
+        eq(schema.dimensions.kind, kind),
+      ),
+    )
+    .limit(1);
+  return row ? row.id : "unknown";
+}
+
+export interface Tagging {
+  classId: string | null;
+  locationId: string | null;
+}
+
+/**
+ * The class and location on a request, both checked.
+ *
+ * Returned together because they are used together, and refused as a pair: a
+ * request naming a location that is not this business's should not quietly
+ * post with the class it did get right.
+ */
+export async function taggingFrom(
+  organizationId: string,
+  body: Record<string, unknown>,
+): Promise<Tagging | { error: string }> {
+  const classId = await ownedDimension(organizationId, "class", body.classId);
+  if (classId === "unknown") {
+    return { error: "that is not a class of yours" };
+  }
+  const locationId = await ownedDimension(
+    organizationId,
+    "location",
+    body.locationId,
+  );
+  if (locationId === "unknown") {
+    return { error: "that is not a location of yours" };
+  }
+  return { classId, locationId };
+}
+
+/**
+ * A date from the query string, or nothing if it is unreadable.
+ *
+ * A day given without a time is the *whole* day at the end of a period. "To
+ * 23 August" written by somebody means everything up to the end of the 23rd,
+ * and reading it as midnight is how a report run this afternoon showed none of
+ * this morning's takings — which reads as a broken report, not a boundary.
+ */
+export function periodFrom(query: (name: string) => string | undefined): {
+  from?: Date;
+  to?: Date;
+  classId?: string;
+  locationId?: string;
+} {
+  const parse = (value: string | undefined, endOfDay = false) => {
+    if (!value) return undefined;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return undefined;
+    // Only a bare date is stretched. A caller who sent a time meant that time.
+    if (endOfDay && /^\d{4}-\d{2}-\d{2}$/.test(value.trim())) {
+      return new Date(date.getTime() + 24 * 60 * 60 * 1000 - 1);
+    }
+    return date;
+  };
+  /**
+   * The dimension filters travel with the period.
+   *
+   * Every caller of this already passes what it returns straight to
+   * `ledgerRows`, so a report gains "just this job" without being edited — and
+   * cannot be edited into ignoring it.
+   */
+  const classId = query("classId");
+  const locationId = query("locationId");
+  return {
+    from: parse(query("from")),
+    to: parse(query("to"), true),
+    ...(classId ? { classId } : {}),
+    ...(locationId ? { locationId } : {}),
+  };
 }
 
 /**
