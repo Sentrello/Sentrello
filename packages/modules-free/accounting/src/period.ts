@@ -5,6 +5,7 @@ import {
 } from "@sentrello/auth/hono";
 import { db, eq, schema } from "@sentrello/db";
 import { closedThrough } from "@sentrello/db/ledger";
+import { dayFrom } from "@sentrello/db/timezone";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 
 /**
@@ -21,22 +22,12 @@ import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
  */
 
 /**
- * `2026-03-31` → the first instant of that day, in UTC.
- *
- * Not the last instant, despite how it reads: `plan()` in `year-end.ts` adds
- * one day to a previous year end's `dayFrom` to get the start of the next
- * period, and that arithmetic only lands on midnight because this is
- * midnight. The year-end close gets the *last* instant of the closing date
- * from its own local `endOfDay()`, deliberately a different function — this
- * one is start-of-day everywhere it is used.
+ * `dayFrom` lives in `@sentrello/db/timezone` now, with the other date
+ * handling. It returns the *first* instant of a day — `plan()` in
+ * `year-end.ts` depends on that — and its docstring there says why.
+ * Re-exported so every caller here keeps working.
  */
-export function dayFrom(value: unknown): Date | null {
-  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return null;
-  }
-  const date = new Date(`${value}T00:00:00.000Z`);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
+export { dayFrom };
 
 export function registerPeriodLock(ctx: ModuleContext) {
   ctx.app.get(

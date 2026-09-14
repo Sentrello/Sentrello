@@ -9,7 +9,6 @@ import {
 } from "@sentrello/db/ledger";
 import { registerForTest } from "@sentrello/module-sdk";
 import accounting from "./index";
-import { dayFrom } from "./period";
 
 /**
  * Closing the books, which nothing in the platform could do until now.
@@ -178,11 +177,4 @@ test("something that is not a date is refused rather than clearing the lock", as
   expect(
     ((await still.json()) as { closedThrough: string }).closedThrough,
   ).toBe("2026-03-31");
-});
-
-test("a date is a date", () => {
-  expect(dayFrom("2026-03-31")?.toISOString()).toBe("2026-03-31T00:00:00.000Z");
-  expect(dayFrom("31/03/2026")).toBeNull();
-  expect(dayFrom("")).toBeNull();
-  expect(dayFrom(null)).toBeNull();
 });

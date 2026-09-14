@@ -8,7 +8,7 @@ import { storeAttachment } from "@sentrello/module-sdk";
 import type { SentrelloEnv } from "@sentrello/module-sdk";
 import { and, eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
-import { parseAmountToCents, parseCsv } from "./csv";
+import { parseCsv } from "./csv";
 import accounting from "./index";
 import { packKey } from "./receipts";
 import { runRecurringBills } from "./recurring-bills";
@@ -647,17 +647,6 @@ test("the ledger exports as a file an accountant can open", async () => {
 // ---------------------------------------------------------------------------
 // Reading what a bank gives you
 // ---------------------------------------------------------------------------
-
-test("amounts arrive in more shapes than one", () => {
-  expect(parseAmountToCents("1,250.00")).toBe(125_000);
-  expect(parseAmountToCents("(15.00)")).toBe(-1_500);
-  expect(parseAmountToCents("-15.00")).toBe(-1_500);
-  expect(parseAmountToCents("£1.234,56")).toBe(123_456);
-  expect(parseAmountToCents("1,234")).toBe(123_400);
-  expect(parseAmountToCents("$99")).toBe(9_900);
-  expect(parseAmountToCents("not a number")).toBeNull();
-  expect(parseAmountToCents("")).toBeNull();
-});
 
 test("a quoted field keeps its commas", () => {
   const rows = parseCsv('a,"b,c",d\n1,2,3');

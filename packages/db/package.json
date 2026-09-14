@@ -5,6 +5,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./money": "./src/money.ts",
+    "./tax": "./src/tax.ts",
     "./currency": "./src/currency.ts",
     "./ledger": "./src/ledger.ts",
     "./list-query": "./src/list-query.ts",

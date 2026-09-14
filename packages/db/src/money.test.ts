@@ -5,6 +5,7 @@ import {
   earlyPaymentTerms,
   invoiceStatus,
   lineTotals,
+  parseAmountToCents,
 } from "./money";
 
 test("lineTotals sums integer cents with per-line tax", () => {
@@ -337,4 +338,15 @@ test("both ways of totalling a document agree, to the penny", () => {
 
   // A sweep that swept nothing passes every assertion above it.
   expect(checked).toBeGreaterThan(300);
+});
+
+test("amounts arrive in more shapes than one", () => {
+  expect(parseAmountToCents("1,250.00")).toBe(125_000);
+  expect(parseAmountToCents("(15.00)")).toBe(-1_500);
+  expect(parseAmountToCents("-15.00")).toBe(-1_500);
+  expect(parseAmountToCents("£1.234,56")).toBe(123_456);
+  expect(parseAmountToCents("1,234")).toBe(123_400);
+  expect(parseAmountToCents("$99")).toBe(9_900);
+  expect(parseAmountToCents("not a number")).toBeNull();
+  expect(parseAmountToCents("")).toBeNull();
 });

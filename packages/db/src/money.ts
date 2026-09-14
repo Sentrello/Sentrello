@@ -265,3 +265,53 @@ export function documentTotals(
     bands: [...byBand.values()].sort((a, b) => b.rateBp - a.rateBp),
   };
 }
+
+/**
+ * An amount as a whole number of cents, or null if it cannot be read.
+ *
+ * The other direction from everything above: text arriving from outside —
+ * a bank's CSV export, a figure typed into a form — turned into integer
+ * cents. Every bank writes amounts slightly differently: quoted fields,
+ * amounts in parentheses for money out, currency symbols, thousands
+ * separators. This is the smallest reader that copes with all of that.
+ *
+ * Null rather than zero, always. A row whose amount could not be parsed is a
+ * row the business has to look at — importing it as nothing would silently
+ * lose money from a reconciliation that then never balances.
+ */
+export function parseAmountToCents(raw: string): number | null {
+  const text = raw.trim();
+  if (!text) return null;
+
+  // Accountants' parentheses mean money out: (1,234.56) is -1234.56.
+  const negative = /^\(.*\)$/.test(text) || text.startsWith("-");
+  const digits = text.replace(/[()\-\s]/g, "").replace(/[^0-9.,]/g, "");
+  if (!digits) return null;
+
+  /**
+   * Which separator is the decimal point.
+   *
+   * "1.234,56" is a European thousand separator and a comma decimal; "1,234.56"
+   * is the other way round. The last separator in the string is the decimal one
+   * when it is followed by exactly two digits, and a thousands separator
+   * otherwise — which is how "1,234" stays 1234 rather than becoming 12.34.
+   */
+  const lastComma = digits.lastIndexOf(",");
+  const lastDot = digits.lastIndexOf(".");
+  const lastSeparator = Math.max(lastComma, lastDot);
+  const decimals = lastSeparator >= 0 ? digits.length - lastSeparator - 1 : 0;
+
+  let normalized: string;
+  if (lastSeparator >= 0 && (decimals === 1 || decimals === 2)) {
+    normalized = `${digits.slice(0, lastSeparator).replace(/[.,]/g, "")}.${digits.slice(
+      lastSeparator + 1,
+    )}`;
+  } else {
+    normalized = digits.replace(/[.,]/g, "");
+  }
+
+  const value = Number(normalized);
+  if (!Number.isFinite(value)) return null;
+  const cents = Math.round(value * 100);
+  return negative ? -cents : cents;
+}

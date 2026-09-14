@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { knownTimezone, momentAt, partsIn } from "./timezone";
+import { dayFrom, knownTimezone, momentAt, partsIn } from "./timezone";
 
 /**
  * Where a business is, in time.
@@ -105,4 +105,11 @@ test("no timezone is the server's own", () => {
       null,
     ).getTime(),
   ).toBe(when.getTime());
+});
+
+test("a date is a date", () => {
+  expect(dayFrom("2026-03-31")?.toISOString()).toBe("2026-03-31T00:00:00.000Z");
+  expect(dayFrom("31/03/2026")).toBeNull();
+  expect(dayFrom("")).toBeNull();
+  expect(dayFrom(null)).toBeNull();
 });
