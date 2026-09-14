@@ -26,8 +26,8 @@ function screens(dir: string): string[] {
 test("no Core screen builds what a primitive already covers", () => {
   const found: string[] = [];
   for (const path of screens(ROUTES)) {
-    for (const finding of findHandRolledUi(readFileSync(path, "utf8"))) {
-      found.push(`${path.split("/apps/web/")[1]}: ${finding}`);
+    for (const { line, say } of findHandRolledUi(readFileSync(path, "utf8"))) {
+      found.push(`${path.split("/apps/web/")[1]}:${line}: ${say}`);
     }
   }
   expect(found).toEqual([]);

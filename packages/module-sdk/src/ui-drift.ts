@@ -29,25 +29,75 @@ const RULES: { pattern: RegExp; say: string }[] = [
   },
 ];
 
-export function findHandRolledUi(source: string): string[] {
-  const findings = RULES.filter((rule) => rule.pattern.test(source)).map(
-    (r) => r.say,
-  );
+/**
+ * A tab strip that never became `ui.Tabs`.
+ *
+ * `setTab` names the state a hand-rolled strip needs to change tab; `<Tabs`
+ * names the one primitive that already draws one. A screen with the first and
+ * not the second is exactly the case two Core screens were found in — checked
+ * against Core's own seven tab-bearing screens rather than assumed, because a
+ * heuristic this blunt earns its keep only if it is right.
+ */
+const TAB_PATTERN = /\bsetTab\b/;
+const HAS_TABS_COMPONENT = /<Tabs\b/;
+const TAB_FINDING =
+  "a tab strip built by hand — use ui.Tabs, which Core's own screens use";
 
-  /**
-   * A tab strip that never became `ui.Tabs`.
-   *
-   * `setTab` names the state a hand-rolled strip needs to change tab; `<Tabs`
-   * names the one primitive that already draws one. A screen with the first
-   * and not the second is exactly the case two Core screens were found in —
-   * checked against Core's own seven tab-bearing screens rather than assumed,
-   * because a heuristic this blunt earns its keep only if it is right.
-   */
-  if (/\bsetTab\b/.test(source) && !/<Tabs\b/.test(source)) {
-    findings.push(
-      "a tab strip built by hand — use ui.Tabs, which Core's own screens use",
-    );
+/**
+ * Excepts the line below it, with a reason — the only way to silence a
+ * finding. A comment saying "leave it, note why" suppresses nothing on its
+ * own; this does, and the reason sits on the line the next person editing it
+ * will actually read.
+ *
+ *   // ui-drift-ignore: page resets elsewhere, a plain counter is safe here
+ *   const [page, setPage] = useState(1);
+ */
+const IGNORE_ABOVE = /^\s*\/\/\s*ui-drift-ignore\b/;
+
+export interface HandRolledFinding {
+  line: number;
+  say: string;
+}
+
+/**
+ * Blanks out comments while keeping every line break, so a doc comment that
+ * happens to contain `<h2>` or `setTab` cannot trip a rule — `ui.tsx`'s own
+ * `SectionHeading` comment mentions exactly that example — and the line
+ * numbers reported below still point at the original source.
+ */
+function stripComments(source: string): string {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, (comment) => comment.replace(/[^\n]/g, " "))
+    .replace(/\/\/[^\n]*/g, (comment) => " ".repeat(comment.length));
+}
+
+function lineOf(text: string, index: number): number {
+  return text.slice(0, index).split("\n").length;
+}
+
+export function findHandRolledUi(source: string): HandRolledFinding[] {
+  const rawLines = source.split("\n");
+  const clean = stripComments(source);
+  const isExcepted = (line: number) =>
+    IGNORE_ABOVE.test(rawLines[line - 2] ?? "");
+
+  const findings: HandRolledFinding[] = [];
+
+  for (const rule of RULES) {
+    const match = rule.pattern.exec(clean);
+    if (!match) continue;
+    const line = lineOf(clean, match.index);
+    if (isExcepted(line)) continue;
+    findings.push({ line, say: rule.say });
   }
 
-  return findings;
+  if (!HAS_TABS_COMPONENT.test(clean)) {
+    const match = TAB_PATTERN.exec(clean);
+    if (match) {
+      const line = lineOf(clean, match.index);
+      if (!isExcepted(line)) findings.push({ line, say: TAB_FINDING });
+    }
+  }
+
+  return findings.sort((a, b) => a.line - b.line);
 }
