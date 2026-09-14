@@ -15,6 +15,7 @@ import * as reactQuery from "@tanstack/react-query";
 import * as React from "react";
 import * as jsxRuntime from "react/jsx-runtime";
 import { api } from "./api";
+import * as listUi from "./list-ui";
 import * as money from "./money";
 import * as ui from "./ui";
 
@@ -41,6 +42,15 @@ interface SentrelloRuntime {
   reactQuery: typeof reactQuery;
   /** the same primitives Core's own screens use, so modules look native */
   ui: typeof ui;
+  /**
+   * The list machinery Core's own screens use: search, the filter rail, the
+   * sort menu and paging.
+   *
+   * It existed and was tested for months before any module could reach it,
+   * which is not a small omission — it is the difference between a module's
+   * list and Core's being the same product.
+   */
+  listUi: typeof listUi;
   money: typeof money;
   api: typeof api;
   /** where a module registers its screen as it loads */
@@ -74,6 +84,7 @@ export function installRuntime(): SentrelloRuntime {
     jsxRuntime,
     reactQuery,
     ui,
+    listUi,
     money,
     api,
     screens: {},
