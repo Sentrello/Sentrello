@@ -10,6 +10,8 @@
  * be fooled by a string containing markup; a scanner that is wrong twice a year
  * and costs nothing beats a parser nobody maintains.
  */
+import { exceptedAbove, lineOf, stripComments } from "./scan-text";
+
 const RULES: { pattern: RegExp; say: string }[] = [
   {
     pattern: /<h[23](?=[\s>])[^>]*(?:className|style)=/,
@@ -52,34 +54,16 @@ const TAB_FINDING =
  *   // ui-drift-ignore: page resets elsewhere, a plain counter is safe here
  *   const [page, setPage] = useState(1);
  */
-const IGNORE_ABOVE = /^\s*\/\/\s*ui-drift-ignore\b/;
-
 export interface HandRolledFinding {
   line: number;
   say: string;
-}
-
-/**
- * Blanks out comments while keeping every line break, so a doc comment that
- * happens to contain `<h2>` or `setTab` cannot trip a rule — `ui.tsx`'s own
- * `SectionHeading` comment mentions exactly that example — and the line
- * numbers reported below still point at the original source.
- */
-function stripComments(source: string): string {
-  return source
-    .replace(/\/\*[\s\S]*?\*\//g, (comment) => comment.replace(/[^\n]/g, " "))
-    .replace(/\/\/[^\n]*/g, (comment) => " ".repeat(comment.length));
-}
-
-function lineOf(text: string, index: number): number {
-  return text.slice(0, index).split("\n").length;
 }
 
 export function findHandRolledUi(source: string): HandRolledFinding[] {
   const rawLines = source.split("\n");
   const clean = stripComments(source);
   const isExcepted = (line: number) =>
-    IGNORE_ABOVE.test(rawLines[line - 2] ?? "");
+    exceptedAbove(rawLines, line, "ui-drift");
 
   const findings: HandRolledFinding[] = [];
 
