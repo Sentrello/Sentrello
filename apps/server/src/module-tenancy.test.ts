@@ -281,11 +281,10 @@ beforeAll(async () => {
   bDraftIds.push(secondBody.invoice.id);
 
   /*
-   * And two records in accounting, which owned less of the second business's
-   * data than any other module and survived every sweep because of it.
-   *
-   * A bank rule needs an account to categorise into, so like the invoice it
-   * cannot go in the list above — it needs an id that list does not have.
+   * And a dimension in accounting, which owned less of the second business's
+   * data than any other module and survived every sweep because of it. Like
+   * the invoice it cannot go in the list above — it needs an id that list
+   * does not have.
    */
   const dimension = await registerForTest(accounting).request(
     "http://localhost/api/dimensions",
@@ -302,24 +301,6 @@ beforeAll(async () => {
     dimension?: { id?: string };
   };
   if (madeDimension.dimension?.id) bIds.push(madeDimension.dimension.id);
-
-  const rule = await registerForTest(accounting).request(
-    "http://localhost/api/bank-rules",
-    {
-      method: "POST",
-      headers: bHeaders,
-      body: JSON.stringify({
-        name: MARKER,
-        matchText: MARKER,
-        accountId: debit.id,
-      }),
-    },
-  );
-  if (rule.status >= 400) {
-    throw new Error(`seeding a bank rule answered ${rule.status}`);
-  }
-  const madeRule = (await rule.json()) as { rule?: { id?: string } };
-  if (madeRule.rule?.id) bIds.push(madeRule.rule.id);
 
   /*
    * Tax definitions, from the preset route rather than one at a time.
