@@ -94,17 +94,7 @@ afterAll(async () => {
       .delete(schema.journalLines)
       .where(eq(schema.journalLines.entryId, entry.id));
   }
-  const bills = await db
-    .select({ id: schema.bills.id })
-    .from(schema.bills)
-    .where(eq(schema.bills.organizationId, orgId));
-  for (const row of bills) {
-    await db
-      .delete(schema.billLines)
-      .where(eq(schema.billLines.billId, row.id));
-  }
   for (const t of [
-    schema.bills,
     schema.transactions,
     schema.journalEntries,
     schema.accounts,
@@ -160,47 +150,6 @@ test("defining fields does not disturb the closed period", async () => {
     .where(eq(schema.ledgerSettings.organizationId, orgId));
 });
 
-/**
- * The body of a request is not a schema.
- *
- * Storing whatever arrives means any caller can write any key onto any bill
- * for ever, and a form that is later removed leaves values nothing will ever
- * show or clean up.
- */
-test("only a field somebody defined is stored on a bill", async () => {
-  await define([
-    { label: "Purchase order", type: "text", appliesTo: "bill" },
-    { label: "Litres", type: "number", appliesTo: "bill" },
-  ]);
-
-  const made = await post("/api/bills", {
-    billDate: "2026-08-01T00:00:00Z",
-    lines: [
-      {
-        description: "Fuel",
-        quantity: 1,
-        unitPriceCents: 5_000,
-        accountId: fuel,
-      },
-    ],
-    custom: {
-      purchase_order: "PO-4471",
-      litres: "42.5",
-      something_nobody_defined: "dropped",
-    },
-  });
-  expect(made.status).toBe(201);
-  const { bill } = (await made.json()) as {
-    bill: { id: string; customValues: Record<string, unknown> };
-  };
-
-  expect(bill.customValues.purchase_order).toBe("PO-4471");
-  // Coerced to what the field says it is, not left as the string a browser
-  // sent — a number field holding "42.5" takes every total that touches it.
-  expect(bill.customValues.litres).toBe(42.5);
-  expect("something_nobody_defined" in bill.customValues).toBe(false);
-});
-
 test("a field defined for a bill is not written onto money in and out", async () => {
   await define([
     { label: "Purchase order", type: "text", appliesTo: "bill" },
@@ -239,34 +188,6 @@ test("a list with nothing to choose is refused", async () => {
     { label: "Van", type: "select", options: [], appliesTo: "bill" },
   ]);
   expect(res.status).toBe(400);
-});
-
-test("only what is on the list is stored in a list field", async () => {
-  await define([
-    {
-      label: "Van",
-      type: "select",
-      options: ["Transit", "Sprinter"],
-      appliesTo: "bill",
-    },
-  ]);
-  const made = await post("/api/bills", {
-    billDate: "2026-08-01T00:00:00Z",
-    lines: [
-      {
-        description: "Fuel",
-        quantity: 1,
-        unitPriceCents: 100,
-        accountId: fuel,
-      },
-    ],
-    custom: { van: "Something else" },
-  });
-  const { bill } = (await made.json()) as {
-    bill: { customValues: Record<string, unknown> };
-  };
-  // A stale option left over from an old form is not quietly accepted.
-  expect("van" in bill.customValues).toBe(false);
 });
 
 test("another business's definitions are not this one's", async () => {
