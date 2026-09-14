@@ -218,6 +218,23 @@ export function requestedPaths(files: string[]): AskedPath[] {
         : methodsAfter(text, m.index + m[0].length),
     });
   }
+
+  /**
+   * `useListQuery("shop/orders", state)` fetches `/api/shop/orders` from
+   * inside the hook, under a resource name that never appears next to
+   * `/api/` in the screen calling it — the one path this sweep is built to
+   * read straight off the page. A screen whose only reason to reach a list
+   * route is this call is invisible without it, which is exactly what
+   * clearing a second, literal fetch of the same endpoint out of an orders
+   * screen turned up: the endpoint had no other line naming it.
+   */
+  for (const m of text.matchAll(
+    /\buseListQuery(?:<[^>]*>)?\(\s*["'`]([^"'`]+)["'`]/g,
+  )) {
+    if (!m[1]) continue;
+    asked.push({ shape: pathShape(`/api/${m[1]}`), methods: new Set(["GET"]) });
+  }
+
   return asked;
 }
 
