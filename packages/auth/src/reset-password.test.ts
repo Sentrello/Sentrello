@@ -124,7 +124,7 @@ test("a password too short to be worth setting is refused", async () => {
 });
 
 /**
- * Ruling 32: `docs/self-hosting.md` claims this command clears a lock along
+ * `docs/self-hosting.md` claims this command clears a lock along
  * with setting a password. It only does so if it writes the `password.reset`
  * event `lockState` (`packages/db/src/lockout.ts`) reads to decide whether
  * the window is cleared — the same event `POST /api/users/:userId/password`
@@ -180,8 +180,8 @@ test("resetting a locked account's password clears the lock", async () => {
 });
 
 /**
- * The branch's finishing review swept every place an address is written or
- * compared, checking they fold it the same way. This one lowercased without
+ * Every place an address is written or
+ * compared was checked here for folding it the same way. This one lowercased without
  * trimming while `unlock.ts` beside it and `lockState` both trim first — and
  * this is a command somebody pastes into a terminal, where a trailing space
  * is an ordinary way to arrive.

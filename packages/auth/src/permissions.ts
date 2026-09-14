@@ -151,7 +151,7 @@ export const statement = {
 export const ac = createAccessControl(statement);
 
 // Instance Owner — full control of THEIR business (not a platform super admin;
-// that's Packet 03).
+// that lives in the control plane).
 export const admin = ac.newRole({
   ...adminAc.statements,
   dashboard: ["read"],

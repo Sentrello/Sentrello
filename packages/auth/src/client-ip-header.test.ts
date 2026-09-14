@@ -50,7 +50,7 @@ test("two callers forging different values share one bucket, rather than getting
     })
   ).text();
   // Over-limiting is the safe direction for a rate limiter. Handing each
-  // forged value its own bucket is the failure this task exists to remove.
+  // forged value its own bucket is exactly the failure a shared bucket avoids.
   expect(first).toBe(second);
 });
 

@@ -8,7 +8,7 @@ import { sourceFiles, unreachableRoutes } from "@sentrello/module-sdk";
  *
  * The gates test asks whether a route refuses the wrong person. This asks the
  * question underneath it: whether anybody can get to the route at all. A route
- * is written, tested, gated correctly, and described in the plan as built — and
+ * is written, tested, gated correctly, and marked done — and
  * no screen ever calls it. Every test passes, because every test talks to the
  * API, and the API is right. The feature does not exist, because a customer
  * cannot reach it, and the notes say it is done so nobody looks again.

@@ -15,7 +15,7 @@ import usersModule from "./index";
  * `settings`* — and a property is what a future route should have to satisfy
  * without anybody remembering to write a test for it.
  *
- * Written after the branch's finishing review mutated all twenty-nine gates
+ * Written after mutating all twenty-nine gates
  * one at a time: **twenty-one of them could be deleted with the whole suite
  * still green.** Three separate gates had already shipped unheld and been
  * caught individually by mutation, which is what made the sweep worth running;

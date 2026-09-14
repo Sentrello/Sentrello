@@ -45,5 +45,5 @@ export async function resolveLicense(
 
   return { state, gate: makeEntitlementGate(state) };
 }
-// Packet 03 adds: a pg-boss daily job that fetches a fresh token from
+// A pg-boss daily job fetches a fresh token from
 // SENTRELLO_LICENSE_SERVER_URL and writes it to tokenPath (the online check).

@@ -364,7 +364,7 @@ test("the roles screen answers the same for a caller holding the seeded admins p
 });
 
 // The `/api/users/policy` tests — both verbs — moved to
-// `authentication.test.ts` along with the route itself (Task 8). They are
+// `authentication.test.ts` along with the route itself. They are
 // still reachable through this file's `app`, since `registerForTest` mounts
 // the whole module, but the file that owns a route's behavior is the file
 // that tests it.
@@ -580,14 +580,14 @@ test("deleting a default group does not bring it back", async () => {
 });
 
 /**
- * Ruling 30, on the route that was still saying the old thing.
+ * The route that was still saying the old thing.
  *
  * `GET /api/users/roles` described a compiled role as `custom[role] ??
  * builtInPermissions(role)` — a stored row *replacing* the built-in. That is
  * not what authorises: Better Auth starts from the compiled statements and
  * unions the stored row into them, so a row narrowing `admin` still leaves
  * everything else allowed. `access.ts` was corrected and this route was not,
- * and Task 12a's group Access tab reads this route, so the console inherited
+ * and the group Access tab reads this route, so the console inherited
  * a description of `admin` that the product does not honour.
  */
 test("a stored row under a compiled name adds to it here too, and does not replace it", async () => {

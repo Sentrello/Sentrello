@@ -71,8 +71,8 @@ export async function policyFor(
  * it, and why `lockoutAfterAttempts` can be set to zero to turn the feature
  * off entirely on an instance where this tradeoff is not worth it. Auto-expiry
  * is the answer chosen here precisely because the locked person is often the
- * only administrator there is. Task 8 answers it two more ways this function
- * only reads the result of: `POST /api/users/:userId/unlock`
+ * only administrator there is. That is answered two more ways elsewhere, and
+ * this function only reads the result of either: `POST /api/users/:userId/unlock`
  * (`packages/modules-free/users/src/authentication.ts`) records an explicit
  * `account.unlocked` event from inside a session, and `sentrello unlock`
  * (`packages/auth/src/unlock.ts`) records the same event from the host,

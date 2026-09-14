@@ -24,7 +24,7 @@ import { policyLabel } from "./policy-ui";
  * Lifted from `Groups` in `user-groups.tsx`, which drew every group's
  * members and carried policies in a row that expanded in place on this same
  * page. That UI moves to `group.tsx`'s Members and Access tabs — the same
- * split Task 11 made between `people.tsx` and `person.tsx`. What stays here
+ * split made between `people.tsx` and `person.tsx`. What stays here
  * is the list, creating a new one, and deleting one: `group.tsx` has no
  * Details tab to put deletion on, so it stays where `policies.tsx` keeps it
  * for a policy — on the row.

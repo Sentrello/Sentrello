@@ -37,12 +37,12 @@ export default defineModule({
      * name, and repointing it at a heading would land them on a section
      * label instead of the list they asked for.
      *
-     * Every entry requires `settings: ["update"]`, including the two the plan
-     * had at `read`. That reasoning — reading who did what is not the same
+     * Every entry requires `settings: ["update"]`, including two that might
+     * seem to only need `read`. That reasoning — reading who did what is not the same
      * authority as changing who may do it — is sound in the abstract and
      * wrong about these routes: `GET /api/users/events` and
-     * `GET /api/users/sessions` are both `settings:["update"]` themselves
-     * (Ruling 33 raised the first; the second shipped that way), because each
+     * `GET /api/users/sessions` are both `settings:["update"]` themselves,
+     * because each
      * aggregates every person in the business into one read. A nav entry
      * gated below the route it opens is a menu item that answers 403, which
      * is worse than not showing it at all.

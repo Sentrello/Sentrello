@@ -6,7 +6,7 @@ import { CarriedBy, Members } from "./policy";
  * The Members and Groups tabs, actually rendered — the empty state each one
  * has to get right, which is also the ordinary one: most of a business's own
  * policies are held through a group rather than directly, and most groups
- * carry only a handful of the policies that exist. Ruling 43, the same
+ * carry only a handful of the policies that exist. The same
  * reasoning as `access-matrix.render.test.tsx`: a rule can be correct while
  * the markup around it draws nothing where it should draw a reason.
  */

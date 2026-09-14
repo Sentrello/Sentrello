@@ -170,7 +170,7 @@ async function organizationFor(
  * installer carry it through to what a self-hosted customer actually runs.
  * So in production, a refused attempt returns from `onRequest` with 429 and
  * never reaches this hook — only the first three wrong codes in each
- * 10-second window are ever recorded here, and Task 4's lockout count
+ * 10-second window are ever recorded here, and the lockout count
  * excludes the rest. That exclusion is safe only because those excluded
  * attempts are already being refused by the router, not because they went
  * unnoticed.
@@ -250,9 +250,9 @@ async function recordTwoFactorVerify(
  * of failures against one address at three in the morning. That is as true of
  * the second factor as it is of the password — an instance that requires
  * two-factor is the one that cares *most* about a run of guessed codes, not
- * less, and until this file's Task 3c that half was invisible in both
- * directions: neither a completed two-factor sign-in nor a failed one against
- * an account that has 2FA turned on was ever recorded.
+ * less, and until this file added two-factor coverage that half was invisible
+ * in both directions: neither a completed two-factor sign-in nor a failed one
+ * against an account that has 2FA turned on was ever recorded.
  *
  * An `after` hook rather than wrapping the endpoints, because sign-in and
  * two-factor verification are Better Auth's routes and not ours. Registered
@@ -314,8 +314,8 @@ export const signInEvents = createAuthMiddleware(async (ctx) => {
       returned && !(returned instanceof Error) && returned.twoFactorRedirect;
 
     // Still 2FA-pending: not a success (it isn't one yet) and not a failure
-    // either — the password was right, and Task 4 counts `sign-in.failed`
-    // rows toward a lockout, so marking a correct credential as a failure
+    // either — the password was right, and a lockout counts `sign-in.failed`
+    // rows toward it, so marking a correct credential as a failure
     // would start locking people out for typing the right password.
     // Nothing is recorded for this half of the attempt; what happens next
     // at `/two-factor/verify-totp` is a separate endpoint and a separate
@@ -559,8 +559,8 @@ export const signInEventsPlugin: BetterAuthPlugin = {
  * `/two-factor/verify-totp` or `/two-factor/verify-backup-code` while the
  * account stands locked, which defeats the point for exactly the accounts an
  * instance that requires two-factor cares most about protecting. All three
- * paths are guarded here rather than only the one the original brief for
- * this task named, because `sign-in-events.test.ts` already established that
+ * paths are guarded here rather than only the obvious one, because
+ * `sign-in-events.test.ts` already established that
  * a run of wrong codes against a pending challenge is exactly as real an
  * attack as a run of wrong passwords, and `record()` already writes both
  * kinds of failure under the identical `detail.email` key — the lock reads

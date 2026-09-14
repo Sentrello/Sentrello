@@ -397,7 +397,7 @@ test("an ordinary staff member cannot suspend anyone", async () => {
 });
 
 /**
- * Ruling 20: `defaults.ts` grants `settings:["read"]` to executives, managers
+ * `defaults.ts` grants `settings:["read"]` to executives, managers
  * and accounting, so this route being gated on `settings:["read"]` handed any
  * of them the target's email, roles, groups and 2FA state while
  * `GET /api/users` beside it correctly refuses the same caller with 403.
@@ -505,7 +505,7 @@ test("a member of a different organization is invisible here", async () => {
 });
 
 test("resetting a password writes the address, so it can clear an account lock", async () => {
-  // Task 8's addendum: this is the remedy an administrator actually reaches
+  // This is the remedy an administrator actually reaches
   // for, and until now it wrote a `password.reset` event with no
   // `detail.email` — which `lockState` needs to count this as clearing the
   // window (`packages/db/src/lockout.ts`). Without it, the owner gets a
@@ -533,8 +533,8 @@ test("resetting a password writes the address, so it can clear an account lock",
 });
 
 test("the recent-changes history excludes sign-in noise", async () => {
-  // Carried from Task 3's review: once sign-in events exist, twenty-five bot
-  // attempts evict every administrative action from this card. Self-contained
+  // Once sign-in events exist, twenty-five bot attempts evict every
+  // administrative action from this card. Self-contained
   // rather than relying on administrative events other tests in this file
   // happened to record first — this test's own `password.reset` below is the
   // administrative action the positive assertion needs, and it is always the
@@ -570,9 +570,9 @@ test("the recent-changes history excludes sign-in noise", async () => {
 });
 
 /**
- * Task 13's Definition of Done walk found this: the lock had been derivable
- * since Task 4 and clearable by route since Task 8, and no screen knew there
- * was anything to clear, because `personDetail` never asked. A lock nobody
+ * The lock had been derivable for a while and clearable by route for a
+ * while, and no screen knew there was anything to clear, because
+ * `personDetail` never asked. A lock nobody
  * can see is a lock nobody can lift.
  */
 test("a person's record says whether they are locked, and stops saying it once unlocked", async () => {

@@ -356,8 +356,8 @@ export const auth = betterAuth({
        * customer with three sites tries to add their ninth manager.
        */
       membershipLimit: 500,
-      // Better Auth's organization IS the tenant boundary from Build Plan §6.1;
-      // point it at the `organizations` table rather than keeping two.
+      // Better Auth's organization IS the tenant boundary every business table
+      // scopes to; point it at the `organizations` table rather than keeping two.
       schema: { organization: { modelName: "organizations" } },
     }),
   ],

@@ -20,7 +20,7 @@ import { policyLabel } from "./policy-ui";
 /**
  * One group: who is in it, what it carries, and what has happened to it.
  *
- * The design gives it three tabs (`docs/plan/Users-IAM-Console-Design.md:142`)
+ * It has three tabs
  * — Members, Access, Activity — where the old `Groups` component
  * (`user-groups.tsx`) drew all of it in one row that expanded in place. No
  * Details tab: renaming and deleting stayed on `groups.tsx`'s list, the same

@@ -10,7 +10,7 @@ import { policyLabel } from "./policy-ui";
  * `SignInRules` is lifted from `user-groups.tsx` unchanged — the two-factor,
  * password and session-length rules already live at `GET`/`PUT
  * /api/users/policy`. What is new is `Diagnostics`: the three facts
- * `docs/plan/Users-IAM-Console-Design.md` §8 asks this screen to surface,
+ * this screen needs to surface,
  * none of them readable from the browser until `GET /api/users/diagnostics`
  * existed — which header this instance trusts for a caller's address and
  * what this request resolved to, a warning when the base URL is not
@@ -48,7 +48,7 @@ interface Diagnostics {
  * the browser: one administrator, and no mail to send them a reset link.
  *
  * Exported and tested on its own (`authentication.test.ts`) rather than only
- * exercised through the rendered warning, per Ruling 39.
+ * exercised through the rendered warning.
  */
 export function singleAdministratorNoMail(
   d: Pick<Diagnostics, "administrators" | "mailConfigured">,
@@ -245,7 +245,7 @@ function SignInRules() {
 
 const warning = { color: "var(--color-warning)" };
 
-/** What this instance's deployment means for signing in — §8's three facts. */
+/** What this instance's deployment means for signing in. */
 function Diagnostics() {
   const { data, isLoading, error } = useQuery({
     queryKey: ["users-diagnostics"],

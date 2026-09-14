@@ -400,7 +400,7 @@ export function registerGroups(ctx: ModuleContext) {
   );
 
   // The rules for signing in — `GET`/`PUT /api/users/policy` — moved to
-  // `registerAuthentication` in `authentication.ts` (Task 8), unchanged
+  // `registerAuthentication` in `authentication.ts`, unchanged
   // apart from the lockout and retention fields that route now also accepts.
 }
 

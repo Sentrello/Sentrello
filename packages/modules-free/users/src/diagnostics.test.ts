@@ -8,8 +8,8 @@ import { seedDefaults } from "./defaults";
 import usersModule from "./index";
 
 /**
- * What the Authentication screen cannot otherwise see about this instance
- * (`docs/plan/Users-IAM-Console-Design.md` §8): the trusted header, what
+ * What the Authentication screen cannot otherwise see about this instance:
+ * the trusted header, what
  * this request resolved to, whether the base URL is `https`, whether mail is
  * configured, and how many administrators can still sign in.
  */
@@ -182,8 +182,8 @@ test("a second administrator changes the count this organization sees", async ()
 });
 
 /**
- * The same rule this branch has shipped a gate for and left unpinned three
- * times already (Ruling 34 twice, and `GET /api/users/sessions`'s own test):
+ * The same rule this module has shipped a gate for and left unpinned three
+ * times already, and `GET /api/users/sessions`'s own test makes a fourth:
  * a route this administrative gets its own test of the exact permission
  * that guards it, not just a happy path that would stay green if the gate
  * were quietly loosened.

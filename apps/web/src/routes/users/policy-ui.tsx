@@ -18,8 +18,8 @@ export interface Policy {
  * These lived in `routes/users.tsx` — the single screen this console replaced
  * — and outlived it: the policy list, the permission grid, the resource list
  * both of those and the resolved Access view agree on, and the one function
- * that turns a stored role key into a heading. Task 13 deleted the screen and
- * these moved here rather than being copied into each of the three screens
+ * that turns a stored role key into a heading. Deleting that screen moved
+ * these here rather than copying them into each of the three screens
  * that want them, which is what the comments below were already warning
  * against when they lived one directory up.
  */

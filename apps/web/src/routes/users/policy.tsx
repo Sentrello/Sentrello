@@ -20,8 +20,7 @@ import { Matrix, policyLabel } from "./policy-ui";
  * One policy: what it grants, who holds it directly, and which groups carry
  * it.
  *
- * The design's three tabs (`docs/plan/Users-IAM-Console-Design.md:147`) —
- * Permissions, Members, Groups — answer the question the old screen never
+ * The three tabs — Permissions, Members, Groups — answer the question the old screen never
  * could: "if I change this policy, who does it affect?" `Matrix`, lifted
  * from `users.tsx`, is the same editor that used to open inline on the list;
  * it stays read-only here for the two policies Better Auth compiles in,

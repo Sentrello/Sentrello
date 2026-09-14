@@ -120,7 +120,7 @@ test("an unlock clears it, however many failures came before", async () => {
 });
 
 test("a password reset clears it too, the same as an unlock", async () => {
-  // Task 8's addendum: "issue a new password" is the remedy an administrator
+  // "Issue a new password" is the remedy an administrator
   // actually reaches for, and it has to clear the lock exactly as an
   // explicit unlock does — an owner handed a fresh password and still told
   // "too many failed attempts" is the single most confusing thing this
@@ -177,8 +177,8 @@ test("one address locking does not lock another", async () => {
 /**
  * The same address, failing in one business, is not locked out of another.
  *
- * The branch's finishing review neutered every `organizationId` filter in
- * turn and found this one held by nothing: a lock is counted from events, and
+ * Neutering every `organizationId` filter in
+ * turn found this one held by nothing: a lock is counted from events, and
  * a count that forgot its organization would lock somebody out of a business
  * they had never tried to sign in to. One person can hold accounts in two
  * instances of the same product with the same address, which is exactly who

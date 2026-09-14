@@ -4,9 +4,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { Authentication } from "./authentication";
 
 /**
- * The Authentication screen, actually rendered (Ruling 43) — especially its
+ * The Authentication screen, actually rendered — especially its
  * warnings, since a warning that does not appear is the whole failure mode
- * §8 exists to close. `singleAdministratorNoMail` being correct
+ * these diagnostics exist to close. `singleAdministratorNoMail` being correct
  * (`authentication.test.ts`) is not enough by itself: this proves the markup
  * around it actually draws the sentence when the condition is true, and
  * stays quiet when it is not.

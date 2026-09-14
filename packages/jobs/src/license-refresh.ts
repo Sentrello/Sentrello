@@ -36,10 +36,10 @@ async function configFromEnv(): Promise<LicenseRefreshConfig> {
 }
 
 /**
- * The daily online check from Build Plan §4.2/§4.3. Fetches a fresh short-lived
- * token; if the server is unreachable or the subscription lapsed, the instance
- * keeps its last token until expiry and then downgrades to Free. The
- * `/api/license/token` endpoint itself is built in Packet 03.
+ * The daily online check that keeps a licensed instance's token fresh. Fetches
+ * a fresh short-lived token; if the server is unreachable or the
+ * subscription lapsed, the instance keeps its last token until expiry and
+ * then downgrades to Free.
  */
 export async function refreshLicenseToken(config?: LicenseRefreshConfig) {
   const { serverUrl, licenseKey, instanceId, tokenPath, keyConfigured } =
