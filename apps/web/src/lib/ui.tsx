@@ -500,6 +500,42 @@ export function ConfirmButton({
   );
 }
 
+/**
+ * The heading above a panel or a section of one.
+ *
+ * Written three different ways before this existed — `text-sm` here, `text-lg`
+ * there, and in one module an `<h2>` with no class at all, which renders at
+ * whatever size the browser picks and looked nothing like the rest of the
+ * product.
+ *
+ * The level is a prop because it is a different question from the size. A
+ * heading inside a section that already has one must be an `h3` for anybody
+ * reading with a screen reader, and hand-rolled headings picked the tag that
+ * looked right instead, which is how a module ended up with `h3` where every
+ * other module has `h2`.
+ */
+export function SectionHeading({
+  children,
+  level = 2,
+  hint,
+}: {
+  children: ReactNode;
+  level?: 2 | 3;
+  hint?: ReactNode;
+}) {
+  const Tag = level === 3 ? "h3" : "h2";
+  return (
+    <div className="mb-2 flex items-baseline gap-2">
+      <Tag className="font-semibold text-sm">{children}</Tag>
+      {hint ? (
+        <span className="text-xs" style={muted}>
+          {hint}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
 export function Card({
   children,
   className = "",

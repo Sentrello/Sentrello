@@ -81,6 +81,11 @@ export interface SentrelloUi {
   border: React.CSSProperties;
   PageActions: React.ComponentType<{ children: React.ReactNode }>;
   PageSubtitle: React.ComponentType<{ children: React.ReactNode }>;
+  SectionHeading: React.ComponentType<{
+    children: React.ReactNode;
+    level?: 2 | 3;
+    hint?: React.ReactNode;
+  }>;
 }
 
 /**
@@ -117,6 +122,7 @@ export const UI_MEMBERS = [
   "border",
   "PageActions",
   "PageSubtitle",
+  "SectionHeading",
 ] as const satisfies readonly (keyof SentrelloUi)[];
 
 /** The state one list screen keeps — what `useListState` returns. */
