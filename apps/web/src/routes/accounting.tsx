@@ -12,8 +12,10 @@ import {
   Input,
   Loading,
   Row,
+  SectionHeading,
   Select,
   Table,
+  Tabs,
   formatDate,
   formatMoney,
   muted,
@@ -328,14 +330,15 @@ export function Summary() {
           </div>
 
           <Card>
-            <h2 className="mb-2 text-sm font-semibold">
+            <SectionHeading
+              hint={
+                basis === "cash"
+                  ? "on what was actually received and paid"
+                  : null
+              }
+            >
               Profit and loss
-              {basis === "cash" ? (
-                <span className="ml-2 font-normal text-xs" style={muted}>
-                  on what was actually received and paid
-                </span>
-              ) : null}
-            </h2>
+            </SectionHeading>
             <Breakdown title="Income" rows={pnl.data.income} />
             <Breakdown title="Expenses" rows={pnl.data.expenses} />
           </Card>
@@ -344,9 +347,9 @@ export function Summary() {
 
       {sheet.data ? (
         <Card>
-          <h2 className="mb-2 text-sm font-semibold">
+          <SectionHeading>
             Balance sheet as at {formatDate(sheet.data.asOf)}
-          </h2>
+          </SectionHeading>
           <Breakdown title="Assets" rows={sheet.data.assets} />
           <Breakdown title="Liabilities" rows={sheet.data.liabilities} />
           <Breakdown title="Equity" rows={sheet.data.equity} />
@@ -628,29 +631,7 @@ export function Money() {
         {add.error ? <ErrorNote error={add.error} /> : null}
       </Card>
 
-      <div
-        className="flex flex-wrap items-center gap-1 border-b pb-2"
-        style={{ borderColor: "var(--border)" }}
-      >
-        {MONEY_TABS.map((t) => (
-          <button
-            key={t.id || "all"}
-            type="button"
-            className="rounded-md px-3 py-1.5 text-sm"
-            style={
-              tab === t.id
-                ? {
-                    background: "var(--brand-on-white-text)",
-                    color: "var(--color-neutral-50)",
-                  }
-                : undefined
-            }
-            onClick={() => setTab(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <Tabs tabs={MONEY_TABS} active={tab} onChange={setTab} />
 
       <div className="flex flex-wrap items-end gap-2">
         <Input

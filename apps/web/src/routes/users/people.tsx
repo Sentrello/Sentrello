@@ -112,6 +112,10 @@ export function People() {
     const timer = setTimeout(() => setSearch(q), 250);
     return () => clearTimeout(timer);
   }, [q]);
+  // Plain state rather than the shared list machinery: sort and filters go
+  // unused here, and the screen already resets its own page on every search
+  // and audience change below, so a counter is all this needs.
+  // ui-drift-ignore: page resets on every search and audience change below
   const [page, setPage] = useState(1);
   const [issued, setIssued] = useState<{
     email: string;

@@ -19,6 +19,7 @@ import {
   Row,
   Select,
   Table,
+  Tabs,
   border,
   formatDate,
   formatMoney,
@@ -233,44 +234,18 @@ export function Invoices() {
         Status first. The tabs carry their own counts, which is what turns
         this from a list into a summary somebody can act on.
       */}
-      <div
-        className="flex flex-wrap items-center gap-1 border-b pb-2"
-        style={border}
-      >
-        {TABS.map((t) => {
-          const n = counts.data?.counts[t.id];
-          const here = tab === t.id;
-          return (
-            <button
-              key={t.id}
-              type="button"
-              className="rounded-md px-3 py-1.5 text-sm"
-              style={
-                here
-                  ? {
-                      background: "var(--brand-on-white-text)",
-                      color: "var(--color-neutral-50)",
-                    }
-                  : undefined
-              }
-              onClick={() => {
-                setTab(t.id);
-                state.setPage(1);
-              }}
-            >
-              {t.label}
-              {n ? (
-                <span
-                  className="ml-1.5 text-xs tabular-nums"
-                  style={here ? undefined : muted}
-                >
-                  {n}
-                </span>
-              ) : null}
-            </button>
-          );
-        })}
-      </div>
+      <Tabs
+        tabs={TABS.map((t) => ({
+          id: t.id,
+          label: t.label,
+          badge: counts.data?.counts[t.id],
+        }))}
+        active={tab}
+        onChange={(id) => {
+          setTab(id);
+          state.setPage(1);
+        }}
+      />
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative">

@@ -87,6 +87,23 @@ function sameShape(a: string[], b: string[]): boolean {
 }
 
 /**
+ * Whether a shape actually identifies a route, rather than a whole class of
+ * them.
+ *
+ * `/api/${resource}` says nothing about which route — a generic list fetcher
+ * writes exactly that, and left in it silently excuses every two-segment
+ * route in the codebase, literal or not. `/api` and nothing else identifies
+ * no route at all. One check, so every caller that builds a shape from
+ * scanned text — a literal path or a hook argument — is held to it; a second
+ * copy of this is a copy that gets the boundary subtly wrong for one of them.
+ */
+function isUsableShape(shape: string[]): boolean {
+  if (shape.length <= 1) return false;
+  if (shape.length === 2 && shape[1] === "*") return false;
+  return true;
+}
+
+/**
  * The API paths registered across a set of source files.
  *
  * Only `/api/…`: a module also serves public pages, an embed script and an
@@ -177,24 +194,16 @@ export function requestedPaths(files: string[]): AskedPath[] {
     if (!m[1]) continue;
     const shape = pathShape(m[1]);
     /**
-     * `/api/${resource}` on its own says nothing about which route.
-     *
-     * One generic list fetcher writes exactly that, and left in it silently
-     * excused every two-segment route in the codebase — including a dead
-     * duplicate of recurring invoices in the paid module. A deeper path with a
-     * variable at the front, like `/api/${holder}/${id}/receipt`, still counts:
-     * the segments after it identify the route.
+     * A deeper path with a variable at the front, like
+     * `/api/${holder}/${id}/receipt`, still counts: the segments after it
+     * identify the route. A dead duplicate of recurring invoices in the paid
+     * module was once excused by a shape this coarse; `` `/api/${asQuote ?
+     * "quotes" : "invoices"}/${id}` `` captured only as far as the quote
+     * inside the expression, so what survived was the bare prefix, and that
+     * reported one real screen as calling a route nobody had registered.
+     * `isUsableShape` is what turns both away.
      */
-    if (shape.length === 2 && shape[1] === "*") continue;
-    /**
-     * `/api/` and nothing else identifies no route at all.
-     *
-     * `` `/api/${asQuote ? "quotes" : "invoices"}/${id}` `` is captured only as
-     * far as the quote inside the expression, so what survives is the prefix.
-     * Reading that as a request for `/api` reported one real screen as calling
-     * a route nobody had registered.
-     */
-    if (shape.length <= 1) continue;
+    if (!isUsableShape(shape)) continue;
     /**
      * A path kept in a variable is used somewhere this text cannot see.
      *
@@ -218,6 +227,29 @@ export function requestedPaths(files: string[]): AskedPath[] {
         : methodsAfter(text, m.index + m[0].length),
     });
   }
+
+  /**
+   * `useListQuery("shop/orders", state)` fetches `/api/shop/orders` from
+   * inside the hook, under a resource name that never appears next to
+   * `/api/` in the screen calling it — the one path this sweep is built to
+   * read straight off the page. A screen whose only reason to reach a list
+   * route is this call is invisible without it, which is exactly what
+   * clearing a second, literal fetch of the same endpoint out of an orders
+   * screen turned up: the endpoint had no other line naming it.
+   */
+  for (const m of text.matchAll(
+    /\buseListQuery(?:<[^>]*>)?\(\s*["'`]([^"'`]+)["'`]/g,
+  )) {
+    if (!m[1]) continue;
+    const shape = pathShape(`/api/${m[1]}`);
+    // `useListQuery(\`${resource}\`, state)` is a template literal, not a
+    // resource name — its shape is `["api", "*"]`, the exact one this sweep
+    // exists to turn away rather than let it excuse every other two-segment
+    // GET route in the codebase.
+    if (!isUsableShape(shape)) continue;
+    asked.push({ shape, methods: new Set(["GET"]) });
+  }
+
   return asked;
 }
 
