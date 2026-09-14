@@ -26,6 +26,25 @@ test("a plain figure takes no colour of its own", () => {
   expect(html).not.toContain("--color-danger");
 });
 
+test("a hint renders under the value, and is absent without one", () => {
+  const withHint = renderToStaticMarkup(
+    <StatFigure
+      label="Owed to you"
+      value="$4,200.00"
+      hint="3 unpaid invoices"
+    />,
+  );
+  expect(withHint).toContain("3 unpaid invoices");
+  expect(withHint.indexOf("3 unpaid invoices")).toBeGreaterThan(
+    withHint.indexOf("$4,200.00"),
+  );
+
+  const without = renderToStaticMarkup(
+    <StatFigure label="Owed to you" value="$4,200.00" />,
+  );
+  expect(without).not.toContain("3 unpaid invoices");
+});
+
 test("tone colours the figure, never the label", () => {
   const good = renderToStaticMarkup(
     <StatFigure label="Net profit" value="$11,426.10" tone="good" />,

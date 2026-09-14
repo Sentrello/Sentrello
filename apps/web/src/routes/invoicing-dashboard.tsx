@@ -6,6 +6,7 @@ import {
   Card,
   ErrorNote,
   Loading,
+  StatFigure,
   briefMoney,
   formatDate,
   formatMoney,
@@ -80,23 +81,15 @@ export function InvoicingDashboard() {
       <div className="grid gap-3 sm:grid-cols-4">
         {data.figures.map((figure) => (
           <Card key={figure.label}>
-            <p className="text-xs" style={muted}>
-              {figure.label}
-            </p>
-            <p
-              className="money mt-1 font-semibold text-2xl"
-              style={
-                figure.tone === "bad"
-                  ? { color: "var(--color-danger)" }
-                  : figure.tone === "good"
-                    ? { color: "var(--color-success)" }
-                    : undefined
+            <StatFigure
+              label={figure.label}
+              value={
+                figure.kind === "money" && typeof figure.value === "number"
+                  ? formatMoney(figure.value)
+                  : String(figure.value)
               }
-            >
-              {figure.kind === "money" && typeof figure.value === "number"
-                ? formatMoney(figure.value)
-                : String(figure.value)}
-            </p>
+              tone={figure.tone}
+            />
           </Card>
         ))}
       </div>

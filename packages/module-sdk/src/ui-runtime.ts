@@ -90,6 +90,7 @@ export interface SentrelloUi {
     label: React.ReactNode;
     value: React.ReactNode;
     tone?: "plain" | "good" | "bad";
+    hint?: React.ReactNode;
   }>;
 }
 
