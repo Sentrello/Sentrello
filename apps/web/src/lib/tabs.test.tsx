@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
-import { activeTab } from "./ui";
+import { renderToStaticMarkup } from "react-dom/server";
+import { Tabs, activeTab } from "./ui";
 
 /**
  * The rule a tab strip lives or dies by: what it shows when the id it was
@@ -37,4 +38,26 @@ test("no tabs at all resolves to nothing, and does not invent one", () => {
   // no tabs has nothing to make active, and inventing a tab here would put a
   // label on screen that names no panel.
   expect(activeTab([], "people")).toBeUndefined();
+});
+
+/**
+ * A count belongs on the tab, which is what turns a list into a summary.
+ *
+ * Invoices had this and the shared strip did not, so invoices kept its own
+ * forty-line copy — including its own version of the contrast fix the shared
+ * one already carried, which is the part that would have quietly rotted.
+ */
+test("a tab can carry a count beside its label", () => {
+  const html = renderToStaticMarkup(
+    <Tabs
+      tabs={[
+        { id: "open", label: "Open", badge: 12 },
+        { id: "paid", label: "Paid" },
+      ]}
+      active="open"
+      onChange={() => {}}
+    />,
+  );
+  expect(html).toContain("Open");
+  expect(html).toContain("12");
 });

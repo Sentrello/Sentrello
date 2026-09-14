@@ -733,13 +733,15 @@ export function StatusBadge({ status }: { status: string }) {
 export interface Tab {
   id: string;
   label: string;
+  /** A count, when the strip is also a summary — what invoices uses it for. */
+  badge?: ReactNode;
 }
 
 /**
  * Which tab an id actually selects.
  *
  * Separated from `Tabs` below and exported so the rule can be tested as
- * itself — see `tabs.test.ts`. It is also what a caller uses to work out
+ * itself — see `tabs.test.tsx`. It is also what a caller uses to work out
  * which panel to render, so the strip and the panel can never disagree about
  * which tab is showing.
  *
@@ -801,6 +803,11 @@ export function Tabs({
           onClick={() => onChange(tab.id)}
         >
           {tab.label}
+          {tab.badge !== undefined ? (
+            <span className="ml-1.5 text-xs" style={muted}>
+              {tab.badge}
+            </span>
+          ) : null}
         </button>
       ))}
       {trailing ? <div className="ml-auto">{trailing}</div> : null}
