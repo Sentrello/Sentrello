@@ -3,7 +3,7 @@ import {
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
-import { and, db, eq, isNull, schema } from "@sentrello/db";
+import { and, db, eq, schema } from "@sentrello/db";
 import {
   AttachmentError,
   attachmentFile,
@@ -19,8 +19,13 @@ import { isUuid } from "./chart";
  * Bookkeeping is half arithmetic and half evidence: an inspector, an
  * accountant and a bank all ask for the receipt rather than the entry, and a
  * business that has the entry and not the paper is in the same position as one
- * that has neither. So a transaction or a bill can carry the scan of the
- * document it came from.
+ * that has neither. So a transaction can carry the scan of the document it
+ * came from.
+ *
+ * A bill's receipt is the same idea against a Pro-only table, and lives in
+ * `purchases.ts`, the file that owns `bills` — not here. It reuses `FOLDER`,
+ * `packKey` and `unpackKey` below rather than a second copy, but the query
+ * against that table itself never appears in this Free-half file.
  *
  * The storing is the SDK's, unchanged and for good reasons — the name on disk
  * is generated so nothing a caller sends can climb out of the directory, and
@@ -30,39 +35,28 @@ import { isUuid } from "./chart";
  * the record the file hangs from.
  */
 
-/** Receipts live apart from note attachments; they are kept for years. */
-const FOLDER = "receipts";
+/**
+ * Receipts live apart from note attachments; they are kept for years.
+ *
+ * Exported so `purchases.ts` stores a bill's receipt under the same folder —
+ * a second string that has to be typed the same forever is worse than one
+ * shared constant.
+ */
+export const FOLDER = "receipts";
 
-type Holder = "transactions" | "bills";
-
-/** The row a receipt hangs from, confirmed to be this business's. */
+/** The transaction a receipt hangs from, confirmed to be this business's. */
 async function owned(
   orgId: string,
-  holder: Holder,
   id: string,
 ): Promise<{ receiptFileKey: string | null } | null> {
   if (!isUuid(id)) return null;
-  if (holder === "transactions") {
-    const [row] = await db
-      .select({ receiptFileKey: schema.transactions.receiptFileKey })
-      .from(schema.transactions)
-      .where(
-        and(
-          eq(schema.transactions.id, id),
-          eq(schema.transactions.organizationId, orgId),
-        ),
-      )
-      .limit(1);
-    return row ?? null;
-  }
   const [row] = await db
-    .select({ receiptFileKey: schema.bills.receiptFileKey })
-    .from(schema.bills)
+    .select({ receiptFileKey: schema.transactions.receiptFileKey })
+    .from(schema.transactions)
     .where(
       and(
-        eq(schema.bills.id, id),
-        eq(schema.bills.organizationId, orgId),
-        isNull(schema.bills.deletedAt),
+        eq(schema.transactions.id, id),
+        eq(schema.transactions.organizationId, orgId),
       ),
     )
     .limit(1);
@@ -71,27 +65,17 @@ async function owned(
 
 async function record(
   orgId: string,
-  holder: Holder,
   id: string,
   key: string | null,
 ): Promise<void> {
-  if (holder === "transactions") {
-    await db
-      .update(schema.transactions)
-      .set({ receiptFileKey: key })
-      .where(
-        and(
-          eq(schema.transactions.id, id),
-          eq(schema.transactions.organizationId, orgId),
-        ),
-      );
-    return;
-  }
   await db
-    .update(schema.bills)
-    .set({ receiptFileKey: key, updatedAt: new Date() })
+    .update(schema.transactions)
+    .set({ receiptFileKey: key })
     .where(
-      and(eq(schema.bills.id, id), eq(schema.bills.organizationId, orgId)),
+      and(
+        eq(schema.transactions.id, id),
+        eq(schema.transactions.organizationId, orgId),
+      ),
     );
 }
 
@@ -114,82 +98,80 @@ export function unpackKey(key: string): { path: string; name: string } {
 }
 
 export function registerReceipts(ctx: ModuleContext) {
-  for (const holder of ["transactions", "bills"] as const) {
-    ctx.app.post(
-      `/api/${holder}/:id/receipt`,
-      requireSession(),
-      requirePermission({ bookkeeping: ["update"] }),
-      async (c: RouteContext) => {
-        const orgId = activeOrganizationId(c.get("session"));
-        const id = c.req.param("id") ?? "";
-        if (!(await owned(orgId, holder, id))) {
-          return c.json({ error: "not found" }, 404);
+  ctx.app.post(
+    "/api/transactions/:id/receipt",
+    requireSession(),
+    requirePermission({ bookkeeping: ["update"] }),
+    async (c: RouteContext) => {
+      const orgId = activeOrganizationId(c.get("session"));
+      const id = c.req.param("id") ?? "";
+      if (!(await owned(orgId, id))) {
+        return c.json({ error: "not found" }, 404);
+      }
+
+      const form = await c.req.formData().catch(() => null);
+      const file = form?.get("file");
+      if (!(file instanceof File)) {
+        return c.json({ error: "a file" }, 400);
+      }
+
+      try {
+        const stored = await storeAttachment(orgId, file, FOLDER);
+        await record(orgId, id, packKey(stored.path, stored.name));
+        return c.json(
+          { receipt: { name: stored.name, size: stored.size } },
+          201,
+        );
+      } catch (err) {
+        if (err instanceof AttachmentError) {
+          return c.json({ error: err.message }, 400);
         }
+        throw err;
+      }
+    },
+  );
 
-        const form = await c.req.formData().catch(() => null);
-        const file = form?.get("file");
-        if (!(file instanceof File)) {
-          return c.json({ error: "a file" }, 400);
-        }
+  ctx.app.get(
+    "/api/transactions/:id/receipt",
+    requireSession(),
+    // Read, not update: whoever may see the books may see what is behind a
+    // figure in them. The check is on the record, because the file has no
+    // owner of its own.
+    requirePermission({ bookkeeping: ["read"] }),
+    async (c: RouteContext) => {
+      const orgId = activeOrganizationId(c.get("session"));
+      const id = c.req.param("id") ?? "";
+      const row = await owned(orgId, id);
+      if (!row?.receiptFileKey) return c.json({ error: "not found" }, 404);
 
-        try {
-          const stored = await storeAttachment(orgId, file, FOLDER);
-          await record(orgId, holder, id, packKey(stored.path, stored.name));
-          return c.json(
-            { receipt: { name: stored.name, size: stored.size } },
-            201,
-          );
-        } catch (err) {
-          if (err instanceof AttachmentError) {
-            return c.json({ error: err.message }, 400);
-          }
-          throw err;
-        }
-      },
-    );
+      const { path, name } = unpackKey(row.receiptFileKey);
+      const file = attachmentFile(path, FOLDER);
+      if (!file || !(await file.exists())) {
+        return c.json({ error: "not found" }, 404);
+      }
+      return new Response(file, { headers: attachmentHeaders(name) });
+    },
+  );
 
-    ctx.app.get(
-      `/api/${holder}/:id/receipt`,
-      requireSession(),
-      // Read, not update: whoever may see the books may see what is behind a
-      // figure in them. The check is on the record, because the file has no
-      // owner of its own.
-      requirePermission({ bookkeeping: ["read"] }),
-      async (c: RouteContext) => {
-        const orgId = activeOrganizationId(c.get("session"));
-        const id = c.req.param("id") ?? "";
-        const row = await owned(orgId, holder, id);
-        if (!row?.receiptFileKey) return c.json({ error: "not found" }, 404);
-
-        const { path, name } = unpackKey(row.receiptFileKey);
-        const file = attachmentFile(path, FOLDER);
-        if (!file || !(await file.exists())) {
-          return c.json({ error: "not found" }, 404);
-        }
-        return new Response(file, { headers: attachmentHeaders(name) });
-      },
-    );
-
-    ctx.app.delete(
-      `/api/${holder}/:id/receipt`,
-      requireSession(),
-      requirePermission({ bookkeeping: ["update"] }),
-      async (c: RouteContext) => {
-        const orgId = activeOrganizationId(c.get("session"));
-        const id = c.req.param("id") ?? "";
-        const row = await owned(orgId, holder, id);
-        if (!row) return c.json({ error: "not found" }, 404);
-        /**
-         * The row forgets the file; the file itself stays on disk.
-         *
-         * Deleting the bytes when somebody detaches a receipt is how a
-         * mis-click loses the only copy of a document a business is required
-         * to keep for years. Housekeeping can reclaim orphans later; nothing
-         * about a wrong figure is worth destroying evidence over.
-         */
-        await record(orgId, holder, id, null);
-        return c.json({ detached: true });
-      },
-    );
-  }
+  ctx.app.delete(
+    "/api/transactions/:id/receipt",
+    requireSession(),
+    requirePermission({ bookkeeping: ["update"] }),
+    async (c: RouteContext) => {
+      const orgId = activeOrganizationId(c.get("session"));
+      const id = c.req.param("id") ?? "";
+      const row = await owned(orgId, id);
+      if (!row) return c.json({ error: "not found" }, 404);
+      /**
+       * The row forgets the file; the file itself stays on disk.
+       *
+       * Deleting the bytes when somebody detaches a receipt is how a
+       * mis-click loses the only copy of a document a business is required
+       * to keep for years. Housekeeping can reclaim orphans later; nothing
+       * about a wrong figure is worth destroying evidence over.
+       */
+      await record(orgId, id, null);
+      return c.json({ detached: true });
+    },
+  );
 }
