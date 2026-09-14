@@ -172,6 +172,9 @@ export function useListQuery<T>(
 } {
   const query = listQueryString(state, true);
   const { data, isLoading, error } = useQuery({
+    // The full path, not just its rows key: two modules can each have an
+    // "orders" resource, and the cache is keyed on where the request went,
+    // not on what its response happens to be called.
     queryKey: [resource, query],
     queryFn: () =>
       api<Record<string, unknown> & { total: number }>(
@@ -187,9 +190,15 @@ export function useListQuery<T>(
     placeholderData: (previous) => previous,
   });
 
+  // The URL is the whole path, but a namespaced module route — `shop/orders`
+  // — still answers with its rows under the bare noun, `{ orders, total }`,
+  // the same way `contacts` answers under `contacts`. The two are the same
+  // word only for Core's own flat resources, so the row key is the last
+  // path segment, not the path itself.
+  const rowsKey = resource.slice(resource.lastIndexOf("/") + 1);
   const total = data?.total ?? 0;
   return {
-    rows: ((data?.[resource] as T[] | undefined) ?? []) as T[],
+    rows: ((data?.[rowsKey] as T[] | undefined) ?? []) as T[],
     total,
     paginated: total > PAGINATION_THRESHOLD,
     isLoading,
