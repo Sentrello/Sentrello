@@ -15,7 +15,7 @@ import { runRecurringBills } from "./recurring-bills";
 import { taxOn } from "./taxes";
 
 /**
- * The Pro half: bills, banking, budgets and the rest of the reports.
+ * The Pro half: bills, taxes, currency, recurring bills and the reports.
  *
  * Two apps, because the gate is the point — `pro` is an entitled instance and
  * `free` is not, and every one of these endpoints has to be missing entirely
@@ -81,18 +81,6 @@ afterAll(async () => {
       ),
     );
   }
-  const budgets = await db
-    .select({ id: schema.budgets.id })
-    .from(schema.budgets)
-    .where(eq(schema.budgets.organizationId, orgId));
-  if (budgets.length > 0) {
-    await db.delete(schema.budgetLines).where(
-      inArray(
-        schema.budgetLines.budgetId,
-        budgets.map((b) => b.id),
-      ),
-    );
-  }
   const entries = await db
     .select({ id: schema.journalEntries.id })
     .from(schema.journalEntries)
@@ -110,7 +98,6 @@ afterAll(async () => {
     [schema.billPayments, schema.billPayments.organizationId],
     [schema.recurringBills, schema.recurringBills.organizationId],
     [schema.bills, schema.bills.organizationId],
-    [schema.budgets, schema.budgets.organizationId],
     [schema.bankTransactions, schema.bankTransactions.organizationId],
     [schema.bankImports, schema.bankImports.organizationId],
     [schema.payments, schema.payments.organizationId],
@@ -200,7 +187,6 @@ test("none of this exists on a Free instance", async () => {
   for (const path of [
     "/api/bills",
     "/api/bills/vendors",
-    "/api/budgets",
     "/api/reports/trial-balance",
     "/api/reports/cash-flow",
     "/api/reports/tax-summary",
@@ -563,40 +549,8 @@ test("a regime we do not sell into is refused", async () => {
 });
 
 // ---------------------------------------------------------------------------
-// Budgets and reports
+// Reports
 // ---------------------------------------------------------------------------
-
-test("a budget reads against what the ledger says happened", async () => {
-  const rent = await accountId("6100");
-  const created = await post("/api/budgets", { name: "2024", year: 2024 });
-  const { budget } = (await created.json()) as { budget: { id: string } };
-
-  const set = await pro.request(
-    `http://localhost/api/budgets/${budget.id}/lines`,
-    {
-      method: "PUT",
-      headers,
-      body: JSON.stringify({
-        lines: [{ accountId: rent, month: 0, amountCents: 1_500_000 }],
-      }),
-    },
-  );
-  expect(set.status).toBe(200);
-
-  const actuals = await get<{
-    rows: {
-      accountId: string;
-      budgetedCents: number;
-      actualCents: number;
-      varianceCents: number;
-    }[];
-  }>(`/api/budgets/${budget.id}/actuals`);
-  const line = actuals.rows.find((row) => row.accountId === rent);
-  // the February rent bill, approved above, is the only 2024 spend on it
-  expect(line?.budgetedCents).toBe(1_500_000);
-  expect(line?.actualCents).toBe(120_000);
-  expect(line?.varianceCents).toBe(1_380_000);
-});
 
 test("the trial balance balances, and the aged reports add up", async () => {
   const trial = await get<{
@@ -905,56 +859,4 @@ test("a schedule past its end date stops rather than running for ever", async ()
     "/api/recurring-bills",
   );
   expect(schedules.schedules.some((s) => s.active === false)).toBe(true);
-});
-
-/**
- * A month of a budget, against that month of the ledger.
- *
- * A yearly figure is spread evenly when a single month is asked for: a
- * business that budgets 12,000 for rent has budgeted 1,000 for March whether
- * or not it said so. A figure set for March itself wins over the spread.
- */
-test("a budget reads by month as well as by year", async () => {
-  const rent = await accountId("6100");
-  const created = await post("/api/budgets", { name: "Monthly", year: 2024 });
-  const { budget } = (await created.json()) as { budget: { id: string } };
-
-  await pro.request(`http://localhost/api/budgets/${budget.id}/lines`, {
-    method: "PUT",
-    headers,
-    body: JSON.stringify({
-      lines: [
-        { accountId: rent, month: 0, amountCents: 1_200_000 },
-        { accountId: rent, month: 2, amountCents: 150_000 },
-      ],
-    }),
-  });
-
-  const year = await get<{
-    month: number | null;
-    rows: { accountId: string; budgetedCents: number; actualCents: number }[];
-  }>(`/api/budgets/${budget.id}/actuals`);
-  expect(year.month).toBeNull();
-  expect(year.rows.find((r) => r.accountId === rent)?.budgetedCents).toBe(
-    1_350_000,
-  );
-
-  // February: the month's own figure plus a twelfth of the year's
-  const february = await get<{
-    month: number | null;
-    rows: { accountId: string; budgetedCents: number; actualCents: number }[];
-  }>(`/api/budgets/${budget.id}/actuals?month=2`);
-  expect(february.month).toBe(2);
-  const line = february.rows.find((r) => r.accountId === rent);
-  expect(line?.budgetedCents).toBe(150_000 + 100_000);
-  // and only February's spending — the rent bill approved earlier is dated
-  // the 1st of February
-  expect(line?.actualCents).toBe(120_000);
-
-  const march = await get<{
-    rows: { accountId: string; actualCents: number }[];
-  }>(`/api/budgets/${budget.id}/actuals?month=3`);
-  expect(march.rows.find((r) => r.accountId === rent)?.actualCents ?? 0).toBe(
-    0,
-  );
 });

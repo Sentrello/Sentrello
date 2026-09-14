@@ -1,27 +1,25 @@
 import { defineMiddleware } from "@sentrello/module-sdk";
 import type { ModuleContext } from "@sentrello/module-sdk";
 import { registerBankPayments } from "./bank-payments";
-import { registerBudgets } from "./budgets";
 import { registerContractors } from "./contractors";
 import { registerCurrency } from "./currency";
 import { registerAccountingCustomFields } from "./custom-fields";
 import { registerDimensions } from "./dimensions";
-import { registerFixedAssets } from "./fixed-assets";
 import { registerJournalEntries } from "./journal-entries";
 import { registerProReports } from "./pro-reports";
 import { registerPurchases } from "./purchases";
 import { registerRecurringBills } from "./recurring-bills";
 import { registerTaxes } from "./taxes";
 import { registerVendorCredits } from "./vendor-credits";
-import { registerYearEnd } from "./year-end";
 
 /**
  * The half of Accounting a licence pays for.
  *
  * Shrinking: banking — accounts and transfers, feeds, rules, matching and
- * reconciliation — registers from its own commercial bundle now, and the
- * groups below follow the same road. What remains here is registered
- * exactly as before.
+ * reconciliation — and assets and periods — fixed assets, budgets, year-end
+ * close — register from their own commercial bundle now, and the groups
+ * below follow the same road. What remains here is registered exactly as
+ * before.
  *
  * Registered on every instance and answered only on entitled ones — the same
  * arrangement the dashboard uses. The loader gates whole modules; Accounting is
@@ -42,16 +40,13 @@ export function registerPro(ctx: ModuleContext) {
 
   registerPurchases(ctx, proOnly);
   registerJournalEntries(ctx, proOnly);
-  registerFixedAssets(ctx, proOnly);
   registerVendorCredits(ctx, proOnly);
   registerAccountingCustomFields(ctx, proOnly);
   registerDimensions(ctx, proOnly);
-  registerYearEnd(ctx, proOnly);
   registerContractors(ctx, proOnly);
   registerBankPayments(ctx, proOnly);
   registerTaxes(ctx, proOnly);
   registerCurrency(ctx, proOnly);
-  registerBudgets(ctx, proOnly);
   registerRecurringBills(ctx, proOnly);
   registerProReports(ctx, proOnly);
 }
