@@ -180,6 +180,33 @@ test("a resource declared in one file is checked against an invalidation in anot
   expect(findings[0]?.say).toMatch(/shop\/products/);
 });
 
+/**
+ * The loop that matches a broad key against every queried resource used to
+ * stop at the first one it found paired or not, so a bare `["newsletter"]`
+ * key sitting beside an explicit `["newsletter/subscribers"]` pair — correct
+ * for subscribers — hid a genuinely missing pairing for `newsletter/lists`
+ * and `newsletter/campaigns`, resources declared later in the same file.
+ * Resource order here matters: subscribers has to be the first `useListQuery`
+ * in the file for this to exercise the old break, since that is the only
+ * resource the broad key is actually paired for.
+ */
+test("a broad key paired for one resource still reports a second, unpaired resource it also prefixes", () => {
+  const findings = findStaleInvalidationsInFile(
+    'listUi.useListQuery("newsletter/subscribers", state);\n' +
+      'listUi.useListQuery("newsletter/lists", state);\n' +
+      'listUi.useListQuery("newsletter/campaigns", state);\n' +
+      "const refresh = () => {\n" +
+      '  qc.invalidateQueries({ queryKey: ["newsletter"] });\n' +
+      '  qc.invalidateQueries({ queryKey: ["newsletter/subscribers"] });\n' +
+      "};\n",
+  );
+  expect(findings).toHaveLength(2);
+  const said = findings.map((f) => f.say).join("\n");
+  expect(said).toMatch(/newsletter\/lists/);
+  expect(said).toMatch(/newsletter\/campaigns/);
+  expect(said).not.toMatch(/newsletter\/subscribers/);
+});
+
 test("across files, an exact match in the invalidating file is still silent", () => {
   expect(
     findStaleInvalidations([

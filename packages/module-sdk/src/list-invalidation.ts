@@ -260,6 +260,9 @@ export function findStaleInvalidations(
       const line = lineOf(file.clean, m.index);
       if (isExcepted(line)) continue;
 
+      // Checked against every resource this key touches, not just the first
+      // one found — a broad key can be a proper prefix of several resources
+      // at once, correctly paired for one and silently missing another.
       for (const resource of resources) {
         if (sameSegments(keySegments, resource.segments)) {
           if (elements.length > 1) {
@@ -269,17 +272,16 @@ export function findStaleInvalidations(
               say: `an invalidation key split across array elements — the cache key is the joined string "${resource.joined}"; use ["${resource.joined}"] or this will never match it`,
             });
           }
-          break;
+          continue;
         }
         if (isProperPrefix(keySegments, resource.segments)) {
           if (!pairedExplicitly(file.clean, pairs, m.index, resource)) {
             findings.push({
               file: file.path,
               line,
-              say: `a broad invalidation key that no longer reaches "${resource.joined}" — keep it (it still covers screens that have not converted) and add ["${resource.joined}"] beside it`,
+              say: `a broad invalidation key that no longer reaches "${resource.joined}" — if this mutation actually changes that list, keep the broad key (it still covers screens that have not converted) and add ["${resource.joined}"] beside it; if it doesn't touch that list, this prefix match is a false alarm`,
             });
           }
-          break;
         }
       }
     }
