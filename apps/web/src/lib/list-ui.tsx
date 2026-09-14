@@ -201,8 +201,10 @@ export function useListQuery<T>(
   // — still answers with its rows under the bare noun, `{ orders, total }`,
   // the same way `contacts` answers under `contacts`. The two are the same
   // word only for Core's own flat resources, so the row key is the last
-  // path segment, not the path itself.
-  const rowsKey = resource.slice(resource.lastIndexOf("/") + 1);
+  // path segment, not the path itself. A trailing slash would otherwise
+  // leave that segment empty and the list silently, permanently empty.
+  const trimmed = resource.replace(/\/+$/, "");
+  const rowsKey = trimmed.slice(trimmed.lastIndexOf("/") + 1);
   const total = data?.total ?? 0;
   return {
     rows: ((data?.[rowsKey] as T[] | undefined) ?? []) as T[],

@@ -65,12 +65,6 @@ test("a flat resource still reads its rows under its own name", () => {
 });
 
 /**
- * The cache key stays the full path. Two modules can each own a resource
- * called "orders" — the last segment is only how the response is read, not
- * how the request is cached — and collapsing the key to that segment would
- * hand one module's cached rows to the other.
- */
-/**
  * A screen that needs a field beside rows and total — a money summary above
  * an orders table, say — reads it off the same response `useListQuery`
  * already fetched, instead of standing up a second `useQuery` against the
@@ -107,6 +101,12 @@ test("a caller can read a field beside rows and total from the same response", (
   expect(qc.getQueryCache().getAll()).toHaveLength(1);
 });
 
+/**
+ * The cache key stays the full path. Two modules can each own a resource
+ * called "orders" — the last segment is only how the response is read, not
+ * how the request is cached — and collapsing the key to that segment would
+ * hand one module's cached rows to the other.
+ */
 test("two modules' same-named resources do not share a cache entry", () => {
   const qc = new QueryClient();
   const query = listQueryString(STATE, true);
@@ -125,4 +125,24 @@ test("two modules' same-named resources do not share a cache entry", () => {
     </QueryClientProvider>,
   );
   expect(html).toBe("shop-1billing-1");
+});
+
+/**
+ * A trailing slash leaves `lastIndexOf("/") + 1` pointing past the end of
+ * the string, so the rows key comes out empty and the list reads as
+ * permanently empty rather than as a caller's typo.
+ */
+test("a trailing slash on the resource does not empty the rows key", () => {
+  const qc = new QueryClient();
+  const query = listQueryString(STATE, true);
+  qc.setQueryData(["shop/orders/", query], {
+    orders: [{ id: "o1" }],
+    total: 1,
+  });
+  const html = renderToStaticMarkup(
+    <QueryClientProvider client={qc}>
+      <Probe resource="shop/orders/" />
+    </QueryClientProvider>,
+  );
+  expect(html).toBe("o1");
 });
