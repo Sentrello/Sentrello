@@ -426,7 +426,7 @@ export function Pagination({
   const to = Math.min(state.page * state.perPage, total);
 
   return (
-    <div className="flex flex-wrap items-center gap-3 text-sm">
+    <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
       <span style={muted}>
         {from}–{to} of {total}
       </span>
