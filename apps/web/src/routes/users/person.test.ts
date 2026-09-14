@@ -4,7 +4,7 @@ import { tabFromSearch } from "./person";
 /**
  * `person.tsx` owns its own `?tab=` rather than routing it through
  * `navigation.tsx` — see the docstring on `tabFromSearch`. This imports the
- * real function rather than a copy, per An earlier decision (`tabs.test.ts` is the
+ * real function rather than a copy, per An earlier decision (`tabs.test.tsx` is the
  * worked example): a test that restates the logic cannot fail when the real
  * one breaks.
  */
