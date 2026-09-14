@@ -202,6 +202,28 @@ export interface SentrelloListUi {
   }[];
 }
 
+/**
+ * The same names, readable at runtime — `ListState` and `SortField` left out
+ * since they are erased when TypeScript compiles and were never members of
+ * `typeof listUi` to begin with. Same reason as `UI_MEMBERS`: the interface
+ * above cannot answer "does Core still export this?" on its own, so
+ * `runtime-surface.test.ts` asks the list instead, on every run.
+ */
+export const LIST_UI_MEMBERS = [
+  "useListState",
+  "listQueryString",
+  "useListQuery",
+  "FilterPanel",
+  "FilterGroup",
+  "FilterToggle",
+  "SortMenu",
+  "Pagination",
+  "PAGINATION_THRESHOLD",
+  "PER_PAGE_CHOICES",
+  "lastSeenRanges",
+  "useLastSeenRanges",
+] as const satisfies readonly (keyof SentrelloListUi)[];
+
 export interface Runtime {
   ui: SentrelloUi;
   /**
