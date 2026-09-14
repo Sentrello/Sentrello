@@ -14,8 +14,30 @@ import type {
 } from "@sentrello/module-sdk";
 import { banking, secrets } from "@sentrello/module-sdk";
 import type { MiddlewareHandler } from "hono";
-import { credentialsFor } from "./bank-feeds";
 import { ownedAccount } from "./chart";
+
+/** The business's own credentials for one provider, unsealed. */
+async function credentialsFor(
+  organizationId: string,
+  provider: string,
+): Promise<banking.BankCredentials | null> {
+  const [row] = await db
+    .select()
+    .from(schema.bankProviderAccounts)
+    .where(
+      and(
+        eq(schema.bankProviderAccounts.organizationId, organizationId),
+        eq(schema.bankProviderAccounts.provider, provider),
+      ),
+    )
+    .limit(1);
+  if (!row) return null;
+  return {
+    clientId: row.clientId,
+    secret: secrets.open(row.secret),
+    test: row.testMode,
+  };
+}
 
 /**
  * Sending money, which is the one thing here that cannot be taken back.

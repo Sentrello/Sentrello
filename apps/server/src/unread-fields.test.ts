@@ -40,28 +40,7 @@ const WRITTEN_ELSEWHERE: Record<string, string> = {};
  *
  * Recorded rather than excused. Nobody can set any of these today.
  */
-const KNOWN_GAPS: Record<string, string[]> = {
-  accounting: [
-    /*
-     * The widget connection path, and the only gap here that is a decision
-     * rather than an oversight.
-     *
-     * A provider that hosts its own page hands back a redirect and the browser
-     * never sees a public token. One that uses a widget gives the token to the
-     * browser, and loading a third party's script into the application a
-     * business keeps its books in would give that script the run of every page
-     * — which `banking/provider.ts` argues against at length, and this is the
-     * branch that would receive the result.
-     *
-     * So it stays unreachable on purpose. What changed on 2026-09-09 is that
-     * the screen no longer offers a Connect button that throws afterwards:
-     * `hostedConnection` is a declared capability now, and a provider that
-     * needs a window says so before anybody clicks. Do not close this gap by
-     * loading the widget.
-     */
-    "src/bank-feeds.ts: publicToken",
-  ],
-};
+const KNOWN_GAPS: Record<string, string[]> = {};
 
 test("there are modules and screens to check", () => {
   // A glob matching nothing passes every assertion below it.
