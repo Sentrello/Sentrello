@@ -9,7 +9,7 @@ import {
   NavigationProvider,
   useNavigation,
 } from "./lib/navigation";
-import { Loading, setFormats } from "./lib/ui";
+import { Loading, muted, setFormats } from "./lib/ui";
 import {
   Accounts,
   Assets,
@@ -299,17 +299,31 @@ function CurrentScreen({
 
   return (
     <>
-      <Breadcrumb />
-      {/*
-        A record screen is titled with the record, not with the module.
-        
-        "Invoices" above INV-0020, or "Contacts" above a person's page, is the
-        breadcrumb repeated — and the breadcrumb is directly above it saying
-        the same thing. The heading should answer "what am I looking at".
-      */}
-      <h1 className="mb-4 text-lg font-semibold">
-        {current.recordId ? current.title : (entry?.label ?? current.title)}
-      </h1>
+      <div className="mb-4 flex flex-wrap items-start gap-3">
+        <div className="min-w-0">
+          <Breadcrumb />
+          {/*
+            A record screen is titled with the record, not with the module.
+
+            "Invoices" above INV-0020, or "Contacts" above a person's page, is
+            the breadcrumb repeated — and the breadcrumb is directly above it
+            saying the same thing. The heading should answer "what am I looking
+            at".
+          */}
+          <h1 className="font-semibold text-lg">
+            {current.recordId ? current.title : (entry?.label ?? current.title)}
+          </h1>
+          {/*
+            Filled by the screen through a portal, and empty on a screen that
+            has nothing to say here. An empty div draws nothing.
+          */}
+          <div className="text-sm" id="page-subtitle" style={muted} />
+        </div>
+        <div
+          className="ml-auto flex flex-wrap items-center gap-2"
+          id="page-actions"
+        />
+      </div>
       {Screen ? (
         <Screen />
       ) : (

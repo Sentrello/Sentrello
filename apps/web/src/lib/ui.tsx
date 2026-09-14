@@ -736,3 +736,5 @@ export function Tabs({
     </div>
   );
 }
+
+export { PageActions, PageSubtitle } from "./page-header";
