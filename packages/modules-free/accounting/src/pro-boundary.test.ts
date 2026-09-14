@@ -48,7 +48,7 @@ test("parseAmountToCents — the bank-CSV amount reader, parentheses and all", (
   expect(parseAmountToCents("not a number")).toBeNull();
 });
 
-test("dayFrom — a bare date reads as the end of that day", () => {
+test("dayFrom — a bare date reads as the start of that day, or null if it isn't one", () => {
   expect(dayFrom("2026-03-31")?.toISOString()).toBe("2026-03-31T00:00:00.000Z");
   expect(dayFrom("not a date")).toBeNull();
 });
