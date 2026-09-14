@@ -187,6 +187,8 @@ export interface SentrelloListUi {
     paginated: boolean;
     isLoading: boolean;
     error: unknown;
+    /** The whole response the rows and total were read out of. */
+    response: (Record<string, unknown> & { total: number }) | undefined;
   };
   FilterPanel: React.ComponentType<{
     state: ListState;

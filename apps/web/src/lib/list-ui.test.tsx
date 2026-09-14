@@ -70,6 +70,43 @@ test("a flat resource still reads its rows under its own name", () => {
  * how the request is cached — and collapsing the key to that segment would
  * hand one module's cached rows to the other.
  */
+/**
+ * A screen that needs a field beside rows and total — a money summary above
+ * an orders table, say — reads it off the same response `useListQuery`
+ * already fetched, instead of standing up a second `useQuery` against the
+ * same cache key to get at it. One cache entry serves both, so nothing else
+ * was, or needed to be, fetched.
+ */
+test("a caller can read a field beside rows and total from the same response", () => {
+  const qc = new QueryClient();
+  const query = listQueryString(STATE, true);
+  qc.setQueryData(["shop/orders", query], {
+    orders: [{ id: "o1" }],
+    total: 1,
+    totals: { paidCount: 3, paidCents: 500, awaiting: 1 },
+  });
+
+  function ProbeWithTotals({ resource }: { resource: string }) {
+    const { rows, response } = useListQuery<{ id: string }>(resource, STATE);
+    const totals = (response as { totals?: { paidCount: number } })?.totals;
+    return (
+      <>
+        {rows.map((r) => r.id).join(",")}:{totals?.paidCount}
+      </>
+    );
+  }
+
+  const html = renderToStaticMarkup(
+    <QueryClientProvider client={qc}>
+      <ProbeWithTotals resource="shop/orders" />
+    </QueryClientProvider>,
+  );
+  expect(html).toBe("o1:3");
+  // A second `useQuery` on the same key would still land in this same cache
+  // entry — one entry is what "no second request" looks like here.
+  expect(qc.getQueryCache().getAll()).toHaveLength(1);
+});
+
 test("two modules' same-named resources do not share a cache entry", () => {
   const qc = new QueryClient();
   const query = listQueryString(STATE, true);
