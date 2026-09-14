@@ -181,6 +181,12 @@ export interface SentrelloListUi {
   useListQuery: <T>(
     resource: string,
     state: ListState,
+    /**
+     * Set when the list's rows change from a background job rather than
+     * from anything the viewer did — a campaign a send job is still working
+     * through, say. Most lists never need this.
+     */
+    options?: { refetchInterval?: number | false },
   ) => {
     rows: T[];
     total: number;
