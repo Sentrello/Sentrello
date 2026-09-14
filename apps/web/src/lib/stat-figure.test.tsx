@@ -45,6 +45,18 @@ test("a hint renders under the value, and is absent without one", () => {
   expect(without).not.toContain("3 unpaid invoices");
 });
 
+test("size defaults to the four-tile text-2xl, and sm shrinks it for a denser grid", () => {
+  const md = renderToStaticMarkup(<StatFigure label="Sent" value="348" />);
+  expect(md).toContain("text-2xl");
+  expect(md).not.toContain("text-sm");
+
+  const sm = renderToStaticMarkup(
+    <StatFigure label="Sent" value="348" size="sm" />,
+  );
+  expect(sm).toContain("text-sm");
+  expect(sm).not.toContain("text-2xl");
+});
+
 test("tone colours the figure, never the label", () => {
   const good = renderToStaticMarkup(
     <StatFigure label="Net profit" value="$11,426.10" tone="good" />,

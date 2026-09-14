@@ -549,11 +549,15 @@ export function StatFigure({
   value,
   tone = "plain",
   hint,
+  size = "md",
 }: {
   label: ReactNode;
   value: ReactNode;
   tone?: "plain" | "good" | "bad";
   hint?: ReactNode;
+  /** "md" (default) is the four-tile dashboard row's text-2xl. "sm" is for a
+   * denser grid, where blowing up small numbers that large wrecks the layout. */
+  size?: "sm" | "md";
 }) {
   const colour =
     tone === "good"
@@ -566,7 +570,10 @@ export function StatFigure({
       <p className="text-xs" style={muted}>
         {label}
       </p>
-      <p className="money mt-1 font-semibold text-2xl" style={colour}>
+      <p
+        className={`money mt-1 font-semibold ${size === "sm" ? "text-sm" : "text-2xl"}`}
+        style={colour}
+      >
         {value}
       </p>
       {hint ? (

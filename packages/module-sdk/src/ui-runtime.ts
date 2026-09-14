@@ -91,6 +91,7 @@ export interface SentrelloUi {
     value: React.ReactNode;
     tone?: "plain" | "good" | "bad";
     hint?: React.ReactNode;
+    size?: "sm" | "md";
   }>;
 }
 
