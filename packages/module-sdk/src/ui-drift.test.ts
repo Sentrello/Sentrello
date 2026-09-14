@@ -86,3 +86,23 @@ test("the marker only excepts the line directly below it", () => {
   expect(findings).toHaveLength(1);
   expect(findings[0]?.line).toBe(3);
 });
+
+test("an excepted violation does not hide a later unexcepted one of the same kind", () => {
+  const findings = findHandRolledUi(
+    "// ui-drift-ignore: resets elsewhere, safe here\n" +
+      "const [page, setPage] = useState(1);\n" +
+      "const [page, setPage] = useState(1);\n",
+  );
+  expect(findings).toHaveLength(1);
+  expect(findings[0]?.line).toBe(3);
+});
+
+test("an excepted tab strip does not hide a later unexcepted one", () => {
+  const findings = findHandRolledUi(
+    "// ui-drift-ignore: reviewed, fine as a plain toggle\n" +
+      "const [tab, setTab] = useState('a');\n" +
+      "const [tab2, setTab] = useState('b');\n",
+  );
+  expect(findings).toHaveLength(1);
+  expect(findings[0]?.line).toBe(3);
+});

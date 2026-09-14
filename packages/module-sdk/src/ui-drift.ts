@@ -83,17 +83,21 @@ export function findHandRolledUi(source: string): HandRolledFinding[] {
 
   const findings: HandRolledFinding[] = [];
 
+  // Every match, not just the first: one excepted line earlier in the file
+  // must never hide a genuine violation later in it.
+  const allMatches = (pattern: RegExp) =>
+    clean.matchAll(new RegExp(pattern.source, `${pattern.flags}g`));
+
   for (const rule of RULES) {
-    const match = rule.pattern.exec(clean);
-    if (!match) continue;
-    const line = lineOf(clean, match.index);
-    if (isExcepted(line)) continue;
-    findings.push({ line, say: rule.say });
+    for (const match of allMatches(rule.pattern)) {
+      const line = lineOf(clean, match.index);
+      if (isExcepted(line)) continue;
+      findings.push({ line, say: rule.say });
+    }
   }
 
   if (!HAS_TABS_COMPONENT.test(clean)) {
-    const match = TAB_PATTERN.exec(clean);
-    if (match) {
+    for (const match of allMatches(TAB_PATTERN)) {
       const line = lineOf(clean, match.index);
       if (!isExcepted(line)) findings.push({ line, say: TAB_FINDING });
     }
