@@ -194,3 +194,26 @@ export default defineModule({
     );
   },
 });
+
+/**
+ * The seam a Pro bundle calls across.
+ *
+ * The paid half of Accounting is moving out of this package into a private
+ * one (`the architecture notes` §9.1). Today its helpers are
+ * ordinary relative imports inside one package; once the caller is on the
+ * other side of a package boundary those imports only work through here.
+ * Nothing below is new behaviour — every one of these already existed and
+ * was already reachable from `pro.ts` and its groups. This just names the
+ * ones a moved caller needs, so a change to a signature breaks a `tsc` run
+ * instead of a request in production.
+ */
+export { isUuid, ownedAccount } from "./chart";
+export { columnIndex, parseAmountToCents } from "./csv";
+export { dayFrom } from "./period";
+export {
+  type LedgerRow,
+  ledgerRows,
+  periodFrom,
+  totalsByAccount,
+} from "./reports";
+export { forHmrc, vatReturn, type VatReturn } from "./vat-return";
