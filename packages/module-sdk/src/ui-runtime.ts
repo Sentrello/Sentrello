@@ -79,6 +79,8 @@ export interface SentrelloUi {
   ) => { id: string; label: string; badge?: React.ReactNode } | undefined;
   muted: React.CSSProperties;
   border: React.CSSProperties;
+  PageActions: React.ComponentType<{ children: React.ReactNode }>;
+  PageSubtitle: React.ComponentType<{ children: React.ReactNode }>;
 }
 
 /**
@@ -113,6 +115,8 @@ export const UI_MEMBERS = [
   "activeTab",
   "muted",
   "border",
+  "PageActions",
+  "PageSubtitle",
 ] as const satisfies readonly (keyof SentrelloUi)[];
 
 /** The state one list screen keeps — what `useListState` returns. */
