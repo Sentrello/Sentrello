@@ -135,3 +135,29 @@ export async function removeAttachment(
   if (!file) return;
   await unlink(file.name ?? "").catch(() => {});
 }
+
+/**
+ * The folder a business's evidence lives in — a receipt on a transaction or
+ * on a bill, whichever module the bill happens to be owned by. Both keep a
+ * `<path>|<name>` column rather than a table of their own: a receipt belongs
+ * to exactly one row and dies with it, and a table would be a second row to
+ * keep in step for no question it answers. Shared here, not per-caller,
+ * because a second copy of a string two files must agree on forever is worse
+ * than one export.
+ */
+export const RECEIPTS_FOLDER = "receipts";
+
+/** The stored path, and the name to hand it back under, packed into one string. */
+export function packAttachmentKey(path: string, name: string): string {
+  return `${path}|${name.replace(/\|/g, "-")}`;
+}
+
+export function unpackAttachmentKey(key: string): {
+  path: string;
+  name: string;
+} {
+  const bar = key.indexOf("|");
+  return bar === -1
+    ? { path: key, name: "receipt" }
+    : { path: key.slice(0, bar), name: key.slice(bar + 1) };
+}

@@ -6,9 +6,12 @@ import {
 import { and, db, eq, schema } from "@sentrello/db";
 import {
   AttachmentError,
+  RECEIPTS_FOLDER,
   attachmentFile,
   attachmentHeaders,
+  packAttachmentKey,
   storeAttachment,
+  unpackAttachmentKey,
 } from "@sentrello/module-sdk";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import { isUuid } from "./chart";
@@ -22,9 +25,9 @@ import { isUuid } from "./chart";
  * that has neither. So a transaction can carry the scan of the document it
  * came from.
  *
- * A bill's receipt is the same idea against a Pro-only table, and lives in
- * `purchases.ts`, the file that owns `bills` — not here. It reuses `FOLDER`,
- * `packKey` and `unpackKey` below rather than a second copy, but the query
+ * A bill's receipt is the same idea against a Pro-only table, owned by the
+ * paid bundle — not here. It shares `FOLDER`, `packKey` and `unpackKey`
+ * through `@sentrello/module-sdk` rather than a second copy, but the query
  * against that table itself never appears in this Free-half file.
  *
  * The storing is the SDK's, unchanged and for good reasons — the name on disk
@@ -38,11 +41,12 @@ import { isUuid } from "./chart";
 /**
  * Receipts live apart from note attachments; they are kept for years.
  *
- * Exported so `purchases.ts` stores a bill's receipt under the same folder —
- * a second string that has to be typed the same forever is worse than one
- * shared constant.
+ * Re-exported under this file's own name so nothing here has to change to
+ * use it. The real definition lives in `@sentrello/module-sdk`, which
+ * `purchases.ts` — a bill's receipt is the same idea against a Pro-only table
+ * — can reach and this Free-half file cannot avoid reaching too.
  */
-export const FOLDER = "receipts";
+export const FOLDER = RECEIPTS_FOLDER;
 
 /** The transaction a receipt hangs from, confirmed to be this business's. */
 async function owned(
@@ -86,16 +90,8 @@ async function record(
  * their own. A receipt belongs to exactly one row and dies with it; a table
  * would be a second row to keep in step for no question it answers.
  */
-export function packKey(path: string, name: string): string {
-  return `${path}|${name.replace(/\|/g, "-")}`;
-}
-
-export function unpackKey(key: string): { path: string; name: string } {
-  const bar = key.indexOf("|");
-  return bar === -1
-    ? { path: key, name: "receipt" }
-    : { path: key.slice(0, bar), name: key.slice(bar + 1) };
-}
+export const packKey = packAttachmentKey;
+export const unpackKey = unpackAttachmentKey;
 
 export function registerReceipts(ctx: ModuleContext) {
   ctx.app.post(
