@@ -12,8 +12,6 @@
     "sbom": "bun run scripts/sbom.ts",
     "db:generate": "bun run --cwd packages/db drizzle-kit generate",
     "db:migrate": "bun run packages/db/src/migrate.ts",
-    "keys:gen": "bash scripts/gen-keys.sh",
-    "dev:token": "bun run scripts/mint-dev-token.ts",
     "dev:api": "bun run --cwd apps/server dev",
     "build:web": "bun run --cwd apps/web build",
     "verify": "bash scripts/verify.sh"
