@@ -2,12 +2,16 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { eq, inArray } from "drizzle-orm";
 import { db, schema } from "./index";
 import {
+  type LedgerRow,
   accountingFieldsFor,
   accountingValues,
+  ledgerRows,
+  ownedAccount,
   ownedDimension,
   periodFrom,
   postJournalEntry,
   taggingFrom,
+  totalsByAccount,
 } from "./ledger";
 
 let orgId: string;
@@ -222,4 +226,71 @@ test("accountingValues — only a field somebody defined is kept, coerced to its
     litres: "1",
   });
   expect(onTransaction).toEqual({});
+});
+
+test("ownedAccount — true for this business's account, false for a stranger's id", async () => {
+  expect(await ownedAccount(orgId, cashId)).toBe(true);
+  expect(await ownedAccount(orgId, crypto.randomUUID())).toBe(false);
+  expect(await ownedAccount(orgId, "not-a-uuid")).toBe(false);
+});
+
+test("ledgerRows — reads back what postJournalEntry wrote, scoped to the org", async () => {
+  const incomeId = await db
+    .insert(schema.accounts)
+    .values({
+      organizationId: orgId,
+      code: "4000",
+      name: "Sales",
+      type: "income",
+    })
+    .returning()
+    .then(([row]) => {
+      if (!row) throw new Error("could not create income account");
+      return row.id;
+    });
+  await postJournalEntry(
+    orgId,
+    "ledgerRows test sale",
+    "test",
+    [
+      { accountId: cashId, debitCents: 500 },
+      { accountId: incomeId, creditCents: 500 },
+    ],
+    new Date("2026-02-01T00:00:00Z"),
+  );
+  const rows = await ledgerRows(orgId);
+  expect(rows.some((r) => r.code === "4000" && r.creditCents === 500)).toBe(
+    true,
+  );
+});
+
+function row(
+  over: Partial<LedgerRow> & { code: string; type: string },
+): LedgerRow {
+  return {
+    entryId: over.entryId ?? "entry-1",
+    classId: over.classId ?? null,
+    locationId: over.locationId ?? null,
+    accountId: over.accountId ?? `acct-${over.code}`,
+    name: over.name ?? `Account ${over.code}`,
+    debitCents: 0,
+    creditCents: 0,
+    postedAt: over.postedAt ?? new Date("2026-01-01T00:00:00Z"),
+    ...over,
+  };
+}
+
+test("totalsByAccount — an expense account reads its debits as positive", () => {
+  const totals = totalsByAccount(
+    [row({ code: "5000", type: "expense", debitCents: 1_000 })],
+    "expense",
+  );
+  expect(totals).toEqual([
+    {
+      accountId: "acct-5000",
+      code: "5000",
+      name: "Account 5000",
+      balanceCents: 1_000,
+    },
+  ]);
 });

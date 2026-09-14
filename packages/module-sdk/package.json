@@ -4,6 +4,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./custom-fields": "./src/custom-fields.ts",
     "./ui-runtime": "./src/ui-runtime.ts",
     "./ui-drift": "./src/ui-drift.ts",
     "./list-invalidation": "./src/list-invalidation.ts"
