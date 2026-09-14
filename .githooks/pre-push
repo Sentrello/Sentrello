@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# Refuse to push a commit message, or an added line, that carries a trace of
+# how the code was written — a co-author/session trailer, an AI tool or
+# vendor name, or internal process vocabulary (a numbered task/packet/phase/
+# ruling, a lettered group, an unpublished plan-doc reference, an internal
+# review mention). See scripts/trace-guard.ts for the exact rules and why
+# each one is drawn where it is.
+#
+# Pre-push, not pre-commit: this is the last point before anything becomes
+# public, and it does not slow down local work.
+#
+# Enable once per clone:  git config core.hooksPath .githooks
+# Bypass deliberately:    git push --no-verify   (say why, out loud)
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+
+if ! command -v bun >/dev/null 2>&1; then
+  echo "pre-push: bun is not on PATH — skipping the trace guard" >&2
+  exit 0
+fi
+
+ZERO="0000000000000000000000000000000000000000"
+messages_file="$(mktemp)"
+diff_file="$(mktemp)"
+shas_file="$(mktemp)"
+trap 'rm -f "$messages_file" "$diff_file" "$shas_file"' EXIT
+
+# git calls a pre-push hook with one line per ref being pushed, on stdin:
+#   <local ref> <local sha1> <remote ref> <remote sha1>
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ "$local_sha" = "$ZERO" ] && continue  # deleting a ref: nothing to check
+
+  if [ "$remote_sha" = "$ZERO" ]; then
+    # New branch on the remote: check whatever isn't already on some other
+    # remote-tracking branch, rather than the branch's entire history.
+    git rev-list "$local_sha" --not --remotes >>"$shas_file" 2>/dev/null || true
+  else
+    git rev-list "$remote_sha..$local_sha" >>"$shas_file" 2>/dev/null || true
+  fi
+done
+
+sort -u "$shas_file" -o "$shas_file"
+
+if [ ! -s "$shas_file" ]; then
+  exit 0
+fi
+
+while read -r sha; do
+  [ -z "$sha" ] && continue
+  git log -1 --format='%B%x00' "$sha" >>"$messages_file"
+  git diff-tree --no-color -p --root "$sha" >>"$diff_file"
+done <"$shas_file"
+
+exec bun run "$(git rev-parse --show-toplevel)/scripts/trace-guard.ts" \
+  --messages "$messages_file" --diff "$diff_file"
