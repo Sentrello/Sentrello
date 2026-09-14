@@ -1,5 +1,5 @@
-import type { CustomField } from "@sentrello/module-sdk";
-import { coerceCustomValues } from "@sentrello/module-sdk";
+import type { CustomField } from "@sentrello/module-sdk/custom-fields";
+import { coerceCustomValues } from "@sentrello/module-sdk/custom-fields";
 import { and, eq, gte, lte } from "drizzle-orm";
 import { currentActor } from "./actor";
 import { RATE_SCALE, toBaseCents } from "./currency";
