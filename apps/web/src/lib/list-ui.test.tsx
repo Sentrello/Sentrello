@@ -177,6 +177,52 @@ test("a caller that asks to poll gets the interval on the underlying query", () 
   expect(options?.refetchInterval).toBe(5000);
 });
 
+/**
+ * The function form — what a caller uses to poll only while its own
+ * last-fetched rows have something worth watching, without a second
+ * request to find out. Calling the forwarded function directly against a
+ * few shapes of `query.state.data` proves it is actually evaluated, not
+ * just present: a caller's predicate that has gone wrong — an off-by-status
+ * typo, a broken optional chain — fails here instead of staying silent
+ * until somebody happens to watch a send in a browser.
+ */
+test("the function form of refetchInterval reaches the query and reads its data", () => {
+  const qc = new QueryClient();
+  const query = listQueryString(STATE, true);
+  qc.setQueryData(["campaigns", query], { campaigns: [], total: 0 });
+
+  function PollingProbe() {
+    useListQuery<{ id: string }>("campaigns", STATE, {
+      refetchInterval: (q) => {
+        const campaigns = q.state.data?.campaigns as
+          | { status: string }[]
+          | undefined;
+        return campaigns?.some((c) => c.status === "running") ? 5000 : false;
+      },
+    });
+    return null;
+  }
+
+  renderToStaticMarkup(
+    <QueryClientProvider client={qc}>
+      <PollingProbe />
+    </QueryClientProvider>,
+  );
+  const cached = qc.getQueryCache().find({ queryKey: ["campaigns", query] });
+  const options = cached?.options as { refetchInterval?: unknown };
+  const fn = options?.refetchInterval as (q: unknown) => number | false;
+  expect(typeof fn).toBe("function");
+
+  expect(fn({ state: { data: { campaigns: [{ status: "running" }] } } })).toBe(
+    5000,
+  );
+  expect(fn({ state: { data: { campaigns: [{ status: "finished" }] } } })).toBe(
+    false,
+  );
+  expect(fn({ state: { data: { campaigns: [] } } })).toBe(false);
+  expect(fn({ state: { data: undefined } })).toBe(false);
+});
+
 /** A caller that does not ask to poll is unchanged: no interval at all. */
 test("a caller that does not ask to poll gets no interval", () => {
   const qc = new QueryClient();
