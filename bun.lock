@@ -55,6 +55,7 @@
       "devDependencies": {
         "@sentrello/db": "*",
         "@sentrello/module-crm": "*",
+        "@sentrello/module-sdk": "*",
         "@tailwindcss/vite": "^4.0.0",
         "@types/react": "^19.0.0",
         "@types/react-dom": "^19.0.0",
@@ -125,6 +126,9 @@
       "version": "0.0.0",
       "dependencies": {
         "hono": "^4.13.5",
+      },
+      "devDependencies": {
+        "@types/react": "^19.0.0",
       },
     },
     "packages/modules-free/accounting": {
