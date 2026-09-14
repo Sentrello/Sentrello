@@ -4,7 +4,11 @@ import { join } from "node:path";
 import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, eq, schema } from "@sentrello/db";
-import { personalDataSources, registerForTest } from "@sentrello/module-sdk";
+import {
+  type RegisteredPersonalData,
+  personalDataSources,
+  registerForTest,
+} from "@sentrello/module-sdk";
 import accounting from "./index";
 
 /**
@@ -26,10 +30,26 @@ let headers: Headers;
 
 const source = () => personalDataSources().find((s) => s.id === "accounting");
 
+/**
+ * The closure a Free-entitled boot actually registered.
+ *
+ * Registration is keyed by id and the Free and Pro bodies below both boot
+ * the same module under the same id, `"accounting"` — the second `register`
+ * call replaces the first in the shared registry. Without capturing this
+ * here, `source()` in a "Free instance" test would find whatever was
+ * registered *last* (the Pro boot), not what a Free boot actually put there;
+ * it would still pass, but for the wrong reason — proving "this closure
+ * doesn't branch on entitlement" rather than "a Free instance's own
+ * registration is safe to query." Captured for real so the test title is
+ * true of what it checks.
+ */
+let freeSource: RegisteredPersonalData | undefined;
+
 beforeAll(async () => {
   // Registered so a Free instance's own boot (nav, permissions, and this
   // source's registration) runs without error.
   registerForTest(accounting, undefined, () => false);
+  freeSource = source();
   const pro = registerForTest(accounting, undefined, () => true);
 
   const signUp = await signUpAsOwner({
@@ -124,7 +144,10 @@ test("the Free package no longer names the Pro-only contractor table", () => {
 });
 
 test("a subject-access request on a Free instance does not error, and finds nothing to report", async () => {
-  const registered = source();
+  // The source captured from the Free-entitled boot itself, not whichever
+  // registration happens to be live right now — see the comment on
+  // `freeSource` above.
+  const registered = freeSource;
   expect(registered).toBeDefined();
 
   const records = await registered?.export(freeOrgId, { id: freeContactId });
