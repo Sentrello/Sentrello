@@ -810,7 +810,7 @@ export function Tabs({
         >
           {tab.label}
           {tab.badge !== undefined ? (
-            <span className="ml-1.5 text-xs" style={muted}>
+            <span className="ml-1.5 text-xs tabular-nums" style={muted}>
               {tab.badge}
             </span>
           ) : null}
