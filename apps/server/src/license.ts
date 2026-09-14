@@ -1,34 +1,29 @@
 import {
   type LicenseState,
-  SENTRELLO_LICENSE_PUBLIC_KEY,
+  SENTRELLO_LICENSE_PUBLIC_KEYS,
   makeEntitlementGate,
   verifyLicenseToken,
 } from "@sentrello/licensing-client";
 
 /**
- * Reads the verification key. The key is embedded in the core, so this is only
- * an override hook — for a staging control plane signing with a different key,
- * or a self-hoster running their own. An unreadable override falls back to the
- * embedded key rather than refusing to boot: failing to start is worse than
- * running as Free, and the token simply will not verify if the key is wrong.
+ * `trustedKeys` exists for tests, which sign with a throwaway keypair and
+ * need to tell `verifyLicenseToken` to trust it — there is no other way to
+ * exercise a valid-token path without the real signing key, which must never
+ * be in this repository. Production code never passes it: an instance trusts
+ * exactly the keys embedded in the core.
+ *
+ * There used to be an environment variable for this
+ * (`SENTRELLO_LICENSE_PUBLIC_KEY_PATH`) so a self-hoster's own key, or a
+ * staging signer's, could be trusted without a rebuild. It was removed: the
+ * same knob let anyone generate a keypair, point the variable at their public
+ * half, and mint themselves a Pro token — no source change, no rebuild,
+ * permanent. Key rotation is handled instead by `SENTRELLO_LICENSE_PUBLIC_KEYS`
+ * in the core, which a release can extend to trust an old and a new key at
+ * once (see the runbook).
  */
-async function publicKey(): Promise<string> {
-  const path = process.env.SENTRELLO_LICENSE_PUBLIC_KEY_PATH;
-  if (!path) return SENTRELLO_LICENSE_PUBLIC_KEY;
-  try {
-    const file = Bun.file(path);
-    if (await file.exists()) return await file.text();
-    console.warn(`[license] ${path} not found, using the embedded key`);
-  } catch (err) {
-    console.warn(
-      `[license] cannot read ${path} (${(err as Error).message}), using the embedded key`,
-    );
-  }
-  return SENTRELLO_LICENSE_PUBLIC_KEY;
-}
-
-export async function resolveLicense() {
-  const publicKeyPem = await publicKey();
+export async function resolveLicense(
+  trustedKeys: string | string[] = SENTRELLO_LICENSE_PUBLIC_KEYS,
+) {
   const tokenPath = process.env.SENTRELLO_LICENSE_TOKEN_PATH;
 
   let token = "";
@@ -45,7 +40,7 @@ export async function resolveLicense() {
   }
 
   const state: LicenseState = token
-    ? await verifyLicenseToken(token, publicKeyPem)
+    ? await verifyLicenseToken(token, trustedKeys)
     : { claims: null, valid: false, reason: "no token (Free)" };
 
   return { state, gate: makeEntitlementGate(state) };
