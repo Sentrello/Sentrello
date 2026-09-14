@@ -600,12 +600,18 @@ export function Table({
       <table className="app-table w-full text-sm">
         <thead>
           <tr className="border-b text-left" style={border}>
-            {headers.map((h) => {
+            {headers.map((h, i) => {
               const label = typeof h === "string" ? h : h.label;
               const money = typeof h !== "string" && h.money;
               return (
                 <th
-                  key={label}
+                  // By position, not by label: a checkbox column and an
+                  // actions column both carry "" and collided as React keys,
+                  // which logged as a console error on every screen with
+                  // both. `headers` is a literal passed by the caller and
+                  // never reordered, so the index is stable.
+                  // biome-ignore lint/suspicious/noArrayIndexKey: order is fixed by the caller
+                  key={i}
                   className={`py-2 font-medium ${money ? "money" : ""}`}
                 >
                   {label}
