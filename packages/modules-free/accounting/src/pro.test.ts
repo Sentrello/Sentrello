@@ -4,18 +4,16 @@ import { join } from "node:path";
 import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, schema } from "@sentrello/db";
-import { storeAttachment } from "@sentrello/module-sdk";
 import type { SentrelloEnv } from "@sentrello/module-sdk";
 import { and, eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import { parseCsv } from "./csv";
 import accounting from "./index";
-import { packKey } from "./receipts";
-import { runRecurringBills } from "./recurring-bills";
 import { taxOn } from "./taxes";
 
 /**
- * The Pro half: bills, taxes, currency, recurring bills and the reports.
+ * The Pro half that has not moved yet: taxes, currency, dimensions, custom
+ * fields, journal entries and the reports.
  *
  * Two apps, because the gate is the point — `pro` is an entitled instance and
  * `free` is not, and every one of these endpoints has to be missing entirely
@@ -185,8 +183,6 @@ const accountId = async (code: string) => {
 
 test("none of this exists on a Free instance", async () => {
   for (const path of [
-    "/api/bills",
-    "/api/bills/vendors",
     "/api/reports/trial-balance",
     "/api/reports/cash-flow",
     "/api/reports/tax-summary",
@@ -194,10 +190,6 @@ test("none of this exists on a Free instance", async () => {
     "/api/reports/accounts-payable",
     "/api/reports/by-category",
     "/api/accounting/taxes/presets",
-    // A bill's receipt is a Pro concern end to end — see purchases.ts. A Free
-    // instance has never registered this path at all, the same as every
-    // other bill route above; there is no id for which it would answer.
-    "/api/bills/00000000-0000-0000-0000-000000000000/receipt",
   ]) {
     const res = await free.request(`http://localhost${path}`, { headers });
     expect(res.status).toBe(404);
@@ -219,303 +211,12 @@ test("the Free half still answers on a Free instance", async () => {
 });
 
 // ---------------------------------------------------------------------------
-// Bills
+// Boundary
 // ---------------------------------------------------------------------------
-
-test("a draft bill is not in the books until it is approved", async () => {
-  await post("/api/accounts/standard", {});
-  const rent = await accountId("6100");
-
-  const created = await post("/api/bills", {
-    number: "SUP-1",
-    billDate: "2024-02-01",
-    lines: [
-      {
-        description: "February rent",
-        unitPriceCents: 120_000,
-        accountId: rent,
-      },
-    ],
-  });
-  expect(created.status).toBe(201);
-  const { bill } = (await created.json()) as {
-    bill: { id: string; totalCents: number; status: string };
-  };
-  expect(bill.totalCents).toBe(120_000);
-  expect(bill.status).toBe("draft");
-
-  expect((await journal()).some((l) => l.source === `bill:${bill.id}`)).toBe(
-    false,
-  );
-
-  const approved = await post(`/api/bills/${bill.id}/approve`, {});
-  expect(approved.status).toBe(200);
-
-  const lines = (await journal()).filter((l) => l.source === `bill:${bill.id}`);
-  expect(lines.some((l) => l.code === "6100" && l.debitCents === 120_000)).toBe(
-    true,
-  );
-  expect(
-    lines.some((l) => l.code === "2000" && l.creditCents === 120_000),
-  ).toBe(true);
-  expect(lines.reduce((s, l) => s + l.debitCents, 0)).toBe(
-    lines.reduce((s, l) => s + l.creditCents, 0),
-  );
-});
-
-test("approving twice is refused", async () => {
-  const created = await post("/api/bills", {
-    lines: [{ description: "Once", unitPriceCents: 1000 }],
-  });
-  const { bill } = (await created.json()) as { bill: { id: string } };
-  expect((await post(`/api/bills/${bill.id}/approve`, {})).status).toBe(200);
-  expect((await post(`/api/bills/${bill.id}/approve`, {})).status).toBe(409);
-});
-
-/**
- * Tax that comes back is not a cost.
- *
- * VAT and GST are reclaimed, so they are a debit against what the business owes
- * the authority. US sales tax is not, so it is part of what the thing cost.
- * Posting the second as the first would overstate both the expense claim and
- * the refund.
- */
-test("recoverable tax goes to the tax account and sales tax goes to the cost", async () => {
-  const [vat] = await db
-    .insert(schema.taxDefinitions)
-    .values({
-      organizationId: orgId,
-      name: `VAT ${suffix}`,
-      rateBp: 2000,
-      recoverable: true,
-    })
-    .returning();
-  const [salesTax] = await db
-    .insert(schema.taxDefinitions)
-    .values({
-      organizationId: orgId,
-      name: `Sales Tax ${suffix}`,
-      rateBp: 1000,
-      recoverable: false,
-    })
-    .returning();
-  const software = await accountId("6500");
-
-  const withVat = await post("/api/bills", {
-    lines: [
-      {
-        description: "Hosting",
-        unitPriceCents: 10_000,
-        accountId: software,
-        taxRateBp: 2000,
-        taxDefinitionId: vat?.id,
-      },
-    ],
-  });
-  const first = (await withVat.json()) as { bill: { id: string } };
-  await post(`/api/bills/${first.bill.id}/approve`, {});
-  const vatLines = (await journal()).filter(
-    (l) => l.source === `bill:${first.bill.id}`,
-  );
-  expect(
-    vatLines.some((l) => l.code === "2200" && l.debitCents === 2_000),
-  ).toBe(true);
-  expect(
-    vatLines.some((l) => l.code === "6500" && l.debitCents === 10_000),
-  ).toBe(true);
-
-  const withSalesTax = await post("/api/bills", {
-    lines: [
-      {
-        description: "Desk",
-        unitPriceCents: 10_000,
-        accountId: software,
-        taxRateBp: 1000,
-        taxDefinitionId: salesTax?.id,
-      },
-    ],
-  });
-  const second = (await withSalesTax.json()) as { bill: { id: string } };
-  await post(`/api/bills/${second.bill.id}/approve`, {});
-  const sunkLines = (await journal()).filter(
-    (l) => l.source === `bill:${second.bill.id}`,
-  );
-  // the whole 11,000 lands on the expense, and nothing on the tax account
-  expect(
-    sunkLines.some((l) => l.code === "6500" && l.debitCents === 11_000),
-  ).toBe(true);
-  expect(sunkLines.some((l) => l.code === "2200")).toBe(false);
-  expect(sunkLines.reduce((s, l) => s + l.debitCents, 0)).toBe(
-    sunkLines.reduce((s, l) => s + l.creditCents, 0),
-  );
-});
-
-test("paying a bill clears the payable and takes the money from cash", async () => {
-  const created = await post("/api/bills", {
-    lines: [{ description: "Parts", unitPriceCents: 5_000 }],
-  });
-  const { bill } = (await created.json()) as { bill: { id: string } };
-  await post(`/api/bills/${bill.id}/approve`, {});
-
-  const paid = await post(`/api/bills/${bill.id}/payments`, {
-    amountCents: 2_000,
-  });
-  expect(paid.status).toBe(201);
-  expect(((await paid.json()) as { status: string }).status).toBe("partial");
-
-  const rest = await post(`/api/bills/${bill.id}/payments`, {
-    amountCents: 3_000,
-  });
-  expect(((await rest.json()) as { status: string }).status).toBe("paid");
-
-  const lines = (await journal()).filter((l) =>
-    l.source?.startsWith("bill-payment:"),
-  );
-  expect(lines.filter((l) => l.code === "2000").length).toBeGreaterThan(0);
-  expect(lines.reduce((s, l) => s + l.debitCents, 0)).toBe(
-    lines.reduce((s, l) => s + l.creditCents, 0),
-  );
-});
-
-test("paying more than is owed is refused", async () => {
-  const created = await post("/api/bills", {
-    lines: [{ description: "Small", unitPriceCents: 1_000 }],
-  });
-  const { bill } = (await created.json()) as { bill: { id: string } };
-  await post(`/api/bills/${bill.id}/approve`, {});
-  const res = await post(`/api/bills/${bill.id}/payments`, {
-    amountCents: 1_500,
-  });
-  expect(res.status).toBe(400);
-});
-
-/**
- * Withheld tax is owed to the authority, not to the supplier.
- *
- * The debt is settled in full either way, which is why Accounts Payable is
- * debited with the whole amount while the bank only pays the difference.
- */
-test("tax withheld from a payment is credited to the tax account", async () => {
-  const created = await post("/api/bills", {
-    lines: [{ description: "Contractor", unitPriceCents: 100_000 }],
-  });
-  const { bill } = (await created.json()) as { bill: { id: string } };
-  await post(`/api/bills/${bill.id}/approve`, {});
-
-  const paid = await post(`/api/bills/${bill.id}/payments`, {
-    amountCents: 100_000,
-    withheldCents: 20_000,
-  });
-  const { payment } = (await paid.json()) as { payment: { id: string } };
-  const lines = (await journal()).filter(
-    (l) => l.source === `bill-payment:${payment.id}`,
-  );
-  expect(lines.some((l) => l.code === "2000" && l.debitCents === 100_000)).toBe(
-    true,
-  );
-  expect(lines.some((l) => l.code === "1000" && l.creditCents === 80_000)).toBe(
-    true,
-  );
-  expect(lines.some((l) => l.code === "2200" && l.creditCents === 20_000)).toBe(
-    true,
-  );
-});
-
-test("voiding an approved bill reverses what it posted", async () => {
-  const created = await post("/api/bills", {
-    lines: [{ description: "Mistake", unitPriceCents: 7_000 }],
-  });
-  const { bill } = (await created.json()) as { bill: { id: string } };
-  await post(`/api/bills/${bill.id}/approve`, {});
-
-  const payableBefore = (await journal())
-    .filter((l) => l.code === "2000")
-    .reduce((sum, l) => sum + l.creditCents - l.debitCents, 0);
-
-  const voided = await post(`/api/bills/${bill.id}/void`, {});
-  expect(voided.status).toBe(200);
-
-  const payableAfter = (await journal())
-    .filter((l) => l.code === "2000")
-    .reduce((sum, l) => sum + l.creditCents - l.debitCents, 0);
-  expect(payableAfter).toBe(payableBefore - 7_000);
-});
-
-test("a bill that has been paid cannot simply be voided", async () => {
-  const created = await post("/api/bills", {
-    lines: [{ description: "Settled", unitPriceCents: 4_000 }],
-  });
-  const { bill } = (await created.json()) as { bill: { id: string } };
-  await post(`/api/bills/${bill.id}/approve`, {});
-  await post(`/api/bills/${bill.id}/payments`, { amountCents: 4_000 });
-  expect((await post(`/api/bills/${bill.id}/void`, {})).status).toBe(409);
-});
-
-test("a line priced in fractions of a cent is refused", async () => {
-  const res = await post("/api/bills", {
-    lines: [{ description: "Rounding", unitPriceCents: 12.5 }],
-  });
-  expect(res.status).toBe(400);
-});
 
 test("the Free half's receipts file no longer names the Pro-only bills table", () => {
   const source = readFileSync(join(import.meta.dir, "receipts.ts"), "utf8");
   expect(source).not.toContain("schema.bills");
-});
-
-/**
- * The scan of what the supplier actually sent, attached to the bill it
- * belongs to and read back the way `receipts.ts` proves for a transaction —
- * now against `purchases.ts`, the file that has owned `bills` since this
- * route moved out of the Free half.
- */
-test("a receipt can be attached to a bill and read back", async () => {
-  process.env.SENTRELLO_DATA_DIR = `/tmp/sentrello-test-${suffix}`;
-
-  const created = await post("/api/bills", {
-    lines: [{ description: "Paper towels", unitPriceCents: 500 }],
-  });
-  const { bill } = (await created.json()) as { bill: { id: string } };
-
-  const form = new FormData();
-  form.append(
-    "file",
-    new File(["<script>alert(1)</script>"], "receipt.html", {
-      type: "text/html",
-    }),
-  );
-  const uploaded = await pro.request(
-    `http://localhost/api/bills/${bill.id}/receipt`,
-    {
-      method: "POST",
-      headers: { cookie: headers.get("cookie") ?? "" },
-      body: form,
-    },
-  );
-  expect(uploaded.status).toBe(201);
-
-  const got = await pro.request(
-    `http://localhost/api/bills/${bill.id}/receipt`,
-    { headers },
-  );
-  expect(got.status).toBe(200);
-  // Never text/html: an uploaded page served as one runs as this origin, with
-  // the reader's session.
-  expect(got.headers.get("content-type")).toBe("application/octet-stream");
-  expect(got.headers.get("content-disposition")).toContain("attachment");
-
-  const detached = await pro.request(
-    `http://localhost/api/bills/${bill.id}/receipt`,
-    { method: "DELETE", headers },
-  );
-  expect(detached.status).toBe(200);
-  expect(
-    (
-      await pro.request(`http://localhost/api/bills/${bill.id}/receipt`, {
-        headers,
-      })
-    ).status,
-  ).toBe(404);
 });
 
 // ---------------------------------------------------------------------------
@@ -581,6 +282,21 @@ test("the trial balance balances, and the aged reports add up", async () => {
 });
 
 test("the ledger exports as a file an accountant can open", async () => {
+  // A manual entry, so there is at least one line for the export to carry.
+  // The tests that used to leave entries behind here — bills, currency — left
+  // for the paid bundle with purchases; this file now posts its own through
+  // the manual-entry route, which is Group D's and stays.
+  await post("/api/accounts/standard", {});
+  const cash = await accountId("1000");
+  const income = await accountId("4000");
+  await post("/api/journal/entries", {
+    memo: "Export fixture",
+    lines: [
+      { accountId: cash, debitCents: 100 },
+      { accountId: income, creditCents: 100 },
+    ],
+  });
+
   const res = await pro.request("http://localhost/api/reports/export.csv", {
     headers,
   });
@@ -606,257 +322,4 @@ test("a quoted field keeps its commas", () => {
   const rows = parseCsv('a,"b,c",d\n1,2,3');
   expect(rows[0]).toEqual(["a", "b,c", "d"]);
   expect(rows[1]).toEqual(["1", "2", "3"]);
-});
-
-// ---------------------------------------------------------------------------
-// Tenancy
-// ---------------------------------------------------------------------------
-
-test("another business's bills are invisible from here", async () => {
-  const theirs = `other-org-${crypto.randomUUID().slice(0, 8)}`;
-  const [bill] = await db
-    .insert(schema.bills)
-    .values({
-      organizationId: theirs,
-      number: "THEIR-SECRET-BILL",
-      status: "open",
-      totalCents: 987_654,
-    })
-    .returning();
-
-  for (const path of ["/api/bills", "/api/reports/accounts-payable"]) {
-    const body = await (
-      await pro.request(`http://localhost${path}`, { headers })
-    ).text();
-    expect(body).not.toContain("THEIR-SECRET-BILL");
-    expect(body).not.toContain("987654");
-  }
-
-  const stolen = await pro.request(`http://localhost/api/bills/${bill?.id}`, {
-    headers,
-  });
-  expect(stolen.status).toBe(404);
-
-  await db.delete(schema.bills).where(eq(schema.bills.organizationId, theirs));
-});
-
-test("a receipt on another business's bill is not readable", async () => {
-  process.env.SENTRELLO_DATA_DIR = `/tmp/sentrello-test-${suffix}`;
-  const theirs = `other-org-${crypto.randomUUID().slice(0, 8)}`;
-
-  // A file that really is on disk, not a made-up path — see the same note on
-  // the equivalent transaction test in index.test.ts.
-  const stored = await storeAttachment(
-    theirs,
-    new File(["their private invoice"], "theirs.pdf"),
-    "receipts",
-  );
-  const [bill] = await db
-    .insert(schema.bills)
-    .values({
-      organizationId: theirs,
-      number: "THEIR-RECEIPT-BILL",
-      status: "open",
-      totalCents: 500,
-      receiptFileKey: packKey(stored.path, stored.name),
-    })
-    .returning();
-
-  const res = await pro.request(
-    `http://localhost/api/bills/${bill?.id}/receipt`,
-    { headers },
-  );
-  expect(res.status).toBe(404);
-  expect(await res.text()).not.toContain("their private invoice");
-
-  await db.delete(schema.bills).where(eq(schema.bills.organizationId, theirs));
-});
-
-// ---------------------------------------------------------------------------
-// More than one currency
-// ---------------------------------------------------------------------------
-
-/**
- * A bill in euros is a debt of euros, and the books are kept in dollars.
- *
- * Everything about this is the arithmetic: the liability is recorded at the
- * rate on the day of the bill, the money leaves at the rate on the day it is
- * paid, and the difference is neither a cost the business chose nor income it
- * earned. Without somewhere for that difference to go, the payment entry
- * simply would not balance.
- */
-test("a foreign bill is refused until there is a rate for it", async () => {
-  const created = await post("/api/bills", {
-    currency: "EUR",
-    lines: [{ description: "Translation", unitPriceCents: 50_000 }],
-  });
-  const { bill } = (await created.json()) as { bill: { id: string } };
-  const refused = await post(`/api/bills/${bill.id}/approve`, {});
-  expect(refused.status).toBe(400);
-
-  const rate = await post("/api/accounting/currencies", {
-    code: "EUR",
-    rateMicro: 1_100_000,
-    asOf: "2024-01-01",
-  });
-  expect(rate.status).toBe(201);
-
-  const approved = await post(`/api/bills/${bill.id}/approve`, {});
-  expect(approved.status).toBe(200);
-
-  const lines = (await journal()).filter((l) => l.source === `bill:${bill.id}`);
-  // 500.00 EUR at 1.1 is 550.00 in the books
-  expect(lines.some((l) => l.code === "2000" && l.creditCents === 55_000)).toBe(
-    true,
-  );
-  expect(lines.reduce((s, l) => s + l.debitCents, 0)).toBe(
-    lines.reduce((s, l) => s + l.creditCents, 0),
-  );
-});
-
-test("the rate moving between the bill and the payment is an exchange difference", async () => {
-  const created = await post("/api/bills", {
-    currency: "EUR",
-    billDate: "2024-02-01",
-    lines: [{ description: "Filing agent", unitPriceCents: 100_000 }],
-  });
-  const { bill } = (await created.json()) as { bill: { id: string } };
-  await post(`/api/bills/${bill.id}/approve`, {});
-
-  // the euro is dearer by the time it is paid
-  await post("/api/accounting/currencies", {
-    code: "EUR",
-    rateMicro: 1_200_000,
-    asOf: "2024-03-01",
-  });
-
-  const paid = await post(`/api/bills/${bill.id}/payments`, {
-    amountCents: 100_000,
-    paidAt: "2024-03-05",
-  });
-  expect(paid.status).toBe(201);
-  const { payment } = (await paid.json()) as { payment: { id: string } };
-
-  const lines = (await journal()).filter(
-    (l) => l.source === `bill-payment:${payment.id}`,
-  );
-  // the debt was 1,100.00; 1,200.00 left the bank; the 100.00 is the rate
-  expect(lines.some((l) => l.code === "2000" && l.debitCents === 110_000)).toBe(
-    true,
-  );
-  expect(
-    lines.some((l) => l.code === "1000" && l.creditCents === 120_000),
-  ).toBe(true);
-  expect(lines.some((l) => l.code === "7000" && l.debitCents === 10_000)).toBe(
-    true,
-  );
-  expect(lines.reduce((s, l) => s + l.debitCents, 0)).toBe(
-    lines.reduce((s, l) => s + l.creditCents, 0),
-  );
-});
-
-test("the currency the books are kept in cannot be changed once they have entries", async () => {
-  const res = await pro.request(
-    "http://localhost/api/accounting/currencies/base",
-    { method: "PUT", headers, body: JSON.stringify({ code: "GBP" }) },
-  );
-  expect(res.status).toBe(409);
-});
-
-// ---------------------------------------------------------------------------
-// Bills that arrive on a schedule
-// ---------------------------------------------------------------------------
-
-/**
- * A recurring bill produces a draft, never a posting.
- *
- * A bill is somebody else's claim: the figure often differs from last month's,
- * and posting a liability nobody has looked at is how a set of books fills up
- * with amounts the business never agreed to.
- */
-test("a schedule copies its template into a draft and moves on", async () => {
-  const created = await post("/api/bills", {
-    number: "RENT-TEMPLATE",
-    billDate: "2026-01-01",
-    dueDate: "2026-01-15",
-    lines: [{ description: "Monthly rent", unitPriceCents: 92_000 }],
-  });
-  const { bill } = (await created.json()) as { bill: { id: string } };
-
-  const scheduled = await post("/api/recurring-bills", {
-    templateBillId: bill.id,
-    interval: "monthly",
-    nextRunAt: "2026-02-01",
-    name: "Rent",
-  });
-  expect(scheduled.status).toBe(201);
-
-  const before = (await get<{ bills: { id: string }[] }>("/api/bills")).bills
-    .length;
-  expect(await runRecurringBills(new Date("2026-02-02"))).toBe(1);
-
-  const after = await get<{
-    bills: {
-      id: string;
-      status: string;
-      totalCents: number;
-      dueDate: string | null;
-    }[];
-  }>("/api/bills");
-  expect(after.bills.length).toBe(before + 1);
-
-  const drafts = after.bills.filter((b) => b.status === "draft");
-  expect(drafts.some((b) => b.totalCents === 92_000)).toBe(true);
-
-  // nothing was posted for it
-  const posted = (await journal()).filter((l) =>
-    drafts.some((draft) => l.source === `bill:${draft.id}`),
-  );
-  expect(posted).toHaveLength(0);
-
-  // and the schedule has moved to March, not February again
-  const schedules = await get<{
-    schedules: { nextRunAt: string; generatedCount: number }[];
-  }>("/api/recurring-bills");
-  const rent = schedules.schedules[0];
-  expect(rent?.generatedCount).toBe(1);
-  expect(new Date(rent?.nextRunAt as string).getUTCMonth()).toBe(2);
-
-  // running again the same day produces nothing
-  expect(await runRecurringBills(new Date("2026-02-02"))).toBe(0);
-});
-
-test("the due date keeps its distance rather than being copied", async () => {
-  const bills = await get<{
-    bills: {
-      number: string | null;
-      billDate: string;
-      dueDate: string | null;
-    }[];
-  }>("/api/bills");
-  const copy = bills.bills.find(
-    (b) => b.number === "RENT-TEMPLATE" && b.billDate.startsWith("2026-02"),
-  );
-  // fourteen days after its own date, not the template's January date
-  expect(copy?.dueDate?.startsWith("2026-02-15")).toBe(true);
-});
-
-test("a schedule past its end date stops rather than running for ever", async () => {
-  const created = await post("/api/bills", {
-    number: "ENDS",
-    lines: [{ description: "Short-lived", unitPriceCents: 1_000 }],
-  });
-  const { bill } = (await created.json()) as { bill: { id: string } };
-  await post("/api/recurring-bills", {
-    templateBillId: bill.id,
-    interval: "monthly",
-    nextRunAt: "2026-01-01",
-    endsOn: "2026-01-15",
-  });
-
-  await runRecurringBills(new Date("2026-03-01"));
-  const schedules = await get<{ schedules: { active: boolean }[] }>(
-    "/api/recurring-bills",
-  );
-  expect(schedules.schedules.some((s) => s.active === false)).toBe(true);
 });

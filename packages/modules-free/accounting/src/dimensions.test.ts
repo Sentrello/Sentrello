@@ -181,43 +181,6 @@ test("only the income or expense line is tagged, never the bank", async () => {
   for (const row of banked) expect(row.journal_lines.classId).toBeNull();
 });
 
-/**
- * One bill, two jobs.
- *
- * The reason these live on the line. A merchant's invoice covering two jobs is
- * one document, and a business forced to split it into two bills to report on
- * them stops bothering.
- */
-test("one bill can be split across two jobs", async () => {
-  const made = await post("/api/bills", {
-    billDate: "2026-08-05T00:00:00Z",
-    lines: [
-      {
-        description: "Timber",
-        quantity: 1,
-        unitPriceCents: 4_000,
-        accountId: fuel,
-        classId: kitchen,
-      },
-      {
-        description: "Tiles",
-        quantity: 1,
-        unitPriceCents: 6_000,
-        accountId: fuel,
-        classId: bathroom,
-      },
-    ],
-  });
-  const { bill } = (await made.json()) as { bill: { id: string } };
-  expect((await post(`/api/bills/${bill.id}/approve`, {})).status).toBe(200);
-
-  // Both lines are on one expense account; only the class tells them apart.
-  const kitchenNow = await expensesOn(`?classId=${kitchen}`);
-  const bathroomNow = await expensesOn(`?classId=${bathroom}`);
-  expect(kitchenNow).toBe(5_000 + 2_000 + 4_000);
-  expect(bathroomNow).toBe(3_000 + 6_000);
-});
-
 test("a class that is not this business's is refused, and posts nothing", async () => {
   const before = await expensesOn("");
   const res = await spend(9_999, { classId: crypto.randomUUID() });
