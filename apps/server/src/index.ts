@@ -86,7 +86,7 @@ app.onError((err, c) => {
  * behind TLS — it sees a plain HTTP request from a proxy either way — and
  * guessing from `x-forwarded-proto` trusts a header the client can forge when
  * the proxy is misconfigured. The nginx in front of it owns that header, which
- * is where Hardening puts it.
+ * is where that trust decision belongs.
  */
 app.use("*", async (c, next) => {
   await next();

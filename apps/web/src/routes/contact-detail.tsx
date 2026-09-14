@@ -675,8 +675,8 @@ export function HistoryPanel({
    * The money half, which the Free history does not have.
    *
    * `/api/crm/history` reads notes, activities, tasks and deals. What the
-   * person was billed and what they paid is the other half of what the plan
-   * calls a 360° timeline, and it lives behind a Pro route that nothing has
+   * person was billed and what they paid is the other half of a full
+   * 360° timeline, and it lives behind a Pro route that nothing has
    * ever called — so the panel has been three-quarters of itself since it was
    * written, on instances paying for the other quarter.
    *

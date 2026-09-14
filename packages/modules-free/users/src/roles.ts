@@ -76,7 +76,7 @@ export function builtInPermissions(role: string): Record<string, string[]> {
  * Better Auth starts from the compiled role's statements and unions each
  * resource of the stored row into them, so a stored row narrowing `admin` to
  * `crm:read` still leaves `settings:update` allowed. The compiled statements
- * are a floor, not a default a same-named row can lower. An earlier decision fixed that
+ * are a floor, not a default a same-named row can lower. That was fixed
  * in `access.ts` and left this route saying the old thing, so the console's
  * group Access tab — which reads this route — inherited it.
  *

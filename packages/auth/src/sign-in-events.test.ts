@@ -122,8 +122,9 @@ async function eventsFor(action: string, accountEmail: string) {
 /**
  * A signed-up, membership-holding account with a proved TOTP secret and a
  * set of backup codes, mirroring the existing trust-device test's own setup
- * steps above — factored out here because An earlier change needs the same starting
- * point for four separate tests rather than one.
+ * steps above — factored out here because the two-factor sign-in-event
+ * tests below need the same starting point for four separate tests rather
+ * than one.
  *
  * The `verifyTOTP` call inside this helper is deliberately made with an
  * *authenticated* session (`authedHeaders`, from sign-up), not a pending
@@ -695,7 +696,7 @@ test("a suspended member is refused at sign-in, even with the right password", a
   expect(String(refused)).toContain("suspended");
 });
 
-test("a locked account whose suspension lookup throws is still refused for the lock (An earlier decision)", async () => {
+test("a locked account whose suspension lookup throws is still refused for the lock", async () => {
   await signUpAsOwner({ email: throwEmail, password, name: "Throw" });
   const [throwUser] = await db
     .select({ id: schema.user.id })
@@ -722,7 +723,7 @@ test("a locked account whose suspension lookup throws is still refused for the l
   // `lockState`. What is faked below is only the *second* determination
   // `signInLockGuard` makes after that — the suspension lookup, keyed on its
   // distinctive `{ disabledAt: schema.member.disabledAt }` selection — made
-  // to throw once the lock is already known. Before An earlier decision's fix, the
+  // to throw once the lock is already known. Before this guard existed, the
   // `catch` this lands in returned early and discarded the already-computed
   // `locked`, and the sign-in below would have gone through with the right
   // password.
@@ -752,7 +753,7 @@ test("a locked account whose suspension lookup throws is still refused for the l
   }
 });
 
-test("an account both locked and suspended is refused for the lock, not the suspension (An earlier decision)", async () => {
+test("an account both locked and suspended is refused for the lock, not the suspension", async () => {
   await signUpAsOwner({
     email: lockedSuspendedEmail,
     password,
@@ -858,7 +859,7 @@ test("a member's suspension in a different organization does not block a sign-in
   }
 });
 
-test("a fresh session issued to a suspended member, on a path signInLockGuard does not watch, is deleted and the call refused (An earlier decision)", async () => {
+test("a fresh session issued to a suspended member, on a path signInLockGuard does not watch, is deleted and the call refused", async () => {
   const signUp = await signUpAsOwner({
     email: crossPathSuspendedEmail,
     password,
@@ -918,7 +919,7 @@ test("a fresh session issued to a suspended member, on a path signInLockGuard do
   expect(rows.length).toBe(0);
 });
 
-test("the same call succeeds normally for a member who is not suspended (An earlier decision control)", async () => {
+test("the same call succeeds normally for a member who is not suspended (control)", async () => {
   const signUp = await signUpAsOwner({
     email: crossPathLiveEmail,
     password,

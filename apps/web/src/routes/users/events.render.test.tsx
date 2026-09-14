@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { Events } from "./events";
 
 /**
- * The Events screen, actually rendered (An earlier decision). The state worth getting
+ * The Events screen, actually rendered. The state worth getting
  * wrong here is the empty result — a filter that matches nothing has to say
  * so, not draw a blank table — and that a row's human sentence and its
  * subject both actually reach the markup.

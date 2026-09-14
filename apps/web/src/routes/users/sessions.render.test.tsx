@@ -4,8 +4,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { Sessions } from "./sessions";
 
 /**
- * The org-wide Sessions screen, rendered rather than only reasoned about
- * (An earlier decision). The state worth getting wrong here is the IP column: this is
+ * The org-wide Sessions screen, rendered rather than only reasoned about.
+ * The state worth getting wrong here is the IP column: this is
  * the exact bug the browser check found — `person.tsx`'s own Sessions tab
  * showed a blank cell for a live session because Better Auth writes an empty
  * string, not null, when nothing set the trusted header, and `s.ipAddress ??

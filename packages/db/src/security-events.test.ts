@@ -5,7 +5,7 @@ import { recent } from "./security-events";
 /**
  * `recent`, and the exclusion `GET /api/users`'s Recent-changes card needs.
  *
- * An earlier change's addendum: once sign-in events exist, twenty-five bot attempts
+ * Once sign-in events exist, twenty-five bot attempts
  * evict every administrative action from a card that only ever asked for the
  * most recent 25 rows. Filtering the array `recent` already returned would
  * not fix that — the noise has already pushed the administrative rows out of

@@ -5,13 +5,13 @@ import { NavigationProvider } from "../../lib/navigation";
 import { PersonDetail } from "./person";
 
 /**
- * The person record, rendered rather than only reasoned about (An earlier decision).
+ * The person record, rendered rather than only reasoned about.
  *
- * `person.test.ts` covers `tabFromSearch` — the extracted decision, Ruling
- * 39's half — and nothing covered the markup, on the screen with the most
+ * `person.test.ts` covers `tabFromSearch` — the extracted decision — and
+ * nothing covered the markup, on the screen with the most
  * states worth getting wrong: a suspended account, a locked one, and the
- * self-suspension guard. A later review proved the gap by
- * inverting the enabled/disabled label and watching the whole suite stay
+ * self-suspension guard. Proving the gap meant inverting the
+ * enabled/disabled label and watching the whole suite stay
  * green. These are what fail now when it does.
  */
 
@@ -80,7 +80,7 @@ test("an enabled account says so, and offers the way to suspend it", () => {
 });
 
 test("a suspended account does not render as enabled", () => {
-  // The inversion a later review proved nothing caught: an account
+  // The inversion nothing else caught: an account
   // somebody has suspended showing as "Enabled" is the screen telling an
   // administrator the opposite of the truth about access they removed.
   const html = render({ ...base, disabledAt: "2026-08-30T00:00:00.000Z" });

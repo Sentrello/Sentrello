@@ -9,10 +9,10 @@ import usersModule from "./index";
  * Nothing in this module hands one business another business's data.
  *
  * Every business query is `organizationId` scoped — one organization per self-hosted instance today, and the filter is
- * what keeps a hosted tier possible later. A later review
- * mutated all forty-six of those filters in this module one at a time, turning
- * each into a tautology that still reads as a filter: **thirty-four of them
- * could be neutered with the whole suite still green.**
+ * what keeps a hosted tier possible later. All forty-six of those filters in this module were mutated one at a
+ * time, turning each into a tautology that still reads as a filter:
+ * **thirty-four of them could be neutered with the whole suite still
+ * green.**
  *
  * That is not thirty-four bugs — the filters are all correct. It is thirty-four
  * places where a wrong one would ship unnoticed, on a single-organization

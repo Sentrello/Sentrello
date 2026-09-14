@@ -45,7 +45,8 @@ export async function needsBootstrap(): Promise<boolean> {
 
 /**
  * First-run bootstrap. Creates the single organization (the tenant boundary
- * from design plan §6.1) and the owner account, then never applies again.
+ * every business query scopes to) and the owner account, then never applies
+ * again.
  *
  * Idempotent: a second call finds the organization and returns early.
  */

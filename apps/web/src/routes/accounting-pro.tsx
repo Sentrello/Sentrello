@@ -4469,8 +4469,7 @@ function ClosingTheBooks() {
  * Seven Pro reports are built. Three reached a screen — cash flow, trial
  * balance and who owes us, all on the dashboard — and four did not: what tax
  * is owed, where the money goes by category, who this business owes, and the
- * ledger as a file. Every one of them was written, gated, tested against its
- * numbers, and described in the plan as built.
+ * ledger as a file. Every one of them was written, gated, and tested against its numbers.
  *
  * The tax summary is the one that matters most. It is what a return is filed
  * from, and a business paying for the accounting tier could not open it.

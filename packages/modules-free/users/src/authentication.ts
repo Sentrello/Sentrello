@@ -23,9 +23,9 @@ import { knownRoles } from "./roles";
  * and pruning the events that clear a lock silently extends it. The write is
  * validated and refused with a reason, not clamped.
  *
- * `POST /api/users/:userId/unlock` is new outright. An earlier change's addendum found
- * that today nothing in the repository can clear an account lock except
- * waiting: this is one of the two routes back in, for an administrator who
+ * `POST /api/users/:userId/unlock` is new outright — until it existed,
+ * nothing in the repository could clear an account lock except waiting.
+ * This is one of the two routes back in, for an administrator who
  * still has a session; `packages/auth/src/unlock.ts` is the other, for when
  * signing in at all is what the lock is withholding.
  */
@@ -188,7 +188,7 @@ export function registerAuthentication(ctx: ModuleContext) {
         (body.eventRetentionDays as number | undefined) ??
         current.eventRetentionDays;
 
-      // The interaction this task's addendum names: zero retention means
+      // The interaction worth naming: zero retention means
       // "keep forever", which by definition cannot be shorter than any
       // window, so only a positive retention is checked against the lockout
       // window it has to outlast.

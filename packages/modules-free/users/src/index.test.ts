@@ -172,8 +172,8 @@ test("the last administrator cannot be removed", async () => {
  *
  * "The last administrator cannot be removed" only ever asserted the success
  * case — two administrators, so one may go — and would have passed against a
- * route with no guard at all. A later review confirmed it by
- * deleting the guard and watching the whole module stay green. This is the
+ * route with no guard at all. Deleting the guard and watching the whole
+ * module stay green confirmed it. This is the
  * other half.
  *
  * Reaching it needs a caller who holds `settings:update` without being one of

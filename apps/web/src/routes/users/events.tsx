@@ -97,7 +97,7 @@ export interface EventsFilter {
  * The filter state as `GET /api/users/events` reads it — a blank field
  * means "don't ask for this", not the literal empty string.
  *
- * Exported and tested on its own (`events.test.ts`), per An earlier decision: the
+ * Exported and tested on its own (`events.test.ts`): the
  * shape a query-string builder gets wrong is silent, since a filter left
  * out just returns every row instead of failing loudly.
  */

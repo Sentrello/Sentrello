@@ -2,8 +2,8 @@ import { expect, test } from "bun:test";
 import { singleAdministratorNoMail } from "./authentication";
 
 /**
- * The condition behind §8's third warning, pulled out of the component and
- * tested against the real function (An earlier decision) rather than a copy of the
+ * The condition behind the single-administrator warning, pulled out of the
+ * component and tested against the real function rather than a copy of the
  * logic living only in this file.
  */
 

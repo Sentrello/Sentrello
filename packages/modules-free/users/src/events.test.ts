@@ -196,7 +196,7 @@ test("unpaged, it still answers with events rather than a person-shaped 404 — 
 });
 
 /**
- * An earlier decision: dropping the `organizationId` condition at `events.ts:67`
+ * Dropping the `organizationId` condition at `events.ts:67`
  * currently leaves the whole suite green, because every exact-total
  * assertion above is already narrowed by a subject or action marker unique
  * to this file's own organization — a leak from another organization would
@@ -281,7 +281,7 @@ test("one organization's events are invisible through another organization's ses
 });
 
 /**
- * An earlier decision. This route shipped at `settings:["read"]`, which `defaults.ts`
+ * This route shipped at `settings:["read"]`, which `defaults.ts`
  * grants to executives, managers and accounting — so a manager who gets 403
  * from `GET /api/users` could read the owner's failed sign-in addresses,
  * every password reset and every role change. The gate is now

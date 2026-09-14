@@ -6,7 +6,7 @@ import { RESOURCES } from "./policy-ui";
  * `accessRows` is the rule the Access tab lives or dies by: every resource
  * the platform knows about gets a row, whether or not anything was granted on
  * it, and a resource that was granted keeps every source of every grant. This
- * imports the real function rather than a copy — An earlier decision, and the same
+ * imports the real function rather than a copy, the same
  * reason `tabs.test.tsx` imports `activeTab` instead of restating it.
  */
 

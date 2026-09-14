@@ -6,7 +6,7 @@ import type { SentrelloModule } from "@sentrello/module-sdk";
  * They are deliberately NOT dependencies of this package: Core is public and
  * AGPL, and must never declare or vendor commercial code. In development they
  * appear via `bun link` from the sibling Pro/Modules repos; in distribution the
- * installer only unpacks the bundles a license entitles (The control plane).
+ * installer only unpacks the bundles a license entitles.
  *
  * Presence alone grants nothing — the loader still checks `entitled(...)`, so a
  * leaked bundle without a valid license token stays dark.

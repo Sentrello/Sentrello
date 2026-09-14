@@ -14,8 +14,8 @@ import usersModule from "./index";
  * `GET`/`PUT /api/users/policy` moved here from `groups.ts` unchanged, and
  * now also carries the lockout and retention settings that used to be
  * writable only by hand in the database. `POST /api/users/:userId/unlock` is
- * new outright — An earlier change's addendum found that today nothing in the
- * repository can clear an account lock except waiting.
+ * new outright — until it existed, nothing in the repository could clear an
+ * account lock except waiting.
  */
 
 const suffix = crypto.randomUUID().slice(0, 8);
@@ -171,7 +171,7 @@ test("a password minimum is kept inside what the platform can enforce", async ()
   expect(policy.minPasswordLength).toBe(8);
 });
 
-// New with An earlier change: lockout and retention settings, writable for the first
+// Lockout and retention settings, writable for the first
 // time.
 
 test("a policy change records what changed, lockout and retention included", async () => {
@@ -294,7 +294,7 @@ test("unlocking somebody who is not a member here is refused", async () => {
   expect(res.status).toBe(404);
 });
 
-// An earlier change's addendum: these are static two-segment paths, and would be
+// These are static two-segment paths, and would be
 // silently captured by `GET /api/users/:userId` if registered after
 // `registerPeople`. Proven here by actually reaching them, not by reasoning
 // about registration order alone.
@@ -310,7 +310,7 @@ test("GET and PUT /api/users/policy answer with a policy, not a person-shaped 40
 });
 
 /**
- * An earlier decision. Changing this route's gate from `settings:["update"]` to
+ * Changing this route's gate from `settings:["update"]` to
  * `["read"]` left the entire suite green before this test existed — and the
  * seeded `managers` policy carries `read`, so a manager could clear an
  * account lock. This route removes a security control rather than reading
@@ -353,7 +353,7 @@ test("a manager — settings:read, not settings:update — cannot unlock anybody
 });
 
 /**
- * An earlier decision, second half. Dropping `eq(schema.member.organizationId, orgId)`
+ * Dropping `eq(schema.member.organizationId, orgId)`
  * from the unlock route's member lookup also left the whole suite green: the
  * only other test of a refusal uses an id that belongs to nobody at all, so
  * a real person in a different business took the same path as a stranger.
@@ -398,7 +398,7 @@ test("unlocking somebody who belongs to another business is refused", async () =
 });
 
 /**
- * An earlier decision. All three columns are `integer` — pg `int4` — so before the
+ * All three columns are `integer` — pg `int4` — so before the
  * upper bounds existed these answered 500 from the database rather than 400
  * from the route, while every field beside them was bounded both ways.
  */

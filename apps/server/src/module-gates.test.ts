@@ -14,8 +14,8 @@ import settings from "@sentrello/module-settings";
  *
  * Features are gated twice, by design: modules load only when entitled, and
  * routes guard with `requirePermission`. The Users
- * console's own review found twenty-one of its twenty-nine gates could be
- * deleted with the whole suite still green — not because they were wrong, but
+ * console's own gates were audited by deleting each one in turn: twenty-one
+ * of its twenty-nine could be deleted with the whole suite still green — not because they were wrong, but
  * because nothing in the suite ever called a route as somebody who lacked the
  * permission. Every module here had the same hole.
  *

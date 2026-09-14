@@ -180,13 +180,13 @@ test("a role nobody holds still answers, with nobody in it", async () => {
 });
 
 /**
- * An earlier decision, on the third route found expressing the rule its own way.
+ * The third route found expressing the rule its own way.
  *
  * `GET /api/users/roles` was corrected to union a stored row into a compiled
  * role rather than let it replace one, and `permissionsForRole` was moved into
  * this very file to hold that answer once. This route — the single-policy half
  * of the same pair, and the source the policy record screen renders — kept the
- * old expression until a later review found it. The screen's
+ * old expression until this was found. The screen's
  * whole job is answering "what does this role allow", so understating `admin`
  * here is the same defect on the same subject as the one already fixed twice.
  */

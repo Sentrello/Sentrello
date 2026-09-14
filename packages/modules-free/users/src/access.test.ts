@@ -111,7 +111,7 @@ beforeAll(async () => {
   // — which read `member.role`, not `effectiveRoles` — see the group's role
   // too. Needed for the route test below, which checks that this person
   // really does hold settings:read (through Accounting) and is still
-  // refused: the exposure the addendum names is that settings:read used to
+  // refused: settings:read used to
   // be enough on this route.
   await applyRoles(orgId, personId);
   // The membership above was written straight into the table, after this
@@ -508,7 +508,7 @@ test("a business's own roles are scoped to it, not readable through another orga
 
 test("the route requires settings:update, not settings:read", async () => {
   // This person holds settings:read through Accounting and nothing more —
-  // exactly the exposure the addendum names: before this task, settings:read
+  // exactly the exposure this route used to have: settings:read
   // was enough to read anyone's access, including the administrators'.
   const res = await app.request(
     `http://localhost/api/users/${ownerId}/access`,

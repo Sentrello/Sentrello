@@ -6,7 +6,7 @@ import { join } from "node:path";
  * `contractorTaxDetails` is a Pro-only table, and this Free package must
  * never query it — not directly, and not by keeping a file around that once
  * did. The registration itself now lives in `contractors.ts`, which left
- * with The third group into the paid bundle; the tests proving the registration
+ * for the paid bundle; the tests proving the registration
  * still works on both a Free and a Pro instance travelled with it.
  */
 

@@ -21,8 +21,7 @@ import { AccessMatrix, type Grant } from "./access-matrix";
 import { policyLabel } from "./policy-ui";
 
 /**
- * One person: the six tabs the design gives them
- * (`the console design notes:130-140`) — Details, Credentials,
+ * One person: the six tabs — Details, Credentials,
  * Access, Groups, Sessions, Activity.
  *
  * Access is the point of the whole console: what somebody may actually do,
@@ -100,7 +99,7 @@ const TABS = [
  * this only has to read it.
  *
  * Exported and tested on its own (`person.test.ts`) rather than only
- * exercised through the rendered component, per An earlier decision.
+ * exercised through the rendered component.
  */
 export function tabFromSearch(search: string): string {
   return new URLSearchParams(search).get("tab") ?? "";

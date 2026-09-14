@@ -5,13 +5,13 @@ import { AccessMatrix } from "./access-matrix";
 /**
  * The Access tab, actually rendered.
  *
- * Everything else about An earlier stage is tested by pulling the decision out of the
- * component and exercising it on its own (An earlier decision), which is right and is
+ * Everything else here is tested by pulling the decision out of the
+ * component and exercising it on its own, which is right and is
  * not enough by itself: a rule can be correct while the markup around it
  * never draws, and until this file existed nothing in the repository had seen
- * a screen of this console render at all. The browser check the plan asks for
- * could not be run — the Chrome extension is not connected here — so this is
- * what stands in for it.
+ * a screen of this console render at all. The manual browser check that
+ * would otherwise verify this could not be run — the Chrome extension is not
+ * connected here — so this is what stands in for it.
  *
  * `react-dom/server` rather than a DOM testing library: it is already a
  * dependency of this app, it needs no jsdom and no renderer to install, and

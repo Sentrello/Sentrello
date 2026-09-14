@@ -163,7 +163,7 @@ export function registerAccess(ctx: ModuleContext) {
    *
    * Answered here rather than in the browser. The group screen worked this
    * out itself from `GET /api/users/roles`, which meant two implementations
-   * of the union — and this branch has already corrected the same rule in
+   * of the union — and the same rule has already been corrected in
    * three places after writing it down twice, which is the argument for not
    * having a fourth in a language the server cannot check.
    *
@@ -213,7 +213,7 @@ export function registerAccess(ctx: ModuleContext) {
     "/api/users/:userId/access",
     requireSession(),
     // `settings:read` answered this until now, which is the same hole
-    // An earlier decision closed on `GET /api/users/:userId` the task before this one:
+    // already closed on `GET /api/users/:userId`:
     // this route answers "what may this person do" for anybody, including
     // the administrators, which makes it the single most useful thing in the
     // module to somebody deciding whose account to go after. `update` is not

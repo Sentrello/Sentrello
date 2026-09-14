@@ -708,7 +708,7 @@ test("Users opens out into the screens of a console, not one page", async () => 
 
 /**
  * Every screen in the console is gated at `settings:["update"]`, including
- * the two the plan had at `read`, because the routes behind them are —
+ * including two that might seem to only need `read`, because the routes behind them are —
  * `GET /api/users/events` and `GET /api/users/sessions` each aggregate every
  * person in the business into one read.
  *

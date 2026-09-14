@@ -38,7 +38,7 @@ export interface AccessRow {
  * screen say nothing where it should say no.
  *
  * Exported and tested on its own (`access-matrix.test.ts`) rather than only
- * exercised through the rendered component, per An earlier decision.
+ * exercised through the rendered component.
  */
 export function accessRows(grants: Grant[]): AccessRow[] {
   return RESOURCES.map((r) => ({

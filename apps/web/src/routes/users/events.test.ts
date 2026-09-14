@@ -4,7 +4,7 @@ import { eventsQuery } from "./events";
 /**
  * The query string `GET /api/users/events` reads, built from the filter
  * state — pulled out of the component and tested against the real function
- * (An earlier decision). A filter left blank has to be left out of the request
+ * rather than a copy. A filter left blank has to be left out of the request
  * entirely, not sent as the literal empty string: the server route treats a
  * present-but-empty `actor` param the same as an absent one after
  * `.trim() || undefined`, but a test that only checked the happy path would

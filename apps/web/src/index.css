@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /*
- * Design tokens (design plan §8.4): one confident brand hue, warm neutrals,
+ * Design tokens: one confident brand hue, warm neutrals,
  * semantic status colors. Light and dark from day one — every component reads
  * these variables, so the whole app themes from one place.
  */

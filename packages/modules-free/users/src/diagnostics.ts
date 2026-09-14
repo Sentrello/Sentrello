@@ -9,8 +9,7 @@ import { mailConfigured } from "@sentrello/email";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 
 /**
- * What the Authentication screen cannot otherwise see about this instance
- * (`the console design notes` §8).
+ * What the Authentication screen cannot otherwise see about this instance.
  *
  * Three facts, none readable from the browser today: which header this
  * instance trusts for a caller's address and what this request resolved to

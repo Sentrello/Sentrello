@@ -5,11 +5,11 @@ import { NavigationProvider } from "../../lib/navigation";
 import { GroupDetail } from "./group";
 
 /**
- * The group record, rendered rather than only reasoned about (An earlier decision).
+ * The group record, rendered rather than only reasoned about.
  *
  * `group.test.ts` covers `grantsForRoles` — the extracted decision — and
- * nothing covered the markup. A later review proved the cost
- * by inverting the members empty-state condition, so an empty group listed
+ * nothing covered the markup. Proving the cost meant inverting the
+ * members empty-state condition, so an empty group listed
  * members and a full one said "Nobody yet", with the whole suite still green.
  * A group's membership is what its access follows from, so a screen that
  * swaps those two is telling an administrator the opposite of who holds it.
