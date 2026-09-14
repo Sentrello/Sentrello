@@ -279,3 +279,35 @@ export function hostRuntime(moduleName: string): Runtime {
   }
   return found;
 }
+
+/**
+ * The handful of bindings every module's `runtime.ts` shim needs from
+ * `hostRuntime`: the primitives, `openedRecord`, and `registerScreen`.
+ *
+ * Before this, each of the eleven shims bound these by hand — a four-line
+ * `registerScreen` and a one-line `openedRecord`, copied rather than shared,
+ * on top of the declaration duplication this file already fixed. A shim is
+ * now this function called with its own module name.
+ */
+export function makeModuleRuntime(moduleName: string): {
+  ui: SentrelloUi;
+  money: Runtime["money"];
+  api: Runtime["api"];
+  listUi: SentrelloListUi;
+  openedRecord: () => string | undefined;
+  registerScreen: (id: string, screen: () => React.ReactElement | null) => void;
+} {
+  const runtime = hostRuntime(moduleName);
+  return {
+    ui: runtime.ui,
+    money: runtime.money,
+    api: runtime.api,
+    listUi: runtime.listUi,
+    /** The record this screen was opened for, if any. */
+    openedRecord: () => runtime.opened?.recordId,
+    /** How a module hands its screen to the host. */
+    registerScreen(id, screen) {
+      runtime.screens[id] = screen;
+    },
+  };
+}
