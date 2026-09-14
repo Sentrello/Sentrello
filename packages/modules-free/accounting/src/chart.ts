@@ -4,7 +4,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { and, db, eq, inArray, isNull, schema } from "@sentrello/db";
-import { ensureAccount } from "@sentrello/db/ledger";
+import { ensureAccount, ownedAccount } from "@sentrello/db/ledger";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 
 /**
@@ -460,24 +460,10 @@ export function registerChart(ctx: ModuleContext) {
   );
 }
 
-/** An id the caller supplied, confirmed to belong to this business. */
-export async function ownedAccount(
-  orgId: string,
-  accountId: string,
-): Promise<boolean> {
-  if (!isUuid(String(accountId))) return false;
-  const [row] = await db
-    .select({ id: schema.accounts.id })
-    .from(schema.accounts)
-    .where(
-      and(
-        eq(schema.accounts.id, String(accountId)),
-        eq(schema.accounts.organizationId, orgId),
-      ),
-    )
-    .limit(1);
-  return Boolean(row);
-}
+// The ownership check lives in `@sentrello/db/ledger` now, beside the
+// accounts it checks: it is an organization-scoping invariant, and the paid
+// half reads it from there. Re-exported so every caller here keeps working.
+export { ownedAccount };
 
 /**
  * The same, and of a kind that makes sense where it is about to be used.

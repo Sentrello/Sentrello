@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import type { LedgerRow } from "./reports";
-import { forHmrc, vatReturn } from "./vat-return";
+import type { LedgerRow } from "./ledger";
+import { forHmrc, vatReturn } from "./tax";
 
 /**
  * A VAT return is a legal declaration, signed by a person who is liable for it.

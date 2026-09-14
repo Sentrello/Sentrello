@@ -3,7 +3,12 @@ import {
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
-import { and, db, eq, gte, lte, schema } from "@sentrello/db";
+import {
+  type AccountTotal,
+  type LedgerRow,
+  ledgerRows,
+  totalsByAccount,
+} from "@sentrello/db/ledger";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import { type CashBasisRow, cashBasisRows } from "./cash-basis";
 
@@ -20,121 +25,13 @@ import { type CashBasisRow, cashBasisRows } from "./cash-basis";
  * Pro half. What is here is what a business genuinely cannot do without.
  */
 
-export interface LedgerRow {
-  /** Which entry the line belongs to — the unit a cash-basis read reasons in. */
-  entryId: string;
-  /** Which part of the business the line was for, if any. */
-  classId: string | null;
-  locationId: string | null;
-  accountId: string;
-  code: string;
-  name: string;
-  type: string;
-  debitCents: number;
-  creditCents: number;
-  postedAt: Date;
-}
-
 /**
- * Every posted line for a business, optionally inside a period.
- *
- * A class or a location narrows it to one part of the business. Narrowing here
- * rather than in each report means every report gains it at once — and means a
- * report cannot quietly ignore the filter it was given, which is a page headed
- * "Kitchen job" showing the whole company's figures.
+ * The row reader and the per-account totals live in `@sentrello/db/ledger`
+ * now, beside `postJournalEntry`: they are pure readers over tables `db`
+ * owns, and the paid half reads them from there. Re-exported so every
+ * caller here keeps working.
  */
-export async function ledgerRows(
-  orgId: string,
-  period: {
-    from?: Date;
-    to?: Date;
-    classId?: string;
-    locationId?: string;
-  } = {},
-): Promise<LedgerRow[]> {
-  return db
-    .select({
-      entryId: schema.journalEntries.id,
-      classId: schema.journalLines.classId,
-      locationId: schema.journalLines.locationId,
-      accountId: schema.accounts.id,
-      code: schema.accounts.code,
-      name: schema.accounts.name,
-      type: schema.accounts.type,
-      debitCents: schema.journalLines.debitCents,
-      creditCents: schema.journalLines.creditCents,
-      postedAt: schema.journalEntries.postedAt,
-    })
-    .from(schema.journalLines)
-    .innerJoin(
-      schema.journalEntries,
-      eq(schema.journalLines.entryId, schema.journalEntries.id),
-    )
-    .innerJoin(
-      schema.accounts,
-      eq(schema.journalLines.accountId, schema.accounts.id),
-    )
-    .where(
-      and(
-        eq(schema.journalEntries.organizationId, orgId),
-        // Both sides are scoped: a line joined to an account belonging to
-        // another business would be somebody else's figure in these totals.
-        eq(schema.accounts.organizationId, orgId),
-        ...(period.from
-          ? [gte(schema.journalEntries.postedAt, period.from)]
-          : []),
-        ...(period.to ? [lte(schema.journalEntries.postedAt, period.to)] : []),
-        ...(period.classId
-          ? [eq(schema.journalLines.classId, period.classId)]
-          : []),
-        ...(period.locationId
-          ? [eq(schema.journalLines.locationId, period.locationId)]
-          : []),
-      ),
-    );
-}
-
-/** Which side of the ledger an account type grows on. */
-const DEBIT_POSITIVE = new Set(["asset", "expense"]);
-
-export interface AccountTotal {
-  accountId: string;
-  code: string;
-  name: string;
-  balanceCents: number;
-}
-
-/**
- * Per-account totals for one type, in the direction that type is read.
- *
- * An expense account with £100 of debits reads as £100 spent, not as -£100;
- * an income account with £100 of credits reads as £100 earned. Getting this
- * backwards is how a profitable business appears to be losing money.
- */
-export function totalsByAccount(
-  rows: LedgerRow[],
-  type: string,
-): AccountTotal[] {
-  const totals = new Map<string, AccountTotal>();
-  for (const row of rows) {
-    if (row.type !== type) continue;
-    const amount = DEBIT_POSITIVE.has(type)
-      ? row.debitCents - row.creditCents
-      : row.creditCents - row.debitCents;
-    const found = totals.get(row.accountId);
-    if (found) {
-      found.balanceCents += amount;
-    } else {
-      totals.set(row.accountId, {
-        accountId: row.accountId,
-        code: row.code,
-        name: row.name,
-        balanceCents: amount,
-      });
-    }
-  }
-  return [...totals.values()].sort((a, b) => a.code.localeCompare(b.code));
-}
+export { type AccountTotal, type LedgerRow, ledgerRows, totalsByAccount };
 
 const sum = (accounts: AccountTotal[]) =>
   accounts.reduce((total, account) => total + account.balanceCents, 0);
