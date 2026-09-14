@@ -146,3 +146,49 @@ test("a trailing slash on the resource does not empty the rows key", () => {
   );
   expect(html).toBe("o1");
 });
+
+/**
+ * A caller that asks to poll gets that interval on the underlying query —
+ * a campaigns screen watching a send in progress, say, where the row that
+ * changes is flipped by a background job, not by anything the viewer did.
+ */
+test("a caller that asks to poll gets the interval on the underlying query", () => {
+  const qc = new QueryClient();
+  const query = listQueryString(STATE, true);
+  qc.setQueryData(["campaigns", query], { campaigns: [], total: 0 });
+
+  function PollingProbe() {
+    useListQuery<{ id: string }>("campaigns", STATE, {
+      refetchInterval: 5000,
+    });
+    return null;
+  }
+
+  renderToStaticMarkup(
+    <QueryClientProvider client={qc}>
+      <PollingProbe />
+    </QueryClientProvider>,
+  );
+  const cached = qc.getQueryCache().find({ queryKey: ["campaigns", query] });
+  // `refetchInterval` is an observer option, not part of the base query's
+  // `QueryOptions` type, though it is what the query is actually holding —
+  // hence the cast rather than a `QueryObserverOptions` import just for this.
+  const options = cached?.options as { refetchInterval?: unknown };
+  expect(options?.refetchInterval).toBe(5000);
+});
+
+/** A caller that does not ask to poll is unchanged: no interval at all. */
+test("a caller that does not ask to poll gets no interval", () => {
+  const qc = new QueryClient();
+  const query = listQueryString(STATE, true);
+  qc.setQueryData(["contacts", query], { contacts: [], total: 0 });
+
+  renderToStaticMarkup(
+    <QueryClientProvider client={qc}>
+      <Probe resource="contacts" />
+    </QueryClientProvider>,
+  );
+  const cached = qc.getQueryCache().find({ queryKey: ["contacts", query] });
+  const options = cached?.options as { refetchInterval?: unknown };
+  expect(options?.refetchInterval).toBeUndefined();
+});

@@ -172,10 +172,18 @@ export function listQueryString(state: ListState, paginate: boolean): string {
  * into parts (`["shop", "products"]`). TanStack Query matches a partial key
  * against element 0 onward, so the split form silently misses every list
  * this hook fetches.
+ *
+ * `refetchInterval` is for the rare list whose rows change from a background
+ * job rather than from anything the viewer did — a campaign a send job is
+ * still working through, say. Most lists only change when the viewer edits
+ * something, and TanStack Query already refetches after a mutation settles,
+ * so leave it unset unless a screen is watching something that moves on its
+ * own.
  */
 export function useListQuery<T>(
   resource: string,
   state: ListState,
+  options?: { refetchInterval?: number | false },
 ): {
   rows: T[];
   total: number;
@@ -202,6 +210,7 @@ export function useListQuery<T>(
      * request takes.
      */
     placeholderData: (previous) => previous,
+    refetchInterval: options?.refetchInterval,
   });
 
   // The URL is the whole path, but a namespaced module route — `shop/orders`
