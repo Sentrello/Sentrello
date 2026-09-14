@@ -7,6 +7,7 @@ import {
   type AccountTotal,
   type LedgerRow,
   ledgerRows,
+  periodFrom,
   totalsByAccount,
 } from "@sentrello/db/ledger";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
@@ -26,12 +27,18 @@ import { type CashBasisRow, cashBasisRows } from "./cash-basis";
  */
 
 /**
- * The row reader and the per-account totals live in `@sentrello/db/ledger`
- * now, beside `postJournalEntry`: they are pure readers over tables `db`
- * owns, and the paid half reads them from there. Re-exported so every
- * caller here keeps working.
+ * The row reader, the per-account totals and the query-string period parser
+ * live in `@sentrello/db/ledger` now, beside `postJournalEntry`: they are
+ * pure readers over tables `db` owns, and the paid half reads them from
+ * there too. Re-exported so every caller here keeps working.
  */
-export { type AccountTotal, type LedgerRow, ledgerRows, totalsByAccount };
+export {
+  type AccountTotal,
+  type LedgerRow,
+  ledgerRows,
+  periodFrom,
+  totalsByAccount,
+};
 
 const sum = (accounts: AccountTotal[]) =>
   accounts.reduce((total, account) => total + account.balanceCents, 0);
@@ -128,47 +135,6 @@ export function balanceSheet(rows: LedgerRow[]) {
      */
     retainedEarningsCents: earningsCents,
     balancedCents: outByCents,
-  };
-}
-
-/**
- * A date from the query string, or nothing if it is unreadable.
- *
- * A day given without a time is the *whole* day at the end of a period. "To
- * 23 August" written by somebody means everything up to the end of the 23rd,
- * and reading it as midnight is how a report run this afternoon showed none of
- * this morning's takings — which reads as a broken report, not a boundary.
- */
-export function periodFrom(query: (name: string) => string | undefined): {
-  from?: Date;
-  to?: Date;
-  classId?: string;
-  locationId?: string;
-} {
-  const parse = (value: string | undefined, endOfDay = false) => {
-    if (!value) return undefined;
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return undefined;
-    // Only a bare date is stretched. A caller who sent a time meant that time.
-    if (endOfDay && /^\d{4}-\d{2}-\d{2}$/.test(value.trim())) {
-      return new Date(date.getTime() + 24 * 60 * 60 * 1000 - 1);
-    }
-    return date;
-  };
-  /**
-   * The dimension filters travel with the period.
-   *
-   * Every caller of this already passes what it returns straight to
-   * `ledgerRows`, so a report gains "just this job" without being edited — and
-   * cannot be edited into ignoring it.
-   */
-  const classId = query("classId");
-  const locationId = query("locationId");
-  return {
-    from: parse(query("from")),
-    to: parse(query("to"), true),
-    ...(classId ? { classId } : {}),
-    ...(locationId ? { locationId } : {}),
   };
 }
 

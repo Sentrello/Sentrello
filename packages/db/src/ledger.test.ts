@@ -1,11 +1,19 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { eq, inArray } from "drizzle-orm";
 import { db, schema } from "./index";
-import { postJournalEntry } from "./ledger";
+import {
+  accountingFieldsFor,
+  accountingValues,
+  ownedDimension,
+  periodFrom,
+  postJournalEntry,
+  taggingFrom,
+} from "./ledger";
 
 let orgId: string;
 let cashId: string;
 let arId: string;
+let kitchenId: string;
 
 beforeAll(async () => {
   const suffix = crypto.randomUUID();
@@ -37,9 +45,22 @@ beforeAll(async () => {
   if (!cash || !ar) throw new Error("could not create test accounts");
   cashId = cash.id;
   arId = ar.id;
+
+  const [kitchen] = await db
+    .insert(schema.dimensions)
+    .values({ organizationId: orgId, kind: "class", name: "Kitchen job" })
+    .returning();
+  if (!kitchen) throw new Error("could not create test dimension");
+  kitchenId = kitchen.id;
 });
 
 afterAll(async () => {
+  await db
+    .delete(schema.dimensions)
+    .where(eq(schema.dimensions.organizationId, orgId));
+  await db
+    .delete(schema.ledgerSettings)
+    .where(eq(schema.ledgerSettings.organizationId, orgId));
   const entries = await db
     .select({ id: schema.journalEntries.id })
     .from(schema.journalEntries)
@@ -126,4 +147,79 @@ test("the org's trial balance nets to zero", async () => {
 
   const net = rows.reduce((s, r) => s + r.debit - r.credit, 0);
   expect(net).toBe(0);
+});
+
+test("periodFrom — a bare 'to' date is stretched to the end of that day", () => {
+  const period = periodFrom((name) =>
+    name === "to" ? "2026-06-30" : undefined,
+  );
+  expect(period.to?.toISOString()).toBe("2026-06-30T23:59:59.999Z");
+});
+
+test("periodFrom — a 'from' date is not stretched, and dimension filters travel with the period", () => {
+  const period = periodFrom(
+    (name) => ({ from: "2026-06-01", classId: "abc" })[name],
+  );
+  expect(period.from?.toISOString()).toBe("2026-06-01T00:00:00.000Z");
+  expect(period.classId).toBe("abc");
+  expect(period.locationId).toBeUndefined();
+});
+
+test("ownedDimension — this business's own class, a stranger's id, and no id at all", async () => {
+  expect(await ownedDimension(orgId, "class", kitchenId)).toBe(kitchenId);
+  expect(await ownedDimension(orgId, "class", crypto.randomUUID())).toBe(
+    "unknown",
+  );
+  // The right id, the wrong kind: a location asked for what is a class.
+  expect(await ownedDimension(orgId, "location", kitchenId)).toBe("unknown");
+  expect(await ownedDimension(orgId, "class", undefined)).toBeNull();
+});
+
+test("taggingFrom — refused as a pair, not quietly half-accepted", async () => {
+  const ok = await taggingFrom(orgId, { classId: kitchenId });
+  expect(ok).toEqual({ classId: kitchenId, locationId: null });
+
+  const bad = await taggingFrom(orgId, {
+    classId: kitchenId,
+    locationId: crypto.randomUUID(),
+  });
+  expect(bad).toEqual({ error: "that is not a location of yours" });
+});
+
+test("accountingValues — only a field somebody defined is kept, coerced to its type", async () => {
+  await db
+    .insert(schema.ledgerSettings)
+    .values({
+      organizationId: orgId,
+      customFields: [
+        {
+          id: "litres",
+          label: "Litres",
+          type: "number",
+          appliesTo: "bill",
+        },
+      ],
+    })
+    .onConflictDoUpdate({
+      target: schema.ledgerSettings.organizationId,
+      set: {
+        customFields: [
+          { id: "litres", label: "Litres", type: "number", appliesTo: "bill" },
+        ],
+      },
+    });
+
+  expect(await accountingFieldsFor(orgId)).toHaveLength(1);
+
+  const values = await accountingValues(orgId, "bill", {
+    litres: "42.5",
+    something_nobody_defined: "dropped",
+  });
+  expect(values).toEqual({ litres: 42.5 });
+
+  // A bill's field is not written onto a transaction.
+  const onTransaction = await accountingValues(orgId, "transaction", {
+    litres: "1",
+  });
+  expect(onTransaction).toEqual({});
 });
