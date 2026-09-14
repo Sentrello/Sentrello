@@ -281,48 +281,41 @@ beforeAll(async () => {
   bDraftIds.push(secondBody.invoice.id);
 
   /*
-   * And a dimension in accounting, which owned less of the second business's
-   * data than any other module and survived every sweep because of it. Like
-   * the invoice it cannot go in the list above — it needs an id that list
-   * does not have.
+   * A dimension used to be seeded here, through accounting's own
+   * `/api/dimensions` — it owned less of the second business's data than any
+   * other module and survived every sweep because of it. That route left for
+   * the paid bundle along with the rest of `dimensions.ts`; `pro-accounting`'s
+   * own `tenancy.test.ts` sweeps it now, the same way it already sweeps
+   * banking's routes. Nothing in this repository can create a dimension any
+   * more, so there is no marker to seed and `schema.dimensions` in the
+   * comparisons below stays, and stays empty, for the same reason
+   * `schema.bankRules` already does.
    */
-  const dimension = await registerForTest(accounting).request(
-    "http://localhost/api/dimensions",
-    {
-      method: "POST",
-      headers: bHeaders,
-      body: JSON.stringify({ kind: "class", name: MARKER }),
-    },
-  );
-  if (dimension.status >= 400) {
-    throw new Error(`seeding a dimension answered ${dimension.status}`);
-  }
-  const madeDimension = (await dimension.json()) as {
-    dimension?: { id?: string };
-  };
-  if (madeDimension.dimension?.id) bIds.push(madeDimension.dimension.id);
 
   /*
-   * Tax definitions, from the preset route rather than one at a time.
+   * Tax definitions, from invoicing's own route rather than accounting's
+   * departed preset installer.
    *
    * These are in the comparison below rather than in the sweep's reach, and the
-   * difference is worth being straight about. `accounting/taxes.ts` survives
-   * every mutation round even now: its one write route is a PATCH that reads
-   * `appliesTo`, `compound` and the rest out of the body, and an empty body
-   * leaves nothing to set — so the query never runs and the filter on it is
-   * never exercised. Seeding did not fix that; only a body written for that
-   * route would.
+   * difference is worth being straight about. `accounting/taxes.ts` survived
+   * every mutation round even before it left: its one write route was a PATCH
+   * that read `appliesTo`, `compound` and the rest out of the body, and an
+   * empty body left nothing to set — so the query never ran and the filter on
+   * it was never exercised. Seeding did not fix that; only a body written for
+   * that route would, and that route is gone now regardless.
    *
-   * What the seed does buy is the comparison: a tax definition altered by any
+   * What the seed buys is the comparison: a tax definition altered by any
    * *other* route — an import, a regime switch, a module that touches the
-   * bands — is now something this test would see.
+   * bands — is something this test would see. `taxDefinitions` is the table
+   * invoicing owns and writes; accounting's preset installer was only ever a
+   * convenience over the same insert this uses directly.
    */
-  const taxes = await registerForTest(accounting).request(
-    "http://localhost/api/accounting/taxes/presets",
+  const taxes = await registerForTest(invoicing).request(
+    "http://localhost/api/invoicing/taxes",
     {
       method: "POST",
       headers: bHeaders,
-      body: JSON.stringify({ regime: "uk" }),
+      body: JSON.stringify({ name: MARKER, rateBp: 2000 }),
     },
   );
   if (taxes.status >= 400) {
