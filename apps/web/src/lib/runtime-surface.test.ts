@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
-import { UI_MEMBERS } from "@sentrello/module-sdk/ui-runtime";
+import { LIST_UI_MEMBERS, UI_MEMBERS } from "@sentrello/module-sdk/ui-runtime";
 import type { SentrelloUi } from "@sentrello/module-sdk/ui-runtime";
+import * as listUi from "./list-ui";
 import * as ui from "./ui";
 
 /**
@@ -28,4 +29,17 @@ test("every primitive the SDK promises modules is exported by ui.tsx", () => {
 test("ui.tsx still satisfies the declared surface", () => {
   const surface: SentrelloUi = ui;
   expect(typeof surface.Card).toBe("function");
+});
+
+/**
+ * The same drift check, one layer down, for the list machinery.
+ *
+ * `SentrelloListUi` promises modules `useListState`, `Pagination`, and the
+ * rest. Without this, a member could be renamed or removed in `list-ui.tsx`
+ * and nothing here would notice until a module's screen broke on it.
+ */
+test("every member the SDK promises modules is exported by list-ui.tsx", () => {
+  const exported = new Set(Object.keys(listUi));
+  const missing = LIST_UI_MEMBERS.filter((name) => !exported.has(name));
+  expect(missing).toEqual([]);
 });
