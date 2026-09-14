@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { type Query, useQuery } from "@tanstack/react-query";
 import { type ReactNode, useMemo, useState } from "react";
 import { api } from "./api";
 import { Icon, type IconName } from "./icons";
@@ -159,24 +159,55 @@ export function listQueryString(state: ListState, paginate: boolean): string {
  * `perPage=1` to learn the total, then again for the rows — which doubled
  * every keystroke in the search box to find out something the paged response
  * already carries.
+ *
+ * Some endpoints answer with more than rows and a total — an orders list
+ * with a money summary above the table, say. `response` is the whole body,
+ * so a screen that needs one of those extra fields reads it off what was
+ * already fetched rather than standing up a second query against the same
+ * endpoint to get at it.
+ *
+ * The cache key is `[resource, query]`, not `[resource]` — a mutation that
+ * invalidates a list built on this hook has to invalidate `[resource]`
+ * (e.g. `["shop/products"]`), not the resource's leading path segment split
+ * into parts (`["shop", "products"]`). TanStack Query matches a partial key
+ * against element 0 onward, so the split form silently misses every list
+ * this hook fetches.
+ *
+ * `refetchInterval` is for the rare list whose rows change from a background
+ * job rather than from anything the viewer did — a campaign a send job is
+ * still working through, say. Most lists only change when the viewer edits
+ * something, and TanStack Query already refetches after a mutation settles,
+ * so leave it unset unless a screen is watching something that moves on its
+ * own. It takes a function as well as a fixed number, so a screen can poll
+ * only while its own last-fetched rows say there is something to watch — no
+ * second request needed to decide.
  */
+type ListResponse = Record<string, unknown> & { total: number };
+
 export function useListQuery<T>(
   resource: string,
   state: ListState,
+  options?: {
+    refetchInterval?:
+      | number
+      | false
+      | ((query: Query<ListResponse>) => number | false | undefined);
+  },
 ): {
   rows: T[];
   total: number;
   paginated: boolean;
   isLoading: boolean;
   error: unknown;
+  response: ListResponse | undefined;
 } {
   const query = listQueryString(state, true);
   const { data, isLoading, error } = useQuery({
+    // The full path, not just its rows key: two modules can each have an
+    // "orders" resource, and the cache is keyed on where the request went,
+    // not on what its response happens to be called.
     queryKey: [resource, query],
-    queryFn: () =>
-      api<Record<string, unknown> & { total: number }>(
-        `/api/${resource}?${query}`,
-      ),
+    queryFn: () => api<ListResponse>(`/api/${resource}?${query}`),
     /**
      * The previous page stays on screen while the next one loads.
      *
@@ -185,15 +216,25 @@ export function useListQuery<T>(
      * request takes.
      */
     placeholderData: (previous) => previous,
+    refetchInterval: options?.refetchInterval,
   });
 
+  // The URL is the whole path, but a namespaced module route — `shop/orders`
+  // — still answers with its rows under the bare noun, `{ orders, total }`,
+  // the same way `contacts` answers under `contacts`. The two are the same
+  // word only for Core's own flat resources, so the row key is the last
+  // path segment, not the path itself. A trailing slash would otherwise
+  // leave that segment empty and the list silently, permanently empty.
+  const trimmed = resource.replace(/\/+$/, "");
+  const rowsKey = trimmed.slice(trimmed.lastIndexOf("/") + 1);
   const total = data?.total ?? 0;
   return {
-    rows: ((data?.[resource] as T[] | undefined) ?? []) as T[],
+    rows: ((data?.[rowsKey] as T[] | undefined) ?? []) as T[],
     total,
     paginated: total > PAGINATION_THRESHOLD,
     isLoading,
     error,
+    response: data,
   };
 }
 
@@ -400,7 +441,7 @@ export function Pagination({
   const to = Math.min(state.page * state.perPage, total);
 
   return (
-    <div className="flex flex-wrap items-center gap-3 text-sm">
+    <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
       <span style={muted}>
         {from}–{to} of {total}
       </span>

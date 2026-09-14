@@ -7,7 +7,7 @@ import { RESOURCES } from "./policy-ui";
  * the platform knows about gets a row, whether or not anything was granted on
  * it, and a resource that was granted keeps every source of every grant. This
  * imports the real function rather than a copy — Ruling 39, and the same
- * reason `tabs.test.ts` imports `activeTab` instead of restating it.
+ * reason `tabs.test.tsx` imports `activeTab` instead of restating it.
  */
 
 test("every known resource gets a row, even with no grants at all", () => {

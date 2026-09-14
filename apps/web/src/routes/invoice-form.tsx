@@ -390,7 +390,8 @@ export function InvoiceForm({
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        <h2 className="font-semibold text-lg">
+        {/* the form's own title, not a section within it — matches invoice-detail.tsx's <p>, not SectionHeading */}
+        <p className="font-semibold text-lg">
           {documentId
             ? asQuote
               ? "Edit quote"
@@ -398,7 +399,7 @@ export function InvoiceForm({
             : asQuote
               ? "New quote"
               : "New invoice"}
-        </h2>
+        </p>
         <button
           type="button"
           className="ml-auto text-sm link-muted"

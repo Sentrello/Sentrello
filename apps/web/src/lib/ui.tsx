@@ -500,6 +500,91 @@ export function ConfirmButton({
   );
 }
 
+/**
+ * The heading above a panel or a section of one.
+ *
+ * Written three different ways before this existed — `text-sm` here, `text-lg`
+ * there, and in one module an `<h2>` with no class at all, which renders at
+ * whatever size the browser picks and looked nothing like the rest of the
+ * product.
+ *
+ * The level is a prop because it is a different question from the size. A
+ * heading inside a section that already has one must be an `h3` for anybody
+ * reading with a screen reader, and hand-rolled headings picked the tag that
+ * looked right instead, which is how a module ended up with `h3` where every
+ * other module has `h2`.
+ */
+export function SectionHeading({
+  children,
+  level = 2,
+  hint,
+}: {
+  children: ReactNode;
+  level?: 2 | 3;
+  hint?: ReactNode;
+}) {
+  const Tag = level === 3 ? "h3" : "h2";
+  return (
+    <div className="mb-2 flex items-baseline gap-2">
+      <Tag className="font-semibold text-sm">{children}</Tag>
+      {hint ? (
+        <span className="text-xs" style={muted}>
+          {hint}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * A label and the number under it — the row across the top of every dashboard.
+ *
+ * Rebuilt by every module that has a dashboard, at four different sizes. The
+ * size is the decision this exists to make once; the tone is the shop's, which
+ * had already found that a figure sometimes has to read as good or bad while
+ * its label stays as quiet as every other label on the row.
+ */
+export function StatFigure({
+  label,
+  value,
+  tone = "plain",
+  hint,
+  size = "md",
+}: {
+  label: ReactNode;
+  value: ReactNode;
+  tone?: "plain" | "good" | "bad";
+  hint?: ReactNode;
+  /** "md" (default) is the four-tile dashboard row's text-2xl. "sm" is for a
+   * denser grid, where blowing up small numbers that large wrecks the layout. */
+  size?: "sm" | "md";
+}) {
+  const colour =
+    tone === "good"
+      ? { color: "var(--color-success)" }
+      : tone === "bad"
+        ? { color: "var(--color-danger)" }
+        : undefined;
+  return (
+    <div>
+      <p className="text-xs" style={muted}>
+        {label}
+      </p>
+      <p
+        className={`money mt-1 font-semibold ${size === "sm" ? "text-sm" : "text-2xl"}`}
+        style={colour}
+      >
+        {value}
+      </p>
+      {hint ? (
+        <p className="mt-0.5 text-xs" style={muted}>
+          {hint}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export function Card({
   children,
   className = "",
@@ -529,12 +614,18 @@ export function Table({
       <table className="app-table w-full text-sm">
         <thead>
           <tr className="border-b text-left" style={border}>
-            {headers.map((h) => {
+            {headers.map((h, i) => {
               const label = typeof h === "string" ? h : h.label;
               const money = typeof h !== "string" && h.money;
               return (
                 <th
-                  key={label}
+                  // By position, not by label: a checkbox column and an
+                  // actions column both carry "" and collided as React keys,
+                  // which logged as a console error on every screen with
+                  // both. `headers` is a literal passed by the caller and
+                  // never reordered, so the index is stable.
+                  // biome-ignore lint/suspicious/noArrayIndexKey: order is fixed by the caller
+                  key={i}
                   className={`py-2 font-medium ${money ? "money" : ""}`}
                 >
                   {label}
@@ -662,13 +753,15 @@ export function StatusBadge({ status }: { status: string }) {
 export interface Tab {
   id: string;
   label: string;
+  /** A count, when the strip is also a summary — what invoices uses it for. */
+  badge?: ReactNode;
 }
 
 /**
  * Which tab an id actually selects.
  *
  * Separated from `Tabs` below and exported so the rule can be tested as
- * itself — see `tabs.test.ts`. It is also what a caller uses to work out
+ * itself — see `tabs.test.tsx`. It is also what a caller uses to work out
  * which panel to render, so the strip and the panel can never disagree about
  * which tab is showing.
  *
@@ -730,9 +823,16 @@ export function Tabs({
           onClick={() => onChange(tab.id)}
         >
           {tab.label}
+          {tab.badge !== undefined ? (
+            <span className="ml-1.5 text-xs tabular-nums" style={muted}>
+              {tab.badge}
+            </span>
+          ) : null}
         </button>
       ))}
       {trailing ? <div className="ml-auto">{trailing}</div> : null}
     </div>
   );
 }
+
+export { PageActions, PageSubtitle } from "./page-header";

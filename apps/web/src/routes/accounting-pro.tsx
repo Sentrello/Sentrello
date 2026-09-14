@@ -14,6 +14,7 @@ import {
   Loading,
   Row,
   SecretInput,
+  SectionHeading,
   Select,
   StatusBadge,
   Table,
@@ -4682,7 +4683,7 @@ export function Reports() {
       </Card>
 
       <Card>
-        <h2 className="mb-2 font-semibold text-sm">Tax</h2>
+        <SectionHeading>Tax</SectionHeading>
         {tax.isLoading ? <Loading /> : null}
         {tax.error ? <ErrorNote error={tax.error} /> : null}
         {tax.data ? (
@@ -4706,7 +4707,7 @@ export function Reports() {
       </Card>
 
       <Card>
-        <h2 className="mb-2 font-semibold text-sm">VAT return</h2>
+        <SectionHeading>VAT return</SectionHeading>
         {vat.isLoading ? <Loading /> : null}
         {vat.error ? <ErrorNote error={vat.error} /> : null}
         {vat.data ? (
@@ -4775,7 +4776,7 @@ export function Reports() {
       </Card>
 
       <Card>
-        <h2 className="mb-2 font-semibold text-sm">Where the money goes</h2>
+        <SectionHeading>Where the money goes</SectionHeading>
         {categories.isLoading ? <Loading /> : null}
         {categories.error ? <ErrorNote error={categories.error} /> : null}
         {categories.data ? (
@@ -4787,7 +4788,7 @@ export function Reports() {
       </Card>
 
       <Card>
-        <h2 className="mb-2 font-semibold text-sm">What this business owes</h2>
+        <SectionHeading>What this business owes</SectionHeading>
         {payable.isLoading ? <Loading /> : null}
         {payable.error ? <ErrorNote error={payable.error} /> : null}
         {payable.data ? (

@@ -9,6 +9,7 @@ import {
   ErrorNote,
   Input,
   Loading,
+  StatFigure,
   Tabs,
   activeTab,
   briefMoney,
@@ -177,37 +178,6 @@ const WIDGET_LABELS: Record<string, string> = {
   "trial-balance": "Trial balance",
   "who-owes": "Who owes you",
 };
-
-function Figure({
-  label,
-  value,
-  hint,
-  alarming,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-  alarming?: boolean;
-}) {
-  return (
-    <Card>
-      <p className="text-xs" style={muted}>
-        {label}
-      </p>
-      <p
-        className="money mt-1 text-2xl font-semibold"
-        style={alarming ? { color: "var(--color-danger)" } : undefined}
-      >
-        {value}
-      </p>
-      {hint ? (
-        <p className="mt-0.5 text-xs" style={muted}>
-          {hint}
-        </p>
-      ) : null}
-    </Card>
-  );
-}
 
 const WHERE: Record<string, { moduleId: string; title: string }> = {
   invoice: { moduleId: "invoicing", title: "Invoices" },
@@ -965,29 +935,37 @@ function MoneyPanel({ data }: { data: Dashboard }) {
   const { money, pipeline, book } = data;
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      <Figure
-        label="Owed to you"
-        value={formatMoney(money.owedCents)}
-        hint={`${money.unpaidCount} unpaid invoice${money.unpaidCount === 1 ? "" : "s"}`}
-      />
-      <Figure
-        label="Overdue"
-        value={formatMoney(money.overdueCents)}
-        hint={`${money.overdueCount} past its date`}
-        // The only figure here worth colouring: it is money already earned
-        // and not received, and it is the one somebody should act on today.
-        alarming={money.overdueCents > 0}
-      />
-      <Figure
-        label="In the pipeline"
-        value={formatMoney(pipeline.openCents)}
-        hint={`${pipeline.openCount} open deal${pipeline.openCount === 1 ? "" : "s"}`}
-      />
-      <Figure
-        label="People in the book"
-        value={String(book.contacts)}
-        hint={`${pipeline.wonCount} deal${pipeline.wonCount === 1 ? "" : "s"} won`}
-      />
+      <Card>
+        <StatFigure
+          label="Owed to you"
+          value={formatMoney(money.owedCents)}
+          hint={`${money.unpaidCount} unpaid invoice${money.unpaidCount === 1 ? "" : "s"}`}
+        />
+      </Card>
+      <Card>
+        <StatFigure
+          label="Overdue"
+          value={formatMoney(money.overdueCents)}
+          hint={`${money.overdueCount} past its date`}
+          // The only figure here worth colouring: it is money already earned
+          // and not received, and it is the one somebody should act on today.
+          tone={money.overdueCents > 0 ? "bad" : "plain"}
+        />
+      </Card>
+      <Card>
+        <StatFigure
+          label="In the pipeline"
+          value={formatMoney(pipeline.openCents)}
+          hint={`${pipeline.openCount} open deal${pipeline.openCount === 1 ? "" : "s"}`}
+        />
+      </Card>
+      <Card>
+        <StatFigure
+          label="People in the book"
+          value={String(book.contacts)}
+          hint={`${pipeline.wonCount} deal${pipeline.wonCount === 1 ? "" : "s"} won`}
+        />
+      </Card>
     </div>
   );
 }
