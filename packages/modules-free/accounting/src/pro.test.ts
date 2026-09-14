@@ -670,11 +670,7 @@ test("another business's bills are invisible from here", async () => {
     })
     .returning();
 
-  for (const path of [
-    "/api/bills",
-    "/api/reports/accounts-payable",
-    "/api/bank-transactions",
-  ]) {
+  for (const path of ["/api/bills", "/api/reports/accounts-payable"]) {
     const body = await (
       await pro.request(`http://localhost${path}`, { headers })
     ).text();

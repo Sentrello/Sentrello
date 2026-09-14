@@ -202,7 +202,7 @@ export async function startJobs(
  * every hour, for ever. Nothing fails; the table just grows, and the first
  * anybody knows is a database bigger than the business that owns it.
  *
- * Job names are namespaced by module (`accounting:bank-feeds`), so renaming a
+ * Job names are namespaced by module (`accounting:recurring-bills`), so renaming a
  * module renames every one of its jobs at once. That is the case this was
  * written for.
  *
