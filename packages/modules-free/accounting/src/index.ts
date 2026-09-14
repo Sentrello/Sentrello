@@ -9,7 +9,6 @@ import { defineModule } from "@sentrello/module-sdk";
 import { registerChart } from "./chart";
 import { registerMtd } from "./mtd-routes";
 import { registerPeriodLock } from "./period";
-import { registerAccountingPersonalData } from "./personal-data";
 import { registerPro } from "./pro";
 import { registerReceipts } from "./receipts";
 import { registerReports } from "./reports";
@@ -33,7 +32,6 @@ export default defineModule({
   id: "accounting",
   tier: "free",
   register(ctx) {
-    registerAccountingPersonalData(ctx);
     registerMtd(ctx);
     ctx.registerNav({
       id: "accounting",
