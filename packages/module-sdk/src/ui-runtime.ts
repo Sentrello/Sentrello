@@ -185,8 +185,22 @@ export interface SentrelloListUi {
      * Set when the list's rows change from a background job rather than
      * from anything the viewer did — a campaign a send job is still working
      * through, say. Most lists never need this.
+     *
+     * Takes a function as well as a fixed number, so polling can stay
+     * conditional on the list's own last-fetched data — `query.state.data`
+     * — rather than costing a second request to find out whether there is
+     * anything worth watching right now.
      */
-    options?: { refetchInterval?: number | false },
+    options?: {
+      refetchInterval?:
+        | number
+        | false
+        | ((query: {
+            state: {
+              data: (Record<string, unknown> & { total: number }) | undefined;
+            };
+          }) => number | false | undefined);
+    },
   ) => {
     rows: T[];
     total: number;

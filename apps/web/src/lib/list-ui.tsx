@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { type Query, useQuery } from "@tanstack/react-query";
 import { type ReactNode, useMemo, useState } from "react";
 import { api } from "./api";
 import { Icon, type IconName } from "./icons";
@@ -178,19 +178,28 @@ export function listQueryString(state: ListState, paginate: boolean): string {
  * still working through, say. Most lists only change when the viewer edits
  * something, and TanStack Query already refetches after a mutation settles,
  * so leave it unset unless a screen is watching something that moves on its
- * own.
+ * own. It takes a function as well as a fixed number, so a screen can poll
+ * only while its own last-fetched rows say there is something to watch — no
+ * second request needed to decide.
  */
+type ListResponse = Record<string, unknown> & { total: number };
+
 export function useListQuery<T>(
   resource: string,
   state: ListState,
-  options?: { refetchInterval?: number | false },
+  options?: {
+    refetchInterval?:
+      | number
+      | false
+      | ((query: Query<ListResponse>) => number | false | undefined);
+  },
 ): {
   rows: T[];
   total: number;
   paginated: boolean;
   isLoading: boolean;
   error: unknown;
-  response: (Record<string, unknown> & { total: number }) | undefined;
+  response: ListResponse | undefined;
 } {
   const query = listQueryString(state, true);
   const { data, isLoading, error } = useQuery({
@@ -198,10 +207,7 @@ export function useListQuery<T>(
     // "orders" resource, and the cache is keyed on where the request went,
     // not on what its response happens to be called.
     queryKey: [resource, query],
-    queryFn: () =>
-      api<Record<string, unknown> & { total: number }>(
-        `/api/${resource}?${query}`,
-      ),
+    queryFn: () => api<ListResponse>(`/api/${resource}?${query}`),
     /**
      * The previous page stays on screen while the next one loads.
      *
