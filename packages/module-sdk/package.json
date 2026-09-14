@@ -5,7 +5,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./ui-runtime": "./src/ui-runtime.ts",
-    "./ui-drift": "./src/ui-drift.ts"
+    "./ui-drift": "./src/ui-drift.ts",
+    "./list-invalidation": "./src/list-invalidation.ts"
   },
   "dependencies": {
     "hono": "^4.13.5"
