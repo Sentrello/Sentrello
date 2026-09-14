@@ -20,7 +20,16 @@ import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
  * This is only the screen's end of it.
  */
 
-/** `2026-03-31` → the last instant of that day, which is what is closed. */
+/**
+ * `2026-03-31` → the first instant of that day, in UTC.
+ *
+ * Not the last instant, despite how it reads: `plan()` in `year-end.ts` adds
+ * one day to a previous year end's `dayFrom` to get the start of the next
+ * period, and that arithmetic only lands on midnight because this is
+ * midnight. The year-end close gets the *last* instant of the closing date
+ * from its own local `endOfDay()`, deliberately a different function — this
+ * one is start-of-day everywhere it is used.
+ */
 export function dayFrom(value: unknown): Date | null {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return null;
