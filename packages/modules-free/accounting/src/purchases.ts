@@ -12,12 +12,19 @@ import {
   reverseJournalEntries,
 } from "@sentrello/db/ledger";
 import { documentTotals, invoiceStatus } from "@sentrello/db/money";
+import {
+  AttachmentError,
+  attachmentFile,
+  attachmentHeaders,
+  storeAttachment,
+} from "@sentrello/module-sdk";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import type { SentrelloEnv } from "@sentrello/module-sdk";
 import type { MiddlewareHandler } from "hono";
 import { isUuid, ownedAccount } from "./chart";
 import { baseCurrency, exchangeAccount, rateOn, toBaseCents } from "./currency";
 import { accountingValues } from "./custom-fields";
+import { FOLDER, packKey, unpackKey } from "./receipts";
 
 /**
  * Bills — somebody asking this business for money.
@@ -823,6 +830,106 @@ export function registerPurchases(
         .where(eq(schema.bills.id, bill.id))
         .returning();
       return c.json({ bill: updated });
+    },
+  );
+
+  /**
+   * The paper behind a bill — the scan of what the supplier actually sent.
+   *
+   * The Free half has the same idea for a transaction, in `receipts.ts`, but
+   * `bills` is a Pro-only table, so a bill's receipt is handled here, beside
+   * the rest of what this file already does to `bills`, rather than in the
+   * Free file that cannot see the table it would need to query. `FOLDER`,
+   * `packKey` and `unpackKey` are shared with it so the files land in the
+   * same place and the stored key means the same thing everywhere it appears.
+   */
+  ctx.app.post(
+    "/api/bills/:id/receipt",
+    requireSession(),
+    requirePermission({ bookkeeping: ["update"] }),
+    proOnly,
+    async (c: RouteContext) => {
+      const orgId = activeOrganizationId(c.get("session"));
+      const id = c.req.param("id") ?? "";
+      if (!(await ownedBill(orgId, id))) {
+        return c.json({ error: "not found" }, 404);
+      }
+
+      const form = await c.req.formData().catch(() => null);
+      const file = form?.get("file");
+      if (!(file instanceof File)) {
+        return c.json({ error: "a file" }, 400);
+      }
+
+      try {
+        const stored = await storeAttachment(orgId, file, FOLDER);
+        await db
+          .update(schema.bills)
+          .set({
+            receiptFileKey: packKey(stored.path, stored.name),
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(schema.bills.id, id),
+              eq(schema.bills.organizationId, orgId),
+            ),
+          );
+        return c.json(
+          { receipt: { name: stored.name, size: stored.size } },
+          201,
+        );
+      } catch (err) {
+        if (err instanceof AttachmentError) {
+          return c.json({ error: err.message }, 400);
+        }
+        throw err;
+      }
+    },
+  );
+
+  ctx.app.get(
+    "/api/bills/:id/receipt",
+    requireSession(),
+    // Read, not update: whoever may see the books may see what is behind a
+    // figure in them. The check is on the record, because the file has no
+    // owner of its own.
+    requirePermission({ bookkeeping: ["read"] }),
+    proOnly,
+    async (c: RouteContext) => {
+      const orgId = activeOrganizationId(c.get("session"));
+      const bill = await ownedBill(orgId, c.req.param("id") ?? "");
+      if (!bill?.receiptFileKey) return c.json({ error: "not found" }, 404);
+
+      const { path, name } = unpackKey(bill.receiptFileKey);
+      const file = attachmentFile(path, FOLDER);
+      if (!file || !(await file.exists())) {
+        return c.json({ error: "not found" }, 404);
+      }
+      return new Response(file, { headers: attachmentHeaders(name) });
+    },
+  );
+
+  ctx.app.delete(
+    "/api/bills/:id/receipt",
+    requireSession(),
+    requirePermission({ bookkeeping: ["update"] }),
+    proOnly,
+    async (c: RouteContext) => {
+      const orgId = activeOrganizationId(c.get("session"));
+      const id = c.req.param("id") ?? "";
+      const bill = await ownedBill(orgId, id);
+      if (!bill) return c.json({ error: "not found" }, 404);
+      // The row forgets the file; the file itself stays on disk — see the
+      // same note in receipts.ts. Nothing about a wrong figure is worth
+      // destroying evidence over.
+      await db
+        .update(schema.bills)
+        .set({ receiptFileKey: null, updatedAt: new Date() })
+        .where(
+          and(eq(schema.bills.id, id), eq(schema.bills.organizationId, orgId)),
+        );
+      return c.json({ detached: true });
     },
   );
 }

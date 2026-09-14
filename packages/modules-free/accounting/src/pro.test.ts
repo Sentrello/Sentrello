@@ -1,12 +1,16 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, schema } from "@sentrello/db";
+import { storeAttachment } from "@sentrello/module-sdk";
 import type { SentrelloEnv } from "@sentrello/module-sdk";
 import { and, eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import { parseAmountToCents, parseCsv } from "./csv";
 import accounting from "./index";
+import { packKey } from "./receipts";
 import { runRecurringBills } from "./recurring-bills";
 import { taxOn } from "./taxes";
 
@@ -206,6 +210,10 @@ test("none of this exists on a Free instance", async () => {
     "/api/reports/accounts-payable",
     "/api/reports/by-category",
     "/api/accounting/taxes/presets",
+    // A bill's receipt is a Pro concern end to end — see purchases.ts. A Free
+    // instance has never registered this path at all, the same as every
+    // other bill route above; there is no id for which it would answer.
+    "/api/bills/00000000-0000-0000-0000-000000000000/receipt",
   ]) {
     const res = await free.request(`http://localhost${path}`, { headers });
     expect(res.status).toBe(404);
@@ -464,6 +472,66 @@ test("a line priced in fractions of a cent is refused", async () => {
     lines: [{ description: "Rounding", unitPriceCents: 12.5 }],
   });
   expect(res.status).toBe(400);
+});
+
+test("the Free half's receipts file no longer names the Pro-only bills table", () => {
+  const source = readFileSync(join(import.meta.dir, "receipts.ts"), "utf8");
+  expect(source).not.toContain("schema.bills");
+});
+
+/**
+ * The scan of what the supplier actually sent, attached to the bill it
+ * belongs to and read back the way `receipts.ts` proves for a transaction —
+ * now against `purchases.ts`, the file that has owned `bills` since this
+ * route moved out of the Free half.
+ */
+test("a receipt can be attached to a bill and read back", async () => {
+  process.env.SENTRELLO_DATA_DIR = `/tmp/sentrello-test-${suffix}`;
+
+  const created = await post("/api/bills", {
+    lines: [{ description: "Paper towels", unitPriceCents: 500 }],
+  });
+  const { bill } = (await created.json()) as { bill: { id: string } };
+
+  const form = new FormData();
+  form.append(
+    "file",
+    new File(["<script>alert(1)</script>"], "receipt.html", {
+      type: "text/html",
+    }),
+  );
+  const uploaded = await pro.request(
+    `http://localhost/api/bills/${bill.id}/receipt`,
+    {
+      method: "POST",
+      headers: { cookie: headers.get("cookie") ?? "" },
+      body: form,
+    },
+  );
+  expect(uploaded.status).toBe(201);
+
+  const got = await pro.request(
+    `http://localhost/api/bills/${bill.id}/receipt`,
+    { headers },
+  );
+  expect(got.status).toBe(200);
+  // Never text/html: an uploaded page served as one runs as this origin, with
+  // the reader's session.
+  expect(got.headers.get("content-type")).toBe("application/octet-stream");
+  expect(got.headers.get("content-disposition")).toContain("attachment");
+
+  const detached = await pro.request(
+    `http://localhost/api/bills/${bill.id}/receipt`,
+    { method: "DELETE", headers },
+  );
+  expect(detached.status).toBe(200);
+  expect(
+    (
+      await pro.request(`http://localhost/api/bills/${bill.id}/receipt`, {
+        headers,
+      })
+    ).status,
+  ).toBe(404);
 });
 
 // ---------------------------------------------------------------------------
@@ -766,6 +834,38 @@ test("another business's bills are invisible from here", async () => {
     headers,
   });
   expect(stolen.status).toBe(404);
+
+  await db.delete(schema.bills).where(eq(schema.bills.organizationId, theirs));
+});
+
+test("a receipt on another business's bill is not readable", async () => {
+  process.env.SENTRELLO_DATA_DIR = `/tmp/sentrello-test-${suffix}`;
+  const theirs = `other-org-${crypto.randomUUID().slice(0, 8)}`;
+
+  // A file that really is on disk, not a made-up path — see the same note on
+  // the equivalent transaction test in index.test.ts.
+  const stored = await storeAttachment(
+    theirs,
+    new File(["their private invoice"], "theirs.pdf"),
+    "receipts",
+  );
+  const [bill] = await db
+    .insert(schema.bills)
+    .values({
+      organizationId: theirs,
+      number: "THEIR-RECEIPT-BILL",
+      status: "open",
+      totalCents: 500,
+      receiptFileKey: packKey(stored.path, stored.name),
+    })
+    .returning();
+
+  const res = await pro.request(
+    `http://localhost/api/bills/${bill?.id}/receipt`,
+    { headers },
+  );
+  expect(res.status).toBe(404);
+  expect(await res.text()).not.toContain("their private invoice");
 
   await db.delete(schema.bills).where(eq(schema.bills.organizationId, theirs));
 });
