@@ -7,8 +7,10 @@ import {
   attachmentFile,
   attachmentHeaders,
   displayFilename,
+  packAttachmentKey,
   safeExtension,
   storeAttachment,
+  unpackAttachmentKey,
 } from "./attachments";
 
 /**
@@ -63,6 +65,30 @@ test("a path that climbs out of the directory reads nothing", async () => {
   expect(attachmentFile("../../etc/passwd")).toBeNull();
   expect(attachmentFile("org-1/../../../etc/passwd")).toBeNull();
   expect(attachmentFile("org-1/file.pdf")).not.toBeNull();
+});
+
+test("a stored path and name pack into one column and back out again", () => {
+  const key = packAttachmentKey("org-1/abc123.pdf", "supplier invoice.pdf");
+  expect(key).toBe("org-1/abc123.pdf|supplier invoice.pdf");
+  expect(unpackAttachmentKey(key)).toEqual({
+    path: "org-1/abc123.pdf",
+    name: "supplier invoice.pdf",
+  });
+});
+
+test("a name carrying the separator does not split the key", () => {
+  const key = packAttachmentKey("org-1/x.pdf", "a|b|c.pdf");
+  expect(unpackAttachmentKey(key)).toEqual({
+    path: "org-1/x.pdf",
+    name: "a-b-c.pdf",
+  });
+});
+
+test("a key with no separator is a bare path, with a fallback name", () => {
+  expect(unpackAttachmentKey("org-1/abc123.pdf")).toEqual({
+    path: "org-1/abc123.pdf",
+    name: "receipt",
+  });
 });
 
 test("what comes back cannot execute against this origin", () => {
