@@ -49,3 +49,29 @@ test("a route no screen names, by literal or by useListQuery, is still caught", 
     unreachableRoutes({ routeFiles: [route], screenFiles: [screen] }),
   ).toEqual(["GET /api/shop/orders"]);
 });
+
+/**
+ * `useListQuery(\`${resource}\`, state)` is a template literal, not a
+ * resource name — its shape reduces to `["api", "*"]`, the same shape the
+ * literal-path reading turns away rather than let it stand for every
+ * two-segment GET route in the codebase (one segment after `/api`, such as
+ * `/api/products` here). Nothing writes it this way today; the guard is what
+ * keeps it that way.
+ */
+test("a template-literal resource does not excuse an unrelated two-segment route", () => {
+  const shortRoute = write(
+    "short-route.ts",
+    `app.get("/api/products", (c) => c.json({ products: [] }));`,
+  );
+  const screen = write(
+    "generic-list.tsx",
+    `function GenericList({ resource, state }) {
+       const { rows } = listUi.useListQuery(\`\${resource}\`, state);
+       return rows.length;
+     }`,
+  );
+
+  expect(
+    unreachableRoutes({ routeFiles: [shortRoute], screenFiles: [screen] }),
+  ).toEqual(["GET /api/products"]);
+});
