@@ -40,19 +40,19 @@ cd "$work/checkout"
 info "installing from scratch"
 bun install --silent
 
-info "ephemeral keys"
-bash scripts/gen-keys.sh >/dev/null
-
 # The variables CI sets, and nothing else. DATABASE_URL is taken from the
 # working checkout so this uses the database that is already up.
+#
+# No licence key or token here: the suite trusts only the keys compiled into
+# the core, there is no private key in this repository to sign one with, and
+# every test that cares runs against a throwaway keypair it generates for
+# itself. This runs, like CI, entirely on Free.
 db="$(sed -n 's/^DATABASE_URL=//p' "$here/.env" | head -1)"
 [ -n "$db" ] || { echo "no DATABASE_URL in $here/.env" >&2; exit 1; }
 cat > "$work/ci.env" <<EOF
 DATABASE_URL=$db
 BETTER_AUTH_SECRET=ci-secret-not-used-outside-ci-0123456789abcdef
 SENTRELLO_BASE_URL=http://localhost:3000
-SENTRELLO_LICENSE_PUBLIC_KEY_PATH=./secrets/license_public.pem
-SENTRELLO_LICENSE_TOKEN_PATH=./secrets/license_token.jwt
 SENTRELLO_INSTANCE_ID=ci-instance
 EOF
 
