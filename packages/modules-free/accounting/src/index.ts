@@ -9,7 +9,6 @@ import { defineModule } from "@sentrello/module-sdk";
 import { registerChart } from "./chart";
 import { registerMtd } from "./mtd-routes";
 import { registerPeriodLock } from "./period";
-import { registerPro } from "./pro";
 import { registerReceipts } from "./receipts";
 import { registerReports } from "./reports";
 import { registerTransactions } from "./transactions";
@@ -20,9 +19,14 @@ import { registerTransactions } from "./transactions";
  * The Free half is what a business genuinely cannot do without: a chart of
  * accounts, money in and money out, and the two statements everybody is asked
  * for. The Pro half — bills and vendors, bank accounts and reconciliation,
- * budgets, multi-currency and the rest of the report set — hangs off the same
- * ledger and the same nav entry, so there is one place a customer looks and
- * the licence decides how far it goes.
+ * budgets, multi-currency, dimensions, custom fields, the manual journal entry
+ * and the rest of the report set — lives in `pro-accounting`, a bundle in the
+ * commercial repository, and hangs off the same ledger and the same nav entry
+ * so there is one place a customer looks and the licence decides how far it
+ * goes. Nothing in this package gates a route behind `entitled({ tier: "pro"
+ * })` any more; the two checks below decide what to *offer*, not what to
+ * *answer* — the bundle's own `proOnly` middleware is what actually refuses a
+ * request, and it is not here to refuse.
  *
  * The permission resource stays `bookkeeping`. It is on every role a business
  * has already saved, and renaming it would lock people out of the module it
@@ -118,7 +122,6 @@ export default defineModule({
     registerTransactions(ctx);
     registerReports(ctx);
     registerReceipts(ctx);
-    registerPro(ctx);
     registerPeriodLock(ctx);
 
     /**
@@ -192,26 +195,3 @@ export default defineModule({
     );
   },
 });
-
-/**
- * The seam a Pro bundle calls across.
- *
- * The paid half of Accounting is moving out of this package into a private
- * one (`docs/plan/Sentrello-Build-Plan.md` §9.1). Today its helpers are
- * ordinary relative imports inside one package; once the caller is on the
- * other side of a package boundary those imports only work through here.
- * Nothing below is new behaviour — every one of these already existed and
- * was already reachable from `pro.ts` and its groups. This just names the
- * ones a moved caller needs, so a change to a signature breaks a `tsc` run
- * instead of a request in production.
- */
-export { isUuid, ownedAccount } from "./chart";
-export { columnIndex, parseAmountToCents } from "./csv";
-export { dayFrom } from "./period";
-export {
-  type LedgerRow,
-  ledgerRows,
-  periodFrom,
-  totalsByAccount,
-} from "./reports";
-export { forHmrc, vatReturn, type VatReturn } from "./vat-return";
