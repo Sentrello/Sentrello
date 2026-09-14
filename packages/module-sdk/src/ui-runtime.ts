@@ -86,6 +86,11 @@ export interface SentrelloUi {
     level?: 2 | 3;
     hint?: React.ReactNode;
   }>;
+  StatFigure: React.ComponentType<{
+    label: React.ReactNode;
+    value: React.ReactNode;
+    tone?: "plain" | "good" | "bad";
+  }>;
 }
 
 /**
@@ -123,6 +128,7 @@ export const UI_MEMBERS = [
   "PageActions",
   "PageSubtitle",
   "SectionHeading",
+  "StatFigure",
 ] as const satisfies readonly (keyof SentrelloUi)[];
 
 /** The state one list screen keeps — what `useListState` returns. */

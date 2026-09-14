@@ -536,6 +536,41 @@ export function SectionHeading({
   );
 }
 
+/**
+ * A label and the number under it — the row across the top of every dashboard.
+ *
+ * Rebuilt by every module that has a dashboard, at four different sizes. The
+ * size is the decision this exists to make once; the tone is the shop's, which
+ * had already found that a figure sometimes has to read as good or bad while
+ * its label stays as quiet as every other label on the row.
+ */
+export function StatFigure({
+  label,
+  value,
+  tone = "plain",
+}: {
+  label: ReactNode;
+  value: ReactNode;
+  tone?: "plain" | "good" | "bad";
+}) {
+  const colour =
+    tone === "good"
+      ? { color: "var(--color-success)" }
+      : tone === "bad"
+        ? { color: "var(--color-danger)" }
+        : undefined;
+  return (
+    <div>
+      <p className="text-xs" style={muted}>
+        {label}
+      </p>
+      <p className="money mt-1 font-semibold text-2xl" style={colour}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
 export function Card({
   children,
   className = "",
