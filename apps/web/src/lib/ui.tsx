@@ -548,10 +548,12 @@ export function StatFigure({
   label,
   value,
   tone = "plain",
+  hint,
 }: {
   label: ReactNode;
   value: ReactNode;
   tone?: "plain" | "good" | "bad";
+  hint?: ReactNode;
 }) {
   const colour =
     tone === "good"
@@ -567,6 +569,11 @@ export function StatFigure({
       <p className="money mt-1 font-semibold text-2xl" style={colour}>
         {value}
       </p>
+      {hint ? (
+        <p className="mt-0.5 text-xs" style={muted}>
+          {hint}
+        </p>
+      ) : null}
     </div>
   );
 }
