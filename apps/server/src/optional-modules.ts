@@ -16,6 +16,10 @@ export const OPTIONAL_MODULE_PACKAGES = [
   // Ships with Pro, and a package of its own: a business's plan
   // should not come and go with its bookkeeping features.
   "@sentrello/pro-projects",
+  // The paid half of Bookkeeping, moving here from the public repo's own
+  // `pro.ts` group by group. Empty for now — no routes, no nav, no jobs — so
+  // its arrival on this list changes nothing on a running instance yet.
+  "@sentrello/pro-accounting",
   "@sentrello/mod-scheduling",
   "@sentrello/mod-shop",
   // The POS. Bought separately and entitled in its own right; it needs Shop
