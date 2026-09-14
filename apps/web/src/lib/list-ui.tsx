@@ -165,6 +165,13 @@ export function listQueryString(state: ListState, paginate: boolean): string {
  * so a screen that needs one of those extra fields reads it off what was
  * already fetched rather than standing up a second query against the same
  * endpoint to get at it.
+ *
+ * The cache key is `[resource, query]`, not `[resource]` — a mutation that
+ * invalidates a list built on this hook has to invalidate `[resource]`
+ * (e.g. `["shop/products"]`), not the resource's leading path segment split
+ * into parts (`["shop", "products"]`). TanStack Query matches a partial key
+ * against element 0 onward, so the split form silently misses every list
+ * this hook fetches.
  */
 export function useListQuery<T>(
   resource: string,
