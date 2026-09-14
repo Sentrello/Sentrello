@@ -1,8 +1,10 @@
 import { expect, test } from "bun:test";
-import {
-  findStaleInvalidations,
-  findStaleInvalidationsInFile,
-} from "./list-invalidation";
+import { findStaleInvalidations } from "./list-invalidation";
+
+/** `findStaleInvalidations` for one file's text, given directly rather than as a path. */
+function stale(source: string) {
+  return findStaleInvalidations([{ path: "", source }]);
+}
 
 /**
  * `useListQuery` keys its cache as `[resource, query]`, one joined string —
@@ -14,7 +16,7 @@ import {
  */
 
 test("a split-array key is a finding, with its line", () => {
-  const findings = findStaleInvalidationsInFile(
+  const findings = stale(
     'listUi.useListQuery("shop/products", state);\n' +
       'qc.invalidateQueries({ queryKey: ["shop", "products"] });\n',
   );
@@ -24,7 +26,7 @@ test("a split-array key is a finding, with its line", () => {
 });
 
 test("an unpaired broad prefix key is a finding, and says to keep it and add an explicit one", () => {
-  const findings = findStaleInvalidationsInFile(
+  const findings = stale(
     'listUi.useListQuery("newsletter/subscribers", state);\n' +
       'qc.invalidateQueries({ queryKey: ["newsletter"] });\n',
   );
@@ -34,7 +36,7 @@ test("an unpaired broad prefix key is a finding, and says to keep it and add an 
 });
 
 /**
- * The paired form — the fix `96e2e5f` actually shipped. The broad key stays,
+ * The paired form — the fix that actually shipped. The broad key stays,
  * because it still covers every other resource in the module that has not
  * converted; the explicit one beside it, in the same block, is what makes
  * the subscribers list refresh again. A guard that still reported this would
@@ -44,7 +46,7 @@ test("an unpaired broad prefix key is a finding, and says to keep it and add an 
  */
 test("a broad prefix key paired with an explicit one in the same block is not a finding", () => {
   expect(
-    findStaleInvalidationsInFile(
+    stale(
       'listUi.useListQuery("newsletter/subscribers", state);\n' +
         "const refresh = () => {\n" +
         '  qc.invalidateQueries({ queryKey: ["newsletter"] });\n' +
@@ -56,7 +58,7 @@ test("a broad prefix key paired with an explicit one in the same block is not a 
 
 /** The pairing exception is scoped to the same block, not "anywhere in the file". */
 test("a broad prefix key paired with an explicit one in a different function is still a finding", () => {
-  const findings = findStaleInvalidationsInFile(
+  const findings = stale(
     'listUi.useListQuery("newsletter/subscribers", state);\n' +
       "const refreshBroad = () => {\n" +
       '  qc.invalidateQueries({ queryKey: ["newsletter"] });\n' +
@@ -71,7 +73,7 @@ test("a broad prefix key paired with an explicit one in a different function is 
 
 test("an exact match is not a finding", () => {
   expect(
-    findStaleInvalidationsInFile(
+    stale(
       'listUi.useListQuery("newsletter/subscribers", state);\n' +
         'qc.invalidateQueries({ queryKey: ["newsletter/subscribers"] });\n',
     ),
@@ -80,7 +82,7 @@ test("an exact match is not a finding", () => {
 
 test("a key unrelated to any resource in the file is not a finding", () => {
   expect(
-    findStaleInvalidationsInFile(
+    stale(
       'listUi.useListQuery("shop/products", state);\n' +
         'qc.invalidateQueries({ queryKey: ["shop", "shipping"] });\n',
     ),
@@ -89,7 +91,7 @@ test("a key unrelated to any resource in the file is not a finding", () => {
 
 test("a by-id key is not a finding", () => {
   expect(
-    findStaleInvalidationsInFile(
+    stale(
       'listUi.useListQuery("shop/orders", state);\n' +
         'qc.invalidateQueries({ queryKey: ["shop/orders", id] });\n',
     ),
@@ -98,7 +100,7 @@ test("a by-id key is not a finding", () => {
 
 test("a dynamic resource matched by the same template shape is not a finding", () => {
   expect(
-    findStaleInvalidationsInFile(
+    stale(
       "listUi.useListQuery(`shop/warehouses/${warehouseId}/stock`, state);\n" +
         "qc.invalidateQueries({ queryKey: [`shop/warehouses/${chosen}/stock`] });\n",
     ),
@@ -114,7 +116,7 @@ test("a dynamic resource matched by the same template shape is not a finding", (
  */
 test("a key that exactly matches another real useQuery's key is not a finding", () => {
   expect(
-    findStaleInvalidationsInFile(
+    stale(
       'const places = useQuery({ queryKey: ["shop", "warehouses"], queryFn: load });\n' +
         "listUi.useListQuery(`shop/warehouses/${warehouseId}/stock`, state);\n" +
         'qc.invalidateQueries({ queryKey: ["shop", "warehouses"] });\n',
@@ -129,7 +131,7 @@ test("a key that exactly matches another real useQuery's key is not a finding", 
  * it stays a finding.
  */
 test("a key that is only a prefix of another useQuery's key is still a finding", () => {
-  const findings = findStaleInvalidationsInFile(
+  const findings = stale(
     'const detail = useQuery({ queryKey: ["shop", "warehouses", "detail"], queryFn: load });\n' +
       'listUi.useListQuery("shop/warehouses", state);\n' +
       'qc.invalidateQueries({ queryKey: ["shop"] });\n',
@@ -140,7 +142,7 @@ test("a key that is only a prefix of another useQuery's key is still a finding",
 
 test("a marked line is excepted", () => {
   expect(
-    findStaleInvalidationsInFile(
+    stale(
       'listUi.useListQuery("shop/products", state);\n' +
         "// list-invalidation-ignore: covered by a broader refetch elsewhere\n" +
         'qc.invalidateQueries({ queryKey: ["shop", "products"] });\n',
@@ -149,7 +151,7 @@ test("a marked line is excepted", () => {
 });
 
 test("an excepted violation does not hide a later unexcepted one of the same kind", () => {
-  const findings = findStaleInvalidationsInFile(
+  const findings = stale(
     'listUi.useListQuery("shop/products", state);\n' +
       "// list-invalidation-ignore: reviewed, fine here\n" +
       'qc.invalidateQueries({ queryKey: ["shop", "products"] });\n' +
@@ -191,7 +193,7 @@ test("a resource declared in one file is checked against an invalidation in anot
  * resource the broad key is actually paired for.
  */
 test("a broad key paired for one resource still reports a second, unpaired resource it also prefixes", () => {
-  const findings = findStaleInvalidationsInFile(
+  const findings = stale(
     'listUi.useListQuery("newsletter/subscribers", state);\n' +
       'listUi.useListQuery("newsletter/lists", state);\n' +
       'listUi.useListQuery("newsletter/campaigns", state);\n' +
@@ -220,4 +222,31 @@ test("across files, an exact match in the invalidating file is still silent", ()
       },
     ]),
   ).toEqual([]);
+});
+
+/**
+ * `invalidateQueries()` has no `queryKey` of its own. Before the 300-char
+ * lookahead was taught to stop at the end of its own statement, it kept
+ * scanning past the empty call and picked up the *next* call's literal key,
+ * producing a second, duplicate finding attributed to the wrong line.
+ */
+test("invalidateQueries() with no arguments does not borrow the next call's key", () => {
+  const findings = stale(
+    'listUi.useListQuery("shop/products", state);\n' +
+      "qc.invalidateQueries();\n" +
+      'qc.invalidateQueries({ queryKey: ["shop", "products"] });\n',
+  );
+  expect(findings).toHaveLength(1);
+  expect(findings[0]?.line).toBe(3);
+});
+
+/** Same borrowing bug, the other shape that triggers it: a `queryKey` given as a variable rather than a literal array. */
+test("invalidateQueries({ queryKey: someVar }) does not borrow the next call's key", () => {
+  const findings = stale(
+    'listUi.useListQuery("shop/products", state);\n' +
+      "qc.invalidateQueries({ queryKey: someVar });\n" +
+      'qc.invalidateQueries({ queryKey: ["shop", "products"] });\n',
+  );
+  expect(findings).toHaveLength(1);
+  expect(findings[0]?.line).toBe(3);
 });

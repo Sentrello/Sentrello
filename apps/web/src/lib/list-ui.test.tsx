@@ -180,11 +180,10 @@ test("a caller that asks to poll gets the interval on the underlying query", () 
 /**
  * The function form — what a caller uses to poll only while its own
  * last-fetched rows have something worth watching, without a second
- * request to find out. Calling the forwarded function directly against a
- * few shapes of `query.state.data` proves it is actually evaluated, not
- * just present: a caller's predicate that has gone wrong — an off-by-status
- * typo, a broken optional chain — fails here instead of staying silent
- * until somebody happens to watch a send in a browser.
+ * request to find out. The predicate below is written by the test itself,
+ * not imported from a caller — calling it directly against a few shapes of
+ * `query.state.data` proves `useListQuery` forwards it unchanged and that
+ * it is actually evaluated, not just accepted and left unused.
  */
 test("the function form of refetchInterval reaches the query and reads its data", () => {
   const qc = new QueryClient();

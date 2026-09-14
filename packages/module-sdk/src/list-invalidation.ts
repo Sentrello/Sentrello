@@ -14,19 +14,17 @@
  * second array element.
  *
  * Both shipped as a mutation that "succeeds" while the list on screen never
- * refreshes: no error, no failed request, just stale rows. Caught once by a
- * whole-plan review and once more immediately after, in the next module to
- * convert — which is what makes vigilance the wrong tool here.
+ * refreshes: no error, no failed request, just stale rows. Caught only by a
+ * review of the whole change, and once more immediately after, in the next
+ * module to convert — which is what makes vigilance the wrong tool here.
  *
  * A resource and the mutation that invalidates it are not always written in
  * the same file — Shop's fourth site was a product editor in one file
  * invalidating the products list a completely different file fetches. A
- * scanner that only reads one file at a time cannot see that, so the real
- * entry point, `findStaleInvalidations`, takes every screen in a module
- * together: every resource is collected across the whole set before any
- * key is checked against it. `findStaleInvalidationsInFile` stays exported
- * for testing or inspecting one file's text in isolation — it is exactly
- * `findStaleInvalidations` given a set of one.
+ * scanner that only reads one file at a time cannot see that, so the entry
+ * point, `findStaleInvalidations`, takes every screen in a module together:
+ * every resource is collected across the whole set before any key is
+ * checked against it. A single file is just a set of one.
  *
  * Text in, findings out, same as `ui-drift.ts`: source is read as a string
  * because these are screens built for the browser, not files a test can
@@ -169,11 +167,33 @@ function innermostBlock(
   return best;
 }
 
-/** A `queryKey` array's elements read from wherever `invalidateQueries(` starts. */
+/**
+ * A `queryKey` array's elements read from wherever `invalidateQueries(`
+ * starts.
+ *
+ * The 300-character window exists to find a `queryKey` that is not the very
+ * next token — real calls have a few lines of options before it — but a call
+ * with no `queryKey` at all, `invalidateQueries()`, or one keyed by a
+ * variable, `invalidateQueries({ queryKey: someVar })`, has nothing in its
+ * own window for the regex to match. Left unchecked, the same window keeps
+ * scanning past that call's end and picks up the *next* call's literal key
+ * instead, misattributing it. A `;` or a second `invalidateQueries(` before
+ * the match means the window ran off the end of this call's own statement,
+ * so it is rejected rather than borrowed.
+ */
+const INVALIDATE_QUERIES_CALL = "invalidateQueries(";
+
 function parseInvalidation(clean: string, matchIndex: number): string[] | null {
   const window = clean.slice(matchIndex, matchIndex + 300);
   const km = window.match(/queryKey\s*:\s*\[([^\]]*)\]/);
-  if (!km?.[1]) return null;
+  if (!km?.[1] || km.index === undefined) return null;
+  // Skip past this call's own opening — the window always starts with it —
+  // so a `;` or a second `invalidateQueries(` is only ever found if the
+  // match ran off the end of this call's own statement.
+  const before = window.slice(INVALIDATE_QUERIES_CALL.length, km.index);
+  if (before.includes(";") || before.includes(INVALIDATE_QUERIES_CALL)) {
+    return null;
+  }
   const elements = keyElements(km[1]);
   return elements.length ? elements : null;
 }
@@ -289,14 +309,5 @@ export function findStaleInvalidations(
 
   return findings.sort(
     (a, b) => a.file.localeCompare(b.file) || a.line - b.line,
-  );
-}
-
-/** `findStaleInvalidations` for one file's text, given directly rather than as a path. */
-export function findStaleInvalidationsInFile(
-  source: string,
-): Omit<StaleInvalidationFinding, "file">[] {
-  return findStaleInvalidations([{ path: "", source }]).map(
-    ({ line, say }) => ({ line, say }),
   );
 }
