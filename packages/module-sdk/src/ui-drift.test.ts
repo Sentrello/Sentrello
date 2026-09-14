@@ -45,3 +45,17 @@ test("a clean screen reports nothing", () => {
     findHandRolledUi("<Card><SectionHeading>Sales</SectionHeading></Card>"),
   ).toEqual([]);
 });
+
+test("a tab strip with no ui.Tabs is a finding", () => {
+  expect(
+    findHandRolledUi('const [tab, setTab] = useState("all");'),
+  ).toHaveLength(1);
+});
+
+test("setTab beside ui.Tabs is not a finding", () => {
+  expect(
+    findHandRolledUi(
+      'const [tab, setTab] = useState("all");\n<Tabs tabs={t} active={tab} onChange={setTab} />',
+    ),
+  ).toEqual([]);
+});

@@ -30,5 +30,24 @@ const RULES: { pattern: RegExp; say: string }[] = [
 ];
 
 export function findHandRolledUi(source: string): string[] {
-  return RULES.filter((rule) => rule.pattern.test(source)).map((r) => r.say);
+  const findings = RULES.filter((rule) => rule.pattern.test(source)).map(
+    (r) => r.say,
+  );
+
+  /**
+   * A tab strip that never became `ui.Tabs`.
+   *
+   * `setTab` names the state a hand-rolled strip needs to change tab; `<Tabs`
+   * names the one primitive that already draws one. A screen with the first
+   * and not the second is exactly the case two Core screens were found in —
+   * checked against Core's own seven tab-bearing screens rather than assumed,
+   * because a heuristic this blunt earns its keep only if it is right.
+   */
+  if (/\bsetTab\b/.test(source) && !/<Tabs\b/.test(source)) {
+    findings.push(
+      "a tab strip built by hand — use ui.Tabs, which Core's own screens use",
+    );
+  }
+
+  return findings;
 }

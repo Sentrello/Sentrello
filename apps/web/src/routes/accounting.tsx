@@ -15,6 +15,7 @@ import {
   SectionHeading,
   Select,
   Table,
+  Tabs,
   formatDate,
   formatMoney,
   muted,
@@ -630,29 +631,7 @@ export function Money() {
         {add.error ? <ErrorNote error={add.error} /> : null}
       </Card>
 
-      <div
-        className="flex flex-wrap items-center gap-1 border-b pb-2"
-        style={{ borderColor: "var(--border)" }}
-      >
-        {MONEY_TABS.map((t) => (
-          <button
-            key={t.id || "all"}
-            type="button"
-            className="rounded-md px-3 py-1.5 text-sm"
-            style={
-              tab === t.id
-                ? {
-                    background: "var(--brand-on-white-text)",
-                    color: "var(--color-neutral-50)",
-                  }
-                : undefined
-            }
-            onClick={() => setTab(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <Tabs tabs={MONEY_TABS} active={tab} onChange={setTab} />
 
       <div className="flex flex-wrap items-end gap-2">
         <Input
