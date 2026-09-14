@@ -305,6 +305,40 @@ describe("path exclusions", () => {
     expect(isExcludedPath("bun.lock")).toBe(true);
     expect(isExcludedPath("apps/server/src/index.ts")).toBe(false);
   });
+
+  // The guard's own implementation and its test file necessarily spell out
+  // every string the guard looks for — that's what makes the test file a
+  // test. Both halves matter here: the guard must exempt exactly those two
+  // files, and must NOT exempt a file that merely looks like them by name,
+  // or naming a file after the guard becomes a way to smuggle a real trace
+  // past it.
+  test("the guard's own two files are exempt by exact path", () => {
+    expect(isExcludedPath("scripts/trace-guard.ts")).toBe(true);
+    expect(isExcludedPath("scripts/trace-guard.test.ts")).toBe(true);
+  });
+
+  test("a similarly-named file is NOT exempt", () => {
+    expect(isExcludedPath("scripts/trace-guard-helper.ts")).toBe(false);
+    expect(isExcludedPath("src/trace-guard-notes.ts")).toBe(false);
+    expect(isExcludedPath("scripts/trace-guard.ts.bak")).toBe(false);
+    expect(isExcludedPath("other/scripts/trace-guard.ts")).toBe(false);
+  });
+
+  test("an added line inside the guard's own files does not trip the guard", () => {
+    const diff = added(
+      "scripts/trace-guard.ts",
+      `const VENDOR = "${VENDOR}"; // vendor name, spelled out on purpose`,
+    );
+    expect(scanAddedLines(diff)).toEqual([]);
+  });
+
+  test("the same line in a look-alike file name still refuses", () => {
+    const diff = added(
+      "scripts/trace-guard-helper.ts",
+      `const VENDOR = "${VENDOR}"; // vendor name, spelled out on purpose`,
+    );
+    expect(scanAddedLines(diff).length).toBeGreaterThan(0);
+  });
 });
 
 describe("only added lines are scanned, not removed or context lines", () => {

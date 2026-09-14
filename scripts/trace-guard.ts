@@ -150,7 +150,24 @@ const SKILL_OUTPUT_DIR_NAME = "." + "super" + "powers"; // another agent-tooling
 const OTHER_EXCLUDED_PATH =
   /(^|\/)docs\/plan\/|(^|\/)bun\.lock$|(^|\/)package-lock\.json$/;
 
+/**
+ * The guard's own implementation and its test file necessarily contain
+ * every string the guard looks for — that is what makes the test file a
+ * test. Exempting them from line-content scanning is unavoidable, so it is
+ * kept as narrow as the exemption can be made: an exact repo-relative path
+ * match against exactly these two files, nothing else. A file merely named
+ * after the guard (a "-helper", a "-notes", a copy dropped in another
+ * directory) is not this file and is not exempt — see the "similarly-named
+ * file is NOT exempt" case in trace-guard.test.ts, which is what keeps this
+ * honest.
+ */
+const SELF_PATHS = new Set([
+  "scripts/trace-guard.ts",
+  "scripts/trace-guard.test.ts",
+]);
+
 export function isExcludedPath(path: string): boolean {
+  if (SELF_PATHS.has(path)) return true;
   const segments = path.split("/");
   const base = segments[segments.length - 1] ?? "";
   if (base.toLowerCase() === INSTRUCTIONS_FILE_NAME.toLowerCase()) return true;
