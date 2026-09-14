@@ -4,7 +4,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./ui-runtime": "./src/ui-runtime.ts"
+    "./ui-runtime": "./src/ui-runtime.ts",
+    "./ui-drift": "./src/ui-drift.ts"
   },
   "dependencies": {
     "hono": "^4.13.5"

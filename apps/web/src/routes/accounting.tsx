@@ -12,6 +12,7 @@ import {
   Input,
   Loading,
   Row,
+  SectionHeading,
   Select,
   Table,
   formatDate,
@@ -328,14 +329,15 @@ export function Summary() {
           </div>
 
           <Card>
-            <h2 className="mb-2 text-sm font-semibold">
+            <SectionHeading
+              hint={
+                basis === "cash"
+                  ? "on what was actually received and paid"
+                  : null
+              }
+            >
               Profit and loss
-              {basis === "cash" ? (
-                <span className="ml-2 font-normal text-xs" style={muted}>
-                  on what was actually received and paid
-                </span>
-              ) : null}
-            </h2>
+            </SectionHeading>
             <Breakdown title="Income" rows={pnl.data.income} />
             <Breakdown title="Expenses" rows={pnl.data.expenses} />
           </Card>
@@ -344,9 +346,9 @@ export function Summary() {
 
       {sheet.data ? (
         <Card>
-          <h2 className="mb-2 text-sm font-semibold">
+          <SectionHeading>
             Balance sheet as at {formatDate(sheet.data.asOf)}
-          </h2>
+          </SectionHeading>
           <Breakdown title="Assets" rows={sheet.data.assets} />
           <Breakdown title="Liabilities" rows={sheet.data.liabilities} />
           <Breakdown title="Equity" rows={sheet.data.equity} />

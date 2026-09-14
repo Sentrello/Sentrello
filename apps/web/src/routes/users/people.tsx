@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { memberApi } from "../../lib/auth";
+import { useListState } from "../../lib/list-ui";
 import { useNavigation } from "../../lib/navigation";
 import {
   Button,
@@ -112,7 +113,10 @@ export function People() {
     const timer = setTimeout(() => setSearch(q), 250);
     return () => clearTimeout(timer);
   }, [q]);
-  const [page, setPage] = useState(1);
+  // Only page comes from the shared list state here — search is debounced
+  // above and audience is its own toggle, so the rest of what useListState
+  // carries (sort, filters) has nothing to do in this screen.
+  const { page, setPage } = useListState({ sort: "name", order: "asc" });
   const [issued, setIssued] = useState<{
     email: string;
     password: string;
@@ -373,7 +377,7 @@ export function People() {
               type="button"
               className="link-muted"
               disabled={page <= 1}
-              onClick={() => setPage((n) => Math.max(1, n - 1))}
+              onClick={() => setPage(Math.max(1, page - 1))}
             >
               Previous
             </button>
@@ -384,7 +388,7 @@ export function People() {
               type="button"
               className="link-muted"
               disabled={page >= pages}
-              onClick={() => setPage((n) => Math.min(pages, n + 1))}
+              onClick={() => setPage(Math.min(pages, page + 1))}
             >
               Next
             </button>
