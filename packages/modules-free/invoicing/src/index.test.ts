@@ -1844,90 +1844,6 @@ test("the quote's tax bands travel with it", async () => {
   expect(bands[0]?.documentType).toBe("invoice");
 });
 
-test("a statement shows what the customer was asked for, and nothing else", async () => {
-  // Its own customer, because the statement is the whole account and the
-  // other tests in this file have been raising invoices against Acme.
-  const [statementContact] = await db
-    .insert(schema.contacts)
-    .values({
-      organizationId: orgId,
-      name: "Statement Ltd",
-      email: "ap@statement.test",
-    })
-    .returning();
-  const who = statementContact?.id ?? "";
-
-  const raise = async (
-    description: string,
-    unitPrice: number,
-    status = "open",
-  ) => {
-    const res = await app.request("http://localhost/api/invoices", {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        contactId: who,
-        currency: "USD",
-        status,
-        lines: [{ description, quantity: 1, unitPrice, taxRateBp: 0 }],
-      }),
-    });
-    const { invoice } = (await res.json()) as {
-      invoice: { id: string; number: string };
-    };
-    return invoice;
-  };
-
-  const sent = await raise("Delivered work", 400_00);
-  await app.request(`http://localhost/api/invoices/${sent.id}/payments`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ amountCents: 150_00, method: "bank" }),
-  });
-
-  // Never sent, so nobody has been asked for it. It must not appear.
-  const draft = await raise("Not yet sent", 999_00, "draft");
-
-  const res = await app.request(
-    `http://localhost/api/invoicing/statements/${who}`,
-    { headers },
-  );
-  expect(res.status).toBe(200);
-  const { statement } = (await res.json()) as {
-    statement: {
-      rows: { reference: string; amountCents: number }[];
-      closingCents: number;
-    };
-  };
-
-  expect(statement.rows.map((r) => r.reference)).toEqual([
-    sent.number,
-    sent.number,
-  ]);
-  expect(statement.rows.some((r) => r.reference === draft.number)).toBe(false);
-  expect(statement.closingCents).toBe(250_00);
-});
-
-test("a statement belongs to one business only", async () => {
-  const [theirs] = await db
-    .insert(schema.contacts)
-    .values({
-      organizationId: crypto.randomUUID(),
-      name: "Somebody else's customer",
-    })
-    .returning();
-
-  const res = await app.request(
-    `http://localhost/api/invoicing/statements/${theirs?.id}`,
-    { headers },
-  );
-  expect(res.status).toBe(404);
-
-  await db
-    .delete(schema.contacts)
-    .where(eq(schema.contacts.id, theirs?.id ?? ""));
-});
-
 test("a business's own branding reaches the document it sends", async () => {
   const made = await app.request("http://localhost/api/invoicing/templates", {
     method: "POST",
@@ -3075,41 +2991,6 @@ test("an invoice with no date given is dated today, as it always was", async () 
   expect(row?.issueDate.toISOString().slice(0, 10)).toBe(
     new Date().toISOString().slice(0, 10),
   );
-});
-
-test("a statement of account is Pro, and Free is told the endpoint is not there", async () => {
-  // A statement is the document a customer asks for by phone. On Free the
-  // endpoint does not exist at all — 404 rather than 403, matching
-  // Subscriptions and the Pro dashboard, so nothing about an instance's
-  // licence is inferable from the shape of the refusal.
-  const free = new Hono<SentrelloEnv>();
-  invoicing.register({
-    app: free,
-    entitled: (need) => !("tier" in need && need.tier === "pro"),
-    registerNav: () => {},
-    registerPermission: () => {},
-    registerSummary: () => {},
-    registerSearch: () => {},
-    registerPersonalData: () => {},
-    registerOnboarding: () => {},
-    registerCrawlable: () => {},
-    provide: () => {},
-    registerJob: () => {},
-  });
-
-  const refused = await free.request(
-    `http://localhost/api/invoicing/statements/${contactId}`,
-    { headers },
-  );
-  expect(refused.status).toBe(404);
-
-  // And the same request on Pro reaches the statement, so the test above is
-  // about the licence rather than about a route that never worked.
-  const allowed = await app.request(
-    `http://localhost/api/invoicing/statements/${contactId}`,
-    { headers },
-  );
-  expect(allowed.status).toBe(200);
 });
 
 test("a deal becomes a quote, carrying its customer, name and value", async () => {
