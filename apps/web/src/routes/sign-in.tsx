@@ -1,5 +1,6 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { authClient } from "../lib/auth";
+import { PageCredit } from "../lib/credit";
 import { ForgotPassword } from "./forgot-password";
 
 export function SignIn() {
@@ -72,70 +73,73 @@ export function SignIn() {
 
   return (
     <div className="flex min-h-screen items-center justify-center p-6">
-      <form
-        onSubmit={onSubmit}
-        className="w-full max-w-sm space-y-4 rounded border p-6"
-        style={{
-          borderColor: "var(--border)",
-          background: "var(--surface-raised)",
-        }}
-      >
-        <h1 className="text-lg font-semibold">Sign in to Sentrello</h1>
-
-        <label className="block space-y-1 text-sm">
-          <span>Email</span>
-          <input
-            type="email"
-            required
-            autoComplete="username"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded border px-2 py-1"
-            style={{ borderColor: "var(--border)" }}
-          />
-        </label>
-
-        <label className="block space-y-1 text-sm">
-          <span>Password</span>
-          <input
-            type="password"
-            required
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded border px-2 py-1"
-            style={{ borderColor: "var(--border)" }}
-          />
-        </label>
-
-        {error ? (
-          <p className="text-sm" style={{ color: "var(--color-danger)" }}>
-            {error}
-          </p>
-        ) : null}
-
-        <button
-          type="submit"
-          disabled={busy}
-          className="w-full rounded px-3 py-2 text-sm font-medium"
+      <div className="w-full max-w-sm">
+        <form
+          onSubmit={onSubmit}
+          className="space-y-4 rounded border p-6"
           style={{
-            background: "var(--brand-on-white-text)",
-            color: "var(--color-neutral-50)",
-            opacity: busy ? 0.6 : 1,
+            borderColor: "var(--border)",
+            background: "var(--surface-raised)",
           }}
         >
-          {busy ? "Signing in…" : "Sign in"}
-        </button>
+          <h1 className="text-lg font-semibold">Sign in to Sentrello</h1>
 
-        <button
-          type="button"
-          onClick={() => setForgot(true)}
-          className="w-full text-sm link-muted"
-        >
-          Forgot your password?
-        </button>
-      </form>
-      <SourceOffer />
+          <label className="block space-y-1 text-sm">
+            <span>Email</span>
+            <input
+              type="email"
+              required
+              autoComplete="username"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full rounded border px-2 py-1"
+              style={{ borderColor: "var(--border)" }}
+            />
+          </label>
+
+          <label className="block space-y-1 text-sm">
+            <span>Password</span>
+            <input
+              type="password"
+              required
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full rounded border px-2 py-1"
+              style={{ borderColor: "var(--border)" }}
+            />
+          </label>
+
+          {error ? (
+            <p className="text-sm" style={{ color: "var(--color-danger)" }}>
+              {error}
+            </p>
+          ) : null}
+
+          <button
+            type="submit"
+            disabled={busy}
+            className="w-full rounded px-3 py-2 text-sm font-medium"
+            style={{
+              background: "var(--brand-on-white-text)",
+              color: "var(--color-neutral-50)",
+              opacity: busy ? 0.6 : 1,
+            }}
+          >
+            {busy ? "Signing in…" : "Sign in"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setForgot(true)}
+            className="w-full text-sm link-muted"
+          >
+            Forgot your password?
+          </button>
+        </form>
+        <PageCredit />
+        <SourceOffer />
+      </div>
     </div>
   );
 }
@@ -209,68 +213,71 @@ function TwoFactorPrompt({ onCancel }: { onCancel: () => void }) {
 
   return (
     <div className="flex min-h-screen items-center justify-center p-6">
-      <form
-        onSubmit={onSubmit}
-        className="w-full max-w-sm space-y-4 rounded border p-6"
-        style={{
-          borderColor: "var(--border)",
-          background: "var(--surface-raised)",
-        }}
-      >
-        <h1 className="text-lg font-semibold">Enter your code</h1>
-        <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-          From your authenticator app, or one of your backup codes.
-        </p>
-
-        <label className="block space-y-1 text-sm">
-          <span>Code</span>
-          <input
-            required
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            className="w-full rounded border px-2 py-1"
-            style={{ borderColor: "var(--border)" }}
-          />
-        </label>
-
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={trust}
-            onChange={(e) => setTrust(e.target.checked)}
-          />
-          Do not ask on this device for 30 days
-        </label>
-
-        {error ? (
-          <p className="text-sm" style={{ color: "var(--color-danger)" }}>
-            {error}
-          </p>
-        ) : null}
-
-        <button
-          type="submit"
-          disabled={busy}
-          className="w-full rounded px-3 py-2 text-sm font-medium"
+      <div className="w-full max-w-sm">
+        <form
+          onSubmit={onSubmit}
+          className="space-y-4 rounded border p-6"
           style={{
-            background: "var(--brand-on-white-text)",
-            color: "var(--color-neutral-50)",
-            opacity: busy ? 0.6 : 1,
+            borderColor: "var(--border)",
+            background: "var(--surface-raised)",
           }}
         >
-          {busy ? "Checking…" : "Continue"}
-        </button>
+          <h1 className="text-lg font-semibold">Enter your code</h1>
+          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+            From your authenticator app, or one of your backup codes.
+          </p>
 
-        <button
-          type="button"
-          onClick={onCancel}
-          className="w-full text-sm link-muted"
-        >
-          Start again
-        </button>
-      </form>
+          <label className="block space-y-1 text-sm">
+            <span>Code</span>
+            <input
+              required
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              className="w-full rounded border px-2 py-1"
+              style={{ borderColor: "var(--border)" }}
+            />
+          </label>
+
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={trust}
+              onChange={(e) => setTrust(e.target.checked)}
+            />
+            Do not ask on this device for 30 days
+          </label>
+
+          {error ? (
+            <p className="text-sm" style={{ color: "var(--color-danger)" }}>
+              {error}
+            </p>
+          ) : null}
+
+          <button
+            type="submit"
+            disabled={busy}
+            className="w-full rounded px-3 py-2 text-sm font-medium"
+            style={{
+              background: "var(--brand-on-white-text)",
+              color: "var(--color-neutral-50)",
+              opacity: busy ? 0.6 : 1,
+            }}
+          >
+            {busy ? "Checking…" : "Continue"}
+          </button>
+
+          <button
+            type="button"
+            onClick={onCancel}
+            className="w-full text-sm link-muted"
+          >
+            Start again
+          </button>
+        </form>
+        <PageCredit />
+      </div>
     </div>
   );
 }
