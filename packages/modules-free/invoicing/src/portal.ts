@@ -9,6 +9,12 @@
  * Server-rendered, because this has to survive a phone on a bad signal.
  */
 
+import {
+  type Credit,
+  SENTRELLO_CREDIT,
+  creditFooter,
+} from "@sentrello/db/credit";
+
 const html = (s: string) =>
   s.replace(
     /[&<>"']/g,
@@ -58,6 +64,8 @@ h2.section { font-size:1.05rem; margin:0 0 .75rem; }
 footer.seller { margin-top:2.5rem; padding-top:1.25rem; border-top:1px solid var(--line);
   display:flex; flex-wrap:wrap; gap:2rem; color:var(--muted); font-size:.8125rem; line-height:1.5; }
 footer.seller .howto { max-width:22rem; }
+.credit { margin-top:2rem; font-size:.8125rem; color:var(--muted); }
+.credit a { color:var(--muted); }
 button.pay { font:inherit; font-weight:600; padding:.4rem .9rem; border:0;
   border-radius:.375rem; background:#2f8f8a; color:#fff; cursor:pointer; }
 form { margin:0; }
@@ -185,6 +193,11 @@ export function portalPage(args: {
   quotePath?: string;
   /** where a Pay button posts, when this instance can take card payments */
   payPath?: string;
+  /**
+   * Whose name is at the foot. Defaults to ours so a caller that never asked
+   * still shows the branding — absence of an answer is not removal.
+   */
+  credit?: Credit | null;
   now?: Date;
 }): string {
   const {
@@ -195,6 +208,7 @@ export function portalPage(args: {
     quotes = [],
     quotePath,
     payPath,
+    credit = SENTRELLO_CREDIT,
     now = new Date(),
   } = args;
 
@@ -256,5 +270,6 @@ ${owed > 0 ? `<p class="owed">${html(money(owed, currency))} outstanding</p>` : 
 <p class="muted" style="margin-top:2rem">This page is private to you. Anyone
 with the link can see it, so treat it like a bill in the post.</p>
 ${businessFooter(business ?? { name: businessName })}
+${creditFooter(credit)}
 </main></body></html>`;
 }
