@@ -297,6 +297,8 @@ function crud<T extends keyof typeof tables>(
       }
       await withCustomValues(resource, orgId, parsed.value);
       if (resource === "deals") await withDecidedAt(orgId, parsed.value);
+      const refError = await checkLinkedRecords(resource, orgId, parsed.value);
+      if (refError) return c.json({ error: refError }, 404);
       const [row] = await db
         .insert(table)
         .values({ ...parsed.value, organizationId: orgId })
@@ -338,6 +340,8 @@ function crud<T extends keyof typeof tables>(
       }
       await withCustomValues(resource, orgId, parsed.value);
       if (resource === "deals") await withDecidedAt(orgId, parsed.value);
+      const refError = await checkLinkedRecords(resource, orgId, parsed.value);
+      if (refError) return c.json({ error: refError }, 404);
 
       /**
        * Two of these fields are legal positions rather than preferences, and
@@ -577,6 +581,70 @@ async function dealSearch(
         and (${schema.contacts.name} ilike ${term} or ${schema.contacts.email} ilike ${term})
     )`,
   );
+}
+
+/**
+ * Every id in the body that points at another record, confirmed to be this
+ * organisation's before anything is written.
+ *
+ * An unverified id here is how one business's record ends up naming
+ * another's — and an id that is not a uuid at all would otherwise surface as
+ * a database error rather than the 404 it is.
+ */
+async function checkLinkedRecords(
+  resource: string,
+  orgId: string,
+  value: Record<string, unknown>,
+): Promise<string | null> {
+  const uuid =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const owned = async (
+    table:
+      | typeof schema.companies
+      | typeof schema.contacts
+      | typeof schema.deals,
+    id: unknown,
+  ): Promise<boolean> => {
+    if (typeof id !== "string" || !uuid.test(id)) return false;
+    const [row] = await db
+      .select({ id: table.id })
+      .from(table)
+      .where(and(eq(table.id, id), eq(table.organizationId, orgId)))
+      .limit(1);
+    return Boolean(row);
+  };
+
+  const links: [
+    unknown,
+    typeof schema.companies | typeof schema.contacts | typeof schema.deals,
+    string,
+  ][] = [];
+  if (resource === "contacts" || resource === "deals" || resource === "tasks") {
+    if (value.companyId) {
+      links.push([value.companyId, schema.companies, "no such company"]);
+    }
+  }
+  if (resource === "tasks" || resource === "activities") {
+    if (value.contactId) {
+      links.push([value.contactId, schema.contacts, "no such contact"]);
+    }
+    if (value.dealId) links.push([value.dealId, schema.deals, "no such deal"]);
+  }
+  if (resource === "deals" && Array.isArray(value.contactIds)) {
+    // Filtered rather than refused: a deal being re-saved may still carry the
+    // id of a contact deleted since, and losing that one id is right where
+    // failing the whole save is not. What can never survive is an id from
+    // another organisation.
+    const kept: string[] = [];
+    for (const id of value.contactIds) {
+      if (await owned(schema.contacts, id)) kept.push(String(id));
+    }
+    value.contactIds = kept;
+  }
+  for (const [id, table, message] of links) {
+    if (!(await owned(table, id))) return message;
+  }
+  return null;
 }
 
 const tables = {

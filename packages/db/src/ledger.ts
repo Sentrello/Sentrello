@@ -613,6 +613,31 @@ export async function ownedAccount(
   return Boolean(row);
 }
 
+/**
+ * A contact id the caller supplied, confirmed to belong to this business.
+ *
+ * Same shape as `ownedAccount`, for the same reason: a document naming a
+ * contact must name one of this organisation's, or a guessed id reads —
+ * and mails — another business's customer.
+ */
+export async function ownedContact(
+  orgId: string,
+  contactId: string,
+): Promise<boolean> {
+  if (!isUuid(String(contactId))) return false;
+  const [row] = await db
+    .select({ id: schema.contacts.id })
+    .from(schema.contacts)
+    .where(
+      and(
+        eq(schema.contacts.id, String(contactId)),
+        eq(schema.contacts.organizationId, orgId),
+      ),
+    )
+    .limit(1);
+  return Boolean(row);
+}
+
 export interface LedgerRow {
   /** Which entry the line belongs to — the unit a cash-basis read reasons in. */
   entryId: string;

@@ -60,14 +60,26 @@ export function registerEInvoice(ctx: ModuleContext) {
       const [contact] = await db
         .select()
         .from(schema.contacts)
-        .where(eq(schema.contacts.id, invoice.contactId))
+        // Org-filtered: a buyer on the document has to be this business's
+        // contact, however the id got onto the invoice.
+        .where(
+          and(
+            eq(schema.contacts.id, invoice.contactId),
+            eq(schema.contacts.organizationId, orgId),
+          ),
+        )
         .limit(1);
       buyerName = contact?.name ?? "";
       if (contact?.companyId) {
         [company] = await db
           .select()
           .from(schema.companies)
-          .where(eq(schema.companies.id, contact.companyId))
+          .where(
+            and(
+              eq(schema.companies.id, contact.companyId),
+              eq(schema.companies.organizationId, orgId),
+            ),
+          )
           .limit(1);
       }
     }
