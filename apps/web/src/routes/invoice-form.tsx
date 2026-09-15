@@ -33,6 +33,9 @@ import {
 interface TaxDefinition {
   id: string;
   name: string;
+  /** Millionths — null on rows saved before the finer unit. */
+  ratePpm: number | null;
+  /** Basis points; the exact figure when `ratePpm` is null. */
   rateBp: number;
   categoryCode: string;
   compound: boolean;
@@ -298,7 +301,7 @@ export function InvoiceForm({
         taxRateBp: 0,
         taxes: l.taxDefinitionIds.map((id) => ({
           taxDefinitionId: id,
-          rateBp: taxFor(id)?.rateBp ?? 0,
+          ratePpm: taxFor(id)?.ratePpm ?? (taxFor(id)?.rateBp ?? 0) * 100,
           compound: taxFor(id)?.compound ?? false,
         })),
       })),

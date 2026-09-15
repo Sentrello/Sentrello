@@ -30,9 +30,10 @@ which is usually the answer.
 **Settings → Money** sets your currency, your financial year end, and your tax
 rates.
 
-Tax rates are stored in basis points — 875 means 8.75% — so a rate is exact
-rather than a rounded decimal. Money itself is held in whole cents and never as
-a fraction, which is why totals always agree with the sum of their lines.
+Tax rates are stored in millionths — 99750 means 9.975%, Quebec's QST — so a
+rate is exact rather than a rounded decimal, even when it carries three decimal
+places. Money itself is held in whole cents and never as a fraction, which is
+why totals always agree with the sum of their lines.
 
 :::info[Every financial event is double-entry]
 An invoice, a payment, a bill, an expense: each posts a balanced journal entry.

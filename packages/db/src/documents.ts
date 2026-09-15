@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "./client";
 import { rateOn } from "./currency";
 import { postInvoiceIssued } from "./ledger";
-import { MoneyError, documentTotals } from "./money";
+import { MoneyError, bpToPpm, documentTotals } from "./money";
 import { nextDocumentNumber } from "./numbering";
 import * as schema from "./schema";
 
@@ -275,6 +275,9 @@ export async function raiseInvoice(
       description: string;
       quantity: number;
       unitPriceCents: number;
+      /** Millionths — 99,750 is 9.975%. Wins when both rate fields are set. */
+      taxRatePpm?: number;
+      /** @deprecated Basis points, read as `bp × 100`. */
       taxRateBp?: number;
       taxDefinitionId?: string | null;
       unit?: string;
@@ -302,7 +305,7 @@ export async function raiseInvoice(
     input.lines.map((l) => ({
       quantity: l.quantity,
       unitPrice: l.unitPriceCents,
-      taxRateBp: l.taxRateBp ?? 0,
+      taxRatePpm: l.taxRatePpm ?? bpToPpm(l.taxRateBp ?? 0),
       taxDefinitionId: l.taxDefinitionId ?? null,
     })),
   );
@@ -335,7 +338,10 @@ export async function raiseInvoice(
         unitPriceCents: l.unitPriceCents,
         unit: l.unit ?? "piece",
         taxDefinitionId: l.taxDefinitionId ?? null,
-        taxRateBp: l.taxRateBp ?? 0,
+        taxRateBp: Math.round(
+          (l.taxRatePpm ?? bpToPpm(l.taxRateBp ?? 0)) / 100,
+        ),
+        taxRatePpm: l.taxRatePpm ?? bpToPpm(l.taxRateBp ?? 0),
         sortOrder: i,
       })),
     );
@@ -476,6 +482,9 @@ export async function convertQuoteToInstalments(
     ...bands.map((band) => ({
       name: band.name,
       rateBp: band.rateBp,
+      // Bands frozen before the finer unit carry only basis points; ×100 is
+      // the identical rate.
+      ratePpm: band.ratePpm ?? bpToPpm(band.rateBp),
       categoryCode: band.categoryCode,
       taxDefinitionId: band.taxDefinitionId,
       taxable: band.taxableCents,
@@ -486,6 +495,7 @@ export async function convertQuoteToInstalments(
           {
             name: "No tax",
             rateBp: 0,
+            ratePpm: 0,
             categoryCode: "Z",
             taxDefinitionId: null,
             taxable: net - banded,
@@ -555,12 +565,14 @@ export async function convertQuoteToInstalments(
                 unitPriceCents: netShares[index] ?? 0,
                 taxDefinitionId: split[0]?.taxDefinitionId ?? null,
                 taxRateBp: split[0]?.rateBp ?? 0,
+                taxRatePpm: split[0]?.ratePpm ?? 0,
                 // Every tax on the quote rides on the one line, so the
                 // document reads as taxed the way it actually is.
                 taxes: split.map((band) => ({
                   taxDefinitionId: band.taxDefinitionId,
                   name: band.name,
                   rateBp: band.rateBp,
+                  ratePpm: band.ratePpm,
                   categoryCode: band.categoryCode,
                   compound: false,
                 })),
@@ -581,6 +593,7 @@ export async function convertQuoteToInstalments(
                 unitPriceCents: band.taxables[index] ?? 0,
                 taxDefinitionId: band.taxDefinitionId,
                 taxRateBp: band.rateBp,
+                taxRatePpm: band.ratePpm,
                 sortOrder: at,
               })),
       );
@@ -590,7 +603,7 @@ export async function convertQuoteToInstalments(
           (band) =>
             (band.taxables[index] ?? 0) !== 0 || (band.taxes[index] ?? 0) !== 0,
         )
-        .filter((band) => band.rateBp > 0)
+        .filter((band) => band.ratePpm > 0)
         .map((band) => ({
           organizationId,
           documentType: "invoice",
@@ -598,6 +611,7 @@ export async function convertQuoteToInstalments(
           taxDefinitionId: band.taxDefinitionId,
           name: band.name,
           rateBp: band.rateBp,
+          ratePpm: band.ratePpm,
           categoryCode: band.categoryCode,
           taxableCents: band.taxables[index] ?? 0,
           taxCents: band.taxes[index] ?? 0,

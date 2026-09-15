@@ -82,7 +82,9 @@ than no test, because it is believed. The habit here is to break the thing
 deliberately and watch the test go red before trusting it.
 
 **Money is integer cents. Always.** Never a float, anywhere, for any reason.
-Tax rates are basis points — 875 is 8.75%.
+Tax rates are integer millionths — 99750 is 9.975%, Quebec's QST, the rate that
+proved basis points too coarse. The arithmetic never leaves the integers:
+per-line tax is `Math.round(net * ratePpm / 1_000_000)`.
 
 **Every financial event posts a balanced journal entry.** The ledger is the
 source of truth; reports are read from it rather than recalculated. If debits

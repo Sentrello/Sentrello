@@ -23,10 +23,12 @@ drifts by fractions of a penny at a time, which is small enough that nobody
 notices for a year and large enough that the books no longer balance when they
 do.
 
-**Tax rates are basis points.** `875` is 8.75%. The same reasoning: a rate is an
-exact number, so it is stored as one. Tax is applied **per line**, not to the
-invoice total, because a bill with two lines at different rates has two answers
-and only one of them is right.
+**Tax rates are millionths.** `99750` is 9.975% — Quebec's QST, a real rate
+with three decimal places, stored exactly. The same reasoning: a rate is an
+exact number, so it is stored as one, and the arithmetic stays in whole
+integers throughout. Tax is applied **per line**, not to the invoice total,
+because a bill with two lines at different rates has two answers and only one
+of them is right.
 
 ## Bookkeeping is double-entry
 

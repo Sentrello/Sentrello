@@ -571,7 +571,10 @@ export const quoteLines = pgTable(
     unit: text("unit").notNull().default("piece"),
     /** Which named rate this was charged at, and the rate itself, copied. */
     taxDefinitionId: uuid("tax_definition_id"),
+    /** @deprecated Basis points; `taxRatePpm` is the exact rate when set. */
     taxRateBp: integer("tax_rate_bp").notNull().default(0),
+    /** Millionths of the base — 99,750 is Quebec's 9.975% exactly. */
+    taxRatePpm: integer("tax_rate_ppm"),
     /**
      * Every tax on the line, frozen, when it carries more than one.
      *
@@ -587,7 +590,10 @@ export const quoteLines = pgTable(
         {
           taxDefinitionId: string | null;
           name: string;
+          /** Basis points; entries written before the finer unit. */
           rateBp: number;
+          /** Millionths — the exact rate, on entries written since. */
+          ratePpm?: number;
           categoryCode: string;
           compound: boolean;
         }[]
@@ -705,7 +711,15 @@ export const documentTaxes = pgTable(
     taxDefinitionId: uuid("tax_definition_id"),
     /** Copied, not joined: the name on a document must not change later. */
     name: text("name").notNull(),
+    /** @deprecated Basis points; `ratePpm` is the exact rate when set. */
     rateBp: integer("rate_bp").notNull(),
+    /**
+     * Millionths of the base — 99,750 is Quebec's 9.975% exactly. Nullable:
+     * a row written before the finer unit has only the basis-point column,
+     * and every reader takes `ratePpm ?? rateBp × 100`, which is the same
+     * rate to the cent.
+     */
+    ratePpm: integer("rate_ppm"),
     /**
      * EN 16931 category: S standard, Z zero-rated, E exempt, AE reverse
      * charge, G export, O outside scope. Stored now so e-invoicing needs no
@@ -734,7 +748,15 @@ export const taxDefinitions = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     organizationId: text("organization_id").notNull(),
     name: text("name").notNull(),
+    /** @deprecated Basis points; `ratePpm` is the exact rate when set. */
     rateBp: integer("rate_bp").notNull(),
+    /**
+     * Millionths of the base — 99,750 is Quebec's 9.975% exactly. Nullable:
+     * a row written before the finer unit has only the basis-point column,
+     * and every reader takes `ratePpm ?? rateBp × 100`, which is the same
+     * rate to the cent.
+     */
+    ratePpm: integer("rate_ppm"),
     categoryCode: text("category_code").notNull().default("S"),
     description: text("description"),
     isDefault: boolean("is_default").notNull().default(false),
@@ -1172,14 +1194,20 @@ export const invoiceLines = pgTable(
     unit: text("unit").notNull().default("piece"),
     /** Which named rate this was charged at, and the rate itself, copied. */
     taxDefinitionId: uuid("tax_definition_id"),
+    /** @deprecated Basis points; `taxRatePpm` is the exact rate when set. */
     taxRateBp: integer("tax_rate_bp").notNull().default(0),
+    /** Millionths of the base — 99,750 is Quebec's 9.975% exactly. */
+    taxRatePpm: integer("tax_rate_ppm"),
     /** Every tax on the line when it carries more than one. See quote_lines. */
     taxes:
       jsonb("taxes").$type<
         {
           taxDefinitionId: string | null;
           name: string;
+          /** Basis points; entries written before the finer unit. */
           rateBp: number;
+          /** Millionths — the exact rate, on entries written since. */
+          ratePpm?: number;
           categoryCode: string;
           compound: boolean;
         }[]
@@ -1263,7 +1291,10 @@ export const recurringProfiles = pgTable(
      * rebill everybody on Wednesday.
      */
     unitPriceCents: integer("unit_price_cents"),
+    /** @deprecated Basis points; `taxRatePpm` is the exact rate when set. */
     taxRateBp: integer("tax_rate_bp").notNull().default(0),
+    /** Millionths of the base — 99,750 is Quebec's 9.975% exactly. */
+    taxRatePpm: integer("tax_rate_ppm"),
     taxDefinitionId: uuid("tax_definition_id"),
     currency: text("currency").notNull().default("USD"),
     /**
@@ -1628,7 +1659,10 @@ export const billLines = pgTable(
     /** Which expense account this line lands in — the line's category. */
     accountId: uuid("account_id"),
     taxDefinitionId: uuid("tax_definition_id"),
+    /** @deprecated Basis points; `taxRatePpm` is the exact rate when set. */
     taxRateBp: integer("tax_rate_bp").notNull().default(0),
+    /** Millionths of the base — 99,750 is Quebec's 9.975% exactly. */
+    taxRatePpm: integer("tax_rate_ppm"),
     /**
      * Which part of the business this line is for.
      *

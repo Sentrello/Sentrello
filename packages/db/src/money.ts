@@ -1,11 +1,55 @@
+/**
+ * Tax rates are integer millionths of the base — parts per million.
+ *
+ * 1% is 10,000; Quebec's QST, 9.975%, is exactly 99,750. The unit was basis
+ * points (1% = 100) until that rate proved it too coarse: 9.975% has no whole
+ * number of basis points, and shipping the nearest one overstates the tax on
+ * every Quebec document. Millionths were chosen over tenths of a basis point
+ * because real rates in the four markets already use three decimal places of
+ * a percent (QST 9.975%, New York City 8.875%), and a unit with exactly one
+ * more place of headroom absorbs the next odd rate without another migration.
+ * The arithmetic stays strictly integer: per-line tax is
+ * `Math.round(net * ratePpm / 1_000_000)`, and the intermediate product for
+ * any realistic line (up to tens of millions of dollars) is far inside
+ * `Number.MAX_SAFE_INTEGER`.
+ *
+ * Basis-point fields survive as deprecated inputs, read as `bp × 100`, so a
+ * caller not yet converted computes exactly what it always did.
+ */
+export const RATE_SCALE_PPM = 1_000_000;
+
+/** Basis points to millionths: 875 (8.75%) → 87,500. Lossless. */
+export function bpToPpm(rateBp: number): number {
+  return rateBp * 100;
+}
+
+/**
+ * A rate in millionths as a percentage string, in integers throughout:
+ * 99,750 → "9.975", 200,000 → "20.00". At least two decimal places, so the
+ * e-invoice keeps stating "20.00" as it always has; up to four, so a fine
+ * rate is stated exactly rather than rounded back to the error this unit
+ * exists to remove.
+ */
+export function percentFromPpm(ppm: number): string {
+  const sign = ppm < 0 ? "-" : "";
+  const magnitude = Math.abs(ppm);
+  const whole = Math.floor(magnitude / 10_000);
+  const frac4 = String(magnitude % 10_000).padStart(4, "0");
+  const trimmed = frac4.replace(/0+$/, "");
+  return `${sign}${whole}.${trimmed.length < 2 ? frac4.slice(0, 2) : trimmed}`;
+}
+
 export type TaxedLine = {
   quantity: number;
   unitPrice: number;
-  taxRateBp: number;
+  /** Millionths: 99,750 is 9.975%. Wins when both fields are present. */
+  taxRatePpm?: number | null;
+  /** @deprecated Basis points, read as `bp × 100`. */
+  taxRateBp?: number | null;
 };
 
 /**
- * Money is integer cents and tax is basis points, so anything else is a bug
+ * Money is integer cents and tax is millionths, so anything else is a bug
  * upstream — a missing field, a string from a form, a float from a spreadsheet.
  *
  * This used to let it through: a line with the wrong field name multiplied out
@@ -26,6 +70,23 @@ function cents(value: unknown, field: string): number {
   return value;
 }
 
+/**
+ * The rate a line or tax actually carries, in millionths.
+ *
+ * The millionths field governs when present; the deprecated basis-point
+ * field is honoured at ×100 so everything written before the finer unit —
+ * rows, callers, whole repos — still totals to the identical cent.
+ */
+function resolveRatePpm(
+  ppm: number | null | undefined,
+  bp: number | null | undefined,
+  field: string,
+): number {
+  if (ppm !== null && ppm !== undefined) return cents(ppm, field);
+  if (bp !== null && bp !== undefined) return bpToPpm(cents(bp, field));
+  return 0;
+}
+
 export function lineTotals(lines: TaxedLine[]) {
   let subtotal = 0;
   let tax = 0;
@@ -37,13 +98,17 @@ export function lineTotals(lines: TaxedLine[]) {
       throw new MoneyError(`line ${i + 1}: quantity must be a number`);
     }
     const unitPrice = cents(l?.unitPrice, `line ${i + 1}: unitPrice`);
-    const taxRateBp = cents(l?.taxRateBp ?? 0, `line ${i + 1}: taxRateBp`);
+    const ratePpm = resolveRatePpm(
+      l?.taxRatePpm,
+      l?.taxRateBp,
+      `line ${i + 1}: taxRatePpm`,
+    );
 
     // Rounded per line: a fractional quantity times a price in cents is not
     // necessarily a whole number of cents, and the total must be.
     const net = Math.round(quantity * unitPrice);
     subtotal += net;
-    tax += Math.round((net * taxRateBp) / 10000);
+    tax += Math.round((net * ratePpm) / RATE_SCALE_PPM);
   }
   return { subtotal, tax, total: subtotal + tax };
 }
@@ -158,8 +223,10 @@ export function earlyPaymentTerms(
 export interface LineTax {
   taxDefinitionId?: string | null;
   name?: string | null;
-  /** Basis points: 500 is 5%. */
-  rateBp: number;
+  /** Millionths: 50,000 is 5%. Wins when both fields are present. */
+  ratePpm?: number | null;
+  /** @deprecated Basis points, read as `bp × 100`. */
+  rateBp?: number | null;
   categoryCode?: string | null;
   /**
    * Charged on the net plus the taxes already computed on this line, rather
@@ -194,6 +261,9 @@ export type Discount =
 export interface TaxBand {
   taxDefinitionId: string | null;
   name: string;
+  /** Millionths — the exact rate the band was charged at. */
+  ratePpm: number;
+  /** @deprecated The rate to the nearest basis point; read `ratePpm`. */
   rateBp: number;
   categoryCode: string;
   taxableCents: number;
@@ -221,7 +291,7 @@ export function documentTotals(
       throw new MoneyError(`line ${i + 1}: quantity must be a number`);
     }
     const unitPrice = cents(l?.unitPrice, `line ${i + 1}: unitPrice`);
-    cents(l?.taxRateBp ?? 0, `line ${i + 1}: taxRateBp`);
+    resolveRatePpm(l?.taxRatePpm, l?.taxRateBp, `line ${i + 1}: taxRatePpm`);
     const net = Math.round(quantity * unitPrice);
     nets.push(net);
     subtotal += net;
@@ -296,7 +366,8 @@ export function documentTotals(
           {
             taxDefinitionId: l?.taxDefinitionId ?? null,
             name: l?.taxName ?? null,
-            rateBp: l?.taxRateBp ?? 0,
+            ratePpm: l?.taxRatePpm,
+            rateBp: l?.taxRateBp,
             categoryCode: l?.categoryCode ?? null,
           },
         ];
@@ -310,20 +381,26 @@ export function documentTotals(
 
     let stacked = 0;
     for (const t of ordered) {
-      const rateBp = cents(t?.rateBp ?? 0, `line ${i + 1}: taxRateBp`);
+      const ratePpm = resolveRatePpm(
+        t?.ratePpm,
+        t?.rateBp,
+        `line ${i + 1}: taxRatePpm`,
+      );
       const base = t.compound ? taxable + stacked : taxable;
-      const lineTax = Math.round((base * rateBp) / 10000);
+      const lineTax = Math.round((base * ratePpm) / RATE_SCALE_PPM);
       stacked += lineTax;
       tax += lineTax;
 
       // Banded by the rate actually charged, not by the definition: two rates
       // that happen to be equal are one line on a tax summary, and a rate that
       // was renamed is still the rate this document was issued at.
-      const key = `${t.taxDefinitionId ?? ""}|${rateBp}|${t.categoryCode ?? "S"}`;
+      const key = `${t.taxDefinitionId ?? ""}|${ratePpm}|${t.categoryCode ?? "S"}`;
       const band = byBand.get(key) ?? {
         taxDefinitionId: t.taxDefinitionId ?? null,
-        name: t.name ?? (rateBp === 0 ? "No tax" : `${rateBp / 100}%`),
-        rateBp,
+        name:
+          t.name ?? (ratePpm === 0 ? "No tax" : `${percentFromPpm(ratePpm)}%`),
+        ratePpm,
+        rateBp: Math.round(ratePpm / 100),
         categoryCode: t.categoryCode ?? "S",
         taxableCents: 0,
         taxCents: 0,
@@ -341,7 +418,7 @@ export function documentTotals(
     discount: discountCents,
     tax,
     total: subtotal - discountCents + tax,
-    bands: [...byBand.values()].sort((a, b) => b.rateBp - a.rateBp),
+    bands: [...byBand.values()].sort((a, b) => b.ratePpm - a.ratePpm),
   };
 }
 

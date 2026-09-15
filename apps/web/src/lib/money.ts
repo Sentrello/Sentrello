@@ -11,8 +11,10 @@ export interface Line {
   quantity: number;
   /** integer cents */
   unitPrice: number;
-  /** basis points: 875 is 8.75% */
-  taxRateBp: number;
+  /** millionths: 99,750 is 9.975%. Wins when both rate fields are set. */
+  taxRatePpm?: number | null;
+  /** @deprecated basis points, read as `bp × 100` */
+  taxRateBp?: number | null;
 }
 
 /** "12.50" → 1250. Anything unparseable is zero, never NaN. */
@@ -45,7 +47,8 @@ export function totals(lines: Line[]): {
     // this is exactly what `lineTotals` on the server computes.
     const net = l.quantity * l.unitPrice;
     subtotal += net;
-    tax += Math.round((net * l.taxRateBp) / 10_000);
+    const ratePpm = l.taxRatePpm ?? (l.taxRateBp ?? 0) * 100;
+    tax += Math.round((net * ratePpm) / 1_000_000);
   }
   return { subtotal, tax, total: subtotal + tax };
 }

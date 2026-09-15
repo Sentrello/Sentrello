@@ -167,6 +167,7 @@ export function registerEInvoice(ctx: ModuleContext) {
         unitPriceCents: line.unitPriceCents,
         netCents: Math.round((line.quantityMilli * line.unitPriceCents) / 1000),
         taxRateBp: line.taxRateBp,
+        taxRatePpm: line.taxRatePpm,
         // The line's own frozen taxes where it has them; otherwise the
         // category from its definition — which is how an exempt or
         // reverse-charge line recorded before lines carried categories still
@@ -177,6 +178,7 @@ export function registerEInvoice(ctx: ModuleContext) {
             ? [
                 {
                   rateBp: line.taxRateBp,
+                  ratePpm: line.taxRatePpm,
                   categoryCode: (
                     definitions.get(line.taxDefinitionId) as {
                       categoryCode: string;
@@ -188,6 +190,7 @@ export function registerEInvoice(ctx: ModuleContext) {
       })),
       bands: bands.map((band) => ({
         rateBp: band.rateBp,
+        ratePpm: band.ratePpm,
         categoryCode: band.categoryCode,
         taxableCents: band.taxableCents,
         taxCents: band.taxCents,

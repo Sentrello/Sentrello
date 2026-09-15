@@ -3808,7 +3808,11 @@ test("the shared page and the portal carry the credit, and Pro controls it", asy
 
 async function makeTax(values: {
   name: string;
+  /** Basis points. A definition written this way alone is a pre-migration
+   * row: `rate_ppm` stays null and every reader must take `rate_bp` × 100. */
   rateBp: number;
+  /** Millionths, for rates basis points cannot say — QST's 99,750. */
+  ratePpm?: number;
   categoryCode?: string;
   recoverable?: boolean;
 }): Promise<string> {
@@ -3888,9 +3892,19 @@ test("a Canadian invoice carries GST and PST on one line, to the cent", async ()
   expect(pstLine?.creditCents).toBe(700);
 });
 
-test("a Quebec invoice stacks GST and QST and lands on whole cents", async () => {
-  const gst = await makeTax({ name: "GST 5% QC", rateBp: 500 });
-  const qst = await makeTax({ name: "QST 9.975%", rateBp: 998 });
+test("a Quebec invoice charges QST at exactly 9.975% and balances", async () => {
+  const gst = await makeTax({
+    name: "GST 5% QC",
+    rateBp: 500,
+    ratePpm: 50_000,
+  });
+  const qst = await makeTax({
+    name: "QST 9.975%",
+    // 9.975% has no whole number of basis points; the nearest, 998, is what
+    // the column keeps for legacy readers. The millionths are the rate.
+    rateBp: 998,
+    ratePpm: 99_750,
+  });
 
   const { res, body } = await createInvoice([
     {
@@ -3902,14 +3916,31 @@ test("a Quebec invoice stacks GST and QST and lands on whole cents", async () =>
   ]);
   expect(res.status).toBe(201);
   const invoice = body.invoice;
-  // 87.65 × 5% = 4.38; 87.65 × 9.98% = 8.75 — each rounded on the line.
-  expect(invoice.taxCents).toBe(438 + 875);
-  expect(invoice.totalCents).toBe(8_765 + 1_313);
+  // 87.65 × 5% = 4.3825 → 4.38; 87.65 × 9.975% = 8.7430875 → 8.74 — each
+  // rounded on the line. At 998 basis points the QST would have been 8.75.
+  expect(invoice.taxCents).toBe(438 + 874);
+  expect(invoice.totalCents).toBe(8_765 + 1_312);
 
+  // The document froze the exact rate, not the basis-point approximation.
+  const bands = await db
+    .select()
+    .from(schema.documentTaxes)
+    .where(
+      and(
+        eq(schema.documentTaxes.documentType, "invoice"),
+        eq(schema.documentTaxes.documentId, invoice.id),
+      ),
+    );
+  expect(bands.find((b) => b.taxDefinitionId === qst)?.ratePpm).toBe(99_750);
+
+  // And the books balance, each authority carrying its own liability.
   const journal = await journalOf(invoice.id);
+  expect(journal.reduce((sum, l) => sum + l.debitCents, 0)).toBe(
+    journal.reduce((sum, l) => sum + l.creditCents, 0),
+  );
   expect(
     journal.find((l) => l.name === "Tax Payable — QST 9.975%")?.creditCents,
-  ).toBe(875);
+  ).toBe(874);
 });
 
 test("a single-tax invoice still posts to Tax Payable, exactly as before", async () => {
@@ -4015,7 +4046,7 @@ test("a document written before lines could carry two taxes is untouched", async
 
 test("converting a quote carries both taxes onto the invoice", async () => {
   const gst = await makeTax({ name: "GST 5% conv", rateBp: 500 });
-  const qst = await makeTax({ name: "QST conv", rateBp: 998 });
+  const qst = await makeTax({ name: "QST conv", rateBp: 998, ratePpm: 99_750 });
 
   const quoted = await app.request("http://localhost/api/quotes", {
     method: "POST",
@@ -4037,7 +4068,8 @@ test("converting a quote carries both taxes onto the invoice", async () => {
   const { quote } = (await quoted.json()) as {
     quote: { id: string; taxCents: number };
   };
-  expect(quote.taxCents).toBe(2_500 + 4_990);
+  // 500.00 × 9.975% = 49.875 → 49.88, the exact rate rather than 998 bp.
+  expect(quote.taxCents).toBe(2_500 + 4_988);
 
   const converted = await app.request(
     `http://localhost/api/quotes/${quote.id}/convert`,
@@ -4065,7 +4097,7 @@ test("converting a quote carries both taxes onto the invoice", async () => {
   ).toBe(2_500);
   expect(
     journal.find((l) => l.name === "Tax Payable — QST conv")?.creditCents,
-  ).toBe(4_990);
+  ).toBe(4_988);
 });
 
 test("the same tax twice on one line is refused, not halved or doubled", async () => {
@@ -4079,4 +4111,68 @@ test("the same tax twice on one line is refused, not halved or doubled", async (
     },
   ]);
   expect(res.status).toBe(400);
+});
+
+test("the taxes endpoint stores millionths, and basis points still work", async () => {
+  // The finer unit through the API: 9.975% arrives as 99,750 millionths.
+  const fine = await app.request("http://localhost/api/invoicing/taxes", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name: "QST via API", ratePpm: 99_750 }),
+  });
+  expect(fine.status).toBe(201);
+  const made = (await fine.json()) as {
+    tax: { id: string; ratePpm: number | null; rateBp: number };
+  };
+  expect(made.tax.ratePpm).toBe(99_750);
+  // The basis-point column keeps the nearest whole figure for old readers.
+  expect(made.tax.rateBp).toBe(998);
+
+  // A caller still sending basis points gets the identical rate, ×100.
+  const legacy = await app.request("http://localhost/api/invoicing/taxes", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name: "VAT via old client", rateBp: 2000 }),
+  });
+  expect(legacy.status).toBe(201);
+  const old = (await legacy.json()) as {
+    tax: { ratePpm: number | null; rateBp: number };
+  };
+  expect(old.tax.ratePpm).toBe(200_000);
+  expect(old.tax.rateBp).toBe(2000);
+
+  // A rate that is not whole millionths is refused, not rounded.
+  const fractional = await app.request("http://localhost/api/invoicing/taxes", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name: "Typed as percent", ratePpm: 9.975 }),
+  });
+  expect(fractional.status).toBe(400);
+});
+
+test("a definition saved before the finer unit invoices exactly as it did", async () => {
+  // A pre-migration row: rate_bp alone, rate_ppm null — makeTax writes it the
+  // way the old code did. The invoice it produces must total to the same cent
+  // as before the unit changed: 100.01 × 8.75% = 8.7508… → 8.75.
+  const oldRate = await makeTax({ name: "Legacy 8.75%", rateBp: 875 });
+  const { res, body } = await createInvoice([
+    {
+      description: "Old rate, same cents",
+      quantity: 1,
+      unitPrice: 10_001,
+      taxDefinitionId: oldRate,
+    },
+  ]);
+  expect(res.status).toBe(201);
+  expect(body.invoice.taxCents).toBe(875);
+  expect(body.invoice.totalCents).toBe(10_876);
+
+  // And the line froze the equivalent millionths, so the rate reads back
+  // identical from either column.
+  const [line] = await db
+    .select()
+    .from(schema.invoiceLines)
+    .where(eq(schema.invoiceLines.invoiceId, body.invoice.id));
+  expect(line?.taxRatePpm).toBe(87_500);
+  expect(line?.taxRateBp).toBe(875);
 });
