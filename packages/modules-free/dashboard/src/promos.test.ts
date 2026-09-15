@@ -7,7 +7,6 @@ import {
   AD_WIDTH,
   BUILT_IN,
   expired,
-  pastQuietPeriod,
   promosEnabled,
   readPromos,
   refreshPromos,
@@ -327,61 +326,4 @@ test("an offer still running is the one the dashboard shows", async () => {
     }
     await rm(dir, { recursive: true, force: true });
   }
-});
-
-/**
- * A business is left alone for its first two months.
- *
- * The first thing somebody sees after claiming an instance should not be an
- * advertisement: they have not added a contact or raised an invoice, and the
- * only call to action on the screen being "spend more money" is the wrong
- * first impression of something they have just installed.
- *
- * After that the offer stands until they take it. It is not a campaign with
- * an end — it is what Free says about Pro.
- */
-test("nothing is offered for the first sixty days", () => {
-  const claimed = new Date("2026-01-01T00:00:00.000Z");
-  const day = 86_400_000;
-
-  expect(pastQuietPeriod(claimed, new Date(claimed.getTime()))).toBe(false);
-  expect(pastQuietPeriod(claimed, new Date(claimed.getTime() + 59 * day))).toBe(
-    false,
-  );
-  // The boundary, which is the half nobody tests: the sixtieth day is when it
-  // starts, not the day after.
-  expect(pastQuietPeriod(claimed, new Date(claimed.getTime() + 60 * day))).toBe(
-    true,
-  );
-  expect(
-    pastQuietPeriod(claimed, new Date(claimed.getTime() + 400 * day)),
-  ).toBe(true);
-});
-
-/**
- * And a date that cannot be read does not silence the offer for ever.
- *
- * A business whose creation date is missing would otherwise never be told
- * about Pro at all — a commercial hole nobody would see, because there is
- * nothing on the screen to notice. Being shown an offer early is the smaller
- * failure of the two.
- */
-test("a business with no readable start date is offered the upgrade", () => {
-  expect(pastQuietPeriod(null)).toBe(true);
-  expect(pastQuietPeriod(undefined)).toBe(true);
-  expect(pastQuietPeriod("not a date")).toBe(true);
-});
-
-test("the start date may arrive as a string, as the database hands it over", () => {
-  const day = 86_400_000;
-  const claimed = new Date("2026-01-01T00:00:00.000Z");
-  expect(
-    pastQuietPeriod(claimed.toISOString(), new Date(claimed.getTime() + day)),
-  ).toBe(false);
-  expect(
-    pastQuietPeriod(
-      claimed.toISOString(),
-      new Date(claimed.getTime() + 61 * day),
-    ),
-  ).toBe(true);
 });

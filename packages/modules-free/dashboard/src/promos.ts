@@ -142,41 +142,6 @@ function validateAd(input: unknown): Ad | null {
   };
 }
 
-/**
- * How long a new business is left alone before it is sold to.
- *
- * Set by James, 2026-09-06. The first thing somebody sees after claiming an
- * instance should not be an advertisement: they have not added a contact or
- * raised an invoice yet, and the only call to action on the screen being
- * "spend more money" is the wrong first impression of a product they have
- * just installed. After two months they know whether it is worth paying for,
- * and the offer stops being an interruption and starts being an answer.
- *
- * It is a floor on the business's own age, not on the licence or the process:
- * somebody who has used this for a year does not get two quiet months back
- * because their server was rebuilt.
- */
-export const QUIET_DAYS = 60;
-
-/**
- * Whether this business has been here long enough to be offered anything.
- *
- * Missing or unreadable means yes. The alternative is that a business whose
- * creation date cannot be read never sees an offer at all — a commercial hole
- * nobody would notice, because there is nothing on the screen to notice.
- * Being shown an offer early is the smaller of the two failures.
- */
-export function pastQuietPeriod(
-  since: Date | string | null | undefined,
-  now = new Date(),
-  quietDays = QUIET_DAYS,
-): boolean {
-  if (!since) return true;
-  const started = since instanceof Date ? since : new Date(since);
-  if (Number.isNaN(started.getTime())) return true;
-  return now.getTime() - started.getTime() >= quietDays * 86_400_000;
-}
-
 /** Where the last good document is kept, beside the other instance state. */
 const cacheFile = () =>
   join(resolve(process.env.SENTRELLO_DATA_DIR ?? "/data"), "promos.json");
