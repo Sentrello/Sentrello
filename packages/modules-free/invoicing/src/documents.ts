@@ -41,6 +41,14 @@ export interface IncomingLine {
   unitPrice?: unknown;
   unit?: unknown;
   taxDefinitionId?: string | null;
+  /**
+   * Every named rate on the line, in charging order.
+   *
+   * The multi-tax spelling — Canada's GST beside a PST is two entries here.
+   * `taxDefinitionId` above remains the single-tax spelling every existing
+   * caller sends; a line that sends both is read from this list alone.
+   */
+  taxDefinitionIds?: unknown;
   taxRateBp?: unknown;
   /** Which invoice it came from, when several were merged. */
   sourceNumber?: string | null;
@@ -56,6 +64,16 @@ export interface PreparedDocument {
     unit: string;
     taxDefinitionId: string | null;
     taxRateBp: number;
+    /** Frozen copies of every named rate on the line; null for a bare rate. */
+    taxes:
+      | {
+          taxDefinitionId: string | null;
+          name: string;
+          rateBp: number;
+          categoryCode: string;
+          compound: boolean;
+        }[]
+      | null;
     sortOrder: number;
     sourceNumber: string | null;
   }[];
@@ -109,17 +127,42 @@ export async function prepareDocument(
     throw new MoneyError("a document needs at least one line");
   }
 
-  const wanted = [
-    ...new Set(
-      incoming
-        .map((l) => l.taxDefinitionId)
-        .filter((id): id is string => typeof id === "string" && id.length > 0),
-    ),
-  ];
+  /**
+   * The named rates on a line, whichever way they were spelled.
+   *
+   * The multi-tax list wins when both arrive, because a browser that sends
+   * both is a browser that was showing the list. A duplicate inside one line
+   * is refused rather than deduplicated — charging the same tax twice is a
+   * typo, and silently halving it hides the mistake from the person making it.
+   */
+  const idsOf = (line: IncomingLine, index: number): string[] => {
+    if (line.taxDefinitionIds !== undefined) {
+      if (!Array.isArray(line.taxDefinitionIds)) {
+        throw new MoneyError(`line ${index + 1}: taxDefinitionIds is a list`);
+      }
+      const ids = line.taxDefinitionIds.filter(
+        (id): id is string => typeof id === "string" && id.length > 0,
+      );
+      if (ids.length !== line.taxDefinitionIds.length) {
+        throw new MoneyError(`line ${index + 1}: unreadable tax on the line`);
+      }
+      if (new Set(ids).size !== ids.length) {
+        throw new MoneyError(
+          `line ${index + 1}: the same tax is on the line twice`,
+        );
+      }
+      return ids;
+    }
+    return typeof line.taxDefinitionId === "string" && line.taxDefinitionId
+      ? [line.taxDefinitionId]
+      : [];
+  };
+
+  const wanted = [...new Set(incoming.flatMap((l, i) => idsOf(l, i)))];
 
   const definitions = new Map<
     string,
-    { name: string; rateBp: number; categoryCode: string }
+    { name: string; rateBp: number; categoryCode: string; compound: boolean }
   >();
   for (const id of wanted) {
     const [found] = await db
@@ -128,6 +171,7 @@ export async function prepareDocument(
         name: schema.taxDefinitions.name,
         rateBp: schema.taxDefinitions.rateBp,
         categoryCode: schema.taxDefinitions.categoryCode,
+        compound: schema.taxDefinitions.compound,
       })
       .from(schema.taxDefinitions)
       .where(
@@ -157,11 +201,22 @@ export async function prepareDocument(
       );
     }
 
-    const definition = line.taxDefinitionId
-      ? definitions.get(line.taxDefinitionId)
-      : undefined;
-    const taxRateBp = definition
-      ? definition.rateBp
+    // Every named rate on the line, frozen from its definition. Null when the
+    // line carries only a bare rate, which is what the older callers send.
+    const named = idsOf(line, i).map((id) => {
+      const definition = definitions.get(id);
+      if (!definition) throw new MoneyError("that tax rate does not exist");
+      return {
+        taxDefinitionId: id,
+        name: definition.name,
+        rateBp: definition.rateBp,
+        categoryCode: definition.categoryCode,
+        compound: definition.compound,
+      };
+    });
+    const first = named[0];
+    const taxRateBp = first
+      ? first.rateBp
       : Number.isInteger(line.taxRateBp)
         ? (line.taxRateBp as number)
         : 0;
@@ -174,12 +229,13 @@ export async function prepareDocument(
       quantityMilli,
       unitPriceCents: unitPriceCents as number,
       unit: String(line.unit ?? "piece").trim() || "piece",
-      taxDefinitionId: line.taxDefinitionId ?? null,
+      // The first tax also lands in the single-tax columns, so anything still
+      // reading them sees a tax rather than none. The list is the truth.
+      taxDefinitionId: first?.taxDefinitionId ?? null,
       taxRateBp,
+      taxes: named.length > 0 ? named : null,
       sortOrder: i,
       sourceNumber: line.sourceNumber ?? null,
-      _name: definition?.name ?? null,
-      _category: definition?.categoryCode ?? "S",
     };
   });
 
@@ -190,15 +246,14 @@ export async function prepareDocument(
         unitPrice: l.unitPriceCents,
         taxRateBp: l.taxRateBp,
         taxDefinitionId: l.taxDefinitionId,
-        taxName: l._name,
-        categoryCode: l._category,
+        taxes: l.taxes,
       }),
     ),
     discount,
   );
 
   return {
-    lines: lines.map(({ _name, _category, ...rest }) => rest),
+    lines,
     subtotalCents: totals.subtotal,
     discountCents: totals.discount,
     taxCents: totals.tax,

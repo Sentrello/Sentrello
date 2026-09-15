@@ -1445,11 +1445,32 @@ test("voiding an issued invoice reverses it rather than deleting it", async () =
   expect(row?.status).toBe("void");
   expect(row?.number).toBe(draft.number);
 
-  // Both entries stand, and together they cancel.
+  // Both entries stand, and together they cancel — the reversal is the
+  // issued entry with its sides swapped, so every account the issue touched
+  // nets to zero, however many tax accounts that was.
   const issued = await entriesFor(`invoice:${draft.id}`);
-  const reversal = await entriesFor(`invoice-void:${draft.id}`);
   expect(issued).toHaveLength(1);
+  const first = issued[0];
+  if (!first) throw new Error("no issued entry");
+  const reversal = await entriesFor(`reversal:${first.id}`);
   expect(reversal).toHaveLength(1);
+
+  const perAccount = new Map<string, number>();
+  for (const entry of [...issued, ...reversal]) {
+    const lines = await db
+      .select()
+      .from(schema.journalLines)
+      .where(eq(schema.journalLines.entryId, entry.id));
+    for (const line of lines) {
+      perAccount.set(
+        line.accountId,
+        (perAccount.get(line.accountId) ?? 0) +
+          line.debitCents -
+          line.creditCents,
+      );
+    }
+  }
+  for (const net of perAccount.values()) expect(net).toBe(0);
 });
 
 test("an invoice with money against it is credited, not voided", async () => {
@@ -3779,4 +3800,283 @@ test("the shared page and the portal carry the credit, and Pro controls it", asy
     // Back to untouched, so no later test inherits this one's choice.
     await setCredit(null);
   }
+});
+
+// ---------------------------------------------------------------------------
+// More than one tax on a line
+// ---------------------------------------------------------------------------
+
+async function makeTax(values: {
+  name: string;
+  rateBp: number;
+  categoryCode?: string;
+  recoverable?: boolean;
+}): Promise<string> {
+  const [made] = await db
+    .insert(schema.taxDefinitions)
+    .values({ organizationId: orgId, categoryCode: "S", ...values })
+    .returning();
+  if (!made) throw new Error("could not create tax definition");
+  return made.id;
+}
+
+async function journalOf(invoiceId: string) {
+  const [entry] = await entriesFor(`invoice:${invoiceId}`);
+  if (!entry) throw new Error("no journal entry for the invoice");
+  const lines = await db
+    .select({
+      code: schema.accounts.code,
+      name: schema.accounts.name,
+      debitCents: schema.journalLines.debitCents,
+      creditCents: schema.journalLines.creditCents,
+    })
+    .from(schema.journalLines)
+    .innerJoin(
+      schema.accounts,
+      eq(schema.journalLines.accountId, schema.accounts.id),
+    )
+    .where(eq(schema.journalLines.entryId, entry.id));
+  return lines;
+}
+
+test("a Canadian invoice carries GST and PST on one line, to the cent", async () => {
+  const gst = await makeTax({ name: "GST 5%", rateBp: 500 });
+  const pst = await makeTax({
+    name: "PST 7% (British Columbia)",
+    rateBp: 700,
+    recoverable: false,
+  });
+
+  const { res, body } = await createInvoice([
+    {
+      description: "Install",
+      quantity: 1,
+      unitPrice: 10_000,
+      taxDefinitionIds: [gst, pst],
+    },
+  ]);
+  expect(res.status).toBe(201);
+  const invoice = body.invoice;
+  expect(invoice.subtotalCents).toBe(10_000);
+  expect(invoice.taxCents).toBe(1_200);
+  expect(invoice.totalCents).toBe(11_200);
+
+  // The split the two filings need, banded per definition.
+  const bands = await db
+    .select()
+    .from(schema.documentTaxes)
+    .where(
+      and(
+        eq(schema.documentTaxes.documentType, "invoice"),
+        eq(schema.documentTaxes.documentId, invoice.id),
+      ),
+    );
+  expect(bands).toHaveLength(2);
+  expect(bands.find((b) => b.taxDefinitionId === gst)?.taxCents).toBe(500);
+  expect(bands.find((b) => b.taxDefinitionId === pst)?.taxCents).toBe(700);
+
+  // And each tax reaches its own liability account, in a balanced entry.
+  const journal = await journalOf(invoice.id);
+  const debits = journal.reduce((sum, l) => sum + l.debitCents, 0);
+  const credits = journal.reduce((sum, l) => sum + l.creditCents, 0);
+  expect(debits).toBe(credits);
+  const gstLine = journal.find((l) => l.name === "Tax Payable — GST 5%");
+  const pstLine = journal.find(
+    (l) => l.name === "Tax Payable — PST 7% (British Columbia)",
+  );
+  expect(gstLine?.creditCents).toBe(500);
+  expect(pstLine?.creditCents).toBe(700);
+});
+
+test("a Quebec invoice stacks GST and QST and lands on whole cents", async () => {
+  const gst = await makeTax({ name: "GST 5% QC", rateBp: 500 });
+  const qst = await makeTax({ name: "QST 9.975%", rateBp: 998 });
+
+  const { res, body } = await createInvoice([
+    {
+      description: "Consulting",
+      quantity: 1,
+      unitPrice: 8_765,
+      taxDefinitionIds: [gst, qst],
+    },
+  ]);
+  expect(res.status).toBe(201);
+  const invoice = body.invoice;
+  // 87.65 × 5% = 4.38; 87.65 × 9.98% = 8.75 — each rounded on the line.
+  expect(invoice.taxCents).toBe(438 + 875);
+  expect(invoice.totalCents).toBe(8_765 + 1_313);
+
+  const journal = await journalOf(invoice.id);
+  expect(
+    journal.find((l) => l.name === "Tax Payable — QST 9.975%")?.creditCents,
+  ).toBe(875);
+});
+
+test("a single-tax invoice still posts to Tax Payable, exactly as before", async () => {
+  // The UK VAT return reads account 2200 by code. One tax on a document is
+  // the case every existing customer is, and it must not move.
+  const vat = await makeTax({ name: "VAT 20%", rateBp: 2000 });
+  const { res, body } = await createInvoice([
+    {
+      description: "Work",
+      quantity: 1,
+      unitPrice: 10_000,
+      taxDefinitionId: vat,
+    },
+  ]);
+  expect(res.status).toBe(201);
+  const invoice = body.invoice;
+  expect(invoice.taxCents).toBe(2000);
+
+  const journal = await journalOf(invoice.id);
+  const taxLine = journal.find((l) => l.code === "2200");
+  expect(taxLine?.creditCents).toBe(2000);
+  expect(journal.some((l) => l.code.startsWith("2200-"))).toBe(false);
+});
+
+test("a document written before lines could carry two taxes is untouched", async () => {
+  /**
+   * The migration guarantee, proven over pre-existing data.
+   *
+   * This draft is written the way every row in the table looked before the
+   * `taxes` column existed: single-tax columns filled, `taxes` null, a
+   * one-band breakdown. Issuing and reading it must produce exactly the
+   * figures the old code produced.
+   */
+  const [old] = await db
+    .insert(schema.invoices)
+    .values({
+      organizationId: orgId,
+      contactId,
+      number: `LEGACY-${crypto.randomUUID().slice(0, 8)}`,
+      status: "draft",
+      currency: "USD",
+      subtotalCents: 10_001,
+      taxCents: 875,
+      totalCents: 10_876,
+    })
+    .returning();
+  if (!old) throw new Error("could not write the legacy invoice");
+  await db.insert(schema.invoiceLines).values({
+    invoiceId: old.id,
+    description: "As billed in 2025",
+    quantity: 2,
+    quantityMilli: 1500,
+    unitPriceCents: 6_667,
+    taxRateBp: 875,
+    // Exactly what the migration leaves behind on every existing row.
+    taxes: null,
+  });
+  await db.insert(schema.documentTaxes).values({
+    organizationId: orgId,
+    documentType: "invoice",
+    documentId: old.id,
+    taxDefinitionId: null,
+    name: "8.75%",
+    rateBp: 875,
+    categoryCode: "S",
+    taxableCents: 10_001,
+    taxCents: 875,
+  });
+
+  const issued = await app.request(
+    `http://localhost/api/invoices/${old.id}/issue`,
+    { method: "POST", headers },
+  );
+  expect(issued.status).toBe(200);
+
+  const [after] = await db
+    .select()
+    .from(schema.invoices)
+    .where(eq(schema.invoices.id, old.id));
+  expect(after?.subtotalCents).toBe(10_001);
+  expect(after?.taxCents).toBe(875);
+  expect(after?.totalCents).toBe(10_876);
+
+  // Posted the way it always was: one credit to Tax Payable, balanced.
+  const journal = await journalOf(old.id);
+  expect(journal.find((l) => l.code === "2200")?.creditCents).toBe(875);
+  expect(journal.reduce((sum, l) => sum + l.debitCents, 0)).toBe(
+    journal.reduce((sum, l) => sum + l.creditCents, 0),
+  );
+
+  // And the screen reads back the stored figures, not a restatement.
+  const read = await app.request(`http://localhost/api/invoices/${old.id}`, {
+    headers,
+  });
+  const detail = (await read.json()) as {
+    invoice: { subtotalCents: number; taxCents: number; totalCents: number };
+    bands: { rateBp: number; taxCents: number }[];
+  };
+  expect(detail.invoice.taxCents).toBe(875);
+  expect(detail.bands).toHaveLength(1);
+  expect(detail.bands[0]?.taxCents).toBe(875);
+});
+
+test("converting a quote carries both taxes onto the invoice", async () => {
+  const gst = await makeTax({ name: "GST 5% conv", rateBp: 500 });
+  const qst = await makeTax({ name: "QST conv", rateBp: 998 });
+
+  const quoted = await app.request("http://localhost/api/quotes", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      contactId,
+      currency: "USD",
+      lines: [
+        {
+          description: "Fit-out",
+          quantity: 1,
+          unitPrice: 50_000,
+          taxDefinitionIds: [gst, qst],
+        },
+      ],
+    }),
+  });
+  expect(quoted.status).toBe(201);
+  const { quote } = (await quoted.json()) as {
+    quote: { id: string; taxCents: number };
+  };
+  expect(quote.taxCents).toBe(2_500 + 4_990);
+
+  const converted = await app.request(
+    `http://localhost/api/quotes/${quote.id}/convert`,
+    { method: "POST", headers },
+  );
+  expect(converted.status).toBe(201);
+  const { invoice } = (await converted.json()) as {
+    invoice: { id: string; taxCents: number };
+  };
+  expect(invoice.taxCents).toBe(quote.taxCents);
+
+  const [line] = await db
+    .select()
+    .from(schema.invoiceLines)
+    .where(eq(schema.invoiceLines.invoiceId, invoice.id));
+  expect(line?.taxes).toHaveLength(2);
+  expect(line?.taxes?.map((t) => t.taxDefinitionId).sort()).toEqual(
+    [gst, qst].sort(),
+  );
+
+  // Both authorities' accounts carry their own liability.
+  const journal = await journalOf(invoice.id);
+  expect(
+    journal.find((l) => l.name === "Tax Payable — GST 5% conv")?.creditCents,
+  ).toBe(2_500);
+  expect(
+    journal.find((l) => l.name === "Tax Payable — QST conv")?.creditCents,
+  ).toBe(4_990);
+});
+
+test("the same tax twice on one line is refused, not halved or doubled", async () => {
+  const gst = await makeTax({ name: "GST dup", rateBp: 500 });
+  const { res } = await createInvoice([
+    {
+      description: "Twice-taxed",
+      quantity: 1,
+      unitPrice: 10_000,
+      taxDefinitionIds: [gst, gst],
+    },
+  ]);
+  expect(res.status).toBe(400);
 });

@@ -481,10 +481,88 @@ export async function postInvoiceIssued(
     [
       { accountId: ar, debitCents: debit },
       { accountId: income, creditCents: net },
-      ...(tax > 0 ? [{ accountId: taxPayable, creditCents: tax }] : []),
+      ...(tax > 0
+        ? await taxCredits(orgId, invoice.id, tax, rate, taxPayable)
+        : []),
     ],
     postedAt,
   );
+}
+
+/**
+ * The tax side of an issued invoice: one credit, or one per tax.
+ *
+ * A document that charges a single tax posts to Tax Payable ("2200") exactly
+ * as it always has — the UK VAT return reads that account by code, and moving
+ * a lone VAT credit elsewhere would empty box 1 of every return. The split
+ * exists for the document that charges two: Canada's GST beside a PST is owed
+ * to two authorities, and one liability figure for both is a number neither
+ * filing can use. Each definition gets its own liability account, made on
+ * first use and found again by a code derived from the definition's id — the
+ * id rather than the name, because renaming "PST 7%" must not strand its
+ * balance in an account nobody posts to any more.
+ */
+async function taxCredits(
+  orgId: string,
+  invoiceId: string,
+  taxBase: number,
+  rateMicro: number,
+  taxPayable: string,
+): Promise<Posting[]> {
+  const bands = await db
+    .select({
+      taxDefinitionId: schema.documentTaxes.taxDefinitionId,
+      name: schema.documentTaxes.name,
+      taxCents: schema.documentTaxes.taxCents,
+    })
+    .from(schema.documentTaxes)
+    .where(
+      and(
+        eq(schema.documentTaxes.organizationId, orgId),
+        eq(schema.documentTaxes.documentType, "invoice"),
+        eq(schema.documentTaxes.documentId, invoiceId),
+      ),
+    );
+
+  const named = new Set(
+    bands.map((b) => b.taxDefinitionId).filter((id) => id !== null),
+  );
+  if (named.size < 2) {
+    return [{ accountId: taxPayable, creditCents: taxBase }];
+  }
+
+  /**
+   * Each band converted on its own, and the conversion's spare cent given to
+   * the largest, so the credits still sum to exactly the tax inside the
+   * entry — a split that does not balance is a split that throws.
+   */
+  const credits: { accountId: string; creditCents: number }[] = [];
+  for (const band of bands) {
+    if (band.taxCents === 0) continue;
+    const accountId = band.taxDefinitionId
+      ? await ensureAccount(orgId, {
+          code: `2200-${band.taxDefinitionId.slice(0, 8)}`,
+          name: `Tax Payable — ${band.name}`,
+          type: "liability",
+        })
+      : taxPayable;
+    credits.push({
+      accountId,
+      creditCents: toBaseCents(band.taxCents, rateMicro),
+    });
+  }
+  if (credits.length === 0) {
+    return [{ accountId: taxPayable, creditCents: taxBase }];
+  }
+  const drift = taxBase - credits.reduce((sum, c) => sum + c.creditCents, 0);
+  if (drift !== 0) {
+    let biggest = credits[0] as { creditCents: number };
+    for (const credit of credits) {
+      if (credit.creditCents > biggest.creditCents) biggest = credit;
+    }
+    biggest.creditCents += drift;
+  }
+  return credits;
 }
 
 /**
