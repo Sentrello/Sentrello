@@ -350,3 +350,211 @@ test("amounts arrive in more shapes than one", () => {
   expect(parseAmountToCents("not a number")).toBeNull();
   expect(parseAmountToCents("")).toBeNull();
 });
+
+/**
+ * More than one tax on a line.
+ *
+ * Canada is why this exists: GST and a provincial PST are two distinct taxes
+ * on the same line, filed to two different authorities, and a combined rate
+ * loses the split the filings need. Each tax is computed and rounded on the
+ * line it was charged on — the same rule the single-tax path has always used.
+ */
+test("a Canadian line carries GST and PST as two taxes, to the cent", () => {
+  const totals = documentTotals([
+    {
+      quantity: 1,
+      unitPrice: 10_000,
+      taxRateBp: 0,
+      taxes: [
+        { taxDefinitionId: "gst", name: "GST 5%", rateBp: 500 },
+        {
+          taxDefinitionId: "pst",
+          name: "PST 7% (British Columbia)",
+          rateBp: 700,
+        },
+      ],
+    },
+    {
+      quantity: 1,
+      unitPrice: 5_000,
+      taxRateBp: 0,
+      taxes: [{ taxDefinitionId: "gst", name: "GST 5%", rateBp: 500 }],
+    },
+  ]);
+
+  // 100.00 × 5% + 100.00 × 7% + 50.00 × 5% = 5.00 + 7.00 + 2.50
+  expect(totals.tax).toBe(1450);
+  expect(totals.total).toBe(16_450);
+
+  // The split the filings need: one band per definition, each whole.
+  const gst = totals.bands.find((b) => b.taxDefinitionId === "gst");
+  const pst = totals.bands.find((b) => b.taxDefinitionId === "pst");
+  expect(gst?.taxableCents).toBe(15_000);
+  expect(gst?.taxCents).toBe(750);
+  expect(pst?.taxableCents).toBe(10_000);
+  expect(pst?.taxCents).toBe(700);
+});
+
+test("a Quebec line carries GST and QST and lands on whole cents", () => {
+  // QST ships as 998 basis points — the closest whole-basis-point figure to
+  // Revenu Québec's 9.975%.
+  const totals = documentTotals([
+    {
+      quantity: 1,
+      unitPrice: 8_765,
+      taxRateBp: 0,
+      taxes: [
+        { taxDefinitionId: "gst", name: "GST 5%", rateBp: 500 },
+        { taxDefinitionId: "qst", name: "QST 9.975%", rateBp: 998 },
+      ],
+    },
+  ]);
+  // 87.65 × 5% = 4.3825 → 4.38; 87.65 × 9.98% = 8.747… → 8.75
+  expect(totals.tax).toBe(438 + 875);
+  expect(totals.total).toBe(8_765 + 1_313);
+  for (const band of totals.bands) {
+    expect(Number.isInteger(band.taxCents)).toBe(true);
+  }
+});
+
+test("each tax rounds per line, on the line it was charged on", () => {
+  // Three 3.33 lines at GST 5%: 16.65 rounds to 17 on each line, so the
+  // document owes 51 — not 50, which is what rounding a 9.99 subtotal gives.
+  // Rounding per line is what the single-tax path has always done, and the
+  // second tax on a line follows the same rule independently.
+  const line = {
+    quantity: 1,
+    unitPrice: 333,
+    taxRateBp: 0,
+    taxes: [
+      { taxDefinitionId: "gst", name: "GST", rateBp: 500 },
+      { taxDefinitionId: "pst", name: "PST", rateBp: 700 },
+    ],
+  };
+  const totals = documentTotals([line, line, line]);
+  expect(totals.bands.find((b) => b.taxDefinitionId === "gst")?.taxCents).toBe(
+    17 * 3,
+  );
+  expect(totals.bands.find((b) => b.taxDefinitionId === "pst")?.taxCents).toBe(
+    23 * 3,
+  );
+  expect(totals.tax).toBe(51 + 69);
+});
+
+test("a compound tax is charged on the net plus the taxes before it", () => {
+  const totals = documentTotals([
+    {
+      quantity: 1,
+      unitPrice: 10_000,
+      taxRateBp: 0,
+      taxes: [
+        { taxDefinitionId: "a", name: "First 5%", rateBp: 500 },
+        {
+          taxDefinitionId: "b",
+          name: "Stacked 10%",
+          rateBp: 1000,
+          compound: true,
+        },
+      ],
+    },
+  ]);
+  // 5% of 100.00 = 5.00; the compound 10% is charged on 105.00 = 10.50.
+  expect(totals.tax).toBe(500 + 1050);
+  const stacked = totals.bands.find((b) => b.taxDefinitionId === "b");
+  expect(stacked?.taxableCents).toBe(10_500);
+  expect(stacked?.taxCents).toBe(1050);
+});
+
+test("a discount reaches every tax on the line, not just the first", () => {
+  const totals = documentTotals(
+    [
+      {
+        quantity: 1,
+        unitPrice: 10_000,
+        taxRateBp: 0,
+        taxes: [
+          { taxDefinitionId: "gst", name: "GST 5%", rateBp: 500 },
+          { taxDefinitionId: "pst", name: "PST 7%", rateBp: 700 },
+        ],
+      },
+    ],
+    { type: "percent", value: 1000 },
+  );
+  // Both taxes on 90.00, not 100.00.
+  expect(totals.discount).toBe(1000);
+  expect(totals.tax).toBe(450 + 630);
+  expect(totals.total).toBe(9_000 + 1_080);
+});
+
+test("a one-entry taxes list totals exactly as the same line written the old way", () => {
+  // The migration guarantee: every document written before a line could carry
+  // two taxes keeps totalling to the cent as it always has, because a single
+  // tax follows the identical arithmetic whichever way it is spelled.
+  const oldWay = documentTotals(
+    [
+      {
+        quantity: 1.5,
+        unitPrice: 6_667,
+        taxRateBp: 875,
+        taxDefinitionId: "t1",
+      },
+      { quantity: 1, unitPrice: 3_333, taxRateBp: 0 },
+    ],
+    { type: "amount", value: 500 },
+  );
+  const newWay = documentTotals(
+    [
+      {
+        quantity: 1.5,
+        unitPrice: 6_667,
+        taxRateBp: 0,
+        taxes: [{ taxDefinitionId: "t1", rateBp: 875 }],
+      },
+      { quantity: 1, unitPrice: 3_333, taxRateBp: 0 },
+    ],
+    { type: "amount", value: 500 },
+  );
+  expect(newWay.subtotal).toBe(oldWay.subtotal);
+  expect(newWay.tax).toBe(oldWay.tax);
+  expect(newWay.total).toBe(oldWay.total);
+  expect(newWay.bands).toEqual(oldWay.bands);
+});
+
+test("a multi-tax line's bands still add up to the document's tax", () => {
+  const totals = documentTotals(
+    [
+      {
+        quantity: 2.5,
+        unitPrice: 1_999,
+        taxRateBp: 0,
+        taxes: [
+          { taxDefinitionId: "gst", name: "GST 5%", rateBp: 500 },
+          { taxDefinitionId: "pst", name: "PST 7%", rateBp: 700 },
+        ],
+      },
+      {
+        quantity: 1,
+        unitPrice: 3_333,
+        taxRateBp: 500,
+        taxDefinitionId: "gst",
+        taxName: "GST 5%",
+      },
+    ],
+    { type: "amount", value: 750 },
+  );
+  const banded = totals.bands.reduce((sum, b) => sum + b.taxCents, 0);
+  expect(banded).toBe(totals.tax);
+});
+
+test("an unreadable rate inside a taxes list names the line and is refused", () => {
+  expect(() =>
+    documentTotals([
+      {
+        quantity: 1,
+        unitPrice: 1_000,
+        taxRateBp: 0,
+        taxes: [{ rateBp: 8.75 as number }],
+      },
+    ]),
+  ).toThrow(MoneyError);
+});
