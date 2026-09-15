@@ -1,5 +1,9 @@
 import { secrets } from "@sentrello/module-sdk";
-import { fraudPreventionHeaders, missingHeaders } from "./mtd-headers";
+import {
+  explainMissing,
+  fraudPreventionHeaders,
+  missingHeaders,
+} from "./mtd-headers";
 import type { ClientContext, ServerContext } from "./mtd-headers";
 
 /**
@@ -161,15 +165,16 @@ async function call<T>(
   init?: RequestInit,
 ): Promise<T> {
   const fraud = fraudPreventionHeaders(client, server);
-  const absent = missingHeaders(fraud);
+  const absent = missingHeaders(fraud, server);
   if (absent.length) {
     /*
      * Refused here rather than sent and rejected. HMRC's rejection arrives as a
      * generic error at the end of a submission somebody has already attested
-     * to; this says which values are missing while it can still be fixed.
+     * to; this says which values are missing, and why, while it can still be
+     * fixed.
      */
     throw new Error(
-      `this submission is missing information HMRC requires: ${absent.join(", ")}`,
+      `this submission is missing information HMRC requires: ${explainMissing(absent)}`,
     );
   }
 

@@ -1,3 +1,4 @@
+import { clientAddress } from "@sentrello/auth";
 import {
   activeOrganizationId,
   requirePermission,
@@ -355,20 +356,30 @@ export function registerMtd(ctx: ModuleContext) {
 /**
  * What this server knows about the request.
  *
- * `Gov-Client-Public-IP` is the connecting client's address **as this server
- * sees it**, and behind a proxy that is the proxy. A self-hosted business
- * behind a load balancer sends their own infrastructure's address on every
- * submission unless the server is configured to read the forwarded header —
- * the same problem, and the same fix, as the real_ip work for Cloudflare.
+ * The caller's address comes from `clientAddress` — the same trusted-header
+ * resolution the rate limiter and the session screen use, not a hand-read of
+ * `x-forwarded-for`, which any caller can write for themselves. One answer to
+ * "which header do we believe", and it is the operator's
+ * `SENTRELLO_CLIENT_IP_HEADER`. The source port comes with the address when
+ * this server holds the caller's socket itself; through a proxy it is
+ * unknowable, and `proxied` carries that fact so the absence is documented
+ * rather than silent.
+ *
+ * `SENTRELLO_PUBLIC_IP` is this server's own public address, for
+ * `Gov-Vendor-Public-IP` and the forwarded chain. It cannot be discovered
+ * from inside — behind NAT or a CDN every self-guess is somebody else's
+ * address, and a wrong value here is a false statement to a tax authority —
+ * so it is a setting, and a submission without it is refused with an error
+ * naming it rather than sent incomplete.
  */
 async function serverContext(c: RouteContext, orgId: string) {
   const session = c.get("session");
-  const forwarded = c.req.header("x-forwarded-for") ?? "";
-  const clientIp = forwarded.split(",")[0]?.trim() || undefined;
+  const address = clientAddress(c);
 
   return {
-    clientIp,
-    forwarded: forwarded || undefined,
+    clientIp: address.ip,
+    clientPort: address.port,
+    proxied: address.proxied,
     vendorIp: process.env.SENTRELLO_PUBLIC_IP,
     userId: session?.user?.id ?? "",
     productVersion: process.env.SENTRELLO_RELEASE ?? "0.0.0",

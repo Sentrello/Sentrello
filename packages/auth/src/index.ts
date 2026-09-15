@@ -98,19 +98,44 @@ export function clientIpOptions(env: Record<string, string | undefined>): {
  * instance reached directly, or through a proxy that names its own header.
  */
 export function clientIp(c: Context): string {
-  const header = trustedIpHeader(process.env);
-  const fromHeader = c.req.header(header);
-  if (fromHeader) return fromHeader;
+  return clientAddress(c).ip ?? "anon";
+}
+
+/**
+ * The caller's address in full: ip, source port where it is knowable, and
+ * whether the answer came through a proxy.
+ *
+ * The distinction the port hangs on: a proxy forwards the caller's *address*
+ * in the trusted header but not the port their connection came from — that
+ * number dies at the proxy's socket. Only when this server holds the caller's
+ * socket itself is the port real, so `port` is set exactly then and absent
+ * otherwise. HMRC's fraud-prevention headers want that port when it exists
+ * and want its absence explained when it does not, which is what `proxied`
+ * is for.
+ */
+export function clientAddress(c: Context): {
+  ip?: string;
+  port?: string;
+  proxied: boolean;
+} {
+  const fromHeader = c.req.header(trustedIpHeader(process.env));
+  if (fromHeader) return { ip: fromHeader, proxied: true };
 
   try {
     const info = getConnInfo(c);
-    if (info.remote.address) return info.remote.address;
+    if (info.remote.address) {
+      return {
+        ip: info.remote.address,
+        port: info.remote.port != null ? String(info.remote.port) : undefined,
+        proxied: false,
+      };
+    }
   } catch {
     // Not a Bun server — every test driving a route through `app.request()`
     // lands here rather than on a real socket.
   }
 
-  return "anon";
+  return { proxied: false };
 }
 
 export const auth = betterAuth({

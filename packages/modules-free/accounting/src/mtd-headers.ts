@@ -29,9 +29,15 @@ export interface ClientContext {
 export interface ServerContext {
   /** The address this request came from, as the server sees it. */
   clientIp?: string;
+  /** The source port of the caller's own connection, where it survived. */
   clientPort?: string;
-  /** Every proxy between the person and this server, in order. */
-  forwarded?: string;
+  /**
+   * Whether the address came through a proxy. A proxy forwards the caller's
+   * address but not their source port — that number dies at the proxy's
+   * socket — so this is the documented reason `Gov-Client-Public-Port` may
+   * honestly be absent.
+   */
+  proxied?: boolean;
   /** This server's own public address. */
   vendorIp?: string;
   userId: string;
@@ -140,25 +146,92 @@ export function fraudPreventionHeaders(
 }
 
 /**
+ * Every header HMRC requires for `WEB_APP_VIA_SERVER` — all sixteen of them.
+ *
+ * The list is HMRC's, not ours: their page for this connection method says
+ * "you must submit data for all of these headers", and absence is acceptable
+ * only where the value genuinely cannot be collected, with the reason
+ * documented. The two absences we stand behind are in `missingHeaders`.
+ */
+export const REQUIRED_HEADERS = [
+  "Gov-Client-Connection-Method",
+  "Gov-Client-Browser-JS-User-Agent",
+  "Gov-Client-Device-ID",
+  "Gov-Client-Multi-Factor",
+  "Gov-Client-Public-IP",
+  "Gov-Client-Public-IP-Timestamp",
+  "Gov-Client-Public-Port",
+  "Gov-Client-Screens",
+  "Gov-Client-Timezone",
+  "Gov-Client-User-IDs",
+  "Gov-Client-Window-Size",
+  "Gov-Vendor-Forwarded",
+  "Gov-Vendor-License-IDs",
+  "Gov-Vendor-Product-Name",
+  "Gov-Vendor-Public-IP",
+  "Gov-Vendor-Version",
+];
+
+/**
  * Which required headers are missing, for the screen to warn about.
  *
  * A submission that HMRC rejects for a missing header is a bad quarter-end
  * surprise. Better to say beforehand that the browser did not supply its
  * timezone than to let somebody find out from a rejection.
+ *
+ * Checked against all sixteen, minus the two absences HMRC's own guidance
+ * accepts *when they are true* — and truth is read off the server context,
+ * not assumed:
+ *
+ * - `Gov-Client-Multi-Factor`, when no second factor was used. HMRC's page
+ *   says a username-and-password sign-in has no value to collect.
+ * - `Gov-Client-Public-Port`, when the request came through a proxy. The
+ *   caller's source port dies at the proxy's socket; forwarding it is not a
+ *   thing proxies do.
+ *
+ * Both omissions are stated to HMRC in the SDST correspondence, which is what
+ * turns an absent header from a gap into a documented one.
  */
-export function missingHeaders(headers: Record<string, string>): string[] {
-  const required = [
-    "Gov-Client-Connection-Method",
-    "Gov-Client-Browser-JS-User-Agent",
-    "Gov-Client-Device-ID",
-    "Gov-Client-Public-IP",
-    "Gov-Client-Public-IP-Timestamp",
-    "Gov-Client-Screens",
-    "Gov-Client-Timezone",
-    "Gov-Client-User-IDs",
-    "Gov-Client-Window-Size",
-    "Gov-Vendor-Product-Name",
-    "Gov-Vendor-Version",
-  ];
-  return required.filter((name) => !headers[name]);
+export function missingHeaders(
+  headers: Record<string, string>,
+  server: ServerContext,
+): string[] {
+  return REQUIRED_HEADERS.filter((name) => {
+    if (headers[name]) return false;
+    if (name === "Gov-Client-Multi-Factor" && !server.multiFactor) {
+      return false;
+    }
+    if (name === "Gov-Client-Public-Port" && server.proxied) return false;
+    return true;
+  });
+}
+
+/**
+ * The missing headers, each with what to do about it.
+ *
+ * A list of header names refuses a submission without helping anyone fix it.
+ * Every gap here has exactly one cause on a self-hosted instance, so the
+ * error can say the cause.
+ */
+export function explainMissing(names: string[]): string {
+  const vendor = "set SENTRELLO_PUBLIC_IP to this server's public address";
+  const caller =
+    "the server could not see the caller's address — check " +
+    "SENTRELLO_CLIENT_IP_HEADER matches what your proxy sends";
+  const browser = "the browser did not supply it";
+  const hints: Record<string, string> = {
+    "Gov-Client-Browser-JS-User-Agent": browser,
+    "Gov-Client-Device-ID": browser,
+    "Gov-Client-Screens": browser,
+    "Gov-Client-Timezone": browser,
+    "Gov-Client-Window-Size": browser,
+    "Gov-Client-Public-IP": caller,
+    "Gov-Client-Public-IP-Timestamp": caller,
+    "Gov-Client-Public-Port": caller,
+    "Gov-Vendor-Public-IP": vendor,
+    "Gov-Vendor-Forwarded": `${vendor}, and see that the caller's address is visible`,
+  };
+  return names
+    .map((name) => (hints[name] ? `${name} (${hints[name]})` : name))
+    .join(", ");
 }
