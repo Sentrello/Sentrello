@@ -498,6 +498,13 @@
       "when": 1789312639229,
       "tag": "0070_silly_masked_marvel",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1789513104859,
+      "tag": "0071_mean_silver_samurai",
+      "breakpoints": true
     }
   ]
 }

@@ -146,11 +146,44 @@ export function earlyPaymentTerms(
  * pays and cannot get back.
  */
 
+/**
+ * One tax on a line, frozen at the moment it was charged.
+ *
+ * A line may carry several of these — Canada's GST beside a provincial PST,
+ * Quebec's QST beside GST — and each is a distinct tax owed to a distinct
+ * authority. The name and category are copied from the definition rather than
+ * joined, for the same reason `document_taxes` copies them: what a document
+ * charged must not change when a rate is renamed later.
+ */
+export interface LineTax {
+  taxDefinitionId?: string | null;
+  name?: string | null;
+  /** Basis points: 500 is 5%. */
+  rateBp: number;
+  categoryCode?: string | null;
+  /**
+   * Charged on the net plus the taxes already computed on this line, rather
+   * than on the net alone. The same meaning, and the same simple-first order,
+   * as the accounting side's stacking — two answers to what "compound" means
+   * would disagree on every document in a province that stacks.
+   */
+  compound?: boolean;
+}
+
 export type DocumentLine = TaxedLine & {
   /** Which named rate this was charged at, for the banded breakdown. */
   taxDefinitionId?: string | null;
   taxName?: string | null;
   categoryCode?: string | null;
+  /**
+   * Every tax on the line, when it carries more than a single bare rate.
+   *
+   * Absent or empty, the single-tax fields above govern — which is every
+   * document written before a line could carry two taxes, and most written
+   * after. When present, this list is the whole truth and the fields above
+   * are ignored.
+   */
+  taxes?: LineTax[] | null;
 };
 
 export type Discount =
@@ -232,29 +265,75 @@ export function documentTotals(
     relief[biggest] = (relief[biggest] as number) + (discountCents - spread);
   }
 
+  /**
+   * **Each tax is computed and rounded per line, not on a per-tax subtotal
+   * across the document.** The decision, and why it is safe to rely on:
+   *
+   * - It is what the single-tax path has always done, so every document
+   *   written before a line could carry two taxes totals to the cent exactly
+   *   as it did — the migration guarantee, proven by test rather than argued.
+   * - The CRA explicitly permits rounding GST/HST on each invoice line, and
+   *   the provincial taxes follow the same practice — so a Canadian document
+   *   built this way is one its authorities accept.
+   * - EN 16931 permits line-level calculation; the e-invoice states each
+   *   category's amounts as the sum of its per-line figures, so the XML, the
+   *   screen and the ledger all quote the same numbers.
+   *
+   * Each tax on a line rounds independently: GST and PST on the same line are
+   * two computations on the same base, not one computation split afterwards —
+   * which is exactly how the two filings will want them.
+   */
   const byBand = new Map<string, TaxBand>();
   let tax = 0;
   for (const [i, l] of lines.entries()) {
-    const rateBp = l?.taxRateBp ?? 0;
     const taxable = (nets[i] as number) - (relief[i] as number);
-    const lineTax = Math.round((taxable * rateBp) / 10000);
-    tax += lineTax;
 
-    // Banded by the rate actually charged, not by the definition: two rates
-    // that happen to be equal are one line on a tax summary, and a rate that
-    // was renamed is still the rate this document was issued at.
-    const key = `${l?.taxDefinitionId ?? ""}|${rateBp}|${l?.categoryCode ?? "S"}`;
-    const band = byBand.get(key) ?? {
-      taxDefinitionId: l?.taxDefinitionId ?? null,
-      name: l?.taxName ?? (rateBp === 0 ? "No tax" : `${rateBp / 100}%`),
-      rateBp,
-      categoryCode: l?.categoryCode ?? "S",
-      taxableCents: 0,
-      taxCents: 0,
-    };
-    band.taxableCents += taxable;
-    band.taxCents += lineTax;
-    byBand.set(key, band);
+    // The multi-tax list when the line carries one; otherwise the single-tax
+    // fields, spelled as a one-entry list so there is one loop, not two.
+    const charged: LineTax[] = l?.taxes?.length
+      ? l.taxes
+      : [
+          {
+            taxDefinitionId: l?.taxDefinitionId ?? null,
+            name: l?.taxName ?? null,
+            rateBp: l?.taxRateBp ?? 0,
+            categoryCode: l?.categoryCode ?? null,
+          },
+        ];
+
+    // Simple rates first, then compound on the running total — the same
+    // order the accounting side stacks in.
+    const ordered = [
+      ...charged.filter((t) => !t.compound),
+      ...charged.filter((t) => t.compound),
+    ];
+
+    let stacked = 0;
+    for (const t of ordered) {
+      const rateBp = cents(t?.rateBp ?? 0, `line ${i + 1}: taxRateBp`);
+      const base = t.compound ? taxable + stacked : taxable;
+      const lineTax = Math.round((base * rateBp) / 10000);
+      stacked += lineTax;
+      tax += lineTax;
+
+      // Banded by the rate actually charged, not by the definition: two rates
+      // that happen to be equal are one line on a tax summary, and a rate that
+      // was renamed is still the rate this document was issued at.
+      const key = `${t.taxDefinitionId ?? ""}|${rateBp}|${t.categoryCode ?? "S"}`;
+      const band = byBand.get(key) ?? {
+        taxDefinitionId: t.taxDefinitionId ?? null,
+        name: t.name ?? (rateBp === 0 ? "No tax" : `${rateBp / 100}%`),
+        rateBp,
+        categoryCode: t.categoryCode ?? "S",
+        taxableCents: 0,
+        taxCents: 0,
+      };
+      // The base the tax was actually charged on — for a compound tax that
+      // includes the taxes under it, which is what its return will ask for.
+      band.taxableCents += base;
+      band.taxCents += lineTax;
+      byBand.set(key, band);
+    }
   }
 
   return {

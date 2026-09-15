@@ -572,6 +572,26 @@ export const quoteLines = pgTable(
     /** Which named rate this was charged at, and the rate itself, copied. */
     taxDefinitionId: uuid("tax_definition_id"),
     taxRateBp: integer("tax_rate_bp").notNull().default(0),
+    /**
+     * Every tax on the line, frozen, when it carries more than one.
+     *
+     * Canada is why: GST beside a provincial PST, or Quebec's QST, is two
+     * distinct taxes on the same line, filed to two authorities. Null — every
+     * row written before this existed, and most written after — means the two
+     * columns above are the whole story. When set, this list governs and the
+     * columns above hold its first entry, so anything still reading them sees
+     * a tax rather than none.
+     */
+    taxes:
+      jsonb("taxes").$type<
+        {
+          taxDefinitionId: string | null;
+          name: string;
+          rateBp: number;
+          categoryCode: string;
+          compound: boolean;
+        }[]
+      >(),
     /** The order somebody arranged them in, which has to survive a reload. */
     sortOrder: integer("sort_order").notNull().default(0),
   },
@@ -1153,6 +1173,17 @@ export const invoiceLines = pgTable(
     /** Which named rate this was charged at, and the rate itself, copied. */
     taxDefinitionId: uuid("tax_definition_id"),
     taxRateBp: integer("tax_rate_bp").notNull().default(0),
+    /** Every tax on the line when it carries more than one. See quote_lines. */
+    taxes:
+      jsonb("taxes").$type<
+        {
+          taxDefinitionId: string | null;
+          name: string;
+          rateBp: number;
+          categoryCode: string;
+          compound: boolean;
+        }[]
+      >(),
     /** The order somebody arranged them in, which has to survive a reload. */
     sortOrder: integer("sort_order").notNull().default(0),
     /**
