@@ -82,8 +82,13 @@ export function isNotInstalled(name: string, message: string): boolean {
  * not just missing screens — it is recurring invoices silently not going out.
  * The only thing that can tell the two cases apart is the licence, so the
  * core has to know, statically, what a Pro licence is supposed to come with.
+ *
+ * Only what comes with the tier belongs here. `pro-projects` was on this list
+ * and is bought separately, like the Shop — so every Pro instance that had
+ * not bought it carried a permanent banner about a module it never owned.
+ * What was bought is what the licence's `modules` claim already says.
  */
-const PRO_TIER_BUNDLES = ["pro-core", "pro-accounting", "pro-projects"];
+const PRO_TIER_BUNDLES = ["pro-core", "pro-accounting"];
 
 /**
  * Bundles the licence pays for that are simply not here.
