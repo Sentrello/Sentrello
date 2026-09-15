@@ -458,6 +458,20 @@ export async function convertQuoteToInstalments(
    */
   const net = quote.subtotalCents - quote.discountCents;
   const banded = bands.reduce((sum, band) => sum + band.taxableCents, 0);
+
+  /**
+   * Two taxes on one line means two bands over the same money.
+   *
+   * A GST band and a PST band on a Quebec-or-BC quote each carry the whole
+   * taxable base, so summing band taxables doubles the subtotal, and the
+   * one-line-per-band shape below would bill the customer twice. When the
+   * bands overlap the net, each instalment becomes a single lump-sum line for
+   * its share of the net, carrying every tax on it — while the per-band tax
+   * apportionment below still writes each authority's exact split.
+   */
+  const overlapping = banded > net;
+  const netShares = apportion(net, shares);
+
   const parts = [
     ...bands.map((band) => ({
       name: band.name,
@@ -493,10 +507,9 @@ export async function convertQuoteToInstalments(
 
     for (const [index, part] of plan.entries()) {
       const label = part.label?.trim() || instalmentLabel(index, plan.length);
-      const subtotal = split.reduce(
-        (sum, band) => sum + (band.taxables[index] ?? 0),
-        0,
-      );
+      const subtotal = overlapping
+        ? (netShares[index] ?? 0)
+        : split.reduce((sum, band) => sum + (band.taxables[index] ?? 0), 0);
       const tax = split.reduce(
         (sum, band) => sum + (band.taxes[index] ?? 0),
         0,
@@ -532,22 +545,44 @@ export async function convertQuoteToInstalments(
        * add up to the tax printed under it.
        */
       await tx.insert(schema.invoiceLines).values(
-        split
-          .map((band, at) => ({ band, at }))
-          .filter(({ band }) => (band.taxables[index] ?? 0) !== 0)
-          .map(({ band, at }) => ({
-            invoiceId: invoice.id,
-            description:
-              split.length > 1
-                ? `${label} — ${quote.number} (${band.name})`
-                : `${label} — ${quote.number}`,
-            quantityMilli: 1000,
-            unit: "lump sum",
-            unitPriceCents: band.taxables[index] ?? 0,
-            taxDefinitionId: band.taxDefinitionId,
-            taxRateBp: band.rateBp,
-            sortOrder: at,
-          })),
+        overlapping
+          ? [
+              {
+                invoiceId: invoice.id,
+                description: `${label} — ${quote.number}`,
+                quantityMilli: 1000,
+                unit: "lump sum",
+                unitPriceCents: netShares[index] ?? 0,
+                taxDefinitionId: split[0]?.taxDefinitionId ?? null,
+                taxRateBp: split[0]?.rateBp ?? 0,
+                // Every tax on the quote rides on the one line, so the
+                // document reads as taxed the way it actually is.
+                taxes: split.map((band) => ({
+                  taxDefinitionId: band.taxDefinitionId,
+                  name: band.name,
+                  rateBp: band.rateBp,
+                  categoryCode: band.categoryCode,
+                  compound: false,
+                })),
+                sortOrder: 0,
+              },
+            ]
+          : split
+              .map((band, at) => ({ band, at }))
+              .filter(({ band }) => (band.taxables[index] ?? 0) !== 0)
+              .map(({ band, at }) => ({
+                invoiceId: invoice.id,
+                description:
+                  split.length > 1
+                    ? `${label} — ${quote.number} (${band.name})`
+                    : `${label} — ${quote.number}`,
+                quantityMilli: 1000,
+                unit: "lump sum",
+                unitPriceCents: band.taxables[index] ?? 0,
+                taxDefinitionId: band.taxDefinitionId,
+                taxRateBp: band.rateBp,
+                sortOrder: at,
+              })),
       );
 
       const rows = split

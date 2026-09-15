@@ -10,6 +10,7 @@ import {
   ensureAccount,
   postInvoiceIssued,
   postJournalEntry,
+  reverseJournalEntries,
 } from "@sentrello/db/ledger";
 import { nextDocumentNumber } from "@sentrello/db/numbering";
 import type { ModuleContext } from "@sentrello/module-sdk";
@@ -212,26 +213,19 @@ export function registerLifecycle(ctx: ModuleContext) {
         .returning();
 
       // A draft was never in the books, so there is nothing to reverse.
+      //
+      // The reversal is the issued entry with its sides swapped, line for
+      // line, rather than an entry rebuilt from the invoice's figures. The
+      // rebuilt one had two ways to disagree with what it was undoing: it
+      // posted face-value cents whatever currency the document was in, and it
+      // debited one tax account when the issue may have credited several —
+      // leaving every account touched still carrying a balance the void was
+      // supposed to remove.
       if (invoice.status !== "draft") {
-        const [ar, income, taxPayable] = await Promise.all([
-          ensureAccount(orgId, CORE_ACCOUNTS.accountsReceivable),
-          ensureAccount(orgId, CORE_ACCOUNTS.salesIncome),
-          ensureAccount(orgId, CORE_ACCOUNTS.taxPayable),
-        ]);
-        await postJournalEntry(
+        await reverseJournalEntries(
           orgId,
+          `invoice:${invoice.id}`,
           `Void invoice ${invoice.number}`,
-          `invoice-void:${invoice.id}`,
-          [
-            { accountId: ar, creditCents: invoice.totalCents },
-            {
-              accountId: income,
-              debitCents: invoice.subtotalCents - invoice.discountCents,
-            },
-            ...(invoice.taxCents > 0
-              ? [{ accountId: taxPayable, debitCents: invoice.taxCents }]
-              : []),
-          ],
         );
       }
 

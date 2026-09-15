@@ -1727,51 +1727,21 @@ export default defineModule({
       // would raise a second invoice for the same work.
       if (!quote || quote.status !== "sent") return c.notFound();
 
-      const lines = await db
-        .select()
-        .from(schema.quoteLines)
-        .where(eq(schema.quoteLines.quoteId, quote.id));
-
-      const invoice = await db.transaction(async (tx) => {
-        const [inv] = await tx
-          .insert(schema.invoices)
-          .values({
-            organizationId: contact.organizationId,
-            contactId: contact.id,
-            quoteId: quote.id,
-            currency: quote.currency,
-            number: await nextDocumentNumber(
-              tx,
-              contact.organizationId,
-              "invoice",
-            ),
-            status: "open",
-            dueDate: defaultDueDate(),
-            subtotalCents: quote.subtotalCents,
-            taxCents: quote.taxCents,
-            totalCents: quote.totalCents,
-          })
-          .returning();
-        if (!inv) throw new Error("invoice insert returned no row");
-        if (lines.length > 0) {
-          await tx.insert(schema.invoiceLines).values(
-            lines.map((l) => ({
-              invoiceId: inv.id,
-              description: l.description,
-              quantity: l.quantity,
-              unitPriceCents: l.unitPriceCents,
-              taxRateBp: l.taxRateBp,
-            })),
-          );
-        }
-        await tx
-          .update(schema.quotes)
-          .set({ status: "accepted" })
-          .where(eq(schema.quotes.id, quote.id));
-        return inv;
-      });
-
-      await postInvoiceIssued(contact.organizationId, invoice);
+      /**
+       * The shared conversion, not a private copy of it.
+       *
+       * The copy that used to live here dropped the fractional quantity, the
+       * unit, the discount, the tax bands and the line's taxes — so the
+       * invoice a customer raised by accepting differed from the one the
+       * staff screen would have raised from the same quote. It also never
+       * set `convertedInvoiceId`, which is the guard against the same quote
+       * becoming two invoices.
+       */
+      const invoice = await convertQuoteToInvoice(
+        contact.organizationId,
+        quote.id,
+      );
+      if (!invoice) return c.notFound();
 
       // The business should find out from its own timeline, not by noticing.
       await db.insert(schema.activities).values({
