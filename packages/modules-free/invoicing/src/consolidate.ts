@@ -5,6 +5,7 @@ import {
 } from "@sentrello/auth/hono";
 import { and, db, eq, inArray, schema } from "@sentrello/db";
 import { defaultDueDate } from "@sentrello/db/documents";
+import { ownedContact } from "@sentrello/db/ledger";
 import { MoneyError } from "@sentrello/db/money";
 import { nextDocumentNumber } from "@sentrello/db/numbering";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
@@ -102,6 +103,15 @@ export function registerConsolidate(ctx: ModuleContext) {
           { error: "those drafts are for different customers" },
           409,
         );
+      }
+      // The sources are already this organisation's; a customer named in the
+      // body has to be too, or the merged invoice would go to a stranger.
+      if (
+        typeof body.contactId === "string" &&
+        body.contactId &&
+        !(await ownedContact(orgId, body.contactId))
+      ) {
+        return c.json({ error: "no such customer" }, 404);
       }
       const contactId =
         (typeof body.contactId === "string" ? body.contactId : null) ??

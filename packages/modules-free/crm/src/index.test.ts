@@ -2244,3 +2244,77 @@ test("editing one part of a name keeps the other", async () => {
   expect(after.contact.name).toBe("Ruthie Adeyemi");
   expect(after.contact.lastName).toBe("Adeyemi");
 });
+
+/**
+ * Links in the body, checked against the organization before they are
+ * written.
+ *
+ * The generic create and patch spread whatever the body carries into the
+ * row, and `companyId`, `contactId` and `dealId` are ids the caller chose.
+ * Unverified, they let one business's record name another's — which every
+ * later screen would then follow.
+ */
+test("a record can never link to another organization's records", async () => {
+  const foreignOrg = `intruder-target-${suffix}`;
+  const [theirCompany] = await db
+    .insert(schema.companies)
+    .values({ organizationId: foreignOrg, name: "Their Company" })
+    .returning();
+  const [theirContact] = await db
+    .insert(schema.contacts)
+    .values({ organizationId: foreignOrg, name: "Their Person" })
+    .returning();
+  if (!theirCompany || !theirContact) throw new Error("seed failed");
+
+  // A contact naming their company.
+  const contactRes = await app.request("http://localhost/api/contacts", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name: "Mole", companyId: theirCompany.id }),
+  });
+  expect(contactRes.status).toBe(404);
+
+  // A deal naming their company.
+  const dealRes = await app.request("http://localhost/api/deals", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      name: "Sold to strangers",
+      companyId: theirCompany.id,
+    }),
+  });
+  expect(dealRes.status).toBe(404);
+
+  // A deal listing their contact keeps the deal and drops the stranger:
+  // stale ids of deleted contacts pass through here too, and losing one id
+  // is right where failing the save is not.
+  const filtered = await app.request("http://localhost/api/deals", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      name: "Half honest",
+      contactIds: [theirContact.id],
+    }),
+  });
+  expect(filtered.status).toBe(201);
+  const { deal } = (await filtered.json()) as {
+    deal: { id: string; contactIds: string[] };
+  };
+  expect(deal.contactIds).toEqual([]);
+
+  // A task about their contact.
+  const taskRes = await app.request("http://localhost/api/tasks", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ title: "Call them", contactId: theirContact.id }),
+  });
+  expect(taskRes.status).toBe(404);
+
+  await db.delete(schema.deals).where(eq(schema.deals.id, deal.id));
+  await db
+    .delete(schema.companies)
+    .where(eq(schema.companies.id, theirCompany.id));
+  await db
+    .delete(schema.contacts)
+    .where(eq(schema.contacts.id, theirContact.id));
+});

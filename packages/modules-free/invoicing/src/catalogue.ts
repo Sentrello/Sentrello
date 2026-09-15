@@ -123,6 +123,27 @@ async function clearOtherDefaults(orgId: string, keepId: string) {
     .where(eq(schema.taxDefinitions.id, keepId));
 }
 
+/** A tax definition named by the caller, confirmed to be this business's. */
+async function ownedTaxDefinition(orgId: string, id: string) {
+  // Postgres answers a malformed uuid with an error, not an empty result.
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+  ) {
+    return false;
+  }
+  const [row] = await db
+    .select({ id: schema.taxDefinitions.id })
+    .from(schema.taxDefinitions)
+    .where(
+      and(
+        eq(schema.taxDefinitions.id, id),
+        eq(schema.taxDefinitions.organizationId, orgId),
+      ),
+    )
+    .limit(1);
+  return Boolean(row);
+}
+
 /**
  * The terms and the units a business starts with.
  *
@@ -373,6 +394,19 @@ export function registerCatalogue(ctx: ModuleContext) {
         );
       }
 
+      const taxDefinitionId =
+        typeof body.taxDefinitionId === "string" && body.taxDefinitionId
+          ? body.taxDefinitionId
+          : null;
+      // Has to be one of this business's own rates, not an id pointed at
+      // another organisation's.
+      if (
+        taxDefinitionId &&
+        !(await ownedTaxDefinition(orgId, taxDefinitionId))
+      ) {
+        return c.json({ error: "no such tax rate" }, 404);
+      }
+
       const [made] = await db
         .insert(schema.billableItems)
         .values({
@@ -383,10 +417,7 @@ export function registerCatalogue(ctx: ModuleContext) {
           unitPriceCents: unitPriceCents as number,
           unit: String(body.unit ?? "piece").trim() || "piece",
           kind: body.kind === "product" ? "product" : "service",
-          taxDefinitionId:
-            typeof body.taxDefinitionId === "string" && body.taxDefinitionId
-              ? body.taxDefinitionId
-              : null,
+          taxDefinitionId,
         })
         .returning();
       return c.json({ item: made }, 201);
@@ -433,7 +464,14 @@ export function registerCatalogue(ctx: ModuleContext) {
         patch.kind = body.kind;
       }
       if (body.taxDefinitionId !== undefined) {
-        patch.taxDefinitionId = body.taxDefinitionId || null;
+        const wanted =
+          typeof body.taxDefinitionId === "string" && body.taxDefinitionId
+            ? body.taxDefinitionId
+            : null;
+        if (wanted && !(await ownedTaxDefinition(orgId, wanted))) {
+          return c.json({ error: "no such tax rate" }, 404);
+        }
+        patch.taxDefinitionId = wanted;
       }
       if (typeof body.active === "boolean") patch.active = body.active;
 

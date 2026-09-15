@@ -15,6 +15,7 @@ import {
   CORE_ACCOUNTS,
   ensureAccount,
   exchangeAccount,
+  ownedContact,
   postInvoiceIssued,
   postJournalEntry,
 } from "@sentrello/db/ledger";
@@ -85,7 +86,14 @@ async function sendReceipt(
     const [contact] = await db
       .select()
       .from(schema.contacts)
-      .where(eq(schema.contacts.id, invoice.contactId))
+      // Org-filtered: a receipt must never mail another business's contact,
+      // however the id got onto the invoice.
+      .where(
+        and(
+          eq(schema.contacts.id, invoice.contactId),
+          eq(schema.contacts.organizationId, orgId),
+        ),
+      )
       .limit(1);
     if (!contact?.email) return;
 
@@ -248,6 +256,13 @@ export default defineModule({
           currency?: string;
           dueDate?: string;
         };
+
+        // A customer may be left off a draft, but a named one has to be this
+        // business's — an unverified id here becomes a read of, and an email
+        // to, another organisation's contact further down the line.
+        if (contactId && !(await ownedContact(orgId, contactId))) {
+          return c.json({ error: "no such customer" }, 404);
+        }
 
         /**
          * Everything worked out before anything is written, so a malformed
@@ -625,7 +640,14 @@ export default defineModule({
         const [contact] = await db
           .select()
           .from(schema.contacts)
-          .where(eq(schema.contacts.id, quote.contactId))
+          // Org-filtered even though the write path now checks: a row written
+          // before that check must not mail another business's customer.
+          .where(
+            and(
+              eq(schema.contacts.id, quote.contactId),
+              eq(schema.contacts.organizationId, orgId),
+            ),
+          )
           .limit(1);
         if (!contact?.email) {
           return c.json({ error: "that customer has no email address" }, 400);
@@ -692,6 +714,11 @@ export default defineModule({
           currency?: string;
           validUntil?: string;
         };
+
+        // Same rule as an invoice: a named customer has to be one of ours.
+        if (contactId && !(await ownedContact(orgId, contactId))) {
+          return c.json({ error: "no such customer" }, 404);
+        }
 
         // The same path an invoice takes. A quote is the same document before
         // it is owed, and two sets of arithmetic is two answers.
@@ -914,6 +941,14 @@ export default defineModule({
           }
         }
 
+        // Same rule as creation: a reassigned customer has to be one of ours.
+        if (
+          typeof body.contactId === "string" &&
+          !(await ownedContact(orgId, body.contactId))
+        ) {
+          return c.json({ error: "no such customer" }, 404);
+        }
+
         const updated = await db.transaction(async (tx) => {
           const values: Record<string, unknown> = { updatedAt: new Date() };
           if (typeof body.contactId === "string") {
@@ -1031,7 +1066,15 @@ export default defineModule({
                   email: schema.contacts.email,
                 })
                 .from(schema.contacts)
-                .where(eq(schema.contacts.id, quote.contactId))
+                // Org-filtered even though the write path now checks: a row
+                // written before that check must not read another business's
+                // customer out.
+                .where(
+                  and(
+                    eq(schema.contacts.id, quote.contactId),
+                    eq(schema.contacts.organizationId, orgId),
+                  ),
+                )
                 .limit(1)
             : Promise.resolve([]),
         ]);
@@ -1105,6 +1148,14 @@ export default defineModule({
             }
             throw err;
           }
+        }
+
+        // Same rule as creation: a reassigned customer has to be one of ours.
+        if (
+          typeof body.contactId === "string" &&
+          !(await ownedContact(orgId, body.contactId))
+        ) {
+          return c.json({ error: "no such customer" }, 404);
         }
 
         const updated = await db.transaction(async (tx) => {
@@ -1501,7 +1552,15 @@ export default defineModule({
                   email: schema.contacts.email,
                 })
                 .from(schema.contacts)
-                .where(eq(schema.contacts.id, invoice.contactId))
+                // Org-filtered even though the write path now checks: a row
+                // written before that check must not read another business's
+                // customer out.
+                .where(
+                  and(
+                    eq(schema.contacts.id, invoice.contactId),
+                    eq(schema.contacts.organizationId, orgId),
+                  ),
+                )
                 .limit(1)
             : Promise.resolve([]),
         ]);
@@ -1581,7 +1640,14 @@ export default defineModule({
         const [contact] = await db
           .select()
           .from(schema.contacts)
-          .where(eq(schema.contacts.id, invoice.contactId))
+          // Org-filtered even though the write path now checks: a row written
+          // before that check must not mail another business's customer.
+          .where(
+            and(
+              eq(schema.contacts.id, invoice.contactId),
+              eq(schema.contacts.organizationId, orgId),
+            ),
+          )
           .limit(1);
         if (!contact?.email) {
           return c.json({ error: "that customer has no email address" }, 400);

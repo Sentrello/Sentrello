@@ -469,7 +469,14 @@ export function registerShare(ctx: ModuleContext) {
         const [contact] = await db
           .select({ name: schema.contacts.name })
           .from(schema.contacts)
-          .where(eq(schema.contacts.id, row.contactId))
+          // Filtered to the document's own organisation: a foreign id left on
+          // the row must not put a stranger's name on a shared page.
+          .where(
+            and(
+              eq(schema.contacts.id, row.contactId),
+              eq(schema.contacts.organizationId, row.organizationId),
+            ),
+          )
           .limit(1);
         customer = contact?.name ?? null;
       }

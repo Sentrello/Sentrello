@@ -3669,3 +3669,208 @@ test("taking the discount settles the invoice and balances the books", async () 
   }
   expect([...creditedTo.values()]).toContain(100_000);
 });
+
+/**
+ * A contact id from another organization, tried at every door it used to fit
+ * through.
+ *
+ * Naming a contact is naming who a document reads out and mails, so an
+ * unverified id here was a cross-tenant read of another business's customer
+ * — and, on send, an email to them. Every write path that takes a contact id
+ * from the body has to answer 404, the same answer any other record that is
+ * not yours gets.
+ */
+test("a document can never name another organization's contact", async () => {
+  const [stranger] = await db
+    .insert(schema.contacts)
+    .values({
+      organizationId: `intruder-target-${suffix}`,
+      name: "Somebody Else's Customer",
+      email: `stranger-${suffix}@example.test`,
+    })
+    .returning();
+  if (!stranger) throw new Error("could not create the foreign contact");
+
+  const invoiceBody = (extra: Record<string, unknown>) =>
+    JSON.stringify({
+      currency: "USD",
+      lines: [{ description: "Work", quantity: 1, unitPrice: 100 }],
+      ...extra,
+    });
+
+  // POST /api/invoices
+  const created = await app.request("http://localhost/api/invoices", {
+    method: "POST",
+    headers,
+    body: invoiceBody({ contactId: stranger.id }),
+  });
+  expect(created.status).toBe(404);
+
+  // PATCH /api/invoices/:id, moving an honest draft onto the stranger
+  const honestRes = await app.request("http://localhost/api/invoices", {
+    method: "POST",
+    headers,
+    body: invoiceBody({ contactId, status: "draft" }),
+  });
+  expect(honestRes.status).toBe(201);
+  const honest = (await honestRes.json()) as { invoice: { id: string } };
+  const patched = await app.request(
+    `http://localhost/api/invoices/${honest.invoice.id}`,
+    {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ contactId: stranger.id }),
+    },
+  );
+  expect(patched.status).toBe(404);
+
+  // POST /api/quotes
+  const quoted = await app.request("http://localhost/api/quotes", {
+    method: "POST",
+    headers,
+    body: invoiceBody({ contactId: stranger.id }),
+  });
+  expect(quoted.status).toBe(404);
+
+  // PATCH /api/quotes/:id
+  const ownQuote = await app.request("http://localhost/api/quotes", {
+    method: "POST",
+    headers,
+    body: invoiceBody({ contactId }),
+  });
+  const { quote } = (await ownQuote.json()) as { quote: { id: string } };
+  const quotePatched = await app.request(
+    `http://localhost/api/quotes/${quote.id}`,
+    {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ contactId: stranger.id }),
+    },
+  );
+  expect(quotePatched.status).toBe(404);
+
+  // POST /api/invoices/consolidate, naming the stranger as the merge target
+  const draft = async () => {
+    const res = await app.request("http://localhost/api/invoices", {
+      method: "POST",
+      headers,
+      body: invoiceBody({ contactId, status: "draft" }),
+    });
+    return ((await res.json()) as { invoice: { id: string } }).invoice;
+  };
+  const one = await draft();
+  const two = await draft();
+  const merged = await app.request(
+    "http://localhost/api/invoices/consolidate",
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        invoiceIds: [one.id, two.id],
+        contactId: stranger.id,
+      }),
+    },
+  );
+  expect(merged.status).toBe(404);
+
+  // And nothing above wrote the stranger onto anything of ours.
+  const carrying = await db
+    .select({ id: schema.invoices.id })
+    .from(schema.invoices)
+    .where(eq(schema.invoices.contactId, stranger.id));
+  expect(carrying.length).toBe(0);
+
+  await db.delete(schema.contacts).where(eq(schema.contacts.id, stranger.id));
+});
+
+/**
+ * The whole chain, end to end.
+ *
+ * The write paths refusing is not enough on its own: a row written before
+ * they did can already carry a foreign contact id. So the row is planted
+ * directly, the way a pre-fix database would hold it, and the reads have to
+ * stay shut — the detail screen must not read the stranger out, and send
+ * must not mail them.
+ */
+test("a foreign contact id already on an invoice is never read out or mailed", async () => {
+  const [stranger] = await db
+    .insert(schema.contacts)
+    .values({
+      organizationId: `intruder-target-${suffix}`,
+      name: "Somebody Else's Customer",
+      email: `stranger-chain-${suffix}@example.test`,
+    })
+    .returning();
+  if (!stranger) throw new Error("could not create the foreign contact");
+
+  // The bad row, as a pre-fix write path would have left it.
+  const [poisoned] = await db
+    .insert(schema.invoices)
+    .values({
+      organizationId: orgId,
+      contactId: stranger.id,
+      number: `INV-CHAIN-${suffix}`,
+      status: "open",
+      currency: "USD",
+      subtotalCents: 1000,
+      taxCents: 0,
+      totalCents: 1000,
+    })
+    .returning();
+  if (!poisoned) throw new Error("could not plant the invoice");
+
+  // The read: the invoice is ours, the contact is not, and the response
+  // says nothing about them.
+  const read = await app.request(
+    `http://localhost/api/invoices/${poisoned.id}`,
+    { headers },
+  );
+  expect(read.status).toBe(200);
+  const detail = (await read.json()) as { contact: unknown };
+  expect(detail.contact).toBeNull();
+
+  // The send: refused for want of a customer, not delivered to a stranger.
+  const sent = await app.request(
+    `http://localhost/api/invoices/${poisoned.id}/send`,
+    { method: "POST", headers },
+  );
+  expect(sent.status).toBe(400);
+
+  // Sending mints the customer's portal token first; the stranger must not
+  // have been touched at all.
+  const [after] = await db
+    .select({ portalToken: schema.contacts.portalToken })
+    .from(schema.contacts)
+    .where(eq(schema.contacts.id, stranger.id));
+  expect(after?.portalToken ?? null).toBeNull();
+
+  await db.delete(schema.invoices).where(eq(schema.invoices.id, poisoned.id));
+  await db.delete(schema.contacts).where(eq(schema.contacts.id, stranger.id));
+});
+
+test("a billable item can never name another organization's tax rate", async () => {
+  const [foreignRate] = await db
+    .insert(schema.taxDefinitions)
+    .values({
+      organizationId: `intruder-target-${suffix}`,
+      name: "Their VAT",
+      rateBp: 2000,
+    })
+    .returning();
+  if (!foreignRate) throw new Error("could not create the foreign rate");
+
+  const made = await app.request("http://localhost/api/invoicing/items", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      name: "Mispriced widget",
+      unitPriceCents: 100,
+      taxDefinitionId: foreignRate.id,
+    }),
+  });
+  expect(made.status).toBe(404);
+
+  await db
+    .delete(schema.taxDefinitions)
+    .where(eq(schema.taxDefinitions.id, foreignRate.id));
+});
