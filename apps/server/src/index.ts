@@ -8,6 +8,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { db, schema } from "@sentrello/db";
+import { instanceCredit } from "@sentrello/db/credit";
 import { PeriodClosedError } from "@sentrello/db/ledger";
 import { runModuleMigrations } from "@sentrello/db/module-migrations";
 import {
@@ -636,8 +637,19 @@ app.post(
  * instance with no mail set up would tell the only administrator to check an
  * inbox nothing will arrive in, so the page has to know in advance to offer
  * the host command instead.
+ *
+ * And the credit at the foot of the page. The sign-in screen is a page a
+ * visitor sees, so it carries the same line every other public page does —
+ * Sentrello's on Free, the business's own or none on Pro. `instanceCredit`
+ * fails safe to ours, so nothing going wrong here can take the branding off
+ * a Free instance's front door.
  */
-app.get("/api/_signin", (c) => c.json({ mailConfigured: mailConfigured() }));
+app.get("/api/_signin", async (c) =>
+  c.json({
+    mailConfigured: mailConfigured(),
+    credit: await instanceCredit(gate({ tier: "pro" })),
+  }),
+);
 
 /**
  * Where to get the source of the thing you are talking to.
