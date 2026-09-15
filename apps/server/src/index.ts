@@ -35,7 +35,11 @@ import { Hono } from "hono";
 import { resolveLicense } from "./license";
 import { loadModules } from "./loader";
 import { serveModuleUi } from "./module-ui";
-import { discoverOptionalModules, failedBundles } from "./optional-modules";
+import {
+  discoverOptionalModules,
+  failedBundles,
+  missingEntitledBundles,
+} from "./optional-modules";
 import { serveWeb } from "./static";
 
 const app = new Hono<SentrelloEnv>();
@@ -159,6 +163,27 @@ const { nav, navVisibility, navPermissions, tiers, loaded, jobs, unmet } =
  * module anything could depend on.
  */
 for (const failure of unmet) {
+  failedBundles.push(failure);
+  console.error(`[modules] ${failure.name} did not load: ${failure.reason}`);
+}
+
+/**
+ * And the bundles the licence pays for that are not on this machine at all.
+ *
+ * The two failures above are bundles that arrived and went wrong. This is the
+ * quieter one: the installer did not unpack a bundle, or unpacked it
+ * somewhere the host is not looking, and until now absence was read as "not
+ * bought" and said nothing — on an instance whose licence says otherwise.
+ * Since the paid half of Bookkeeping lives in `pro-accounting`, that silence
+ * is a customer's recurring invoices not going out, which is revenue quietly
+ * not happening. Reported the same way as a broken bundle — the log, the
+ * health check, the licence screen, the banner — because from the business's
+ * side it is the same fault.
+ */
+for (const failure of missingEntitledBundles(
+  state,
+  modules.map((m) => m.id),
+)) {
   failedBundles.push(failure);
   console.error(`[modules] ${failure.name} did not load: ${failure.reason}`);
 }
@@ -472,6 +497,22 @@ app.get("/api/_meta", requireSession(), async (c) => {
         .limit(1);
   const belongsHere = Boolean(anyMembership);
 
+  /**
+   * Whether this person is somebody who can act on an instance-level fault.
+   *
+   * The shell shows a banner when a paid module did not start, and it goes to
+   * whoever can open the licence screen it points at. For everyone else it
+   * would be an alarm on every screen, all day, about something they cannot
+   * fix. With no role to check it against, the entry stays — same rule as the
+   * nav above: hiding a fault from somebody entitled to see it is the worse
+   * mistake of the two.
+   */
+  const seesFaults =
+    belongsHere &&
+    (compiled
+      ? compiled.authorize({ settings: ["read"] }).success
+      : !custom || (custom.settings?.includes("read") ?? false));
+
   const visible = (belongsHere ? nav : []).filter((item) => {
     const allowed = navVisibility.get(item.id);
     if (allowed && !allowed(session)) return false;
@@ -504,6 +545,15 @@ app.get("/api/_meta", requireSession(), async (c) => {
 
   return c.json({
     nav: visible,
+    /**
+     * Paid modules that are not running, for the shell to say so where an
+     * administrator actually looks. A licence screen deep in Settings and a
+     * health endpoint nobody reads were how `pro-core` stayed dark for weeks,
+     * twice. Names only — the same names /healthz already publishes to
+     * anybody; the reasons stay behind the settings permission on
+     * /api/license.
+     */
+    failed: seesFaults ? failedBundles.map((f) => f.name) : [],
     loaded,
     /**
      * Whether this person is part of the business running this instance.
@@ -695,6 +745,13 @@ console.log(
     jobsEnabled ? "" : ", jobs=off"
   })`,
 );
+// On the same line of the log everyone reads first, not only in the errors
+// above it: a bundle that is paid for and absent is the headline, not a detail.
+if (failedBundles.length) {
+  console.error(
+    `Sentrello is MISSING PAID MODULES: ${failedBundles.map((f) => f.name).join(", ")} — see /healthz and Settings -> Licence`,
+  );
+}
 export default { port, fetch: app.fetch };
 
 /**

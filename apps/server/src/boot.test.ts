@@ -8,6 +8,7 @@ import { type SentrelloEnv, defineModule } from "@sentrello/module-sdk";
 import { Hono } from "hono";
 import { resolveLicense } from "./license";
 import { loadModules } from "./loader";
+import { failedBundles } from "./optional-modules";
 
 /**
  * A signed-in caller, because `/api/_meta` names the version and every module
@@ -1008,5 +1009,61 @@ test("a path under a published prefix is left alone", async () => {
     expect(other.headers.get("x-robots-tag")).toBe("noindex, nofollow");
   } finally {
     clearCrawlable();
+  }
+});
+
+/**
+ * A paid module that did not start is reported everywhere somebody might be
+ * looking: the health endpoint monitoring watches, and the meta answer the
+ * shell draws its banner from. `pro-core` was dark for weeks, twice, while
+ * only /healthz knew — reported is not the same as noticed, so the fault now
+ * travels to the screen an administrator is actually on.
+ */
+test("a bundle that did not start reaches /healthz and the shell's meta", async () => {
+  process.env.SENTRELLO_LICENSE_PUBLIC_KEY_PATH = "secrets/license_public.pem";
+  process.env.SENTRELLO_LICENSE_TOKEN_PATH = "secrets/does-not-exist.jwt";
+  const server = (await import("./index")).default;
+
+  // The list the boot filled, plus one: the fixture stands in for any of the
+  // three ways a bundle goes missing — import threw, dependency unmet, or
+  // entitled and simply absent — all of which land in this same list.
+  failedBundles.push({ name: "pro-accounting", reason: "it broke, in a test" });
+  const { headers, cleanUp } = await signedIn();
+  try {
+    const health = await server.fetch(new Request("http://localhost/healthz"));
+    const reported = (await health.json()) as { modules_failed: string[] };
+    expect(reported.modules_failed).toContain("pro-accounting");
+
+    const meta = await server.fetch(
+      new Request("http://localhost/api/_meta", { headers }),
+    );
+    const body = (await meta.json()) as { failed: string[] };
+    // Names only — the reason stays behind the settings permission on
+    // /api/license, where the licence screen reads it.
+    expect(body.failed).toContain("pro-accounting");
+    expect(JSON.stringify(body)).not.toContain("it broke, in a test");
+  } finally {
+    failedBundles.splice(
+      failedBundles.findIndex((f) => f.name === "pro-accounting"),
+      1,
+    );
+    await cleanUp();
+  }
+});
+
+/** And a healthy instance's shell hears nothing at all. */
+test("no failures means an empty list in the shell's meta", async () => {
+  process.env.SENTRELLO_LICENSE_PUBLIC_KEY_PATH = "secrets/license_public.pem";
+  process.env.SENTRELLO_LICENSE_TOKEN_PATH = "secrets/does-not-exist.jwt";
+  const server = (await import("./index")).default;
+  const { headers, cleanUp } = await signedIn();
+  try {
+    const meta = await server.fetch(
+      new Request("http://localhost/api/_meta", { headers }),
+    );
+    const body = (await meta.json()) as { failed: string[] };
+    expect(body.failed).toEqual([]);
+  } finally {
+    await cleanUp();
   }
 });

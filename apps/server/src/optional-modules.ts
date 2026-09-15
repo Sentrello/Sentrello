@@ -70,6 +70,57 @@ export function isNotInstalled(name: string, message: string): boolean {
   );
 }
 
+/**
+ * Module ids every valid Pro licence includes, named here because an absent
+ * bundle cannot name itself.
+ *
+ * A bundle that is installed and broken gets reported by the discovery above
+ * — it is there to throw. A bundle that is *not there at all* on an instance
+ * whose licence pays for it used to be indistinguishable from one nobody
+ * bought, which is silence, which is the wrong answer entirely: since the
+ * paid half of Bookkeeping moved into `pro-accounting`, an absent bundle is
+ * not just missing screens — it is recurring invoices silently not going out.
+ * The only thing that can tell the two cases apart is the licence, so the
+ * core has to know, statically, what a Pro licence is supposed to come with.
+ */
+const PRO_TIER_BUNDLES = ["pro-core", "pro-accounting", "pro-projects"];
+
+/**
+ * Bundles the licence pays for that are simply not here.
+ *
+ * `present` is every module discovery found, loaded or not: one that arrived
+ * and then failed — an unmet dependency, a declined host — is already
+ * reported (or deliberately silent) on its own terms, and reporting it twice
+ * would say two things are wrong when one is.
+ *
+ * An invalid or expired licence expects nothing: the instance is Free then,
+ * the settings screen already says why the features went, and a
+ * missing-bundle alarm on top would misdiagnose it.
+ */
+// Known limit: a module a licence grants via another's `includedWith` is not
+// checked — that fact lives in the absent bundle, which cannot speak. Name it
+// here if one ever ships without also appearing in the licence's module list.
+export function missingEntitledBundles(
+  state: {
+    valid: boolean;
+    claims: { tier?: string; modules?: string[] } | null;
+  },
+  present: string[],
+): { name: string; reason: string }[] {
+  const claims = state.valid ? state.claims : null;
+  if (claims?.tier !== "pro") return [];
+
+  const here = new Set(present);
+  const entitled = new Set([...PRO_TIER_BUNDLES, ...(claims.modules ?? [])]);
+  return [...entitled]
+    .filter((id) => !here.has(id))
+    .map((name) => ({
+      name,
+      reason:
+        "the licence includes it, and it is not installed on this instance. Run `sentrello update`.",
+    }));
+}
+
 function isModule(value: unknown): value is SentrelloModule {
   return (
     typeof value === "object" &&
