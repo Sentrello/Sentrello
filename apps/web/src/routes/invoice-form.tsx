@@ -35,6 +35,7 @@ interface TaxDefinition {
   name: string;
   rateBp: number;
   categoryCode: string;
+  compound: boolean;
   isDefault: boolean;
   active: boolean;
 }
@@ -76,7 +77,13 @@ interface LineDraft {
   quantity: string;
   unitPrice: string;
   unit: string;
-  taxDefinitionId: string;
+  /**
+   * Every tax on the line, in charging order.
+   *
+   * A list because Canada needs one: GST beside a provincial PST is two
+   * taxes on the same line. One entry is the ordinary case everywhere else.
+   */
+  taxDefinitionIds: string[];
 }
 
 const blankLine = (unit = "piece"): LineDraft => ({
@@ -87,7 +94,7 @@ const blankLine = (unit = "piece"): LineDraft => ({
   unitPrice: "",
   // Whatever the business sells by first, so the common case needs no press.
   unit,
-  taxDefinitionId: "",
+  taxDefinitionIds: [],
 });
 
 /** "12.50" → 1250. Money is typed in units and stored in cents. */
@@ -198,6 +205,7 @@ export function InvoiceForm({
           unitPriceCents: number;
           unit: string | null;
           taxDefinitionId: string | null;
+          taxes: { taxDefinitionId: string | null }[] | null;
         }[];
       }>(`/api/${asQuote ? "quotes" : "invoices"}/${documentId}`),
   });
@@ -234,7 +242,13 @@ export function InvoiceForm({
               quantity: String(l.quantityMilli / 1000),
               unitPrice: (l.unitPriceCents / 100).toFixed(2),
               unit: l.unit ?? "piece",
-              taxDefinitionId: l.taxDefinitionId ?? "",
+              taxDefinitionIds: l.taxes?.length
+                ? l.taxes
+                    .map((t) => t.taxDefinitionId)
+                    .filter((t): t is string => t !== null)
+                : l.taxDefinitionId
+                  ? [l.taxDefinitionId]
+                  : [],
             }))
           : [blankLine()],
       );
@@ -261,7 +275,7 @@ export function InvoiceForm({
     setDueDate(due.toISOString().slice(0, 10));
   };
 
-  const rateOf = (id: string) => rates.find((r) => r.id === id)?.rateBp ?? 0;
+  const taxFor = (id: string) => rates.find((r) => r.id === id);
 
   /**
    * The running total, from the same function the server uses.
@@ -281,7 +295,12 @@ export function InvoiceForm({
       lines.map((l) => ({
         quantity: toMilli(l.quantity) / 1000,
         unitPrice: toCents(l.unitPrice),
-        taxRateBp: rateOf(l.taxDefinitionId),
+        taxRateBp: 0,
+        taxes: l.taxDefinitionIds.map((id) => ({
+          taxDefinitionId: id,
+          rateBp: taxFor(id)?.rateBp ?? 0,
+          compound: taxFor(id)?.compound ?? false,
+        })),
       })),
       discountType === "percent"
         ? {
@@ -310,7 +329,7 @@ export function InvoiceForm({
       description: item.description?.trim() || item.name,
       unitPrice: (item.unitPriceCents / 100).toFixed(2),
       unit: item.unit,
-      taxDefinitionId: item.taxDefinitionId ?? "",
+      taxDefinitionIds: item.taxDefinitionId ? [item.taxDefinitionId] : [],
     });
   };
 
@@ -353,8 +372,8 @@ export function InvoiceForm({
             quantityMilli: toMilli(l.quantity),
             unitPriceCents: toCents(l.unitPrice),
             unit: l.unit,
-            ...(l.taxDefinitionId
-              ? { taxDefinitionId: l.taxDefinitionId }
+            ...(l.taxDefinitionIds.length
+              ? { taxDefinitionIds: l.taxDefinitionIds }
               : {}),
           })),
       };
@@ -562,20 +581,48 @@ export function InvoiceForm({
                 aria-label={`Line ${i + 1} unit price`}
                 onChange={(e) => setLine(i, { unitPrice: e.target.value })}
               />
-              <Select
-                value={line.taxDefinitionId}
-                aria-label={`Line ${i + 1} tax`}
-                onChange={(e) =>
-                  setLine(i, { taxDefinitionId: e.target.value })
-                }
-              >
-                <option value="">No tax</option>
-                {rates.map((rate) => (
-                  <option key={rate.id} value={rate.id}>
-                    {rate.name}
-                  </option>
+              {/* One select per tax on the line, plus one to add another —
+                  Canada charges GST beside a provincial tax on the same
+                  line. Clearing a select takes that tax off the line. */}
+              <span className="space-y-1">
+                {[...line.taxDefinitionIds, ""].map((chosen, at) => (
+                  <Select
+                    key={`${line.key}-tax-${chosen || "add"}`}
+                    value={chosen}
+                    className="w-full"
+                    aria-label={
+                      chosen
+                        ? `Line ${i + 1} tax ${at + 1}`
+                        : line.taxDefinitionIds.length
+                          ? `Line ${i + 1}: add another tax`
+                          : `Line ${i + 1} tax`
+                    }
+                    onChange={(e) => {
+                      const next = [...line.taxDefinitionIds];
+                      if (e.target.value) next.splice(at, 1, e.target.value);
+                      else next.splice(at, 1);
+                      setLine(i, { taxDefinitionIds: [...new Set(next)] });
+                    }}
+                  >
+                    <option value="">
+                      {chosen || !line.taxDefinitionIds.length
+                        ? "No tax"
+                        : "Add tax…"}
+                    </option>
+                    {rates
+                      .filter(
+                        (rate) =>
+                          rate.id === chosen ||
+                          !line.taxDefinitionIds.includes(rate.id),
+                      )
+                      .map((rate) => (
+                        <option key={rate.id} value={rate.id}>
+                          {rate.name}
+                        </option>
+                      ))}
+                  </Select>
                 ))}
-              </Select>
+              </span>
               <button
                 type="button"
                 className="link-muted"
