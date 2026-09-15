@@ -154,10 +154,13 @@ export default defineModule({
             timezone: org?.timezone ?? "",
             /*
              * What a visitor is told about the software underneath, at the
-             * foot of the thank-you page a form sends them to. Free always
-             * says ours; Pro sets its own, or an empty one to say nothing.
+             * foot of every page they land on — the sign-in screen, a form's
+             * thank-you. Free always says ours. For Pro the stored text is
+             * three-valued and null must survive the round trip: null is
+             * untouched (ours shows), empty is removed, anything else is the
+             * business's own line.
              */
-            creditText: org?.creditText ?? "",
+            creditText: org?.creditText ?? null,
             creditUrl: org?.creditUrl ?? "",
             canSetCredit: ctx.entitled({ tier: "pro" }),
           },
@@ -537,7 +540,20 @@ export default defineModule({
             "payment instructions",
           );
           timezone = text(body.timezone, 60, "timezone");
-          creditText = text(body.creditText, 60, "credit");
+          /*
+           * Not the `text()` helper, which reads an empty string as null.
+           * For the credit those are two different decisions: null is the
+           * setting untouched, so the Sentrello line shows; an empty string
+           * is the business removing the line, and collapsing one into the
+           * other would bring the branding back on a business that took it
+           * off — or take a removal it never made and make it permanent.
+           */
+          if (body.creditText === null || body.creditText === undefined) {
+            creditText = null;
+          } else {
+            creditText = String(body.creditText).trim();
+            if (creditText.length > 60) throw new RangeError("credit");
+          }
           creditUrl = text(body.creditUrl, 200, "credit link");
         } catch (err) {
           if (err instanceof RangeError) {
@@ -608,7 +624,7 @@ export default defineModule({
             taxIdLabel: org?.taxIdLabel ?? "",
             paymentInstructions: org?.paymentInstructions ?? "",
             timezone: org?.timezone ?? "",
-            creditText: org?.creditText ?? "",
+            creditText: org?.creditText ?? null,
             creditUrl: org?.creditUrl ?? "",
             canSetCredit: ctx.entitled({ tier: "pro" }),
           },
