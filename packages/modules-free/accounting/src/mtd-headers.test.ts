@@ -1,5 +1,9 @@
 import { expect, test } from "bun:test";
-import { fraudPreventionHeaders, missingHeaders } from "./mtd-headers";
+import {
+  REQUIRED_HEADERS,
+  fraudPreventionHeaders,
+  missingHeaders,
+} from "./mtd-headers";
 
 /**
  * The four things HMRC's own validator refused, and one it warned about.
@@ -33,7 +37,93 @@ const server = {
 };
 
 test("the header set HMRC accepted is complete", () => {
-  expect(missingHeaders(fraudPreventionHeaders(client, server))).toEqual([]);
+  expect(
+    missingHeaders(fraudPreventionHeaders(client, server), server),
+  ).toEqual([]);
+});
+
+/**
+ * HMRC's page for `WEB_APP_VIA_SERVER` lists sixteen headers and says all of
+ * them must be submitted. This is that list, written out rather than imported,
+ * so the module's own list cannot quietly shrink and still pass.
+ */
+const HMRC_MANDATORY = [
+  "Gov-Client-Connection-Method",
+  "Gov-Client-Browser-JS-User-Agent",
+  "Gov-Client-Device-ID",
+  "Gov-Client-Multi-Factor",
+  "Gov-Client-Public-IP",
+  "Gov-Client-Public-IP-Timestamp",
+  "Gov-Client-Public-Port",
+  "Gov-Client-Screens",
+  "Gov-Client-Timezone",
+  "Gov-Client-User-IDs",
+  "Gov-Client-Window-Size",
+  "Gov-Vendor-Forwarded",
+  "Gov-Vendor-License-IDs",
+  "Gov-Vendor-Product-Name",
+  "Gov-Vendor-Public-IP",
+  "Gov-Vendor-Version",
+];
+
+test("the required list is exactly HMRC's sixteen for WEB_APP_VIA_SERVER", () => {
+  expect([...REQUIRED_HEADERS].sort()).toEqual([...HMRC_MANDATORY].sort());
+});
+
+test("a realistic submission produces every mandatory header", () => {
+  const h = fraudPreventionHeaders(client, server);
+  for (const name of HMRC_MANDATORY) {
+    expect(h[name], name).toBeTruthy();
+  }
+});
+
+/**
+ * Losing any one header is caught, whichever one it is.
+ *
+ * Parameterised over the whole required list so a header added to the list
+ * later is covered the day it is added, not when somebody remembers.
+ */
+for (const name of REQUIRED_HEADERS) {
+  test(`a submission without ${name} is refused`, () => {
+    const h = fraudPreventionHeaders(client, server);
+    delete h[name];
+    expect(missingHeaders(h, server)).toEqual([name]);
+  });
+}
+
+/**
+ * The two absences HMRC's guidance accepts — and only when they are true.
+ *
+ * A password-only sign-in has no second factor to report, and a proxy does
+ * not forward the caller's source port. Both facts are read off the server
+ * context: the same absent header with the fact untrue still refuses.
+ */
+test("no second factor excuses Gov-Client-Multi-Factor, honestly", () => {
+  const none = { ...server, multiFactor: undefined };
+  const h = fraudPreventionHeaders(client, none);
+  expect(h["Gov-Client-Multi-Factor"]).toBeUndefined();
+  expect(missingHeaders(h, none)).toEqual([]);
+});
+
+test("a proxied connection excuses the port; a direct one does not", () => {
+  const proxied = { ...server, clientPort: undefined, proxied: true };
+  expect(
+    missingHeaders(fraudPreventionHeaders(client, proxied), proxied),
+  ).toEqual([]);
+
+  const direct = { ...server, clientPort: undefined, proxied: false };
+  expect(
+    missingHeaders(fraudPreventionHeaders(client, direct), direct),
+  ).toEqual(["Gov-Client-Public-Port"]);
+});
+
+/** No vendor address is a refusal naming the setting, not a silent gap. */
+test("an instance without SENTRELLO_PUBLIC_IP cannot submit", () => {
+  const bare = { ...server, vendorIp: undefined };
+  expect(missingHeaders(fraudPreventionHeaders(client, bare), bare)).toEqual([
+    "Gov-Vendor-Forwarded",
+    "Gov-Vendor-Public-IP",
+  ]);
 });
 
 /** "Value must not be percent encoded" — the one header that is the exception. */
@@ -83,7 +173,7 @@ test("a browser that supplied nothing produces gaps, not inventions", () => {
   const h = fraudPreventionHeaders({}, server);
   expect(h["Gov-Client-Screens"]).toBeUndefined();
   expect(h["Gov-Client-Timezone"]).toBeUndefined();
-  expect(missingHeaders(h).length).toBeGreaterThan(0);
+  expect(missingHeaders(h, server).length).toBeGreaterThan(0);
   // And what is knowable server-side is still there.
   expect(h["Gov-Client-Public-IP"]).toBe(server.clientIp);
 });

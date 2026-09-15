@@ -328,6 +328,25 @@ An instance reached directly, with no proxy at all, must not be reading a
 forwarded header — anyone talking to it could set one and pick their own
 address.
 
+### The server's own public address
+
+UK VAT filing needs one more piece of network truth: the public IP address of
+the server itself. HMRC requires it on every submission, and a machine behind
+NAT or a CDN cannot discover it — every self-guess would be somebody else's
+address — so it is a setting:
+
+```sh
+# This server's public IP address, as the internet sees it. Required for
+# filing UK VAT returns; everything else works without it.
+SENTRELLO_PUBLIC_IP=
+```
+
+Leaving it unset is safe: a VAT submission is refused with an error naming
+this setting rather than sent with an invented address. `curl -4
+https://icanhazip.com` from the server, or the A record of your domain when
+no CDN sits in front, is the value to use — and it needs updating if the
+server's address ever changes.
+
 ---
 
 ## Email
