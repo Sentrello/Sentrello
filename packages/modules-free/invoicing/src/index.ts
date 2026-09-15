@@ -5,6 +5,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { db, schema } from "@sentrello/db";
+import { creditFor } from "@sentrello/db/credit";
 import { RATE_SCALE, rateOn, toBaseCents } from "@sentrello/db/currency";
 import {
   convertQuoteToInstalments,
@@ -1459,6 +1460,10 @@ export default defineModule({
           payPath: ctx.entitled({ tier: "pro" })
             ? `/portal/${supplied}/pay`
             : undefined,
+          credit: await creditFor(
+            contact.organizationId,
+            ctx.entitled({ tier: "pro" }),
+          ),
           invoices: rows.map((invoice) => ({
             ...invoice,
             paidCents: paid

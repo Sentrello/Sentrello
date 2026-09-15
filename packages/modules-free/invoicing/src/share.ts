@@ -1,4 +1,10 @@
 import { and, asc, db, eq, schema, sql } from "@sentrello/db";
+import {
+  type Credit,
+  SENTRELLO_CREDIT,
+  creditFooter,
+  creditFor,
+} from "@sentrello/db/credit";
 import { earlyPaymentTerms } from "@sentrello/db/money";
 import { businessIdentity } from "@sentrello/db/portal";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
@@ -65,6 +71,8 @@ th:last-child,td:last-child,.num{text-align:right;font-variant-numeric:tabular-n
 .head{display:flex;justify-content:space-between;gap:1.5rem;flex-wrap:wrap;align-items:flex-start}
 .pill{display:inline-block;padding:.15rem .55rem;border-radius:999px;font-size:.8rem;border:1px solid currentColor}
 footer{margin-top:3rem;font-size:.85rem;opacity:.7}
+.credit{margin-top:1.5rem;font-size:.8rem;opacity:.7}
+.credit a{color:inherit}
 h1,.accent{color:var(--accent,inherit)}
 .logo{max-height:4rem;max-width:14rem;margin-bottom:.75rem}
 .note{margin-top:1rem;white-space:pre-line}
@@ -215,6 +223,11 @@ function documentPage(args: {
     taxId: string | null;
     taxIdLabel: string | null;
   };
+  /**
+   * Whose name is at the very foot. Defaults to ours so a caller that never
+   * asked still shows the branding — absence of an answer is not removal.
+   */
+  credit?: Credit | null;
   customer: string | null;
   template: Template | null;
 }): string {
@@ -383,6 +396,7 @@ ${brand.footer}
       : ""
   }
 </footer>
+${creditFooter(args.credit === undefined ? SENTRELLO_CREDIT : args.credit)}
 </body></html>`;
 }
 
@@ -551,6 +565,10 @@ export function registerShare(ctx: ModuleContext) {
             taxIdLabel: business.taxIdLabel ?? null,
           },
           customer,
+          credit: await creditFor(
+            row.organizationId,
+            ctx.entitled({ tier: "pro" }),
+          ),
           template: await templateFor(
             row.organizationId,
             (row as { templateId?: string | null }).templateId ?? null,

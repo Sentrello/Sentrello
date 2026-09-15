@@ -265,3 +265,27 @@ test("the seller's details cannot inject markup", () => {
   expect(html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
   expect(html).toContain("&lt;img src=x onerror=alert(1)&gt;");
 });
+
+test("a caller that never mentions the credit still shows the branding", () => {
+  // The fail-safe is structural: absence of an answer is not removal.
+  const html = portalPage({
+    businessName: "Northfield Joinery",
+    customerName: "Marguerite",
+    invoices: [invoice()],
+    now,
+  });
+  expect(html).toContain("Powered by Sentrello");
+  expect(html).toContain('href="https://sentrello.com"');
+});
+
+test("a removed credit takes the line off the page, and only the line", () => {
+  const html = portalPage({
+    businessName: "Northfield Joinery",
+    customerName: "Marguerite",
+    invoices: [invoice()],
+    credit: null,
+    now,
+  });
+  expect(html).not.toContain('<p class="credit">');
+  expect(html).toContain("Northfield Joinery");
+});

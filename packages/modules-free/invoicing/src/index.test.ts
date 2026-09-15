@@ -3726,3 +3726,57 @@ test("a billable item can never name another organization's tax rate", async () 
     .delete(schema.taxDefinitions)
     .where(eq(schema.taxDefinitions.id, foreignRate.id));
 });
+
+/**
+ * The credit at the foot of the pages a customer opens.
+ *
+ * The shared invoice and the customer portal are the pages a stranger
+ * actually sees — the business's own customer, opening a bill — so they carry
+ * the same line every other public page does. This suite runs entitled, so
+ * what is pinned here is the Pro half: untouched still shows ours, a
+ * replacement is the business's own, and an empty text removes it.
+ */
+test("the shared page and the portal carry the credit, and Pro controls it", async () => {
+  const { url } = await sharedInvoice();
+  const minted = await app.request(
+    `http://localhost/api/contacts/${contactId}/portal-link`,
+    { method: "POST", headers },
+  );
+  const portalPath = new URL(((await minted.json()) as { url: string }).url)
+    .pathname;
+
+  const setCredit = (text: string | null, link: string | null = null) =>
+    db
+      .update(schema.organizations)
+      .set({ creditText: text, creditUrl: link })
+      .where(eq(schema.organizations.id, orgId));
+  const sharePath = new URL(url, "http://localhost").pathname;
+  const page = async (path: string) =>
+    await (await app.request(`http://localhost${path}`)).text();
+
+  try {
+    // Untouched: a paying business that has said nothing still shows ours.
+    let share = await page(sharePath);
+    let portal = await page(portalPath);
+    expect(share).toContain("Powered by Sentrello");
+    expect(portal).toContain("Powered by Sentrello");
+
+    // Replaced: the business's line, never ours beside it.
+    await setCredit("Built by Pike & Co", "https://pike.example");
+    share = await page(sharePath);
+    portal = await page(portalPath);
+    for (const html of [share, portal]) {
+      expect(html).toContain("Built by Pike &amp; Co");
+      expect(html).toContain('href="https://pike.example"');
+      expect(html).not.toContain("Powered by Sentrello");
+    }
+
+    // Removed: no line at all.
+    await setCredit("");
+    expect(await page(sharePath)).not.toContain('<p class="credit">');
+    expect(await page(portalPath)).not.toContain('<p class="credit">');
+  } finally {
+    // Back to untouched, so no later test inherits this one's choice.
+    await setCredit(null);
+  }
+});
