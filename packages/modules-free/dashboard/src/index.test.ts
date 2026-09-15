@@ -3,7 +3,9 @@ import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, schema } from "@sentrello/db";
 import {
+  addOnboarding,
   addSummary,
+  clearOnboarding,
   clearSummaries,
   registerForTest,
 } from "@sentrello/module-sdk";
@@ -20,6 +22,11 @@ let orgId: string;
 const suffix = crypto.randomUUID().slice(0, 8);
 
 beforeAll(async () => {
+  // The guide registry is shared across every test file in the process, and
+  // the ad is gated on it being finished. Guides another module's tests left
+  // behind would hide the ad here for reasons this file never registered.
+  clearOnboarding();
+
   const signUp = await signUpAsOwner({
     email: `dash-${suffix}@x.test`,
     password: "correct-horse-battery-staple",
@@ -173,23 +180,7 @@ test("a follow-up that was due yesterday needs attention", async () => {
  * Showing it to somebody who has already paid is worse than a wasted panel: it
  * makes the purchase feel unfinished, on the screen they open every morning.
  */
-/**
- * Put this business's start date far enough back to be sold to.
- *
- * Nothing is offered for the first sixty days, so a test that wants to see an
- * advertisement has to be about a business that has been here a while. Ageing
- * the row is the honest way to do it: the rule reads the organization's own
- * creation date, and so does this.
- */
-async function beenHereAWhile(days = 90): Promise<void> {
-  await db
-    .update(schema.organizations)
-    .set({ createdAt: new Date(Date.now() - days * 86_400_000) })
-    .where(eq(schema.organizations.id, orgId));
-}
-
 test("Pro is not sold to, Free is", async () => {
-  await beenHereAWhile();
   const pro = (await (await get()).json()) as {
     tier: string;
     ad: unknown;
@@ -411,7 +402,6 @@ test("a part payment comes off what is owed", async () => {
 });
 
 test("the promo copy Foothills publishes is what a Free dashboard shows", async () => {
-  await beenHereAWhile();
   // The wording changes far more often than the product does, so it is a
   // document instances fetch rather than a string in a release. What matters
   // here is that the fetched document actually reaches the panel — and that a
@@ -627,48 +617,41 @@ test("a summary somebody may not read is left out, not refused", async () => {
 });
 
 /**
- * And a business that arrived this morning is not sold to at all.
+ * And a business still setting up is not sold to at all.
  *
- * The rule that matters on the route rather than in the helper: asserting
- * `pastQuietPeriod` is right proves nothing about whether the dashboard asks
- * it. A brand-new instance is exactly the case somebody would forget, because
- * every test fixture creates its organization a moment before it looks.
+ * The promo takes the onboarding checklist's place once there is nothing
+ * left on it — not before. The rule that matters on the route rather than in
+ * a helper: a brand-new instance mid-setup is exactly the case somebody
+ * would forget, because most fixtures arrive with their steps already done.
  */
-test("a business that has just arrived is left alone", async () => {
-  await db
-    .update(schema.organizations)
-    .set({ createdAt: new Date() })
-    .where(eq(schema.organizations.id, orgId));
+test("a business still setting up is not sold to", async () => {
+  addOnboarding({
+    moduleId: "dashboard",
+    id: "test-setup",
+    label: "Getting started",
+    steps: [
+      // A step with no `done` is never shown as done, so this guide keeps
+      // one thing left to do for as long as it is registered.
+      { id: "unfinished", label: "A thing still to do" },
+    ],
+  });
 
-  const fresh = (await (
-    await freeApp.request("http://localhost/api/dashboard", { headers })
-  ).json()) as { tier: string; ad: unknown };
-  expect(fresh.tier).toBe("free");
-  expect(fresh.ad).toBeNull();
+  try {
+    const fresh = (await (
+      await freeApp.request("http://localhost/api/dashboard", { headers })
+    ).json()) as { tier: string; ad: unknown };
+    expect(fresh.tier).toBe("free");
+    expect(fresh.ad).toBeNull();
+  } finally {
+    clearOnboarding();
+  }
 
-  // Fifty-nine days in, still nothing.
-  await db
-    .update(schema.organizations)
-    .set({ createdAt: new Date(Date.now() - 59 * 86_400_000) })
-    .where(eq(schema.organizations.id, orgId));
-  const nearly = (await (
-    await freeApp.request("http://localhost/api/dashboard", { headers })
-  ).json()) as { ad: unknown };
-  expect(nearly.ad).toBeNull();
-
-  // Sixty-one, and the offer is there — and stays there, because it is not a
-  // campaign with an end.
-  await beenHereAWhile(61);
+  // Nothing left to set up, and the offer is there — and stays there,
+  // because it is not a campaign with an end.
   const offered = (await (
     await freeApp.request("http://localhost/api/dashboard", { headers })
   ).json()) as { ad: { kind: string } | null };
   expect(offered.ad?.kind).toBe("text");
-
-  await beenHereAWhile(900);
-  const stillOffered = (await (
-    await freeApp.request("http://localhost/api/dashboard", { headers })
-  ).json()) as { ad: { kind: string } | null };
-  expect(stillOffered.ad?.kind).toBe("text");
 });
 
 /**

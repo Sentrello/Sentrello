@@ -211,8 +211,15 @@ export function Dashboard() {
     <div className="space-y-4">
       {/* Before anything else, and only while there is nothing else. */}
       <StartHere startHere={data.startHere} />
-      <AdSlot ad={data.ad} />
+      {/*
+       * The checklist while there is setting up left to do, and the promo in
+       * its place once there is not: the server only sends `ad` when every
+       * guide is finished, and the card only draws while one is not, so the
+       * two never show together. On Pro `ad` is always null and the card
+       * simply leaves.
+       */}
       <SettingUp />
+      <AdSlot ad={data.ad} />
       <ArrangedDashboard data={data} />
     </div>
   );

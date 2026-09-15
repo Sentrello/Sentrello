@@ -22,7 +22,7 @@ import {
   summaryWidget,
   writeLayout,
 } from "./pro";
-import { pastQuietPeriod, readPromos, refreshPromosIfStale } from "./promos";
+import { readPromos, refreshPromosIfStale } from "./promos";
 
 /**
  * The first screen after signing in.
@@ -45,6 +45,22 @@ interface Attention {
   summary: string;
   detail: string;
   amountCents?: number;
+}
+
+/**
+ * Whether there is anything left to set up, anywhere in the business.
+ *
+ * The same guides the Setting up card draws, resolved the same way, so the
+ * promo appears exactly when the checklist leaves — and reappears as the
+ * checklist does if a module bought later brings new steps, or undoing
+ * something brings one back. Done is derived, never stored, so there is no
+ * second flag here to drift from the card.
+ */
+async function onboardingComplete(organizationId: string): Promise<boolean> {
+  const guides = await Promise.all(
+    allOnboarding().map((guide) => resolveGuide(guide, organizationId)),
+  );
+  return guides.every((guide) => guide.remaining === 0);
 }
 
 export default defineModule({
@@ -81,15 +97,22 @@ export default defineModule({
       name: "promos",
       cron: "17 * * * *",
       /**
-       * And once at startup, because the nightly run is a whole day away from
-       * a brand-new install — a day of the built-in copy on the first screen a
-       * new Free user looks at.
+       * And once at startup, because the next hourly run can still be most of
+       * an hour away from a brand-new install — the built-in copy on the
+       * first screen a new Free user looks at.
        *
-       * The handler only fetches when the cached document is missing or over a
-       * day old, so an instance restarted all afternoon still asks us once.
+       * The handler only fetches when the cached document is missing or
+       * stale, so an instance restarted all afternoon still asks us once.
+       *
+       * Checked per run rather than at registration, because a licence can
+       * arrive or lapse while the process runs: a Pro instance shows no promo
+       * and has no business fetching one either.
        */
       runAtBoot: true,
-      handler: () => refreshPromosIfStale(),
+      handler: async () => {
+        if (ctx.entitled({ tier: "pro" })) return;
+        await refreshPromosIfStale();
+      },
     });
 
     ctx.app.get(
@@ -218,19 +241,6 @@ export default defineModule({
         const pro = ctx.entitled({ tier: "pro" });
 
         /**
-         * When this business started, which is what the quiet period counts
-         * from — not when the process booted, and not when the licence was
-         * issued. Somebody who has been using this for a year does not get
-         * two more quiet months because their server was rebuilt.
-         */
-        const [organization] = await db
-          .select({ createdAt: schema.organizations.createdAt })
-          .from(schema.organizations)
-          .where(eq(schema.organizations.id, orgId))
-          .limit(1);
-        const startedAt = organization?.createdAt ?? null;
-
-        /**
          * Whether this business has started using it yet.
          *
          * A dashboard of zeros with nothing on it to do is what somebody sees
@@ -264,17 +274,23 @@ export default defineModule({
            * feel unfinished.
            */
           /**
-           * Nothing at all for the first two months.
+           * And nothing while the business is still setting up.
            *
-           * A business that claimed its instance this morning has not added a
-           * contact or raised an invoice, and an advertisement would be the
-           * only call to action on the screen — the wrong first impression of
-           * something they have just installed. After that the offer stands
-           * until they take it: this is not a campaign with an end, it is what
-           * Free says about Pro.
+           * Set by James: the promo takes the onboarding checklist's place
+           * once there is nothing left on it — not before. A business still
+           * putting its address in and raising its first invoice should not
+           * find an advertisement as the only other call to action on the
+           * screen. Once setting up is done the offer stands until they take
+           * it: this is not a campaign with an end, it is what Free says
+           * about Pro.
+           *
+           * Asked of the whole organization rather than of this reader: the
+           * checklist a reader sees is filtered by what they may act on, but
+           * a block that appears for one colleague and not another would look
+           * broken rather than polite.
            */
           ad:
-            pro || !pastQuietPeriod(startedAt)
+            pro || !(await onboardingComplete(orgId))
               ? null
               : await (async () => {
                   // The copy is a document Foothills edits centrally; the
