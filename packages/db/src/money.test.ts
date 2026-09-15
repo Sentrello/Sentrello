@@ -1,12 +1,29 @@
 import { expect, test } from "bun:test";
 import {
   MoneyError,
+  bpToPpm,
   documentTotals,
   earlyPaymentTerms,
   invoiceStatus,
   lineTotals,
   parseAmountToCents,
+  percentFromPpm,
 } from "./money";
+
+test("basis points convert to millionths without loss", () => {
+  expect(bpToPpm(875)).toBe(87_500);
+  expect(bpToPpm(0)).toBe(0);
+  expect(bpToPpm(10_000)).toBe(1_000_000);
+});
+
+test("a millionths rate prints as an exact percentage", () => {
+  expect(percentFromPpm(99_750)).toBe("9.975"); // Quebec's QST
+  expect(percentFromPpm(88_750)).toBe("8.875"); // New York City
+  expect(percentFromPpm(200_000)).toBe("20.00"); // and coarse rates as ever
+  expect(percentFromPpm(50_000)).toBe("5.00");
+  expect(percentFromPpm(0)).toBe("0.00");
+  expect(percentFromPpm(21)).toBe("0.0021"); // all four places when needed
+});
 
 test("lineTotals sums integer cents with per-line tax", () => {
   const t = lineTotals([
@@ -395,26 +412,71 @@ test("a Canadian line carries GST and PST as two taxes, to the cent", () => {
   expect(pst?.taxCents).toBe(700);
 });
 
-test("a Quebec line carries GST and QST and lands on whole cents", () => {
-  // QST ships as 998 basis points — the closest whole-basis-point figure to
-  // Revenu Québec's 9.975%.
+test("a Quebec line carries GST and QST at Revenu Québec's exact rate", () => {
+  // QST is 9.975% — 99,750 millionths, a figure basis points cannot say.
   const totals = documentTotals([
     {
       quantity: 1,
       unitPrice: 8_765,
       taxRateBp: 0,
       taxes: [
-        { taxDefinitionId: "gst", name: "GST 5%", rateBp: 500 },
-        { taxDefinitionId: "qst", name: "QST 9.975%", rateBp: 998 },
+        { taxDefinitionId: "gst", name: "GST 5%", ratePpm: 50_000 },
+        { taxDefinitionId: "qst", name: "QST 9.975%", ratePpm: 99_750 },
       ],
     },
   ]);
-  // 87.65 × 5% = 4.3825 → 4.38; 87.65 × 9.98% = 8.747… → 8.75
-  expect(totals.tax).toBe(438 + 875);
-  expect(totals.total).toBe(8_765 + 1_313);
+  // 87.65 × 5% = 4.3825 → 4.38; 87.65 × 9.975% = 8.7430875 → 8.74
+  expect(totals.tax).toBe(438 + 874);
+  expect(totals.total).toBe(8_765 + 1_312);
+  const qst = totals.bands.find((b) => b.taxDefinitionId === "qst");
+  expect(qst?.ratePpm).toBe(99_750);
   for (const band of totals.bands) {
     expect(Number.isInteger(band.taxCents)).toBe(true);
   }
+});
+
+test("a realistic Quebec invoice at exactly 9.975% totals to the cent", () => {
+  // Three ordinary lines, GST 5% + QST 9.975% on each, rounded per line.
+  const taxes = [
+    { taxDefinitionId: "gst", name: "GST 5%", ratePpm: 50_000 },
+    { taxDefinitionId: "qst", name: "QST 9.975%", ratePpm: 99_750 },
+  ];
+  const totals = documentTotals([
+    { quantity: 3, unitPrice: 12_500, taxRateBp: 0, taxes }, // 375.00
+    { quantity: 1.5, unitPrice: 8_000, taxRateBp: 0, taxes }, // 120.00
+    { quantity: 2, unitPrice: 999, taxRateBp: 0, taxes }, // 19.98
+  ]);
+  expect(totals.subtotal).toBe(37_500 + 12_000 + 1_998);
+  // GST per line: 1875 + 600 + 99.9→100. QST per line:
+  // 37500×9.975% = 3740.625 → 3741; 12000×9.975% = 1197; 1998×9.975% = 199.3005 → 199.
+  expect(totals.bands.find((b) => b.taxDefinitionId === "gst")?.taxCents).toBe(
+    1_875 + 600 + 100,
+  );
+  expect(totals.bands.find((b) => b.taxDefinitionId === "qst")?.taxCents).toBe(
+    3_741 + 1_197 + 199,
+  );
+  expect(totals.tax).toBe(2_575 + 5_137);
+  expect(totals.total).toBe(51_498 + 7_712);
+});
+
+test("a basis-point rate totals exactly as its millionths equivalent", () => {
+  // The migration guarantee: rate_ppm is backfilled as rate_bp × 100, so a
+  // document written in basis points must read back to the identical cent.
+  const inBp = documentTotals(
+    [
+      { quantity: 3, unitPrice: 3_333, taxRateBp: 875 },
+      { quantity: 1, unitPrice: 19_999, taxRateBp: 2_000 },
+    ],
+    { type: "percent", value: 500 },
+  );
+  const inPpm = documentTotals(
+    [
+      { quantity: 3, unitPrice: 3_333, taxRatePpm: 87_500 },
+      { quantity: 1, unitPrice: 19_999, taxRatePpm: 200_000 },
+    ],
+    { type: "percent", value: 500 },
+  );
+  expect(inPpm).toEqual(inBp);
 });
 
 test("each tax rounds per line, on the line it was charged on", () => {

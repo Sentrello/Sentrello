@@ -37,6 +37,9 @@ import {
 interface TaxDefinition {
   id: string;
   name: string;
+  /** Millionths — null on rows saved before the finer unit. */
+  ratePpm: number | null;
+  /** Basis points; the exact figure when `ratePpm` is null. */
   rateBp: number;
   categoryCode: string;
   description: string | null;
@@ -61,9 +64,14 @@ interface Category {
   label: string;
 }
 
-/** 875 → "8.75%". Rates are stored in basis points everywhere. */
-function asPercent(rateBp: number): string {
-  return `${(rateBp / 100).toFixed(2).replace(/\.00$/, "")}%`;
+/** 99,750 millionths → "9.975%", in integer arithmetic throughout. */
+function asPercent(tax: { ratePpm: number | null; rateBp: number }): string {
+  const ppm = tax.ratePpm ?? tax.rateBp * 100;
+  const whole = Math.floor(ppm / 10_000);
+  const frac = String(ppm % 10_000)
+    .padStart(4, "0")
+    .replace(/0+$/, "");
+  return frac ? `${whole}.${frac}%` : `${whole}%`;
 }
 
 export function InvoicingSettings() {
@@ -137,9 +145,9 @@ function TaxRates({
         method: "POST",
         body: JSON.stringify({
           name: name.trim(),
-          // Typed as a percentage, stored as basis points: 8.75 → 875.
-          rateBp: Math.round(
-            Number.parseFloat(percent.replace(/,/g, "") || "0") * 100,
+          // Typed as a percentage, stored as millionths: 9.975 → 99750.
+          ratePpm: Math.round(
+            Number.parseFloat(percent.replace(/,/g, "") || "0") * 10_000,
           ),
           categoryCode,
         }),
@@ -189,7 +197,7 @@ function TaxRates({
                   </span>
                 ) : null}
               </td>
-              <td className="whitespace-nowrap">{asPercent(tax.rateBp)}</td>
+              <td className="whitespace-nowrap">{asPercent(tax)}</td>
               <td style={muted}>
                 {categories.find((c) => c.code === tax.categoryCode)?.label ??
                   tax.categoryCode}

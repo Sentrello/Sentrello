@@ -3,6 +3,7 @@ import {
   type Discount,
   type DocumentLine,
   MoneyError,
+  bpToPpm,
   documentTotals,
 } from "@sentrello/db/money";
 
@@ -49,6 +50,9 @@ export interface IncomingLine {
    * caller sends; a line that sends both is read from this list alone.
    */
   taxDefinitionIds?: unknown;
+  /** Millionths — 99,750 is 9.975%. Wins when both rate fields are sent. */
+  taxRatePpm?: unknown;
+  /** @deprecated Basis points, read as `bp × 100`. */
   taxRateBp?: unknown;
   /** Which invoice it came from, when several were merged. */
   sourceNumber?: string | null;
@@ -64,12 +68,14 @@ export interface PreparedDocument {
     unit: string;
     taxDefinitionId: string | null;
     taxRateBp: number;
+    taxRatePpm: number;
     /** Frozen copies of every named rate on the line; null for a bare rate. */
     taxes:
       | {
           taxDefinitionId: string | null;
           name: string;
           rateBp: number;
+          ratePpm: number;
           categoryCode: string;
           compound: boolean;
         }[]
@@ -162,7 +168,13 @@ export async function prepareDocument(
 
   const definitions = new Map<
     string,
-    { name: string; rateBp: number; categoryCode: string; compound: boolean }
+    {
+      name: string;
+      rateBp: number;
+      ratePpm: number | null;
+      categoryCode: string;
+      compound: boolean;
+    }
   >();
   for (const id of wanted) {
     const [found] = await db
@@ -170,6 +182,7 @@ export async function prepareDocument(
         id: schema.taxDefinitions.id,
         name: schema.taxDefinitions.name,
         rateBp: schema.taxDefinitions.rateBp,
+        ratePpm: schema.taxDefinitions.ratePpm,
         categoryCode: schema.taxDefinitions.categoryCode,
         compound: schema.taxDefinitions.compound,
       })
@@ -206,20 +219,26 @@ export async function prepareDocument(
     const named = idsOf(line, i).map((id) => {
       const definition = definitions.get(id);
       if (!definition) throw new MoneyError("that tax rate does not exist");
+      // A definition saved before the finer unit has only basis points;
+      // ×100 is the identical rate.
+      const ratePpm = definition.ratePpm ?? bpToPpm(definition.rateBp);
       return {
         taxDefinitionId: id,
         name: definition.name,
-        rateBp: definition.rateBp,
+        rateBp: Math.round(ratePpm / 100),
+        ratePpm,
         categoryCode: definition.categoryCode,
         compound: definition.compound,
       };
     });
     const first = named[0];
-    const taxRateBp = first
-      ? first.rateBp
-      : Number.isInteger(line.taxRateBp)
-        ? (line.taxRateBp as number)
-        : 0;
+    const taxRatePpm = first
+      ? first.ratePpm
+      : Number.isInteger(line.taxRatePpm)
+        ? (line.taxRatePpm as number)
+        : Number.isInteger(line.taxRateBp)
+          ? bpToPpm(line.taxRateBp as number)
+          : 0;
 
     return {
       billableItemId: line.billableItemId ?? null,
@@ -232,7 +251,8 @@ export async function prepareDocument(
       // The first tax also lands in the single-tax columns, so anything still
       // reading them sees a tax rather than none. The list is the truth.
       taxDefinitionId: first?.taxDefinitionId ?? null,
-      taxRateBp,
+      taxRateBp: Math.round(taxRatePpm / 100),
+      taxRatePpm,
       taxes: named.length > 0 ? named : null,
       sortOrder: i,
       sourceNumber: line.sourceNumber ?? null,
@@ -244,7 +264,7 @@ export async function prepareDocument(
       (l): DocumentLine => ({
         quantity: l.quantityMilli / 1000,
         unitPrice: l.unitPriceCents,
-        taxRateBp: l.taxRateBp,
+        taxRatePpm: l.taxRatePpm,
         taxDefinitionId: l.taxDefinitionId,
         taxes: l.taxes,
       }),
@@ -294,6 +314,7 @@ export async function writeTaxBands(
       taxDefinitionId: band.taxDefinitionId,
       name: band.name,
       rateBp: band.rateBp,
+      ratePpm: band.ratePpm,
       categoryCode: band.categoryCode,
       taxableCents: band.taxableCents,
       taxCents: band.taxCents,

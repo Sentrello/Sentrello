@@ -20,6 +20,8 @@
  * the standard.
  */
 
+import { bpToPpm, percentFromPpm } from "@sentrello/db/money";
+
 export interface Party {
   name: string;
   /** Free-text street. BT-35. */
@@ -34,8 +36,10 @@ export interface Party {
 
 /** One tax on a line, as the XML needs to state it. */
 export interface EInvoiceLineTax {
-  /** Basis points. */
-  rateBp: number;
+  /** Millionths — 99,750 is 9.975%. Wins when both fields are present. */
+  ratePpm?: number | null;
+  /** @deprecated Basis points, read as `bp × 100`. */
+  rateBp?: number | null;
   /** EN 16931 category: S, Z, E, AE, AA, G, O… */
   categoryCode: string;
   /** Charged on the net plus the taxes before it. */
@@ -49,7 +53,10 @@ export interface EInvoiceLine {
   unit: string;
   unitPriceCents: number;
   netCents: number;
-  taxRateBp: number;
+  /** Millionths — 99,750 is 9.975%. Wins when both fields are present. */
+  taxRatePpm?: number | null;
+  /** @deprecated Basis points, read as `bp × 100`. */
+  taxRateBp?: number | null;
   /**
    * Every tax on the line, with its category. Absent for older documents,
    * where the bare rate above is all that was recorded — those fall back to
@@ -69,7 +76,10 @@ export interface EInvoiceLine {
  * the totals — BR-CO-14 failing, which is a rejected invoice.
  */
 export interface EInvoiceTaxBand {
-  rateBp: number;
+  /** Millionths — 99,750 is 9.975%. Wins when both fields are present. */
+  ratePpm?: number | null;
+  /** @deprecated Basis points, read as `bp × 100`. */
+  rateBp?: number | null;
   categoryCode: string;
   taxableCents: number;
   taxCents: number;
@@ -149,12 +159,16 @@ export function missingForEInvoice(input: EInvoiceInput): string[] {
  */
 function taxesOn(line: EInvoiceLine): EInvoiceLineTax[] {
   if (line.taxes?.length) return line.taxes;
-  return [
-    {
-      rateBp: line.taxRateBp,
-      categoryCode: line.taxRateBp === 0 ? "Z" : "S",
-    },
-  ];
+  const ratePpm = resolvePpm(line.taxRatePpm, line.taxRateBp);
+  return [{ ratePpm, categoryCode: ratePpm === 0 ? "Z" : "S" }];
+}
+
+/** Millionths when stated; a rate frozen in basis points read as ×100. */
+function resolvePpm(
+  ppm: number | null | undefined,
+  bp: number | null | undefined,
+): number {
+  return ppm ?? bpToPpm(bp ?? 0);
 }
 
 /**
@@ -250,7 +264,7 @@ export function toUbl(input: EInvoiceInput): string {
   const byCategory = new Map<
     string,
     {
-      rateBp: number;
+      ratePpm: number;
       categoryCode: string;
       net: number;
       tax: number;
@@ -258,9 +272,10 @@ export function toUbl(input: EInvoiceInput): string {
     }
   >();
   const add = (band: EInvoiceTaxBand & { taxableCents: number }) => {
-    const key = `${band.categoryCode}|${band.rateBp}`;
+    const ratePpm = resolvePpm(band.ratePpm, band.rateBp);
+    const key = `${band.categoryCode}|${ratePpm}`;
     const at = byCategory.get(key) ?? {
-      rateBp: band.rateBp,
+      ratePpm,
       categoryCode: band.categoryCode,
       net: 0,
       tax: 0,
@@ -278,11 +293,12 @@ export function toUbl(input: EInvoiceInput): string {
     for (const line of input.lines) {
       let stacked = 0;
       for (const tax of taxesOn(line)) {
+        const ratePpm = resolvePpm(tax.ratePpm, tax.rateBp);
         const base = tax.compound ? line.netCents + stacked : line.netCents;
-        const taxCents = Math.round((base * tax.rateBp) / 10_000);
+        const taxCents = Math.round((base * ratePpm) / 1_000_000);
         stacked += taxCents;
         add({
-          rateBp: tax.rateBp,
+          ratePpm,
           categoryCode: tax.categoryCode,
           taxableCents: base,
           taxCents,
@@ -294,7 +310,7 @@ export function toUbl(input: EInvoiceInput): string {
   const subtotals = [...byCategory.values()]
     .sort(
       (a, b) =>
-        a.categoryCode.localeCompare(b.categoryCode) || a.rateBp - b.rateBp,
+        a.categoryCode.localeCompare(b.categoryCode) || a.ratePpm - b.ratePpm,
     )
     .map(
       (band) => `    <cac:TaxSubtotal>
@@ -302,7 +318,7 @@ export function toUbl(input: EInvoiceInput): string {
       <cbc:TaxAmount currencyID="${input.currency}">${amount(band.tax)}</cbc:TaxAmount>
       <cac:TaxCategory>
         <cbc:ID>${esc(band.categoryCode)}</cbc:ID>
-        <cbc:Percent>${(band.rateBp / 100).toFixed(2)}</cbc:Percent>
+        <cbc:Percent>${percentFromPpm(band.ratePpm)}</cbc:Percent>
 ${
   /*
    * Exempt, reverse-charge and out-of-scope categories must say why no tax
@@ -332,7 +348,7 @@ ${taxesOn(line)
   .map(
     (tax) => `      <cac:ClassifiedTaxCategory>
         <cbc:ID>${esc(tax.categoryCode)}</cbc:ID>
-        <cbc:Percent>${(tax.rateBp / 100).toFixed(2)}</cbc:Percent>
+        <cbc:Percent>${percentFromPpm(resolvePpm(tax.ratePpm, tax.rateBp))}</cbc:Percent>
         <cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme>
       </cac:ClassifiedTaxCategory>`,
   )

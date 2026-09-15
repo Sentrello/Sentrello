@@ -252,3 +252,34 @@ test("stored tax bands govern the breakdown when they are supplied", () => {
     '<cbc:TaxAmount currencyID="EUR">228.00</cbc:TaxAmount>',
   );
 });
+
+/**
+ * Rates finer than a basis point reach the XML exactly.
+ *
+ * Quebec's QST is 9.975% — the reason tax rates are stored in millionths at
+ * all. EN 16931 states a percentage as a decimal, so the Percent element must
+ * say 9.975, not the 9.98 the old unit forced.
+ */
+test("a rate finer than a basis point is serialised exactly", () => {
+  const input = complete();
+  input.lines = [
+    {
+      description: "Consulting",
+      quantityMilli: 1000,
+      unit: "EA",
+      unitPriceCents: 8_765,
+      netCents: 8_765,
+      taxRatePpm: 99_750,
+    },
+  ];
+  // 87.65 × 9.975% = 8.7430875 → 8.74, rounded on the line.
+  input.subtotalCents = 8_765;
+  input.taxCents = 874;
+  input.totalCents = 9_639;
+  input.dueCents = 9_639;
+  const xml = toUbl(input);
+  expect(xml).toContain("<cbc:Percent>9.975</cbc:Percent>");
+  expect(xml).toContain('<cbc:TaxAmount currencyID="EUR">8.74</cbc:TaxAmount>');
+  // And a coarse rate still reads the way it always has.
+  expect(toUbl(complete())).toContain("<cbc:Percent>22.00</cbc:Percent>");
+});

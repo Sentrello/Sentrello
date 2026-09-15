@@ -243,7 +243,8 @@ and a missing or expired token degrades to Free rather than breaking.
 | Deploy | Docker Compose, multi-arch |
 
 Two rules the codebase does not bend on: **money is integer cents**, never
-floating point, with tax rates in basis points; and **bookkeeping is
+floating point, with tax rates in integer millionths (Quebec's 9.975% QST is
+exactly `99750`); and **bookkeeping is
 double-entry**, so every financial event posts a balanced journal entry or
 throws, and every report is computed from the ledger rather than summed from the
 invoice table.

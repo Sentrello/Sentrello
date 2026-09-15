@@ -41,8 +41,8 @@ export const TAX_CATEGORIES = [
 
 const CATEGORY_CODES = new Set(TAX_CATEGORIES.map((c) => c.code));
 
-/** Enough for any business's list, and a refusal for a runaway loop. */
-const MAX_RATE_BP = 100_00;
+/** 100% in millionths — enough for any tax, and a refusal for a runaway. */
+const MAX_RATE_PPM = 1_000_000;
 
 export class CatalogueError extends Error {}
 
@@ -50,6 +50,7 @@ export class CatalogueError extends Error {}
 export function parseTaxDefinition(body: Record<string, unknown>): {
   name: string;
   rateBp: number;
+  ratePpm: number;
   categoryCode: string;
   description: string | null;
 } {
@@ -57,15 +58,20 @@ export function parseTaxDefinition(body: Record<string, unknown>): {
   if (!name) throw new CatalogueError("a name is required");
   if (name.length > 60) throw new CatalogueError("that name is too long");
 
-  const rateBp = body.rateBp;
-  if (!Number.isInteger(rateBp)) {
-    // Basis points, not a percentage: 8.75% is 875, and accepting 8.75 here
-    // would quietly charge everybody 0.0875%.
+  /**
+   * Millionths, not a percentage: 9.975% is 99,750, and accepting 9.975 here
+   * would quietly charge everybody 0.0009975%. `rateBp` is still honoured at
+   * ×100 for callers that predate the finer unit.
+   */
+  const sent = body.ratePpm !== undefined ? body.ratePpm : body.rateBp;
+  if (!Number.isInteger(sent)) {
     throw new CatalogueError(
-      "the rate must be whole basis points (875 = 8.75%)",
+      "the rate must be whole millionths (99750 = 9.975%)",
     );
   }
-  if ((rateBp as number) < 0 || (rateBp as number) > MAX_RATE_BP) {
+  const ratePpm =
+    body.ratePpm !== undefined ? (sent as number) : (sent as number) * 100;
+  if (ratePpm < 0 || ratePpm > MAX_RATE_PPM) {
     throw new CatalogueError("that rate is not a tax rate");
   }
 
@@ -87,7 +93,7 @@ export function parseTaxDefinition(body: Record<string, unknown>): {
     categoryCode === "AE" ||
     categoryCode === "G" ||
     categoryCode === "O";
-  if (zeroOnly && (rateBp as number) !== 0) {
+  if (zeroOnly && ratePpm !== 0) {
     throw new CatalogueError(
       `a ${categoryCode} rate is charged at nothing; set the rate to 0`,
     );
@@ -95,7 +101,10 @@ export function parseTaxDefinition(body: Record<string, unknown>): {
 
   return {
     name,
-    rateBp: rateBp as number,
+    // Both columns written: millionths are the truth, and the basis-point
+    // column keeps the nearest whole figure for anything still reading it.
+    rateBp: Math.round(ratePpm / 100),
+    ratePpm,
     categoryCode,
     description: String(body.description ?? "").trim() || null,
   };
@@ -273,7 +282,11 @@ export function registerCatalogue(ctx: ModuleContext) {
       >;
 
       const patch: Record<string, unknown> = {};
-      if (body.name !== undefined || body.rateBp !== undefined) {
+      if (
+        body.name !== undefined ||
+        body.ratePpm !== undefined ||
+        body.rateBp !== undefined
+      ) {
         // Re-read the row so a partial edit is validated as a whole: changing
         // only the category on a 20% rate has to be refused the same way.
         const [current] = await db
@@ -293,7 +306,11 @@ export function registerCatalogue(ctx: ModuleContext) {
             patch,
             parseTaxDefinition({
               name: body.name ?? current.name,
-              rateBp: body.rateBp ?? current.rateBp,
+              ratePpm:
+                body.ratePpm ??
+                (body.rateBp !== undefined
+                  ? (body.rateBp as number) * 100
+                  : (current.ratePpm ?? current.rateBp * 100)),
               categoryCode: body.categoryCode ?? current.categoryCode,
               description: body.description ?? current.description,
             }),
