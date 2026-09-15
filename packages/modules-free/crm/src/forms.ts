@@ -5,6 +5,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { and, asc, db, eq, schema, sql } from "@sentrello/db";
+import { creditFor } from "@sentrello/db/credit";
 import { lineTotals } from "@sentrello/db/money";
 import { nextDocumentNumber } from "@sentrello/db/numbering";
 import { emailAdapter } from "@sentrello/email";
@@ -19,14 +20,7 @@ import {
   rateLimit,
 } from "@sentrello/module-sdk";
 import { embedScript } from "./forms-loader";
-import {
-  type Credit,
-  SENTRELLO_CREDIT,
-  html,
-  problemPage,
-  thanksPage,
-  wantsHtml,
-} from "./forms-reply";
+import { html, problemPage, thanksPage, wantsHtml } from "./forms-reply";
 
 /** Per-form limit for public submissions. Generous for humans, hostile to bots. */
 const SUBMIT_LIMIT = 5;
@@ -762,34 +756,6 @@ async function businessName(orgId: string): Promise<string> {
     .where(eq(schema.organizations.id, orgId))
     .limit(1);
   return org?.name ?? "the business";
-}
-
-/**
- * Whose name goes at the foot of the page a visitor lands on.
- *
- * Free always says ours. It is the only place most people will ever see the
- * product named, and it is part of what Free is.
- *
- * Pro is paid for, so it is the business's to set: their own credit, or an
- * empty one, which is the "remove branding" case. Never set at all is the same
- * as removed — a paying business that has said nothing is not asking to
- * advertise us.
- */
-async function creditFor(
-  orgId: string,
-  isPro: boolean,
-): Promise<Credit | null> {
-  if (!isPro) return SENTRELLO_CREDIT;
-  const [org] = await db
-    .select({
-      text: schema.organizations.creditText,
-      url: schema.organizations.creditUrl,
-    })
-    .from(schema.organizations)
-    .where(eq(schema.organizations.id, orgId))
-    .limit(1);
-  const text = (org?.text ?? "").trim();
-  return text ? { text, url: org?.url?.trim() || null } : null;
 }
 
 async function formByKey(key: string) {

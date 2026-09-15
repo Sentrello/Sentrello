@@ -24,7 +24,8 @@
     "./lockout": "./src/lockout.ts",
     "./record-events": "./src/record-events.ts",
     "./timezone": "./src/timezone.ts",
-    "./subscriptions": "./src/subscriptions.ts"
+    "./subscriptions": "./src/subscriptions.ts",
+    "./credit": "./src/credit.ts"
   },
   "scripts": {
     "migrate": "bun run src/migrate.ts"

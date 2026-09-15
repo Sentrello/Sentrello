@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
-import { SENTRELLO_CREDIT, thanksPage } from "./forms-reply";
+import { SENTRELLO_CREDIT } from "@sentrello/db/credit";
+import { thanksPage } from "./forms-reply";
 
 /**
  * What a visitor is told about the software underneath.
