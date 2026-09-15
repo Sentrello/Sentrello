@@ -71,27 +71,22 @@ export function isNotInstalled(name: string, message: string): boolean {
 }
 
 /**
- * Module ids every valid Pro licence includes, named here because an absent
- * bundle cannot name itself.
- *
- * A bundle that is installed and broken gets reported by the discovery above
- * — it is there to throw. A bundle that is *not there at all* on an instance
- * whose licence pays for it used to be indistinguishable from one nobody
- * bought, which is silence, which is the wrong answer entirely: since the
- * paid half of Bookkeeping moved into `pro-accounting`, an absent bundle is
- * not just missing screens — it is recurring invoices silently not going out.
- * The only thing that can tell the two cases apart is the licence, so the
- * core has to know, statically, what a Pro licence is supposed to come with.
- *
- * Only what comes with the tier belongs here. `pro-projects` was on this list
- * and is bought separately, like the Shop — so every Pro instance that had
- * not bought it carried a permanent banner about a module it never owned.
- * What was bought is what the licence's `modules` claim already says.
- */
-const PRO_TIER_BUNDLES = ["pro-core", "pro-accounting"];
-
-/**
  * Bundles the licence pays for that are simply not here.
+ *
+ * The licence says what to expect, in two claims that must stay apart:
+ * `with_tier` is what comes with the tier, `modules` is what was bought.
+ * There used to be a hardcoded list here of what a Pro licence includes,
+ * because an absent bundle cannot name itself — and being a list somebody
+ * had to remember, it went wrong: `pro-projects` is sold separately, was on
+ * the list anyway, and every Pro instance that had not bought it wore a
+ * permanent banner about a module that was never theirs. Now the token
+ * carries the answer and the core reads instead of remembering.
+ *
+ * A token from before the claim existed carries no `with_tier`, and expects
+ * only what it names outright. That errs quiet — an absent tier bundle goes
+ * unreported for the day it takes the daily refresh to fetch a token that
+ * says more — which is the right direction: a false alarm on every screen is
+ * worse than a short silence.
  *
  * `present` is every module discovery found, loaded or not: one that arrived
  * and then failed — an unmet dependency, a declined host — is already
@@ -108,15 +103,21 @@ const PRO_TIER_BUNDLES = ["pro-core", "pro-accounting"];
 export function missingEntitledBundles(
   state: {
     valid: boolean;
-    claims: { tier?: string; modules?: string[] } | null;
+    claims: { tier?: string; modules?: string[]; with_tier?: string[] } | null;
   },
   present: string[],
 ): { name: string; reason: string }[] {
   const claims = state.valid ? state.claims : null;
   if (claims?.tier !== "pro") return [];
 
+  // Shape-checked rather than trusted: a token from a newer control plane
+  // than this core may carry a shape it never imagined, and a surprise here
+  // must degrade to expecting less, never to an alarm or a crash.
+  const withTier = Array.isArray(claims.with_tier)
+    ? claims.with_tier.filter((id) => typeof id === "string")
+    : [];
   const here = new Set(present);
-  const entitled = new Set([...PRO_TIER_BUNDLES, ...(claims.modules ?? [])]);
+  const entitled = new Set([...withTier, ...(claims.modules ?? [])]);
   return [...entitled]
     .filter((id) => !here.has(id))
     .map((name) => ({

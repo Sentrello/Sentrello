@@ -24,6 +24,13 @@ export interface LicenseClaims extends JWTPayload {
   instance_id: string;
   tier: "free" | "pro";
   modules: string[];
+  /**
+   * Bundle ids that come with the tier — included, not bought. Kept apart
+   * from `modules`, which is what the customer purchased: merging them would
+   * make a Pro licence read as though its holder had bought Bookkeeping.
+   * Older tokens do not carry it, and its absence must never raise an alarm.
+   */
+  with_tier?: string[];
   seats: number;
   grace_until: string | null;
 }

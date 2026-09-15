@@ -47,6 +47,20 @@ test("valid pro token verifies + gates correctly", async () => {
   expect(gate({ module: "documents" })).toBe(false);
 });
 
+test("what comes with the tier rides in the token, apart from what was bought", async () => {
+  // Two claims because the difference is real: merging them would make a Pro
+  // licence read as though its holder had bought the tier's own bundles.
+  const token = await mint({
+    tier: "pro",
+    modules: ["shop"],
+    with_tier: ["pro-core", "pro-accounting"],
+  });
+  const state = await verifyLicenseToken(token, pub);
+  expect(state.valid).toBe(true);
+  expect(state.claims?.with_tier).toEqual(["pro-core", "pro-accounting"]);
+  expect(state.claims?.modules).toEqual(["shop"]);
+});
+
 test("expired token downgrades to Free, does not throw", async () => {
   const token = await mint({ tier: "pro", modules: [] }, "-1s");
   const state = await verifyLicenseToken(token, pub);
