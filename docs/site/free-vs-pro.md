@@ -36,6 +36,7 @@ Pro is **per instance, not per person**. Hiring somebody costs nothing.
 | Tax summary, cash flow and multi-currency | — | ● |
 | **Accounts and access** — five policies, four groups, all editable; sessions, sign-in providers, two-factor, event log | ● | ● |
 | **Settings** — business details on every document, third-party connections, one-click update and rollback | ● | ● |
+| Your own credit on public pages — replace or remove "Powered by Sentrello" on the sign-in screen and thank-you pages | — | ● |
 | **Projects** — tasks, boards, milestones and time against work | — | ● |
 | **Optional modules** — Booking, Shop, POS, Subscriptions, Links, Newsletter, Documentation, Storage, SEO | — | available to subscribe |
 | Self-hosted, your database, no per-seat pricing | ● | ● |

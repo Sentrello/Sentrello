@@ -23,6 +23,13 @@ is no second installation and nothing to migrate.
 - **Customer statements** — everything a customer owes over a period, as one
   document to send them, rather than one invoice at a time.
 
+## Your name, not ours
+
+The pages a visitor meets — the sign-in screen, a form's thank-you page —
+carry a "Powered by Sentrello" line on a free instance. Pro makes that line
+yours: replace it with your own credit in **Settings → Business**, or remove
+it entirely. Until you change it, it stays as it is.
+
 ## Accounting
 
 - **Bills** — money you owe, with due dates and payment tracking.
