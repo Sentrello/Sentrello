@@ -2,7 +2,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, schema } from "@sentrello/db";
-import type { SentrelloEnv } from "@sentrello/module-sdk";
+import type { EntitlementNeed, SentrelloEnv } from "@sentrello/module-sdk";
 import { resetRateLimits } from "@sentrello/module-sdk";
 import { and, eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
@@ -80,9 +80,6 @@ afterAll(async () => {
       .delete(schema.invoiceLines)
       .where(inArray(schema.invoiceLines.invoiceId, invoiceIds));
   }
-  await db
-    .delete(schema.recurringProfiles)
-    .where(eq(schema.recurringProfiles.organizationId, orgId));
   for (const [table, column] of [
     [schema.journalEntries, schema.journalEntries.organizationId],
     [schema.payments, schema.payments.organizationId],
@@ -1931,142 +1928,6 @@ test("a statement belongs to one business only", async () => {
     .where(eq(schema.contacts.id, theirs?.id ?? ""));
 });
 
-test("a schedule can be set up, paused and deleted", async () => {
-  const created = await app.request("http://localhost/api/invoices", {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      contactId,
-      currency: "USD",
-      status: "draft",
-      lines: [
-        {
-          description: "Retainer",
-          quantity: 1,
-          unitPrice: 30_000,
-          taxRateBp: 0,
-        },
-      ],
-    }),
-  });
-  const { invoice } = (await created.json()) as { invoice: { id: string } };
-
-  const res = await app.request("http://localhost/api/invoicing/recurring", {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      templateInvoiceId: invoice.id,
-      interval: "monthly",
-      intervalCount: 3,
-      nextRunAt: "2026-09-01",
-      autoSend: true,
-    }),
-  });
-  expect(res.status).toBe(201);
-  const { profile } = (await res.json()) as {
-    profile: { id: string; contactId: string; intervalCount: number };
-  };
-  // The customer comes from the invoice rather than being asked for twice.
-  expect(profile.contactId).toBe(contactId);
-  expect(profile.intervalCount).toBe(3);
-
-  const listed = await app.request("http://localhost/api/invoicing/recurring", {
-    headers,
-  });
-  const { profiles } = (await listed.json()) as {
-    profiles: { id: string; templateNumber: string | null }[];
-  };
-  const mine = profiles.find((p) => p.id === profile.id);
-  expect(mine?.templateNumber).toBeTruthy();
-
-  const paused = await app.request(
-    `http://localhost/api/invoicing/recurring/${profile.id}`,
-    { method: "PATCH", headers, body: JSON.stringify({ active: false }) },
-  );
-  expect(paused.status).toBe(200);
-  expect(
-    ((await paused.json()) as { profile: { active: boolean } }).profile.active,
-  ).toBe(false);
-
-  const deleted = await app.request(
-    `http://localhost/api/invoicing/recurring/${profile.id}`,
-    { method: "DELETE", headers },
-  );
-  expect(deleted.status).toBe(200);
-});
-
-test("a schedule cannot be pointed at another business's invoice", async () => {
-  // Without the check it would copy their prices, their notes and their lines
-  // into a document billed under this business's number.
-  const otherOrg = crypto.randomUUID();
-  const [theirs] = await db
-    .insert(schema.invoices)
-    .values({
-      organizationId: otherOrg,
-      number: "THEIRS-1",
-      status: "draft",
-      subtotalCents: 1_000,
-      taxCents: 0,
-      totalCents: 1_000,
-    })
-    .returning();
-
-  const res = await app.request("http://localhost/api/invoicing/recurring", {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      templateInvoiceId: theirs?.id,
-      interval: "monthly",
-      nextRunAt: "2026-09-01",
-    }),
-  });
-  expect(res.status).toBe(404);
-
-  const rows = await db
-    .select()
-    .from(schema.recurringProfiles)
-    .where(eq(schema.recurringProfiles.templateInvoiceId, theirs?.id ?? ""));
-  expect(rows).toHaveLength(0);
-
-  await db
-    .delete(schema.invoices)
-    .where(eq(schema.invoices.id, theirs?.id ?? ""));
-});
-
-test("somebody else's schedule cannot be changed or deleted", async () => {
-  const [theirs] = await db
-    .insert(schema.recurringProfiles)
-    .values({
-      organizationId: crypto.randomUUID(),
-      contactId: crypto.randomUUID(),
-      interval: "monthly",
-      nextRunAt: new Date(),
-    })
-    .returning();
-
-  const patched = await app.request(
-    `http://localhost/api/invoicing/recurring/${theirs?.id}`,
-    { method: "PATCH", headers, body: JSON.stringify({ active: false }) },
-  );
-  expect(patched.status).toBe(404);
-
-  const deleted = await app.request(
-    `http://localhost/api/invoicing/recurring/${theirs?.id}`,
-    { method: "DELETE", headers },
-  );
-  expect(deleted.status).toBe(404);
-
-  const [still] = await db
-    .select()
-    .from(schema.recurringProfiles)
-    .where(eq(schema.recurringProfiles.id, theirs?.id ?? ""));
-  expect(still?.active).toBe(true);
-
-  await db
-    .delete(schema.recurringProfiles)
-    .where(eq(schema.recurringProfiles.id, theirs?.id ?? ""));
-});
-
 test("a business's own branding reaches the document it sends", async () => {
   const made = await app.request("http://localhost/api/invoicing/templates", {
     method: "POST",
@@ -3251,48 +3112,33 @@ test("a statement of account is Pro, and Free is told the endpoint is not there"
   expect(allowed.status).toBe(200);
 });
 
-test("recurring invoicing is Pro, at the route as well as in the sidebar", async () => {
-  // The screen being absent is not the gate. These four routes are, and a
-  // bookmark from before a licence lapsed goes straight past a hidden nav.
-  const free = new Hono<SentrelloEnv>();
-  const navIds: string[] = [];
-  invoicing.register({
-    app: free,
-    entitled: (need) => !("tier" in need && need.tier === "pro"),
-    registerNav: (nav) => navIds.push(nav.id),
-    registerPermission: () => {},
-    registerSummary: () => {},
-    registerSearch: () => {},
-    registerPersonalData: () => {},
-    registerOnboarding: () => {},
-    registerCrawlable: () => {},
-    provide: () => {},
-    registerJob: () => {},
-  });
-
-  expect(navIds).not.toContain("recurring");
-
-  for (const [method, path] of [
-    ["GET", "/api/invoicing/recurring"],
-    ["POST", "/api/invoicing/recurring"],
-    ["PATCH", "/api/invoicing/recurring/nothing"],
-    ["DELETE", "/api/invoicing/recurring/nothing"],
-  ] as const) {
-    const res = await free.request(`http://localhost${path}`, {
-      method,
-      headers,
-      ...(method === "GET" || method === "DELETE" ? {} : { body: "{}" }),
+test("the recurring door is offered only with a licence", async () => {
+  // The routes live in the paid bundle, behind its own per-request gate; what
+  // remains here is the offer. A sidebar entry on a Free instance would open
+  // onto an endpoint that answers nothing, telling somebody twice they cannot
+  // do the thing.
+  const registerNav = (entitled: (need: EntitlementNeed) => boolean) => {
+    const navIds: string[] = [];
+    invoicing.register({
+      app: new Hono<SentrelloEnv>(),
+      entitled,
+      registerNav: (nav) => navIds.push(nav.id),
+      registerPermission: () => {},
+      registerSummary: () => {},
+      registerSearch: () => {},
+      registerPersonalData: () => {},
+      registerOnboarding: () => {},
+      registerCrawlable: () => {},
+      provide: () => {},
+      registerJob: () => {},
     });
-    expect(`${method} ${res.status}`).toBe(`${method} 404`);
-  }
+    return navIds;
+  };
 
-  // And the same list answers on Pro, so the above is about the licence rather
-  // than about routes that never worked.
-  const allowed = await app.request(
-    "http://localhost/api/invoicing/recurring",
-    { headers },
-  );
-  expect(allowed.status).toBe(200);
+  expect(
+    registerNav((need) => !("tier" in need && need.tier === "pro")),
+  ).not.toContain("recurring");
+  expect(registerNav(() => true)).toContain("recurring");
 });
 
 test("a deal becomes a quote, carrying its customer, name and value", async () => {
