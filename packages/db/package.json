@@ -7,6 +7,7 @@
     "./money": "./src/money.ts",
     "./tax": "./src/tax.ts",
     "./currency": "./src/currency.ts",
+    "./crm": "./src/crm.ts",
     "./ledger": "./src/ledger.ts",
     "./list-query": "./src/list-query.ts",
     "./numbering": "./src/numbering.ts",
