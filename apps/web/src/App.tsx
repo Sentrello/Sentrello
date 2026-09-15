@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { type Meta, api } from "./lib/api";
 import { AppShell } from "./lib/app-shell";
 import { signOut, useSession } from "./lib/auth";
+import { ModuleFailures } from "./lib/module-alerts";
 import { setModuleRelease } from "./lib/module-ui";
 import {
   Breadcrumb,
@@ -488,6 +489,10 @@ export default function App() {
         nav={nav}
         user={session.data?.user ?? { name: null, email: "" }}
       >
+        {/* A paid module that is not running is said here, on every screen,
+            to whoever can fix it — not only on /healthz and the licence
+            screen, which both require somebody to go and look. */}
+        <ModuleFailures names={data?.failed ?? []} />
         <CurrentScreen nav={nav} withScreens={data?.ui ?? []} />
       </AppShell>
     </NavigationProvider>

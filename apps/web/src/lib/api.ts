@@ -58,6 +58,13 @@ export type Meta = {
   modules: { id: string; label: string; enabled: boolean }[];
   /** module ids that shipped screens this instance may serve */
   ui: string[];
+  /**
+   * Paid modules that are not running, for whoever can act on it.
+   *
+   * Sent only to somebody whose role can open the licence screen; empty on a
+   * healthy instance, and on every Free one.
+   */
+  failed?: string[];
   /** What this instance is licensed for, so a screen can offer its Pro half. */
   tier?: "free" | "pro";
   /**
