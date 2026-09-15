@@ -55,7 +55,6 @@ import { registerLists } from "./lists";
 import { registerInvoicingPersonalData } from "./personal-data";
 import { portalPage } from "./portal";
 import { registerShare } from "./share";
-import { registerStatements } from "./statements";
 import { registerInvoiceSearch, registerInvoicingSummary } from "./summary";
 import { registerDocumentTags, tagsFor } from "./tags";
 import { registerTemplates } from "./templates";
@@ -223,7 +222,6 @@ export default defineModule({
     registerDocumentTags(ctx);
     registerShare(ctx);
     registerTemplates(ctx);
-    registerStatements(ctx);
     registerInvoicingSummary(ctx);
 
     ctx.app.post(
