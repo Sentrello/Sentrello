@@ -9,6 +9,7 @@ import {
   Input,
   Loading,
   SecretInput,
+  Select,
   muted,
 } from "../lib/ui";
 
@@ -25,6 +26,18 @@ interface LicenseResponse {
   failedBundles: { name: string; reason: string }[];
 }
 
+/** The editable half of the business card, held and saved as one. */
+interface BusinessDetails {
+  address: string;
+  taxId: string;
+  taxIdLabel: string;
+  paymentInstructions: string;
+  timezone: string;
+  /** Null is untouched, empty is removed, anything else is the business's. */
+  creditText: string | null;
+  creditUrl: string;
+}
+
 interface SettingsResponse {
   business: {
     name: string;
@@ -34,7 +47,11 @@ interface SettingsResponse {
     taxIdLabel: string;
     paymentInstructions: string;
     timezone: string;
-    creditText: string;
+    /**
+     * Three-valued on purpose: null is untouched (the Sentrello line shows),
+     * empty is removed, anything else is the business's own line.
+     */
+    creditText: string | null;
     creditUrl: string;
     /** Free carries ours and cannot change it. */
     canSetCredit: boolean;
@@ -138,7 +155,7 @@ export function Settings() {
   const [name, setName] = useState<string | null>(null);
   // Held together, because they are saved together: partial identity on an
   // invoice is worse than none, since it looks deliberate.
-  const [details, setDetails] = useState<Record<string, string> | null>(null);
+  const [details, setDetails] = useState<BusinessDetails | null>(null);
 
   const settings = useQuery({
     queryKey: ["settings"],
@@ -150,7 +167,7 @@ export function Settings() {
   });
 
   const rename = useMutation({
-    mutationFn: (body: Record<string, string>) =>
+    mutationFn: (body: Record<string, string | null>) =>
       api("/api/settings", { method: "PUT", body: JSON.stringify(body) }),
     onSuccess: () => {
       setName(null);
@@ -174,7 +191,7 @@ export function Settings() {
     creditUrl: data.business.creditUrl,
   };
   const form = details ?? saved;
-  const patch = (change: Record<string, string>) =>
+  const patch = (change: Partial<BusinessDetails>) =>
     setDetails({ ...form, ...change });
   const dirty =
     (name !== null && name !== data.business.name) ||
@@ -274,32 +291,67 @@ export function Settings() {
             nothing is a setting somebody sets and then wonders about.
           */}
           {data.business.canSetCredit ? (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <>
               <Field
-                label="Credit on your thank-you page"
-                hint="Leave it empty for none. Free instances show ours."
+                label="Credit on your public pages"
+                hint="The line at the foot of your sign-in and thank-you pages."
               >
-                <Input
-                  value={form.creditText}
-                  placeholder="Built by Pike & Co"
-                  onChange={(e) => patch({ creditText: e.target.value })}
-                />
+                <Select
+                  value={
+                    form.creditText === null
+                      ? "sentrello"
+                      : form.creditText === ""
+                        ? "none"
+                        : "own"
+                  }
+                  onChange={(e) => {
+                    const mode = e.target.value;
+                    if (mode === "sentrello") {
+                      patch({ creditText: null, creditUrl: "" });
+                    } else if (mode === "none") {
+                      patch({ creditText: "" });
+                    } else {
+                      // Seeded with the business's name so "your own line" is
+                      // never an empty box — an empty line is a removed one.
+                      patch({ creditText: data.business.name });
+                    }
+                  }}
+                >
+                  <option value="sentrello">Powered by Sentrello</option>
+                  <option value="own">Your own line</option>
+                  <option value="none">No line at all</option>
+                </Select>
               </Field>
-              <Field
-                label="Where it links"
-                hint="Optional. Opens in a new tab."
-              >
-                <Input
-                  value={form.creditUrl}
-                  placeholder="https://pike.example"
-                  onChange={(e) => patch({ creditUrl: e.target.value })}
-                />
-              </Field>
-            </div>
+              {form.creditText !== null ? (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field
+                    label="Your line"
+                    hint="Clearing it removes the line entirely."
+                  >
+                    <Input
+                      value={form.creditText}
+                      placeholder="Built by Pike & Co"
+                      onChange={(e) => patch({ creditText: e.target.value })}
+                    />
+                  </Field>
+                  <Field
+                    label="Where it links"
+                    hint="Optional. Opens in a new tab."
+                  >
+                    <Input
+                      value={form.creditUrl ?? ""}
+                      placeholder="https://pike.example"
+                      onChange={(e) => patch({ creditUrl: e.target.value })}
+                    />
+                  </Field>
+                </div>
+              ) : null}
+            </>
           ) : (
             <p className="text-sm" style={muted}>
-              Your thank-you pages carry <strong>Powered by Sentrello</strong>.
-              Pro replaces it with your own, or removes it.
+              Your sign-in and thank-you pages carry{" "}
+              <strong>Powered by Sentrello</strong>. Pro replaces it with your
+              own line, or removes it.
             </p>
           )}
 
