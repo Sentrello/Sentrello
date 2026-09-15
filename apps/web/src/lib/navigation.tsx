@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { setModuleNavigator } from "./module-ui";
 
 /**
  * Where you are, and how you got there.
@@ -206,6 +207,12 @@ export function NavigationProvider({
     },
     [showPath],
   );
+
+  // A module's screen navigates through the same door Core's own screens do,
+  // rather than falling back to the full page load the runtime ships with.
+  useEffect(() => {
+    setModuleNavigator(open);
+  }, [open]);
 
   const go = useCallback(
     (moduleId: string, title: string, intent?: string) => {
