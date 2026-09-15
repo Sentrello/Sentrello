@@ -5,6 +5,7 @@ import {
 } from "@sentrello/auth/hono";
 import { db, schema } from "@sentrello/db";
 import { recordConsent } from "@sentrello/db/consent";
+import { type CRM_SUBJECTS, crmValues } from "@sentrello/db/crm";
 import {
   type ListSpec,
   allConditions,
@@ -36,11 +37,6 @@ import {
 } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { registerAttachments } from "./attachments";
-import {
-  type FieldSubject,
-  coerceCustomValues,
-  customFieldsFor,
-} from "./custom-fields";
 import { registerCrmDashboard } from "./dashboard";
 import { registerForms } from "./forms";
 import { registerCrmHistory } from "./history";
@@ -129,7 +125,9 @@ export function normaliseStatus(body: Record<string, unknown>): void {
  * value that is checked on the way in and not on the way through is a value
  * that arrives by the second route.
  */
-const CUSTOM_SUBJECTS: Partial<Record<keyof typeof tables, FieldSubject>> = {
+const CUSTOM_SUBJECTS: Partial<
+  Record<keyof typeof tables, (typeof CRM_SUBJECTS)[number]>
+> = {
   contacts: "contact",
   companies: "company",
   deals: "deal",
@@ -145,11 +143,7 @@ async function withCustomValues(
   // Absent means "leave what is there" — a form that does not know about
   // custom fields must not wipe them.
   if (!("customValues" in value)) return;
-  value.customValues = coerceCustomValues(
-    await customFieldsFor(orgId),
-    subject,
-    value.customValues,
-  );
+  value.customValues = await crmValues(orgId, subject, value.customValues);
 }
 
 /**
