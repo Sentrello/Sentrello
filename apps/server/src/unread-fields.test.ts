@@ -33,7 +33,12 @@ const IGNORE = ["id", "name", "type", "status", "kind", "label", "value"];
  * invoice" for months — a plausible sentence about a caller that did not exist,
  * which hid the fact that billable hours could not be invoiced at all.
  */
-const WRITTEN_ELSEWHERE: Record<string, string> = {};
+const WRITTEN_ELSEWHERE: Record<string, string> = {
+  // The period lock's control ships in the pro-accounting bundle — its Tax
+  // and currency screen writes this against the Free half's
+  // `/api/accounting/period`. Verified against the bundle's screens.
+  closedThrough: "the pro-accounting bundle's Tax and currency screen",
+};
 
 /**
  * Accepted by a route, reachable from no screen, not yet fixed.

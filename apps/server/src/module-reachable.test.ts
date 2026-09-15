@@ -48,6 +48,12 @@ const CALLED_BY_SOMETHING_ELSE: Record<string, string> = {
   // becoming a second way to write the books. The screens use
   // `/api/transactions`.
   "/api/expenses": "a customer's own scripts, from before the module",
+  // A Free-half route whose control is a paid one: locking the books through
+  // a date sits on the Tax and currency page, which ships in the
+  // pro-accounting bundle — so its caller is real and not in this repository.
+  // Verified against the bundle's screens, which read and write it.
+  "/api/accounting/period":
+    "the pro-accounting bundle's Tax and currency screen",
 };
 
 /**

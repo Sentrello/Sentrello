@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Suspense, lazy, useState } from "react";
+import { useState } from "react";
 import { type Account, type Meta, type ProfitAndLoss, api } from "../lib/api";
+import type { CustomField } from "../lib/crm-settings";
+import { CustomFields } from "../lib/custom-fields";
 import { toCents } from "../lib/money";
 import {
   Button,
@@ -20,37 +22,6 @@ import {
   formatMoney,
   muted,
 } from "../lib/ui";
-
-/**
- * The Pro half, fetched the first time somebody actually opens one of its
- * screens rather than downloaded by every Free instance on first paint.
- *
- * One dynamic import shared by all six wrappers below: the chunk is fetched
- * once, on whichever of them opens first, and every screen after that —
- * including a different one of the six — finds it already resolved and
- * renders straight away. `Loading` only ever shows once, on that first open.
- */
-function proScreen<K extends keyof typeof import("./accounting-pro")>(
-  name: K,
-): () => React.ReactElement | null {
-  const Lazy = lazy(async () => ({
-    default: (await import("./accounting-pro"))[name] as React.ComponentType,
-  }));
-  return function ProScreen() {
-    return (
-      <Suspense fallback={<Loading />}>
-        <Lazy />
-      </Suspense>
-    );
-  };
-}
-
-export const Assets = proScreen("Assets");
-export const Banking = proScreen("Banking");
-export const Bills = proScreen("Bills");
-export const Budgets = proScreen("Budgets");
-export const Reports = proScreen("Reports");
-export const TaxAndCurrency = proScreen("TaxAndCurrency");
 
 /**
  * The books.
@@ -561,6 +532,33 @@ export function Money() {
   const [paidThroughAccountId, setPaidThrough] = useState("");
   const [occurredAt, setOccurredAt] = useState("");
 
+  /**
+   * The business's own fields, where a licence defines them.
+   *
+   * The definitions live behind a route in the paid bundle, so they are only
+   * asked for on a Pro instance — on Free there are no fields and no request.
+   * Only the ones scoped to money in and out appear here; the bill-scoped
+   * ones belong to the bundle's own screens. Defining a field for
+   * "transaction" and never seeing it on the one form that records a
+   * transaction was the gap.
+   */
+  const tier = useQuery({
+    queryKey: ["meta"],
+    queryFn: () => api<Meta>("/api/_meta"),
+  }).data?.tier;
+  const customFields = useQuery({
+    queryKey: ["accounting-custom-fields"],
+    enabled: tier === "pro",
+    queryFn: () =>
+      api<{ customFields: CustomField[] }>("/api/accounting/custom-fields"),
+  });
+  const transactionFields = (customFields.data?.customFields ?? []).filter(
+    (f) => f.appliesTo === "transaction",
+  );
+  const [custom, setCustom] = useState<
+    Record<string, string | number | boolean | null>
+  >({});
+
   const filter = [
     tab ? `kind=${tab}` : "",
     q.trim() ? `q=${encodeURIComponent(q.trim())}` : "",
@@ -602,12 +600,14 @@ export function Money() {
           accountId: accountId || null,
           paidThroughAccountId: paidThroughAccountId || null,
           occurredAt: occurredAt || null,
+          custom,
         }),
       }),
     onSuccess: () => {
       setDescription("");
       setAmount("");
       setOccurredAt("");
+      setCustom({});
       refresh();
     },
   });
@@ -723,6 +723,11 @@ export function Money() {
               onChange={(e) => setOccurredAt(e.target.value)}
             />
           </Field>
+          <CustomFields
+            fields={transactionFields}
+            values={custom}
+            onChange={setCustom}
+          />
           <div className="flex items-end">
             <Button
               onClick={() => add.mutate()}

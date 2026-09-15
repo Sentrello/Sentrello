@@ -75,9 +75,8 @@ export async function pruneAllEvents(): Promise<number> {
       // One business's prune failing must not cost every business ordered
       // after it in that select their nightly run — pg-boss marks the whole
       // job failed and waits for tomorrow, so an unisolated throw here is a
-      // table that quietly never gets pruned again. Same reason
-      // `runRecurringBills` isolates each schedule
-      // (`packages/modules-free/accounting/src/recurring-bills.ts`).
+      // table that quietly never gets pruned again. Same reason the
+      // recurring-bills job isolates each schedule.
       console.error(`[users] could not prune the audit log of ${org.id}`, err);
     }
   }

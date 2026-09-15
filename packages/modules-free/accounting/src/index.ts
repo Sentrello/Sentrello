@@ -24,9 +24,10 @@ import { registerTransactions } from "./transactions";
  * commercial repository, and hangs off the same ledger and the same nav entry
  * so there is one place a customer looks and the licence decides how far it
  * goes. Nothing in this package gates a route behind `entitled({ tier: "pro"
- * })` any more; the two checks below decide what to *offer*, not what to
- * *answer* — the bundle's own `proOnly` middleware is what actually refuses a
- * request, and it is not here to refuse.
+ * })` any more; the one check left below decides what a screen *offers*, not
+ * what the instance *answers* — the bundle's own `proOnly` middleware is what
+ * actually refuses a request, and it is not here to refuse. The paid pages'
+ * nav entries live with the bundle too, beside the screens they open.
  *
  * The permission resource stays `bookkeeping`. It is on every role a business
  * has already saved, and renaming it would lock people out of the module it
@@ -51,11 +52,12 @@ export default defineModule({
     /**
      * Its pages, as pages.
      *
-     * Eight screens behind one entry, four of which only answer on a licensed
-     * instance. As tabs the module had nothing to put in the sidebar's second
-     * level; as pages the rail says what is there, and the Pro half is offered
-     * only where it works — a door onto an endpoint that returns nothing is
-     * worse than no door.
+     * As tabs the module had nothing to put in the sidebar's second level; as
+     * pages the rail says what is there. Only the Free half's pages are here:
+     * the paid half's — bills, banking, budgets, assets, the Pro reports, tax
+     * and currency — are registered by `pro-accounting`, the bundle that also
+     * draws their screens, so on a Free instance the doors are absent along
+     * with the routes behind them.
      */
     for (const page of [
       { id: "accounting-summary", label: "Summary", icon: "gauge" },
@@ -87,32 +89,6 @@ export default defineModule({
       });
     }
 
-    if (ctx.entitled({ tier: "pro" })) {
-      for (const page of [
-        { id: "accounting-bills", label: "Bills", icon: "receipt" },
-        { id: "accounting-banking", label: "Banking", icon: "wallet" },
-        { id: "accounting-budgets", label: "Budgets", icon: "chart" },
-        { id: "accounting-assets", label: "Assets", icon: "boxes" },
-        /**
-         * The four reports that had no page.
-         *
-         * Tax owed, where the money goes, what the business owes, and the
-         * ledger as a file. All built, all gated, all described as done, and
-         * none of them reachable — the tax summary especially, which is what a
-         * return is filed from.
-         */
-        { id: "accounting-reports", label: "Reports", icon: "chart" },
-        { id: "accounting-tax", label: "Tax and currency", icon: "settings" },
-      ].entries()) {
-        ctx.registerNav({
-          ...page[1],
-          order: 30 + (page[0] + 5) / 100,
-          parent: "accounting",
-          group: "Money",
-          requires: { bookkeeping: ["read"] },
-        });
-      }
-    }
     for (const p of ["read", "create", "update", "delete"]) {
       ctx.registerPermission(`bookkeeping:${p}`);
     }
