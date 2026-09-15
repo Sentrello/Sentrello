@@ -3,7 +3,7 @@ import {
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
-import { and, db, eq, schema } from "@sentrello/db";
+import { and, db, eq, inArray, schema } from "@sentrello/db";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import { type EInvoiceInput, missingForEInvoice, toUbl } from "./einvoice";
 
@@ -90,6 +90,53 @@ export function registerEInvoice(ctx: ModuleContext) {
       .where(eq(schema.payments.invoiceId, invoice.id));
     const paidCents = paid.reduce((sum, p) => sum + p.amountCents, 0);
 
+    /**
+     * The frozen tax breakdown, and the categories behind it.
+     *
+     * The bands are what the document was taxed at when it was issued —
+     * discount already apportioned — so the XML's breakdown agrees with the
+     * totals block to the cent. The definitions supply what the bands do not
+     * carry: the wording for an exempt or reverse-charge category, and the
+     * category for an older line that recorded only a definition id.
+     */
+    const bands = await db
+      .select()
+      .from(schema.documentTaxes)
+      .where(
+        and(
+          eq(schema.documentTaxes.organizationId, orgId),
+          eq(schema.documentTaxes.documentType, "invoice"),
+          eq(schema.documentTaxes.documentId, invoice.id),
+        ),
+      );
+    const wanted = [
+      ...new Set(
+        [
+          ...bands.map((band) => band.taxDefinitionId),
+          ...lines.map((line) => line.taxDefinitionId),
+        ].filter((id): id is string => id !== null),
+      ),
+    ];
+    const definitions = new Map(
+      wanted.length
+        ? (
+            await db
+              .select({
+                id: schema.taxDefinitions.id,
+                categoryCode: schema.taxDefinitions.categoryCode,
+                description: schema.taxDefinitions.description,
+              })
+              .from(schema.taxDefinitions)
+              .where(
+                and(
+                  eq(schema.taxDefinitions.organizationId, orgId),
+                  inArray(schema.taxDefinitions.id, wanted),
+                ),
+              )
+          ).map((d) => [d.id, d])
+        : [],
+    );
+
     return {
       number: invoice.number,
       issueDate: invoice.issueDate,
@@ -120,6 +167,33 @@ export function registerEInvoice(ctx: ModuleContext) {
         unitPriceCents: line.unitPriceCents,
         netCents: Math.round((line.quantityMilli * line.unitPriceCents) / 1000),
         taxRateBp: line.taxRateBp,
+        // The line's own frozen taxes where it has them; otherwise the
+        // category from its definition — which is how an exempt or
+        // reverse-charge line recorded before lines carried categories still
+        // reaches the XML as E or AE rather than mislabelled Z.
+        taxes: line.taxes?.length
+          ? line.taxes
+          : line.taxDefinitionId && definitions.has(line.taxDefinitionId)
+            ? [
+                {
+                  rateBp: line.taxRateBp,
+                  categoryCode: (
+                    definitions.get(line.taxDefinitionId) as {
+                      categoryCode: string;
+                    }
+                  ).categoryCode,
+                },
+              ]
+            : null,
+      })),
+      bands: bands.map((band) => ({
+        rateBp: band.rateBp,
+        categoryCode: band.categoryCode,
+        taxableCents: band.taxableCents,
+        taxCents: band.taxCents,
+        exemptionReason: band.taxDefinitionId
+          ? (definitions.get(band.taxDefinitionId)?.description ?? null)
+          : null,
       })),
       subtotalCents: invoice.subtotalCents,
       taxCents: invoice.taxCents,
