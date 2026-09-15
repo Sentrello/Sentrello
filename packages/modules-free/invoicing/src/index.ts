@@ -53,7 +53,6 @@ import { registerLifecycle } from "./lifecycle";
 import { registerLists } from "./lists";
 import { registerInvoicingPersonalData } from "./personal-data";
 import { portalPage } from "./portal";
-import { registerRecurring } from "./recurring";
 import { registerShare } from "./share";
 import { registerStatements } from "./statements";
 import { registerInvoiceSearch, registerInvoicingSummary } from "./summary";
@@ -227,7 +226,6 @@ export default defineModule({
     registerBillingRules(ctx);
     registerLifecycle(ctx);
     registerLists(ctx);
-    registerRecurring(ctx);
     registerConsolidate(ctx);
     registerDocumentTags(ctx);
     registerShare(ctx);

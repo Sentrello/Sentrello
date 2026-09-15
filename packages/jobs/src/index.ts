@@ -2,7 +2,6 @@ import { dbSsl } from "@sentrello/db/ssl";
 import PgBoss from "pg-boss";
 import { refreshLicenseToken } from "./license-refresh";
 import { sendOverdueReminders } from "./overdue";
-import { runRecurringInvoices } from "./recurring";
 import { runReminders } from "./reminders";
 import { sendTelemetry } from "./telemetry";
 
@@ -18,7 +17,6 @@ export function withoutSslMode(url: string): string {
 }
 
 export const QUEUES = {
-  recurringInvoices: "recurring-invoices",
   overdueReminders: "overdue-reminders",
   licenseRefresh: "license-refresh",
   telemetry: "telemetry",
@@ -26,7 +24,6 @@ export const QUEUES = {
 
 /** cron schedules, UTC */
 export const SCHEDULES: Record<string, string> = {
-  [QUEUES.recurringInvoices]: "0 2 * * *",
   [QUEUES.overdueReminders]: "0 8 * * *",
   [QUEUES.licenseRefresh]: "0 3 * * *",
   // Once a day, at an hour nobody is working. It sends nothing at all unless
@@ -137,26 +134,6 @@ export async function startJobs(
 
   const all: ModuleJob[] = [
     {
-      name: QUEUES.recurringInvoices,
-      /**
-       * Pro. Hiding the screen would not be a gate — the job is the feature,
-       * and one that kept raising invoices on a Free instance would be doing
-       * the paid work with the door merely closed.
-       *
-       * Nothing is deleted when a licence lapses: the profiles stay, this
-       * stops, and the day a licence comes back it picks them up again.
-       *
-       * `options.tier` is read once at start-up, which is as live as this
-       * process gets — the licence is resolved at boot and a refreshed token
-       * is not seen until a restart. Same fidelity as the chasing job below;
-       * worth knowing rather than assuming otherwise.
-       */
-      handler: () =>
-        options.tier === "pro"
-          ? runRecurringInvoices(new Date())
-          : Promise.resolve({ issued: 0, sent: 0, ended: 0, skipped: [] }),
-    },
-    {
       name: QUEUES.overdueReminders,
       /**
        * The rule-driven chase, which falls back to the built-in weekly one
@@ -232,7 +209,7 @@ async function forgetOrphanedSchedules(
   }
 }
 
-export { runRecurringInvoices, sendOverdueReminders, refreshLicenseToken };
+export { sendOverdueReminders, refreshLicenseToken };
 export { runReminders, daysPastDue, lateFeeFor, rulesDue } from "./reminders";
 export {
   sendTelemetry,
