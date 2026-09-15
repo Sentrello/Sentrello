@@ -2,7 +2,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, schema } from "@sentrello/db";
-import type { EntitlementNeed, SentrelloEnv } from "@sentrello/module-sdk";
+import type { SentrelloEnv } from "@sentrello/module-sdk";
 import { resetRateLimits } from "@sentrello/module-sdk";
 import { and, eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
@@ -3110,35 +3110,6 @@ test("a statement of account is Pro, and Free is told the endpoint is not there"
     { headers },
   );
   expect(allowed.status).toBe(200);
-});
-
-test("the recurring door is offered only with a licence", async () => {
-  // The routes live in the paid bundle, behind its own per-request gate; what
-  // remains here is the offer. A sidebar entry on a Free instance would open
-  // onto an endpoint that answers nothing, telling somebody twice they cannot
-  // do the thing.
-  const registerNav = (entitled: (need: EntitlementNeed) => boolean) => {
-    const navIds: string[] = [];
-    invoicing.register({
-      app: new Hono<SentrelloEnv>(),
-      entitled,
-      registerNav: (nav) => navIds.push(nav.id),
-      registerPermission: () => {},
-      registerSummary: () => {},
-      registerSearch: () => {},
-      registerPersonalData: () => {},
-      registerOnboarding: () => {},
-      registerCrawlable: () => {},
-      provide: () => {},
-      registerJob: () => {},
-    });
-    return navIds;
-  };
-
-  expect(
-    registerNav((need) => !("tier" in need && need.tier === "pro")),
-  ).not.toContain("recurring");
-  expect(registerNav(() => true)).toContain("recurring");
 });
 
 test("a deal becomes a quote, carrying its customer, name and value", async () => {

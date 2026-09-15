@@ -195,28 +195,13 @@ export default defineModule({
       icon: "file-text",
       requires: { invoicing: ["read"] },
     });
-    if (ctx.entitled({ tier: "pro" })) {
-      /**
-       * Billing the same customer the same thing every month without anybody
-       * remembering to. Pro, and offered only where it works: the routes
-       * behind it answer 404 on a Free instance, and a door in the sidebar
-       * that opens onto that tells somebody twice they cannot do the thing.
-       *
-       * Repeating a document is all this is. Selling a subscription — who is
-       * on which plan, whose trial ends this week, who has given notice — is
-       * the Subscriptions plugin, which bills through this same scheduler
-       * because two things that each believe they own a renewal is how
-       * somebody is charged twice.
-       */
-      ctx.registerNav({
-        id: "recurring",
-        label: "Recurring",
-        order: 20.5,
-        group: "Money",
-        icon: "repeat",
-        requires: { invoicing: ["read"] },
-      });
-    }
+    /*
+     * No "recurring" entry here. Billing the same customer the same thing
+     * every month is the paid half of Invoicing, and its routes, its screen
+     * and the door onto them all live in the `pro-accounting` bundle now — a
+     * nav entry's module is what tells the browser which bundle draws the
+     * screen, so the offer moved with the thing offered.
+     */
     ctx.registerNav({
       id: "invoicing-settings",
       label: "Invoice settings",

@@ -10,18 +10,7 @@ import {
   useNavigation,
 } from "./lib/navigation";
 import { Loading, muted, setFormats } from "./lib/ui";
-import {
-  Accounts,
-  Assets,
-  Banking,
-  Bills,
-  Budgets,
-  Journal,
-  Money,
-  Reports,
-  Summary,
-  TaxAndCurrency,
-} from "./routes/accounting";
+import { Accounts, Journal, Money, Summary } from "./routes/accounting";
 import { Companies, CompanyDetail } from "./routes/companies";
 import { ContactDetail } from "./routes/contact-detail";
 import { Contacts } from "./routes/contacts";
@@ -40,7 +29,6 @@ import { ModuleScreen } from "./routes/module-screen";
 import { Privacy } from "./routes/privacy";
 import { type Profile, ProfileScreen } from "./routes/profile";
 import { Quotes } from "./routes/quotes";
-import { Recurring } from "./routes/recurring";
 import {
   Settings,
   SettingsIntegrations,
@@ -85,24 +73,23 @@ const SCREENS: Record<string, () => React.ReactElement | null> = {
   "invoicing-dashboard": InvoicingDashboard,
   "invoicing-settings": InvoicingSettings,
   quotes: Quotes,
-  recurring: Recurring,
   /**
-   * Accounting, as the pages the sidebar names.
+   * Accounting, as the pages the sidebar names — the Free half's pages.
    *
    * `accounting` itself opens the summary: a parent is not a screen, but an
    * older host that treats it as one should still land somewhere useful.
+   *
+   * The paid half's pages — bills, banking, budgets, assets, the Pro reports,
+   * tax and currency, and recurring invoicing — are deliberately absent: their
+   * screens ship in the `pro-accounting` bundle, so their nav entries fall
+   * through to `ModuleScreen`, which fetches them from the bundle that
+   * registered the entry.
    */
   accounting: Summary,
   "accounting-summary": Summary,
   "accounting-money": Money,
   "accounting-accounts": Accounts,
   "accounting-journal": Journal,
-  "accounting-bills": Bills,
-  "accounting-banking": Banking,
-  "accounting-budgets": Budgets,
-  "accounting-assets": Assets,
-  "accounting-reports": Reports,
-  "accounting-tax": TaxAndCurrency,
   forms: Forms,
   /**
    * Settings, as the pages the sidebar names.
