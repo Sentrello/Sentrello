@@ -71,6 +71,20 @@ test("a Pro licence with its accounting bundle absent says so by name", () => {
   expect(missing[0]?.reason).toContain("sentrello update");
 });
 
+test("a module sold separately is not expected of the bare tier", () => {
+  // `pro-projects` is bought, not part of Pro — and it was on the tier list,
+  // so every Pro instance that had not bought it wore a permanent banner
+  // about a module it never owned.
+  const without = allPresent.filter((id) => id !== "pro-projects");
+  expect(missingEntitledBundles(proClaims(), without)).toEqual([]);
+  // Bought and absent, it is named like any other purchase.
+  expect(
+    missingEntitledBundles(proClaims(["pro-projects"]), without).map(
+      (m) => m.name,
+    ),
+  ).toEqual(["pro-projects"]);
+});
+
 test("a bought optional module that never arrived is a fault too", () => {
   const missing = missingEntitledBundles(proClaims(["shop"]), allPresent);
   expect(missing.map((m) => m.name)).toEqual(["shop"]);
