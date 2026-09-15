@@ -86,6 +86,7 @@ afterAll(async () => {
     [schema.deals, schema.deals.organizationId],
     [schema.companies, schema.companies.organizationId],
     [schema.contacts, schema.contacts.organizationId],
+    [schema.crmSettings, schema.crmSettings.organizationId],
   ] as const) {
     await db.delete(table).where(eq(column, orgId));
   }
@@ -1795,23 +1796,30 @@ test("somebody's history holds their deals and nobody else's", async () => {
 });
 
 test("a business's own fields are stored on the record, and nothing else is", async () => {
-  const settings = await app.request("http://localhost/api/crm/settings", {
-    headers,
-  });
-  const current = (await settings.json()) as Record<string, unknown>;
-
-  const saved = await app.request("http://localhost/api/crm/settings", {
-    method: "PUT",
-    headers,
-    body: JSON.stringify({
-      ...current,
-      customFields: [
-        { label: "Boiler model", type: "text", appliesTo: "contact" },
-        { label: "Units", type: "number", appliesTo: "contact" },
-      ],
-    }),
-  });
-  expect(saved.status).toBe(200);
+  // Defined through the Pro bundle's own route in production. Planted on the
+  // settings row here, because what this file owns is the Free half — the
+  // values-on-records path, which runs against whatever is defined.
+  const defined = [
+    {
+      id: "boiler_model",
+      label: "Boiler model",
+      type: "text" as const,
+      appliesTo: "contact",
+    },
+    {
+      id: "units",
+      label: "Units",
+      type: "number" as const,
+      appliesTo: "contact",
+    },
+  ];
+  await db
+    .insert(schema.crmSettings)
+    .values({ organizationId: orgId, customFields: defined })
+    .onConflictDoUpdate({
+      target: schema.crmSettings.organizationId,
+      set: { customFields: defined },
+    });
 
   const made = await app.request("http://localhost/api/contacts", {
     method: "POST",
@@ -1861,27 +1869,6 @@ test("a business's own fields are stored on the record, and nothing else is", as
   expect(after.contact.customValues).toEqual({ units: 30 });
 });
 
-test("a bad field definition is refused and changes nothing", async () => {
-  const before = (await (
-    await app.request("http://localhost/api/crm/settings", { headers })
-  ).json()) as Record<string, unknown>;
-
-  const res = await app.request("http://localhost/api/crm/settings", {
-    method: "PUT",
-    headers,
-    body: JSON.stringify({
-      ...before,
-      customFields: [{ label: "Access", type: "select", options: [] }],
-    }),
-  });
-  expect(res.status).toBe(400);
-
-  const after = (await (
-    await app.request("http://localhost/api/crm/settings", { headers })
-  ).json()) as Record<string, unknown>;
-  expect(after.customFields).toEqual(before.customFields);
-});
-
 test("custom fields are Pro, and a Free instance keeps the ones it has", async () => {
   // The pipeline is sent back exactly as it stands, which is what the settings
   // screen does and what keeps this test from removing a stage other tests in
@@ -1899,12 +1886,19 @@ test("custom fields are Pro, and a Free instance keeps the ones it has", async (
   const boiler = {
     id: "boiler_model",
     label: "Boiler model",
-    type: "text",
+    type: "text" as const,
     appliesTo: "contact",
   };
 
-  // Defined while entitled, which is the state a lapsed licence leaves behind.
-  expect((await save(app, [boiler])).status).toBe(200);
+  // Defined while entitled — through the Pro bundle's own route in
+  // production — which is the state a lapsed licence leaves behind.
+  await db
+    .insert(schema.crmSettings)
+    .values({ organizationId: orgId, customFields: [boiler] })
+    .onConflictDoUpdate({
+      target: schema.crmSettings.organizationId,
+      set: { customFields: [boiler] },
+    });
 
   const free = new Hono<SentrelloEnv>();
   crm.register({
@@ -1963,6 +1957,23 @@ test("custom fields are Pro, and a Free instance keeps the ones it has", async (
     ((await after.json()) as { customFields: { label: string }[] })
       .customFields,
   ).toEqual([expect.objectContaining({ label: "Boiler model" })]);
+
+  // A licensed instance is refused here too, and pointed at the route that
+  // does write them — the Pro bundle's, which this repository does not
+  // carry. The pipeline route never writes the column, whoever asks.
+  const licensed = await save(app, [
+    boiler,
+    {
+      id: "site_access",
+      label: "Site access",
+      type: "text",
+      appliesTo: "deal",
+    },
+  ]);
+  expect(licensed.status).toBe(403);
+  expect(((await licensed.json()) as { error: string }).error).toContain(
+    "/api/crm/custom-fields",
+  );
 });
 
 /**

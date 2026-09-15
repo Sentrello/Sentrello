@@ -99,11 +99,33 @@ export function CrmSettings() {
   const [newTag, setNewTag] = useState("");
 
   const save = useMutation({
-    mutationFn: (body: Omit<Settings, "usingDefaults">) =>
-      api<Settings>("/api/crm/settings", {
+    mutationFn: async (
+      body: Omit<Settings, "usingDefaults" | "customFields">,
+    ) => {
+      /*
+       * The fields save first, through the route the Pro bundle registers —
+       * defining them is the paid half of the feature, and the settings
+       * route does not write them. First, so a refused definition stops the
+       * whole save while the screen still holds everything typed.
+       */
+      const customFields =
+        fields !== null
+          ? (
+              await api<{ customFields: CustomField[] }>(
+                "/api/crm/custom-fields",
+                {
+                  method: "PUT",
+                  body: JSON.stringify({ customFields: fields }),
+                },
+              )
+            ).customFields
+          : (settings.data?.customFields ?? []);
+      const saved = await api<Settings>("/api/crm/settings", {
         method: "PUT",
         body: JSON.stringify(body),
-      }),
+      });
+      return { ...saved, customFields };
+    },
     onSuccess: (saved) => {
       setStages(null);
       setTypes(null);
@@ -183,7 +205,6 @@ export function CrmSettings() {
     // A stage that has been renamed away cannot still be an outcome.
     wonStages: currentWon.filter((id) => current.some((s) => s.id === id)),
     lostStages: currentLost.filter((id) => current.some((s) => s.id === id)),
-    customFields: fields ?? settings.data.customFields ?? [],
   };
 
   const move = (index: number, by: number) => {

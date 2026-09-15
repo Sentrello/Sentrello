@@ -1,10 +1,18 @@
 import { expect, test } from "bun:test";
+import { CRM_SUBJECTS } from "@sentrello/db/crm";
 import {
   type CustomField,
   coerceCustomValues,
   fieldId,
-  parseCustomFields,
-} from "./custom-fields";
+  parseCustomFields as parse,
+} from "@sentrello/module-sdk";
+
+/**
+ * The rules live in the module SDK; what is the CRM's is its subject list.
+ * Parsing through it here keeps every case below exercising exactly what the
+ * Pro route enforces when a business defines a field.
+ */
+const parseCustomFields = (input: unknown) => parse(input, [...CRM_SUBJECTS]);
 
 /**
  * A custom field is a schema a business writes at runtime, which makes the

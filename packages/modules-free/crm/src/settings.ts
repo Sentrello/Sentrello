@@ -14,8 +14,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { and, db, eq, schema } from "@sentrello/db";
-import type { ModuleContext } from "@sentrello/module-sdk";
-import { type CustomField, parseCustomFields } from "./custom-fields";
+import type { CustomField, ModuleContext } from "@sentrello/module-sdk";
 
 /** What a pipeline looks like before anybody has said otherwise. */
 export const DEFAULT_STAGES = [
@@ -320,7 +319,6 @@ export function registerCrmSettings(ctx: ModuleContext) {
       let companySectors: string[];
       let wonStages: string[];
       let lostStages: string[];
-      let customFields: CustomField[];
       try {
         dealStages = parseStages(body.dealStages);
         taskTypes = parseTaskTypes(body.taskTypes);
@@ -355,41 +353,44 @@ export function registerCrmSettings(ctx: ModuleContext) {
           dealStages,
           "lost stages",
         );
-        // Absent means unchanged rather than none: a settings screen from
-        // before these existed must not delete every field a business added.
-        customFields = parseCustomFields(
-          body.customFields ?? (await currentCustomFields(orgId)),
-        );
-
         /**
-         * Custom fields are Pro, and this is the only route that writes them.
+         * Custom fields are Pro, and their write path is the Pro bundle's
+         * own `PUT /api/crm/custom-fields` — not this route, which carries
+         * the deal stages, statuses, sectors and task types: all free, and
+         * all saved in the same request. Refusing the whole route over one
+         * paid thing would take away six free ones.
          *
-         * Not a `proOnly` middleware, because this endpoint also carries the
-         * deal stages, statuses, sectors and task types — all free, and all
-         * saved in the same request. Refusing the whole route on Free would
-         * take away six things to gate one.
-         *
-         * So it refuses only a request that would actually **change** them. A
-         * Free instance saving its pipeline sends the custom fields back
-         * unaltered along with everything else, and must go through; a Free
-         * instance trying to add one is told why rather than having the write
+         * What stays here is the refusal. A request that would actually
+         * **change** the fields is told so rather than having the write
          * silently dropped, which would read as "I saved it and it did not
-         * save".
+         * save". A screen saving its pipeline sends the fields back
+         * unaltered along with everything else — or not at all — and must
+         * go through either way.
          *
          * Existing definitions are untouched and still returned by the GET
          * above, so a business whose licence lapsed keeps seeing what it
          * recorded. Nothing is deleted and nothing becomes unreadable — the
-         * only thing withheld is defining more.
+         * only thing withheld is defining more, and on a licensed instance
+         * that lives at the route above.
          */
-        if (!ctx.entitled({ tier: "pro" })) {
+        if (body.customFields !== undefined) {
           const stored = await currentCustomFields(orgId);
-          if (sameFields(customFields, stored) === false) {
+          const changed =
+            !Array.isArray(body.customFields) ||
+            !sameFields(body.customFields as CustomField[], stored);
+          if (changed) {
             return c.json(
-              {
-                error:
-                  "Custom fields are part of Pro. What you have already defined is still here and still readable; adding or changing one needs a licence.",
-                field: "customFields",
-              },
+              ctx.entitled({ tier: "pro" })
+                ? {
+                    error:
+                      "Custom fields are saved from their own editor, through /api/crm/custom-fields — not with the pipeline.",
+                    field: "customFields",
+                  }
+                : {
+                    error:
+                      "Custom fields are part of Pro. What you have already defined is still here and still readable; adding or changing one needs a licence.",
+                    field: "customFields",
+                  },
               403,
             );
           }
@@ -431,6 +432,8 @@ export function registerCrmSettings(ctx: ModuleContext) {
         );
       }
 
+      // No `customFields`: this route never writes the column, so the
+      // upsert cannot wipe what the Pro route defined.
       const values = {
         dealStages,
         taskTypes,
@@ -439,7 +442,6 @@ export function registerCrmSettings(ctx: ModuleContext) {
         companySectors,
         wonStages,
         lostStages,
-        customFields,
       };
 
       const [saved] = await db
