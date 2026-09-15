@@ -624,6 +624,21 @@ async function checkLinkedRecords(
     }
     if (value.dealId) links.push([value.dealId, schema.deals, "no such deal"]);
   }
+  if (
+    resource === "notes" &&
+    (value.entityId !== undefined || value.entityType !== undefined)
+  ) {
+    // A note names the record it hangs from with a free pair of fields, and
+    // an unverified pair is a note attached to another organisation's record
+    // — which its detail screen would then show to strangers.
+    const table = {
+      contact: schema.contacts,
+      company: schema.companies,
+      deal: schema.deals,
+    }[String(value.entityType)];
+    if (!table) return "a note attaches to a contact, company or deal";
+    if (!(await owned(table, value.entityId))) return "no such record";
+  }
   if (resource === "deals" && Array.isArray(value.contactIds)) {
     // Filtered rather than refused: a deal being re-saved may still carry the
     // id of a contact deleted since, and losing that one id is right where
