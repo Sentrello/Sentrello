@@ -40,6 +40,24 @@ beforeAll(async () => {
   });
   if (!org) throw new Error("could not create organization");
   orgId = org.id;
+
+  // Two of these tests exercise `organizationFor`'s fallback — the event for
+  // an address with no membership lands on the database's *oldest*
+  // organization. On a shared test database "oldest" is whichever suite got
+  // there first, and another suite deleting its own organization mid-run can
+  // move the answer between an attempt and its assertion. So the fallback's
+  // target is pinned rather than inferred: this suite's organization is
+  // back-dated to the epoch, making it the oldest for the whole run, and any
+  // epoch-dated leftover from a crashed earlier run is swept first so it
+  // cannot win the ordering instead. No real organization carries a 1970
+  // `created_at`.
+  await db.execute(
+    sql`delete from organizations where created_at < '1971-01-01'`,
+  );
+  await db
+    .update(schema.organizations)
+    .set({ createdAt: new Date(0) })
+    .where(eq(schema.organizations.id, orgId));
 });
 
 /**
@@ -63,20 +81,9 @@ afterAll(async () => {
   await db.execute(
     sql`delete from security_events where organization_id = ${orgId}`,
   );
-  // The orphan-account test's event lands on whichever organization happens
-  // to be the database's oldest at that moment — the fallback this suite
-  // exercises picks the oldest organization anywhere, not just this suite's
-  // own — so it is found and removed by the attempted email rather than by
-  // organization id.
-  await db.execute(
-    sql`delete from security_events where detail ->> 'email' = ${orphanEmail}`,
-  );
-  // Same reason as the orphan case above: `lockedStrangerEmail` never becomes
-  // a real account, so its five failures land on the database's oldest
-  // organization at that moment rather than on this suite's own `orgId`.
-  await db.execute(
-    sql`delete from security_events where detail ->> 'email' = ${lockedStrangerEmail}`,
-  );
+  // The orphan and locked-stranger events land on `orgId` too: `beforeAll`
+  // pinned this organization as the database's oldest, so the fallback that
+  // records them resolves here and the delete above already removed them.
   // Deleting the organization cascades the membership rows the 2FA and
   // trust-device tests create, but not the accounts they belong to — those
   // are cleaned up separately below.
@@ -404,15 +411,10 @@ test("a real account with no membership still has its failed attempt recorded", 
     .signInEmail({ body: { email: orphanEmail, password: "not-the-password" } })
     .catch(() => null);
 
-  // Not scoped to this suite's `orgId`: the fallback this test exercises
-  // picks the database's oldest organization, which need not be this one.
-  const rows = await db
-    .select()
-    .from(schema.securityEvents)
-    .where(sql`${schema.securityEvents.action} = 'sign-in.failed'`);
-  const forOrphan = rows.filter(
-    (r) => (r.detail as { email?: string })?.email === orphanEmail,
-  );
+  // The fallback this test exercises picks the database's oldest
+  // organization — which `beforeAll` pinned to be this suite's own, so the
+  // event's destination is asserted, not just its existence.
+  const forOrphan = await eventsFor("sign-in.failed", orphanEmail);
   expect(forOrphan.length).toBeGreaterThan(0);
 });
 
