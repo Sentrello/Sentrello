@@ -11,6 +11,11 @@
  * The `accept` header separates the two callers: a browser navigating a form
  * asks for text/html, `fetch` does not.
  */
+import {
+  type Credit,
+  SENTRELLO_CREDIT,
+  creditFooter,
+} from "@sentrello/db/credit";
 import type { Context } from "hono";
 
 /** True when the caller is a browser following a form post, not a script. */
@@ -37,37 +42,6 @@ export const html = (s: string) =>
         "'": "&#39;",
       })[ch] ?? ch,
   );
-
-/**
- * What a visitor is told about the software underneath, at the foot.
- *
- * A Free instance carries "Powered by Sentrello" on every page a visitor
- * reaches — that is part of what Free is, and it is the only place most people
- * will ever see the name. Pro is paid for: a paying business puts its own
- * credit there, or none at all.
- *
- * Opens in a new tab, because the visitor was in the middle of contacting
- * somebody and the page they are on is the receipt for it.
- */
-export interface Credit {
-  text: string;
-  url: string | null;
-}
-
-/** The credit a Free instance always shows. */
-export const SENTRELLO_CREDIT: Credit = {
-  text: "Powered by Sentrello",
-  url: "https://sentrello.com",
-};
-
-function creditFooter(credit: Credit | null): string {
-  if (!credit || !credit.text.trim()) return "";
-  const label = html(credit.text.trim());
-  const body = credit.url
-    ? `<a href="${html(credit.url)}" target="_blank" rel="noopener noreferrer">${label}</a>`
-    : label;
-  return `<p class="credit">${body}</p>`;
-}
 
 function page(
   title: string,
