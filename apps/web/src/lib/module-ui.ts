@@ -68,6 +68,13 @@ interface SentrelloRuntime {
    * module holding the old one.
    */
   opened: { recordId?: string };
+  /**
+   * Opens another screen in the application's own navigation — a module's row
+   * linking to the invoice it was raised from, say. `NavigationProvider`
+   * installs the real one as it mounts; until then a full page load lands in
+   * the same place the slow way.
+   */
+  open: (view: { moduleId: string; recordId?: string; title: string }) => void;
 }
 
 declare global {
@@ -89,9 +96,23 @@ export function installRuntime(): SentrelloRuntime {
     api,
     screens: {},
     opened: {},
+    open: (view) => {
+      window.location.assign(
+        view.recordId
+          ? `/${view.moduleId}/${encodeURIComponent(view.recordId)}`
+          : `/${view.moduleId}`,
+      );
+    },
   };
   window.__sentrello = runtime;
   return runtime;
+}
+
+/** Hands modules the real navigation once the provider that owns it mounts. */
+export function setModuleNavigator(
+  open: (view: { moduleId: string; recordId?: string; title: string }) => void,
+): void {
+  installRuntime().open = open;
 }
 
 /**

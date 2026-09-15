@@ -836,3 +836,8 @@ export function Tabs({
 }
 
 export { PageActions, PageSubtitle } from "./page-header";
+export {
+  CustomFieldEditor,
+  CustomFields,
+  CustomValues,
+} from "./custom-fields";

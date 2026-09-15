@@ -13,6 +13,22 @@
  */
 import type * as React from "react";
 
+/**
+ * A field a business defined for itself.
+ *
+ * The shape every module's custom fields share: the CRM attaches them to
+ * contacts, companies and deals, Accounting to bills and money in and out.
+ * `appliesTo` stays the module's own vocabulary, so the type does not have to
+ * know every subject in the product.
+ */
+export interface CustomField {
+  id: string;
+  label: string;
+  type: "text" | "number" | "date" | "select" | "checkbox";
+  options?: string[];
+  appliesTo: string;
+}
+
 export interface SentrelloUi {
   Button: React.ComponentType<
     React.ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -93,6 +109,29 @@ export interface SentrelloUi {
     hint?: React.ReactNode;
     size?: "sm" | "md";
   }>;
+  /**
+   * The custom-field trio, shared for the reason its source states: a second
+   * copy would be a second place for a list field to lose its choices. The
+   * form inputs, the values read back on a record, and the settings editor
+   * that defines them.
+   */
+  CustomFields: React.ComponentType<{
+    fields: CustomField[];
+    values: Record<string, string | number | boolean | null>;
+    onChange: (next: Record<string, string | number | boolean | null>) => void;
+  }>;
+  CustomValues: React.ComponentType<{
+    fields: CustomField[];
+    values: Record<string, string | number | boolean | null> | null | undefined;
+  }>;
+  CustomFieldEditor: React.ComponentType<{
+    fields: CustomField[];
+    onChange: (next: CustomField[]) => void;
+    /** What a field can be attached to, in the order they should be offered. */
+    subjects: { value: string; label: string }[];
+    title?: string;
+    hint?: string;
+  }>;
 }
 
 /**
@@ -131,6 +170,9 @@ export const UI_MEMBERS = [
   "PageSubtitle",
   "SectionHeading",
   "StatFigure",
+  "CustomFields",
+  "CustomValues",
+  "CustomFieldEditor",
 ] as const satisfies readonly (keyof SentrelloUi)[];
 
 /** The state one list screen keeps — what `useListState` returns. */
@@ -285,6 +327,13 @@ export interface Runtime {
    * rather than the object itself.
    */
   opened: { recordId?: string };
+  /**
+   * Opens another screen in the host's own navigation — a module's row
+   * linking to the invoice it was raised from, say. Optional because an older
+   * host may not publish it; `makeModuleRuntime` falls back to a full page
+   * load, which lands in the same place the slow way.
+   */
+  open?: (view: { moduleId: string; recordId?: string; title: string }) => void;
 }
 
 /**
@@ -320,6 +369,7 @@ export function makeModuleRuntime(moduleName: string): {
   listUi: SentrelloListUi;
   openedRecord: () => string | undefined;
   registerScreen: (id: string, screen: () => React.ReactElement | null) => void;
+  open: (view: { moduleId: string; recordId?: string; title: string }) => void;
 } {
   const runtime = hostRuntime(moduleName);
   return {
@@ -332,6 +382,18 @@ export function makeModuleRuntime(moduleName: string): {
     /** How a module hands its screen to the host. */
     registerScreen(id, screen) {
       runtime.screens[id] = screen;
+    },
+    /** Opens another screen — a host too old to navigate gets a page load. */
+    open(view) {
+      if (runtime.open) {
+        runtime.open(view);
+        return;
+      }
+      globalThis.location?.assign(
+        view.recordId
+          ? `/${view.moduleId}/${encodeURIComponent(view.recordId)}`
+          : `/${view.moduleId}`,
+      );
     },
   };
 }
