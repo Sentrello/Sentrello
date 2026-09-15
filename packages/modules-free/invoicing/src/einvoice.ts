@@ -32,6 +32,16 @@ export interface Party {
   taxId?: string | null;
 }
 
+/** One tax on a line, as the XML needs to state it. */
+export interface EInvoiceLineTax {
+  /** Basis points. */
+  rateBp: number;
+  /** EN 16931 category: S, Z, E, AE, AA, G, O… */
+  categoryCode: string;
+  /** Charged on the net plus the taxes before it. */
+  compound?: boolean;
+}
+
 export interface EInvoiceLine {
   description: string;
   /** Thousandths, as the invoice stores them. */
@@ -40,6 +50,31 @@ export interface EInvoiceLine {
   unitPriceCents: number;
   netCents: number;
   taxRateBp: number;
+  /**
+   * Every tax on the line, with its category. Absent for older documents,
+   * where the bare rate above is all that was recorded — those fall back to
+   * standard-or-zero, which is the most an uncategorised rate can honestly
+   * claim.
+   */
+  taxes?: EInvoiceLineTax[] | null;
+}
+
+/**
+ * One entry of the document's frozen tax breakdown.
+ *
+ * Passed in from `document_taxes` where the caller has a stored document:
+ * the bands were written when it was issued, after the discount was
+ * apportioned, and they are what the totals block already reflects.
+ * Recomputing from undiscounted line nets makes the breakdown disagree with
+ * the totals — BR-CO-14 failing, which is a rejected invoice.
+ */
+export interface EInvoiceTaxBand {
+  rateBp: number;
+  categoryCode: string;
+  taxableCents: number;
+  taxCents: number;
+  /** Why no tax is charged, for categories E, AE and O. */
+  exemptionReason?: string | null;
 }
 
 export interface EInvoiceInput {
@@ -50,6 +85,8 @@ export interface EInvoiceInput {
   seller: Party;
   buyer: Party;
   lines: EInvoiceLine[];
+  /** The document's frozen tax breakdown, when the caller has one stored. */
+  bands?: EInvoiceTaxBand[] | null;
   subtotalCents: number;
   taxCents: number;
   totalCents: number;
@@ -99,6 +136,50 @@ export function missingForEInvoice(input: EInvoiceInput): string[] {
   }
 
   return missing;
+}
+
+/**
+ * The taxes a line states, however old the line is.
+ *
+ * A line written before categories reached the document carries only a bare
+ * rate; standard-or-zero is the most it can honestly claim. E and AE lines
+ * written since carry their category in `taxes`, which is the whole point —
+ * an exempt line emitted as Z is a mislabelled document, and validators
+ * reject it.
+ */
+function taxesOn(line: EInvoiceLine): EInvoiceLineTax[] {
+  if (line.taxes?.length) return line.taxes;
+  return [
+    {
+      rateBp: line.taxRateBp,
+      categoryCode: line.taxRateBp === 0 ? "Z" : "S",
+    },
+  ];
+}
+
+/**
+ * Why no tax is charged, for the categories that must say so.
+ *
+ * EN 16931 rejects an E, AE or O breakdown without a reason (BR-E-10,
+ * BR-AE-10, BR-O-10). The definition's own wording wins; these are the
+ * fallbacks so an absent description is a generic reason rather than a
+ * rejected invoice.
+ */
+function exemptionReasonFor(
+  categoryCode: string,
+  given: string | null,
+): string | null {
+  if (given) return given;
+  switch (categoryCode) {
+    case "E":
+      return "Exempt from VAT";
+    case "AE":
+      return "Reverse charge";
+    case "O":
+      return "Not subject to VAT";
+    default:
+      return null;
+  }
 }
 
 const esc = (value: string) =>
@@ -153,30 +234,87 @@ export function toUbl(input: EInvoiceInput): string {
   }
 
   /**
-   * Tax grouped by rate, which is what the standard asks for.
+   * Tax grouped by category and rate, which is what the standard asks for.
    *
-   * `TaxSubtotal` is per rate, not per line — an invoice with items at 20% and
-   * at 5% has two subtotals, and repeating a rate is a validation failure
-   * rather than a stylistic choice.
+   * `TaxSubtotal` is per category-and-rate, not per line — an invoice with
+   * items at 20% and at 5% has two subtotals, and repeating one is a
+   * validation failure rather than a stylistic choice.
+   *
+   * The document's stored bands govern when the caller supplied them: they
+   * were frozen at issue, after the discount was apportioned, and they are
+   * what the totals block already states — so the breakdown and the totals
+   * agree to the cent (BR-CO-14). Without bands, the figures are the sum of
+   * each line's own rounded tax: EN 16931 permits line-level calculation, and
+   * it is the same arithmetic the document's totals were built from.
    */
-  const byRate = new Map<number, { net: number; tax: number }>();
-  for (const line of input.lines) {
-    const at = byRate.get(line.taxRateBp) ?? { net: 0, tax: 0 };
-    at.net += line.netCents;
-    at.tax += Math.round((line.netCents * line.taxRateBp) / 10_000);
-    byRate.set(line.taxRateBp, at);
+  const byCategory = new Map<
+    string,
+    {
+      rateBp: number;
+      categoryCode: string;
+      net: number;
+      tax: number;
+      exemptionReason: string | null;
+    }
+  >();
+  const add = (band: EInvoiceTaxBand & { taxableCents: number }) => {
+    const key = `${band.categoryCode}|${band.rateBp}`;
+    const at = byCategory.get(key) ?? {
+      rateBp: band.rateBp,
+      categoryCode: band.categoryCode,
+      net: 0,
+      tax: 0,
+      exemptionReason: null,
+    };
+    at.net += band.taxableCents;
+    at.tax += band.taxCents;
+    at.exemptionReason ??= band.exemptionReason ?? null;
+    byCategory.set(key, at);
+  };
+
+  if (input.bands?.length) {
+    for (const band of input.bands) add(band);
+  } else {
+    for (const line of input.lines) {
+      let stacked = 0;
+      for (const tax of taxesOn(line)) {
+        const base = tax.compound ? line.netCents + stacked : line.netCents;
+        const taxCents = Math.round((base * tax.rateBp) / 10_000);
+        stacked += taxCents;
+        add({
+          rateBp: tax.rateBp,
+          categoryCode: tax.categoryCode,
+          taxableCents: base,
+          taxCents,
+        });
+      }
+    }
   }
 
-  const subtotals = [...byRate.entries()]
-    .sort((a, b) => a[0] - b[0])
+  const subtotals = [...byCategory.values()]
+    .sort(
+      (a, b) =>
+        a.categoryCode.localeCompare(b.categoryCode) || a.rateBp - b.rateBp,
+    )
     .map(
-      ([rateBp, sums]) => `    <cac:TaxSubtotal>
-      <cbc:TaxableAmount currencyID="${input.currency}">${amount(sums.net)}</cbc:TaxableAmount>
-      <cbc:TaxAmount currencyID="${input.currency}">${amount(sums.tax)}</cbc:TaxAmount>
+      (band) => `    <cac:TaxSubtotal>
+      <cbc:TaxableAmount currencyID="${input.currency}">${amount(band.net)}</cbc:TaxableAmount>
+      <cbc:TaxAmount currencyID="${input.currency}">${amount(band.tax)}</cbc:TaxAmount>
       <cac:TaxCategory>
-        <cbc:ID>${rateBp === 0 ? "Z" : "S"}</cbc:ID>
-        <cbc:Percent>${(rateBp / 100).toFixed(2)}</cbc:Percent>
-        <cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme>
+        <cbc:ID>${esc(band.categoryCode)}</cbc:ID>
+        <cbc:Percent>${(band.rateBp / 100).toFixed(2)}</cbc:Percent>
+${
+  /*
+   * Exempt, reverse-charge and out-of-scope categories must say why no tax
+   * is charged — BR-E-10, BR-AE-10 and BR-O-10 all reject a breakdown that
+   * does not. The definition's own wording where there is one; the standard
+   * phrase where there is not, because an absent reason is a rejection and a
+   * generic one is not.
+   */
+  exemptionReasonFor(band.categoryCode, band.exemptionReason)
+    ? `        <cbc:TaxExemptionReason>${esc(exemptionReasonFor(band.categoryCode, band.exemptionReason) ?? "")}</cbc:TaxExemptionReason>\n`
+    : ""
+}        <cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme>
       </cac:TaxCategory>
     </cac:TaxSubtotal>`,
     )
@@ -190,11 +328,15 @@ export function toUbl(input: EInvoiceInput): string {
     <cbc:LineExtensionAmount currencyID="${input.currency}">${amount(line.netCents)}</cbc:LineExtensionAmount>
     <cac:Item>
       <cbc:Name>${esc(line.description)}</cbc:Name>
-      <cac:ClassifiedTaxCategory>
-        <cbc:ID>${line.taxRateBp === 0 ? "Z" : "S"}</cbc:ID>
-        <cbc:Percent>${(line.taxRateBp / 100).toFixed(2)}</cbc:Percent>
+${taxesOn(line)
+  .map(
+    (tax) => `      <cac:ClassifiedTaxCategory>
+        <cbc:ID>${esc(tax.categoryCode)}</cbc:ID>
+        <cbc:Percent>${(tax.rateBp / 100).toFixed(2)}</cbc:Percent>
         <cac:TaxScheme><cbc:ID>VAT</cbc:ID></cac:TaxScheme>
-      </cac:ClassifiedTaxCategory>
+      </cac:ClassifiedTaxCategory>`,
+  )
+  .join("\n")}
     </cac:Item>
     <cac:Price>
       <cbc:PriceAmount currencyID="${input.currency}">${amount(line.unitPriceCents)}</cbc:PriceAmount>

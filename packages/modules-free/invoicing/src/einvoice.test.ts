@@ -152,3 +152,103 @@ test("a cross-border invoice asks for the VAT number a domestic one does not", (
   abroad.seller.taxId = null;
   expect(missingForEInvoice(abroad).join(" ")).toContain("VAT number");
 });
+
+/**
+ * The category on the document is the category on the definition.
+ *
+ * Exempt (E) and reverse-charge (AE) supplies are zero tax, but they are not
+ * zero-rated (Z) — the categories carry different legal meanings and EN 16931
+ * validators reject a mislabelled one. And both must state why: BR-E-10 and
+ * BR-AE-10 demand an exemption reason in the VAT breakdown.
+ */
+test("an exempt line is category E with its reason stated, not Z", () => {
+  const input = complete();
+  const first = input.lines[0];
+  if (!first) throw new Error("the fixture has no lines");
+  input.lines = [
+    { ...first, taxRateBp: 0, taxes: [{ rateBp: 0, categoryCode: "E" }] },
+  ];
+  input.taxCents = 0;
+  input.totalCents = input.subtotalCents;
+  input.dueCents = input.subtotalCents;
+  const xml = toUbl(input);
+  expect(xml).toContain("<cbc:ID>E</cbc:ID>");
+  expect(xml).not.toContain("<cbc:ID>Z</cbc:ID>");
+  expect(xml).toContain("<cbc:TaxExemptionReason>");
+});
+
+test("a reverse-charge line is category AE with its reason stated", () => {
+  const input = complete();
+  const first = input.lines[0];
+  if (!first) throw new Error("the fixture has no lines");
+  input.lines = [
+    { ...first, taxRateBp: 0, taxes: [{ rateBp: 0, categoryCode: "AE" }] },
+  ];
+  input.taxCents = 0;
+  input.totalCents = input.subtotalCents;
+  input.dueCents = input.subtotalCents;
+  const xml = toUbl(input);
+  expect(xml).toContain("<cbc:ID>AE</cbc:ID>");
+  expect(xml).toContain(
+    "<cbc:TaxExemptionReason>Reverse charge</cbc:TaxExemptionReason>",
+  );
+});
+
+test("a line with two taxes states both categories and both subtotals", () => {
+  const input = complete();
+  input.lines = [
+    {
+      description: "Install",
+      quantityMilli: 1000,
+      unit: "EA",
+      unitPriceCents: 100_000,
+      netCents: 100_000,
+      taxRateBp: 500,
+      taxes: [
+        { rateBp: 500, categoryCode: "S" },
+        { rateBp: 700, categoryCode: "S" },
+      ],
+    },
+  ];
+  input.subtotalCents = 100_000;
+  input.taxCents = 12_000;
+  input.totalCents = 112_000;
+  input.dueCents = 112_000;
+
+  const xml = toUbl(input);
+  // Both taxes are on the line itself…
+  const categories = xml.match(/<cac:ClassifiedTaxCategory>/g) ?? [];
+  expect(categories).toHaveLength(2);
+  // …and each is its own entry in the tax breakdown.
+  const subtotals = xml.match(/<cac:TaxSubtotal>/g) ?? [];
+  expect(subtotals).toHaveLength(2);
+  expect(xml).toContain("<cbc:Percent>5.00</cbc:Percent>");
+  expect(xml).toContain("<cbc:Percent>7.00</cbc:Percent>");
+});
+
+/**
+ * The breakdown states what the document froze, not a recomputation.
+ *
+ * The bands were written when the document was issued, after the discount was
+ * apportioned. Recomputing from undiscounted line nets makes the subtotals
+ * disagree with the totals block — which is BR-CO-14 failing, and a rejected
+ * invoice.
+ */
+test("stored tax bands govern the breakdown when they are supplied", () => {
+  const input = complete();
+  input.bands = [
+    { rateBp: 2200, categoryCode: "S", taxableCents: 95_000, taxCents: 20_900 },
+    { rateBp: 1000, categoryCode: "S", taxableCents: 19_000, taxCents: 1_900 },
+  ];
+  input.taxCents = 22_800;
+  const xml = toUbl(input);
+  expect(xml).toContain(
+    '<cbc:TaxableAmount currencyID="EUR">950.00</cbc:TaxableAmount>',
+  );
+  expect(xml).toContain(
+    '<cbc:TaxAmount currencyID="EUR">209.00</cbc:TaxAmount>',
+  );
+  expect(xml).toContain(
+    '<cbc:TaxAmount currencyID="EUR">228.00</cbc:TaxAmount>',
+  );
+});
