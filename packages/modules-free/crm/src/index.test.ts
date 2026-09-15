@@ -1135,13 +1135,16 @@ test("an empty import says so instead of reporting success", async () => {
  * against this origin — so both are exercised rather than only the happy one.
  */
 test("a file attaches to a note and comes back as a download", async () => {
+  // A real contact of this organisation: a note now refuses to attach to a
+  // record that is not ours, and a made-up id is not ours.
+  const contactId = await makeContact({ name: "Has Attachments" });
   const made = (await (
     await app.request("http://localhost/api/notes", {
       method: "POST",
       headers,
       body: JSON.stringify({
         entityType: "contact",
-        entityId: "00000000-0000-0000-0000-000000000001",
+        entityId: contactId,
         text: "Quote attached",
       }),
     })
@@ -1194,13 +1197,14 @@ test("an attachment on another organisation's note is not found", async () => {
 });
 
 test("an index that does not exist is not found rather than a crash", async () => {
+  const contactId = await makeContact({ name: "Has No Files" });
   const made = (await (
     await app.request("http://localhost/api/notes", {
       method: "POST",
       headers,
       body: JSON.stringify({
         entityType: "contact",
-        entityId: "00000000-0000-0000-0000-000000000002",
+        entityId: contactId,
         text: "No files here",
       }),
     })
@@ -2325,6 +2329,66 @@ test("a record can never link to another organization's records", async () => {
   await db
     .delete(schema.companies)
     .where(eq(schema.companies.id, theirCompany.id));
+  await db
+    .delete(schema.contacts)
+    .where(eq(schema.contacts.id, theirContact.id));
+});
+
+/**
+ * A note names the record it hangs from with a free pair of fields.
+ *
+ * `entityId` used to be written as given — so a note could be attached to
+ * another organisation's contact, and that contact's detail screen would then
+ * show it to strangers.
+ */
+test("a note cannot attach to another organization's record", async () => {
+  const [theirContact] = await db
+    .insert(schema.contacts)
+    .values({ organizationId: `intruder-notes-${suffix}`, name: "Theirs" })
+    .returning();
+  if (!theirContact) throw new Error("seed failed");
+
+  const created = await app.request("http://localhost/api/notes", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      entityType: "contact",
+      entityId: theirContact.id,
+      text: "planted",
+    }),
+  });
+  expect(created.status).toBe(404);
+
+  // Nor can an existing note be walked over to one.
+  const [mine] = await db
+    .insert(schema.contacts)
+    .values({ organizationId: orgId, name: "Mine" })
+    .returning();
+  if (!mine) throw new Error("seed failed");
+  const ownRes = await app.request("http://localhost/api/notes", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      entityType: "contact",
+      entityId: mine.id,
+      text: "honest",
+    }),
+  });
+  expect(ownRes.status).toBe(201);
+  const { note } = (await ownRes.json()) as { note: { id: string } };
+
+  const moved = await app.request(`http://localhost/api/notes/${note.id}`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify({
+      entityType: "contact",
+      entityId: theirContact.id,
+    }),
+  });
+  expect(moved.status).toBe(404);
+
+  await db.delete(schema.notes).where(eq(schema.notes.id, note.id));
+  await db.delete(schema.contacts).where(eq(schema.contacts.id, mine.id));
   await db
     .delete(schema.contacts)
     .where(eq(schema.contacts.id, theirContact.id));
