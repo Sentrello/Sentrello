@@ -39,9 +39,20 @@ test("a module that cannot find what it needs is a failure", () => {
  * silence is recurring invoices not going out.
  */
 
-const proClaims = (modules: string[] = []) => ({
+/**
+ * What the control plane mints: `with_tier` is what comes with Pro,
+ * `modules` is what was bought. The core reads both and remembers neither.
+ */
+const proClaims = (
+  modules: string[] = [],
+  with_tier: unknown = ["pro-core", "pro-accounting"],
+) => ({
   valid: true,
-  claims: { tier: "pro", modules },
+  claims: { tier: "pro", modules, with_tier } as {
+    tier: string;
+    modules: string[];
+    with_tier?: string[];
+  },
 });
 
 /** Everything a healthy Pro instance would have found. */
@@ -92,6 +103,33 @@ test("a bought optional module that never arrived is a fault too", () => {
   expect(
     missingEntitledBundles(proClaims(["shop"]), [...allPresent, "shop"]),
   ).toEqual([]);
+});
+
+test("a token from before the claim existed expects only what it names", () => {
+  // Tokens are refreshed daily; until the fresh one arrives, the safe error
+  // is a short silence about tier bundles, never a false alarm about them.
+  const older = {
+    valid: true,
+    claims: { tier: "pro", modules: ["shop"] },
+  };
+  expect(missingEntitledBundles(older, [...allPresent, "shop"])).toEqual([]);
+  expect(
+    missingEntitledBundles(older, ["dashboard"]).map((m) => m.name),
+  ).toEqual(["shop"]);
+});
+
+test("a claim of a shape this core never imagined expects nothing extra", () => {
+  // A newer control plane may mint shapes this core predates. Whatever
+  // arrives, the answer degrades to expecting less — spreading a string
+  // into an entitlement set would alarm about bundles named "p" and "r".
+  for (const junk of ["pro-core", 7, { bundles: ["pro-core"] }, null]) {
+    expect(missingEntitledBundles(proClaims([], junk), allPresent)).toEqual([]);
+  }
+  expect(
+    missingEntitledBundles(proClaims([], [42, "pro-core"]), []).map(
+      (m) => m.name,
+    ),
+  ).toEqual(["pro-core"]);
 });
 
 test("a Free instance expects no bundles and stays silent", () => {
