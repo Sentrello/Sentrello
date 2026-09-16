@@ -21,6 +21,12 @@ import {
   useListState,
 } from "../lib/list-ui";
 import { RelatedLink, useNavigation, useRecordTitle } from "../lib/navigation";
+import {
+  GroupMenu,
+  type ListGroup,
+  SavedViews,
+  groupedSections,
+} from "../lib/saved-views";
 import { type Task, TaskList } from "../lib/tasks";
 import {
   Button,
@@ -68,10 +74,8 @@ export function Companies() {
   const session = useSession();
   const myId = session.data?.user?.id;
 
-  const { rows, total, paginated, isLoading, error } = useListQuery<Company>(
-    "companies",
-    state,
-  );
+  const { rows, total, paginated, isLoading, error, response } =
+    useListQuery<Company>("companies", state);
 
   if (error) return <ErrorNote error={error} />;
 
@@ -133,6 +137,19 @@ export function Companies() {
               { field: "city", label: "City", order: "asc" },
             ]}
           />
+          <GroupMenu
+            state={state}
+            fields={[
+              { field: "sector", label: "Sector" },
+              { field: "city", label: "City" },
+              { field: "size", label: "Size" },
+            ]}
+          />
+          <SavedViews
+            resource="companies"
+            state={state}
+            defaults={{ sort: "name", order: "asc" }}
+          />
 
           <div className="ml-auto flex items-center gap-2">
             {/* A plain link, not a fetch: the browser downloads it with the
@@ -186,21 +203,41 @@ export function Companies() {
           </Empty>
         ) : (
           <>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {rows.map((co) => (
-                <CompanyCard
-                  key={co.id}
-                  company={co}
-                  onOpen={() =>
-                    open({
-                      moduleId: "companies",
-                      recordId: co.id,
-                      title: co.name,
-                    })
-                  }
-                />
-              ))}
-            </div>
+            {groupedSections(
+              rows,
+              response?.groups as ListGroup[] | undefined,
+              state.filters.groupBy,
+            ).map((section) => (
+              <div key={String(section.group?.value ?? "every-company")}>
+                {section.group ? (
+                  /* The count is the whole filtered set, not this page. */
+                  <p
+                    className="mb-1 flex items-baseline gap-2 text-xs uppercase tracking-wide"
+                    style={muted}
+                  >
+                    <span className="font-medium">
+                      {String(section.group.value ?? "—")}
+                    </span>
+                    <span>{section.group.count}</span>
+                  </p>
+                ) : null}
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  {section.rows.map((co) => (
+                    <CompanyCard
+                      key={co.id}
+                      company={co}
+                      onOpen={() =>
+                        open({
+                          moduleId: "companies",
+                          recordId: co.id,
+                          title: co.name,
+                        })
+                      }
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
 
             {paginated ? <Pagination state={state} total={total} /> : null}
           </>

@@ -3132,3 +3132,35 @@ export const crmWebhookDeliveries = pgTable(
     unique("crm_webhook_deliveries_once").on(t.webhookId, t.eventId),
   ],
 );
+
+/**
+ * A list screen's state, kept under a name.
+ *
+ * "My open deals over five thousand" is a question somebody asks every
+ * Monday, and until now the answer lived in whichever filters they could
+ * remember setting. The state is the same shape the list machinery already
+ * sends the server — search, sort, filters, grouping — so a view is applied
+ * by replaying it, not by a second query language.
+ *
+ * Owned by a person inside an organization, both scoped: views are how one
+ * person works, not configuration of the business, so nobody is handed a
+ * colleague's saved worries — and the owner is a platform user, never a
+ * notion of identity this table invents.
+ */
+export const savedViews = pgTable(
+  "saved_views",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: text("organization_id").notNull(),
+    /** The platform user this view belongs to. */
+    userId: text("user_id").notNull(),
+    /** Which list it is a view of: "contacts", "companies", "deals". */
+    resource: text("resource").notNull(),
+    name: text("name").notNull(),
+    /** The list state as the screen sends it: q, sort, order, filters, groupBy. */
+    view: jsonb("view").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [index("saved_views_owner_idx").on(t.organizationId, t.userId)],
+);

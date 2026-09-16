@@ -24,6 +24,7 @@ import type {
 import { defineModule, scoreFor, toCsv } from "@sentrello/module-sdk";
 import {
   and,
+  asc,
   desc,
   eq,
   gte,
@@ -36,6 +37,7 @@ import {
   sql,
 } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
+import type { PgColumn } from "drizzle-orm/pg-core";
 import { registerAttachments } from "./attachments";
 import { registerCrmDashboard } from "./dashboard";
 import { registerForms } from "./forms";
@@ -51,6 +53,7 @@ import {
 } from "./settings";
 import { registerTaskActions } from "./tasks";
 import { registerVies } from "./vies";
+import { registerSavedViews } from "./views";
 import { registerWebhooks } from "./webhooks";
 
 /**
@@ -224,6 +227,37 @@ function crud<T extends keyof typeof tables>(
       const params = listParams(query);
       const where = await listWhere(resource, orgId, query, c.get("session"));
 
+      /**
+       * Grouping rides beside paging rather than replacing it: the rows come
+       * back exactly as before, and `groups` describes the *whole* filtered
+       * set — a value, how many rows carry it, and whatever the resource
+       * says is worth summing. Computed here rather than on the page in the
+       * browser, because a page is a window and "how much is in each stage"
+       * is a question about everything the filter matched.
+       *
+       * The field is an allow-list, like the sort fields and for the same
+       * reason; a name not on it groups nothing rather than erroring, so an
+       * old saved view survives a field being withdrawn.
+       */
+      const groupColumn = (
+        tables[resource] as { groupable?: Record<string, PgColumn> }
+      ).groupable?.[query.groupBy ?? ""];
+      const aggregates = (
+        tables[resource] as { groupAggregates?: Record<string, SQL<number>> }
+      ).groupAggregates;
+      const grouped = groupColumn
+        ? await db
+            .select({
+              value: sql<string | number | null>`${groupColumn}`,
+              count: countExpression,
+              ...(aggregates ?? {}),
+            })
+            .from(table)
+            .where(where)
+            .groupBy(groupColumn)
+            .orderBy(asc(groupColumn))
+        : undefined;
+
       const enrich = (
         tables[resource] as {
           enrich?: (
@@ -245,6 +279,7 @@ function crud<T extends keyof typeof tables>(
             ? await enrich(rows as Record<string, unknown>[], orgId)
             : rows,
           total: rows.length,
+          ...(grouped ? { groups: grouped } : {}),
         });
       }
 
@@ -270,6 +305,7 @@ function crud<T extends keyof typeof tables>(
         total: counted?.total ?? 0,
         page: params.page,
         perPage: params.perPage,
+        ...(grouped ? { groups: grouped } : {}),
       });
     },
   );
@@ -687,6 +723,11 @@ const tables = {
       },
       defaultSort: { field: "lastSeenAt", order: "desc" },
     } satisfies ListSpec,
+    /** What the list can be grouped by — the fields with a handful of values. */
+    groupable: {
+      status: schema.contacts.status,
+      kind: schema.contacts.kind,
+    },
     /**
      * A customer with financial history is not deletable.
      *
@@ -894,6 +935,11 @@ const tables = {
       },
       defaultSort: { field: "name", order: "asc" },
     } satisfies ListSpec,
+    groupable: {
+      sector: schema.companies.sector,
+      city: schema.companies.city,
+      size: schema.companies.size,
+    },
     narrow(query: Record<string, string | undefined>) {
       return [
         query.sector ? eq(schema.companies.sector, query.sector) : undefined,
@@ -972,6 +1018,19 @@ const tables = {
       },
       defaultSort: { field: "position", order: "asc" },
     } satisfies ListSpec,
+    groupable: {
+      stage: schema.deals.stage,
+      category: schema.deals.category,
+    },
+    /**
+     * What each group is worth as well as how many it holds — the sum the
+     * board prints at the top of every column. Coalesced because a group
+     * with no rows never reaches SQL, but sum over an empty window is null,
+     * not zero, and null cents is not a figure.
+     */
+    groupAggregates: {
+      amountCents: sql<number>`coalesce(sum(${schema.deals.amountCents}), 0)::int`,
+    },
     async narrow(
       query: Record<string, string | undefined>,
       session: SentrelloSession,
@@ -980,6 +1039,12 @@ const tables = {
       return [
         query.stage ? eq(schema.deals.stage, query.stage) : undefined,
         query.category ? eq(schema.deals.category, query.category) : undefined,
+        // "Worth at least this much" — the half of "my open deals over five
+        // thousand" that no other filter could say. In cents, like every
+        // amount everywhere.
+        query.minAmountCents && Number.isFinite(Number(query.minAmountCents))
+          ? gte(schema.deals.amountCents, Number(query.minAmountCents))
+          : undefined,
         // Archived deals are the history, and the board is about now. They
         // come back only when asked for by name.
         query.archived === "1"
@@ -2067,5 +2132,6 @@ export default defineModule({
     registerInboundEmail(ctx);
     registerCrmHistory(ctx);
     registerWebhooks(ctx);
+    registerSavedViews(ctx);
   },
 });
