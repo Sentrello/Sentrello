@@ -1,6 +1,12 @@
 import { afterAll, expect, test } from "bun:test";
 import type PgBoss from "pg-boss";
-import { QUEUES, SCHEDULES, startJobs, withoutSslMode } from "./index";
+import {
+  QUEUES,
+  SCHEDULES,
+  jitteredMinuteCron,
+  startJobs,
+  withoutSslMode,
+} from "./index";
 import { refreshLicenseToken } from "./license-refresh";
 
 let boss: PgBoss | undefined;
@@ -151,6 +157,33 @@ test("license-refresh writes a fresh token when the server issues one", async ()
       .delete()
       .catch(() => {});
   }
+});
+
+/**
+ * The licence refresh moved from once a day to once an hour, with a random
+ * minute so every self-hosted instance does not hit the licence server on
+ * the same second. `SCHEDULES[QUEUES.licenseRefresh]` is that jittered cron,
+ * computed once when this module loads — these prove the generator itself,
+ * separately from the "does startJobs actually register it" coverage above.
+ */
+test("the licence refresh cron is hourly, at a minute chosen once per process", () => {
+  const cron = SCHEDULES[QUEUES.licenseRefresh];
+  expect(cron).toMatch(/^([0-9]|[1-5][0-9]) \* \* \* \*$/);
+  // Stable for the life of the process: nothing re-rolls it between reads.
+  expect(SCHEDULES[QUEUES.licenseRefresh]).toBe(cron);
+});
+
+test("jitteredMinuteCron spreads across the hour rather than landing on it", () => {
+  expect(jitteredMinuteCron(() => 0)).toBe("0 * * * *");
+  // Math.random() is exclusive of 1, so the highest reachable minute is 59,
+  // never a 60th minute that would make this an invalid cron field.
+  expect(jitteredMinuteCron(() => 0.999999)).toBe("59 * * * *");
+  expect(jitteredMinuteCron(() => 0.5)).toBe("30 * * * *");
+
+  // Two instances booting at the same moment do not land on the same minute.
+  const a = jitteredMinuteCron(() => 0.1);
+  const b = jitteredMinuteCron(() => 0.9);
+  expect(a).not.toBe(b);
 });
 
 test("sslmode is stripped so an explicit CA is not overridden by the URL", () => {
