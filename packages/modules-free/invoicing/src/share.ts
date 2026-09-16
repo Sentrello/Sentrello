@@ -195,6 +195,35 @@ interface DocumentLine {
 }
 
 /**
+ * The status in the customer's words.
+ *
+ * The column stores the ledger's vocabulary — "open", "partial", "credited" —
+ * and a bill wearing its database enum is a bill that looks unfinished. The
+ * reader here is the person being billed, so the pill speaks to them.
+ */
+function statusWord(kind: "invoice" | "quote", status: string): string {
+  const words: Record<string, string | undefined> =
+    kind === "invoice"
+      ? {
+          draft: "Draft",
+          open: "Unpaid",
+          partial: "Part paid",
+          paid: "Paid",
+          // Settled by credit note: "Paid" would say money moved when none did.
+          credited: "Credited",
+          void: "Void",
+        }
+      : {
+          draft: "Draft",
+          sent: "Awaiting reply",
+          accepted: "Accepted",
+          declined: "Declined",
+          expired: "Expired",
+        };
+  return words[status] ?? status;
+}
+
+/**
  * The document itself.
  *
  * Deliberately plain HTML with no script: this is opened by somebody outside
@@ -374,7 +403,7 @@ function documentPage(args: {
     }</p>
     ${args.customer ? `<p class="muted">For ${esc(args.customer)}</p>` : ""}
   </div>
-  <div><span class="pill">${esc(args.status)}</span></div>
+  <div><span class="pill">${esc(statusWord(args.kind, args.status))}</span></div>
 </div>
 
 ${brand.header}
