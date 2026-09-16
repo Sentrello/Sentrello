@@ -256,6 +256,19 @@ export const invitation = pgTable(
     email: text("email").notNull(),
     role: text("role"),
     status: text("status").default("pending").notNull(),
+    /**
+     * SHA-256 of the invitation link's token, hex.
+     *
+     * The link is a credential — whoever holds it joins the business — so it
+     * is treated like a password: the plaintext token appears exactly once,
+     * in the link handed back when the invitation is created, and only its
+     * hash is kept. A copy of this database is not a way in.
+     *
+     * Null on rows created before links existed, or through the raw API;
+     * those rows have no working link, only the email carve-out in
+     * `signUpAllowed`.
+     */
+    tokenHash: text("token_hash"),
     expiresAt: timestamp("expires_at").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     inviterId: text("inviter_id")
@@ -265,6 +278,9 @@ export const invitation = pgTable(
   (table) => [
     index("invitation_organizationId_idx").on(table.organizationId),
     index("invitation_email_idx").on(table.email),
+    // Unique so one token can only ever name one invitation — and it is how
+    // the accept route finds the row, so it is the lookup index too.
+    uniqueIndex("invitation_token_hash_uidx").on(table.tokenHash),
   ],
 );
 
