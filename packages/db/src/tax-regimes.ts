@@ -44,8 +44,8 @@ export const NAV_TAX_REGIME = new Map(
 /**
  * What a fresh instance operates in, before it says otherwise.
  *
- * US sales tax alone — Sentrello's first market, see ORIENTATION.md's build order
- * — so a brand-new instance's sidebar is not empty. Never applied silently
+ * US sales tax alone — the first market this product was built for — so a
+ * brand-new instance's sidebar is not empty. Never applied silently
  * once a business has actually chosen: this is only what `taxRegimesFor`
  * answers when no row exists yet.
  */
