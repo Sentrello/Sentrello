@@ -1,4 +1,4 @@
-import { and, asc, db, eq, schema, sql } from "@sentrello/db";
+import { and, asc, db, eq, inArray, schema, sql } from "@sentrello/db";
 import {
   type Credit,
   SENTRELLO_CREDIT,
@@ -9,6 +9,7 @@ import { earlyPaymentTerms } from "@sentrello/db/money";
 import { businessIdentity } from "@sentrello/db/portal";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import { rateLimit } from "@sentrello/module-sdk";
+import { exemptionReasonFor } from "./einvoice";
 import { type Template, templateFor } from "./templates";
 
 /**
@@ -216,7 +217,16 @@ function documentPage(args: {
     savingCents: number;
     totalCents: number;
   } | null;
-  bands: { name: string; rateBp: number; taxCents: number; named: boolean }[];
+  bands: {
+    name: string;
+    rateBp: number;
+    taxCents: number;
+    named: boolean;
+    /** EN 16931 category the band was frozen with — S for anything older. */
+    categoryCode: string;
+    /** The definition's own wording for why no tax is charged, if any. */
+    reason: string | null;
+  }[];
   business: {
     name: string;
     address: string | null;
@@ -316,6 +326,32 @@ function documentPage(args: {
       ? `<tr><td>Tax</td><td class="num">${money(args.taxCents, args.currency)}</td></tr>`
       : "";
 
+  /**
+   * The legends the VAT Directive puts on the document itself.
+   *
+   * Article 226 makes some of them words, not figures: a reverse-charge
+   * invoice must carry the mention "Reverse charge" (226(11a)), and an exempt
+   * or zero-charged supply a reference to why (226(11)). The customer reads
+   * this page — for many of them it *is* the invoice — so the wording goes
+   * here, not only into the structured XML. The definition's own description
+   * wins; the fallbacks match the e-invoice's, except reverse charge, which
+   * spells out who accounts for the VAT because a person is reading it.
+   */
+  const legends = [
+    ...new Set(
+      args.bands
+        .filter((b) => ["AE", "E", "G", "O"].includes(b.categoryCode))
+        .map((b) =>
+          b.categoryCode === "AE" && !b.reason
+            ? "Reverse charge — customer to account for VAT."
+            : (b.reason ?? exemptionReasonFor(b.categoryCode, null) ?? ""),
+        )
+        .filter(Boolean),
+    ),
+  ]
+    .map((legend) => `<p class="muted">${esc(legend)}</p>`)
+    .join("\n");
+
   return `<!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${noun} ${esc(args.number)}</title><style>${STYLE}${brand.style}</style></head><body>
@@ -370,6 +406,7 @@ ${
     : ""
 }
 
+${legends}
 ${args.paymentTerms ? `<p class="muted">${esc(args.paymentTerms)}</p>` : ""}
 ${args.notes ? `<p>${esc(args.notes)}</p>` : ""}
 ${brand.footer}
@@ -470,6 +507,39 @@ export function registerShare(ctx: ModuleContext) {
         businessIdentity(row.organizationId),
       ]);
 
+      /**
+       * The wording behind an exempt or reverse-charge band, from the
+       * definition it was frozen from. One query for however many bands.
+       */
+      const reasonIds = [
+        ...new Set(
+          bands
+            .map((b) => b.taxDefinitionId)
+            .filter((id): id is string => id !== null),
+        ),
+      ];
+      const reasons = new Map(
+        reasonIds.length
+          ? (
+              await db
+                .select({
+                  id: schema.taxDefinitions.id,
+                  description: schema.taxDefinitions.description,
+                })
+                .from(schema.taxDefinitions)
+                .where(
+                  and(
+                    eq(
+                      schema.taxDefinitions.organizationId,
+                      row.organizationId,
+                    ),
+                    inArray(schema.taxDefinitions.id, reasonIds),
+                  ),
+                )
+            ).map((d) => [d.id, d.description])
+          : [],
+      );
+
       let paidCents = 0;
       let customer: string | null = null;
       if (kind === "invoice") {
@@ -554,6 +624,10 @@ export function registerShare(ctx: ModuleContext) {
             // Named by the business, rather than the placeholder this code
             // makes up for a bare rate typed onto a line.
             named: b.taxDefinitionId !== null,
+            categoryCode: b.categoryCode,
+            reason: b.taxDefinitionId
+              ? (reasons.get(b.taxDefinitionId) ?? null)
+              : null,
           })),
           business: {
             name: business.name,

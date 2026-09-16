@@ -4176,3 +4176,114 @@ test("a definition saved before the finer unit invoices exactly as it did", asyn
   expect(line?.taxRatePpm).toBe(87_500);
   expect(line?.taxRateBp).toBe(875);
 });
+
+test("a reverse-charge sale zero-rates, balances the books, and says so on the page", async () => {
+  // The cross-border B2B shape: the customer accounts for the VAT, so the
+  // document charges none — but the treatment is AE with its wording, never
+  // a bare zero that reads as domestic zero-rating.
+  const reverseCharge = await makeTax({
+    name: "Reverse charge (EU B2B)",
+    rateBp: 0,
+    ratePpm: 0,
+    categoryCode: "AE",
+  });
+
+  const { res, body } = await createInvoice([
+    {
+      description: "Consulting, cross-border",
+      quantity: 1,
+      unitPrice: 100_000,
+      taxDefinitionId: reverseCharge,
+    },
+  ]);
+  expect(res.status).toBe(201);
+  expect(body.invoice.taxCents).toBe(0);
+  expect(body.invoice.totalCents).toBe(100_000);
+
+  // The band froze the category, which is what the e-invoice states.
+  const [band] = await db
+    .select()
+    .from(schema.documentTaxes)
+    .where(
+      and(
+        eq(schema.documentTaxes.documentType, "invoice"),
+        eq(schema.documentTaxes.documentId, body.invoice.id),
+      ),
+    );
+  expect(band?.categoryCode).toBe("AE");
+  expect(band?.taxCents).toBe(0);
+
+  // The ledger balances with no VAT collected: the whole debt is income,
+  // and no tax liability account is touched.
+  const entries = await db
+    .select()
+    .from(schema.journalEntries)
+    .where(
+      and(
+        eq(schema.journalEntries.organizationId, orgId),
+        eq(schema.journalEntries.source, `invoice:${body.invoice.id}`),
+      ),
+    );
+  expect(entries).toHaveLength(1);
+  const lines = await db
+    .select()
+    .from(schema.journalLines)
+    .where(eq(schema.journalLines.entryId, entries[0]?.id ?? ""));
+  const debits = lines.reduce((sum, l) => sum + l.debitCents, 0);
+  const credits = lines.reduce((sum, l) => sum + l.creditCents, 0);
+  expect(debits).toBe(credits);
+  expect(debits).toBe(100_000);
+  expect(lines).toHaveLength(2); // receivable and income; no tax credit
+
+  // The page the customer opens carries the statutory mention — for many of
+  // them this page is the invoice.
+  await app.request(`http://localhost/api/invoices/${body.invoice.id}/share`, {
+    method: "POST",
+    headers,
+  });
+  const [row] = await db
+    .select({ shareToken: schema.invoices.shareToken })
+    .from(schema.invoices)
+    .where(eq(schema.invoices.id, body.invoice.id));
+  const page = await app.request(
+    `http://localhost/share/invoice/${row?.shareToken}`,
+  );
+  const html = await page.text();
+  expect(html).toContain("Reverse charge — customer to account for VAT.");
+});
+
+test("an exempt band's own wording reaches the page, once, however many bands share it", async () => {
+  const exempt = await makeTax({
+    name: "Exempt (education)",
+    rateBp: 0,
+    ratePpm: 0,
+    categoryCode: "E",
+  });
+  await db
+    .update(schema.taxDefinitions)
+    .set({ description: "Exempt from VAT under Article 132 (education)" })
+    .where(eq(schema.taxDefinitions.id, exempt));
+
+  const { body } = await createInvoice([
+    {
+      description: "Tuition",
+      quantity: 1,
+      unitPrice: 40_000,
+      taxDefinitionId: exempt,
+    },
+  ]);
+
+  await app.request(`http://localhost/api/invoices/${body.invoice.id}/share`, {
+    method: "POST",
+    headers,
+  });
+  const [row] = await db
+    .select({ shareToken: schema.invoices.shareToken })
+    .from(schema.invoices)
+    .where(eq(schema.invoices.id, body.invoice.id));
+  const page = await app.request(
+    `http://localhost/share/invoice/${row?.shareToken}`,
+  );
+  const html = await page.text();
+  expect(html).toContain("Exempt from VAT under Article 132 (education)");
+});
