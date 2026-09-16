@@ -44,6 +44,17 @@ const CATEGORY_CODES = new Set(TAX_CATEGORIES.map((c) => c.code));
 /** 100% in millionths — enough for any tax, and a refusal for a runaway. */
 const MAX_RATE_PPM = 1_000_000;
 
+/**
+ * The provinces that levy their own retail sales tax beside GST — British
+ * Columbia's and Saskatchewan's PST, Manitoba's RST. What sets them apart
+ * from every other Canadian jurisdiction is recoverability: PST paid on a
+ * purchase never comes back, so it is cost, where GST, HST and Quebec's QST
+ * all return as input tax credits. Which provinces these are was checked
+ * against gov.bc.ca, sets.saskatchewan.ca and gov.mb.ca on
+ * 15 September 2026.
+ */
+const CA_PST_JURISDICTIONS = new Set(["CA-BC", "CA-SK", "CA-MB"]);
+
 export class CatalogueError extends Error {}
 
 /** A tax rate as the browser sent it, or a refusal saying which part is wrong. */
@@ -128,11 +139,21 @@ export function parseTaxDefinition(body: Record<string, unknown>): {
     categoryCode,
     description: String(body.description ?? "").trim() || null,
     jurisdiction,
-    // Inferred rather than asked for: a "US-…" jurisdiction is US sales tax,
-    // which is what routes its liability to a per-state account downstream —
-    // and it is never reclaimed on a purchase, so it is marked as cost.
-    regime: jurisdiction?.startsWith("US-") ? "us" : null,
-    ...(jurisdiction?.startsWith("US-") ? { recoverable: false } : {}),
+    // Inferred rather than asked for: a "US-…" jurisdiction is US sales tax
+    // and a "CA…" one is Canadian, which is what routes each liability to
+    // its own account downstream and puts it on the right return. US sales
+    // tax and provincial PST are never reclaimed on a purchase, so both are
+    // marked as cost; GST, HST and QST come back as input tax credits.
+    regime: jurisdiction?.startsWith("US-")
+      ? "us"
+      : jurisdiction === "CA" || jurisdiction?.startsWith("CA-")
+        ? "ca"
+        : null,
+    ...(jurisdiction?.startsWith("US-")
+      ? { recoverable: false }
+      : jurisdiction === "CA" || jurisdiction?.startsWith("CA-")
+        ? { recoverable: !CA_PST_JURISDICTIONS.has(jurisdiction) }
+        : {}),
   };
 }
 
