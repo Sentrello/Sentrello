@@ -61,6 +61,12 @@ app.onError((err, c) => {
   if (err instanceof PeriodClosedError) {
     return c.json({ error: err.message }, 409);
   }
+  // A body that is not JSON is the caller's mistake, not a crash. The parse
+  // happens inside `c.req.json()` in whichever route was hit, so this is the
+  // one place that can say so for all of them.
+  if (err instanceof SyntaxError) {
+    return c.json({ error: "the request body is not valid JSON" }, 400);
+  }
   console.error(err);
   return c.json({ error: "something went wrong" }, 500);
 });
