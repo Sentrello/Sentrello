@@ -62,6 +62,9 @@ afterAll(async () => {
   await db
     .delete(schema.userPreferences)
     .where(eq(schema.userPreferences.organizationId, orgId));
+  await db
+    .delete(schema.onboardingDismissals)
+    .where(eq(schema.onboardingDismissals.organizationId, orgId));
   await db.delete(schema.member).where(eq(schema.member.organizationId, orgId));
   await db
     .delete(schema.organizations)
@@ -672,4 +675,158 @@ test("a business already using it is not told where to start", async () => {
     startHere: { url: string } | null;
   };
   expect(body.startHere).toBeNull();
+});
+
+// ---------------------------------------------------------------------------
+// Putting the checklist away, and getting it back
+// ---------------------------------------------------------------------------
+
+interface OnboardingList {
+  guides: {
+    id: string;
+    remaining: number;
+    steps: { id: string; done: boolean }[];
+  }[];
+  hidden: number;
+}
+
+const listOnboarding = async () =>
+  (await (
+    await app.request("http://localhost/api/dashboard/onboarding", { headers })
+  ).json()) as OnboardingList;
+
+/**
+ * The checklist can be put away part-way, and stays away.
+ *
+ * Nothing in the browser holds this — every read here is a fresh request, so
+ * a hidden checklist that came back on reload would fail the second look.
+ */
+test("setting up can be hidden part-way, and stays hidden", async () => {
+  clearOnboarding();
+  addOnboarding({
+    moduleId: "dashboard",
+    id: "putaway-guide",
+    label: "Getting going",
+    steps: [
+      { id: "done-step", label: "Already happened", done: async () => true },
+      { id: "todo-step", label: "Still to do" },
+    ],
+  });
+
+  const before = await listOnboarding();
+  expect(before.guides.map((g) => g.id)).toContain("putaway-guide");
+  expect(before.hidden).toBe(0);
+
+  const hid = await app.request(
+    "http://localhost/api/dashboard/onboarding/hide",
+    { method: "POST", headers },
+  );
+  expect(hid.status).toBe(200);
+
+  const after = await listOnboarding();
+  expect(after.guides).toEqual([]);
+  // But not forgotten: this is what Settings offers to bring back.
+  expect(after.hidden).toBe(1);
+
+  // Ending early is not completing. The promo takes the checklist's place
+  // when there is nothing left on it — a business that put the list away
+  // still has a step to do, and is still not sold to.
+  const free = (await (
+    await freeApp.request("http://localhost/api/dashboard", { headers })
+  ).json()) as { ad: unknown };
+  expect(free.ad).toBeNull();
+});
+
+/**
+ * Restoring resumes, never restarts.
+ *
+ * Done is derived, not stored, so the step satisfied before the list was put
+ * away is still ticked when it comes back — there is no progress to lose,
+ * which is what makes dismissing safe to offer at all.
+ */
+test("a hidden checklist is restored mid-way, not restarted", async () => {
+  const res = await app.request(
+    "http://localhost/api/dashboard/onboarding/restore",
+    { method: "POST", headers },
+  );
+  expect(res.status).toBe(200);
+
+  const list = await listOnboarding();
+  const guide = list.guides.find((g) => g.id === "putaway-guide");
+  expect(guide?.steps.find((s) => s.id === "done-step")?.done).toBe(true);
+  expect(guide?.remaining).toBe(1);
+  expect(list.hidden).toBe(0);
+  clearOnboarding();
+});
+
+/**
+ * A finished guide has nothing to restore, whatever was dismissed.
+ *
+ * The row a dismissal left behind goes inert the day the last step is
+ * satisfied — offering to "bring back" a checklist that would show nothing
+ * is a control that does nothing, on a settings screen.
+ */
+test("a completed guide is not offered for restoration", async () => {
+  addOnboarding({
+    moduleId: "dashboard",
+    id: "finished-guide",
+    label: "Long done",
+    steps: [{ id: "only", label: "The one step", done: async () => true }],
+  });
+  await db.insert(schema.onboardingDismissals).values({
+    organizationId: orgId,
+    guideId: "finished-guide",
+  });
+
+  const list = await listOnboarding();
+  expect(list.guides).toEqual([]);
+  expect(list.hidden).toBe(0);
+
+  clearOnboarding();
+  await db
+    .delete(schema.onboardingDismissals)
+    .where(eq(schema.onboardingDismissals.organizationId, orgId));
+});
+
+/**
+ * A module bought on day 200 gets its day one.
+ *
+ * The platform's own setting up may be years finished, or put away half-done
+ * — neither is a verdict on a module that did not exist yet. Dismissals are
+ * per guide, so the new module's checklist appears on its own.
+ */
+test("a module added later brings its own onboarding, whatever came before", async () => {
+  // One guide finished long ago, one put away part-way.
+  addOnboarding({
+    moduleId: "dashboard",
+    id: "old-platform",
+    label: "The platform",
+    steps: [{ id: "claim", label: "Claim it", done: async () => true }],
+  });
+  addOnboarding({
+    moduleId: "dashboard",
+    id: "put-away",
+    label: "Put away",
+    steps: [{ id: "later", label: "Some day" }],
+  });
+  await db.insert(schema.onboardingDismissals).values({
+    organizationId: orgId,
+    guideId: "put-away",
+  });
+
+  // The module arrives: its guide registers, nothing else changes.
+  addOnboarding({
+    moduleId: "shop",
+    id: "shop-setup",
+    label: "Setting up the shop",
+    steps: [{ id: "first-product", label: "Add a product" }],
+  });
+
+  const list = await listOnboarding();
+  expect(list.guides.map((g) => g.id)).toEqual(["shop-setup"]);
+
+  clearOnboarding();
+  await db
+    .delete(schema.onboardingDismissals)
+    .where(eq(schema.onboardingDismissals.organizationId, orgId));
 });
