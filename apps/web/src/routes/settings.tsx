@@ -498,7 +498,55 @@ export function Settings() {
           </p>
         ) : null}
       </Card>
+
+      <SettingUpRestore />
     </div>
+  );
+}
+
+/**
+ * The way back for a hidden setting-up checklist.
+ *
+ * What makes hiding the checklist safe to offer at all: somebody who put it
+ * away part-way can bring it back, and it resumes where the data says it is.
+ * The card only exists while there is something to bring back — a checklist
+ * that was finished has nothing to restore, and offering it anyway would be
+ * a control that does nothing.
+ */
+function SettingUpRestore() {
+  const qc = useQueryClient();
+  const { data } = useQuery({
+    queryKey: ["dashboard", "onboarding"],
+    queryFn: () => api<{ hidden: number }>("/api/dashboard/onboarding"),
+    retry: false,
+  });
+  const restore = useMutation({
+    mutationFn: () =>
+      api("/api/dashboard/onboarding/restore", { method: "POST" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+  });
+
+  if (!data || data.hidden === 0) return null;
+
+  return (
+    <Card>
+      <p className="font-medium">Setting up</p>
+      <p className="mt-1 text-sm" style={muted}>
+        The setting-up checklist was hidden with steps still to do. Bring it
+        back and it carries on from where it stands — anything done in the
+        meantime is already ticked.
+      </p>
+      <Button
+        className="mt-3"
+        onClick={() => restore.mutate()}
+        disabled={restore.isPending}
+      >
+        {restore.isPending ? "Restoring…" : "Show it on the dashboard again"}
+      </Button>
+      {restore.error ? <ErrorNote error={restore.error} /> : null}
+    </Card>
   );
 }
 

@@ -1205,10 +1205,24 @@ interface Guide {
  */
 function SettingUp() {
   const { open } = useNavigation();
+  const qc = useQueryClient();
   const { data } = useQuery({
     queryKey: ["dashboard", "onboarding"],
-    queryFn: () => api<{ guides: Guide[] }>("/api/dashboard/onboarding"),
+    queryFn: () =>
+      api<{ guides: Guide[]; hidden: number }>("/api/dashboard/onboarding"),
     retry: false,
+  });
+  /**
+   * Put the whole card away, part-way through or not.
+   *
+   * Free to press because nothing is lost: done is derived from the data,
+   * and Settings can bring the list back exactly where it stands.
+   */
+  const hide = useMutation({
+    mutationFn: () => api("/api/dashboard/onboarding/hide", { method: "POST" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
   });
 
   const guides = data?.guides ?? [];
@@ -1216,9 +1230,20 @@ function SettingUp() {
 
   return (
     <Card>
-      <p className="font-medium">Setting up</p>
+      <div className="flex items-start justify-between gap-4">
+        <p className="font-medium">Setting up</p>
+        <button
+          type="button"
+          className="link text-sm"
+          style={muted}
+          onClick={() => hide.mutate()}
+        >
+          Hide
+        </button>
+      </div>
       <p className="mt-1 text-sm" style={muted}>
         Nothing here is required. It is what the parts you have work best with.
+        Hide it any time — Settings can bring it back where you left off.
       </p>
 
       <div className="mt-3 space-y-4">
