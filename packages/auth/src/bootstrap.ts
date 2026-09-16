@@ -7,7 +7,6 @@ import {
   duringBootstrap,
   setupTokenAccepted,
   setupTokenRequired,
-  signUpAllowed,
 } from "./signup-policy";
 
 export interface OwnerDetails {
@@ -129,8 +128,6 @@ export function registerBootstrapRoutes(app: SentrelloApp) {
     return c.json({
       needed,
       setupTokenRequired: setupTokenRequired(),
-      // so the sign-in screen can decide whether to offer a "create account" link
-      signUpOpen: (await signUpAllowed(undefined)).allowed,
     });
   });
 

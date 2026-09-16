@@ -264,7 +264,6 @@ function useBootstrap() {
     queryFn: () =>
       api<{
         needed: boolean;
-        signUpOpen: boolean;
         setupTokenRequired: boolean;
       }>("/api/bootstrap"),
     staleTime: 0,
