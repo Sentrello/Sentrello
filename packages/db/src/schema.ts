@@ -1489,6 +1489,19 @@ export const recurringPeriods = pgTable(
   ],
 );
 
+export const creditNotes = pgTable(
+  "credit_notes",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: text("organization_id").notNull(),
+    invoiceId: uuid("invoice_id"),
+    amountCents: integer("amount_cents").notNull(),
+    reason: text("reason"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("credit_notes_org_idx").on(t.organizationId)],
+);
+
 // Per-org sequential document numbering (INV-0001). One row per org per kind;
 // bumped inside the invoice transaction with SELECT ... FOR UPDATE.
 export const documentCounters = pgTable(

@@ -554,13 +554,6 @@
       "when": 1789538648021,
       "tag": "0078_the_business_chooses_too",
       "breakpoints": true
-    },
-    {
-      "idx": 79,
-      "version": "7",
-      "when": 1789539872162,
-      "tag": "0079_a_table_no_invoice_ever_read",
-      "breakpoints": true
     }
   ]
 }
