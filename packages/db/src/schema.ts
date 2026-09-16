@@ -703,6 +703,16 @@ export const invoices = pgTable(
     /** Charged by rule when it went past its date, so it is not re-added. */
     lateFeeCents: integer("late_fee_cents").notNull().default(0),
     lateFeeAppliedAt: timestamp("late_fee_applied_at"),
+    /**
+     * The certificate that made this sale exempt, when one did.
+     *
+     * US sales tax: a resale or non-profit customer is charged nothing, and
+     * the certificate is the evidence an auditor asks for. The reference is
+     * on the invoice itself so the question "why was this sale not taxed"
+     * has an answer years later, whatever has happened to the customer's
+     * record since.
+     */
+    exemptionCertificateId: uuid("exemption_certificate_id"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
     /** Filed away rather than erased: a sent invoice is a thing that happened. */
@@ -818,6 +828,49 @@ export const taxDefinitions = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [index("tax_definitions_org_idx").on(t.organizationId)],
+);
+
+/**
+ * A customer's sales-tax exemption certificate, kept as evidence.
+ *
+ * US sales tax: a reseller, a non-profit or a government body hands the
+ * seller a certificate and is charged no tax — and in an audit the
+ * certificate is the whole defence. The state wants to see the document,
+ * its number, why the customer was exempt, and that it was still valid on
+ * the day of the sale. A checkbox saying "exempt" defends nothing.
+ *
+ * On the company rather than the contact, because the certificate belongs
+ * to the buying business, whoever there placed the order. Expiry is
+ * nullable — several states issue certificates that do not expire — and a
+ * certificate is revoked rather than deleted, because invoices reference it
+ * and the evidence for a past sale must outlive the relationship.
+ */
+export const exemptionCertificates = pgTable(
+  "exemption_certificates",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: text("organization_id").notNull(),
+    companyId: uuid("company_id").notNull(),
+    /** The number printed on the certificate, exactly as issued. */
+    number: text("number").notNull(),
+    /** Two-letter state that issued it: "TX", "NY". */
+    state: text("state").notNull(),
+    /** resale | nonprofit | government | direct-pay | other */
+    reason: text("reason").notNull().default("resale"),
+    /** Free text beside the reason — the charity's purpose, the permit type. */
+    notes: text("notes"),
+    /** When the certificate stops being valid. Null: no stated expiry. */
+    expiresAt: timestamp("expires_at"),
+    /** A scan of the paper, stored the way logos and receipts are. */
+    documentPath: text("document_path"),
+    /** Withdrawn, not erased: past sales still point here as evidence. */
+    revokedAt: timestamp("revoked_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("exemption_certificates_org_idx").on(t.organizationId),
+    index("exemption_certificates_company_idx").on(t.companyId),
+  ],
 );
 
 /**
