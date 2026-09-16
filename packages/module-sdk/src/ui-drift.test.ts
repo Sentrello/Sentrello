@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { findHandRolledUi } from "./ui-drift";
+import { findFillAsText, findHandRolledUi } from "./ui-drift";
 
 /**
  * What a screen must not build for itself once a primitive exists for it.
@@ -105,4 +105,51 @@ test("an excepted tab strip does not hide a later unexcepted one", () => {
   );
   expect(findings).toHaveLength(1);
   expect(findings[0]?.line).toBe(3);
+});
+
+test("a fill token written as text is a finding, JSX and CSS spellings alike", () => {
+  const jsx = findFillAsText('style={{ color: "var(--color-danger)" }}');
+  expect(jsx).toHaveLength(1);
+  expect(jsx[0]?.say).toContain("--text-");
+
+  const css = findFillAsText(".warn { color: var(--color-warning); }");
+  expect(css).toHaveLength(1);
+
+  const brand = findFillAsText(
+    'style={{ color: "var(--brand-on-white-text)" }}',
+  );
+  expect(brand).toHaveLength(1);
+  expect(brand[0]?.say).toContain("--text-brand");
+});
+
+test("a ternary between two fills is still a finding, on the line color: sits on", () => {
+  const findings = findFillAsText(
+    "style={{\n  color:\n    net < 0\n" +
+      '      ? "var(--color-danger)"\n      : "var(--color-success)",\n}}',
+  );
+  expect(findings.length).toBeGreaterThan(0);
+  expect(findings[0]?.line).toBe(2);
+});
+
+test("fills doing fill work are not findings", () => {
+  expect(
+    findFillAsText(
+      'style={{ background: "var(--color-danger)", borderColor: "var(--color-warning)" }}\n' +
+        ".box { border-color: var(--color-danger); background-color: var(--color-success); }\n" +
+        'style={{ background: "var(--brand-on-white-text)" }}',
+    ),
+  ).toEqual([]);
+});
+
+test("the text tokens themselves are never findings", () => {
+  expect(findFillAsText('style={{ color: "var(--text-danger)" }}')).toEqual([]);
+});
+
+test("a marked fill-as-text line is excepted", () => {
+  expect(
+    findFillAsText(
+      "// ui-drift-ignore: printed on the invoice PDF, which is always light\n" +
+        'style={{ color: "var(--color-danger)" }}',
+    ),
+  ).toEqual([]);
 });
