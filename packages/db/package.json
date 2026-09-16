@@ -6,6 +6,7 @@
     ".": "./src/index.ts",
     "./money": "./src/money.ts",
     "./tax": "./src/tax.ts",
+    "./ca-tax": "./src/ca-tax.ts",
     "./currency": "./src/currency.ts",
     "./crm": "./src/crm.ts",
     "./ledger": "./src/ledger.ts",
