@@ -22,10 +22,35 @@ export const QUEUES = {
   telemetry: "telemetry",
 } as const;
 
+/**
+ * A random minute for the licence refresh, rolled once per process.
+ *
+ * Every self-hosted instance in the world runs the same schedule. On the
+ * hour, exactly, every one of them would call the licence server in the same
+ * second; a minute chosen here and re-rolled on every restart spreads them
+ * across the hour instead, without anything to configure or agree on.
+ */
+export function jitteredMinuteCron(random: () => number = Math.random): string {
+  const minute = Math.max(0, Math.min(59, Math.floor(random() * 60)));
+  return `${minute} * * * *`;
+}
+
 /** cron schedules, UTC */
 export const SCHEDULES: Record<string, string> = {
   [QUEUES.overdueReminders]: "0 8 * * *",
-  [QUEUES.licenseRefresh]: "0 3 * * *",
+  /**
+   * Hourly, not daily. What is bought is how long a cancelled customer keeps
+   * a paid feature: `refreshLicenseState` (apps/server/src/license.ts)
+   * re-reads whatever `refreshLicenseToken` just did or did not write, so
+   * that ceiling is exactly this interval — daily meant a revoked licence
+   * could still gate a feature open for most of a day, hourly caps it at an
+   * hour. The cost is one more request per instance per hour, which James
+   * accepted outright: "more calls to the server is fine. As we grow we can
+   * scale the server." Below hourly buys little more revocation speed for a
+   * cost that scales with every instance in the world; hourly is the first
+   * round number that turns "within a day" into "within an hour."
+   */
+  [QUEUES.licenseRefresh]: jitteredMinuteCron(),
   // Once a day, at an hour nobody is working. It sends nothing at all unless
   // the instance was asked at install time and said yes.
   [QUEUES.telemetry]: "17 4 * * *",

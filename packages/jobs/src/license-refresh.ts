@@ -12,7 +12,7 @@ export interface LicenseRefreshConfig {
 /**
  * The key comes from `licenseKey()` rather than straight from the environment,
  * so a key entered in Settings by someone upgrading from Free is picked up by
- * the daily refresh exactly like one the installer wrote.
+ * the refresh exactly like one the installer wrote.
  */
 async function configFromEnv(): Promise<LicenseRefreshConfig> {
   return {
@@ -36,7 +36,7 @@ async function configFromEnv(): Promise<LicenseRefreshConfig> {
 }
 
 /**
- * The daily online check that keeps a licensed instance's token fresh. Fetches
+ * The hourly online check that keeps a licensed instance's token fresh. Fetches
  * a fresh short-lived token; if the server is unreachable or the
  * subscription lapsed, the instance keeps its last token until expiry and
  * then downgrades to Free.
@@ -67,7 +67,7 @@ export async function refreshLicenseToken(config?: LicenseRefreshConfig) {
         license_key: licenseKey,
         instance_id: instanceId,
       }),
-      // a hung license server must not hang the daily job forever
+      // a hung license server must not hang the refresh job forever
       signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) {

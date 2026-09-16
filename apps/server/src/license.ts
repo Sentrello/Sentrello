@@ -15,7 +15,7 @@ import type { EntitlementNeed } from "@sentrello/module-sdk";
  * that lapsed mid-process would keep granting everything until somebody
  * restarted the container, which nothing does on a schedule. So the snapshot
  * lives in one mutable place instead, `gate` reads it fresh on every call,
- * and the daily refresh job (see `packages/jobs/src/license-refresh.ts`)
+ * and the hourly refresh job (see `packages/jobs/src/license-refresh.ts`)
  * updates it after it writes a new token to disk.
  */
 let live: { state: LicenseState; tokenPresent: boolean } = {
@@ -41,15 +41,17 @@ async function readTokenFromDisk(): Promise<string> {
 /**
  * Re-reads the token off disk and re-verifies it, replacing the live state.
  *
- * Called at boot (via `resolveLicense`) and again after every daily refresh
+ * Called at boot (via `resolveLicense`) and again after every hourly refresh
  * attempt — whether or not that attempt reached the licence server. That
- * single rule is what gives both halves of the fail-safe behaviour for free:
- * `verifyLicenseToken` checks `exp` offline, so a token that has genuinely
- * run out stops verifying the moment this runs again, server or no server;
- * and when the server could not be reached, the refresh job never touched
- * the file, so re-verifying the same still-good token yields the same still-
- * good state. Nothing here downgrades an instance because our server had a
- * bad night — only because the token on disk no longer verifies.
+ * single rule is what gives both halves of the fail-safe behaviour for free,
+ * and holds at any cadence, this one included: `verifyLicenseToken` checks
+ * `exp` offline, so a token that has genuinely run out stops verifying the
+ * moment this runs again, server or no server; and when the server could not
+ * be reached, the refresh job never touched the file, so re-verifying the
+ * same still-good token yields the same still-good state. Nothing here
+ * downgrades an instance because our server had a bad night — only because
+ * the token on disk no longer verifies. Moving from a daily to an hourly
+ * refresh raises how often that proof runs, never what it proves.
  */
 export async function refreshLicenseState(
   trustedKeys: string | string[] = SENTRELLO_LICENSE_PUBLIC_KEYS,

@@ -1,10 +1,11 @@
 /**
  * Fetches a licence token immediately, then exits.
  *
- * The daily job is what keeps a token fresh, but it does nothing for the gap
- * between paying and the first scheduled run — a customer would install Pro and
- * watch it behave as Free until the small hours. The installer runs this once,
- * and it is also the thing to run by hand after adding a module.
+ * The scheduled refresh is what keeps a token fresh, but it does nothing for
+ * the gap between paying and its first run after that — a customer would
+ * install Pro and watch it behave as Free for up to an hour. The installer
+ * runs this once, and it is also the thing to run by hand after adding a
+ * module.
  */
 import { refreshLicenseToken } from "./license-refresh";
 
