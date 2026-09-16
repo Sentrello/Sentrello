@@ -71,6 +71,35 @@ test("a doc comment mentioning <h2> or setTab is not a finding", () => {
   ).toEqual([]);
 });
 
+/*
+ * The two ways the comment stripper was blinded, each proved through the
+ * scanner rather than the stripper's output — a blinded scanner returns []
+ * exactly like a clean file does, so only "the finding is still found" can
+ * catch it.
+ */
+test("a /* inside a line comment does not hide what follows", () => {
+  // The real comment on the last line matters: its closing marker is where
+  // the phantom block comment opened on line 1 used to end, swallowing the
+  // violation between them.
+  const findings = findHandRolledUi(
+    "// see the glob pattern /path/*.ts for details\n" +
+      "const [page, setPage] = useState(1);\n" +
+      "/* an ordinary comment */ const a = 1;",
+  );
+  expect(findings).toHaveLength(1);
+  expect(findings[0]?.line).toBe(2);
+});
+
+test('a /* inside a string — accept="image/*" — does not hide what follows', () => {
+  const findings = findHandRolledUi(
+    '<input type="file" accept="image/*" />\n' +
+      '<h2 className="font-semibold">Uploads</h2>\n' +
+      "/* an ordinary comment */ const b = 2;",
+  );
+  expect(findings).toHaveLength(1);
+  expect(findings[0]?.line).toBe(2);
+});
+
 test("a marked line is excepted", () => {
   expect(
     findHandRolledUi(
