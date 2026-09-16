@@ -11,6 +11,7 @@ import {
   useNavigation,
 } from "./lib/navigation";
 import { Loading, muted, setFormats } from "./lib/ui";
+import { AcceptInvitation } from "./routes/accept-invitation";
 import { Accounts, Journal, Money, Summary } from "./routes/accounting";
 import { CanadianTax } from "./routes/ca-tax";
 import { Companies, CompanyDetail } from "./routes/companies";
@@ -414,6 +415,10 @@ export default function App() {
   // The emailed reset link lands here with no session, and must be reachable
   // before the sign-in form or the bootstrap screen takes the page.
   if (window.location.pathname === "/reset-password") return <ResetPassword />;
+  // The invitation link likewise: the person following it has no account yet.
+  if (window.location.pathname === "/accept-invitation") {
+    return <AcceptInvitation />;
+  }
 
   /*
    * Nothing is drawn until we know who this is and whether the instance has an

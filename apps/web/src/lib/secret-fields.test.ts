@@ -27,6 +27,7 @@ import { join } from "node:path";
 
 /** Screens where a password field really is a password. */
 const REAL_PASSWORDS = new Set([
+  "accept-invitation.tsx",
   "sign-in.tsx",
   "setup.tsx",
   "profile.tsx",
