@@ -2,6 +2,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, schema } from "@sentrello/db";
+import { creditBalanceFor } from "@sentrello/db/customer-credit";
 import type { SentrelloEnv } from "@sentrello/module-sdk";
 import { resetRateLimits } from "@sentrello/module-sdk";
 import { and, eq, inArray } from "drizzle-orm";
@@ -117,6 +118,9 @@ afterAll(async () => {
     [schema.accounts, schema.accounts.organizationId],
     [schema.contacts, schema.contacts.organizationId],
     [schema.documentCounters, schema.documentCounters.organizationId],
+    [schema.customerCredits, schema.customerCredits.organizationId],
+    [schema.invoicingSettings, schema.invoicingSettings.organizationId],
+    [schema.ledgerSettings, schema.ledgerSettings.organizationId],
   ] as const) {
     await db.delete(table).where(eq(column, orgId));
   }
@@ -261,6 +265,179 @@ test("a non-integer or negative payment is rejected", async () => {
     );
     expect(res.status).toBe(400);
   }
+});
+
+test("an overpayment is refused by default, with a useful message, and nothing is recorded", async () => {
+  const { body } = await createInvoice([
+    { description: "Design work", quantity: 1, unitPrice: 5000, taxRateBp: 0 },
+  ]);
+  const res = await app.request(
+    `http://localhost/api/invoices/${body.invoice.id}/payments`,
+    { method: "POST", headers, body: JSON.stringify({ amountCents: 7500 }) },
+  );
+  expect(res.status).toBe(400);
+  const err = (await res.json()) as { error: string };
+  expect(err.error).toContain("exceeds what is owed");
+
+  // Refused means refused: no payment row, no journal entry, and the
+  // invoice's own status untouched — receivable never dipped below zero
+  // because nothing was posted against it at all.
+  const payments = await db
+    .select()
+    .from(schema.payments)
+    .where(eq(schema.payments.invoiceId, body.invoice.id));
+  expect(payments).toHaveLength(0);
+  const [stored] = await db
+    .select()
+    .from(schema.invoices)
+    .where(eq(schema.invoices.id, body.invoice.id));
+  expect(stored?.status).toBe("open");
+});
+
+test("an overpayment becomes a customer credit when the policy says so, posting a balanced entry with the credit as a liability", async () => {
+  const [customer] = await db
+    .insert(schema.contacts)
+    .values({
+      organizationId: orgId,
+      name: "Overpaying Customer",
+      email: "over@acme.test",
+    })
+    .returning();
+  if (!customer) throw new Error("could not create test contact");
+
+  const set = await app.request("http://localhost/api/invoicing/settings", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ overpaymentPolicy: "credit" }),
+  });
+  expect(set.status).toBe(200);
+
+  const invRes = await app.request("http://localhost/api/invoices", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      contactId: customer.id,
+      currency: "USD",
+      lines: [
+        {
+          description: "Consulting",
+          quantity: 1,
+          unitPrice: 10000,
+          taxRateBp: 0,
+        },
+      ],
+    }),
+  });
+  const invoice = (
+    (await invRes.json()) as { invoice: { id: string; number: string } }
+  ).invoice;
+
+  const res = await app.request(
+    `http://localhost/api/invoices/${invoice.id}/payments`,
+    { method: "POST", headers, body: JSON.stringify({ amountCents: 15000 }) },
+  );
+  expect(res.status).toBe(201);
+  const paid = (await res.json()) as {
+    status: string;
+    balanceDue: number;
+    creditGrantedCents: number;
+  };
+  expect(paid.status).toBe("paid");
+  // Receivable cleared exactly, never dipping negative: the balance due
+  // lands on zero, not −5000.
+  expect(paid.balanceDue).toBe(0);
+  expect(paid.creditGrantedCents).toBe(5000);
+
+  // Only what actually settled the invoice was recorded against it.
+  const [payment] = await db
+    .select()
+    .from(schema.payments)
+    .where(eq(schema.payments.invoiceId, invoice.id));
+  expect(payment?.amountCents).toBe(10000);
+
+  const [entry] = await db
+    .select()
+    .from(schema.journalEntries)
+    .where(eq(schema.journalEntries.source, `payment:${payment?.id}`));
+  expect(entry).toBeDefined();
+  if (!entry) return;
+  const lines = await db
+    .select({
+      debitCents: schema.journalLines.debitCents,
+      creditCents: schema.journalLines.creditCents,
+      code: schema.accounts.code,
+      type: schema.accounts.type,
+    })
+    .from(schema.journalLines)
+    .innerJoin(
+      schema.accounts,
+      eq(schema.journalLines.accountId, schema.accounts.id),
+    )
+    .where(eq(schema.journalLines.entryId, entry.id));
+  const debits = lines.reduce((s, l) => s + l.debitCents, 0);
+  const credits = lines.reduce((s, l) => s + l.creditCents, 0);
+  expect(debits).toBe(credits);
+  expect(debits).toBe(15000);
+
+  const liabilityLine = lines.find((l) => l.code === "2300");
+  expect(liabilityLine?.type).toBe("liability");
+  expect(liabilityLine?.creditCents).toBe(5000);
+
+  expect(await creditBalanceFor(orgId, customer.id)).toBe(5000);
+
+  // A later invoice offers the credit rather than spending it on its own —
+  // raising one must not have touched the balance just granted.
+  const laterRes = await app.request("http://localhost/api/invoices", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      contactId: customer.id,
+      currency: "USD",
+      lines: [
+        {
+          description: "Follow-up work",
+          quantity: 1,
+          unitPrice: 3000,
+          taxRateBp: 0,
+        },
+      ],
+    }),
+  });
+  const later = (
+    (await laterRes.json()) as { invoice: { id: string; number: string } }
+  ).invoice;
+  const detailRes = await app.request(
+    `http://localhost/api/invoices/${later.id}`,
+    { headers },
+  );
+  const detail = (await detailRes.json()) as {
+    balanceDue: number;
+    availableCreditCents: number;
+  };
+  expect(detail.balanceDue).toBe(3000);
+  expect(detail.availableCreditCents).toBe(5000);
+
+  const applyRes = await app.request(
+    `http://localhost/api/invoices/${later.id}/apply-credit`,
+    { method: "POST", headers },
+  );
+  expect(applyRes.status).toBe(200);
+  const applied = (await applyRes.json()) as {
+    status: string;
+    balanceDue: number;
+    appliedCents: number;
+  };
+  expect(applied.appliedCents).toBe(3000);
+  expect(applied.status).toBe("paid");
+  expect(applied.balanceDue).toBe(0);
+  expect(await creditBalanceFor(orgId, customer.id)).toBe(2000);
+
+  await app.request("http://localhost/api/invoicing/settings", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ overpaymentPolicy: "refuse" }),
+  });
+  await db.delete(schema.contacts).where(eq(schema.contacts.id, customer.id));
 });
 
 test("paying an invoice from another organization is a 404, not a leak", async () => {

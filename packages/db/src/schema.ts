@@ -1243,8 +1243,56 @@ export const invoicingSettings = pgTable("invoicing_settings", {
    * the post. Grace is what makes the rule survive contact with customers.
    */
   lateFeeGraceDays: integer("late_fee_grace_days").notNull().default(7),
+  /**
+   * What happens when a payment is more than an invoice asks for.
+   *
+   * "refuse" rejects the excess at the door, with a message saying so —
+   * receivable must never go negative by accident. "credit" accepts it and
+   * holds the difference against the customer's account, offered against
+   * their next invoice rather than applied automatically. Each business
+   * decides for itself; neither is the "correct" one. Defaults to refuse,
+   * the simpler of the two and the one that cannot surprise anybody.
+   */
+  overpaymentPolicy: text("overpayment_policy").notNull().default("refuse"), // refuse|credit
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+/**
+ * What a customer is owed back, not in cash but against their next invoice.
+ *
+ * Created when an overpayment is accepted as a credit rather than refused —
+ * see `overpaymentPolicy` above. Each row is a movement, not a balance: a
+ * positive `cents` is credit granted (an overpayment), a negative one is
+ * credit spent (applied to a later invoice). The balance is the sum, the same
+ * choice made everywhere else in this ledger that a running total can drift
+ * from the rows that were supposed to add up to it.
+ *
+ * The liability side of the same movement lives in the general ledger too —
+ * see `CORE_ACCOUNTS.customerCredits` in `@sentrello/db/ledger` — so a
+ * business's balance sheet and a customer's own credit balance are always two
+ * readings of the same postings, never two numbers that can disagree.
+ */
+export const customerCredits = pgTable(
+  "customer_credits",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: text("organization_id").notNull(),
+    contactId: uuid("contact_id").notNull(),
+    /** Positive grants, negative spends. In the organization's base currency. */
+    cents: integer("cents").notNull(),
+    /** The payment that created this movement — the overpayment, or the
+     * application against a later invoice. */
+    paymentId: uuid("payment_id"),
+    /** The invoice this movement belongs to: overpaid, or the one it paid. */
+    invoiceId: uuid("invoice_id"),
+    reason: text("reason").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("customer_credits_org_idx").on(t.organizationId),
+    index("customer_credits_contact_idx").on(t.contactId),
+  ],
+);
 
 /**
  * When to chase, and what to say.

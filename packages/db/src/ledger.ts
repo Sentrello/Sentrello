@@ -113,6 +113,21 @@ export const CORE_ACCOUNTS = {
     name: "Accounts Payable",
     type: "liability",
   },
+  /**
+   * Money a customer overpaid, held against their next invoice rather than
+   * refunded.
+   *
+   * A liability, not income: it is not earned until it is applied to
+   * something they bought, and until then it is money the business owes
+   * back — as a credit, not necessarily as cash. See `overpaymentPolicy` on
+   * `invoicingSettings` and the `customerCredits` table, which is this
+   * account's subsidiary ledger, broken down by customer.
+   */
+  customerCredits: {
+    code: "2300",
+    name: "Customer Credits",
+    type: "liability",
+  },
 } as const;
 
 /** The account currency movement lands in. */

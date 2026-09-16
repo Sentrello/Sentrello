@@ -86,6 +86,8 @@ interface Detail {
   creditedCents: number;
   balanceDue: number;
   computedStatus: string;
+  /** What this customer could apply here, if anything. */
+  availableCreditCents: number;
 }
 
 /** "1.5" reads better than "1.500". Quantity is stored in thousandths. */
@@ -577,6 +579,7 @@ export function InvoiceDetail() {
             balanceDue={data.balanceDue}
             earlyPayment={data.earlyPayment}
             alreadyTaken={data.earlyDiscountTakenCents > 0}
+            availableCreditCents={data.availableCreditCents}
             onDone={refresh}
           />
         ) : null}
@@ -598,6 +601,7 @@ function Payments({
   balanceDue,
   earlyPayment,
   alreadyTaken,
+  availableCreditCents,
   onDone,
 }: {
   invoiceId: string;
@@ -605,6 +609,7 @@ function Payments({
   balanceDue: number;
   earlyPayment: Detail["earlyPayment"];
   alreadyTaken: boolean;
+  availableCreditCents: number;
   onDone: () => void;
 }) {
   const [amount, setAmount] = useState("");
@@ -612,6 +617,9 @@ function Payments({
   const [receivedAt, setReceivedAt] = useState("");
   const [takeDiscount, setTakeDiscount] = useState(false);
   const [gatewayRef, setGatewayRef] = useState("");
+  // What the last payment held back as credit, said once rather than left
+  // silent — silence on exactly this is the bug this whole thing replaces.
+  const [creditNotice, setCreditNotice] = useState<number | null>(null);
 
   /**
    * Whether there is a discount to take right now.
@@ -625,27 +633,39 @@ function Payments({
 
   const record = useMutation({
     mutationFn: () =>
-      api(`/api/invoices/${invoiceId}/payments`, {
-        method: "POST",
-        body: JSON.stringify({
-          amountCents: Math.round(
-            Number.parseFloat(amount.replace(/,/g, "") || "0") * 100,
-          ),
-          method,
-          // Blank means today, which is the common case; a cheque that
-          // cleared on Friday and is entered on Monday belongs to Friday.
-          receivedAt: receivedAt || null,
-          applyEarlyDiscount: takeDiscount,
-          gatewayRef: gatewayRef.trim() || null,
-        }),
-      }),
-    onSuccess: () => {
+      api<{ creditGrantedCents: number }>(
+        `/api/invoices/${invoiceId}/payments`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            amountCents: Math.round(
+              Number.parseFloat(amount.replace(/,/g, "") || "0") * 100,
+            ),
+            method,
+            // Blank means today, which is the common case; a cheque that
+            // cleared on Friday and is entered on Monday belongs to Friday.
+            receivedAt: receivedAt || null,
+            applyEarlyDiscount: takeDiscount,
+            gatewayRef: gatewayRef.trim() || null,
+          }),
+        },
+      ),
+    onSuccess: (result) => {
       setAmount("");
       setReceivedAt("");
       setTakeDiscount(false);
       setGatewayRef("");
+      setCreditNotice(
+        result.creditGrantedCents > 0 ? result.creditGrantedCents : null,
+      );
       onDone();
     },
+  });
+
+  const applyCredit = useMutation({
+    mutationFn: () =>
+      api(`/api/invoices/${invoiceId}/apply-credit`, { method: "POST" }),
+    onSuccess: onDone,
   });
 
   return (
@@ -672,6 +692,33 @@ function Payments({
           ))}
         </ul>
       )}
+
+      {creditNotice ? (
+        <p className="mb-3 text-sm" style={{ color: "var(--text-success)" }}>
+          {formatMoney(creditNotice)} more than owed — held as credit on this
+          customer's account.
+        </p>
+      ) : null}
+
+      {balanceDue > 0 && availableCreditCents > 0 ? (
+        <div
+          className="mb-3 flex items-center justify-between gap-2 rounded border p-2 text-sm"
+          style={border}
+        >
+          <span>
+            This customer has {formatMoney(availableCreditCents)} of credit
+            available.
+          </span>
+          <Button
+            variant="secondary"
+            onClick={() => applyCredit.mutate()}
+            disabled={applyCredit.isPending}
+          >
+            {applyCredit.isPending ? "Applying…" : "Apply it"}
+          </Button>
+        </div>
+      ) : null}
+      {applyCredit.error ? <ErrorNote error={applyCredit.error} /> : null}
 
       {balanceDue > 0 ? (
         <div className="space-y-2 border-t pt-3" style={border}>

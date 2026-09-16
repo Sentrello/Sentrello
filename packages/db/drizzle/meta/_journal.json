@@ -603,6 +603,13 @@
       "when": 1789581891485,
       "tag": "0085_a_business_chooses_where_it_sells",
       "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1789581913574,
+      "tag": "0086_a_customer_can_owe_the_other_way",
+      "breakpoints": true
     }
   ]
 }

@@ -6,7 +6,16 @@ import {
 } from "@sentrello/auth/hono";
 import { db, schema } from "@sentrello/db";
 import { creditFor } from "@sentrello/db/credit";
-import { RATE_SCALE, rateOn, toBaseCents } from "@sentrello/db/currency";
+import {
+  RATE_SCALE,
+  baseCurrency,
+  rateOn,
+  toBaseCents,
+} from "@sentrello/db/currency";
+import {
+  creditBalanceFor,
+  recordCreditMovement,
+} from "@sentrello/db/customer-credit";
 import {
   convertQuoteToInstalments,
   convertQuoteToInvoice,
@@ -503,6 +512,24 @@ export default defineModule({
         if (!invoice) return c.json({ error: "not found" }, 404);
 
         /**
+         * What is already settled, read before this payment joins the total —
+         * the only way to tell whether *this* payment is the one that goes
+         * over, rather than discovering it after the row already exists.
+         */
+        const before = await db
+          .select({ amountCents: schema.payments.amountCents })
+          .from(schema.payments)
+          .where(
+            and(
+              eq(schema.payments.invoiceId, invoiceId),
+              eq(schema.payments.organizationId, orgId),
+            ),
+          );
+        const paidBeforeCents = before.reduce((s, p) => s + p.amountCents, 0);
+        const creditedBeforeCents =
+          (await creditedAgainst(orgId, [invoiceId])).get(invoiceId) ?? 0;
+
+        /**
          * Taking the early-payment offer, if there is one and it still stands.
          *
          * Refused rather than ignored when the window has closed. Silently
@@ -540,29 +567,6 @@ export default defineModule({
           );
         }
 
-        const [payment] = await db
-          .insert(schema.payments)
-          .values({
-            organizationId: orgId,
-            invoiceId,
-            amountCents,
-            method: method ?? "manual",
-            gatewayRef,
-            receivedAt: received,
-          })
-          .returning();
-        if (!payment) throw new Error("payment insert returned no row");
-
-        const paid = await db
-          .select({ amountCents: schema.payments.amountCents })
-          .from(schema.payments)
-          .where(
-            and(
-              eq(schema.payments.invoiceId, invoiceId),
-              eq(schema.payments.organizationId, orgId),
-            ),
-          );
-        const paidCents = paid.reduce((s, p) => s + p.amountCents, 0);
         /**
          * What is still owed, after anything given up for paying early.
          *
@@ -577,8 +581,67 @@ export default defineModule({
         const forgiven = takingIt
           ? terms.savingCents
           : invoice.earlyDiscountTakenCents;
-        const creditedCents =
-          (await creditedAgainst(orgId, [invoiceId])).get(invoiceId) ?? 0;
+        const creditedCents = creditedBeforeCents;
+        const owedBeforeCents = Math.max(
+          0,
+          invoice.totalCents - forgiven - paidBeforeCents - creditedCents,
+        );
+
+        /**
+         * More than is owed. The business decides what that means — see
+         * `overpaymentPolicy` on `invoicingSettings` — but what it never
+         * means is receivable quietly going negative, which is what happened
+         * here before either behaviour existed.
+         */
+        let appliedCents = amountCents;
+        let overCents = 0;
+        if (amountCents > owedBeforeCents) {
+          const [invSettings] = await db
+            .select({
+              overpaymentPolicy: schema.invoicingSettings.overpaymentPolicy,
+            })
+            .from(schema.invoicingSettings)
+            .where(eq(schema.invoicingSettings.organizationId, orgId))
+            .limit(1);
+          const policy = invSettings?.overpaymentPolicy ?? "refuse";
+          if (policy !== "credit") {
+            return c.json(
+              {
+                error: `amountCents (${amountCents}) exceeds what is owed (${owedBeforeCents} cents). Reduce it, or switch to holding overpayments as credit under Invoice settings.`,
+              },
+              400,
+            );
+          }
+          if (!invoice.contactId) {
+            return c.json(
+              {
+                error:
+                  "this invoice has no customer to hold a credit for — reduce the amount, or add a customer to the invoice first",
+              },
+              400,
+            );
+          }
+          appliedCents = owedBeforeCents;
+          overCents = amountCents - appliedCents;
+        }
+
+        const [payment] = await db
+          .insert(schema.payments)
+          .values({
+            organizationId: orgId,
+            invoiceId,
+            // Only what actually settles this invoice — the excess is
+            // recorded separately, as credit, never as a payment against a
+            // debt that no longer exists once this clears it.
+            amountCents: appliedCents,
+            method: method ?? "manual",
+            gatewayRef,
+            receivedAt: received,
+          })
+          .returning();
+        if (!payment) throw new Error("payment insert returned no row");
+
+        const paidCents = paidBeforeCents + appliedCents;
         const { status, balanceDue } = invoiceStatus(
           invoice.totalCents - forgiven,
           paidCents,
@@ -627,9 +690,25 @@ export default defineModule({
         const issuedRate = invoice.rateMicro ?? RATE_SCALE;
         const paidRate =
           (await rateOn(orgId, invoice.currency, received)) ?? issuedRate;
-        const clearedCents = toBaseCents(amountCents, issuedRate);
+        /**
+         * Receivable clears by what was actually applied to it, not by the
+         * full cash received — an overpayment held as credit never touched
+         * this invoice's debt, so it must not appear to clear it.
+         */
+        const clearedCents = toBaseCents(appliedCents, issuedRate);
         const cashCents = toBaseCents(amountCents, paidRate);
-        const drift = cashCents - clearedCents;
+        /**
+         * The FX gain or loss is computed off what today's rate makes the
+         * *applied* portion worth, not the whole cash amount — the
+         * overpaid portion was never valued at the invoice's issued rate to
+         * begin with, so there is no drift to record for it. The credit
+         * liability below takes whatever is left of `cashCents`, which keeps
+         * the entry balanced by construction rather than by a second
+         * rounding argument.
+         */
+        const appliedCashCents = toBaseCents(appliedCents, paidRate);
+        const drift = appliedCashCents - clearedCents;
+        const overCentsBase = cashCents - appliedCashCents;
 
         const postings = [
           { accountId: cash, debitCents: cashCents },
@@ -647,6 +726,20 @@ export default defineModule({
                       accountId: await exchangeAccount(orgId),
                       debitCents: -drift,
                     },
+              ]
+            : []),
+          // The overpaid portion: cash the business now holds against this
+          // customer's next invoice, not income — a liability until it is
+          // spent. See `overpaymentPolicy` above and `customerCredits`.
+          ...(overCentsBase !== 0
+            ? [
+                {
+                  accountId: await ensureAccount(
+                    orgId,
+                    CORE_ACCOUNTS.customerCredits,
+                  ),
+                  creditCents: overCentsBase,
+                },
               ]
             : []),
         ];
@@ -672,6 +765,19 @@ export default defineModule({
           received,
         );
 
+        // The subsidiary ledger behind the liability posting above: which
+        // customer it is held for, so a later invoice can offer it back.
+        if (overCentsBase !== 0 && invoice.contactId) {
+          await recordCreditMovement({
+            organizationId: orgId,
+            contactId: invoice.contactId,
+            cents: overCentsBase,
+            paymentId: payment.id,
+            invoiceId: invoice.id,
+            reason: `Overpayment on invoice ${invoice.number}`,
+          });
+        }
+
         await sendReceipt(
           orgId,
           invoice,
@@ -681,7 +787,152 @@ export default defineModule({
           !ctx.entitled({ tier: "pro" }),
         );
 
-        return c.json({ payment, status, balanceDue }, 201);
+        return c.json(
+          { payment, status, balanceDue, creditGrantedCents: overCents },
+          201,
+        );
+      },
+    );
+
+    /**
+     * Spending a customer's held credit against a later invoice.
+     *
+     * Offered, not automatic: applying it is a click a business makes, not
+     * something that happens to an invoice the moment it is raised. A
+     * business may want to ask the customer first, or hold the credit for a
+     * different invoice entirely — automatic application takes that choice
+     * away the moment the credit exists.
+     *
+     * Applies as much as covers the balance or empties the credit, whichever
+     * is less — no partial-amount form, the way a "paid in full" shortcut
+     * already works on the payments box.
+     */
+    ctx.app.post(
+      "/api/invoices/:id/apply-credit",
+      requireSession(),
+      requirePermission({ invoicing: ["update"] }),
+      async (c) => {
+        const orgId = activeOrganizationId(c.get("session"));
+        const invoiceId = c.req.param("id");
+        const [invoice] = await db
+          .select()
+          .from(schema.invoices)
+          .where(
+            and(
+              eq(schema.invoices.id, invoiceId),
+              eq(schema.invoices.organizationId, orgId),
+            ),
+          )
+          .limit(1);
+        if (!invoice) return c.json({ error: "not found" }, 404);
+        if (!invoice.contactId) {
+          return c.json(
+            { error: "this invoice has no customer to hold credit for" },
+            400,
+          );
+        }
+
+        /*
+         * ponytail: credit is tracked in the organization's base currency
+         * (see `@sentrello/db/customer-credit`); applying it against an
+         * invoice raised in a different currency would need a second FX
+         * decision on top of the one already made when the credit was
+         * granted, so it is refused here rather than guessed at. Upgrade
+         * path: convert at today's rate if a business asks for this.
+         */
+        const base = await baseCurrency(orgId);
+        if (invoice.currency !== base) {
+          return c.json(
+            {
+              error: `credit is held in ${base} and cannot be applied to an invoice in ${invoice.currency}`,
+            },
+            400,
+          );
+        }
+
+        const paid = await db
+          .select({ amountCents: schema.payments.amountCents })
+          .from(schema.payments)
+          .where(
+            and(
+              eq(schema.payments.invoiceId, invoiceId),
+              eq(schema.payments.organizationId, orgId),
+            ),
+          );
+        const paidCents = paid.reduce((s, p) => s + p.amountCents, 0);
+        const creditedCents =
+          (await creditedAgainst(orgId, [invoiceId])).get(invoiceId) ?? 0;
+        const owed = Math.max(
+          0,
+          invoice.totalCents -
+            invoice.earlyDiscountTakenCents -
+            paidCents -
+            creditedCents,
+        );
+        if (owed <= 0) {
+          return c.json({ error: "nothing is owed on this invoice" }, 400);
+        }
+
+        const available = await creditBalanceFor(orgId, invoice.contactId);
+        if (available <= 0) {
+          return c.json(
+            { error: "this customer has no credit available" },
+            400,
+          );
+        }
+
+        const applied = Math.min(available, owed);
+
+        const [payment] = await db
+          .insert(schema.payments)
+          .values({
+            organizationId: orgId,
+            invoiceId,
+            amountCents: applied,
+            method: "credit",
+            receivedAt: new Date(),
+          })
+          .returning();
+        if (!payment) throw new Error("payment insert returned no row");
+
+        await recordCreditMovement({
+          organizationId: orgId,
+          contactId: invoice.contactId,
+          cents: -applied,
+          paymentId: payment.id,
+          invoiceId: invoice.id,
+          reason: `Applied to invoice ${invoice.number}`,
+        });
+
+        const { status, balanceDue } = invoiceStatus(
+          invoice.totalCents - invoice.earlyDiscountTakenCents,
+          paidCents + applied,
+          creditedCents,
+        );
+        await db
+          .update(schema.invoices)
+          .set({ status })
+          .where(eq(schema.invoices.id, invoiceId));
+
+        const [ar, liability] = await Promise.all([
+          ensureAccount(orgId, CORE_ACCOUNTS.accountsReceivable),
+          ensureAccount(orgId, CORE_ACCOUNTS.customerCredits),
+        ]);
+        // No cash moves and no FX applies: this reclassifies a liability the
+        // business already owed the customer into a receivable it no longer
+        // owes them for — one balanced entry, nothing new comes in.
+        await postJournalEntry(
+          orgId,
+          `Credit applied to ${invoice.number}`,
+          `payment:${payment.id}`,
+          [
+            { accountId: liability, debitCents: applied },
+            { accountId: ar, creditCents: applied },
+          ],
+          payment.receivedAt,
+        );
+
+        return c.json({ payment, status, balanceDue, appliedCents: applied });
       },
     );
 
@@ -1788,6 +2039,11 @@ export default defineModule({
           // What the status would be from the payments alone, so a stale
           // stored status is visible rather than believed.
           computedStatus: status,
+          // What this customer could apply here, offered rather than
+          // spent automatically. See "/api/invoices/:id/apply-credit".
+          availableCreditCents: invoice.contactId
+            ? await creditBalanceFor(orgId, invoice.contactId)
+            : 0,
         });
       },
     );
