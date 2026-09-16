@@ -137,6 +137,10 @@ export type Company = {
   revenue: string | null;
   description: string | null;
   taxIdentifier: string | null;
+  /** What VIES said about the identifier, and when. Null: never checked. */
+  taxIdentifierValid?: boolean | null;
+  taxIdentifierCheckedAt?: string | null;
+  taxIdentifierCheckedName?: string | null;
   contextLinks: string[] | null;
   ownerId: string | null;
   createdAt: string;

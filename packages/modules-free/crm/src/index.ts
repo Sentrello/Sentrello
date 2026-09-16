@@ -50,6 +50,7 @@ import {
   registerCrmSettings,
 } from "./settings";
 import { registerTaskActions } from "./tasks";
+import { registerVies } from "./vies";
 
 /**
  * Org-scoped CRUD for one table. Every query carries the organizationId filter
@@ -1984,6 +1985,7 @@ export default defineModule({
   register(ctx) {
     registerCrmPersonalData(ctx);
     registerCrmSearch(ctx);
+    registerVies(ctx);
 
     /**
      * The CRM, as one thing with five pages under it.

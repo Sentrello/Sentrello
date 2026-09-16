@@ -64,6 +64,20 @@ export const companies = pgTable(
      */
     taxIdentifier: text("tax_identifier"),
     /**
+     * What VIES said about the identifier, and when it said it.
+     *
+     * Zero-rating a cross-border B2B sale is justified by the customer's VAT
+     * registration, and "we checked, on this date, and the register said this
+     * name" is the evidence a tax inspection asks for — a form that merely
+     * looked plausible is not. Null means never checked. A failed lookup
+     * writes nothing: VIES is intermittently down per member state, and an
+     * outage must never turn a good number bad.
+     */
+    taxIdentifierValid: boolean("tax_identifier_valid"),
+    taxIdentifierCheckedAt: timestamp("tax_identifier_checked_at"),
+    /** The registered name the check returned, kept so a person can compare. */
+    taxIdentifierCheckedName: text("tax_identifier_checked_name"),
+    /**
      * Anywhere else this company exists: their careers page, a news piece, a
      * Companies House record. Free-form because there is no knowing in
      * advance what somebody wants to keep a link to.

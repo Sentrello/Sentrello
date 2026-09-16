@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
-import { COMPANY_SIZES, type Company, api } from "../lib/api";
+import { ApiError, COMPANY_SIZES, type Company, api } from "../lib/api";
 import {
   type CrmSettings,
   managerName,
@@ -68,6 +68,81 @@ function ContextLinks({
         Add a link
       </button>
     </fieldset>
+  );
+}
+
+/**
+ * The VIES check, and what the last one said.
+ *
+ * A validated VAT number is what justifies zero-rating a cross-border B2B
+ * sale, so the answer is recorded — status, date, registered name — rather
+ * than flashed on screen and lost. The register is regularly down per member
+ * state; when it is, the server says so and changes nothing, and this shows
+ * that message instead of pretending the number went bad.
+ */
+function ViesStatus({
+  company,
+  taxIdentifier,
+}: {
+  company: Company;
+  taxIdentifier: string;
+}) {
+  const [checked, setChecked] = useState<Company>(company);
+  const [problem, setProblem] = useState<string | null>(null);
+  const edited = taxIdentifier.trim() !== (company.taxIdentifier ?? "");
+
+  const check = useMutation({
+    mutationFn: () =>
+      api<{ status: string; company: Company }>(
+        `/api/companies/${company.id}/vat-check`,
+        { method: "POST" },
+      ),
+    onSuccess: (result) => {
+      setChecked(result.company);
+      setProblem(null);
+    },
+    onError: (err) => {
+      setProblem(
+        err instanceof ApiError && err.serverMessage
+          ? err.serverMessage
+          : "The check could not be made.",
+      );
+    },
+  });
+
+  const on = checked.taxIdentifierCheckedAt
+    ? new Date(checked.taxIdentifierCheckedAt).toLocaleDateString()
+    : null;
+
+  return (
+    <div className="mt-1 text-xs text-muted-foreground">
+      {on &&
+        (checked.taxIdentifierValid ? (
+          <p>
+            Confirmed on VIES, {on}
+            {checked.taxIdentifierCheckedName
+              ? ` — registered as ${checked.taxIdentifierCheckedName}`
+              : ""}
+            .
+          </p>
+        ) : (
+          <p>VIES did not recognise this number when checked on {on}.</p>
+        ))}
+      {problem && <p>{problem}</p>}
+      <button
+        type="button"
+        className="link"
+        disabled={edited || check.isPending}
+        title={
+          edited
+            ? "Save the company first — the saved number is what gets checked."
+            : undefined
+        }
+        onClick={() => check.mutate()}
+      >
+        {check.isPending ? "Checking…" : "Check with VIES"}
+      </button>
+    </div>
   );
 }
 
@@ -191,6 +266,9 @@ export function CompanyForm({
               value={taxIdentifier}
               onChange={(e) => setTaxIdentifier(e.target.value)}
             />
+            {company && (
+              <ViesStatus company={company} taxIdentifier={taxIdentifier} />
+            )}
           </Field>
         </div>
 

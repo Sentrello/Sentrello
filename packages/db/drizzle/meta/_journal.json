@@ -526,6 +526,13 @@
       "when": 1789518684557,
       "tag": "0074_einvoice_learns_transport",
       "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1789520172274,
+      "tag": "0075_vies_evidence_on_companies",
+      "breakpoints": true
     }
   ]
 }
