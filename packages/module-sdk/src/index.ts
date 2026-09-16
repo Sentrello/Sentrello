@@ -120,6 +120,20 @@ export interface ModuleContext {
   registerSummary: (summary: ModuleSummary) => void;
 
   /**
+   * One dashboard panel, declared individually.
+   *
+   * The dashboard arranges panels into tabs; a module declares each of its
+   * panels here — what it is called, what a reader needs before it is offered
+   * (`requires`), what the licence must grant beyond loading the module at
+   * all (`entitlement`), and how it draws (`load` figures for the host's
+   * generic card, or a renderer the web shell ships under the widget's id).
+   *
+   * A summary registered with `registerSummary` is a panel too, without any
+   * further declaration — the dashboard arranges it under `summary:<id>`.
+   */
+  registerWidget: (widget: ModuleWidget) => void;
+
+  /**
    * What somebody has to do before this module is any use.
    *
    * A module arrives switched on and empty, and the person looking at it has
@@ -265,6 +279,7 @@ import { type PersonalDataSource, addPersonalData } from "./personal-data";
 import { type SearchProvider, addSearchProvider } from "./search";
 import { provideService } from "./services";
 import { type ModuleSummary, addSummary } from "./summaries";
+import { type ModuleWidget, addWidget } from "./widgets";
 
 export * from "./attachments";
 export * from "./search";
@@ -289,6 +304,7 @@ export * as banking from "./banking";
 export * as secrets from "./secrets";
 export * from "./stripe-signature";
 export * from "./summaries";
+export * from "./widgets";
 export * from "./personal-data";
 export * from "./crawlable";
 export * from "./onboarding";
@@ -369,6 +385,9 @@ export function registerForTest(
     // Registered for real, so a module's own tests can assert its figures.
     registerSummary: (summary) =>
       addSummary({ ...summary, moduleId: module.id }),
+    // Registered for real, like summaries, so a module's own tests can ask
+    // what panels it put on the dashboard.
+    registerWidget: (widget) => addWidget({ ...widget, moduleId: module.id }),
     registerSearch: (provider) =>
       addSearchProvider({ ...provider, moduleId: module.id }),
     // Registered for real, like summaries, so a module's own tests can ask it
