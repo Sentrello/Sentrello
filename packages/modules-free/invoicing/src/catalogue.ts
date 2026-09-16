@@ -618,6 +618,7 @@ export function registerBillingRules(ctx: ModuleContext) {
           lateFeeType: null,
           lateFeeValue: 0,
           lateFeeGraceDays: 7,
+          overpaymentPolicy: "refuse",
         },
         rules,
         usingDefaults: !row,
@@ -658,6 +659,9 @@ export function registerBillingRules(ctx: ModuleContext) {
         return c.json({ error: "that is not a percentage" }, 400);
       }
 
+      const overpaymentPolicy =
+        body.overpaymentPolicy === "credit" ? "credit" : "refuse";
+
       const values = {
         defaultDueDays,
         defaultPaymentTerms:
@@ -669,6 +673,7 @@ export function registerBillingRules(ctx: ModuleContext) {
         lateFeeGraceDays: Number.isInteger(body.lateFeeGraceDays)
           ? Math.max(0, Math.min(180, body.lateFeeGraceDays as number))
           : 7,
+        overpaymentPolicy,
         updatedAt: new Date(),
       };
 

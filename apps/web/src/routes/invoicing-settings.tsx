@@ -553,6 +553,8 @@ interface BillingSettings {
   lateFeeType: string | null;
   lateFeeValue: number;
   lateFeeGraceDays: number;
+  /** What happens when a payment recorded against an invoice is more than it asks for. */
+  overpaymentPolicy: string;
 }
 
 /** "-3" reads as "3 days before it is due", which is what somebody means. */
@@ -838,6 +840,29 @@ function BillingRules() {
                 saveSettings.mutate({ defaultPaymentTerms: e.target.value })
               }
             />
+          </Field>
+        </div>
+
+        {/*
+          What happens when somebody pays more than an invoice asks for. Two
+          real behaviours, not one right answer — a business decides for
+          itself, and the payment form refuses or credits accordingly.
+        */}
+        <div className="mt-5">
+          <Field
+            label="If a payment is more than what's owed"
+            hint="Receivable never goes negative either way."
+          >
+            <Select
+              value={settings.overpaymentPolicy}
+              className="w-64"
+              onChange={(e) =>
+                saveSettings.mutate({ overpaymentPolicy: e.target.value })
+              }
+            >
+              <option value="refuse">Refuse the excess</option>
+              <option value="credit">Hold it as credit on their account</option>
+            </Select>
           </Field>
         </div>
 

@@ -27,7 +27,8 @@
     "./timezone": "./src/timezone.ts",
     "./subscriptions": "./src/subscriptions.ts",
     "./credit": "./src/credit.ts",
-    "./tax-regimes": "./src/tax-regimes.ts"
+    "./tax-regimes": "./src/tax-regimes.ts",
+    "./customer-credit": "./src/customer-credit.ts"
   },
   "scripts": {
     "migrate": "bun run src/migrate.ts"

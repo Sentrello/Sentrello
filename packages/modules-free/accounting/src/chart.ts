@@ -69,6 +69,12 @@ export const STANDARD_CHART: {
     type: "liability",
     description: "Collected on sales and owed to the tax authority",
   },
+  {
+    code: "2300",
+    name: "Customer Credits",
+    type: "liability",
+    description: "Overpayments held against a customer's next invoice",
+  },
   { code: "3000", name: "Owner's Equity", type: "equity" },
   { code: "3100", name: "Drawings", type: "equity" },
   { code: "4000", name: "Sales Income", type: "income" },
