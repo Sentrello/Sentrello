@@ -39,6 +39,7 @@ import {
   textOn,
 } from "../lib/ui";
 import { ContactForm } from "./contact-form";
+import { ContactDuplicates } from "./contacts-duplicates";
 import { ContactsImport } from "./contacts-import";
 
 /**
@@ -77,6 +78,7 @@ export function Contacts() {
   const ranges = useLastSeenRanges();
   const { rows, total, paginated, isLoading, error, response } =
     useListQuery<Contact>("contacts", state);
+  const [findingDuplicates, setFindingDuplicates] = useState(false);
 
   const tags = useQuery({
     queryKey: ["tags"],
@@ -243,6 +245,15 @@ export function Contacts() {
           />
 
           <div className="ml-auto flex items-center gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => setFindingDuplicates((v) => !v)}
+            >
+              <span className="flex items-center gap-1.5">
+                <Icon name="user" size={15} />
+                Duplicates
+              </span>
+            </Button>
             <Button variant="secondary" onClick={() => setImporting((v) => !v)}>
               <span className="flex items-center gap-1.5">
                 <Icon name="clipboard" size={15} />
@@ -270,6 +281,12 @@ export function Contacts() {
 
         {importing ? (
           <ContactsImport onDone={() => setImporting(false)} />
+        ) : null}
+
+        {findingDuplicates ? (
+          <ContactDuplicates
+            onChanged={() => qc.invalidateQueries({ queryKey: ["contacts"] })}
+          />
         ) : null}
 
         {adding ? (

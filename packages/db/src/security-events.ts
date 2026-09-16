@@ -157,7 +157,13 @@ export type SecurityAction =
    * ones: who sent our customer records there, and when.
    */
   | "crm.webhook.created"
-  | "crm.webhook.deleted";
+  | "crm.webhook.deleted"
+  /**
+   * Two contacts folded into one. The merge table says what moved; this log
+   * says who decided the two were the same person, which is the half a
+   * dispute is actually about.
+   */
+  | "crm.contacts.merged";
 
 /** What each one says in a sentence, for the screen and for support. */
 export const ACTION_TEXT: Record<SecurityAction, string> = {
@@ -198,6 +204,7 @@ export const ACTION_TEXT: Record<SecurityAction, string> = {
   "seo.account.disconnected": "removed the search-data account",
   "crm.webhook.created": "added an outbound webhook for record changes",
   "crm.webhook.deleted": "removed an outbound webhook for record changes",
+  "crm.contacts.merged": "merged two contacts into one",
   "contractor.tax-id.set": "recorded a contractor\u2019s taxpayer number",
   "year.closed": "closed the year",
   "year.reopened": "reopened a closed year",
