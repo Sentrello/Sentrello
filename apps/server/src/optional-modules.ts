@@ -84,7 +84,7 @@ export function isNotInstalled(name: string, message: string): boolean {
  *
  * A token from before the claim existed carries no `with_tier`, and expects
  * only what it names outright. That errs quiet — an absent tier bundle goes
- * unreported for the day it takes the daily refresh to fetch a token that
+ * unreported for the hour it takes the next refresh to fetch a token that
  * says more — which is the right direction: a false alarm on every screen is
  * worse than a short silence.
  *
@@ -125,6 +125,38 @@ export function missingEntitledBundles(
       reason:
         "the licence includes it, and it is not installed on this instance. Run `sentrello update`.",
     }));
+}
+
+/**
+ * What a licence-state transition alone gained, still absent from disk.
+ *
+ * `missingEntitledBundles` answers "what is missing right now" from one
+ * state; this answers "what became missing between two of them" — the
+ * difference is what makes automatic acquisition (see
+ * `apps/server/src/module-acquisition.ts`) fire on a genuine new purchase and
+ * stay quiet on every refresh after, including ones where the gap is still
+ * there because the fetch failed or a restart has not happened yet. A name
+ * already missing in `before` is not new and does not count again; a name
+ * that dropped out of `after`'s entitlements is a loss, not a gain, and
+ * `missingEntitledBundles` would not report it either way.
+ */
+export function newlyMissingEntitledBundles(
+  before: {
+    valid: boolean;
+    claims: { tier?: string; modules?: string[]; with_tier?: string[] } | null;
+  },
+  after: {
+    valid: boolean;
+    claims: { tier?: string; modules?: string[]; with_tier?: string[] } | null;
+  },
+  present: string[],
+): string[] {
+  const was = new Set(
+    missingEntitledBundles(before, present).map((f) => f.name),
+  );
+  return missingEntitledBundles(after, present)
+    .map((f) => f.name)
+    .filter((name) => !was.has(name));
 }
 
 function isModule(value: unknown): value is SentrelloModule {

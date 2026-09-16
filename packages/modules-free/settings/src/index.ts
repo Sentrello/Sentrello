@@ -430,9 +430,12 @@ export default defineModule({
     /**
      * Fetch a fresh licence token and the bundles it entitles.
      *
-     * What someone presses after buying a module on the website. Without it the
-     * purchase appears whenever the daily refresh next runs — up to a day after
-     * paying, which feels like it did not work.
+     * What someone presses after buying a module on the website, for the
+     * business that does not want to wait even for the hourly refresh —
+     * which, since `apps/server/src/module-acquisition.ts`, raises this same
+     * request on its own the moment it sees the licence gain something this
+     * instance does not have. Either way the bundle still needs the restart
+     * this endpoint's status already asks for.
      */
     ctx.app.post(
       "/api/settings/sync",

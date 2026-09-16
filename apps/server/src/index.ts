@@ -41,6 +41,7 @@ import {
   resolveLicense,
 } from "./license";
 import { loadModules } from "./loader";
+import { pursueGainedModules } from "./module-acquisition";
 import { serveModuleUi } from "./module-ui";
 import {
   discoverOptionalModules,
@@ -153,7 +154,7 @@ registerBootstrapRoutes(app);
 // `state` here is the boot snapshot: right for the one-time decisions below
 // (which bundles this build shipped with, what tier to log and hand the
 // jobs process). Anything a request or a screen reads goes through
-// `currentLicenseState()`/`gate` instead, which follow the daily refresh.
+// `currentLicenseState()`/`gate` instead, which follow the hourly refresh.
 const { state, gate } = await resolveLicense();
 
 // Free modules ship in this repo; commercial bundles are discovered at runtime
@@ -789,11 +790,26 @@ if (import.meta.main && jobsEnabled) {
     // Only reaches anywhere if this instance was asked at install time and
     // said yes; the job checks that itself.
     modules: loaded,
-    // After the daily token refresh (whatever it did or did not fetch), make
+    // After the hourly token refresh (whatever it did or did not fetch), make
     // the live licence state — and therefore `gate` — reflect what is on
     // disk now. This is the one line that makes a lapsed licence take effect
     // without a restart.
-    onLicenseRefresh: refreshLicenseState,
+    //
+    // `before` is read first because it is about to become stale: once
+    // `refreshLicenseState` runs, `currentLicenseState()` is `after`. Handing
+    // both to `pursueGainedModules` is what lets a newly bought module fetch
+    // itself — see that file for why comparing the two, rather than asking
+    // what is missing right now, is what keeps it to one request per
+    // purchase.
+    onLicenseRefresh: async () => {
+      const before = currentLicenseState();
+      await refreshLicenseState();
+      await pursueGainedModules(
+        before,
+        currentLicenseState(),
+        modules.map((m) => m.id),
+      );
+    },
   });
 }
 

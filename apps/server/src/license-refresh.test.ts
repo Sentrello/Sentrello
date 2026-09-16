@@ -19,6 +19,7 @@ import {
   resolveLicense,
 } from "./license";
 import { loadModules } from "./loader";
+import { pursueGainedModules } from "./module-acquisition";
 
 /**
  * The live half of licence verification.
@@ -147,6 +148,52 @@ test("a token that has genuinely expired downgrades even though the server canno
 
   expect(gate({ tier: "pro" })).toBe(false);
   expect(currentLicenseState().valid).toBe(false);
+});
+
+/**
+ * The wiring in `apps/server/src/index.ts`'s `onLicenseRefresh`, end to end:
+ * a real token re-verified by the real `refreshLicenseState`, with
+ * `pursueGainedModules` fed the exact `before`/`after` pair that callback
+ * builds. This is what a newly bought module arriving on its own actually
+ * depends on, not just the pure diff `optional-modules.test.ts` covers.
+ */
+test("a live refresh that gains an entitled, absent module asks the host to fetch it — exactly once", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "sentrello-acquisition-live-"));
+  const savedDataDir = process.env.SENTRELLO_DATA_DIR;
+  process.env.SENTRELLO_DATA_DIR = dataDir;
+  await writeFile(join(dataDir, "update-agent"), "1\n", "utf8");
+  const syncRequested = () =>
+    Bun.file(join(dataDir, "sync-requested")).exists();
+
+  try {
+    // Boot: Pro, but without the module this instance is about to buy.
+    await writeToken({ tier: "pro", modules: [], license_id: "l1" }, "1h");
+    await resolveLicense(publicKeyPem);
+
+    // First refresh after the purchase: the token now names the module, and
+    // it is not among what this instance has on disk ("dashboard" only).
+    let before = currentLicenseState();
+    await writeToken(
+      { tier: "pro", modules: ["scheduling"], license_id: "l1" },
+      "1h",
+    );
+    await refreshLicenseState(publicKeyPem);
+    await pursueGainedModules(before, currentLicenseState(), ["dashboard"]);
+    expect(await syncRequested()).toBe(true);
+
+    // The host agent would consume the request; simulate that.
+    await rm(join(dataDir, "sync-requested"));
+
+    // Next refresh: same token, nothing changed. Still not on disk (loading
+    // one is restart-bound), but this must not ask again.
+    before = currentLicenseState();
+    await refreshLicenseState(publicKeyPem);
+    await pursueGainedModules(before, currentLicenseState(), ["dashboard"]);
+    expect(await syncRequested()).toBe(false);
+  } finally {
+    process.env.SENTRELLO_DATA_DIR = savedDataDir;
+    await rm(dataDir, { recursive: true, force: true });
+  }
 });
 
 test("/api/_meta's tier and `gate` never disagree, before or after a refresh", async () => {

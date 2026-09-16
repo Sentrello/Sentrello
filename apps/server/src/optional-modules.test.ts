@@ -1,5 +1,9 @@
 import { expect, test } from "bun:test";
-import { isNotInstalled, missingEntitledBundles } from "./optional-modules";
+import {
+  isNotInstalled,
+  missingEntitledBundles,
+  newlyMissingEntitledBundles,
+} from "./optional-modules";
 
 /**
  * A bundle that is absent and a bundle that is broken used to look identical,
@@ -158,4 +162,52 @@ test("an invalid Pro token is a licence fault, not a missing bundle", () => {
       ["dashboard"],
     ),
   ).toEqual([]);
+});
+
+/**
+ * `newlyMissingEntitledBundles` — what drives automatic acquisition
+ * (`apps/server/src/module-acquisition.ts`). It is `missingEntitledBundles`
+ * called twice and diffed, so a gap that was already there is not "new" and
+ * a gap that closes is not reported either way.
+ */
+
+test("a fresh purchase is the whole of what is newly missing", () => {
+  const before = proClaims([]);
+  const after = proClaims(["shop"]);
+  expect(newlyMissingEntitledBundles(before, after, allPresent)).toEqual([
+    "shop",
+  ]);
+});
+
+test("a gap already there before this refresh does not count again", () => {
+  // Bought last week, still not installed: `before` already reports it
+  // missing, so it is not new — the standing licence-screen alarm covers it,
+  // not a fresh request every time the token happens to be re-verified.
+  const before = proClaims(["shop"]);
+  const after = proClaims(["shop"]);
+  expect(newlyMissingEntitledBundles(before, after, allPresent)).toEqual([]);
+});
+
+test("a refresh that changes nothing reports nothing", () => {
+  const state = proClaims(["shop"]);
+  expect(newlyMissingEntitledBundles(state, state, allPresent)).toEqual([]);
+});
+
+test("losing an entitlement is not a gain", () => {
+  const before = proClaims(["shop"]);
+  const after = proClaims([]);
+  expect(newlyMissingEntitledBundles(before, after, allPresent)).toEqual([]);
+});
+
+test("a bundle that was already present is never reported as gained", () => {
+  const before = proClaims([]);
+  const after = proClaims(["shop"]);
+  expect(
+    newlyMissingEntitledBundles(before, after, [...allPresent, "shop"]),
+  ).toEqual([]);
+});
+
+test("Free gaining nothing (no licence at all) reports nothing", () => {
+  const free = { valid: false, claims: null };
+  expect(newlyMissingEntitledBundles(free, free, allPresent)).toEqual([]);
 });
