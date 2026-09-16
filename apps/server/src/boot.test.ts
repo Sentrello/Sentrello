@@ -405,6 +405,9 @@ test("/api/_meta exposes only the nav the loaded modules registered", async () =
     "invoicing-dashboard",
     "quotes",
     "invoicing",
+    // Where the business stands against each state's economic-nexus line,
+    // its exemption certificates, and a period's filing figures.
+    "invoicing-us-tax",
     // No "recurring" and no "subscriptions": this instance has no licence, and
     // both are the Pro half of Invoicing. The routes behind them answer 404
     // here, so the sidebar must not offer either door.

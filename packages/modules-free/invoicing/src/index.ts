@@ -52,6 +52,13 @@ import {
   writeTaxBands,
 } from "./documents";
 import { registerEInvoice } from "./einvoice-route";
+import {
+  ExemptionError,
+  ensureExemptDefinition,
+  exemptLines,
+  exemptionForInvoice,
+  registerExemptions,
+} from "./exemptions";
 import { registerLifecycle } from "./lifecycle";
 import { registerLists } from "./lists";
 import { registerInvoicingPersonalData } from "./personal-data";
@@ -60,6 +67,9 @@ import { registerShare } from "./share";
 import { registerInvoiceSearch, registerInvoicingSummary } from "./summary";
 import { registerDocumentTags, tagsFor } from "./tags";
 import { registerTemplates } from "./templates";
+import { registerUsFiling } from "./us-filing";
+import { registerUsNexus } from "./us-nexus";
+import { registerUsRates } from "./us-rates";
 
 /**
  * Tells the customer their payment landed.
@@ -181,6 +191,10 @@ export default defineModule({
     registerInvoiceSearch(ctx);
     registerEInvoice(ctx);
     registerDistanceSelling(ctx);
+    registerUsNexus(ctx);
+    registerUsRates(ctx);
+    registerUsFiling(ctx);
+    registerExemptions(ctx);
     ctx.registerNav({
       id: "invoicing",
       label: "Invoices",
@@ -204,6 +218,20 @@ export default defineModule({
      * nav entry's module is what tells the browser which bundle draws the
      * screen, so the offer moved with the thing offered.
      */
+    /*
+     * Its own page, for the same reason the VAT return has one: knowing
+     * where you stand against a state's threshold, and what a period's
+     * filing figures are, is a deliberate act with money on it — not a
+     * panel to hunt for.
+     */
+    ctx.registerNav({
+      id: "invoicing-us-tax",
+      label: "US sales tax",
+      order: 20.5,
+      group: "Money",
+      icon: "landmark",
+      requires: { invoicing: ["read"] },
+    });
     ctx.registerNav({
       id: "invoicing-settings",
       label: "Invoice settings",
@@ -328,6 +356,49 @@ export default defineModule({
           );
         }
 
+        /**
+         * An exempt sale, if the customer's certificate says so.
+         *
+         * Validated against the issue date — the day of the sale is the day
+         * the auditor asks about — and refused out loud when the certificate
+         * has expired or been revoked, because silently charging no tax under
+         * a dead certificate is the mistake that costs the business the tax
+         * plus penalties, years later. When it holds, every line is charged
+         * at Exempt whatever the browser put on it, and the invoice records
+         * which certificate excused it.
+         */
+        let exemptionCertificateId: string | null = null;
+        try {
+          exemptionCertificateId = await exemptionForInvoice(
+            orgId,
+            contactId,
+            body.exemptionCertificateId,
+            issued ?? new Date(),
+          );
+        } catch (err) {
+          if (err instanceof ExemptionError) {
+            return c.json({ error: err.message }, 422);
+          }
+          throw err;
+        }
+        if (exemptionCertificateId) {
+          try {
+            prepared = await prepareDocument(
+              orgId,
+              exemptLines(
+                (body.lines ?? []) as IncomingLine[],
+                await ensureExemptDefinition(orgId),
+              ),
+              parseDiscount(body),
+            );
+          } catch (err) {
+            if (err instanceof MoneyError) {
+              return c.json({ error: err.message }, 400);
+            }
+            throw err;
+          }
+        }
+
         const invoice = await db.transaction(async (tx) => {
           const [inv] = await tx
             .insert(schema.invoices)
@@ -361,6 +432,7 @@ export default defineModule({
               earlyDiscountType: early.type,
               earlyDiscountValue: early.value,
               earlyDiscountDays: early.days,
+              exemptionCertificateId,
               subtotalCents: prepared.subtotalCents,
               taxCents: prepared.taxCents,
               totalCents: prepared.totalCents,
@@ -914,12 +986,72 @@ export default defineModule({
           unknown
         >;
 
+        // Same rule as creation: a reassigned customer has to be one of ours.
+        if (
+          typeof body.contactId === "string" &&
+          !(await ownedContact(orgId, body.contactId))
+        ) {
+          return c.json({ error: "no such customer" }, 404);
+        }
+
+        /**
+         * The certificate on a draft, changed or cleared.
+         *
+         * Same validation as creation, against the draft's own issue date and
+         * its (possibly reassigned) customer. Setting one re-prices the
+         * document exempt — from the lines being saved, or from the stored
+         * ones when only the certificate changed — and an explicit null takes
+         * the claim off without touching the lines, which the person is then
+         * editing themselves.
+         */
+        let exemptionCertificateId: string | null | undefined;
+        if (body.exemptionCertificateId !== undefined) {
+          try {
+            exemptionCertificateId = await exemptionForInvoice(
+              orgId,
+              typeof body.contactId === "string"
+                ? body.contactId
+                : invoice.contactId,
+              body.exemptionCertificateId,
+              invoice.issueDate,
+            );
+          } catch (err) {
+            if (err instanceof ExemptionError) {
+              return c.json({ error: err.message }, 422);
+            }
+            throw err;
+          }
+        }
+
+        let incomingLines: IncomingLine[] | null = Array.isArray(body.lines)
+          ? (body.lines as IncomingLine[])
+          : null;
+        if (exemptionCertificateId && !incomingLines) {
+          const stored = await db
+            .select()
+            .from(schema.invoiceLines)
+            .where(eq(schema.invoiceLines.invoiceId, id))
+            .orderBy(schema.invoiceLines.sortOrder);
+          incomingLines = stored.map((l) => ({
+            billableItemId: l.billableItemId,
+            description: l.description,
+            quantityMilli: l.quantityMilli,
+            unitPriceCents: l.unitPriceCents,
+            unit: l.unit,
+          }));
+        }
+
         let prepared: Awaited<ReturnType<typeof prepareDocument>> | null = null;
-        if (Array.isArray(body.lines)) {
+        if (incomingLines) {
           try {
             prepared = await prepareDocument(
               orgId,
-              body.lines as IncomingLine[],
+              exemptionCertificateId
+                ? exemptLines(
+                    incomingLines,
+                    await ensureExemptDefinition(orgId),
+                  )
+                : incomingLines,
               parseDiscount(body),
             );
           } catch (err) {
@@ -928,14 +1060,6 @@ export default defineModule({
             }
             throw err;
           }
-        }
-
-        // Same rule as creation: a reassigned customer has to be one of ours.
-        if (
-          typeof body.contactId === "string" &&
-          !(await ownedContact(orgId, body.contactId))
-        ) {
-          return c.json({ error: "no such customer" }, 404);
         }
 
         const updated = await db.transaction(async (tx) => {
@@ -961,6 +1085,9 @@ export default defineModule({
           }
           if (typeof body.templateId === "string") {
             values.templateId = body.templateId || null;
+          }
+          if (exemptionCertificateId !== undefined) {
+            values.exemptionCertificateId = exemptionCertificateId;
           }
           if (prepared) {
             values.discountType =
