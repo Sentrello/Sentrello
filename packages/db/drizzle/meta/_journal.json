@@ -575,6 +575,13 @@
       "when": 1789574076560,
       "tag": "0081_the_business_is_told",
       "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1789574077242,
+      "tag": "0082_a_view_kept_under_a_name",
+      "breakpoints": true
     }
   ]
 }

@@ -11,6 +11,7 @@ import {
 import { Icon } from "../lib/icons";
 import { listQueryString, useListState } from "../lib/list-ui";
 import { RelatedLink, useNavigation } from "../lib/navigation";
+import { SavedViews } from "../lib/saved-views";
 import {
   Button,
   Card,
@@ -392,6 +393,37 @@ export function Deals() {
               </option>
             ))}
         </Select>
+
+        {/* "Worth at least" — the other half of "my open deals over five
+            thousand". Typed in whole currency, sent as integer cents. */}
+        <span className="flex items-center gap-1.5 text-sm" style={muted}>
+          Worth at least
+          <Input
+            value={
+              state.filters.minAmountCents
+                ? String(Number(state.filters.minAmountCents) / 100)
+                : ""
+            }
+            inputMode="numeric"
+            aria-label="Minimum amount"
+            className="w-24"
+            onChange={(e) => {
+              const whole = Number(e.target.value);
+              state.setFilter({
+                minAmountCents:
+                  e.target.value.trim() && Number.isFinite(whole)
+                    ? String(Math.round(whole * 100))
+                    : undefined,
+              });
+            }}
+          />
+        </span>
+
+        <SavedViews
+          resource="deals"
+          state={state}
+          defaults={{ sort: "position", order: "asc" }}
+        />
 
         {state.hasFilters || state.q ? (
           <button

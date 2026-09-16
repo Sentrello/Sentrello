@@ -23,6 +23,12 @@ import {
 } from "../lib/list-ui";
 import { useNavigation } from "../lib/navigation";
 import {
+  GroupMenu,
+  type ListGroup,
+  SavedViews,
+  groupedSections,
+} from "../lib/saved-views";
+import {
   Button,
   Empty,
   ErrorNote,
@@ -69,10 +75,8 @@ export function Contacts() {
   const settings = useCrmSettings();
   const managers = useCrmManagers();
   const ranges = useLastSeenRanges();
-  const { rows, total, paginated, isLoading, error } = useListQuery<Contact>(
-    "contacts",
-    state,
-  );
+  const { rows, total, paginated, isLoading, error, response } =
+    useListQuery<Contact>("contacts", state);
 
   const tags = useQuery({
     queryKey: ["tags"],
@@ -225,6 +229,18 @@ export function Contacts() {
               { field: "createdAt", label: "Date added", order: "desc" },
             ]}
           />
+          <GroupMenu
+            state={state}
+            fields={[
+              { field: "status", label: "Status" },
+              { field: "kind", label: "Kind" },
+            ]}
+          />
+          <SavedViews
+            resource="contacts"
+            state={state}
+            defaults={{ sort: "lastSeenAt", order: "desc" }}
+          />
 
           <div className="ml-auto flex items-center gap-2">
             <Button variant="secondary" onClick={() => setImporting((v) => !v)}>
@@ -309,75 +325,104 @@ export function Contacts() {
               company and status spends most of its width on dashes; this
               spends it on the name and the tags.
             */}
-            <div
-              className="overflow-hidden rounded border"
-              style={{ ...border, background: "var(--surface-raised)" }}
-            >
-              {rows.map((c, i) => (
-                <div
-                  key={c.id}
-                  className="flex items-center gap-3 px-3 py-2"
-                  style={
-                    i > 0 ? { borderTop: "1px solid var(--border)" } : undefined
-                  }
-                >
-                  <input
-                    type="checkbox"
-                    aria-label={`Select ${c.name}`}
-                    checked={selected.includes(c.id)}
-                    onChange={(e) => toggleSelected(c.id, e.target.checked)}
-                  />
-                  <Avatar
-                    // Only ask for a picture when the record says it has one:
-                    // a page of 25 contacts otherwise fires 25 requests that
-                    // all come back 404.
-                    src={
-                      c.avatarPath ? `/api/crm/contacts/${c.id}/image` : null
-                    }
-                    name={c.name}
-                    size={36}
-                  />
-                  <button
-                    type="button"
-                    className="min-w-0 flex-1 text-left"
-                    onClick={() =>
-                      open({
-                        moduleId: "contacts",
-                        recordId: c.id,
-                        title: c.name,
-                      })
-                    }
-                  >
-                    <span className="link block font-medium">{c.name}</span>
-                    <span
-                      className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs"
-                      style={muted}
-                    >
-                      {describe(c, companyName(c.companyId))}
-                      {c.tags?.map((tag) => (
-                        <span
-                          key={tag.id}
-                          className="rounded px-1.5 py-0.5"
-                          style={{
-                            background: tag.color,
-                            color: textOn(tag.color),
-                          }}
-                        >
-                          {tag.name}
-                        </span>
-                      ))}
-                    </span>
-                  </button>
-                  <span
-                    className="flex shrink-0 items-center gap-2 text-xs"
+            {groupedSections(
+              rows,
+              response?.groups as ListGroup[] | undefined,
+              state.filters.groupBy,
+            ).map((section) => (
+              <div key={String(section.group?.value ?? "everyone")}>
+                {section.group ? (
+                  /* The count is the whole filtered set, not this page:
+                     "Hot — 41" above the three of them the page holds. */
+                  <p
+                    className="mb-1 flex items-baseline gap-2 text-xs uppercase tracking-wide"
                     style={muted}
                   >
-                    Last activity {sinceLabel(c.lastSeenAt)}
-                    <StatusLabel status={c.status} settings={settings} />
-                  </span>
+                    <span className="font-medium">
+                      {state.filters.groupBy === "status"
+                        ? (settings.contactStatuses.find(
+                            (s) => s.id === section.group?.value,
+                          )?.label ?? String(section.group.value ?? "—"))
+                        : String(section.group.value ?? "—")}
+                    </span>
+                    <span>{section.group.count}</span>
+                  </p>
+                ) : null}
+                <div
+                  className="overflow-hidden rounded border"
+                  style={{ ...border, background: "var(--surface-raised)" }}
+                >
+                  {section.rows.map((c, i) => (
+                    <div
+                      key={c.id}
+                      className="flex items-center gap-3 px-3 py-2"
+                      style={
+                        i > 0
+                          ? { borderTop: "1px solid var(--border)" }
+                          : undefined
+                      }
+                    >
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${c.name}`}
+                        checked={selected.includes(c.id)}
+                        onChange={(e) => toggleSelected(c.id, e.target.checked)}
+                      />
+                      <Avatar
+                        // Only ask for a picture when the record says it has one:
+                        // a page of 25 contacts otherwise fires 25 requests that
+                        // all come back 404.
+                        src={
+                          c.avatarPath
+                            ? `/api/crm/contacts/${c.id}/image`
+                            : null
+                        }
+                        name={c.name}
+                        size={36}
+                      />
+                      <button
+                        type="button"
+                        className="min-w-0 flex-1 text-left"
+                        onClick={() =>
+                          open({
+                            moduleId: "contacts",
+                            recordId: c.id,
+                            title: c.name,
+                          })
+                        }
+                      >
+                        <span className="link block font-medium">{c.name}</span>
+                        <span
+                          className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs"
+                          style={muted}
+                        >
+                          {describe(c, companyName(c.companyId))}
+                          {c.tags?.map((tag) => (
+                            <span
+                              key={tag.id}
+                              className="rounded px-1.5 py-0.5"
+                              style={{
+                                background: tag.color,
+                                color: textOn(tag.color),
+                              }}
+                            >
+                              {tag.name}
+                            </span>
+                          ))}
+                        </span>
+                      </button>
+                      <span
+                        className="flex shrink-0 items-center gap-2 text-xs"
+                        style={muted}
+                      >
+                        Last activity {sinceLabel(c.lastSeenAt)}
+                        <StatusLabel status={c.status} settings={settings} />
+                      </span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
 
             {/* Pages appear once there are more contacts than fit comfortably,
                 which is what "after 25+" means in practice. */}
