@@ -96,6 +96,37 @@ states. Locality-accurate rates across many states need a data provider, and
 Sentrello is built so one can be connected on your own account from settings —
 the same way a card processor is.
 
+## Canadian sales tax
+
+Canada charges GST everywhere, HST instead in the harmonised provinces, and —
+in British Columbia, Saskatchewan, Manitoba and Quebec — a provincial tax
+**beside** GST, on the same sale. The same jurisdiction idea covers it: give a
+rate `CA` for GST, `CA-ON` for Ontario's HST, `CA-QC` for QST, `CA-BC` for
+BC's PST, and Sentrello knows what it is. Two taxes sit on one line where the
+province stacks them, each worked out on its own and tracked to its own
+liability account, and Quebec's 9.975% is charged as exactly 9.975%.
+
+The part worth being careful about is that these are **different taxes filed
+to different governments**. GST and HST go to the CRA on one federal return.
+QST goes to Revenu Québec — filed on the same combined form as your GST, but
+a separate tax with a separate net. A PST province's tax goes to that
+province, separately again. And the taxes behave differently on your own
+purchases: GST, HST and QST you pay your suppliers **comes back** as input
+tax credits on the return; PST does not — it is simply part of what the thing
+cost, and no figure here will ever net it against what you collected.
+
+**Which province's tax?** Where the sale is delivered decides — goods take the
+province they are shipped to, services generally take the customer's address.
+Not where you sit.
+
+**Filing.** Accounting → Canadian tax shows, for any period, one card per
+government you collect for: the CRA's return with its own line numbers,
+the QST return, each province's PST — with the ledger's figure and your
+documents' figure side by side so you can see them agree before you type
+anything into NETFILE or a provincial portal. A credited sale has already
+come back off the right return. If you charge tax in one province, that is
+the only card you will ever see.
+
 ## The catalogue
 
 Products and services you invoice for repeatedly live in a price list, each with
