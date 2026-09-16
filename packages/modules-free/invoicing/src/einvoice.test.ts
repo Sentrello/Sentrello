@@ -670,3 +670,20 @@ test("a zero-rated line and a standard line share a document under peppol", () =
   expect(xml).toContain("<cbc:ID>Z</cbc:ID>");
   expect(xml).toContain("<cbc:ID>S</cbc:ID>");
 });
+
+test("an export line is category G with a reason, as BR-G-10 demands", () => {
+  const input = complete();
+  const first = input.lines[0];
+  if (!first) throw new Error("the fixture has no lines");
+  input.lines = [
+    { ...first, taxRateBp: 0, taxes: [{ rateBp: 0, categoryCode: "G" }] },
+  ];
+  input.taxCents = 0;
+  input.totalCents = input.subtotalCents;
+  input.dueCents = input.subtotalCents;
+  const xml = toUbl(input);
+  expect(xml).toContain("<cbc:ID>G</cbc:ID>");
+  expect(xml).toContain(
+    "<cbc:TaxExemptionReason>Export outside the EU</cbc:TaxExemptionReason>",
+  );
+});

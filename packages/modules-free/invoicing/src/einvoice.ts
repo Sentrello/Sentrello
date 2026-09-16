@@ -315,12 +315,12 @@ function categoriesIn(input: EInvoiceInput): Set<string> {
 /**
  * Why no tax is charged, for the categories that must say so.
  *
- * EN 16931 rejects an E, AE or O breakdown without a reason (BR-E-10,
- * BR-AE-10, BR-O-10). The definition's own wording wins; these are the
- * fallbacks so an absent description is a generic reason rather than a
+ * EN 16931 rejects an E, AE, G or O breakdown without a reason (BR-E-10,
+ * BR-AE-10, BR-G-10, BR-O-10). The definition's own wording wins; these are
+ * the fallbacks so an absent description is a generic reason rather than a
  * rejected invoice.
  */
-function exemptionReasonFor(
+export function exemptionReasonFor(
   categoryCode: string,
   given: string | null,
 ): string | null {
@@ -330,6 +330,8 @@ function exemptionReasonFor(
       return "Exempt from VAT";
     case "AE":
       return "Reverse charge";
+    case "G":
+      return "Export outside the EU";
     case "O":
       return "Not subject to VAT";
     default:
