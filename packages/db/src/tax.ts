@@ -148,3 +148,113 @@ export function forHmrc(vat: VatReturn): Record<string, number> {
     totalAcquisitionsExVAT: wholePounds(vat.totalAcquisitionsExVAT),
   };
 }
+
+/**
+ * The Flat Rate Scheme return — the same nine boxes, computed HMRC's other way.
+ *
+ * Under the scheme a business still charges VAT at the normal rates, but what
+ * it *owes* is a single sector percentage applied to its gross, VAT-inclusive
+ * turnover — and in exchange it gives up the ordinary box 4 reclaim on
+ * purchases. Which sector, and therefore which percentage, is the business's
+ * own election with HMRC; it arrives here as a setting and is never guessed.
+ *
+ * The percentage is in millionths, like every rate in this package:
+ * 14.5% is 145,000.
+ *
+ * Box 6 is the gross flat-rate turnover *including* VAT — HMRC's rule for this
+ * scheme, and the one thing here that looks wrong to anybody used to the
+ * standard return. The field keeps its name because HMRC's API keeps its name.
+ *
+ * Boxes 4 and 7 are zero. The scheme's one exception — reclaiming VAT on a
+ * single capital asset purchase of £2,000 or more — is not modelled, and the
+ * screen says so rather than leaving it to be discovered at an inspection.
+ */
+export function flatRateVatReturn(
+  rows: LedgerRow[],
+  sectorRatePpm: number,
+): VatReturn {
+  const gross = flatRateTurnoverCents(rows);
+  const vatDueSales = Math.round((gross * sectorRatePpm) / 1_000_000);
+
+  return {
+    vatDueSales,
+    vatDueAcquisitions: 0,
+    totalVatDue: vatDueSales,
+    vatReclaimedCurrPeriod: 0,
+    netVatDue: Math.abs(vatDueSales),
+    totalValueSalesExVAT: gross,
+    totalValuePurchasesExVAT: 0,
+    totalValueGoodsSuppliedExVAT: 0,
+    totalAcquisitionsExVAT: 0,
+  };
+}
+
+/**
+ * Gross, VAT-inclusive turnover — what the flat rate percentage applies to.
+ *
+ * Walked entry by entry rather than summed account by account, because the VAT
+ * account alone cannot say which of its movements were charged on sales: a
+ * purchase's reclaimable VAT lands in the same account from the other side.
+ * The VAT that belongs in the turnover is the VAT posted in the same entry as
+ * income — an invoice, a card sale, a credit note — and an entry with no
+ * income line contributed nothing to turnover, whatever else it moved.
+ */
+export function flatRateTurnoverCents(rows: LedgerRow[]): number {
+  const entries = new Map<string, { income: number; vat: number }>();
+  for (const row of rows) {
+    const entry = entries.get(row.entryId) ?? { income: 0, vat: 0 };
+    if (row.type === "income") {
+      entry.income += row.creditCents - row.debitCents;
+    } else if (row.code === VAT_ACCOUNT) {
+      entry.vat += row.creditCents - row.debitCents;
+    }
+    entries.set(row.entryId, entry);
+  }
+
+  let gross = 0;
+  for (const entry of entries.values()) {
+    if (entry.income !== 0) gross += entry.income + entry.vat;
+  }
+  return gross;
+}
+
+/**
+ * The figures the limited cost trader determination is made from.
+ *
+ * A business whose *relevant goods* cost less than 2% of its gross turnover —
+ * or less than £1,000 a year even when over 2% — pays the 16.5% limited cost
+ * rate instead of its sector's. But "relevant goods" is a legal category the
+ * ledger cannot see: it excludes services, capital, vehicles, food and fuel by
+ * rules that need a human who knows the business, and getting the call wrong
+ * on somebody's behalf is worse than not making it.
+ *
+ * So this returns the ingredients and no verdict: the gross turnover, 2% of
+ * it, and everything recorded as an expense — which is *broader* than relevant
+ * goods, and said so wherever these figures are shown. No boolean, no chosen
+ * rate. That determination is the accountant's, on purpose.
+ */
+export interface LimitedCostFigures {
+  /** Gross, VAT-inclusive flat-rate turnover for the period. */
+  grossTurnoverCents: number;
+  /** 2% of it — the threshold relevant goods are measured against. */
+  twoPercentOfTurnoverCents: number;
+  /**
+   * Everything recorded as an expense in the period. An upper bound on
+   * relevant goods, never the figure itself.
+   */
+  spendingCents: number;
+}
+
+export function limitedCostFigures(rows: LedgerRow[]): LimitedCostFigures {
+  const grossTurnoverCents = flatRateTurnoverCents(rows);
+  const spendingCents = rows
+    .filter((row) => row.type === "expense")
+    .reduce((sum, row) => sum + row.debitCents - row.creditCents, 0);
+  return {
+    grossTurnoverCents,
+    twoPercentOfTurnoverCents: Math.round(
+      (grossTurnoverCents * 20_000) / 1_000_000,
+    ),
+    spendingCents,
+  };
+}
