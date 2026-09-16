@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import {
+  invitationEmail,
   invoiceEmail,
   orderDespatchedEmail,
   orderPaidEmail,
@@ -152,4 +153,17 @@ test("a buyer's order link cannot inject markup", () => {
     orderUrl: 'https://x/"><script>alert(1)</script>',
   });
   expect(mail.html).not.toContain("<script>");
+});
+
+test("an invitation names the business, carries the link, and cannot inject markup", () => {
+  const mail = invitationEmail({
+    url: "https://books.example/accept-invitation?token=abc",
+    organizationName: 'Whitcombe & Sons <img src=x onerror="alert(1)">',
+    inviterName: "Avery",
+    expiresAt: new Date("2026-09-18T12:00:00Z"),
+  });
+  expect(mail.html).toContain("accept-invitation?token=abc");
+  expect(mail.html).toContain("Avery has invited you");
+  expect(mail.html).toContain("expires on");
+  expect(mail.html).not.toContain("<img");
 });
