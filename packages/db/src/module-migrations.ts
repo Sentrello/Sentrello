@@ -1,6 +1,7 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
+import { logMigrationNotice } from "./migration-notices";
 import { dbSsl } from "./ssl";
 
 /**
@@ -18,7 +19,11 @@ export async function runModuleMigrations(
   if (!url) throw new Error("DATABASE_URL is not set");
 
   const ssl = dbSsl();
-  const sql = postgres(url, { max: 1, ...(ssl ? { ssl } : {}) });
+  const sql = postgres(url, {
+    max: 1,
+    onnotice: logMigrationNotice,
+    ...(ssl ? { ssl } : {}),
+  });
   try {
     await migrate(drizzle(sql), { migrationsFolder, migrationsTable });
   } finally {
