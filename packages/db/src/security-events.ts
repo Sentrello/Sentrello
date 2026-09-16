@@ -23,6 +23,9 @@ export type SecurityAction =
   | "sessions.revoked"
   | "member.removed"
   | "member.invited"
+  // The invited person following their link: the moment somebody new gained
+  // a way into the business, recorded as them, in the business they joined.
+  | "member.joined"
   | "invitation.cancelled"
   | "group.created"
   | "group.changed"
@@ -179,6 +182,7 @@ export const ACTION_TEXT: Record<SecurityAction, string> = {
   "sessions.revoked": "signed out every device of",
   "member.removed": "removed",
   "member.invited": "invited",
+  "member.joined": "accepted an invitation and joined",
   "invitation.cancelled": "withdrew the invitation to",
   "group.created": "created the group",
   "group.changed": "changed what is granted by",
