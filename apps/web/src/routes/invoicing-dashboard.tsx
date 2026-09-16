@@ -60,6 +60,24 @@ export function InvoicingDashboard() {
     queryKey: ["contacts", "all"],
     queryFn: () => api<{ contacts: Contact[] }>("/api/contacts"),
   });
+  /**
+   * The EU distance-selling threshold, shown only when it bites.
+   *
+   * Most instances are not EU sellers, and an EU seller under the line needs
+   * nothing from anybody — so the common case is no banner at all. Past
+   * €10,000 of cross-border B2C the VAT genuinely moves to the customer's
+   * country, and staying silent about that is how a small business finds out
+   * from a tax authority instead.
+   */
+  const distance = useQuery({
+    queryKey: ["invoicing", "distance-sales"],
+    queryFn: () =>
+      api<{
+        applies: boolean;
+        exceeded: boolean | null;
+        advice: string | null;
+      }>("/api/invoicing/distance-sales"),
+  });
 
   if (isLoading) return <Loading />;
   if (error) return <ErrorNote error={error} />;
@@ -78,6 +96,13 @@ export function InvoicingDashboard() {
 
   return (
     <div className="space-y-4">
+      {distance.data?.applies &&
+        distance.data.exceeded &&
+        distance.data.advice && (
+          <Card>
+            <p className="text-sm">{distance.data.advice}</p>
+          </Card>
+        )}
       <div className="grid gap-3 sm:grid-cols-4">
         {data.figures.map((figure) => (
           <Card key={figure.label}>

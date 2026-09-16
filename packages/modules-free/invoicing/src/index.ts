@@ -43,6 +43,7 @@ import { defineModule, rateLimit } from "@sentrello/module-sdk";
 import { and, eq, isNotNull } from "drizzle-orm";
 import { registerBillingRules, registerCatalogue } from "./catalogue";
 import { registerConsolidate } from "./consolidate";
+import { registerDistanceSelling } from "./distance-selling";
 import {
   type IncomingLine,
   parseDiscount,
@@ -179,6 +180,7 @@ export default defineModule({
     registerInvoicingPersonalData(ctx);
     registerInvoiceSearch(ctx);
     registerEInvoice(ctx);
+    registerDistanceSelling(ctx);
     ctx.registerNav({
       id: "invoicing",
       label: "Invoices",
