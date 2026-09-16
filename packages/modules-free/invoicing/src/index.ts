@@ -32,7 +32,7 @@ import {
   contactByPortalToken,
   ensurePortalToken,
 } from "@sentrello/db/portal";
-import { emailAdapter } from "@sentrello/email";
+import { emailAdapter, mailConfigured } from "@sentrello/email";
 import {
   invoiceEmail,
   portalLinkEmail,
@@ -702,6 +702,17 @@ export default defineModule({
           )
           .limit(1);
         if (!quote) return c.json({ error: "not found" }, 404);
+        // Same refusal as the invoice: a quote flipped to "sent" through a
+        // no-op mailer is a quote the customer was never shown.
+        if (!mailConfigured()) {
+          return c.json(
+            {
+              error:
+                "no mail server is connected — connect one under Settings → Connections",
+            },
+            400,
+          );
+        }
         if (!quote.contactId) {
           return c.json({ error: "this quote has no customer" }, 400);
         }
@@ -1470,6 +1481,19 @@ export default defineModule({
           if (!contact.email) {
             return c.json({ error: "this contact has no email address" }, 400);
           }
+          // The link exists either way; what must not happen is "sent: true"
+          // through a no-op mailer when no mail server is connected.
+          if (!mailConfigured()) {
+            return c.json(
+              {
+                url,
+                sent: false,
+                error:
+                  "no mail server is connected — copy the link instead, or connect one under Settings → Connections",
+              },
+              400,
+            );
+          }
 
           const rows = await db
             .select()
@@ -1785,6 +1809,18 @@ export default defineModule({
           )
           .limit(1);
         if (!invoice) return c.json({ error: "not found" }, 404);
+        // Refused out loud rather than dropped: with no mail server the
+        // adapter is a no-op, and "sent" would write a delivery that never
+        // happened onto the customer's timeline.
+        if (!mailConfigured()) {
+          return c.json(
+            {
+              error:
+                "no mail server is connected — connect one under Settings → Connections",
+            },
+            400,
+          );
+        }
         if (!invoice.contactId) {
           return c.json({ error: "this invoice has no customer" }, 400);
         }

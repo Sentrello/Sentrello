@@ -16,7 +16,27 @@ let orgId: string;
 let headers: Headers;
 let contactId: string;
 
+/**
+ * Sending refuses outright when no mail server is connected, so these tests
+ * run as an instance that has one: the key makes `mailConfigured()` true, and
+ * the fetch stub answers for the provider so nothing leaves the machine.
+ */
+const savedMail = { resend: process.env.RESEND_API_KEY };
+const realFetch = globalThis.fetch;
+
 beforeAll(async () => {
+  process.env.RESEND_API_KEY = "re_test_never_sent";
+  globalThis.fetch = (async (
+    input: Parameters<typeof fetch>[0],
+    init?: Parameters<typeof fetch>[1],
+  ) => {
+    const url = typeof input === "string" ? input : input.toString();
+    if (url.startsWith("https://api.resend.com/")) {
+      return new Response(JSON.stringify({ id: "stubbed" }), { status: 200 });
+    }
+    return realFetch(input, init);
+  }) as typeof fetch;
+
   invoicing.register({
     app,
     entitled: () => true,
@@ -61,6 +81,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  process.env.RESEND_API_KEY = savedMail.resend;
+  globalThis.fetch = realFetch;
+
   const entries = await db
     .select({ id: schema.journalEntries.id })
     .from(schema.journalEntries)
@@ -4287,4 +4310,77 @@ test("an exempt band's own wording reaches the page, once, however many bands sh
   );
   const html = await page.text();
   expect(html).toContain("Exempt from VAT under Article 132 (education)");
+});
+
+test("with no mail server connected, sending refuses instead of claiming sent", async () => {
+  // The no-op adapter drops mail on the floor; before the guard these routes
+  // answered "sent" anyway, wrote a delivery onto the timeline that never
+  // happened, and flipped quotes to a "sent" the customer never saw.
+  const key = process.env.RESEND_API_KEY;
+  process.env.RESEND_API_KEY = undefined;
+  try {
+    const created = await app.request("http://localhost/api/invoices", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        contactId,
+        currency: "USD",
+        lines: [{ description: "Unsendable", quantity: 1, unitPrice: 1000 }],
+      }),
+    });
+    const { invoice } = (await created.json()) as {
+      invoice: { id: string; number: string };
+    };
+
+    const sent = await app.request(
+      `http://localhost/api/invoices/${invoice.id}/send`,
+      { method: "POST", headers },
+    );
+    expect(sent.status).toBe(400);
+    expect(((await sent.json()) as { error: string }).error).toContain(
+      "no mail server",
+    );
+
+    // and nothing false lands on the customer's timeline
+    const timeline = await db
+      .select()
+      .from(schema.activities)
+      .where(eq(schema.activities.contactId, contactId));
+    expect(
+      timeline.some((a) => a.body?.includes(`Sent invoice ${invoice.number}`)),
+    ).toBe(false);
+
+    const quoted = await app.request("http://localhost/api/quotes", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        contactId,
+        currency: "USD",
+        lines: [{ description: "Unsendable", quantity: 1, unitPrice: 1000 }],
+      }),
+    });
+    const { quote } = (await quoted.json()) as { quote: { id: string } };
+    const quoteSend = await app.request(
+      `http://localhost/api/quotes/${quote.id}/send`,
+      { method: "POST", headers },
+    );
+    expect(quoteSend.status).toBe(400);
+    const [after] = await db
+      .select({ status: schema.quotes.status })
+      .from(schema.quotes)
+      .where(eq(schema.quotes.id, quote.id));
+    expect(after?.status).toBe("draft");
+
+    // the portal link still comes back — only the sending is refused
+    const link = await app.request(
+      `http://localhost/api/contacts/${contactId}/portal-link?send=1`,
+      { method: "POST", headers },
+    );
+    expect(link.status).toBe(400);
+    const body = (await link.json()) as { url?: string; sent?: boolean };
+    expect(body.sent).toBe(false);
+    expect(body.url).toContain("/portal/");
+  } finally {
+    process.env.RESEND_API_KEY = key;
+  }
 });
