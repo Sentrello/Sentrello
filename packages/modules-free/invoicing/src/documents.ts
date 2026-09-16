@@ -300,6 +300,7 @@ export async function writeTaxBands(
     .delete(schema.documentTaxes)
     .where(
       and(
+        eq(schema.documentTaxes.organizationId, orgId),
         eq(schema.documentTaxes.documentType, documentType),
         eq(schema.documentTaxes.documentId, documentId),
       ),
