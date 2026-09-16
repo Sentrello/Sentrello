@@ -62,6 +62,7 @@ interface DocumentShape {
   discountValue: number | null;
   dueDate?: string | null;
   paymentTerms?: string | null;
+  buyerReference?: string | null;
   validUntil?: string | null;
 }
 
@@ -177,6 +178,7 @@ export function InvoiceForm({
   const [dueDate, setDueDate] = useState("");
   const [validUntil, setValidUntil] = useState("");
   const [paymentTerms, setPaymentTerms] = useState("");
+  const [buyerReference, setBuyerReference] = useState("");
   const [notes, setNotes] = useState("");
   /** Which letterhead this one goes out on. Empty means the business's own. */
   const [templateId, setTemplateId] = useState("");
@@ -235,6 +237,7 @@ export function InvoiceForm({
       } else {
         setDueDate(doc.dueDate ? doc.dueDate.slice(0, 10) : "");
         setPaymentTerms(doc.paymentTerms ?? "");
+        setBuyerReference(doc.buyerReference ?? "");
       }
       setLines(
         existing.data.lines.length
@@ -344,7 +347,10 @@ export function InvoiceForm({
         status,
         ...(asQuote
           ? { validUntil: validUntil || undefined }
-          : { dueDate: dueDate || undefined }),
+          : {
+              dueDate: dueDate || undefined,
+              buyerReference: buyerReference.trim() || null,
+            }),
         paymentTerms: paymentTerms.trim() || null,
         templateId: templateId || null,
         notes: notes.trim() || null,
@@ -501,6 +507,20 @@ export function InvoiceForm({
               />
             )}
           </Field>
+          {/* The reference the customer files this under — their PO number,
+              or a German public body's Leitweg-ID. A structured e-invoice
+              cannot travel the network without one. */}
+          {asQuote ? null : (
+            <Field
+              label="Customer's reference"
+              hint="Their PO number or reference. Required on e-invoices."
+            >
+              <Input
+                value={buyerReference}
+                onChange={(e) => setBuyerReference(e.target.value)}
+              />
+            </Field>
+          )}
           {/* One business, usually one letterhead — but a trade that bills
               two names out of one company needs to say which. */}
           {(letterheads.data?.templates ?? []).length > 1 ? (

@@ -342,6 +342,9 @@ export default defineModule({
               status: asDraft ? "draft" : "open",
               notes: String(body.notes ?? "").trim() || null,
               paymentTerms: String(body.paymentTerms ?? "").trim() || null,
+              // BT-10 on the e-invoice: the customer's PO or reference, or a
+              // German public body's Leitweg-ID.
+              buyerReference: String(body.buyerReference ?? "").trim() || null,
               templateId: (body.templateId as string) || null,
               discountType:
                 (body.discountType as string) === "percent" ||
@@ -949,6 +952,10 @@ export default defineModule({
           if (body.paymentTerms !== undefined) {
             values.paymentTerms =
               String(body.paymentTerms ?? "").trim() || null;
+          }
+          if (body.buyerReference !== undefined) {
+            values.buyerReference =
+              String(body.buyerReference ?? "").trim() || null;
           }
           if (typeof body.templateId === "string") {
             values.templateId = body.templateId || null;
