@@ -12,7 +12,7 @@ import {
   defineModule,
   resolveGuide,
 } from "@sentrello/module-sdk";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { readHealth } from "./health";
 import {
   WIDGETS,
@@ -55,6 +55,12 @@ interface Attention {
  * checklist does if a module bought later brings new steps, or undoing
  * something brings one back. Done is derived, never stored, so there is no
  * second flag here to drift from the card.
+ *
+ * Deliberately blind to dismissals: hiding the checklist part-way is not
+ * finishing it, and a business that just asked for the block to go away
+ * should not find an advertisement standing in its place. The promo waits
+ * for the steps to actually be done, which they become anyway as the
+ * business uses the product.
  */
 async function onboardingComplete(organizationId: string): Promise<boolean> {
   const guides = await Promise.all(
@@ -418,33 +424,151 @@ export default defineModule({
      * is an administrator's job, and a list of things somebody will be refused
      * is worse than no list.
      */
+    /**
+     * The guides this reader may act on, resolved against the data.
+     *
+     * Guides a reader cannot act on are left out entirely. Setting a module
+     * up is an administrator's job, and a list of things somebody will be
+     * refused is worse than no list.
+     */
+    const readableGuides = async (headers: Headers) => {
+      const mine = await Promise.all(
+        allOnboarding().map(async (guide) =>
+          guide.requires && !(await mayAccess(headers, guide.requires))
+            ? null
+            : guide,
+        ),
+      );
+      return mine.filter((g) => g !== null);
+    };
+
+    /**
+     * The guides this organization put away before finishing them.
+     *
+     * The one stored fact in the whole of onboarding — everything else is
+     * asked of the data. The states, and why they are kept apart:
+     *
+     * - **Not started / in progress / completed** are derived, per guide, on
+     *   every read: `resolveGuide` asks each step whether it has happened and
+     *   `remaining` counts the ones that have not. Never stored, so a module
+     *   bought on day 200 opens with its satisfied steps already ticked, and
+     *   undoing something honestly brings its step back.
+     * - **Hidden part-way and ended early are the same stored fact**: a
+     *   dismissal row for that guide. The steps still remain; the business
+     *   said stop showing them. It survives reloads and restarts.
+     * - **Restored** is the row deleted. The guide resumes where the data
+     *   says it is — not at the beginning, because nothing recorded a
+     *   beginning.
+     * - **Completed** ignores dismissal entirely: a guide with nothing
+     *   remaining is never shown and never counted as hidden, so Settings
+     *   cannot offer to restore a checklist that would show nothing.
+     *
+     * Per guide, not one flag, and that is the whole answer to "what about a
+     * module bought years after onboarding ended": its guide has no row, so
+     * it appears on its own, however long ago the others were finished or
+     * put away.
+     *
+     * Per organization, like the promo gate above and for the same reason: a
+     * checklist that is hidden for one colleague and showing for another
+     * looks broken rather than polite.
+     */
+    const dismissedIds = async (orgId: string) => {
+      const rows = await db
+        .select({ guideId: schema.onboardingDismissals.guideId })
+        .from(schema.onboardingDismissals)
+        .where(eq(schema.onboardingDismissals.organizationId, orgId));
+      return new Set(rows.map((r) => r.guideId));
+    };
+
     ctx.app.get(
       "/api/dashboard/onboarding",
       requireSession(),
       requirePermission({ dashboard: ["read"] }),
       async (c) => {
         const orgId = activeOrganizationId(c.get("session"));
-        const mine = await Promise.all(
-          allOnboarding().map(async (guide) =>
-            guide.requires &&
-            !(await mayAccess(c.req.raw.headers, guide.requires))
-              ? null
-              : guide,
+        const guides = await Promise.all(
+          (await readableGuides(c.req.raw.headers)).map((guide) =>
+            resolveGuide(guide, orgId),
           ),
         );
+        const dismissed = await dismissedIds(orgId);
 
-        const guides = await Promise.all(
-          mine
-            .filter((g) => g !== null)
-            .map((guide) => resolveGuide(guide, orgId)),
-        );
+        // Finished guides are not sent. A checklist with every box ticked is
+        // a card that says "well done" for ever, on the screen somebody opens
+        // every morning.
+        const unfinished = guides.filter((g) => g.remaining > 0);
 
         return c.json({
-          // Finished guides are not sent. A checklist with every box ticked is
-          // a card that says "well done" for ever, on the screen somebody opens
-          // every morning.
-          guides: guides.filter((g) => g.remaining > 0),
+          guides: unfinished.filter((g) => !dismissed.has(g.id)),
+          /**
+           * How many unfinished guides are put away — what Settings offers
+           * to bring back. A count rather than the guides themselves,
+           * because the offer is "show these again", not a second checklist.
+           */
+          hidden: unfinished.filter((g) => dismissed.has(g.id)).length,
         });
+      },
+    );
+
+    /**
+     * Put the checklist away, finished or not.
+     *
+     * One press hides every guide this reader can currently see, which is
+     * both of James's asks at once: hide the block, and end onboarding
+     * part-way. Safe to offer freely because nothing is lost — done is
+     * derived, so Settings can bring the list back exactly where the data
+     * says it is.
+     */
+    ctx.app.post(
+      "/api/dashboard/onboarding/hide",
+      requireSession(),
+      requirePermission({ dashboard: ["read"] }),
+      async (c) => {
+        const orgId = activeOrganizationId(c.get("session"));
+        const guides = await Promise.all(
+          (await readableGuides(c.req.raw.headers)).map((guide) =>
+            resolveGuide(guide, orgId),
+          ),
+        );
+        // Only what is actually on the screen: a finished guide needs no row,
+        // and a guide this reader may not see is not theirs to put away.
+        const showing = guides.filter((g) => g.remaining > 0);
+        if (showing.length > 0) {
+          await db
+            .insert(schema.onboardingDismissals)
+            .values(
+              showing.map((g) => ({ organizationId: orgId, guideId: g.id })),
+            )
+            // Hiding what a colleague already hid is one decision, not an
+            // error.
+            .onConflictDoNothing();
+        }
+        return c.json({ hidden: showing.length });
+      },
+    );
+
+    /**
+     * Bring it back. The Settings screen's side of the bargain: dismissing
+     * is free because this exists.
+     */
+    ctx.app.post(
+      "/api/dashboard/onboarding/restore",
+      requireSession(),
+      requirePermission({ dashboard: ["read"] }),
+      async (c) => {
+        const orgId = activeOrganizationId(c.get("session"));
+        const mine = (await readableGuides(c.req.raw.headers)).map((g) => g.id);
+        if (mine.length > 0) {
+          await db
+            .delete(schema.onboardingDismissals)
+            .where(
+              and(
+                eq(schema.onboardingDismissals.organizationId, orgId),
+                inArray(schema.onboardingDismissals.guideId, mine),
+              ),
+            );
+        }
+        return c.json({ restored: true });
       },
     );
 
