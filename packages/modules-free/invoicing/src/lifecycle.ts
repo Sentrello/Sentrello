@@ -15,6 +15,7 @@ import {
 import { nextDocumentNumber } from "@sentrello/db/numbering";
 import type { ModuleContext } from "@sentrello/module-sdk";
 import { shareToken, writeTaxBands } from "./documents";
+import { ExemptionError, exemptionForInvoice } from "./exemptions";
 
 /**
  * What happens to an invoice after it is written.
@@ -118,6 +119,29 @@ export function registerLifecycle(ctx: ModuleContext) {
       const issuedOn = requestedIssueDate(body.issueDate);
       if (issuedOn instanceof Error) {
         return c.json({ error: issuedOn.message }, 400);
+      }
+
+      /**
+       * A draft written under an exemption certificate is re-checked on the
+       * day it actually becomes a sale. The certificate may have expired or
+       * been revoked while the draft sat — and an expired certificate that
+       * quietly kept exempting is the under-collection a business only
+       * discovers at an audit, with penalties attached.
+       */
+      if (invoice.exemptionCertificateId) {
+        try {
+          await exemptionForInvoice(
+            orgId,
+            invoice.contactId,
+            invoice.exemptionCertificateId,
+            issuedOn,
+          );
+        } catch (err) {
+          if (err instanceof ExemptionError) {
+            return c.json({ error: err.message }, 422);
+          }
+          throw err;
+        }
       }
 
       const [issued] = await db

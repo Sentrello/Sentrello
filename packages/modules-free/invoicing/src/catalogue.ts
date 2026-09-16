@@ -53,6 +53,9 @@ export function parseTaxDefinition(body: Record<string, unknown>): {
   ratePpm: number;
   categoryCode: string;
   description: string | null;
+  jurisdiction: string | null;
+  regime: string | null;
+  recoverable?: boolean;
 } {
   const name = String(body.name ?? "").trim();
   if (!name) throw new CatalogueError("a name is required");
@@ -99,6 +102,23 @@ export function parseTaxDefinition(body: Record<string, unknown>): {
     );
   }
 
+  /**
+   * Which authority the rate belongs to: "US-TX", "US-TX-Austin", "CA-QC".
+   *
+   * Optional everywhere except in meaning: a rate with a jurisdiction is one
+   * the filing report can group, and a US one is posted to its own liability
+   * account so what is owed to Texas never shares a figure with what is owed
+   * to Ohio. Uppercased on the way in, because "us-tx" and "US-TX" must be
+   * the same authority.
+   */
+  const jurisdiction =
+    String(body.jurisdiction ?? "")
+      .trim()
+      .toUpperCase() || null;
+  if (jurisdiction && jurisdiction.length > 80) {
+    throw new CatalogueError("that jurisdiction is too long");
+  }
+
   return {
     name,
     // Both columns written: millionths are the truth, and the basis-point
@@ -107,6 +127,12 @@ export function parseTaxDefinition(body: Record<string, unknown>): {
     ratePpm,
     categoryCode,
     description: String(body.description ?? "").trim() || null,
+    jurisdiction,
+    // Inferred rather than asked for: a "US-…" jurisdiction is US sales tax,
+    // which is what routes its liability to a per-state account downstream —
+    // and it is never reclaimed on a purchase, so it is marked as cost.
+    regime: jurisdiction?.startsWith("US-") ? "us" : null,
+    ...(jurisdiction?.startsWith("US-") ? { recoverable: false } : {}),
   };
 }
 
@@ -285,7 +311,8 @@ export function registerCatalogue(ctx: ModuleContext) {
       if (
         body.name !== undefined ||
         body.ratePpm !== undefined ||
-        body.rateBp !== undefined
+        body.rateBp !== undefined ||
+        body.jurisdiction !== undefined
       ) {
         // Re-read the row so a partial edit is validated as a whole: changing
         // only the category on a 20% rate has to be refused the same way.
@@ -313,8 +340,14 @@ export function registerCatalogue(ctx: ModuleContext) {
                   : (current.ratePpm ?? current.rateBp * 100)),
               categoryCode: body.categoryCode ?? current.categoryCode,
               description: body.description ?? current.description,
+              jurisdiction: body.jurisdiction ?? current.jurisdiction,
             }),
           );
+          // A regime set some other way — a preset, an import — survives an
+          // edit that only touched the name or the rate.
+          if (patch.regime === null && current.regime !== null) {
+            patch.regime = current.regime;
+          }
         } catch (err) {
           if (err instanceof CatalogueError) {
             return c.json({ error: err.message }, 400);
