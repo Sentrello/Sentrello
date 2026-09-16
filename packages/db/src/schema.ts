@@ -1171,6 +1171,21 @@ export const ledgerSettings = pgTable("ledger_settings", {
    * exactly this flag beside that one.
    */
   vatBasis: text("vat_basis").notNull().default("accrual"),
+  /**
+   * Which tax regimes this business operates in — UK VAT, Canada, US sales
+   * tax, EU VAT — as a set, not a single country. A business selling only at
+   * home picks one; a business selling across borders, which is the case
+   * Sentrello itself is in, picks several. Nothing here gates a computation:
+   * a return already filed keeps working even after its regime is turned
+   * off. It only decides which screens a business is offered, in the nav.
+   *
+   * Defaults to US sales tax alone — Sentrello's first market — so a fresh
+   * instance is not empty. See `@sentrello/db/tax-regimes`.
+   */
+  taxRegimes: jsonb("tax_regimes")
+    .$type<string[]>()
+    .notNull()
+    .default(["us-sales-tax"]),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 

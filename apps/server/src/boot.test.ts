@@ -423,13 +423,11 @@ test("/api/_meta exposes only the nav the loaded modules registered", async () =
     "accounting-money",
     "accounting-accounts",
     "accounting-journal",
-    // Filing a VAT return: its own page, because it is a deliberate act with a
-    // legal declaration attached and not something to hunt for in a report.
-    "accounting-vat",
-    // The Canadian returns share that reasoning: GST/HST for the CRA, QST
-    // for Revenu Québec, and each PST province's own — one page, one card
-    // per authority the business's rates call for.
-    "accounting-ca-tax",
+    // No "accounting-vat" and no "accounting-ca-tax" here: a fresh
+    // organization has chosen no tax regimes explicitly and defaults to US
+    // sales tax alone (see `@sentrello/db/tax-regimes`), so the UK VAT and
+    // Canadian tax screens — each a deliberate act with a legal declaration
+    // attached — are not offered until this business says it operates there.
     "settings",
     // Settings' own pages, so nobody hunts for a VAT number past the licence.
     "settings-business",
@@ -466,6 +464,65 @@ test("/api/_meta exposes only the nav the loaded modules registered", async () =
   expect(layout).toContain('"money"');
   expect(layout).not.toContain("revenue-trend");
   expect(layout).not.toContain("who-owes");
+
+  await cleanUp();
+});
+
+test("a business sees only the tax regimes it has chosen, and turning one off never breaks an old report", async () => {
+  process.env.SENTRELLO_LICENSE_PUBLIC_KEY_PATH = "secrets/license_public.pem";
+  process.env.SENTRELLO_LICENSE_TOKEN_PATH = "secrets/does-not-exist.jwt";
+  const server = (await import("./index")).default;
+  const { headers, cleanUp } = await signedIn();
+  headers.set("content-type", "application/json");
+
+  const navIds = async () => {
+    const res = await server.fetch(
+      new Request("http://localhost/api/_meta", { headers }),
+    );
+    const body = (await res.json()) as { nav: { id: string }[] };
+    return body.nav.map((n) => n.id);
+  };
+
+  // A fresh instance defaults to US sales tax alone — never anything the
+  // business never said it operates in, and never an empty sidebar either.
+  expect(await navIds()).toContain("invoicing-us-tax");
+  expect(await navIds()).not.toContain("accounting-vat");
+  expect(await navIds()).not.toContain("accounting-ca-tax");
+
+  // Choosing UK VAT and Canada as well offers both screens immediately.
+  const put = await server.fetch(
+    new Request("http://localhost/api/tax-regimes", {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({ regimes: ["uk-vat", "ca-tax"] }),
+    }),
+  );
+  expect(put.status).toBe(200);
+  expect(await navIds()).toContain("accounting-vat");
+  expect(await navIds()).toContain("accounting-ca-tax");
+  // US sales tax was not re-chosen, so it is offered no longer.
+  expect(await navIds()).not.toContain("invoicing-us-tax");
+
+  // The VAT return itself computes regardless — the nav entry is what is
+  // gated, never the figures. Proven both while the regime is chosen and
+  // after it is turned back off, so a business that stops selling in the UK
+  // can still pull up what it filed while it did.
+  const vatReturn = () =>
+    server.fetch(
+      new Request("http://localhost/api/accounting/vat-return", { headers }),
+    );
+  expect((await vatReturn()).status).toBe(200);
+
+  await server.fetch(
+    new Request("http://localhost/api/tax-regimes", {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({ regimes: ["us-sales-tax"] }),
+    }),
+  );
+  expect(await navIds()).not.toContain("accounting-vat");
+  // The screen is gone; the computation underneath it is not.
+  expect((await vatReturn()).status).toBe(200);
 
   await cleanUp();
 });

@@ -1,0 +1,1 @@
+ALTER TABLE "ledger_settings" ADD COLUMN "tax_regimes" jsonb DEFAULT '["us-sales-tax"]'::jsonb NOT NULL;

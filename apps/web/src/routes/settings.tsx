@@ -481,6 +481,8 @@ export function Settings() {
         {rename.error ? <ErrorNote error={rename.error} /> : null}
       </Card>
 
+      <TaxRegimesCard />
+
       <Card>
         <p className="font-medium">This instance</p>
         <p className="mt-1 text-sm" style={muted}>
@@ -503,6 +505,89 @@ export function Settings() {
 
       <SettingUpRestore />
     </div>
+  );
+}
+
+interface TaxRegimesResponse {
+  regimes: { id: string; label: string }[];
+  chosen: string[];
+  default: string[];
+}
+
+/**
+ * Which tax regimes this business operates in.
+ *
+ * Not one country — a set, because selling across borders is ordinary and
+ * turns on more than one regime at once. Unchecking one never touches a
+ * filing already made; it only hides the screen from the sidebar. A business
+ * that starts selling somewhere new, or stops, comes back here.
+ */
+function TaxRegimesCard() {
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({
+    queryKey: ["tax-regimes"],
+    queryFn: () => api<TaxRegimesResponse>("/api/tax-regimes"),
+  });
+  const [pending, setPending] = useState<string[] | null>(null);
+
+  const save = useMutation({
+    mutationFn: (regimes: string[]) =>
+      api("/api/tax-regimes", {
+        method: "PUT",
+        body: JSON.stringify({ regimes }),
+      }),
+    onSuccess: () => {
+      setPending(null);
+      qc.invalidateQueries({ queryKey: ["tax-regimes"] });
+      // The sidebar reads this list too, so a regime turned off leaves it
+      // straight away rather than waiting for something else to refetch it.
+      qc.invalidateQueries({ queryKey: ["meta"] });
+    },
+  });
+
+  if (isLoading || !data) return null;
+  const chosen = pending ?? data.chosen;
+
+  const toggle = (id: string, on: boolean) => {
+    const next = on ? [...chosen, id] : chosen.filter((x) => x !== id);
+    // Emptying the set entirely is a real choice a business can make — but
+    // rarely the one somebody meant by unchecking the last box, so it is
+    // confirmed rather than saved on the spot.
+    if (
+      next.length === 0 &&
+      !window.confirm(
+        "Turn off every tax regime? You will see none of the VAT, Canadian tax or US sales tax screens until you turn one back on.",
+      )
+    ) {
+      return;
+    }
+    setPending(next);
+    save.mutate(next);
+  };
+
+  return (
+    <Card>
+      <p className="mb-1 font-medium">Tax regimes</p>
+      <p className="mb-3 text-sm" style={muted}>
+        Which of these you operate in decides what shows in the sidebar. Sell
+        only at home and pick one; sell across borders and pick several —
+        turning one off keeps everything already filed under it, it only hides
+        the screen.
+      </p>
+      <div className="space-y-2">
+        {data.regimes.map((r) => (
+          <label key={r.id} className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={chosen.includes(r.id)}
+              onChange={(e) => toggle(r.id, e.target.checked)}
+            />
+            {r.label}
+          </label>
+        ))}
+      </div>
+      {save.error ? <ErrorNote error={save.error} /> : null}
+    </Card>
   );
 }
 

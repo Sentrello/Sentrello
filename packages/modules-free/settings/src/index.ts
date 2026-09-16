@@ -23,6 +23,7 @@ import { registerCompliance } from "./compliance";
 import { registerEvidence } from "./evidence";
 import { registerPaymentAccounts } from "./payments";
 import { registerPrivacy } from "./privacy";
+import { registerTaxRegimes } from "./tax-regimes";
 import {
   agentPresent,
   canCheckForUpdates,
@@ -79,6 +80,7 @@ export default defineModule({
     registerPrivacy(ctx);
     registerCompliance(ctx);
     registerEvidence(ctx);
+    registerTaxRegimes(ctx);
     ctx.registerNav({
       id: "settings",
       icon: "settings",

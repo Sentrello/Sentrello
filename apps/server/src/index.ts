@@ -17,6 +17,7 @@ import {
   setModuleEnabled,
 } from "@sentrello/db/modules";
 import { and, eq, sql } from "@sentrello/db/orm";
+import { NAV_TAX_REGIME, taxRegimesFor } from "@sentrello/db/tax-regimes";
 import { mailConfigured } from "@sentrello/email";
 import { startJobs } from "@sentrello/jobs";
 import crm from "@sentrello/module-crm";
@@ -418,6 +419,10 @@ app.get("/api/_meta", requireSession(), async (c) => {
   // needs a shell to look at, and they simply have no modules set up.
   const orgId = session.session.activeOrganizationId;
   const states = orgId ? await moduleStates(orgId) : new Map();
+  // Which tax regimes this business operates in, for the nav entries each one
+  // gates below — UK VAT, Canadian tax, US sales tax. Unfiltered, every
+  // business saw every regime's screen regardless of where it traded.
+  const taxRegimes = orgId ? await taxRegimesFor(orgId) : [];
 
   /**
    * The role this person holds here, for filtering the nav by what they may
@@ -523,6 +528,13 @@ app.get("/api/_meta", requireSession(), async (c) => {
   const visible = (belongsHere ? nav : []).filter((item) => {
     const allowed = navVisibility.get(item.id);
     if (allowed && !allowed(session)) return false;
+
+    // A tax regime's screen — VAT return, Canadian tax, US sales tax — only
+    // for a business that has said it operates in that regime. The route
+    // behind it is not gated by this: an old filing still computes even after
+    // its regime is turned off, this only decides what the sidebar offers.
+    const regime = NAV_TAX_REGIME.get(item.id);
+    if (regime && !taxRegimes.includes(regime)) return false;
 
     // A module the licence grants but nobody has set up belongs under Modules
     // with a way to start, not in the sidebar as a screen that half works.
