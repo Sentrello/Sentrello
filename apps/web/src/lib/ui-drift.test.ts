@@ -1,7 +1,10 @@
 import { expect, test } from "bun:test";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { findHandRolledUi } from "@sentrello/module-sdk/ui-drift";
+import {
+  findFillAsText,
+  findHandRolledUi,
+} from "@sentrello/module-sdk/ui-drift";
 
 /**
  * Core holds itself to what it asks of modules.
@@ -27,6 +30,22 @@ test("no Core screen builds what a primitive already covers", () => {
   const found: string[] = [];
   for (const path of screens(ROUTES)) {
     for (const { line, say } of findHandRolledUi(readFileSync(path, "utf8"))) {
+      found.push(`${path.split("/apps/web/")[1]}:${line}: ${say}`);
+    }
+  }
+  expect(found).toEqual([]);
+});
+
+/**
+ * Both trees, because the shared components are where this bug did the most
+ * damage: one fill-as-text in `ui.tsx`'s status badge put a failing colour on
+ * every screen that showed an invoice. `theme-contrast.test.ts` keeps the
+ * token *values* over the line; this keeps screens writing the right tokens.
+ */
+test("no Core screen writes a fill token as text", () => {
+  const found: string[] = [];
+  for (const path of [...screens(ROUTES), ...screens(import.meta.dir)]) {
+    for (const { line, say } of findFillAsText(readFileSync(path, "utf8"))) {
       found.push(`${path.split("/apps/web/")[1]}:${line}: ${say}`);
     }
   }
