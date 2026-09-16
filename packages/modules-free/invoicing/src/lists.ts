@@ -26,6 +26,7 @@ import {
 } from "@sentrello/db/list-query";
 import { type ModuleContext, csvDownload, toCsv } from "@sentrello/module-sdk";
 import type { SQL } from "drizzle-orm";
+import { creditedAgainst } from "./documents";
 import { tagsFor } from "./tags";
 
 /**
@@ -331,6 +332,9 @@ export function registerLists(ctx: ModuleContext) {
           .groupBy(schema.payments.invoiceId);
         for (const s of sums) paid.set(s.invoiceId, s.total);
       }
+      // Credits settle debt the way payments do: the balance column must
+      // not show money the customer was already credited back.
+      const credited = await creditedAgainst(orgId, ids);
 
       const [counted] = window
         ? await db
@@ -359,11 +363,15 @@ export function registerLists(ctx: ModuleContext) {
            * people quote to their accountant.
            */
           const claimable = r.status !== "draft" && r.status !== "void";
+          const creditedCents = credited.get(r.id) ?? 0;
           return {
             ...r,
             tags: labels.get(r.id) ?? [],
             paidCents,
-            balanceCents: claimable ? Math.max(0, r.totalCents - paidCents) : 0,
+            creditedCents,
+            balanceCents: claimable
+              ? Math.max(0, r.totalCents - paidCents - creditedCents)
+              : 0,
             // Computed, not stored: it depends on today.
             overdue:
               r.status !== "paid" &&
