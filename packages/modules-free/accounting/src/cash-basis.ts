@@ -27,8 +27,12 @@ import type { LedgerRow } from "./reports";
 /** The two control accounts, by the codes every module posts to them with. */
 const RECEIVABLE_CODE = "1100";
 const PAYABLE_CODE = "2000";
+/** Where VAT lands, by the code the return arithmetic reads it from. */
+const VAT_CODE = "2200";
 
 export interface CashBasisRow {
+  /** The entry that recognised the amount — the settlement, not the invoice. */
+  entryId: string;
   accountId: string;
   code: string;
   name: string;
@@ -101,6 +105,17 @@ function amountOf(row: LedgerRow): number {
 export function cashBasisRows(
   all: LedgerRow[],
   period: { from?: Date; to?: Date } = {},
+  /**
+   * Where the VAT rows land, for the caller that wants them.
+   *
+   * The VAT on an invoice waits in the pool beside the income and comes out
+   * with the same settlements — that is the whole of the cash accounting
+   * scheme — but a profit and loss has no use for it, and pushing it into the
+   * main output would change what every existing reader of this function
+   * sees. So it goes to a collector the VAT return passes and nobody else
+   * does, and the income figures stay bit-for-bit what they were.
+   */
+  vatOut?: CashBasisRow[],
 ): CashBasisRow[] {
   /**
    * What each account is called, learned as the ledger is read.
@@ -115,23 +130,47 @@ export function cashBasisRows(
 
   const receivable = emptyPool();
   const payable = emptyPool();
+  /**
+   * The VAT waiting beside each pool, held apart from the income and expense.
+   *
+   * Separate pools rather than more entries in `byAccount`, so the shares the
+   * income arithmetic hands out are untouched by whether anybody asked for
+   * VAT: the same books must produce the same profit and loss either way.
+   * Their outstanding figures move in step with the main pools' — the same
+   * receivable is over both.
+   */
+  const receivableVat = emptyPool();
+  const payableVat = emptyPool();
   const out: CashBasisRow[] = [];
 
   const inPeriod = (at: Date) =>
     (!period.from || at >= period.from) && (!period.to || at <= period.to);
 
-  const emit = (accountId: string, amountCents: number, at: Date) => {
-    if (amountCents === 0 || !inPeriod(at)) return;
+  const push = (
+    to: CashBasisRow[],
+    accountId: string,
+    amountCents: number,
+    entry: Entry,
+  ) => {
+    if (amountCents === 0 || !inPeriod(entry.postedAt)) return;
     const named = names.get(accountId);
     if (!named) return;
-    out.push({
+    to.push({
+      entryId: entry.id,
       accountId,
       code: named.code,
       name: named.name,
       type: named.type,
       amountCents,
-      postedAt: at,
+      postedAt: entry.postedAt,
     });
+  };
+
+  const emit = (accountId: string, amountCents: number, entry: Entry) =>
+    push(out, accountId, amountCents, entry);
+  /** Credit-positive, the direction a liability is read. */
+  const emitVat = (accountId: string, amountCents: number, entry: Entry) => {
+    if (vatOut) push(vatOut, accountId, amountCents, entry);
   };
 
   for (const entry of entriesOf(all)) {
@@ -146,14 +185,28 @@ export function cashBasisRows(
 
     const income = entry.rows.filter((row) => row.type === "income");
     const expense = entry.rows.filter((row) => row.type === "expense");
+    const vat = entry.rows.filter((row) => row.code === VAT_CODE);
     const incomeDelta = income.reduce((sum, row) => sum + amountOf(row), 0);
     const expenseDelta = expense.reduce((sum, row) => sum + amountOf(row), 0);
+    /** Credit-positive: VAT charged on a sale, negative when reclaimable. */
+    const vatDelta = vat.reduce(
+      (sum, row) => sum + row.creditCents - row.debitCents,
+      0,
+    );
 
     if (arDelta > 0) {
       // An invoice: not income yet. Into the pool with the receivable it made.
       receivable.outstandingCents += arDelta;
+      receivableVat.outstandingCents += arDelta;
       for (const row of income) {
         add(receivable.byAccount, row.accountId, amountOf(row));
+      }
+      for (const row of vat) {
+        add(
+          receivableVat.byAccount,
+          row.accountId,
+          row.creditCents - row.debitCents,
+        );
       }
     } else if (arDelta < 0 && incomeDelta < 0) {
       /**
@@ -167,29 +220,71 @@ export function cashBasisRows(
       const unabsorbed = giveBack(receivable, -arDelta, -incomeDelta);
       for (const row of income) {
         const share = shareOf(amountOf(row), incomeDelta, -unabsorbed);
-        emit(row.accountId, share, entry.postedAt);
+        emit(row.accountId, share, entry);
+      }
+      // The VAT on the credit note unwinds the same way: out of the pool
+      // where the invoice was unpaid, a real reduction where it was not.
+      const vatBack = giveBack(receivableVat, -arDelta, -vatDelta);
+      for (const row of vat) {
+        emitVat(
+          row.accountId,
+          shareOf(row.creditCents - row.debitCents, vatDelta, -vatBack),
+          entry,
+        );
       }
     } else if (arDelta < 0) {
       // Paid, or written off. Either way it is recognised now.
       for (const [accountId, amountCents] of drawDown(receivable, -arDelta)) {
-        emit(accountId, amountCents, entry.postedAt);
+        emit(accountId, amountCents, entry);
+      }
+      for (const [accountId, amountCents] of drawDown(
+        receivableVat,
+        -arDelta,
+      )) {
+        emitVat(accountId, amountCents, entry);
       }
     }
 
     if (apDelta > 0) {
       payable.outstandingCents += apDelta;
+      payableVat.outstandingCents += apDelta;
       for (const row of expense) {
         add(payable.byAccount, row.accountId, amountOf(row));
+      }
+      // Unless an entry somehow grew both control accounts, in which case the
+      // receivable's pool already claimed the VAT rows above.
+      if (arDelta <= 0) {
+        for (const row of vat) {
+          add(
+            payableVat.byAccount,
+            row.accountId,
+            row.debitCents - row.creditCents,
+          );
+        }
       }
     } else if (apDelta < 0 && expenseDelta < 0) {
       const unabsorbed = giveBack(payable, -apDelta, -expenseDelta);
       for (const row of expense) {
         const share = shareOf(amountOf(row), expenseDelta, -unabsorbed);
-        emit(row.accountId, share, entry.postedAt);
+        emit(row.accountId, share, entry);
+      }
+      const vatBack = giveBack(payableVat, -apDelta, vatDelta);
+      for (const row of vat) {
+        // The payable pool is read debit-positive; the emission is
+        // credit-positive like every other VAT row, hence the sign.
+        emitVat(
+          row.accountId,
+          -shareOf(row.debitCents - row.creditCents, -vatDelta, -vatBack),
+          entry,
+        );
       }
     } else if (apDelta < 0) {
       for (const [accountId, amountCents] of drawDown(payable, -apDelta)) {
-        emit(accountId, amountCents, entry.postedAt);
+        emit(accountId, amountCents, entry);
+      }
+      // Reclaimable now the supplier is paid: the debit side, so negative.
+      for (const [accountId, amountCents] of drawDown(payableVat, -apDelta)) {
+        emitVat(accountId, -amountCents, entry);
       }
     }
 
@@ -209,17 +304,76 @@ export function cashBasisRows(
      * that owns a van.
      */
     if (arDelta === 0) {
-      for (const row of income)
-        emit(row.accountId, amountOf(row), entry.postedAt);
+      for (const row of income) emit(row.accountId, amountOf(row), entry);
     }
     if (apDelta === 0 && !(arDelta < 0 && expenseDelta < 0)) {
       for (const row of expense) {
-        emit(row.accountId, amountOf(row), entry.postedAt);
+        emit(row.accountId, amountOf(row), entry);
+      }
+    }
+    // VAT that moved with its money — a card sale, a till receipt — is the
+    // same on both bases and goes out as it stands. VAT on an entry that grew
+    // or settled a control account went through the pools above instead.
+    if (arDelta === 0 && apDelta === 0) {
+      for (const row of vat) {
+        emitVat(row.accountId, row.creditCents - row.debitCents, entry);
       }
     }
   }
 
   return out;
+}
+
+/**
+ * The ledger as the cash accounting scheme for VAT reads it.
+ *
+ * The same conversion the cash-basis profit and loss uses — the same pools,
+ * the same settlements — with the VAT rows kept this time, handed back in the
+ * ledger's own row shape so `vatReturn` and `flatRateVatReturn` work on them
+ * exactly as they do on accrual rows. The difference between the two returns
+ * is then entirely the timing of the rows, which is the whole of the scheme.
+ *
+ * Takes the business's whole history for the same reason `cashBasisRows`
+ * does: the VAT on a March invoice paid in May belongs to May's return, and
+ * May's entries alone cannot say so.
+ *
+ * One honest limit, said here because the screen says it too: a debt written
+ * off is treated as settled, the way the income conversion treats it — so its
+ * VAT still lands in the return. Under the scheme an invoice nobody ever pays
+ * owes no VAT; a business writing debts off should adjust for them.
+ */
+export function cashBasisVatRows(
+  all: LedgerRow[],
+  period: { from?: Date; to?: Date } = {},
+): LedgerRow[] {
+  const vat: CashBasisRow[] = [];
+  const rows = cashBasisRows(all, period, vat);
+  return [...rows, ...vat].map((row) => {
+    // Back into debits and credits, in the direction each type is read —
+    // the inverse of `amountOf`, so a round trip changes nothing.
+    const creditSide =
+      row.type === "income" ||
+      row.type === "liability" ||
+      row.type === "equity";
+    const debitCents = creditSide
+      ? Math.max(0, -row.amountCents)
+      : Math.max(0, row.amountCents);
+    const creditCents = creditSide
+      ? Math.max(0, row.amountCents)
+      : Math.max(0, -row.amountCents);
+    return {
+      entryId: row.entryId,
+      classId: null,
+      locationId: null,
+      accountId: row.accountId,
+      code: row.code,
+      name: row.name,
+      type: row.type,
+      debitCents,
+      creditCents,
+      postedAt: row.postedAt,
+    };
+  });
 }
 
 /**
