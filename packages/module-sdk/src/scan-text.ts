@@ -13,11 +13,25 @@
  * Blanks out comments while keeping every line break, so a doc comment that
  * happens to contain a pattern a scanner is looking for cannot trip it, and
  * the line numbers reported still point at the original source.
+ *
+ * One pass, strings and comments together, because two passes were the bug:
+ * stripping block comments first meant a `/*` inside a `//` comment — or
+ * inside any string, and `accept="image/*"` sits in every upload form —
+ * opened a phantom block comment that swallowed the code after it. A blinded
+ * scanner reads exactly like a clean one, which is the worst way to fail.
+ * Strings are matched so their contents cannot open a comment, and kept;
+ * comments are blanked. Regex literals are still not understood — a slash is
+ * ambiguous without parsing — but a comment marker inside one now costs at
+ * most that line, not the rest of the file.
  */
 export function stripComments(source: string): string {
-  return source
-    .replace(/\/\*[\s\S]*?\*\//g, (comment) => comment.replace(/[^\n]/g, " "))
-    .replace(/\/\/[^\n]*/g, (comment) => " ".repeat(comment.length));
+  return source.replace(
+    // A quoted string ('…', "…", or `…`, escapes honoured, the first two
+    // ending at a newline like the language says), or a comment.
+    /("(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|`(?:\\[\s\S]|[^`\\])*`)|\/\*[\s\S]*?\*\/|\/\/[^\n]*/g,
+    (match, quoted) =>
+      quoted === undefined ? match.replace(/[^\n]/g, " ") : match,
+  );
 }
 
 export function lineOf(text: string, index: number): number {
