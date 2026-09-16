@@ -482,7 +482,12 @@ export async function postInvoiceIssued(
       { accountId: ar, debitCents: debit },
       { accountId: income, creditCents: net },
       ...(tax > 0
-        ? await taxCredits(orgId, invoice.id, tax, rate, taxPayable)
+        ? (await taxShares(orgId, invoice.id, tax, rate, taxPayable)).map(
+            (share) => ({
+              accountId: share.accountId,
+              creditCents: share.cents,
+            }),
+          )
         : []),
     ],
     postedAt,
@@ -490,7 +495,67 @@ export async function postInvoiceIssued(
 }
 
 /**
- * The tax side of an issued invoice: one credit, or one per tax.
+ * The entry a credit note makes: the sale's entry with its sides swapped.
+ *
+ * Dr Income for the net, Dr each tax band's liability account for its share,
+ * Cr Accounts Receivable for the whole — read from the credit note's own
+ * frozen bands through the same split as the sale, so a document that unwinds
+ * a GST+PST stack or a lone US jurisdiction debits exactly the accounts the
+ * sale credited. The version this replaced debited income for the gross
+ * amount with no tax split at all, so a business that refunded a taxed sale
+ * kept that sale's tax in every filing figure — the VAT return, the state
+ * filing — and quietly over-paid its authority.
+ */
+export async function postCreditNoteIssued(
+  orgId: string,
+  note: {
+    id: string;
+    number: string;
+    taxCents: number;
+    totalCents: number;
+    /** What the credited document's currency was worth when it was raised. */
+    rateMicro?: number | null;
+  },
+  memo?: string,
+  postedAt?: Date,
+): Promise<void> {
+  const [ar, income, taxPayable] = await Promise.all([
+    ensureAccount(orgId, CORE_ACCOUNTS.accountsReceivable),
+    ensureAccount(orgId, CORE_ACCOUNTS.salesIncome),
+    ensureAccount(orgId, CORE_ACCOUNTS.taxPayable),
+  ]);
+
+  const rate = note.rateMicro ?? RATE_SCALE;
+  const credit = toBaseCents(note.totalCents, rate);
+  const tax = toBaseCents(note.taxCents, rate);
+  const net = credit - tax;
+
+  await postJournalEntry(
+    orgId,
+    memo ?? `Credit note ${note.number}`,
+    `credit-note:${note.id}`,
+    [
+      ...(net > 0 ? [{ accountId: income, debitCents: net }] : []),
+      ...(tax > 0
+        ? (await taxShares(orgId, note.id, tax, rate, taxPayable)).map(
+            (share) => ({
+              accountId: share.accountId,
+              debitCents: share.cents,
+            }),
+          )
+        : []),
+      { accountId: ar, creditCents: credit },
+    ],
+    postedAt,
+  );
+}
+
+/**
+ * The tax side of a document, split by band: one amount, or one per tax.
+ *
+ * Side-agnostic on purpose — an invoice credits these accounts and a credit
+ * note debits the very same ones, and two copies of this split would be two
+ * chances for them to disagree about which account a filing reads.
  *
  * A document that charges a single tax posts to Tax Payable ("2200") exactly
  * as it always has — the UK VAT return reads that account by code, and moving
@@ -510,13 +575,13 @@ export async function postInvoiceIssued(
  * "us" behave this way, so a lone UK or EU VAT credit stays on "2200" and
  * every existing return keeps reading the account it always has.
  */
-async function taxCredits(
+async function taxShares(
   orgId: string,
-  invoiceId: string,
+  documentId: string,
   taxBase: number,
   rateMicro: number,
   taxPayable: string,
-): Promise<Posting[]> {
+): Promise<{ accountId: string; cents: number }[]> {
   const bands = await db
     .select({
       taxDefinitionId: schema.documentTaxes.taxDefinitionId,
@@ -533,7 +598,7 @@ async function taxCredits(
       and(
         eq(schema.documentTaxes.organizationId, orgId),
         eq(schema.documentTaxes.documentType, "invoice"),
-        eq(schema.documentTaxes.documentId, invoiceId),
+        eq(schema.documentTaxes.documentId, documentId),
       ),
     );
 
@@ -542,15 +607,15 @@ async function taxCredits(
   );
   const usSalesTax = bands.some((b) => b.regime === "us");
   if (named.size < 2 && !usSalesTax) {
-    return [{ accountId: taxPayable, creditCents: taxBase }];
+    return [{ accountId: taxPayable, cents: taxBase }];
   }
 
   /**
    * Each band converted on its own, and the conversion's spare cent given to
-   * the largest, so the credits still sum to exactly the tax inside the
+   * the largest, so the shares still sum to exactly the tax inside the
    * entry — a split that does not balance is a split that throws.
    */
-  const credits: { accountId: string; creditCents: number }[] = [];
+  const shares: { accountId: string; cents: number }[] = [];
   for (const band of bands) {
     if (band.taxCents === 0) continue;
     const accountId = band.taxDefinitionId
@@ -560,23 +625,23 @@ async function taxCredits(
           type: "liability",
         })
       : taxPayable;
-    credits.push({
+    shares.push({
       accountId,
-      creditCents: toBaseCents(band.taxCents, rateMicro),
+      cents: toBaseCents(band.taxCents, rateMicro),
     });
   }
-  if (credits.length === 0) {
-    return [{ accountId: taxPayable, creditCents: taxBase }];
+  if (shares.length === 0) {
+    return [{ accountId: taxPayable, cents: taxBase }];
   }
-  const drift = taxBase - credits.reduce((sum, c) => sum + c.creditCents, 0);
+  const drift = taxBase - shares.reduce((sum, s) => sum + s.cents, 0);
   if (drift !== 0) {
-    let biggest = credits[0] as { creditCents: number };
-    for (const credit of credits) {
-      if (credit.creditCents > biggest.creditCents) biggest = credit;
+    let biggest = shares[0] as { cents: number };
+    for (const share of shares) {
+      if (share.cents > biggest.cents) biggest = share;
     }
-    biggest.creditCents += drift;
+    biggest.cents += drift;
   }
-  return credits;
+  return shares;
 }
 
 /**

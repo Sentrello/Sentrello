@@ -1,4 +1,4 @@
-import { and, db, eq, schema } from "@sentrello/db";
+import { and, db, eq, inArray, isNull, schema, sql } from "@sentrello/db";
 import {
   type Discount,
   type DocumentLine,
@@ -382,4 +382,45 @@ export function shareToken(): string {
   const bytes = new Uint8Array(24);
   crypto.getRandomValues(bytes);
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * What has already been credited against each of these invoices, in cents.
+ *
+ * A credit note settles debt the way a payment does — the customer no longer
+ * owes that part — so everything that answers "what is still due" needs this
+ * beside the payments sum: the status recompute, the over-credit guard, the
+ * balance a screen shows. One query and one definition, because a route that
+ * summed credits its own way is how an invoice ends up owed two different
+ * amounts depending on which screen is asking.
+ *
+ * Absent from the map means zero. Voided credit notes do not count; neither
+ * do deleted ones.
+ */
+export async function creditedAgainst(
+  orgId: string,
+  invoiceIds: string[],
+): Promise<Map<string, number>> {
+  const credited = new Map<string, number>();
+  if (invoiceIds.length === 0) return credited;
+  const rows = await db
+    .select({
+      invoiceId: schema.invoices.referenceInvoiceId,
+      total: sql<number>`coalesce(sum(${schema.invoices.totalCents}), 0)::int`,
+    })
+    .from(schema.invoices)
+    .where(
+      and(
+        eq(schema.invoices.organizationId, orgId),
+        eq(schema.invoices.kind, "credit_note"),
+        inArray(schema.invoices.referenceInvoiceId, invoiceIds),
+        isNull(schema.invoices.deletedAt),
+        sql`${schema.invoices.status} != 'void'`,
+      ),
+    )
+    .groupBy(schema.invoices.referenceInvoiceId);
+  for (const row of rows) {
+    if (row.invoiceId) credited.set(row.invoiceId, row.total);
+  }
+  return credited;
 }

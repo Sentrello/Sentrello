@@ -6,15 +6,14 @@ import {
 import { and, db, eq, isNull, schema } from "@sentrello/db";
 import { copyInvoice } from "@sentrello/db/documents";
 import {
-  CORE_ACCOUNTS,
-  ensureAccount,
+  postCreditNoteIssued,
   postInvoiceIssued,
-  postJournalEntry,
   reverseJournalEntries,
 } from "@sentrello/db/ledger";
+import { invoiceStatus } from "@sentrello/db/money";
 import { nextDocumentNumber } from "@sentrello/db/numbering";
 import type { ModuleContext } from "@sentrello/module-sdk";
-import { shareToken, writeTaxBands } from "./documents";
+import { creditedAgainst, shareToken, writeTaxBands } from "./documents";
 import { ExemptionError, exemptionForInvoice } from "./exemptions";
 
 /**
@@ -281,11 +280,11 @@ export function registerLifecycle(ctx: ModuleContext) {
         amountCents?: unknown;
         reason?: unknown;
       };
-      const amountCents = body.amountCents ?? source.totalCents;
+      const requested = body.amountCents ?? source.totalCents;
       if (
-        !Number.isInteger(amountCents) ||
-        (amountCents as number) <= 0 ||
-        (amountCents as number) > source.totalCents
+        !Number.isInteger(requested) ||
+        (requested as number) <= 0 ||
+        (requested as number) > source.totalCents
       ) {
         // More than the invoice is not a credit, it is a payment to the
         // customer, and it belongs somewhere a business can see it.
@@ -294,6 +293,76 @@ export function registerLifecycle(ctx: ModuleContext) {
           400,
         );
       }
+      const amount = requested as number;
+
+      /**
+       * The cap is cumulative, not per note. Each note alone stayed under
+       * the total, so two full-value credits both passed and an invoice
+       * could be credited for twice what it was ever worth — money invented
+       * out of a button pressed twice.
+       */
+      const already =
+        (await creditedAgainst(orgId, [source.id])).get(source.id) ?? 0;
+      if (already + amount > source.totalCents) {
+        return c.json(
+          {
+            error:
+              "credit notes against this invoice would then exceed its total; only what is left of the invoice can still be credited",
+          },
+          400,
+        );
+      }
+
+      /**
+       * The tax on what is being given back, band by band, in proportion.
+       *
+       * Read from the bands frozen onto the sale rather than recomputed from
+       * rates, so the credit unwinds what was actually charged — including a
+       * rate that has been renamed or retired since. Each band's share is
+       * rounded on its own, the same per-tax rounding decision recorded in
+       * `documentTotals`, and the net takes the remainder: the note still
+       * credits exactly the amount asked for, and the entry it posts still
+       * balances to the cent. An exempt or zero-rated sale has no tax in its
+       * bands, so its credit invents none.
+       */
+      const sourceBands = await db
+        .select()
+        .from(schema.documentTaxes)
+        .where(
+          and(
+            eq(schema.documentTaxes.organizationId, orgId),
+            eq(schema.documentTaxes.documentType, "invoice"),
+            eq(schema.documentTaxes.documentId, source.id),
+          ),
+        );
+      const bands = sourceBands
+        .map((band) => ({
+          taxDefinitionId: band.taxDefinitionId,
+          name: band.name,
+          rateBp: band.rateBp,
+          ratePpm: band.ratePpm ?? band.rateBp * 100,
+          categoryCode: band.categoryCode,
+          taxableCents: Math.round(
+            (band.taxableCents * amount) / source.totalCents,
+          ),
+          taxCents: Math.round((band.taxCents * amount) / source.totalCents),
+        }))
+        .filter((band) => band.taxableCents !== 0 || band.taxCents !== 0);
+      let taxCents = bands.reduce((sum, band) => sum + band.taxCents, 0);
+      // A one-cent credit against heavily taxed lines can round every band
+      // up at once. The net must never go below zero, so the excess comes
+      // back off the largest bands and the entry still balances.
+      if (taxCents > amount) {
+        let over = taxCents - amount;
+        for (const band of [...bands].sort((a, b) => b.taxCents - a.taxCents)) {
+          const cut = Math.min(band.taxCents, over);
+          band.taxCents -= cut;
+          over -= cut;
+          if (over === 0) break;
+        }
+        taxCents = amount;
+      }
+      const netCents = amount - taxCents;
 
       const note = await db.transaction(async (tx) => {
         const [made] = await tx
@@ -308,8 +377,15 @@ export function registerLifecycle(ctx: ModuleContext) {
             status: "open",
             issueDate: new Date(),
             notes: String(body.reason ?? "").trim() || null,
-            subtotalCents: amountCents as number,
-            totalCents: amountCents as number,
+            subtotalCents: netCents,
+            taxCents,
+            totalCents: amount,
+            // The credited money unwinds at the rate the sale was booked at,
+            // or the reversal never fully clears what the sale put in.
+            rateMicro: source.rateMicro,
+            // A credit against an exempt sale carries the certificate that
+            // excused it, so the filing's exempt figure falls too.
+            exemptionCertificateId: source.exemptionCertificateId,
           })
           .returning();
         if (!made) throw new Error("credit note returned no row");
@@ -319,26 +395,49 @@ export function registerLifecycle(ctx: ModuleContext) {
           description: `Credit against invoice ${source.number}`,
           quantity: 1,
           quantityMilli: 1000,
-          unitPriceCents: amountCents as number,
+          unitPriceCents: netCents,
         });
+        // The note freezes its own bands the way the sale did: the US filing
+        // and the tax summary read documents band by band, and a credit with
+        // no bands is a credit those figures never see.
+        await writeTaxBands(tx, orgId, "invoice", made.id, bands);
         return made;
       });
 
-      const [ar, income] = await Promise.all([
-        ensureAccount(orgId, CORE_ACCOUNTS.accountsReceivable),
-        ensureAccount(orgId, CORE_ACCOUNTS.salesIncome),
-      ]);
-      await postJournalEntry(
+      await postCreditNoteIssued(
         orgId,
+        note,
         `Credit note ${note.number} against ${source.number}`,
-        `credit-note:${note.id}`,
-        [
-          { accountId: income, debitCents: amountCents as number },
-          { accountId: ar, creditCents: amountCents as number },
-        ],
       );
 
-      return c.json({ creditNote: note }, 201);
+      /**
+       * The credit settles the invoice the way a payment does: the customer
+       * no longer owes that part. Left alone, a fully credited invoice kept
+       * reading as outstanding and the reminder job chased the customer for
+       * money nobody was owed. Same arithmetic as the payments route —
+       * payments plus credits against what the invoice asks for.
+       */
+      const paid = await db
+        .select({ amountCents: schema.payments.amountCents })
+        .from(schema.payments)
+        .where(
+          and(
+            eq(schema.payments.invoiceId, source.id),
+            eq(schema.payments.organizationId, orgId),
+          ),
+        );
+      const settled =
+        paid.reduce((sum, p) => sum + p.amountCents, 0) + already + amount;
+      const { status, balanceDue } = invoiceStatus(
+        source.totalCents - source.earlyDiscountTakenCents,
+        settled,
+      );
+      await db
+        .update(schema.invoices)
+        .set({ status, updatedAt: new Date() })
+        .where(eq(schema.invoices.id, source.id));
+
+      return c.json({ creditNote: note, status, balanceDue }, 201);
     },
   );
 
