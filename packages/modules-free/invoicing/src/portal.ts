@@ -43,9 +43,14 @@ function day(value: Date | string | null): string {
 }
 
 const STYLE = `
-:root { color-scheme: light dark; --ink:#1a1a1a; --muted:#666; --line:#e4e4e7; --bg:#fff; }
+:root { color-scheme: light dark; --ink:#1a1a1a; --muted:#666; --line:#e4e4e7; --bg:#fff;
+  --paid:#1f7a4d; --due:#a16207; --over:#b91c1c; }
+/* The status colours change with the ground they sit on. The light values
+   measured 2.9–3.8:1 on the dark background against WCAG's 4.5:1 — "overdue"
+   was hardest to read exactly where it mattered. Dark values measure 6:1+. */
 @media (prefers-color-scheme: dark) {
-  :root { --ink:#f4f4f5; --muted:#a1a1aa; --line:#333; --bg:#131313; }
+  :root { --ink:#f4f4f5; --muted:#a1a1aa; --line:#333; --bg:#131313;
+    --paid:#3faf74; --due:#cf9436; --over:#ef6a6a; }
 }
 * { box-sizing: border-box; }
 body { font:16px/1.6 system-ui,-apple-system,sans-serif; color:var(--ink);
@@ -58,7 +63,7 @@ th { text-align:left; font-weight:600; border-bottom:1px solid var(--line); padd
 td { border-bottom:1px solid var(--line); padding:.7rem 0; }
 .num { text-align:right; font-variant-numeric:tabular-nums; }
 .owed { font-size:1.25rem; font-weight:600; margin:1.5rem 0 0; }
-.paid { color:#1f7a4d; } .due { color:#a16207; } .over { color:#b91c1c; }
+.paid { color:var(--paid); } .due { color:var(--due); } .over { color:var(--over); }
 .muted { color:var(--muted); font-size:.875rem; }
 h2.section { font-size:1.05rem; margin:0 0 .75rem; }
 footer.seller { margin-top:2.5rem; padding-top:1.25rem; border-top:1px solid var(--line);
@@ -67,7 +72,8 @@ footer.seller .howto { max-width:22rem; }
 .credit { margin-top:2rem; font-size:.8125rem; color:var(--muted); }
 .credit a { color:var(--muted); }
 button.pay { font:inherit; font-weight:600; padding:.4rem .9rem; border:0;
-  border-radius:.375rem; background:#2f8f8a; color:#fff; cursor:pointer; }
+  /* #2f8f8a put white text at 3.88:1; this is the same teal held down to 5.4:1. */
+  border-radius:.375rem; background:#257672; color:#fff; cursor:pointer; }
 form { margin:0; }
 `;
 

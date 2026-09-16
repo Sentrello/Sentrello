@@ -59,7 +59,12 @@ function quantity(milli: number): string {
 }
 
 const STYLE = `
-:root{color-scheme:light dark}
+/* Light only, deliberately. This is a document — the business's own accent
+   colour runs through it, chosen against white, and a dark scheme would put
+   that arbitrary colour on a near-black ground where nothing guarantees it
+   can be read. Paper stays paper; the portal, which is a page, follows the
+   reader's scheme. */
+:root{color-scheme:light}
 body{font-family:system-ui,sans-serif;max-width:46rem;margin:3rem auto;padding:0 1.25rem;line-height:1.5}
 h1{font-size:1.35rem;margin-bottom:.15rem}
 table{width:100%;border-collapse:collapse;margin-top:1.5rem;font-size:.95rem}
