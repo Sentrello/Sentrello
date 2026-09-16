@@ -344,10 +344,7 @@ export function Summary() {
             </span>
           </div>
           {!sheet.data.balanced ? (
-            <p
-              className="mt-2 text-xs"
-              style={{ color: "var(--color-danger)" }}
-            >
+            <p className="mt-2 text-xs" style={{ color: "var(--text-danger)" }}>
               This balance sheet does not balance. Something has reached the
               ledger that should not have — the journal will show what.
             </p>
@@ -402,7 +399,7 @@ function Figure({
       <p
         className="money mt-1 text-xl font-semibold"
         style={
-          emphasise && cents < 0 ? { color: "var(--color-danger)" } : undefined
+          emphasise && cents < 0 ? { color: "var(--text-danger)" } : undefined
         }
       >
         {formatMoney(cents)}
@@ -776,8 +773,8 @@ export function Money() {
               style={{
                 color:
                   transactions.data.totals.netCents < 0
-                    ? "var(--color-danger)"
-                    : "var(--color-success)",
+                    ? "var(--text-danger)"
+                    : "var(--text-success)",
               }}
             >
               {formatMoney(transactions.data.totals.netCents)}

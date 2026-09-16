@@ -493,7 +493,7 @@ function BalanceSheetPanel() {
       {/* Shown rather than hidden: a balance sheet that does not balance is
           the single most important thing this panel can say. */}
       {data.balancedCents !== 0 ? (
-        <p className="mt-2 text-sm" style={{ color: "var(--color-danger)" }}>
+        <p className="mt-2 text-sm" style={{ color: "var(--text-danger)" }}>
           Out by {formatMoney(data.balancedCents)} — the journal disagrees with
           itself.
         </p>
@@ -792,9 +792,9 @@ function Stat({
         className="money"
         style={
           tone === "bad"
-            ? { color: "var(--color-danger)" }
+            ? { color: "var(--text-danger)" }
             : tone === "good"
-              ? { color: "var(--color-success)" }
+              ? { color: "var(--text-success)" }
               : undefined
         }
       >
@@ -892,7 +892,7 @@ function Arrange({
               <button
                 type="button"
                 className="text-xs"
-                style={{ color: "var(--color-danger)" }}
+                style={{ color: "var(--text-danger)" }}
                 onClick={() => setDraft((d) => d.filter((_, j) => j !== i))}
               >
                 Remove tab
@@ -1086,7 +1086,7 @@ export function HealthPanel({ health }: { health: Health }) {
   const updateState = !release
     ? null
     : release.updateAvailable
-      ? { text: `${release.latest} is out`, colour: "var(--color-warning)" }
+      ? { text: `${release.latest} is out`, colour: "var(--text-warning)" }
       : release.latest
         ? { text: "up to date", colour: undefined }
         : { text: "not checked", colour: undefined };
@@ -1125,7 +1125,7 @@ export function HealthPanel({ health }: { health: Health }) {
             style={
               health.database.reachable
                 ? undefined
-                : { color: "var(--color-danger)" }
+                : { color: "var(--text-danger)" }
             }
           >
             {health.database.reachable
@@ -1140,7 +1140,7 @@ export function HealthPanel({ health }: { health: Health }) {
             Disk
           </p>
           {disk ? (
-            <p style={tight ? { color: "var(--color-warning)" } : undefined}>
+            <p style={tight ? { color: "var(--text-warning)" } : undefined}>
               {size(disk.freeBytes)} free
               {tight ? " — running low" : ""}
             </p>
@@ -1260,9 +1260,7 @@ function SettingUp() {
                 <li key={step.id} className="flex gap-2 text-sm">
                   <span
                     aria-hidden="true"
-                    style={
-                      step.done ? { color: "var(--color-success)" } : muted
-                    }
+                    style={step.done ? { color: "var(--text-success)" } : muted}
                   >
                     {step.done ? "✓" : "○"}
                   </span>

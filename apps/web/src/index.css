@@ -129,6 +129,28 @@
   --text-muted: oklch(0.509 0.023 251);
   --link: var(--color-brand-600);
   --link-hover: var(--color-brand-700);
+  /*
+   * The status colours where they are *words* — "Paid", "Overdue", the error
+   * under a field — as distinct from where they are fills.
+   *
+   * One token cannot do both jobs. A green dark enough to read on light
+   * paper measured 3.17:1 as text on the dark theme's card, and every status
+   * word in the product sat between 2.76:1 and 3.58:1 against the 4.5:1 AA
+   * line — the dark theme failed on every screen that showed a status. So:
+   * `--color-*` stays the fill (chart bars, the danger button, borders, all
+   * of which measure over 3:1 on both grounds), and text reads these, which
+   * each theme sets to a value measured against its own surfaces.
+   * `theme-contrast.test.ts` holds every pairing to the line.
+   *
+   * On light they *are* the fills — those were already tuned as text on
+   * paper, and light must not change. Dark lightens each without leaving its
+   * hue, 6.1:1 or better on the raised card, margin included.
+   */
+  --text-success: var(--color-success);
+  --text-warning: var(--color-warning);
+  --text-danger: var(--color-danger);
+  --text-info: var(--color-info);
+  --text-brand: var(--color-brand-600);
 }
 
 /*
@@ -149,6 +171,11 @@
     --text-muted: oklch(0.677 0.027 250);
     --link: var(--color-brand-300);
     --link-hover: var(--color-brand-100);
+    --text-success: oklch(0.72 0.14 150);
+    --text-warning: oklch(0.75 0.13 75);
+    --text-danger: oklch(0.72 0.16 20);
+    --text-info: oklch(0.72 0.1 250);
+    --text-brand: var(--color-brand-300);
   }
 }
 
@@ -161,6 +188,11 @@
   --text-muted: oklch(0.677 0.027 250);
   --link: var(--color-brand-300);
   --link-hover: var(--color-brand-100);
+  --text-success: oklch(0.72 0.14 150);
+  --text-warning: oklch(0.75 0.13 75);
+  --text-danger: oklch(0.72 0.16 20);
+  --text-info: oklch(0.72 0.1 250);
+  --text-brand: var(--color-brand-300);
 }
 
 :root[data-theme="light"] {
@@ -172,6 +204,11 @@
   --text-muted: oklch(0.509 0.023 251);
   --link: var(--color-brand-600);
   --link-hover: var(--color-brand-700);
+  --text-success: var(--color-success);
+  --text-warning: var(--color-warning);
+  --text-danger: var(--color-danger);
+  --text-info: var(--color-info);
+  --text-brand: var(--color-brand-600);
 }
 
 /*
@@ -243,7 +280,7 @@ a {
 
 /* The same, for the ones that delete something. */
 .link-danger {
-  color: var(--color-danger);
+  color: var(--text-danger);
   text-decoration: none;
   /* Same 24px target as .link-muted; these sit beside each other in a row. */
   display: inline-flex;
@@ -253,8 +290,14 @@ a {
   min-height: 24px;
   min-width: 24px;
 }
+/*
+ * An underline, not `filter: brightness(1.25)`. Brightening red text on the
+ * light surface pushed it from 4.77:1 to under the 4.5:1 line — a control
+ * that failed AA precisely while somebody was about to use it. The underline
+ * answers the pointer without moving the colour at all.
+ */
 .link-danger:hover {
-  filter: brightness(1.25);
+  text-decoration: underline;
 }
 
 /*
@@ -282,7 +325,7 @@ a {
   flex-shrink: 0;
   padding: 0.5rem 0;
   border-right: 1px solid var(--border);
-  background: var(--surface-sunk, var(--surface-raised));
+  background: var(--surface-sunken);
   position: sticky;
   top: 3.25rem;
   height: calc(100vh - 3.25rem);

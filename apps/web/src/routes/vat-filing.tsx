@@ -270,7 +270,7 @@ export function VatFiling() {
         <Card>
           <p
             className="text-sm font-medium"
-            style={{ color: "var(--color-warning)" }}
+            style={{ color: "var(--text-warning)" }}
           >
             Test mode — nothing filed here reaches HMRC's real systems
           </p>

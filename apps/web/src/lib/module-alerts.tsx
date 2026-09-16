@@ -21,8 +21,8 @@ export function ModuleFailures({ names }: { names: string[] }) {
       role="alert"
       className="mb-4 rounded-md border px-3 py-2 text-sm"
       style={{
-        borderColor: "var(--color-danger)",
-        color: "var(--color-danger)",
+        borderColor: "var(--text-danger)",
+        color: "var(--text-danger)",
       }}
     >
       <strong>A paid module is not running:</strong> {names.join(", ")}.

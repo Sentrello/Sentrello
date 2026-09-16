@@ -395,7 +395,7 @@ export function InvoiceDetail() {
           {!isDraft && data.computedStatus !== invoice.status ? (
             <p
               className="mt-2 text-xs"
-              style={{ color: "var(--color-warning)" }}
+              style={{ color: "var(--text-warning)" }}
             >
               Stored as “{invoice.status}”, but the payments say “
               {data.computedStatus}”.

@@ -109,7 +109,7 @@ function Reconciliation({ taxes }: { taxes: ReturnLine[] }) {
               style={
                 t.documentTaxCents === t.collectedCents
                   ? muted
-                  : { color: "var(--color-danger)" }
+                  : { color: "var(--text-danger)" }
               }
               title={
                 t.documentTaxCents === t.collectedCents

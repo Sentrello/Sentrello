@@ -93,7 +93,7 @@ function State({ ok, yes, no }: { ok: boolean; yes: string; no: string }) {
   return (
     <span
       className="text-sm font-medium"
-      style={{ color: ok ? "var(--color-success)" : "var(--color-warning)" }}
+      style={{ color: ok ? "var(--text-success)" : "var(--text-warning)" }}
     >
       {ok ? yes : no}
     </span>
@@ -491,7 +491,7 @@ export function Settings() {
         ) : null}
         {!data.instance.baseUrlMatchesRequest ? (
           // The reason a customer receives a link pointing at localhost.
-          <p className="mt-1 text-sm" style={{ color: "var(--color-warning)" }}>
+          <p className="mt-1 text-sm" style={{ color: "var(--text-warning)" }}>
             That does not match the address you are using right now. Links sent
             to customers may not work until the server's configured address is
             corrected.
@@ -645,7 +645,7 @@ function PaymentConnections({
     <>
       {data && !data.canStoreSecrets ? (
         <Card>
-          <p className="font-medium" style={{ color: "var(--color-warning)" }}>
+          <p className="font-medium" style={{ color: "var(--text-warning)" }}>
             This instance cannot store credentials
           </p>
           <p className="mt-1 text-sm" style={muted}>
@@ -658,7 +658,7 @@ function PaymentConnections({
 
       {data?.environmentFallback ? (
         <Card>
-          <p className="font-medium" style={{ color: "var(--color-warning)" }}>
+          <p className="font-medium" style={{ color: "var(--text-warning)" }}>
             Card payments are using a key set on the server
           </p>
           <p className="mt-1 text-sm" style={muted}>
@@ -837,8 +837,8 @@ function Connection({
           className="mt-1 text-sm"
           style={
             account.lastTestOk
-              ? { color: "var(--color-success)" }
-              : { color: "var(--color-danger)" }
+              ? { color: "var(--text-success)" }
+              : { color: "var(--text-danger)" }
           }
         >
           {account.lastTestMessage}
@@ -873,7 +873,7 @@ function Connection({
       </div>
 
       {connect.data && !connect.data.ok && !connect.data.steps.length ? (
-        <p className="mt-3 text-sm" style={{ color: "var(--color-danger)" }}>
+        <p className="mt-3 text-sm" style={{ color: "var(--text-danger)" }}>
           The processor could not be connected.
         </p>
       ) : null}
@@ -892,7 +892,7 @@ function Connection({
             <li
               key={step.step}
               style={{
-                color: step.ok ? "var(--color-success)" : "var(--color-danger)",
+                color: step.ok ? "var(--text-success)" : "var(--text-danger)",
               }}
             >
               {step.ok ? "\u2713" : "\u2717"} {step.step}
@@ -1050,7 +1050,7 @@ export function SettingsLicence() {
         // Paid features vanishing without explanation is the worst way to
         // find out about this, so it goes at the top and stays red.
         <Card>
-          <p className="font-medium" style={{ color: "var(--color-danger)" }}>
+          <p className="font-medium" style={{ color: "var(--text-danger)" }}>
             A paid module did not start
           </p>
           {licence.data.failedBundles.map((f) => (
@@ -1084,7 +1084,7 @@ export function SettingsLicence() {
               // The answer to "why did my features disappear?"
               <p
                 className="mt-1 text-sm"
-                style={{ color: "var(--color-warning)" }}
+                style={{ color: "var(--text-warning)" }}
               >
                 Running as Free
                 {licence.data.reason ? `: ${licence.data.reason}` : "."} Paid
@@ -1160,7 +1160,7 @@ export function SettingsLicence() {
             {licence.data.graceUntil ? (
               <p
                 className="mt-1 text-sm"
-                style={{ color: "var(--color-warning)" }}
+                style={{ color: "var(--text-warning)" }}
               >
                 Billing needs attention. Paid features keep working until{" "}
                 {new Date(licence.data.graceUntil).toLocaleDateString()}.
@@ -1334,7 +1334,7 @@ export function SettingsLicence() {
             className="mt-2 text-sm"
             style={
               updates.data.status.state === "failed"
-                ? { color: "var(--color-danger)" }
+                ? { color: "var(--text-danger)" }
                 : muted
             }
           >

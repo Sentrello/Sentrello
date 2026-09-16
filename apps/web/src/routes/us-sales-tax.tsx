@@ -110,7 +110,7 @@ function NexusCard() {
               <td
                 style={
                   s.status === "over" || s.status === "approaching"
-                    ? { color: "var(--color-danger)" }
+                    ? { color: "var(--text-danger)" }
                     : muted
                 }
                 title={s.advice}
@@ -220,7 +220,7 @@ function FilingCard() {
                   style={
                     j.ledgerTaxCents === j.taxCents
                       ? muted
-                      : { color: "var(--color-danger)" }
+                      : { color: "var(--text-danger)" }
                   }
                   title={
                     j.ledgerTaxCents === j.taxCents
@@ -366,7 +366,7 @@ function CertificatesCard() {
                 style={
                   cert.status === "valid"
                     ? muted
-                    : { color: "var(--color-danger)" }
+                    : { color: "var(--text-danger)" }
                 }
               >
                 {statusLabel[cert.status] ?? cert.status}

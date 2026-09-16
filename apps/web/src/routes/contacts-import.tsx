@@ -147,7 +147,7 @@ export function ContactsImport({ onDone }: { onDone: () => void }) {
         className="text-sm"
       />
       {readError ? (
-        <p className="mt-2 text-sm" style={{ color: "var(--color-danger)" }}>
+        <p className="mt-2 text-sm" style={{ color: "var(--text-danger)" }}>
           {readError}
         </p>
       ) : null}

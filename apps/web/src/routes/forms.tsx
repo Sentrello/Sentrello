@@ -255,7 +255,7 @@ function FormActions({
           <button
             type="button"
             className="menu-item"
-            style={{ color: "var(--color-danger)" }}
+            style={{ color: "var(--text-danger)" }}
             onClick={() => {
               if (confirming) remove.mutate();
               else setConfirming(true);

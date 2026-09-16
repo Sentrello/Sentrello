@@ -168,7 +168,15 @@ export function Setup({
             disabled={busy}
             onClick={saveRegimes}
             className="w-full rounded px-3 py-2 text-sm font-medium"
-            style={{ background: "var(--accent)", color: "white" }}
+            style={{
+              /*
+                `--accent` was nothing — the token does not exist in this app,
+                so this was white text on no background at all. The same
+                pairing as every other primary button on this screen.
+              */
+              background: "var(--brand-on-white-text)",
+              color: "var(--color-neutral-50)",
+            }}
           >
             {busy ? "Saving…" : "Finish"}
           </button>
@@ -289,7 +297,7 @@ export function Setup({
         ) : null}
 
         {error ? (
-          <p className="text-sm" style={{ color: "var(--color-danger)" }}>
+          <p className="text-sm" style={{ color: "var(--text-danger)" }}>
             {error}
           </p>
         ) : null}

@@ -85,24 +85,24 @@ const TABS: { id: string; label: string }[] = [
 function statusOf(invoice: InvoiceRow): { label: string; tone: string } {
   if (invoice.deletedAt) return { label: "Deleted", tone: "var(--text-muted)" };
   if (invoice.kind === "credit_note") {
-    return { label: "Credit note", tone: "var(--color-info)" };
+    return { label: "Credit note", tone: "var(--text-info)" };
   }
   switch (invoice.status) {
     case "draft":
       return { label: "Draft", tone: "var(--text-muted)" };
     case "paid":
-      return { label: "Paid", tone: "var(--color-success)" };
+      return { label: "Paid", tone: "var(--text-success)" };
     case "void":
       return { label: "Void", tone: "var(--text-muted)" };
     case "partial":
       return {
         label: invoice.overdue ? "Part paid, overdue" : "Part paid",
-        tone: invoice.overdue ? "var(--color-danger)" : "var(--color-warning)",
+        tone: invoice.overdue ? "var(--text-danger)" : "var(--text-warning)",
       };
     default:
       return invoice.overdue
-        ? { label: "Overdue", tone: "var(--color-danger)" }
-        : { label: "Unpaid", tone: "var(--color-warning)" };
+        ? { label: "Overdue", tone: "var(--text-danger)" }
+        : { label: "Unpaid", tone: "var(--text-warning)" };
   }
 }
 
@@ -597,7 +597,7 @@ function InvoiceActions({
             <button
               type="button"
               className="menu-item"
-              style={{ color: "var(--color-danger)" }}
+              style={{ color: "var(--text-danger)" }}
               onClick={() => act.mutate("void")}
               disabled={act.isPending}
             >

@@ -210,8 +210,8 @@ export function Events() {
             <p
               style={
                 verdict.intact
-                  ? { color: "var(--color-success)" }
-                  : { color: "var(--color-danger)" }
+                  ? { color: "var(--text-success)" }
+                  : { color: "var(--text-danger)" }
               }
             >
               {verdict.intact
