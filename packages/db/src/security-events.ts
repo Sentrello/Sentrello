@@ -135,6 +135,16 @@ export type SecurityAction =
   | "links.privacy.changed"
   | "links.forgotten"
   /**
+   * An outbound webhook endpoint, added or removed.
+   *
+   * A webhook is a credential-bearing destination a business can point
+   * anywhere — every click event flows to whatever URL somebody typed in.
+   * "Who sent our traffic there, and when" is the question after data turns
+   * up somewhere it should not be.
+   */
+  | "links.webhook.created"
+  | "links.webhook.deleted"
+  /**
    * A business's own search-data account, connected or removed.
    *
    * Which source the SEO module buys from decides who sees a business's
@@ -176,6 +186,8 @@ export const ACTION_TEXT: Record<SecurityAction, string> = {
   "links.tracking-key.issued": "issued a link tracking key",
   "links.privacy.changed": "changed what is kept about link visitors",
   "links.forgotten": "erased an address from the link records",
+  "links.webhook.created": "added an outbound webhook for link events",
+  "links.webhook.deleted": "removed an outbound webhook for link events",
   "seo.account.connected": "connected a search-data account",
   "seo.account.disconnected": "removed the search-data account",
   "contractor.tax-id.set": "recorded a contractor\u2019s taxpayer number",
