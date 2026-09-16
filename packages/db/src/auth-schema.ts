@@ -132,6 +132,27 @@ export const organizations = pgTable(
     /** ISO 3166-1 alpha-2. "DE", not "Germany". */
     countryCode: text("country_code"),
     /**
+     * How the business itself is reached, as a structured e-invoice states it.
+     *
+     * Germany's rules (BR-DE-5/6/7) make a seller contact point — name, phone,
+     * email — mandatory on every XRechnung, and an invoice into a German
+     * public body will not validate without one. Optional here for the same
+     * reason the address parts are: only the e-invoice needs them, and it
+     * refuses with the field named rather than emitting a document a machine
+     * rejects.
+     */
+    email: text("email"),
+    phone: text("phone"),
+    /**
+     * Where a bank transfer goes, as a machine reads it.
+     *
+     * `paymentInstructions` above is prose for a person; an XRechnung needs
+     * the IBAN itself (BR-DE-1 makes payment instructions mandatory, and a
+     * SEPA credit transfer must carry the account). Stored plainly — an IBAN
+     * is printed on every invoice a business sends, not a secret.
+     */
+    iban: text("iban"),
+    /**
      * The currency the books are kept in.
      *
      * Documents may be raised in anything; the ledger is one currency or its

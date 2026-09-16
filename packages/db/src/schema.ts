@@ -631,6 +631,16 @@ export const invoices = pgTable(
     /** "30 days net", or whatever this business writes on its documents. */
     paymentTerms: text("payment_terms"),
     /**
+     * The reference the customer asked to see on the invoice — a PO number,
+     * a cost centre, whatever their systems file by.
+     *
+     * On a structured e-invoice this is BT-10, and it is load-bearing: the
+     * Peppol network refuses a document without a buyer reference or order
+     * reference, and a German public body's routing identifier (the
+     * Leitweg-ID) travels in exactly this field.
+     */
+    buyerReference: text("buyer_reference"),
+    /**
      * Pay early and pay less — Skonto, in the German the practice comes from.
      *
      * Three fields rather than a computed amount: the offer is a percentage or
