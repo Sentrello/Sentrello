@@ -78,6 +78,38 @@ test("overpayment is paid, never negative status", () => {
   });
 });
 
+test("settled by credit alone reads credited, not paid", () => {
+  expect(invoiceStatus(10000, 0, 10000)).toEqual({
+    balanceDue: 0,
+    status: "credited",
+  });
+});
+
+test("part paid then credited for the rest reads paid", () => {
+  // Money changed hands; the split is on the detail screen.
+  expect(invoiceStatus(10000, 4000, 6000)).toEqual({
+    balanceDue: 0,
+    status: "paid",
+  });
+  // Either order of events lands on the same word.
+  expect(invoiceStatus(10000, 6000, 4000).status).toBe("paid");
+});
+
+test("a partial credit still reads as outstanding, for the balance", () => {
+  expect(invoiceStatus(10000, 0, 4000)).toEqual({
+    balanceDue: 6000,
+    status: "partial",
+  });
+  expect(invoiceStatus(10000, 3000, 4000)).toEqual({
+    balanceDue: 3000,
+    status: "partial",
+  });
+});
+
+test("a zero-total invoice with no credits stays paid", () => {
+  expect(invoiceStatus(0, 0)).toEqual({ balanceDue: 0, status: "paid" });
+});
+
 /**
  * Money arithmetic must not be able to produce a value that is not money.
  *

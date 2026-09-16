@@ -1,4 +1,5 @@
 import { db, schema } from "@sentrello/db";
+import { creditedAgainst } from "@sentrello/db/documents";
 import { and, eq, gte, isNull } from "drizzle-orm";
 
 /**
@@ -37,7 +38,7 @@ export async function readInsights(organizationId: string): Promise<Insights> {
     Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 11, 1),
   );
 
-  const [ledger, deals, invoices, contacts] = await Promise.all([
+  const [ledger, deals, invoices, contacts, payments] = await Promise.all([
     // The ledger, not the invoice table. A reported figure that disagrees with
     // the books is worse than no figure, and the books are the ones defended.
     db
@@ -84,7 +85,42 @@ export async function readInsights(organizationId: string): Promise<Insights> {
       })
       .from(schema.contacts)
       .where(eq(schema.contacts.organizationId, organizationId)),
+    db
+      .select({
+        invoiceId: schema.payments.invoiceId,
+        amountCents: schema.payments.amountCents,
+      })
+      .from(schema.payments)
+      .where(eq(schema.payments.organizationId, organizationId)),
   ]);
+
+  /**
+   * What is still owed on each invoice, not what it was billed at.
+   *
+   * The aged-debt buckets used to carry face values, so a part payment — or
+   * the credited share of a partly credited invoice — sat in "over 90 days"
+   * as money nobody was owed. Payments and credits come off before anything
+   * is bucketed, the same subtraction the invoice list shows.
+   */
+  const paidByInvoice = new Map<string, number>();
+  for (const p of payments) {
+    if (!p.invoiceId) continue;
+    paidByInvoice.set(
+      p.invoiceId,
+      (paidByInvoice.get(p.invoiceId) ?? 0) + p.amountCents,
+    );
+  }
+  const creditedByInvoice = await creditedAgainst(
+    organizationId,
+    invoices.filter((i) => i.kind === "invoice").map((i) => i.id),
+  );
+  const owedOn = (inv: { id: string; totalCents: number }) =>
+    Math.max(
+      0,
+      inv.totalCents -
+        (paidByInvoice.get(inv.id) ?? 0) -
+        (creditedByInvoice.get(inv.id) ?? 0),
+    );
 
   // Every month in the window, including the quiet ones. A series that skips
   // empty months draws a line that slopes through a gap it never had.
@@ -142,11 +178,15 @@ export async function readInsights(organizationId: string): Promise<Insights> {
   );
   const byCustomer = new Map<string, number>();
   for (const inv of invoices) {
-    if (inv.status === "void" || inv.status === "draft") continue;
+    if (inv.deletedAt || inv.status === "void" || inv.status === "draft")
+      continue;
     const name = inv.contactId
       ? (names.get(inv.contactId) ?? "Unnamed")
       : "No customer";
-    byCustomer.set(name, (byCustomer.get(name) ?? 0) + inv.totalCents);
+    // A credit note is billing in reverse: a customer billed 10,000 and
+    // credited 4,000 brought in 6,000, not 14,000.
+    const cents = inv.kind === "credit_note" ? -inv.totalCents : inv.totalCents;
+    byCustomer.set(name, (byCustomer.get(name) ?? 0) + cents);
   }
 
   // How late the money is, not just that it is late. Thirty days out is a
@@ -159,12 +199,19 @@ export async function readInsights(organizationId: string): Promise<Insights> {
     { bucket: "Over 90 days", cents: 0, count: 0 },
   ];
   for (const inv of invoices) {
+    // Only debt ages: not a credit note, not a draft nobody was asked for,
+    // and not an invoice already settled — by money or by credit note alike.
     if (
+      inv.kind !== "invoice" ||
+      inv.deletedAt ||
       inv.status === "paid" ||
+      inv.status === "credited" ||
       inv.status === "void" ||
       inv.status === "draft"
     )
       continue;
+    const owed = owedOn(inv);
+    if (owed <= 0) continue;
     const days = inv.dueDate
       ? Math.floor(
           (now.getTime() - new Date(inv.dueDate).getTime()) / 86_400_000,
@@ -174,7 +221,7 @@ export async function readInsights(organizationId: string): Promise<Insights> {
       days <= 0 ? 0 : days <= 30 ? 1 : days <= 60 ? 2 : days <= 90 ? 3 : 4;
     const bucket = aging[slot];
     if (!bucket) continue;
-    bucket.cents += inv.totalCents;
+    bucket.cents += owed;
     bucket.count += 1;
   }
 

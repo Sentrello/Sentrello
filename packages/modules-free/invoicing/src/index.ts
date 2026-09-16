@@ -40,7 +40,7 @@ import {
   receiptEmail,
 } from "@sentrello/email/templates";
 import { defineModule, rateLimit } from "@sentrello/module-sdk";
-import { and, eq, isNotNull } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, notInArray } from "drizzle-orm";
 import { registerBillingRules, registerCatalogue } from "./catalogue";
 import { registerConsolidate } from "./consolidate";
 import { registerDistanceSelling } from "./distance-selling";
@@ -581,7 +581,8 @@ export default defineModule({
           (await creditedAgainst(orgId, [invoiceId])).get(invoiceId) ?? 0;
         const { status, balanceDue } = invoiceStatus(
           invoice.totalCents - forgiven,
-          paidCents + creditedCents,
+          paidCents,
+          creditedCents,
         );
 
         await db
@@ -1547,6 +1548,12 @@ export default defineModule({
       const contact = await contactByPortalToken(supplied);
       if (!contact) return c.notFound();
 
+      /**
+       * Only documents the customer was actually sent. A draft is the
+       * business thinking out loud, a void was taken back, and a credit
+       * note is not a bill — shown as one, it read as "due" and offered a
+       * Pay button for money the business owes the customer.
+       */
       const rows = await db
         .select()
         .from(schema.invoices)
@@ -1554,8 +1561,15 @@ export default defineModule({
           and(
             eq(schema.invoices.organizationId, contact.organizationId),
             eq(schema.invoices.contactId, contact.id),
+            eq(schema.invoices.kind, "invoice"),
+            isNull(schema.invoices.deletedAt),
+            notInArray(schema.invoices.status, ["draft", "void"]),
           ),
         );
+      const rowCredits = await creditedAgainst(
+        contact.organizationId,
+        rows.map((r) => r.id),
+      );
 
       const paid = await db
         .select({
@@ -1612,6 +1626,7 @@ export default defineModule({
             paidCents: paid
               .filter((p) => p.invoiceId === invoice.id)
               .reduce((sum, p) => sum + p.amountCents, 0),
+            creditedCents: rowCredits.get(invoice.id) ?? 0,
           })),
         }),
         200,
@@ -1703,7 +1718,8 @@ export default defineModule({
           (await creditedAgainst(orgId, [invoice.id])).get(invoice.id) ?? 0;
         const { balanceDue, status } = invoiceStatus(
           invoice.totalCents,
-          paidCents + creditedCents,
+          paidCents,
+          creditedCents,
         );
 
         return c.json({

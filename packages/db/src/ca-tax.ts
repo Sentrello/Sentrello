@@ -457,7 +457,12 @@ export async function caReturnsFor(
           schema.documentTaxes.taxDefinitionId,
           definitionRows.map((d) => d.id),
         ),
-        inArray(schema.invoices.status, ["open", "partial", "paid"]),
+        inArray(schema.invoices.status, [
+          "open",
+          "partial",
+          "paid",
+          "credited",
+        ]),
         ...(period.from ? [gte(schema.invoices.issueDate, period.from)] : []),
         ...(period.to ? [lte(schema.invoices.issueDate, period.to)] : []),
       ),

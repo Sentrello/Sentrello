@@ -344,17 +344,22 @@ test("an invoice cannot be credited past its total, however many notes it takes"
   await creditOf(second.id, 2000);
 });
 
-test("crediting settles the invoice the way a payment would", async () => {
+test("crediting settles the invoice, and says credited rather than paid", async () => {
   const invoice = await invoiceOf([
     { description: "Survey", quantity: 1, unitPrice: 10_000, taxRatePpm: 0 },
   ]);
   expect(invoice.status).toBe("open");
 
-  await creditOf(invoice.id, 4000);
+  const first = await creditOf(invoice.id, 4000);
+  // The credit note is its own document with its own status; what happens to
+  // the invoice it credits must not leak onto it.
+  expect(first.status).toBe("open");
   const [partway] = await db
     .select({ status: schema.invoices.status })
     .from(schema.invoices)
     .where(eq(schema.invoices.id, invoice.id));
+  // Partly credited is still owed, the same word as partly paid — the
+  // balance, not the status, says how the settled part was settled.
   expect(partway?.status).toBe("partial");
 
   await creditOf(invoice.id, 6000);
@@ -362,9 +367,130 @@ test("crediting settles the invoice the way a payment would", async () => {
     .select({ status: schema.invoices.status })
     .from(schema.invoices)
     .where(eq(schema.invoices.id, invoice.id));
-  // Fully credited is fully settled: nobody owes anything, and the
-  // reminder job must stop chasing the customer for it.
+  // Fully credited is fully settled — nobody owes anything and the reminder
+  // job must stop chasing — but nobody paid it either, and an invoice that
+  // says "paid" when no money ever arrived is a false statement to whoever
+  // reads it. Settled entirely by credit has its own word.
+  expect(settled?.status).toBe("credited");
+});
+
+test("part paid then credited for the rest reads paid, with the same books", async () => {
+  const invoice = await invoiceOf([
+    { description: "Repairs", quantity: 1, unitPrice: 10_000, taxRatePpm: 0 },
+  ]);
+  const res = await app.request(
+    `http://localhost/api/invoices/${invoice.id}/payments`,
+    { method: "POST", headers, body: JSON.stringify({ amountCents: 4000 }) },
+  );
+  expect(res.status).toBe(201);
+
+  /*
+   * The balance is zero but money did change hands, and the status reads
+   * `paid` on purpose. `credited` is reserved for settlement where nothing
+   * arrived — that is the claim the word makes — and stamping it on an
+   * invoice the customer partly paid would erase real takings from the
+   * screen the way `paid` used to invent them. The detail screen carries
+   * the split (paid −4000, credited −6000), so the mixed history is stated
+   * rather than squeezed into one word.
+   */
+  const note = await creditOf(invoice.id, 6000);
+  const [settled] = await db
+    .select({ status: schema.invoices.status })
+    .from(schema.invoices)
+    .where(eq(schema.invoices.id, invoice.id));
   expect(settled?.status).toBe("paid");
+
+  // Presentation only: the credit note posts exactly what it posted before
+  // this status existed — Dr Income / Cr Receivable for the amount credited.
+  const lines = await linesFor(`credit-note:${note.id}`);
+  expect(balanced(lines)).toBe(6000);
+  expect(debitOn(lines, "4000")).toBe(6000);
+  expect(lines.find((l) => l.code === "1100")?.creditCents).toBe(6000);
+});
+
+test("a credited invoice keeps its place in the lists and figures", async () => {
+  const invoice = await invoiceOf([
+    { description: "Awning", quantity: 1, unitPrice: 5000, taxRatePpm: 0 },
+  ]);
+  await creditOf(invoice.id);
+
+  // It sits with the settled invoices rather than vanishing: an unrecognised
+  // status that no tab claims is an invoice nobody can find again.
+  const paidTab = (await (
+    await app.request("http://localhost/api/invoices?tab=paid", { headers })
+  ).json()) as { invoices: { id: string; status: string }[] };
+  const listed = paidTab.invoices.find((i) => i.id === invoice.id);
+  expect(listed?.status).toBe("credited");
+
+  // And out of everything that means "still owed".
+  for (const tab of ["unpaid", "overdue"]) {
+    const body = (await (
+      await app.request(`http://localhost/api/invoices?tab=${tab}`, {
+        headers,
+      })
+    ).json()) as { invoices: { id: string }[] };
+    expect(body.invoices.some((i) => i.id === invoice.id)).toBe(false);
+  }
+
+  // The tab counts agree with the tabs.
+  const { counts } = (await (
+    await app.request("http://localhost/api/invoices/counts", { headers })
+  ).json()) as { counts: Record<string, number> };
+  expect(counts.paid).toBeGreaterThanOrEqual(1);
+
+  // The detail screen: settled by credit, nothing due, and the two kinds of
+  // settlement reported apart.
+  const detail = (await (
+    await app.request(`http://localhost/api/invoices/${invoice.id}`, {
+      headers,
+    })
+  ).json()) as {
+    computedStatus: string;
+    balanceDue: number;
+    paidCents: number;
+    creditedCents: number;
+  };
+  expect(detail.computedStatus).toBe("credited");
+  expect(detail.balanceDue).toBe(0);
+  expect(detail.paidCents).toBe(0);
+  expect(detail.creditedCents).toBe(5000);
+});
+
+test("a partly credited invoice is owed exactly the uncredited part", async () => {
+  const invoice = await invoiceOf([
+    { description: "Decking", quantity: 1, unitPrice: 8000, taxRatePpm: 0 },
+  ]);
+  await creditOf(invoice.id, 3000);
+
+  const detail = (await (
+    await app.request(`http://localhost/api/invoices/${invoice.id}`, {
+      headers,
+    })
+  ).json()) as { computedStatus: string; balanceDue: number };
+  expect(detail.computedStatus).toBe("partial");
+  expect(detail.balanceDue).toBe(5000);
+
+  const unpaid = (await (
+    await app.request("http://localhost/api/invoices?tab=unpaid", { headers })
+  ).json()) as { invoices: { id: string; balanceCents: number }[] };
+  expect(unpaid.invoices.find((i) => i.id === invoice.id)?.balanceCents).toBe(
+    5000,
+  );
+});
+
+test("a credited invoice cannot then be voided — the books already carry the reversal", async () => {
+  const invoice = await invoiceOf([
+    { description: "Gates", quantity: 1, unitPrice: 5000, taxRatePpm: 0 },
+  ]);
+  await creditOf(invoice.id);
+
+  // Voiding would reverse the sale's entry a second time, on top of the
+  // credit note that already reversed it — income invented downwards.
+  const res = await app.request(
+    `http://localhost/api/invoices/${invoice.id}/void`,
+    { method: "POST", headers },
+  );
+  expect(res.status).toBe(409);
 });
 
 test("a payment and a credit agree about what is still owed", async () => {

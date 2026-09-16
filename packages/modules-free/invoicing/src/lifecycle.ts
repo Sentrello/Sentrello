@@ -229,6 +229,21 @@ export function registerLifecycle(ctx: ModuleContext) {
         );
       }
 
+      // Refused once a credit note stands against it, for the mirror-image
+      // reason: the note already reversed the sale in the books, and the
+      // void's reversal on top would take the income out twice.
+      const credited =
+        (await creditedAgainst(orgId, [invoice.id])).get(invoice.id) ?? 0;
+      if (credited > 0) {
+        return c.json(
+          {
+            error:
+              "credit notes stand against this invoice; the books already carry their reversal",
+          },
+          409,
+        );
+      }
+
       const [voided] = await db
         .update(schema.invoices)
         .set({ status: "void", updatedAt: new Date() })
@@ -415,7 +430,9 @@ export function registerLifecycle(ctx: ModuleContext) {
        * no longer owes that part. Left alone, a fully credited invoice kept
        * reading as outstanding and the reminder job chased the customer for
        * money nobody was owed. Same arithmetic as the payments route —
-       * payments plus credits against what the invoice asks for.
+       * payments plus credits against what the invoice asks for — with the
+       * two kinds of settlement passed apart, so an invoice settled by
+       * credit alone reads `credited` rather than claiming somebody paid.
        */
       const paid = await db
         .select({ amountCents: schema.payments.amountCents })
@@ -426,11 +443,10 @@ export function registerLifecycle(ctx: ModuleContext) {
             eq(schema.payments.organizationId, orgId),
           ),
         );
-      const settled =
-        paid.reduce((sum, p) => sum + p.amountCents, 0) + already + amount;
       const { status, balanceDue } = invoiceStatus(
         source.totalCents - source.earlyDiscountTakenCents,
-        settled,
+        paid.reduce((sum, p) => sum + p.amountCents, 0),
+        already + amount,
       );
       await db
         .update(schema.invoices)

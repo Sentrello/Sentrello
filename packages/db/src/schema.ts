@@ -626,7 +626,7 @@ export const invoices = pgTable(
     contactId: uuid("contact_id"),
     quoteId: uuid("quote_id"), // set when converted from a quote
     number: text("number").notNull(),
-    status: text("status").notNull().default("draft"), // draft|open|partial|paid|void
+    status: text("status").notNull().default("draft"), // draft|open|partial|paid|credited|void — credited is settled by credit note alone
     currency: text("currency").notNull().default("USD"),
     /** invoice | credit_note. A credit note is the same document, negated. */
     kind: text("kind").notNull().default("invoice"),

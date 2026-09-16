@@ -113,11 +113,42 @@ export function lineTotals(lines: TaxedLine[]) {
   return { subtotal, tax, total: subtotal + tax };
 }
 
-export function invoiceStatus(totalCents: number, paidCents: number) {
-  const due = totalCents - paidCents;
+/**
+ * How an invoice stands, from what it asks for and what has settled it.
+ *
+ * Two kinds of settlement, kept apart because the word on the screen makes a
+ * claim about the world: `paidCents` is money that arrived, `creditedCents`
+ * is debt the business gave up by credit note. Both settle the invoice
+ * identically — the balance cannot tell them apart — but the customer can,
+ * and an invoice that said "paid" when nobody paid it was a false statement
+ * to whoever read it. Settled entirely by credit reads `credited`.
+ *
+ * Partly paid and then credited for the rest reads `paid`, deliberately:
+ * money did change hands, and `credited` would erase real takings from the
+ * screen the way `paid` used to invent them. Neither single word tells the
+ * whole mixed story, so the status keeps the claim that is true in cash
+ * terms and the detail screen states the split (paid −X, credited −Y).
+ *
+ * Partly credited with a balance outstanding reads `partial`, the same as a
+ * part payment: what matters to everyone chasing or being chased is that
+ * money is still owed, and the balance says how much.
+ */
+export function invoiceStatus(
+  totalCents: number,
+  paidCents: number,
+  creditedCents = 0,
+) {
+  const due = totalCents - paidCents - creditedCents;
   return {
     balanceDue: due,
-    status: due <= 0 ? "paid" : paidCents > 0 ? "partial" : "open",
+    status:
+      due <= 0
+        ? creditedCents > 0 && paidCents <= 0
+          ? "credited"
+          : "paid"
+        : paidCents + creditedCents > 0
+          ? "partial"
+          : "open",
   };
 }
 
