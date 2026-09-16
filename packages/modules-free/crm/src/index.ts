@@ -51,6 +51,7 @@ import {
 } from "./settings";
 import { registerTaskActions } from "./tasks";
 import { registerVies } from "./vies";
+import { registerWebhooks } from "./webhooks";
 
 /**
  * Org-scoped CRUD for one table. Every query carries the organizationId filter
@@ -2065,5 +2066,6 @@ export default defineModule({
     registerAttachments(ctx);
     registerInboundEmail(ctx);
     registerCrmHistory(ctx);
+    registerWebhooks(ctx);
   },
 });

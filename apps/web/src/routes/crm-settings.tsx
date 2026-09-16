@@ -13,6 +13,7 @@ const CRM_SUBJECTS = [
 import {
   Button,
   Card,
+  ConfirmButton,
   ErrorNote,
   Field,
   Input,
@@ -613,6 +614,233 @@ export function CrmSettings() {
       ) : null}
 
       <EmailCapture />
+      <Webhooks />
+    </div>
+  );
+}
+
+/**
+ * Telling the business's own systems when a record changes.
+ *
+ * An endpoint is a URL somebody types, a choice of which records it hears
+ * about, and a signing secret shown exactly once — the receiver keeps it to
+ * verify our signature, so it is never shown again. The delivery log lives
+ * here too, because a webhook a business cannot see failing is one they
+ * discover from their own missing data.
+ */
+function Webhooks() {
+  const qc = useQueryClient();
+  const [url, setUrl] = useState("");
+  const [entities, setEntities] = useState<string[]>([
+    "contact",
+    "company",
+    "deal",
+  ]);
+  const [allowInsecure, setAllowInsecure] = useState(false);
+  const [issued, setIssued] = useState<string | null>(null);
+  const [showingLog, setShowingLog] = useState<string | null>(null);
+
+  interface Webhook {
+    id: string;
+    url: string;
+    entities: string[];
+    createdAt: string;
+  }
+
+  const hooks = useQuery({
+    queryKey: ["crm-webhooks"],
+    queryFn: () => api<{ webhooks: Webhook[] }>("/api/crm/webhooks"),
+  });
+
+  const create = useMutation({
+    mutationFn: () =>
+      api<{ webhook: Webhook; secret: string }>("/api/crm/webhooks", {
+        method: "POST",
+        body: JSON.stringify({ url, entities, allowInsecure }),
+      }),
+    onSuccess: (made) => {
+      setUrl("");
+      setAllowInsecure(false);
+      setIssued(made.secret);
+      qc.invalidateQueries({ queryKey: ["crm-webhooks"] });
+    },
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: string) =>
+      api(`/api/crm/webhooks/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["crm-webhooks"] }),
+  });
+
+  const toggleEntity = (entity: string, on: boolean) =>
+    setEntities((current) =>
+      on ? [...current, entity] : current.filter((e) => e !== entity),
+    );
+
+  return (
+    <Card>
+      <p className="mb-1 font-medium">Webhooks</p>
+      <p className="mb-3 text-sm" style={muted}>
+        Your own systems can be told when a contact, company or deal changes.
+        Each call is signed, so the receiver can prove it came from here.
+      </p>
+
+      {(hooks.data?.webhooks ?? []).map((hook) => (
+        <div
+          key={hook.id}
+          className="mb-2 rounded border px-3 py-2"
+          style={border}
+        >
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="min-w-0 flex-1 truncate font-mono">
+              {hook.url}
+            </span>
+            <span className="text-xs" style={muted}>
+              {hook.entities.join(", ")}
+            </span>
+            <button
+              type="button"
+              className="text-xs link-muted"
+              onClick={() =>
+                setShowingLog((v) => (v === hook.id ? null : hook.id))
+              }
+            >
+              Deliveries
+            </button>
+            <ConfirmButton
+              title="Remove this webhook?"
+              message="Nothing more will be sent to it, and its delivery log goes with it."
+              confirmLabel="Remove it"
+              danger
+              onConfirm={() => remove.mutate(hook.id)}
+            >
+              Remove
+            </ConfirmButton>
+          </div>
+          {showingLog === hook.id ? <DeliveryLog webhookId={hook.id} /> : null}
+        </div>
+      ))}
+
+      {issued ? (
+        <div
+          className="mb-3 rounded border px-3 py-2 text-sm"
+          style={{ ...border, background: "var(--surface)" }}
+        >
+          <p className="mb-1 font-medium">Signing secret — shown once</p>
+          <p className="mb-1 select-all break-all font-mono text-xs">
+            {issued}
+          </p>
+          <p className="text-xs" style={muted}>
+            Give it to whatever receives the calls; it verifies the
+            x-sentrello-signature header. If it is lost, remove the endpoint and
+            add it again.
+          </p>
+          <button
+            type="button"
+            className="mt-1 text-xs link-muted"
+            onClick={() => setIssued(null)}
+          >
+            I have stored it
+          </button>
+        </div>
+      ) : null}
+
+      <form
+        className="space-y-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (url.trim() && entities.length) create.mutate();
+        }}
+      >
+        <Field
+          label="Endpoint URL"
+          hint="https, unless you say otherwise below."
+        >
+          <Input
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://example.com/hooks/sentrello"
+          />
+        </Field>
+        <div className="flex flex-wrap items-center gap-4 text-sm">
+          {["contact", "company", "deal"].map((entity) => (
+            <label key={entity} className="flex items-center gap-1.5">
+              <input
+                type="checkbox"
+                checked={entities.includes(entity)}
+                onChange={(e) => toggleEntity(entity, e.target.checked)}
+              />
+              {entity}s
+            </label>
+          ))}
+          <label className="flex items-center gap-1.5" style={muted}>
+            <input
+              type="checkbox"
+              checked={allowInsecure}
+              onChange={(e) => setAllowInsecure(e.target.checked)}
+            />
+            Allow plain http — anything sent can be read on the way
+          </label>
+        </div>
+        <Button
+          type="submit"
+          disabled={!url.trim() || !entities.length || create.isPending}
+        >
+          {create.isPending ? "Checking…" : "Add webhook"}
+        </Button>
+        {create.error ? <ErrorNote error={create.error} /> : null}
+      </form>
+    </Card>
+  );
+}
+
+/** What fired, what happened, and what is being retried — per endpoint. */
+function DeliveryLog({ webhookId }: { webhookId: string }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["crm-webhook-deliveries", webhookId],
+    queryFn: () =>
+      api<{
+        deliveries: {
+          id: string;
+          event: string;
+          status: string;
+          attempts: number;
+          lastStatus: number | null;
+          lastError: string | null;
+          createdAt: string;
+        }[];
+        counts: { delivered: number; pending: number; abandoned: number };
+      }>(`/api/crm/webhooks/${webhookId}/deliveries`),
+  });
+
+  if (isLoading) return <Loading />;
+  if (!data) return null;
+  return (
+    <div className="mt-2 border-t pt-2 text-xs" style={border}>
+      <p className="mb-1" style={muted}>
+        {data.counts.delivered} delivered · {data.counts.pending} pending ·{" "}
+        {data.counts.abandoned} abandoned
+      </p>
+      <ul className="max-h-48 space-y-0.5 overflow-y-auto">
+        {data.deliveries.map((d) => (
+          <li key={d.id} className="flex items-center gap-2">
+            <span className="font-mono">{d.event}</span>
+            <span style={muted}>
+              {d.status}
+              {d.lastStatus ? ` (${d.lastStatus})` : ""}
+              {d.attempts > 1 ? `, ${d.attempts} attempts` : ""}
+            </span>
+            {d.lastError ? (
+              <span className="truncate" style={muted}>
+                {d.lastError}
+              </span>
+            ) : null}
+          </li>
+        ))}
+        {data.deliveries.length === 0 ? (
+          <li style={muted}>Nothing has fired yet.</li>
+        ) : null}
+      </ul>
     </div>
   );
 }

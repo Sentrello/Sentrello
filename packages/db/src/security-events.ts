@@ -151,7 +151,13 @@ export type SecurityAction =
    * keywords and who is billed for them — both worth being able to look up.
    */
   | "seo.account.connected"
-  | "seo.account.disconnected";
+  | "seo.account.disconnected"
+  /**
+   * A CRM webhook endpoint, added or removed — the same question as the link
+   * ones: who sent our customer records there, and when.
+   */
+  | "crm.webhook.created"
+  | "crm.webhook.deleted";
 
 /** What each one says in a sentence, for the screen and for support. */
 export const ACTION_TEXT: Record<SecurityAction, string> = {
@@ -190,6 +196,8 @@ export const ACTION_TEXT: Record<SecurityAction, string> = {
   "links.webhook.deleted": "removed an outbound webhook for link events",
   "seo.account.connected": "connected a search-data account",
   "seo.account.disconnected": "removed the search-data account",
+  "crm.webhook.created": "added an outbound webhook for record changes",
+  "crm.webhook.deleted": "removed an outbound webhook for record changes",
   "contractor.tax-id.set": "recorded a contractor\u2019s taxpayer number",
   "year.closed": "closed the year",
   "year.reopened": "reopened a closed year",
