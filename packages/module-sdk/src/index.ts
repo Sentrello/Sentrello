@@ -294,6 +294,12 @@ export * from "./public-endpoints";
  * matching subtly wrong in one repository only.
  */
 export * from "./reachability";
+/**
+ * The judgement every outbound call to a customer-typed URL goes through,
+ * and the signature it carries. One implementation for every repository —
+ * a second copy of an SSRF guard is a copy that lets one range through.
+ */
+export * from "./outbound";
 export * from "./unregistered";
 /**
  * Bank connections. Kept beside the payment processors because it is the same

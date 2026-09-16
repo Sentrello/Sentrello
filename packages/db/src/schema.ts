@@ -3061,3 +3061,74 @@ export const recordEvents = pgTable(
     index("record_events_entity_idx").on(t.entity, t.entityId),
   ],
 );
+
+/**
+ * A URL the business asked to be told at.
+ *
+ * The change feed above says what happened inside this process; a webhook
+ * carries it outside, to systems we do not run. The secret is issued once,
+ * shown once, and sealed in the row — the receiver uses it to verify our
+ * signature, so a secret that can be read back off a screen is a signature
+ * anybody can forge.
+ *
+ * The cursor is where this endpoint has read to in the change feed. Per
+ * endpoint rather than global, so a webhook added today does not replay the
+ * business's whole history at whoever just typed the URL — and so nothing
+ * here touches `record_events.handledAt`, which belongs to the automation
+ * dispatcher and means something else.
+ */
+export const crmWebhooks = pgTable(
+  "crm_webhooks",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: text("organization_id").notNull(),
+    url: text("url").notNull(),
+    /** Sealed with the instance key, never returned after creation. */
+    secret: text("secret").notNull(),
+    /** Which records this endpoint hears about: contact, company, deal… */
+    entities: jsonb("entities").$type<string[]>().notNull().default([]),
+    /** The business ticked the box saying it knows plain http can be read. */
+    allowInsecure: boolean("allow_insecure").notNull().default(false),
+    /** Events at or before this instant have been considered for this endpoint. */
+    cursorAt: timestamp("cursor_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("crm_webhooks_org_idx").on(t.organizationId)],
+);
+
+/**
+ * One attempt-history per endpoint per event.
+ *
+ * A row per endpoint rather than per event, because two endpoints are two
+ * deliveries with two histories, and one failing must not hide the other
+ * succeeding. The unique pair is what makes the fan-out idempotent: the
+ * sweep can re-read the same slice of the feed after a crash and the
+ * database refuses the second copy.
+ */
+export const crmWebhookDeliveries = pgTable(
+  "crm_webhook_deliveries",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: text("organization_id").notNull(),
+    webhookId: uuid("webhook_id").notNull(),
+    /** The record_events row this delivery carries. */
+    eventId: uuid("event_id").notNull(),
+    /** What the receiver is told it is: "contact.updated". */
+    event: text("event").notNull(),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+    /** pending | delivered | abandoned */
+    status: text("status").notNull().default("pending"),
+    attempts: integer("attempts").notNull().default(0),
+    lastStatus: integer("last_status"),
+    lastError: text("last_error"),
+    nextAttemptAt: timestamp("next_attempt_at").notNull(),
+    deliveredAt: timestamp("delivered_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    // The sweep's own question: what is pending and due.
+    index("crm_webhook_deliveries_due_idx").on(t.status, t.nextAttemptAt),
+    index("crm_webhook_deliveries_hook_idx").on(t.webhookId),
+    unique("crm_webhook_deliveries_once").on(t.webhookId, t.eventId),
+  ],
+);
