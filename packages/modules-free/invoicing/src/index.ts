@@ -46,6 +46,7 @@ import { registerConsolidate } from "./consolidate";
 import { registerDistanceSelling } from "./distance-selling";
 import {
   type IncomingLine,
+  creditedAgainst,
   parseDiscount,
   parseEarlyPayment,
   prepareDocument,
@@ -568,13 +569,19 @@ export default defineModule({
          * The saving is not a payment — no money arrived — so it cannot go in
          * the payments table. It reduces what the invoice asks for, which is
          * what "paid in full, less 2% for paying early" actually means.
+         *
+         * Credit notes count beside the payments: a customer who paid the
+         * uncredited remainder owes nothing, and a status that only counted
+         * the money would keep chasing them for the part that was credited.
          */
         const forgiven = takingIt
           ? terms.savingCents
           : invoice.earlyDiscountTakenCents;
+        const creditedCents =
+          (await creditedAgainst(orgId, [invoiceId])).get(invoiceId) ?? 0;
         const { status, balanceDue } = invoiceStatus(
           invoice.totalCents - forgiven,
-          paidCents,
+          paidCents + creditedCents,
         );
 
         await db
@@ -1690,9 +1697,13 @@ export default defineModule({
         ]);
 
         const paidCents = payments.reduce((sum, p) => sum + p.amountCents, 0);
+        // Credits settle debt the way payments do; a balance that ignored
+        // them would show money the customer no longer owes.
+        const creditedCents =
+          (await creditedAgainst(orgId, [invoice.id])).get(invoice.id) ?? 0;
         const { balanceDue, status } = invoiceStatus(
           invoice.totalCents,
-          paidCents,
+          paidCents + creditedCents,
         );
 
         return c.json({
@@ -1728,6 +1739,7 @@ export default defineModule({
             (await tagsFor(orgId, "invoice", [invoice.id])).get(invoice.id) ??
             [],
           paidCents,
+          creditedCents,
           // A draft is not owed: nobody has been asked for it yet.
           balanceDue:
             invoice.status === "draft" || invoice.status === "void"
