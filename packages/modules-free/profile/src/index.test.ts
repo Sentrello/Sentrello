@@ -243,3 +243,243 @@ test("somebody who belongs to no organization gets their profile, not a 500", as
     await db.delete(schema.user).where(eq(schema.user.id, u.id));
   }
 });
+
+/**
+ * Changing the address you sign in with.
+ *
+ * `sendChangeEmailConfirmation` (`packages/auth/src/index.ts`) is stubbed by
+ * pointing `emailAdapter()` at a fake Resend and capturing what it was asked
+ * to send — the same technique `invitations.test.ts` uses for the same
+ * reason: a real send would reach the network from a test.
+ */
+function stubResend() {
+  const realFetch = globalThis.fetch;
+  const sent: { to: string; html: string }[] = [];
+  globalThis.fetch = (async (
+    input: Parameters<typeof fetch>[0],
+    init?: Parameters<typeof fetch>[1],
+  ) => {
+    const url = typeof input === "string" ? input : input.toString();
+    if (url.startsWith("https://api.resend.com/")) {
+      const payload = JSON.parse(String(init?.body ?? "{}")) as {
+        to: string;
+        html: string;
+      };
+      sent.push(payload);
+      return new Response(JSON.stringify({ id: "stubbed" }), { status: 200 });
+    }
+    return realFetch(input, init);
+  }) as typeof fetch;
+  return {
+    sent,
+    restore: () => {
+      globalThis.fetch = realFetch;
+    },
+  };
+}
+
+/** The token a mailed confirm/verify link carries, out of its raw HTML. */
+const tokenIn = (html: string) => html.match(/token=([^&"]+)/)?.[1];
+
+test("confirming from the old address, then verifying the new one, moves the sign-in email", async () => {
+  // The bootstrapped owner's address counts as confirmed the moment setup
+  // finishes (`bootstrap.ts`); `signUpAsOwner` skips that step, so this test
+  // sets it explicitly to exercise the two-step, verified-account flow.
+  await db
+    .update(schema.user)
+    .set({ emailVerified: true })
+    .where(eq(schema.user.id, userId));
+
+  const savedKey = process.env.RESEND_API_KEY;
+  process.env.RESEND_API_KEY = "re_test_never_sent";
+  const { sent, restore } = stubResend();
+  const newEmail = `changed-${suffix}@x.test`;
+
+  try {
+    const res = await app.request("http://localhost/api/profile/email", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ newEmail }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { requested: boolean; message: string };
+    expect(body.requested).toBe(true);
+    // This account is verified, so it is told to check the address it
+    // already has — not the new one, which has not been told anything yet.
+    expect(body.message).toContain("current inbox");
+
+    // Nothing moved: a link went out, and nobody has followed it yet.
+    const [pending] = await db
+      .select({ email: schema.user.email })
+      .from(schema.user)
+      .where(eq(schema.user.id, userId));
+    expect(pending?.email).toBe(email);
+
+    // The old address is the one that heard about it, and the only one so far.
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.to).toBe(email);
+    const confirmToken = tokenIn(sent[0]?.html ?? "");
+    if (!confirmToken) throw new Error("no confirm token in the email");
+
+    // Following that link still does not move the email — it mints and
+    // mails a second, ordinary verification link, to the new address.
+    const confirmed = await auth.api.verifyEmail({
+      query: { token: confirmToken },
+      headers,
+    });
+    expect(confirmed.status).toBe(true);
+    const [stillPending] = await db
+      .select({ email: schema.user.email })
+      .from(schema.user)
+      .where(eq(schema.user.id, userId));
+    expect(stillPending?.email).toBe(email);
+
+    expect(sent).toHaveLength(2);
+    expect(sent[1]?.to).toBe(newEmail);
+    const verifyToken = tokenIn(sent[1]?.html ?? "");
+    if (!verifyToken) throw new Error("no verify token in the email");
+
+    // Following *that* one is what actually moves it.
+    await auth.api.verifyEmail({ query: { token: verifyToken }, headers });
+    const [moved] = await db
+      .select({
+        email: schema.user.email,
+        emailVerified: schema.user.emailVerified,
+      })
+      .from(schema.user)
+      .where(eq(schema.user.id, userId));
+    expect(moved?.email).toBe(newEmail);
+    expect(moved?.emailVerified).toBe(true);
+  } finally {
+    restore();
+    process.env.RESEND_API_KEY = savedKey;
+    // Put it back, so every test after this one still means what it says
+    // about `email`, `headers` and this account's verified state.
+    await db
+      .update(schema.user)
+      .set({ email, emailVerified: false })
+      .where(eq(schema.user.id, userId));
+  }
+});
+
+test("requesting a change does not move the address, which keeps signing in, until it's confirmed", async () => {
+  const savedKey = process.env.RESEND_API_KEY;
+  process.env.RESEND_API_KEY = "re_test_never_sent";
+  const { restore } = stubResend();
+
+  try {
+    const res = await app.request("http://localhost/api/profile/email", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ newEmail: `pending-${suffix}@x.test` }),
+    });
+    expect(res.status).toBe(200);
+
+    const [row] = await db
+      .select({ email: schema.user.email })
+      .from(schema.user)
+      .where(eq(schema.user.id, userId));
+    expect(row?.email).toBe(email);
+
+    // Not the cookie already in hand — an actual sign-in, with the password
+    // set two tests ago, against the address that was never touched.
+    const signIn = await auth.api.signInEmail({
+      body: { email, password: "a-much-better-passphrase" },
+      returnHeaders: true,
+    });
+    expect(signIn.headers.get("set-cookie")).toBeTruthy();
+  } finally {
+    restore();
+    process.env.RESEND_API_KEY = savedKey;
+  }
+});
+
+test("naming an address another account already holds neither succeeds nor reveals it", async () => {
+  const takenEmail = `taken-${suffix}@x.test`;
+  await signUpAsOwner({
+    email: takenEmail,
+    password: "correct-horse-battery-staple",
+    name: "Someone Else",
+  });
+  const [otherUser] = await db
+    .select({ id: schema.user.id })
+    .from(schema.user)
+    .where(eq(schema.user.email, takenEmail));
+
+  const savedKey = process.env.RESEND_API_KEY;
+  process.env.RESEND_API_KEY = "re_test_never_sent";
+  const { sent, restore } = stubResend();
+
+  try {
+    const collide = await app.request("http://localhost/api/profile/email", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ newEmail: takenEmail }),
+    });
+    const collideBody = (await collide.json()) as Record<string, unknown>;
+
+    const free = await app.request("http://localhost/api/profile/email", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ newEmail: `definitely-free-${suffix}@x.test` }),
+    });
+    const freeBody = (await free.json()) as Record<string, unknown>;
+
+    // Same status, same shape, either way — nothing here says which address
+    // already belongs to somebody.
+    expect(collide.status).toBe(free.status);
+    expect(Object.keys(collideBody).sort()).toEqual(
+      Object.keys(freeBody).sort(),
+    );
+
+    // And the collision really did not happen — no email went anywhere
+    // about it, because there is nobody it would be safe to mail; only the
+    // second, non-colliding request actually sent one.
+    expect(sent).toHaveLength(1);
+
+    const [mine] = await db
+      .select({ email: schema.user.email })
+      .from(schema.user)
+      .where(eq(schema.user.id, userId));
+    expect(mine?.email).toBe(email);
+  } finally {
+    restore();
+    process.env.RESEND_API_KEY = savedKey;
+    if (otherUser) {
+      await db
+        .delete(schema.session)
+        .where(eq(schema.session.userId, otherUser.id));
+      await db
+        .delete(schema.account)
+        .where(eq(schema.account.userId, otherUser.id));
+      await db.delete(schema.user).where(eq(schema.user.id, otherUser.id));
+    }
+  }
+});
+
+test("with no mail server configured, changing email says so instead of pretending", async () => {
+  const savedKey = process.env.RESEND_API_KEY;
+  const savedHost = process.env.SMTP_HOST;
+  process.env.RESEND_API_KEY = undefined;
+  process.env.SMTP_HOST = undefined;
+
+  try {
+    const res = await app.request("http://localhost/api/profile/email", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ newEmail: `no-mail-${suffix}@x.test` }),
+    });
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error?: string };
+    expect(body.error).toContain("no mail server");
+
+    const [row] = await db
+      .select({ email: schema.user.email })
+      .from(schema.user)
+      .where(eq(schema.user.id, userId));
+    expect(row?.email).toBe(email);
+  } finally {
+    process.env.RESEND_API_KEY = savedKey;
+    process.env.SMTP_HOST = savedHost;
+  }
+});

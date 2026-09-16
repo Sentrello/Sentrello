@@ -96,6 +96,7 @@ export function ProfileScreen() {
   return (
     <div className="space-y-4">
       <Details profile={data} onSaved={() => qc.invalidateQueries()} />
+      <ChangeEmail email={data.user.email} />
       <Password />
       <TwoFactor />
       <Sessions
@@ -149,7 +150,7 @@ function Details({
         <Field label="Name">
           <Input value={name} onChange={(e) => setName(e.target.value)} />
         </Field>
-        <Field label="Email" hint="Changing this is not supported yet.">
+        <Field label="Email" hint="Change this below.">
           <Input value={profile.user.email} readOnly />
         </Field>
       </div>
@@ -271,6 +272,65 @@ function Details({
         </Button>
       </div>
       {save.error ? <ErrorNote error={save.error} /> : null}
+    </Card>
+  );
+}
+
+/**
+ * Changing the address you sign in with, kept apart from `Details` above.
+ *
+ * `Details`'s save is one PATCH for a handful of harmless fields; this one is
+ * a security-sensitive request with its own refusals (no mail configured, a
+ * rate limit) and its own two-step confirmation that happens over email, not
+ * on this screen — so its own card, own state, own button.
+ */
+function ChangeEmail({ email }: { email: string }) {
+  const [newEmail, setNewEmail] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+
+  const request = useMutation({
+    mutationFn: () =>
+      api<{ requested: boolean; message: string }>("/api/profile/email", {
+        method: "POST",
+        body: JSON.stringify({ newEmail }),
+      }),
+    onSuccess: (data) => {
+      setMessage(data.message);
+      setNewEmail("");
+    },
+  });
+
+  return (
+    <Card>
+      <p className="mb-2 font-medium">Sign-in email</p>
+      <p className="text-sm" style={muted}>
+        You sign in with <strong>{email}</strong>.
+      </p>
+      <div className="mt-3 flex flex-wrap items-end gap-2">
+        <Field label="New email">
+          <Input
+            type="email"
+            autoComplete="email"
+            value={newEmail}
+            onChange={(e) => {
+              setMessage(null);
+              setNewEmail(e.target.value);
+            }}
+          />
+        </Field>
+        <Button
+          onClick={() => request.mutate()}
+          disabled={request.isPending || !newEmail}
+        >
+          {request.isPending ? "Sending…" : "Change email"}
+        </Button>
+      </div>
+      {message ? (
+        <p className="mt-2 text-sm" style={muted}>
+          {message}
+        </p>
+      ) : null}
+      {request.error ? <ErrorNote error={request.error} /> : null}
     </Card>
   );
 }
