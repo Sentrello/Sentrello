@@ -78,6 +78,24 @@ export function InvoicingDashboard() {
         advice: string | null;
       }>("/api/invoicing/distance-sales"),
   });
+  /**
+   * US economic nexus, on the same terms: silent for the café selling in
+   * its own town, and a plain sentence per state for the business whose
+   * out-of-state sales are approaching — or past — a threshold. Before is
+   * the whole point; a warning after the line is crossed is a penalty
+   * notice with better manners.
+   */
+  const nexus = useQuery({
+    queryKey: ["invoicing", "us-nexus"],
+    queryFn: () =>
+      api<{
+        states: { state: string; status: string; advice: string }[];
+      }>("/api/invoicing/us-nexus"),
+  });
+  const nexusWarnings =
+    nexus.data?.states.filter(
+      (s) => s.status === "over" || s.status === "approaching",
+    ) ?? [];
 
   if (isLoading) return <Loading />;
   if (error) return <ErrorNote error={error} />;
@@ -103,6 +121,15 @@ export function InvoicingDashboard() {
             <p className="text-sm">{distance.data.advice}</p>
           </Card>
         )}
+      {nexusWarnings.length > 0 && (
+        <Card>
+          {nexusWarnings.map((s) => (
+            <p key={s.state} className="text-sm">
+              {s.advice}
+            </p>
+          ))}
+        </Card>
+      )}
       <div className="grid gap-3 sm:grid-cols-4">
         {data.figures.map((figure) => (
           <Card key={figure.label}>
