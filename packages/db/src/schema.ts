@@ -2546,6 +2546,55 @@ export const userPreferences = pgTable(
 );
 
 /**
+ * A setting-up guide this business put away before finishing it.
+ *
+ * Everything else about onboarding is derived, never stored — a step asks the
+ * data whether it has already happened — and this table is the one deliberate
+ * exception, because "we do not want this list" is not a fact the data can
+ * answer. The states, and why they are not the same thing:
+ *
+ * - **Not started / in progress / completed** are derived per guide, every
+ *   time the list is drawn: `remaining` counts the steps whose `done` answers
+ *   false. Nothing here records them, so they can never drift from the data.
+ * - **Hidden, or ended early** — the same stored fact, a row here. The guide
+ *   still has steps remaining; the business said stop showing it anyway. It
+ *   stays hidden across reloads and restarts until the row is deleted.
+ * - **Restored** is the row deleted. The guide comes back mid-way, with the
+ *   steps the business satisfied in the meantime already ticked — resumed,
+ *   not restarted, because done was never stored in the first place.
+ * - **Completed** needs no row and ignores one: a finished guide is never
+ *   shown and never offered for restoration, whatever was dismissed. A row
+ *   left behind on a guide that later completes is inert.
+ *
+ * Per guide rather than one org-wide flag, and that is what makes a module
+ * bought on day 200 work: its guide has no row here, so it appears even
+ * though every guide the business started with was finished or put away
+ * years before.
+ *
+ * Per organization rather than per reader, like the promo that takes the
+ * checklist's place: a block that shows for one colleague and not another
+ * looks broken rather than polite.
+ */
+export const onboardingDismissals = pgTable(
+  "onboarding_dismissals",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: text("organization_id").notNull(),
+    /** `OnboardingGuide.id` — the module SDK's registry key. */
+    guideId: text("guide_id").notNull(),
+    dismissedAt: timestamp("dismissed_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("onboarding_dismissals_org_idx").on(t.organizationId),
+    // Dismissing twice is one decision, not two rows.
+    uniqueIndex("onboarding_dismissals_unique_idx").on(
+      t.organizationId,
+      t.guideId,
+    ),
+  ],
+);
+
+/**
  * Which optional modules a business has actually turned on.
  *
  * Owning a module and using it are different things. Somebody buys Pro with
