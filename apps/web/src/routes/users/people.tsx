@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
-import { memberApi } from "../../lib/auth";
 import { useNavigation } from "../../lib/navigation";
 import {
   Button,
@@ -121,6 +120,20 @@ export function People() {
     email: string;
     password: string;
   } | null>(null);
+  /**
+   * The invitation link, shown once, like the password above it.
+   *
+   * The token in it is stored only as a hash, so this is the one moment the
+   * link exists to copy — and on a fresh instance with no mail server it is
+   * the only way the invitation reaches anybody at all.
+   */
+  const [issuedInvite, setIssuedInvite] = useState<{
+    email: string;
+    link: string;
+    emailSent: boolean;
+    expiresAt: string;
+  } | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const data = useQuery({
     queryKey: ["users", audience, search, page],
@@ -178,14 +191,19 @@ export function People() {
   });
 
   const invite = useMutation({
-    mutationFn: async () => {
-      const res = await memberApi.inviteMember({
-        email: invitee.trim(),
-        role: inviteRole,
-      });
-      if (res.error) throw new Error(res.error.message ?? "Could not invite");
-    },
-    onSuccess: () => {
+    mutationFn: () =>
+      api<{
+        email: string;
+        link: string;
+        emailSent: boolean;
+        expiresAt: string;
+      }>("/api/users/invitations", {
+        method: "POST",
+        body: JSON.stringify({ email: invitee.trim(), role: inviteRole }),
+      }),
+    onSuccess: (result) => {
+      setIssuedInvite(result);
+      setCopied(false);
       setInvitee("");
       refresh();
     },
@@ -280,8 +298,9 @@ export function People() {
             <div className="mt-3">
               <p className="text-sm font-medium">Waiting to be accepted</p>
               <p className="text-xs" style={muted}>
-                Only the person invited can accept — the link goes to their
-                email. Until they do, you can withdraw it.
+                Only the person invited can accept — the link only works for
+                their address. Until they do, you can withdraw it, and inviting
+                them again makes a fresh link and retires the old one.
               </p>
               <ul className="mt-1 space-y-1 text-sm">
                 {invitations.map((i) => (
@@ -315,6 +334,44 @@ export function People() {
               ) : null}
             </div>
           ) : null}
+        </Card>
+      ) : null}
+
+      {issuedInvite ? (
+        <Card>
+          <p className="font-medium">Invitation for {issuedInvite.email}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <Input
+              readOnly
+              className="min-w-0 flex-1"
+              value={issuedInvite.link}
+              onFocus={(e) => e.currentTarget.select()}
+            />
+            <Button
+              variant="secondary"
+              onClick={() => {
+                navigator.clipboard
+                  .writeText(issuedInvite.link)
+                  .then(() => setCopied(true))
+                  .catch(() => setCopied(false));
+              }}
+            >
+              {copied ? "Copied" : "Copy link"}
+            </Button>
+          </div>
+          <p className="mt-1 text-sm" style={muted}>
+            {issuedInvite.emailSent
+              ? "An email with this link is on its way to them. You can also copy it and send it yourself."
+              : "No mail server is connected, so nothing was emailed — copy the link and send it to them yourself. Connect one in Settings → Connections to have this sent for you."}{" "}
+            The link is shown once, works once, and expires on{" "}
+            {formatDate(issuedInvite.expiresAt)}. Withdrawing the invitation
+            below stops it working.
+          </p>
+          <div className="mt-2">
+            <Button variant="secondary" onClick={() => setIssuedInvite(null)}>
+              Done
+            </Button>
+          </div>
         </Card>
       ) : null}
 
