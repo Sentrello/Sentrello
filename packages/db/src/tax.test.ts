@@ -1,6 +1,11 @@
 import { expect, test } from "bun:test";
 import type { LedgerRow } from "./ledger";
-import { forHmrc, vatReturn } from "./tax";
+import {
+  flatRateVatReturn,
+  forHmrc,
+  limitedCostFigures,
+  vatReturn,
+} from "./tax";
 
 /**
  * A VAT return is a legal declaration, signed by a person who is liable for it.
@@ -115,4 +120,166 @@ test("the EU boxes are zero, deliberately", () => {
   expect(out.vatDueAcquisitions).toBe(0);
   expect(out.totalValueGoodsSuppliedExVAT).toBe(0);
   expect(out.totalAcquisitionsExVAT).toBe(0);
+});
+
+/**
+ * The Flat Rate Scheme changes the shape of the return, not just a figure.
+ *
+ * VAT due becomes the sector's percentage of gross — VAT-inclusive — turnover,
+ * there is no box 4 reclaim in the ordinary way, and box 6 is the gross
+ * flat-rate turnover rather than sales net of VAT. HMRC's rules, and every one
+ * of them is the opposite of the standard return's, which is why this is its
+ * own computation rather than a flag on the other one.
+ */
+
+/** An invoice's rows: £1,000 of income and £200 of VAT charged, one entry. */
+const flatInvoice = (entryId: string, income = 100_000, vat = 20_000) => [
+  row({ entryId, creditCents: income }),
+  row({
+    entryId,
+    code: "2200",
+    type: "liability",
+    name: "VAT",
+    creditCents: vat,
+  }),
+];
+
+test("flat rate VAT is the sector percentage of gross turnover", () => {
+  // £1,200 gross at 14.5% = £174.
+  const out = flatRateVatReturn(flatInvoice("e1"), 145_000);
+  expect(out.vatDueSales).toBe(17_400);
+  expect(out.totalVatDue).toBe(17_400);
+  expect(out.netVatDue).toBe(17_400);
+  // Box 6 under this scheme is the gross flat-rate turnover, VAT included.
+  expect(out.totalValueSalesExVAT).toBe(120_000);
+});
+
+test("no ordinary input reclaim: purchases leave boxes 4 and 7 at zero", () => {
+  const out = flatRateVatReturn(
+    [
+      ...flatInvoice("e1"),
+      // A purchase of £300 with £60 of VAT — reclaimable on the standard
+      // scheme, not on this one.
+      row({
+        entryId: "e2",
+        code: "6000",
+        type: "expense",
+        name: "Expenses",
+        debitCents: 30_000,
+      }),
+      row({
+        entryId: "e2",
+        code: "2200",
+        type: "liability",
+        name: "VAT",
+        debitCents: 6_000,
+      }),
+    ],
+    145_000,
+  );
+  expect(out.vatReclaimedCurrPeriod).toBe(0);
+  expect(out.totalValuePurchasesExVAT).toBe(0);
+  // And the purchase's VAT did not leak into the turnover either.
+  expect(out.totalValueSalesExVAT).toBe(120_000);
+  expect(out.vatDueSales).toBe(17_400);
+});
+
+test("a credit note reduces the gross turnover the percentage applies to", () => {
+  const out = flatRateVatReturn(
+    [
+      ...flatInvoice("e1"),
+      // A credit note for £240 gross, in the same shape an invoice posts.
+      row({ entryId: "e2", debitCents: 20_000 }),
+      row({
+        entryId: "e2",
+        code: "2200",
+        type: "liability",
+        name: "VAT",
+        debitCents: 4_000,
+      }),
+    ],
+    145_000,
+  );
+  // £1,200 − £240 = £960 gross; 14.5% of that is £139.20.
+  expect(out.totalValueSalesExVAT).toBe(96_000);
+  expect(out.vatDueSales).toBe(13_920);
+});
+
+test("the flat rate return still satisfies HMRC's arithmetic checks", () => {
+  const out = flatRateVatReturn(flatInvoice("e1"), 165_000);
+  expect(out.totalVatDue).toBe(out.vatDueSales + out.vatDueAcquisitions);
+  expect(out.netVatDue).toBe(
+    Math.abs(out.totalVatDue - out.vatReclaimedCurrPeriod),
+  );
+  const sent = forHmrc(out);
+  // 16.5% of £1,200 = £198, in HMRC's units.
+  expect(sent.vatDueSales).toBe(198);
+  expect(sent.totalValueSalesExVAT).toBe(1_200);
+});
+
+/**
+ * The limited cost figures are surfaced, never decided.
+ *
+ * Whether a business is a limited cost trader turns on what its *relevant
+ * goods* cost — a category the ledger cannot see, because it excludes
+ * services, capital, vehicles, food and fuel by rules that need a human who
+ * knows the business. So this returns the figures the determination is made
+ * from and nothing that looks like the determination itself: no boolean, no
+ * chosen rate.
+ */
+test("limited cost figures at, just below, and just above two percent", () => {
+  const at = limitedCostFigures([
+    ...flatInvoice("e1"),
+    row({
+      entryId: "e2",
+      code: "6000",
+      type: "expense",
+      name: "Expenses",
+      debitCents: 2_400,
+    }),
+  ]);
+  // £1,200 gross; 2% of it is £24; £24.00 of recorded spending sits exactly at it.
+  expect(at.grossTurnoverCents).toBe(120_000);
+  expect(at.twoPercentOfTurnoverCents).toBe(2_400);
+  expect(at.spendingCents).toBe(2_400);
+
+  const below = limitedCostFigures([
+    ...flatInvoice("e1"),
+    row({
+      entryId: "e2",
+      code: "6000",
+      type: "expense",
+      name: "Expenses",
+      debitCents: 2_399,
+    }),
+  ]);
+  expect(below.spendingCents).toBe(2_399);
+  expect(below.twoPercentOfTurnoverCents).toBe(2_400);
+
+  const above = limitedCostFigures([
+    ...flatInvoice("e1"),
+    row({
+      entryId: "e2",
+      code: "6000",
+      type: "expense",
+      name: "Expenses",
+      debitCents: 2_401,
+    }),
+  ]);
+  expect(above.spendingCents).toBe(2_401);
+  expect(above.twoPercentOfTurnoverCents).toBe(2_400);
+});
+
+test("the limited cost figures carry no verdict", () => {
+  const out = limitedCostFigures(flatInvoice("e1"));
+  // Only figures. A boolean or a chosen rate here would be the software
+  // making an accountant's call.
+  expect(Object.keys(out).sort()).toEqual([
+    "grossTurnoverCents",
+    "spendingCents",
+    "twoPercentOfTurnoverCents",
+  ]);
+  for (const value of Object.values(out)) {
+    expect(typeof value).toBe("number");
+  }
 });
