@@ -34,7 +34,12 @@ import {
 import settings from "@sentrello/module-settings";
 import users from "@sentrello/module-users";
 import { Hono } from "hono";
-import { resolveLicense } from "./license";
+import {
+  currentLicenseState,
+  currentTokenPresent,
+  refreshLicenseState,
+  resolveLicense,
+} from "./license";
 import { loadModules } from "./loader";
 import { serveModuleUi } from "./module-ui";
 import {
@@ -145,7 +150,11 @@ app.use("*", async (c, next) => {
 mountAuth(app);
 registerBootstrapRoutes(app);
 
-const { state, gate, tokenPresent } = await resolveLicense();
+// `state` here is the boot snapshot: right for the one-time decisions below
+// (which bundles this build shipped with, what tier to log and hand the
+// jobs process). Anything a request or a screen reads goes through
+// `currentLicenseState()`/`gate` instead, which follow the daily refresh.
+const { state, gate } = await resolveLicense();
 
 // Free modules ship in this repo; commercial bundles are discovered at runtime
 // only if installed. The loader then drops any this instance is not entitled to.
@@ -324,6 +333,9 @@ app.get("/robots.txt", (c) => {
 
 app.get("/healthz", async (c) => {
   const database = await databaseHealth();
+  // Read live rather than the boot snapshot, so a licence that lapses shows
+  // up here — where monitoring is watching — within a day, not at restart.
+  const license = currentLicenseState();
   return c.json({
     // Monitoring alerts on anything that is not "ok". Still HTTP 200: the
     // reset script waits on this endpoint before it migrates, so a fresh,
@@ -331,8 +343,8 @@ app.get("/healthz", async (c) => {
     status: database === "ok" ? "ok" : "degraded",
     database,
     version: VERSION,
-    tier: state.claims?.tier ?? "free",
-    license_valid: state.valid,
+    tier: license.claims?.tier ?? "free",
+    license_valid: license.valid,
     modules_loaded: loaded,
     // Named, not detailed: enough for monitoring to alert on, without
     // publishing an error message to anyone who can reach /healthz.
@@ -611,8 +623,12 @@ app.get("/api/_meta", requireSession(), async (c) => {
      * one, which is registered on every instance and answered only here. It is
      * a claim about the instance rather than about the person, so it is safe
      * for anybody signed in: the routes still gate every request.
+     *
+     * Read live, not from the boot snapshot — a screen still offering a Pro
+     * feature after the licence behind it lapsed is its own bug, distinct
+     * from (and cheaper to avoid than) the 404 the route itself now answers.
      */
-    tier: state.claims?.tier === "pro" ? "pro" : "free",
+    tier: currentLicenseState().claims?.tier === "pro" ? "pro" : "free",
     version: VERSION,
   });
 });
@@ -711,7 +727,10 @@ app.get(
   requireSession(),
   requirePermission({ settings: ["read"] }),
   (c) => {
-    const claims = state.claims;
+    // Live, not the boot snapshot: this is the screen somebody opens to ask
+    // "has something expired?", and it must answer for right now.
+    const license = currentLicenseState();
+    const claims = license.claims;
     const expiresAt =
       typeof claims?.exp === "number"
         ? new Date(claims.exp * 1000).toISOString()
@@ -719,14 +738,14 @@ app.get(
 
     return c.json({
       tier: claims?.tier ?? "free",
-      valid: state.valid,
+      valid: license.valid,
       // A Free instance that never had a token is not a failed verification.
       // This is what lets the screen keep the warning for the case that
       // earns one: a token that is present and not verifying.
-      tokenPresent,
+      tokenPresent: currentTokenPresent(),
       // Present when the licence failed to verify, so the screen can say why
       // rather than only that something is wrong.
-      reason: state.reason ?? null,
+      reason: license.reason ?? null,
       modules: claims?.modules ?? [],
       seats: claims?.seats ?? null,
       instanceId: claims?.instance_id ?? null,
@@ -770,6 +789,11 @@ if (import.meta.main && jobsEnabled) {
     // Only reaches anywhere if this instance was asked at install time and
     // said yes; the job checks that itself.
     modules: loaded,
+    // After the daily token refresh (whatever it did or did not fetch), make
+    // the live licence state — and therefore `gate` — reflect what is on
+    // disk now. This is the one line that makes a lapsed licence take effect
+    // without a restart.
+    onLicenseRefresh: refreshLicenseState,
   });
 }
 

@@ -64,7 +64,17 @@ export async function startJobs(
    * decide whether the mail it sends credits Sentrello or goes out under the
    * business's own name — and a job has no request to read it from.
    */
-  options: { tier?: "free" | "pro"; modules?: string[] } = {},
+  options: {
+    tier?: "free" | "pro";
+    modules?: string[];
+    /**
+     * Run after every licence-refresh attempt, success or failure, so the
+     * host can re-read whatever is on disk now into its live entitlement
+     * state. Optional: a caller that never calls `startJobs` with a licence
+     * at all (a test, say) has nothing to refresh.
+     */
+    onLicenseRefresh?: () => Promise<void>;
+  } = {},
 ) {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL is not set");
@@ -144,7 +154,16 @@ export async function startJobs(
           sentrelloCredit: options.tier !== "pro",
         }),
     },
-    { name: QUEUES.licenseRefresh, handler: () => refreshLicenseToken() },
+    {
+      name: QUEUES.licenseRefresh,
+      handler: async () => {
+        await refreshLicenseToken();
+        // Whether or not that reached the server: either a fresh token just
+        // landed on disk, or the old one is still there and may since have
+        // expired on its own. Both are reasons to re-read it.
+        await options.onLicenseRefresh?.();
+      },
+    },
     {
       name: QUEUES.telemetry,
       handler: () =>

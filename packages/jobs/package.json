@@ -4,7 +4,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./dates": "./src/dates.ts"
+    "./dates": "./src/dates.ts",
+    "./license-refresh": "./src/license-refresh.ts"
   },
   "dependencies": {
     "pg-boss": "^10.1.5",
