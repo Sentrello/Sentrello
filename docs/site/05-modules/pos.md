@@ -18,7 +18,7 @@ the drawer, the questions a product asks, and the cash-up at the end of a shift.
 **POS needs the Shop module.** It is not a separate product with its own
 catalogue; it is a second way of selling the one you already have.
 
-![The till: product tiles on the left, the sale on the right](../../images/till-sell.png)
+![The till: product tiles on the left, the sale on the right](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/till-sell.png)
 
 ## Before you start
 
@@ -44,7 +44,7 @@ happening on the screen.
 Tap the same product again and the line becomes a quantity of two rather than a
 second row. That is what a second tap means at a counter.
 
-![A ticket with two items, one of them with choices](../../images/till-ticket.png)
+![A ticket with two items, one of them with choices](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/till-ticket.png)
 
 Everything on the ticket is priced as the shop prices it. If you change a price
 under Shop → Products, the till uses the new one immediately; there is no
@@ -64,7 +64,7 @@ still standing there.
 A till that cannot ask "which milk?" sends a member of staff back to the counter
 to ask. **POS questions** are the answer, set up under Shop → POS questions.
 
-![Setting up the questions the till asks](../../images/till-questions.png)
+![Setting up the questions the till asks](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/till-questions.png)
 
 A question has:
 
@@ -89,7 +89,7 @@ Then **ask it about a product**. One question can be asked about many products �
 When a product has questions, the till asks them before the item goes on the
 ticket. One at a time, in front of everything else.
 
-![The till asking which milk, before the drink is rung up](../../images/till-choices.png)
+![The till asking which milk, before the drink is rung up](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/till-choices.png)
 
 **A required question cannot be skipped.** The button says what is still missing
 — *Choose milk* — rather than letting somebody carry on and sending a half-made
@@ -123,7 +123,7 @@ The drawer is how a business knows its cash is right. It is optional: a business
 that never opens one still sells things, and the till never holds up a sale over
 bookkeeping nobody asked for.
 
-![The drawer, with a count typed in ready to close the shift](../../images/till-drawer.png)
+![The drawer, with a count typed in ready to close the shift](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/till-drawer.png)
 
 **Open a drawer** at the start of a shift with the **float** — the money going
 in to make change with.
@@ -172,7 +172,7 @@ paid and fulfilled in one action.
 
 This is why the Inventory screen has three numbers rather than one:
 
-![Inventory: on the shelf, claimed by orders, free to sell](../../images/shop-inventory.png)
+![Inventory: on the shelf, claimed by orders, free to sell](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/shop-inventory.png)
 
 | Column | What it means |
 |---|---|

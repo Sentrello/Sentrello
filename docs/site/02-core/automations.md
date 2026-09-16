@@ -13,7 +13,7 @@ business that remembers to follow up and one that means to.
 
 Automations are part of **Pro**, under CRM → Automations.
 
-![Writing a rule: when this happens, do this](../../images/crm-automation.png)
+![Writing a rule: when this happens, do this](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/crm-automation.png)
 
 ## The shape of a rule
 
@@ -35,7 +35,7 @@ the work: a quote nobody answered, a deal gone quiet, a renewal three weeks out.
 **Nothing changes when something fails to happen**, so no event fires, and the
 follow-up that matters most is the one nothing can trigger.
 
-![A rule that runs every Monday at nine](../../images/crm-automation-schedule.png)
+![A rule that runs every Monday at nine](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/crm-automation-schedule.png)
 
 A scheduled rule runs **once for each record that matches its conditions** —
 "for each deal still sitting in proposal, chase it" — so the steps are the same
@@ -192,7 +192,7 @@ Rewriting it from memory under that pressure is how the second mistake happens.
 
 Every firing is kept, with each step, what it produced, and why anything stopped.
 
-![A run, step by step](../../images/crm-automation-run.png)
+![A run, step by step](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/crm-automation-run.png)
 
 | Outcome | What it means |
 |---|---|

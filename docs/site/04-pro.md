@@ -1,6 +1,6 @@
 ---
 title: Pro
-sidebar_position: 3
+sidebar_position: 4
 description: What paying adds, and what it deliberately does not change.
 tags: [pro]
 ---
