@@ -501,6 +501,14 @@ export async function postInvoiceIssued(
  * first use and found again by a code derived from the definition's id — the
  * id rather than the name, because renaming "PST 7%" must not strand its
  * balance in an account nobody posts to any more.
+ *
+ * A US sales-tax definition splits even when it stands alone. A business
+ * collecting for Texas on one invoice and for Ohio on the next owes two
+ * authorities from two documents, and a shared account cannot say which —
+ * the filing figure for each state has to be readable off its own ledger
+ * account, not recomputed from documents. Only definitions whose regime is
+ * "us" behave this way, so a lone UK or EU VAT credit stays on "2200" and
+ * every existing return keeps reading the account it always has.
  */
 async function taxCredits(
   orgId: string,
@@ -514,8 +522,13 @@ async function taxCredits(
       taxDefinitionId: schema.documentTaxes.taxDefinitionId,
       name: schema.documentTaxes.name,
       taxCents: schema.documentTaxes.taxCents,
+      regime: schema.taxDefinitions.regime,
     })
     .from(schema.documentTaxes)
+    .leftJoin(
+      schema.taxDefinitions,
+      eq(schema.documentTaxes.taxDefinitionId, schema.taxDefinitions.id),
+    )
     .where(
       and(
         eq(schema.documentTaxes.organizationId, orgId),
@@ -527,7 +540,8 @@ async function taxCredits(
   const named = new Set(
     bands.map((b) => b.taxDefinitionId).filter((id) => id !== null),
   );
-  if (named.size < 2) {
+  const usSalesTax = bands.some((b) => b.regime === "us");
+  if (named.size < 2 && !usSalesTax) {
     return [{ accountId: taxPayable, creditCents: taxBase }];
   }
 
