@@ -216,8 +216,8 @@ export function CrmDashboard() {
             type="button"
             className="mt-3 w-full rounded border px-3 py-2 text-left text-sm"
             style={{
-              borderColor: "var(--color-warning)",
-              color: "var(--color-warning)",
+              borderColor: "var(--text-warning)",
+              color: "var(--text-warning)",
             }}
             onClick={() => go("deals", "Deals")}
           >

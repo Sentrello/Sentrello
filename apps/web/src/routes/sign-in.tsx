@@ -111,7 +111,7 @@ export function SignIn() {
           </label>
 
           {error ? (
-            <p className="text-sm" style={{ color: "var(--color-danger)" }}>
+            <p className="text-sm" style={{ color: "var(--text-danger)" }}>
               {error}
             </p>
           ) : null}
@@ -250,7 +250,7 @@ function TwoFactorPrompt({ onCancel }: { onCancel: () => void }) {
           </label>
 
           {error ? (
-            <p className="text-sm" style={{ color: "var(--color-danger)" }}>
+            <p className="text-sm" style={{ color: "var(--text-danger)" }}>
               {error}
             </p>
           ) : null}

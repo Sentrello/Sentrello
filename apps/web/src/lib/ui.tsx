@@ -471,7 +471,7 @@ export function ConfirmButton({
           type="button"
           disabled={disabled}
           className={className ?? "text-xs link-muted"}
-          style={danger ? { color: "var(--color-danger)" } : undefined}
+          style={danger ? { color: "var(--text-danger)" } : undefined}
           onClick={() => setAsking(true)}
         >
           {children}
@@ -561,9 +561,9 @@ export function StatFigure({
 }) {
   const colour =
     tone === "good"
-      ? { color: "var(--color-success)" }
+      ? { color: "var(--text-success)" }
       : tone === "bad"
-        ? { color: "var(--color-danger)" }
+        ? { color: "var(--text-danger)" }
         : undefined;
   return (
     <div>
@@ -724,7 +724,7 @@ export function ErrorNote({ error }: { error: unknown }) {
         ? "Your session has expired. Sign in again."
         : (fromServer ?? "Something went wrong. Try again.");
   return (
-    <p className="text-sm" style={{ color: "var(--color-danger)" }}>
+    <p className="text-sm" style={{ color: "var(--text-danger)" }}>
       {message}
     </p>
   );
@@ -733,10 +733,10 @@ export function ErrorNote({ error }: { error: unknown }) {
 /** Invoice and quote states, coloured the way people read them. */
 export function StatusBadge({ status }: { status: string }) {
   const tone: Record<string, string> = {
-    paid: "var(--color-success)",
-    open: "var(--color-info)",
-    partial: "var(--color-warning)",
-    overdue: "var(--color-danger)",
+    paid: "var(--text-success)",
+    open: "var(--text-info)",
+    partial: "var(--text-warning)",
+    overdue: "var(--text-danger)",
     draft: "var(--text-muted)",
     void: "var(--text-muted)",
   };
@@ -816,7 +816,7 @@ export function Tabs({
                   // the hardest thing on it to read. A border is a graphical
                   // object at 3:1 and passes; text is not.
                   borderColor: "var(--color-brand-500)",
-                  color: "var(--brand-on-white-text)",
+                  color: "var(--text-brand)",
                 }
               : { borderColor: "transparent", ...muted }
           }

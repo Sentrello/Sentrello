@@ -462,7 +462,7 @@ function ProfileMenu({
             className="menu-item border-t"
             style={{
               borderColor: "var(--border)",
-              color: "var(--color-danger)",
+              color: "var(--text-danger)",
             }}
             onClick={() => authClient.signOut()}
           >

@@ -476,7 +476,7 @@ export function People() {
               ) : p.twoFactorRequired ? (
                 // The rules say somebody with their roles must have one. Said
                 // here so an administrator can see who is still without it.
-                <span style={{ color: "var(--color-warning)" }}>
+                <span style={{ color: "var(--text-warning)" }}>
                   off — required
                 </span>
               ) : (

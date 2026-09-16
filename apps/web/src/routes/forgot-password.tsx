@@ -118,7 +118,7 @@ export function ForgotPassword({ onBack }: { onBack: () => void }) {
               </label>
 
               {error ? (
-                <p className="text-sm" style={{ color: "var(--color-danger)" }}>
+                <p className="text-sm" style={{ color: "var(--text-danger)" }}>
                   {error}
                 </p>
               ) : null}
@@ -220,7 +220,7 @@ export function ResetPassword() {
               </label>
 
               {error ? (
-                <p className="text-sm" style={{ color: "var(--color-danger)" }}>
+                <p className="text-sm" style={{ color: "var(--text-danger)" }}>
                   {error}
                 </p>
               ) : null}
@@ -238,7 +238,7 @@ export function ResetPassword() {
                 {busy ? "Saving…" : "Save and sign in"}
               </button>
               {token ? null : (
-                <p className="text-sm" style={{ color: "var(--color-danger)" }}>
+                <p className="text-sm" style={{ color: "var(--text-danger)" }}>
                   This link is missing its token. Ask for another.
                 </p>
               )}

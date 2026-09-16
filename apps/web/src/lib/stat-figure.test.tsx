@@ -22,8 +22,8 @@ test("a plain figure takes no colour of its own", () => {
   const html = renderToStaticMarkup(
     <StatFigure label="Orders" value="1,802" />,
   );
-  expect(html).not.toContain("--color-success");
-  expect(html).not.toContain("--color-danger");
+  expect(html).not.toContain("--text-success");
+  expect(html).not.toContain("--text-danger");
 });
 
 test("a hint renders under the value, and is absent without one", () => {
@@ -64,10 +64,10 @@ test("tone colours the figure, never the label", () => {
   const bad = renderToStaticMarkup(
     <StatFigure label="Overdue" value="$2,300.00" tone="bad" />,
   );
-  expect(good).toContain("--color-success");
-  expect(bad).toContain("--color-danger");
+  expect(good).toContain("--text-success");
+  expect(bad).toContain("--text-danger");
   // The label stays muted in both, so a red figure does not make a red row.
-  expect(good.indexOf("--color-success")).toBeGreaterThan(
+  expect(good.indexOf("--text-success")).toBeGreaterThan(
     good.indexOf("Net profit"),
   );
 });

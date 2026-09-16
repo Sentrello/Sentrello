@@ -174,7 +174,7 @@ export function InvoicingDashboard() {
                   <span className="truncate">
                     {customer(invoice.contactId)}
                   </span>
-                  <span style={{ color: "var(--color-danger)" }}>
+                  <span style={{ color: "var(--text-danger)" }}>
                     {invoice.daysLate} days
                   </span>
                   <span className="ml-auto money">

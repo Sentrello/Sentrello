@@ -379,7 +379,7 @@ function Sessions({
               <button
                 type="button"
                 className="text-xs"
-                style={{ color: "var(--color-danger)" }}
+                style={{ color: "var(--text-danger)" }}
                 onClick={() => revoke.mutate(s.id)}
               >
                 Sign this one out
@@ -497,7 +497,7 @@ function TwoFactor() {
       {security.data?.twoFactorRequired && !enabled ? (
         <p
           className="mb-3 text-sm font-medium"
-          style={{ color: "var(--color-warning)" }}
+          style={{ color: "var(--text-warning)" }}
         >
           Your role requires this. Until you set it up you will be refused the
           things it protects.
@@ -601,7 +601,7 @@ function TwoFactor() {
       ) : null}
 
       {error ? (
-        <p className="mt-2 text-sm" style={{ color: "var(--color-danger)" }}>
+        <p className="mt-2 text-sm" style={{ color: "var(--text-danger)" }}>
           {error}
         </p>
       ) : null}

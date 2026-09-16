@@ -67,20 +67,20 @@ const TABS: { id: string; label: string }[] = [
 function statusOf(quote: QuoteRow): { label: string; tone: string } {
   if (quote.deletedAt) return { label: "Deleted", tone: "var(--text-muted)" };
   if (quote.convertedInvoiceId) {
-    return { label: "Invoiced", tone: "var(--color-success)" };
+    return { label: "Invoiced", tone: "var(--text-success)" };
   }
   switch (quote.status) {
     case "accepted":
-      return { label: "Accepted", tone: "var(--color-success)" };
+      return { label: "Accepted", tone: "var(--text-success)" };
     case "declined":
-      return { label: "Declined", tone: "var(--color-danger)" };
+      return { label: "Declined", tone: "var(--text-danger)" };
     case "draft":
       return { label: "Draft", tone: "var(--text-muted)" };
     default:
       // Expired is about today, not about the column.
       return quote.expired
-        ? { label: "Expired", tone: "var(--color-warning)" }
-        : { label: "Sent", tone: "var(--color-info)" };
+        ? { label: "Expired", tone: "var(--text-warning)" }
+        : { label: "Sent", tone: "var(--text-info)" };
   }
 }
 
@@ -730,7 +730,7 @@ function QuoteActions({
             <button
               type="button"
               className="menu-item"
-              style={{ color: "var(--color-danger)" }}
+              style={{ color: "var(--text-danger)" }}
               onClick={() => remove.mutate()}
               disabled={remove.isPending}
             >

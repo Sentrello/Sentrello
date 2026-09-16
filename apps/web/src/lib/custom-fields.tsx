@@ -226,7 +226,7 @@ export function CustomFieldEditor({
               <button
                 type="button"
                 className="text-sm"
-                style={{ color: "var(--color-danger)" }}
+                style={{ color: "var(--text-danger)" }}
                 onClick={() => onChange(fields.filter((_, i) => i !== index))}
               >
                 Remove

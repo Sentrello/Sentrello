@@ -238,7 +238,7 @@ export function FormBuilder({
               <button
                 type="button"
                 className="px-1 text-xs"
-                style={{ color: "var(--color-danger)" }}
+                style={{ color: "var(--text-danger)" }}
                 onClick={() => setRows((r) => r.filter((_, j) => j !== i))}
               >
                 Remove

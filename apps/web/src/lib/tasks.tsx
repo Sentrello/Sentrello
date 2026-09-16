@@ -171,7 +171,7 @@ function TaskMenu({
                 key={label as string}
                 type="button"
                 className="menu-item"
-                style={danger ? { color: "var(--color-danger)" } : undefined}
+                style={danger ? { color: "var(--text-danger)" } : undefined}
                 onClick={onClick as () => void}
               >
                 {label as string}
@@ -234,7 +234,7 @@ export function TaskRow({
           <span
             style={
               overdue && !task.done
-                ? { color: "var(--color-warning)" }
+                ? { color: "var(--text-warning)" }
                 : undefined
             }
           >
@@ -399,7 +399,7 @@ export function TaskDialog({
         </div>
 
         {save.isError ? (
-          <p className="text-sm" style={{ color: "var(--color-danger)" }}>
+          <p className="text-sm" style={{ color: "var(--text-danger)" }}>
             That did not save. Check the description and try again.
           </p>
         ) : null}

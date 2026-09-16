@@ -208,7 +208,7 @@ function TaxRates({
               </td>
               <td>
                 {tax.isDefault ? (
-                  <span style={{ color: "var(--color-success)" }}>
+                  <span style={{ color: "var(--text-success)" }}>
                     <Icon name="check-square" size={15} />
                   </span>
                 ) : tax.active ? (
@@ -1172,7 +1172,7 @@ function Letterhead() {
                   <button
                     type="button"
                     className="text-xs"
-                    style={{ color: "var(--color-danger)" }}
+                    style={{ color: "var(--text-danger)" }}
                     onClick={() => remove.mutate(template.id)}
                   >
                     Delete

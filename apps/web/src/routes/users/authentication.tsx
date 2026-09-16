@@ -243,7 +243,7 @@ function SignInRules() {
   );
 }
 
-const warning = { color: "var(--color-warning)" };
+const warning = { color: "var(--text-warning)" };
 
 /** What this instance's deployment means for signing in. */
 function Diagnostics() {
