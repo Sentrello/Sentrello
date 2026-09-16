@@ -1,6 +1,6 @@
 ---
 title: Free vs Pro
-sidebar_position: 2.5
+sidebar_position: 3
 description: Line by line, what the free core does and what paying adds.
 tags: [pro, free, pricing]
 ---

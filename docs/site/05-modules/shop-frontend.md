@@ -13,7 +13,7 @@ Nuxt, SvelteKit, WordPress, or a hand-written HTML file.
 
 One script tag, and four HTML tags you can put anywhere.
 
-![A shop on somebody else's website: basket in the header, a featured product, a product grid](../../images/shop-headless.png)
+![A shop on somebody else's website: basket in the header, a featured product, a product grid](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/shop-headless.png)
 
 *That page is a plain HTML file on a different domain from the instance.*
 

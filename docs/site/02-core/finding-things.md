@@ -10,7 +10,7 @@ tags: [core, search]
 Press **⌘K** — or **Ctrl-K**, or the **Find anything** button in the header —
 and type. Two letters is enough.
 
-![Searching from any screen](../../images/find-anything.png)
+![Searching from any screen](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/find-anything.png)
 
 It searches everything this instance has, in one list:
 
