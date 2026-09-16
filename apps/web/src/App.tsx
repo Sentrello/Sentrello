@@ -12,6 +12,7 @@ import {
 } from "./lib/navigation";
 import { Loading, muted, setFormats } from "./lib/ui";
 import { Accounts, Journal, Money, Summary } from "./routes/accounting";
+import { CanadianTax } from "./routes/ca-tax";
 import { Companies, CompanyDetail } from "./routes/companies";
 import { ContactDetail } from "./routes/contact-detail";
 import { Contacts } from "./routes/contacts";
@@ -107,6 +108,7 @@ const SCREENS: Record<string, () => React.ReactElement | null> = {
   "settings-modules": SettingsModules,
   "settings-privacy": Privacy,
   "accounting-vat": VatFiling,
+  "accounting-ca-tax": CanadianTax,
   "invoicing-us-tax": UsSalesTax,
   users: People,
   "user-groups": Groups,
