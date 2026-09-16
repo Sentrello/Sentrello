@@ -1,8 +1,8 @@
 import { afterAll, expect, test } from "bun:test";
 import { db, schema } from "./client";
 import { consentHistory, recordConsent } from "./consent";
-import { eq, inArray } from "./orm";
-import { activePaymentAccount } from "./payments";
+import { and, eq, inArray } from "./orm";
+import { activePaymentAccount, organizationTakingCards } from "./payments";
 
 /**
  * Shared helpers that take an `organizationId` and are trusted to use it.
@@ -62,6 +62,39 @@ test("a business is handed its own payment account, not another's", async () => 
   });
   expect((await activePaymentAccount(alpha))?.organizationId).toBe(alpha);
   expect((await activePaymentAccount(beta))?.organizationId).toBe(beta);
+});
+
+test("a payment event with two candidate businesses is refused, not guessed", async () => {
+  /*
+   * The one reader in this file that is *meant* to look across businesses: a
+   * webhook arrives with no session, so the connection itself decides whose
+   * event it is. Its whole tenancy guarantee is the refusal — with more than
+   * one business taking cards through this provider, guessing would credit a
+   * payment to whichever row the database returned first.
+   *
+   * The provider name is unique to this run so rows other tests leave behind
+   * cannot make one candidate look like two.
+   */
+  const provider = `card-${suffix}`;
+  await db.insert(schema.paymentAccounts).values([
+    { organizationId: alpha, provider, mode: "test", enabled: true },
+    { organizationId: beta, provider, mode: "test", enabled: true },
+  ]);
+
+  expect(await organizationTakingCards(provider)).toBeNull();
+
+  // Down to one candidate, the answer is that one — the refusal above must
+  // not be a function that always says no.
+  await db
+    .update(schema.paymentAccounts)
+    .set({ enabled: false })
+    .where(
+      and(
+        eq(schema.paymentAccounts.organizationId, beta),
+        eq(schema.paymentAccounts.provider, provider),
+      ),
+    );
+  expect(await organizationTakingCards(provider)).toBe(alpha);
 });
 
 test("consent history is one business's record of one person", async () => {
