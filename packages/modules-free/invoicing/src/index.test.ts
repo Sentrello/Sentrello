@@ -4384,3 +4384,41 @@ test("with no mail server connected, sending refuses instead of claiming sent", 
     process.env.RESEND_API_KEY = key;
   }
 });
+
+test("the shared page names the status in the customer's words, not the enum", async () => {
+  const created = await app.request("http://localhost/api/invoices", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      contactId,
+      currency: "USD",
+      lines: [
+        { description: "Status wording", quantity: 1, unitPrice: 20_000 },
+      ],
+    }),
+  });
+  const { invoice } = (await created.json()) as { invoice: { id: string } };
+  await app.request(`http://localhost/api/invoices/${invoice.id}/share`, {
+    method: "POST",
+    headers,
+  });
+  const [row] = await db
+    .select({ shareToken: schema.invoices.shareToken })
+    .from(schema.invoices)
+    .where(eq(schema.invoices.id, invoice.id));
+
+  const page = async () =>
+    (
+      await app.request(`http://localhost/share/invoice/${row?.shareToken}`)
+    ).text();
+
+  // "open" is the ledger's word; the person being billed reads "Unpaid".
+  expect(await page()).toContain('<span class="pill">Unpaid</span>');
+
+  await app.request(`http://localhost/api/invoices/${invoice.id}/payments`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ amountCents: 10_000 }),
+  });
+  expect(await page()).toContain('<span class="pill">Part paid</span>');
+});
