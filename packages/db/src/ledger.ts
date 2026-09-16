@@ -567,13 +567,17 @@ export async function postCreditNoteIssued(
  * id rather than the name, because renaming "PST 7%" must not strand its
  * balance in an account nobody posts to any more.
  *
- * A US sales-tax definition splits even when it stands alone. A business
+ * A US or Canadian definition splits even when it stands alone. A business
  * collecting for Texas on one invoice and for Ohio on the next owes two
  * authorities from two documents, and a shared account cannot say which —
  * the filing figure for each state has to be readable off its own ledger
- * account, not recomputed from documents. Only definitions whose regime is
- * "us" behave this way, so a lone UK or EU VAT credit stays on "2200" and
- * every existing return keeps reading the account it always has.
+ * account, not recomputed from documents. Canada is the same fact in
+ * federal clothing: an Alberta sale carries GST alone, but the GST/HST
+ * return reads the CRA's figure off the definition's own account, and a
+ * lone GST credit parked on the shared account would fall out of it. Only
+ * definitions whose regime is "us" or "ca" behave this way, so a lone UK
+ * or EU VAT credit stays on "2200" and every existing return keeps reading
+ * the account it always has.
  */
 async function taxShares(
   orgId: string,
@@ -605,8 +609,8 @@ async function taxShares(
   const named = new Set(
     bands.map((b) => b.taxDefinitionId).filter((id) => id !== null),
   );
-  const usSalesTax = bands.some((b) => b.regime === "us");
-  if (named.size < 2 && !usSalesTax) {
+  const splitsAlone = bands.some((b) => b.regime === "us" || b.regime === "ca");
+  if (named.size < 2 && !splitsAlone) {
     return [{ accountId: taxPayable, cents: taxBase }];
   }
 
