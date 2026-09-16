@@ -533,6 +533,13 @@
       "when": 1789520172274,
       "tag": "0075_vies_evidence_on_companies",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1789531694865,
+      "tag": "0076_onboarding_can_be_put_away",
+      "breakpoints": true
     }
   ]
 }
