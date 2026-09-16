@@ -4,6 +4,7 @@ import { registerAuthentication } from "./authentication";
 import { registerDiagnostics } from "./diagnostics";
 import { registerEvents } from "./events";
 import { registerGroups } from "./groups";
+import { registerInvitations } from "./invitations";
 import { registerPeople } from "./people";
 import { pruneAllEvents } from "./retention";
 import { registerRolePolicy } from "./roles";
@@ -151,6 +152,12 @@ export default defineModule({
     // `GET /api/users/:userId` either way round. Verified by running this
     // module's suite with the registration in this order.
     registerAccess(ctx);
+    // `registerInvitations` registers `POST /api/users/invitations` — two
+    // segments, static — plus the public accept pair under
+    // `/api/invitations/:token`, which shares no prefix with anything else
+    // here. The static route sits ahead of `registerPeople` on the same
+    // reasoning as every static sibling above.
+    registerInvitations(ctx);
     // Last, and it has to stay last: `registerPeople` registers
     // `GET /api/users/:userId`, and Hono matches routes in registration
     // order — a static route registered after it, say `GET /api/users/access`
