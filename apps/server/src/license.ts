@@ -4,6 +4,83 @@ import {
   makeEntitlementGate,
   verifyLicenseToken,
 } from "@sentrello/licensing-client";
+import type { EntitlementNeed } from "@sentrello/module-sdk";
+
+/**
+ * The live licence state, held here rather than returned as a plain value.
+ *
+ * `gate` is a closure every module captures once, at boot, and calls on every
+ * request from then on — that is what makes 271 per-request checks possible
+ * with one predicate. If that predicate closed over a snapshot, a licence
+ * that lapsed mid-process would keep granting everything until somebody
+ * restarted the container, which nothing does on a schedule. So the snapshot
+ * lives in one mutable place instead, `gate` reads it fresh on every call,
+ * and the daily refresh job (see `packages/jobs/src/license-refresh.ts`)
+ * updates it after it writes a new token to disk.
+ */
+let live: { state: LicenseState; tokenPresent: boolean } = {
+  state: { claims: null, valid: false, reason: "not yet resolved" },
+  tokenPresent: false,
+};
+
+async function readTokenFromDisk(): Promise<string> {
+  const tokenPath = process.env.SENTRELLO_LICENSE_TOKEN_PATH;
+  if (!tokenPath) return "";
+  try {
+    const f = Bun.file(tokenPath);
+    if (await f.exists()) return (await f.text()).trim();
+  } catch (err) {
+    // an unreadable token is the same as no token: run as Free
+    console.warn(
+      `[license] cannot read ${tokenPath} (${(err as Error).message})`,
+    );
+  }
+  return "";
+}
+
+/**
+ * Re-reads the token off disk and re-verifies it, replacing the live state.
+ *
+ * Called at boot (via `resolveLicense`) and again after every daily refresh
+ * attempt — whether or not that attempt reached the licence server. That
+ * single rule is what gives both halves of the fail-safe behaviour for free:
+ * `verifyLicenseToken` checks `exp` offline, so a token that has genuinely
+ * run out stops verifying the moment this runs again, server or no server;
+ * and when the server could not be reached, the refresh job never touched
+ * the file, so re-verifying the same still-good token yields the same still-
+ * good state. Nothing here downgrades an instance because our server had a
+ * bad night — only because the token on disk no longer verifies.
+ */
+export async function refreshLicenseState(
+  trustedKeys: string | string[] = SENTRELLO_LICENSE_PUBLIC_KEYS,
+): Promise<void> {
+  const token = await readTokenFromDisk();
+  const state: LicenseState = token
+    ? await verifyLicenseToken(token, trustedKeys)
+    : { claims: null, valid: false, reason: "no token (Free)" };
+  live = { state, tokenPresent: !!token };
+}
+
+/** What the instance is entitled to right now, not at boot. */
+export function currentLicenseState(): LicenseState {
+  return live.state;
+}
+
+/** Whether a token is present right now, not at boot. */
+export function currentTokenPresent(): boolean {
+  return live.tokenPresent;
+}
+
+/**
+ * The gate every module and route calls. A stable function identity — it is
+ * this exact reference every module closes over at load time — whose answer
+ * is computed fresh from `live.state` on each call, so a state update after
+ * boot reaches every one of those closures without anybody needing to be
+ * handed a new function.
+ */
+export function gate(need: EntitlementNeed): boolean {
+  return makeEntitlementGate(live.state)(need);
+}
 
 /**
  * `trustedKeys` exists for tests, which sign with a throwaway keypair and
@@ -24,29 +101,12 @@ import {
 export async function resolveLicense(
   trustedKeys: string | string[] = SENTRELLO_LICENSE_PUBLIC_KEYS,
 ) {
-  const tokenPath = process.env.SENTRELLO_LICENSE_TOKEN_PATH;
-
-  let token = "";
-  if (tokenPath) {
-    try {
-      const f = Bun.file(tokenPath);
-      if (await f.exists()) token = (await f.text()).trim();
-    } catch (err) {
-      // an unreadable token is the same as no token: run as Free
-      console.warn(
-        `[license] cannot read ${tokenPath} (${(err as Error).message})`,
-      );
-    }
-  }
-
-  const state: LicenseState = token
-    ? await verifyLicenseToken(token, trustedKeys)
-    : { claims: null, valid: false, reason: "no token (Free)" };
+  await refreshLicenseState(trustedKeys);
 
   // Whether a token was found at all: the licence screen tells "running Free,
   // as installed" apart from "a licence is here and failing", which are a
   // shrug and an alarm respectively.
-  return { state, gate: makeEntitlementGate(state), tokenPresent: !!token };
+  return { state: live.state, gate, tokenPresent: live.tokenPresent };
 }
-// A pg-boss daily job fetches a fresh token from
-// SENTRELLO_LICENSE_SERVER_URL and writes it to tokenPath (the online check).
+// A pg-boss daily job fetches a fresh token from SENTRELLO_LICENSE_SERVER_URL,
+// writes it to tokenPath, and calls `refreshLicenseState` (the online check).
