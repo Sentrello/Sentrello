@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
-import { cashBasisRows } from "./cash-basis";
+import { cashBasisRows, cashBasisVatRows } from "./cash-basis";
 import type { LedgerRow } from "./reports";
+import { flatRateVatReturn, vatReturn } from "./vat-return";
 
 /**
  * The difference between the two bases, which is a difference of timing.
@@ -366,4 +367,180 @@ test("entries are read in date order however they arrive", () => {
   ];
   // Handed the payment first, which is the order a database is free to return.
   expect(totalOf(cashBasisRows(all), "income")).toBe(1_000);
+});
+
+/**
+ * The VAT return, on the cash accounting scheme.
+ *
+ * Under cash accounting VAT is accounted for when money moves, not when the
+ * invoice is raised. `cashBasisVatRows` reads the same ledger the accrual
+ * return reads and hands back rows the return arithmetic already understands —
+ * so the difference between the two returns is entirely the timing of the
+ * rows, which is the whole of what the scheme changes.
+ */
+
+/** A supplier's bill: £300 of expense and £60 of reclaimable VAT. */
+const bill = (at: string, expense = 300, tax = 60) =>
+  entry(at, [
+    { code: "6000", type: "expense", debit: expense },
+    { code: "2200", type: "liability", debit: tax },
+    { code: "2000", type: "liability", credit: expense + tax },
+  ]);
+
+/** Money out against that bill. */
+const billPayment = (at: string, amount: number) =>
+  entry(at, [
+    { code: "2000", type: "liability", debit: amount },
+    { code: "1000", type: "asset", credit: amount },
+  ]);
+
+test("an invoice unpaid at period end owes no VAT yet on the cash basis", () => {
+  const all = [...invoice("2026-03-10T00:00:00Z")];
+  const period = {
+    from: new Date("2026-03-01T00:00:00Z"),
+    to: new Date("2026-03-31T23:59:59Z"),
+  };
+
+  // The accrual return sees the VAT the day the invoice was raised.
+  const accrual = vatReturn(all);
+  expect(accrual.vatDueSales).toBe(200);
+  expect(accrual.totalValueSalesExVAT).toBe(1_000);
+
+  // The cash return sees nothing until somebody pays.
+  const cash = vatReturn(cashBasisVatRows(all, period));
+  expect(cash.vatDueSales).toBe(0);
+  expect(cash.totalValueSalesExVAT).toBe(0);
+});
+
+test("once everything is paid, the two bases agree to the penny", () => {
+  const all = [
+    ...invoice("2026-03-10T00:00:00Z"),
+    ...receipt("2026-03-20T00:00:00Z", 1_200),
+    ...bill("2026-03-12T00:00:00Z"),
+    ...billPayment("2026-03-25T00:00:00Z", 360),
+  ];
+  const period = {
+    from: new Date("2026-03-01T00:00:00Z"),
+    to: new Date("2026-03-31T23:59:59Z"),
+  };
+
+  const accrual = vatReturn(all);
+  const cash = vatReturn(cashBasisVatRows(all, period));
+  expect(cash.vatDueSales).toBe(accrual.vatDueSales);
+  expect(cash.vatReclaimedCurrPeriod).toBe(accrual.vatReclaimedCurrPeriod);
+  expect(cash.netVatDue).toBe(accrual.netVatDue);
+  expect(cash.totalValueSalesExVAT).toBe(accrual.totalValueSalesExVAT);
+  expect(cash.totalValuePurchasesExVAT).toBe(accrual.totalValuePurchasesExVAT);
+});
+
+test("VAT lands in the period the money moved, not the period of the invoice", () => {
+  const all = [
+    ...invoice("2026-03-10T00:00:00Z"),
+    ...receipt("2026-05-02T00:00:00Z", 1_200),
+  ];
+
+  const march = vatReturn(
+    cashBasisVatRows(all, {
+      from: new Date("2026-03-01T00:00:00Z"),
+      to: new Date("2026-03-31T23:59:59Z"),
+    }),
+  );
+  expect(march.vatDueSales).toBe(0);
+
+  const may = vatReturn(
+    cashBasisVatRows(all, {
+      from: new Date("2026-05-01T00:00:00Z"),
+      to: new Date("2026-05-31T23:59:59Z"),
+    }),
+  );
+  expect(may.vatDueSales).toBe(200);
+  expect(may.totalValueSalesExVAT).toBe(1_000);
+});
+
+test("a part payment carries its share of the VAT with it", () => {
+  const all = [
+    ...invoice("2026-03-10T00:00:00Z"),
+    ...receipt("2026-03-20T00:00:00Z", 600),
+  ];
+  const cash = vatReturn(
+    cashBasisVatRows(all, { to: new Date("2026-03-31T23:59:59Z") }),
+  );
+  // Half the invoice paid: half the VAT due, half the turnover.
+  expect(cash.vatDueSales).toBe(100);
+  expect(cash.totalValueSalesExVAT).toBe(500);
+});
+
+test("input VAT is reclaimed when the supplier is paid, not when billed", () => {
+  const all = [...bill("2026-03-12T00:00:00Z")];
+  const unpaid = vatReturn(
+    cashBasisVatRows(all, { to: new Date("2026-03-31T23:59:59Z") }),
+  );
+  expect(unpaid.vatReclaimedCurrPeriod).toBe(0);
+  expect(unpaid.totalValuePurchasesExVAT).toBe(0);
+
+  const paid = vatReturn(
+    cashBasisVatRows([...all, ...billPayment("2026-04-02T00:00:00Z", 360)], {
+      from: new Date("2026-04-01T00:00:00Z"),
+    }),
+  );
+  expect(paid.vatReclaimedCurrPeriod).toBe(60);
+  expect(paid.totalValuePurchasesExVAT).toBe(300);
+});
+
+/**
+ * The two schemes combine: HMRC's cash-based turnover method for the Flat
+ * Rate Scheme is the flat percentage applied to gross *receipts* rather than
+ * gross invoicing. The cash rows carry the VAT beside the income they were
+ * recognised with, so the flat-rate arithmetic works on them unchanged.
+ */
+test("flat rate on the cash basis applies the percentage to gross receipts", () => {
+  const all = [
+    ...invoice("2026-03-10T00:00:00Z"),
+    ...receipt("2026-03-20T00:00:00Z", 600),
+  ];
+  const out = flatRateVatReturn(
+    cashBasisVatRows(all, { to: new Date("2026-03-31T23:59:59Z") }),
+    145_000,
+  );
+  // £6.00 of gross receipts at 14.5% = £0.87.
+  expect(out.totalValueSalesExVAT).toBe(600);
+  expect(out.vatDueSales).toBe(87);
+});
+
+test("a credit note against an unpaid invoice never surfaces in the cash VAT", () => {
+  const all = [
+    ...invoice("2026-03-10T00:00:00Z"),
+    // The whole invoice credited back: income and VAT unwound, nobody paid.
+    ...entry("2026-03-15T00:00:00Z", [
+      { code: "1100", type: "asset", credit: 1_200 },
+      { code: "4000", type: "income", debit: 1_000 },
+      { code: "2200", type: "liability", debit: 200 },
+    ]),
+  ];
+  const cash = vatReturn(cashBasisVatRows(all));
+  expect(cash.vatDueSales).toBe(0);
+  expect(cash.vatReclaimedCurrPeriod).toBe(0);
+  expect(cash.totalValueSalesExVAT).toBe(0);
+});
+
+test("money that moved with its entry needs no deferral on either side", () => {
+  // A card sale and a till expense, both settled the moment they were posted.
+  const all = [
+    ...entry("2026-03-10T00:00:00Z", [
+      { code: "1000", type: "asset", debit: 1_200 },
+      { code: "4000", type: "income", credit: 1_000 },
+      { code: "2200", type: "liability", credit: 200 },
+    ]),
+    ...entry("2026-03-11T00:00:00Z", [
+      { code: "6000", type: "expense", debit: 300 },
+      { code: "2200", type: "liability", debit: 60 },
+      { code: "1000", type: "asset", credit: 360 },
+    ]),
+  ];
+  const cash = vatReturn(cashBasisVatRows(all));
+  const accrual = vatReturn(all);
+  expect(cash.vatDueSales).toBe(accrual.vatDueSales);
+  expect(cash.vatReclaimedCurrPeriod).toBe(accrual.vatReclaimedCurrPeriod);
+  expect(cash.totalValueSalesExVAT).toBe(accrual.totalValueSalesExVAT);
+  expect(cash.totalValuePurchasesExVAT).toBe(accrual.totalValuePurchasesExVAT);
 });
