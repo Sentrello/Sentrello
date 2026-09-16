@@ -350,6 +350,31 @@ export function verifyEmailEmail(args: {
   };
 }
 
+/**
+ * Sent to the address on the account *before* a change to it, never to the
+ * one being asked for. Whoever holds this inbox is the only one who can say
+ * yes — following the link is what makes Better Auth mail a second,
+ * ordinary verification link to the new address, and nothing about the
+ * account moves until that second link is followed too.
+ */
+export function confirmEmailChangeEmail(args: {
+  url: string;
+  newEmail: string;
+}) {
+  return {
+    subject: "Confirm your new sign-in email",
+    html: layout(
+      "Confirm your new sign-in email",
+      `<p>A request was made to change the email address you sign in with to
+<strong>${escapeHtml(args.newEmail)}</strong>.</p>
+<p><a href="${escapeHtml(args.url)}">Confirm this change</a></p>
+<p style="color:#666;font-size:12px">If you did not ask for this, ignore this
+message — nothing changes unless you follow the link, and this address keeps
+working either way.</p>`,
+    ),
+  };
+}
+
 export function invitationEmail(args: {
   url: string;
   organizationName: string;

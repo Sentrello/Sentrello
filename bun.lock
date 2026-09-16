@@ -192,6 +192,7 @@
       "dependencies": {
         "@sentrello/auth": "*",
         "@sentrello/db": "*",
+        "@sentrello/email": "*",
         "@sentrello/module-sdk": "*",
         "drizzle-orm": "^0.45.0",
       },

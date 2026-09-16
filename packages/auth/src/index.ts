@@ -3,6 +3,7 @@ import { db, schema } from "@sentrello/db";
 import { asc, eq } from "@sentrello/db/orm";
 import { emailAdapter } from "@sentrello/email";
 import {
+  confirmEmailChangeEmail,
   passwordResetEmail,
   verifyEmailEmail,
 } from "@sentrello/email/templates";
@@ -226,6 +227,37 @@ export const auth = betterAuth({
         subject: mail.subject,
         html: mail.html,
       });
+    },
+  },
+  /**
+   * Changing the address you sign in with.
+   *
+   * Two confirmations, not one. Better Auth calls `sendChangeEmailConfirmation`
+   * below with the *old* address still on the session; only once that link is
+   * followed does it mint a second token and hand it to
+   * `sendVerificationEmail` above, which mails *that* one to the new address.
+   * So the old address always hears first, and the new one sees nothing until
+   * whoever holds the old inbox has said yes. `updateEmailWithoutVerification`
+   * is left at its default of off: nothing in the `user` row moves for either
+   * step until both links are followed, which is what keeps the old address
+   * signed in throughout rather than stranding somebody mid-change.
+   *
+   * A request naming an address another account already holds is handled
+   * inside Better Auth itself, before either send fires: it mints a token
+   * nobody can use and answers exactly as it would for one that succeeded, so
+   * nothing here ever has to decide what to leak.
+   */
+  user: {
+    changeEmail: {
+      enabled: true,
+      sendChangeEmailConfirmation: async ({ user, newEmail, url }) => {
+        const mail = confirmEmailChangeEmail({ newEmail, url });
+        await emailAdapter().send({
+          to: user.email,
+          subject: mail.subject,
+          html: mail.html,
+        });
+      },
     },
   },
   ...(google ? { socialProviders: google } : {}),

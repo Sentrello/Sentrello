@@ -1,7 +1,8 @@
 import { auth } from "@sentrello/auth";
 import { activeOrganizationId, requireSession } from "@sentrello/auth/hono";
 import { db, schema } from "@sentrello/db";
-import { defineModule } from "@sentrello/module-sdk";
+import { mailConfigured } from "@sentrello/email";
+import { defineModule, rateLimit } from "@sentrello/module-sdk";
 import { and, desc, eq } from "drizzle-orm";
 import { DEFAULTS, type Preferences, normalize } from "./preferences";
 
@@ -196,6 +197,88 @@ export default defineModule({
         );
       }
       return c.json({ changed: true });
+    });
+
+    /**
+     * Changing the address you sign in with.
+     *
+     * Better Auth's own `/change-email` does the real work — the collision
+     * check that never leaks whether another account already holds the
+     * address, and the two-step confirm-then-verify Better Auth is configured
+     * for in `packages/auth/src/index.ts` (the old address hears first, and
+     * nothing in the `user` row moves until the new one is confirmed too).
+     * This route adds only what is ours to add: the same "no mail, say so"
+     * refusal every other route that starts an email uses, and a rate limit,
+     * because unlike an invitation this is aimed by whoever holds the
+     * session rather than by an administrator.
+     */
+    ctx.app.post("/api/profile/email", requireSession(), async (c) => {
+      const session = c.get("session");
+      const body = (await c.req.json().catch(() => ({}))) as {
+        newEmail?: unknown;
+      };
+      const newEmail = String(body.newEmail ?? "")
+        .trim()
+        .toLowerCase();
+      if (!newEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
+        return c.json({ error: "a valid email address is required" }, 400);
+      }
+      if (newEmail === (session.user.email ?? "").toLowerCase()) {
+        return c.json({ error: "that is already your sign-in email" }, 400);
+      }
+
+      // Same refusal shape as inviting a colleague or sending an invoice: a
+      // change that claims to be under way when no mail can carry it is
+      // worse than saying plainly there is no mail.
+      if (!mailConfigured()) {
+        return c.json(
+          {
+            error:
+              "no mail server is connected — connect one under Settings → Connections",
+          },
+          400,
+        );
+      }
+
+      const limit = rateLimit(
+        `change-email:${session.user.id}`,
+        8,
+        15 * 60_000,
+      );
+      if (!limit.allowed) {
+        return c.json({ error: "too_many_attempts" }, 429, {
+          "retry-after": String(limit.retryAfterSeconds),
+        });
+      }
+
+      const base = process.env.SENTRELLO_BASE_URL ?? new URL(c.req.url).origin;
+      try {
+        await auth.api.changeEmail({
+          body: { newEmail, callbackURL: `${base}/profile` },
+          headers: c.req.raw.headers,
+        });
+      } catch (err) {
+        return c.json(
+          { error: (err as Error).message || "That did not work." },
+          400,
+        );
+      }
+
+      // The same answer whether or not `newEmail` already belongs to someone
+      // — Better Auth masks that itself, above. Saying anything else here
+      // would undo it. Which inbox to check first is not that kind of leak:
+      // it is read off this account's own `emailVerified` flag, which the
+      // person asking already knows about themselves. Not on `SentrelloSession`
+      // — the SDK's session type is deliberately narrow — so read off the
+      // real Better Auth user the same way the profile screen already does
+      // for `twoFactorEnabled`.
+      const verified = Boolean(
+        (session.user as { emailVerified?: boolean }).emailVerified,
+      );
+      const message = verified
+        ? "Check your current inbox for a confirmation link. Once you confirm there, we'll send a verification link to the new address — this account keeps signing in with the address you have now until both are done."
+        : `Check ${newEmail} for a verification link. This account keeps signing in with the address you have now until you follow it.`;
+      return c.json({ requested: true, message });
     });
   },
 });
