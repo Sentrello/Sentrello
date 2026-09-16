@@ -1067,6 +1067,33 @@ export const ledgerSettings = pgTable("ledger_settings", {
         appliesTo: string;
       }[]
     >(),
+  /**
+   * Which VAT scheme the return is computed under.
+   *
+   * "standard" is the nine boxes read straight off the accrual ledger, and
+   * what every business gets until it says otherwise. "flat-rate" is HMRC's
+   * Flat Rate Scheme: VAT due becomes a sector percentage of gross turnover
+   * and the ordinary input reclaim goes away. Which scheme a business is on
+   * is its own election with HMRC — a setting, never an inference.
+   */
+  vatScheme: text("vat_scheme").notNull().default("standard"),
+  /**
+   * The flat rate sector percentage, in millionths: 14.5% is 145,000.
+   *
+   * There are dozens of sectors and the choice between them is the
+   * business's — their accountant's, properly — so it arrives typed in, and
+   * a flat-rate return refuses to compute until it has.
+   */
+  vatFlatRatePpm: integer("vat_flat_rate_ppm"),
+  /**
+   * "accrual" or "cash" — whether VAT follows the invoice or the money.
+   *
+   * Cash accounting is HMRC's scheme for accounting VAT when payment moves
+   * rather than when the invoice is raised. Independent of the scheme above:
+   * the Flat Rate Scheme has its own cash-based turnover method, which is
+   * exactly this flag beside that one.
+   */
+  vatBasis: text("vat_basis").notNull().default("accrual"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 

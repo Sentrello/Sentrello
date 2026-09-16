@@ -12,6 +12,7 @@ import { registerPeriodLock } from "./period";
 import { registerReceipts } from "./receipts";
 import { registerReports } from "./reports";
 import { registerTransactions } from "./transactions";
+import { registerVatScheme } from "./vat-scheme";
 
 /**
  * Accounting — the books, and everything that posts into them.
@@ -38,6 +39,7 @@ export default defineModule({
   tier: "free",
   register(ctx) {
     registerMtd(ctx);
+    registerVatScheme(ctx);
     ctx.registerNav({
       id: "accounting",
       icon: "wallet",

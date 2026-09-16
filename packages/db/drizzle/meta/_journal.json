@@ -512,6 +512,13 @@
       "when": 1789514857756,
       "tag": "0072_tax_rates_learn_millionths",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1789517234807,
+      "tag": "0073_vat_scheme_settings",
+      "breakpoints": true
     }
   ]
 }
