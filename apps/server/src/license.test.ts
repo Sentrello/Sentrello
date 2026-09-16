@@ -109,9 +109,12 @@ test("a token signed by somebody else's key is refused", async () => {
 
   process.env.SENTRELLO_LICENSE_TOKEN_PATH = tokenPath;
 
-  const { state, gate } = await resolveLicense(publicKeyPem);
+  const { state, gate, tokenPresent } = await resolveLicense(publicKeyPem);
   expect(state.valid).toBe(false);
   expect(gate({ tier: "pro" })).toBe(false);
+  // A token that is present and failing is the case that earns a warning on
+  // the licence screen — unlike plain Free, which has no token at all.
+  expect(tokenPresent).toBe(true);
 });
 
 /**

@@ -270,10 +270,13 @@ test("a skipped module registers no routes", async () => {
 test("resolveLicense falls back to Free when the token file is missing", async () => {
   process.env.SENTRELLO_LICENSE_PUBLIC_KEY_PATH = "secrets/license_public.pem";
   process.env.SENTRELLO_LICENSE_TOKEN_PATH = "secrets/does-not-exist.jwt";
-  const { state, gate } = await resolveLicense();
+  const { state, gate, tokenPresent } = await resolveLicense();
   expect(state.valid).toBe(false);
   expect(state.claims).toBeNull();
   expect(gate({ tier: "pro" })).toBe(false);
+  // No token is plain Free, not a failed verification — the licence screen
+  // shows a neutral "Free" for this, never "not verified".
+  expect(tokenPresent).toBe(false);
 });
 
 test("/healthz boots and reports Free when no token is present", async () => {
