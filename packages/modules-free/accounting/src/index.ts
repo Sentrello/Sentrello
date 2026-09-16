@@ -6,6 +6,7 @@ import {
 } from "@sentrello/auth/hono";
 import { and, db, desc, eq, schema } from "@sentrello/db";
 import { defineModule } from "@sentrello/module-sdk";
+import { registerCaReturns } from "./ca-returns";
 import { registerChart } from "./chart";
 import { registerMtd } from "./mtd-routes";
 import { registerPeriodLock } from "./period";
@@ -40,6 +41,7 @@ export default defineModule({
   register(ctx) {
     registerMtd(ctx);
     registerVatScheme(ctx);
+    registerCaReturns(ctx);
     ctx.registerNav({
       id: "accounting",
       icon: "wallet",
@@ -73,6 +75,13 @@ export default defineModule({
        * through a report.
        */
       { id: "accounting-vat", label: "VAT return", icon: "landmark" },
+      /*
+       * Canada's returns share the VAT return's reasoning — a deadline, a
+       * legal declaration, and no appetite for hunting — but not its form:
+       * one business may owe the CRA, Revenu Québec and a province, and
+       * the page shows one card per authority its rates call for.
+       */
+      { id: "accounting-ca-tax", label: "Canadian tax", icon: "landmark" },
     ].entries()) {
       ctx.registerNav({
         ...page[1],
