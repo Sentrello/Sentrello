@@ -25,10 +25,21 @@ export const isBillingInterval = (value: unknown): value is BillingInterval =>
   typeof value === "string" &&
   (BILLING_INTERVALS as readonly string[]).includes(value);
 
-/** trialing → active → paused → cancelled. Nothing skips to the front. */
+/**
+ * trialing → active → paused → cancelled. Nothing skips to the front.
+ *
+ * The two dunning states sit between active and cancelled: `past_due` is a
+ * renewal invoice gone unpaid while collection is still being attempted, and
+ * `unpaid` is collection given up without the subscription being cancelled —
+ * service withheld until somebody settles. They are written by the dunning
+ * job in the subscriptions module; the canonical list carries them so no
+ * screen or guard treats a delinquent subscription as an unknown state.
+ */
 export const SUBSCRIPTION_STATUSES = [
   "trialing",
   "active",
+  "past_due",
+  "unpaid",
   "paused",
   "cancelled",
 ] as const;
