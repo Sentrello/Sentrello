@@ -547,6 +547,13 @@
       "when": 1789532494394,
       "tag": "0077_us_exemption_certificates",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1789538648021,
+      "tag": "0078_the_business_chooses_too",
+      "breakpoints": true
     }
   ]
 }
