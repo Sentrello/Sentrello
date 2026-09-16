@@ -16,8 +16,9 @@ import {
   submitReturn,
 } from "./mtd";
 import type { ClientContext } from "./mtd-headers";
-import { ledgerRows, periodFrom } from "./reports";
-import { forHmrc, vatReturn } from "./vat-return";
+import { periodFrom } from "./reports";
+import { type VatReturn, forHmrc } from "./vat-return";
+import { vatBoxesFor } from "./vat-scheme";
 
 /**
  * Filing a VAT return to HMRC, from the business's own instance.
@@ -286,9 +287,14 @@ export function registerMtd(ctx: ModuleContext) {
        * idea of the quarter. A return filed for the wrong dates is arithmetic
        * over the wrong rows, and it is the sort of mistake nobody notices until
        * the next quarter does not add up.
+       *
+       * The boxes are recomputed here under whatever scheme the business
+       * elected — standard, flat rate, cash — by the same function the
+       * preview screen reads. The browser supplies a period and nothing else.
        */
-      const boxes = vatReturn(
-        await ledgerRows(
+      let boxes: VatReturn;
+      try {
+        ({ boxes } = await vatBoxesFor(
           orgId,
           periodFrom((name) =>
             name === "from"
@@ -297,8 +303,10 @@ export function registerMtd(ctx: ModuleContext) {
                 ? String(body.to ?? "")
                 : undefined,
           ),
-        ),
-      );
+        ));
+      } catch (err) {
+        return c.json({ error: (err as Error).message }, 400);
+      }
 
       try {
         const receipt = await submitReturn(

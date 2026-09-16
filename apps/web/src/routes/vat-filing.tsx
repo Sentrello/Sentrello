@@ -10,6 +10,7 @@ import {
   Input,
   Loading,
   Row,
+  Select,
   Table,
   formatMoney,
   muted,
@@ -40,6 +41,117 @@ type Obligation = {
   status: string;
 };
 
+type VatScheme = {
+  scheme: "standard" | "flat-rate";
+  flatRatePpm: number | null;
+  basis: "accrual" | "cash";
+};
+
+/**
+ * Which VAT scheme the return is computed under.
+ *
+ * Both schemes are elections a business makes with HMRC, so this asks rather
+ * than infers — and the flat rate sector percentage in particular is typed in
+ * from HMRC's table, because choosing the sector is the business's own call.
+ */
+function SchemeCard({
+  current,
+  onSaved,
+}: {
+  current: VatScheme;
+  onSaved: () => void;
+}) {
+  const [scheme, setScheme] = useState<VatScheme["scheme"]>(current.scheme);
+  const [basis, setBasis] = useState<VatScheme["basis"]>(current.basis);
+  const [percent, setPercent] = useState(
+    current.flatRatePpm === null ? "" : String(current.flatRatePpm / 10_000),
+  );
+
+  const save = useMutation({
+    mutationFn: () =>
+      api("/api/accounting/vat-scheme", {
+        method: "PUT",
+        body: JSON.stringify({
+          scheme,
+          basis,
+          // Entered as a percentage, carried in millionths: 14.5% is 145000.
+          flatRatePpm:
+            scheme === "flat-rate"
+              ? Math.round(Number.parseFloat(percent) * 10_000)
+              : null,
+        }),
+      }),
+    onSuccess: onSaved,
+  });
+
+  return (
+    <Card className="space-y-3">
+      <div>
+        <p className="text-sm font-medium">Your VAT scheme</p>
+        <p className="text-sm" style={muted}>
+          Set this to match what you have agreed with HMRC — the scheme you are
+          on is your election, not something the software can work out.
+        </p>
+      </div>
+      <div className="flex flex-wrap items-end gap-3">
+        <Field label="Scheme">
+          <Select
+            value={scheme}
+            onChange={(e) =>
+              setScheme(e.currentTarget.value as VatScheme["scheme"])
+            }
+          >
+            <option value="standard">Standard</option>
+            <option value="flat-rate">Flat Rate Scheme</option>
+          </Select>
+        </Field>
+        <Field label="VAT counts when">
+          <Select
+            value={basis}
+            onChange={(e) =>
+              setBasis(e.currentTarget.value as VatScheme["basis"])
+            }
+          >
+            <option value="accrual">The invoice is raised</option>
+            <option value="cash">The money moves (cash accounting)</option>
+          </Select>
+        </Field>
+        {scheme === "flat-rate" ? (
+          <Field
+            label="Your sector's flat rate, %"
+            hint="From HMRC's sector table — your accountant will know it."
+          >
+            <Input
+              value={percent}
+              placeholder="14.5"
+              onChange={(e) => setPercent(e.currentTarget.value)}
+            />
+          </Field>
+        ) : null}
+        <Button
+          onClick={() => save.mutate()}
+          disabled={
+            save.isPending ||
+            (scheme === "flat-rate" &&
+              !Number.isFinite(Number.parseFloat(percent)))
+          }
+        >
+          Save
+        </Button>
+      </div>
+      <p className="text-xs" style={muted}>
+        Eligibility, per gov.uk (checked 15 September 2026): the Flat Rate
+        Scheme is open under £150,000 of annual turnover excluding VAT and must
+        be left above £230,000 including VAT — and a limited cost business pays
+        16.5% regardless of sector. Cash accounting is open up to £1.35 million
+        and must be left above £1.6 million. Whether either applies to you is
+        between you and HMRC.
+      </p>
+      {save.error ? <ErrorNote error={save.error} /> : null}
+    </Card>
+  );
+}
+
 export function VatFiling() {
   const qc = useQueryClient();
   const [code, setCode] = useState("");
@@ -50,6 +162,11 @@ export function VatFiling() {
   const status = useQuery({
     queryKey: ["mtd"],
     queryFn: () => api<Status>("/api/accounting/mtd"),
+  });
+
+  const scheme = useQuery({
+    queryKey: ["vat-scheme"],
+    queryFn: () => api<VatScheme>("/api/accounting/vat-scheme"),
   });
 
   const authorise = useMutation({
@@ -97,7 +214,7 @@ export function VatFiling() {
     enabled: Boolean(chosen),
     queryFn: () =>
       api<{ boxes: Record<string, number>; notCovered: string[] }>(
-        `/api/reports/vat-return?from=${chosen?.start}&to=${chosen?.end}`,
+        `/api/accounting/vat-return?from=${chosen?.start}&to=${chosen?.end}`,
       ),
   });
 
@@ -162,6 +279,19 @@ export function VatFiling() {
             are unaffected and still need filing.
           </p>
         </Card>
+      ) : null}
+
+      {scheme.data ? (
+        <SchemeCard
+          // Re-seeded if another session changes the election underneath us.
+          key={`${scheme.data.scheme}-${scheme.data.basis}-${scheme.data.flatRatePpm}`}
+          current={scheme.data}
+          onSaved={() => {
+            qc.invalidateQueries({ queryKey: ["vat-scheme"] });
+            // The boxes are a different arithmetic now; recompute what is shown.
+            qc.invalidateQueries({ queryKey: ["vat-return"] });
+          }}
+        />
       ) : null}
 
       <Card className="space-y-3">
