@@ -2567,13 +2567,13 @@ export const organizationRole = pgTable(
  * What one person chose, on one instance.
  *
  * Keyed rather than columned because the things people set for themselves —
- * a dashboard layout today, a timezone and a landing page next — arrive one at
- * a time and belong to different modules. A column per preference means a
- * migration per preference, and a table per module means several tables that
- * all say "this user picked this".
+ * a timezone today, a landing page next — arrive one at a time and belong to
+ * different modules. A column per preference means a migration per
+ * preference, and a table per module means several tables that all say "this
+ * user picked this".
  *
  * Scoped by organization as well as user: the same person on a second
- * organization is arranging a different business's screen.
+ * organization is choosing for a different business.
  */
 export const userPreferences = pgTable(
   "user_preferences",
@@ -2593,6 +2593,36 @@ export const userPreferences = pgTable(
     uniqueIndex("user_preferences_unique_idx").on(
       t.organizationId,
       t.userId,
+      t.key,
+    ),
+  ],
+);
+
+/**
+ * What the business chose, as a business.
+ *
+ * The organization-wide sibling of `userPreferences`, keyed for the same
+ * reason. The dashboard arrangement is the first resident: the tabs are the
+ * business's screen, not one reader's — a layout that differs per colleague
+ * makes "look at the Shop tab" mean twelve different things in a twelve
+ * person company.
+ */
+export const organizationPreferences = pgTable(
+  "organization_preferences",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: text("organization_id").notNull(),
+    /** Which preference, e.g. "dashboard". Namespaced by whoever owns it. */
+    key: text("key").notNull(),
+    value: jsonb("value").notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("organization_preferences_org_idx").on(t.organizationId),
+    // One row per business per preference. Without this, a double-save
+    // leaves two answers to a question that has one.
+    uniqueIndex("organization_preferences_unique_idx").on(
+      t.organizationId,
       t.key,
     ),
   ],
