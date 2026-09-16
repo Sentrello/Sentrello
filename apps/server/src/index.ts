@@ -144,7 +144,7 @@ app.use("*", async (c, next) => {
 mountAuth(app);
 registerBootstrapRoutes(app);
 
-const { state, gate } = await resolveLicense();
+const { state, gate, tokenPresent } = await resolveLicense();
 
 // Free modules ship in this repo; commercial bundles are discovered at runtime
 // only if installed. The loader then drops any this instance is not entitled to.
@@ -708,6 +708,10 @@ app.get(
     return c.json({
       tier: claims?.tier ?? "free",
       valid: state.valid,
+      // A Free instance that never had a token is not a failed verification.
+      // This is what lets the screen keep the warning for the case that
+      // earns one: a token that is present and not verifying.
+      tokenPresent,
       // Present when the licence failed to verify, so the screen can say why
       // rather than only that something is wrong.
       reason: state.reason ?? null,

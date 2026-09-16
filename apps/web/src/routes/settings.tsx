@@ -16,6 +16,8 @@ import {
 interface LicenseResponse {
   tier: string;
   valid: boolean;
+  /** False on an instance that has no licence token at all — plain Free. */
+  tokenPresent: boolean;
   reason: string | null;
   modules: string[];
   seats: number | null;
@@ -1072,16 +1074,24 @@ export function SettingsLicence() {
           <p className="font-medium">Licence</p>
           {licence.data ? (
             <State
-              ok={licence.data.valid}
-              yes={licence.data.tier === "pro" ? "Pro" : "Free"}
+              // No token at all is not a failure: the instance is simply
+              // Free, which is a tier and not a warning.
+              ok={licence.data.valid || !licence.data.tokenPresent}
+              yes={
+                licence.data.valid && licence.data.tier === "pro"
+                  ? "Pro"
+                  : "Free"
+              }
               no="not verified"
             />
           ) : null}
         </div>
         {licence.data ? (
           <>
-            {!licence.data.valid ? (
-              // The answer to "why did my features disappear?"
+            {!licence.data.valid && licence.data.tokenPresent ? (
+              // The answer to "why did my features disappear?" — a licence is
+              // installed and not verifying. A fresh Free instance never sees
+              // this: with no token there is nothing to warn about.
               <p
                 className="mt-1 text-sm"
                 style={{ color: "var(--text-warning)" }}

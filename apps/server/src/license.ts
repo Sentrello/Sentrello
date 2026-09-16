@@ -43,7 +43,10 @@ export async function resolveLicense(
     ? await verifyLicenseToken(token, trustedKeys)
     : { claims: null, valid: false, reason: "no token (Free)" };
 
-  return { state, gate: makeEntitlementGate(state) };
+  // Whether a token was found at all: the licence screen tells "running Free,
+  // as installed" apart from "a licence is here and failing", which are a
+  // shrug and an alarm respectively.
+  return { state, gate: makeEntitlementGate(state), tokenPresent: !!token };
 }
 // A pg-boss daily job fetches a fresh token from
 // SENTRELLO_LICENSE_SERVER_URL and writes it to tokenPath (the online check).
