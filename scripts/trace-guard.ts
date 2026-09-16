@@ -67,14 +67,22 @@ const RULES: Rule[] = [
     ),
   },
   {
-    // The negative lookahead keeps a comment that merely names this
-    // project's own local instructions file (e.g. "a test rather than a
-    // note in <that file>") from reading as a vendor mention — found as a
-    // real false positive when this guard was run over history that
-    // referenced that filename.
+    // This used to carry a negative lookahead exempting the vendor name
+    // followed by `.md`, so that a comment naming this project's own local
+    // instructions file did not read as a vendor mention. That exemption was
+    // the hole: on 2026-09-16 a comment saying "see <that file>'s build
+    // order" reached the public repository and was pushed, because this rule
+    // deliberately ignored it. A sibling repository's stricter check caught
+    // what this one let through.
+    //
+    // Naming that file IS a trace — it tells a reader such a file exists,
+    // which is the thing the rule forbids. The cases that genuinely need to
+    // contain the string are exempt by *path* instead: the file itself, and
+    // this guard and its test (see SELF_PATHS) — which is narrower, and
+    // cannot be satisfied by a comment in an unrelated source file.
     name: "coding-assistant, model or vendor name",
     pattern: new RegExp(
-      `\\b${VENDOR_1}\\b(?!\\.md)(\\s+(${AGENT_MODEL_WORDS}))?` +
+      `\\b${VENDOR_1}\\b(\\s+(${AGENT_MODEL_WORDS}))?` +
         `|\\b${VENDOR_2}\\b|\\bchatgpt\\b|\\bopenai\\b|\\b${VENDOR_3}\\b|\\bgemini\\b`,
       "i",
     ),
