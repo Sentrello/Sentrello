@@ -242,6 +242,63 @@ test("standard on the cash basis matches accrual once everything is paid", async
   expect(cash.boxes.totalValueSalesExVAT).toBe(accrual.totalValueSalesExVAT);
 });
 
+test("a credit note reduces the return under every scheme", async () => {
+  /**
+   * The entry a tax-aware credit note posts — the sale's entry with its
+   * sides swapped: Dr Income for the net, Dr VAT for the tax, Cr Receivable
+   * for the whole. £100 + £20 credited back out of the £1,000 + £200 sale,
+   * after the invoice was paid, so on the cash basis it is a real reduction
+   * on its own date rather than something to unwind from the pool.
+   */
+  await postJournalEntry(
+    orgId,
+    "Credit note",
+    "test:credit-note",
+    [
+      { accountId: id("4000"), debitCents: 10_000 },
+      { accountId: id("2200"), debitCents: 2_000 },
+      { accountId: id("1100"), creditCents: 12_000 },
+    ],
+    new Date("2026-05-10T00:00:00Z"),
+  );
+
+  // Standard, accrual: box 1 falls by the tax alone, box 6 by the net alone.
+  await put("/api/accounting/vat-scheme", { scheme: "standard" });
+  const standard = await (await get("/api/accounting/vat-return")).json();
+  expect(standard.boxes.vatDueSales).toBe(18_000);
+  expect(standard.boxes.totalValueSalesExVAT).toBe(90_000);
+
+  // Standard, cash: the invoice is paid, so the credit lands on its own
+  // date and the figures match accrual to the penny.
+  await put("/api/accounting/vat-scheme", {
+    scheme: "standard",
+    basis: "cash",
+  });
+  const cash = await (await get("/api/accounting/vat-return")).json();
+  expect(cash.boxes.vatDueSales).toBe(18_000);
+  expect(cash.boxes.totalValueSalesExVAT).toBe(90_000);
+
+  // Flat rate: the whole gross of the credit comes off the turnover, and
+  // box 1 is the sector percentage of what is left — £1,080 at 14.5%.
+  await put("/api/accounting/vat-scheme", {
+    scheme: "flat-rate",
+    flatRatePpm: 145_000,
+  });
+  const flat = await (await get("/api/accounting/vat-return")).json();
+  expect(flat.boxes.totalValueSalesExVAT).toBe(108_000);
+  expect(flat.boxes.vatDueSales).toBe(15_660);
+
+  // Flat rate on the cash basis agrees, for the same reason as standard.
+  await put("/api/accounting/vat-scheme", {
+    scheme: "flat-rate",
+    flatRatePpm: 145_000,
+    basis: "cash",
+  });
+  const flatCash = await (await get("/api/accounting/vat-return")).json();
+  expect(flatCash.boxes.totalValueSalesExVAT).toBe(108_000);
+  expect(flatCash.boxes.vatDueSales).toBe(15_660);
+});
+
 test("a flat-rate election missing its percentage refuses to compute, not files zero", async () => {
   // Belt and braces: the PUT refuses this state, so put it there directly —
   // an older row, a hand edit — and make sure the return says why rather

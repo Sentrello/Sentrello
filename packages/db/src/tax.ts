@@ -64,18 +64,55 @@ export interface VatReturn {
  * different question from the VAT itself and the reason a return needs more
  * than the tax summary already gives.
  *
+ * Which box a VAT movement belongs to is read from the entry it arrived in,
+ * because the account alone cannot say. A credit note on a sale debits the
+ * VAT account, but it is not input VAT reclaimed — HMRC's rule is that it
+ * *reduces* box 1 — and a return that put it in box 4 declared both boxes
+ * higher than the truth by the same amount. Box 5 netted out, so nobody's
+ * payment was wrong, but boxes 1 and 4 are each figures HMRC reads. So: VAT
+ * in an entry that touches income belongs to the sales side and nets into
+ * box 1; VAT in an entry that touches expenses nets into box 4; VAT that
+ * moved alone — an adjustment posted by hand — keeps the account's own
+ * reading, credit to box 1 and debit to box 4, which is what it always got.
+ *
  * Boxes 2, 8 and 9 are zero. They are the Northern Ireland Protocol boxes and
  * this platform has no concept of an EU acquisition; returning zero is honest,
  * and a business that needs them cannot use this return unaided. That is
  * written on the screen rather than left for them to discover on a form.
  */
 export function vatReturn(rows: LedgerRow[]): VatReturn {
-  const vat = rows.filter((row) => row.code === VAT_ACCOUNT);
-  const vatDueSales = vat.reduce((sum, row) => sum + row.creditCents, 0);
-  const vatReclaimedCurrPeriod = vat.reduce(
-    (sum, row) => sum + row.debitCents,
-    0,
-  );
+  const entries = new Map<
+    string,
+    { sale: boolean; purchase: boolean; vatCredit: number; vatDebit: number }
+  >();
+  for (const row of rows) {
+    const entry = entries.get(row.entryId) ?? {
+      sale: false,
+      purchase: false,
+      vatCredit: 0,
+      vatDebit: 0,
+    };
+    if (row.type === "income") entry.sale = true;
+    if (row.type === "expense") entry.purchase = true;
+    if (row.code === VAT_ACCOUNT) {
+      entry.vatCredit += row.creditCents;
+      entry.vatDebit += row.debitCents;
+    }
+    entries.set(row.entryId, entry);
+  }
+
+  let vatDueSales = 0;
+  let vatReclaimedCurrPeriod = 0;
+  for (const entry of entries.values()) {
+    if (entry.sale) {
+      vatDueSales += entry.vatCredit - entry.vatDebit;
+    } else if (entry.purchase) {
+      vatReclaimedCurrPeriod += entry.vatDebit - entry.vatCredit;
+    } else {
+      vatDueSales += entry.vatCredit;
+      vatReclaimedCurrPeriod += entry.vatDebit;
+    }
+  }
 
   /*
    * Turnover, net of VAT — which it already is, because the VAT on a sale is
