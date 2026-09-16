@@ -3164,3 +3164,59 @@ export const savedViews = pgTable(
   },
   (t) => [index("saved_views_owner_idx").on(t.organizationId, t.userId)],
 );
+
+/**
+ * What a merge did, written down at the moment it could still be explained.
+ *
+ * A merged contact's invoices, deals and notes all point at the record that
+ * was kept, and the record that was folded in is gone — so this row is the
+ * only place that can answer "where did that contact go", and the snapshot
+ * is the only copy of what the folded-in record said. A wrong merge is very
+ * hard to undo; this is what makes it possible to see, and to redo by hand.
+ */
+export const contactMerges = pgTable(
+  "contact_merges",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: text("organization_id").notNull(),
+    /** The contact everything now points at. */
+    keptId: uuid("kept_id").notNull(),
+    /** The contact that was folded in and deleted. */
+    mergedId: uuid("merged_id").notNull(),
+    /** The folded-in row as it stood, whole. */
+    mergedRecord: jsonb("merged_record")
+      .$type<Record<string, unknown>>()
+      .notNull(),
+    /** How many rows each table sent across, so the merge can be audited. */
+    moved: jsonb("moved").$type<Record<string, number>>().notNull().default({}),
+    actorId: text("actor_id"),
+    at: timestamp("at").defaultNow().notNull(),
+  },
+  (t) => [index("contact_merges_org_idx").on(t.organizationId)],
+);
+
+/**
+ * A pair somebody looked at and said "two different people".
+ *
+ * Detection is suggestive, so its false positives — a father and son sharing
+ * a landline — would come back every visit without a way to say no once.
+ * The pair is stored ordered (lower uuid first) so the same two people are
+ * one row whichever way round they were dismissed.
+ */
+export const contactDuplicateDismissals = pgTable(
+  "contact_duplicate_dismissals",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: text("organization_id").notNull(),
+    firstId: uuid("first_id").notNull(),
+    secondId: uuid("second_id").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [
+    unique("contact_duplicate_dismissals_pair").on(
+      t.organizationId,
+      t.firstId,
+      t.secondId,
+    ),
+  ],
+);

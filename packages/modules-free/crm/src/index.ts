@@ -45,6 +45,7 @@ import { registerCrmHistory } from "./history";
 import { registerCrmImages } from "./images";
 import { registerInboundEmail } from "./inbound";
 import { registerCrmManagers } from "./managers";
+import { registerMerge } from "./merge";
 import { registerCrmPersonalData } from "./personal-data";
 import {
   DEFAULT_LOST_STAGES,
@@ -2133,5 +2134,6 @@ export default defineModule({
     registerCrmHistory(ctx);
     registerWebhooks(ctx);
     registerSavedViews(ctx);
+    registerMerge(ctx);
   },
 });
