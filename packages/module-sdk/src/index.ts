@@ -431,6 +431,11 @@ export function registerForTest(
     if (typeof status === "number" && status >= 400 && status < 500) {
       return c.json({ error: err.message }, status as 400);
     }
+    // Mirrors the host: a body that is not JSON is answered 400, so a
+    // module's tests see the refusal its users will.
+    if (err instanceof SyntaxError) {
+      return c.json({ error: "the request body is not valid JSON" }, 400);
+    }
     // Everything else keeps the answer the host gives it, 500 included: a
     // harness that rethrows turns a route's crash into a rejected request and
     // a sweep asking every route for its status gets an exception instead.

@@ -571,6 +571,32 @@ test("a business route is 401 without a session", async () => {
   expect(await res.json()).toEqual({ error: "unauthorized" });
 });
 
+test("a body that is not JSON is a 400, not a crash", async () => {
+  // Routes parse with `c.req.json()`; before the onError mapping, a stray
+  // byte in the body answered "something went wrong" with a 500 and a stack
+  // trace in the log, for what is the caller's typo.
+  process.env.SENTRELLO_LICENSE_PUBLIC_KEY_PATH = "secrets/license_public.pem";
+  process.env.SENTRELLO_LICENSE_TOKEN_PATH = "secrets/does-not-exist.jwt";
+  const server = (await import("./index")).default;
+  const { headers, cleanUp } = await signedIn();
+  try {
+    headers.set("content-type", "application/json");
+    const res = await server.fetch(
+      new Request("http://localhost/api/contacts", {
+        method: "POST",
+        headers,
+        body: "not json",
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: "the request body is not valid JSON",
+    });
+  } finally {
+    await cleanUp();
+  }
+});
+
 /**
  * Owning a module and using it are different things.
  *
