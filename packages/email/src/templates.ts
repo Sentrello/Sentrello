@@ -350,6 +350,38 @@ export function verifyEmailEmail(args: {
   };
 }
 
+export function invitationEmail(args: {
+  url: string;
+  organizationName: string;
+  inviterName?: string | null;
+  expiresAt?: Date | null;
+}) {
+  const from = args.inviterName?.trim()
+    ? `${escapeHtml(args.inviterName.trim())} has invited you`
+    : "You have been invited";
+  const until = args.expiresAt
+    ? `<p style="color:#666;font-size:12px">The link works once and expires on
+${escapeHtml(
+  args.expiresAt.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }),
+)}. If it has, ask to be invited again.</p>`
+    : "";
+  return {
+    subject: `Join ${args.organizationName} on Sentrello`,
+    html: layout(
+      `Join ${args.organizationName}`,
+      `<p>${from} to work in <strong>${escapeHtml(args.organizationName)}</strong>.</p>
+<p><a href="${escapeHtml(args.url)}">Accept the invitation</a></p>
+${until}
+<p style="color:#666;font-size:12px">If you were not expecting this, nothing
+happens until you follow the link.</p>`,
+    ),
+  };
+}
+
 export function passwordResetEmail(args: {
   url: string;
   expiresInMinutes: number;
