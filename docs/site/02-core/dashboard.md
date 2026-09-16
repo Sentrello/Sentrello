@@ -21,6 +21,19 @@ each module contributes its own figures to this screen. Install Booking and
 your upcoming appointments appear; install Documents and a certificate about to
 expire appears.
 
+## Tabs, and arranging them
+
+The panels sit on tabs — Overview, Sales, Reports and so on, plus one per
+module you have installed. The default arrangement is meant to be lived with;
+if your business wants something else, **Arrange** on the dashboard renames
+tabs, adds and removes them, and chooses what sits on each. Free and Pro
+arrange the same way — arranging is not a paid feature.
+
+The arrangement belongs to the business, not to whoever saved it: everyone
+sees the same tabs, so "look at the Shop tab" means the same thing to
+everyone. A module you add later puts its panel on a tab of its own, without
+anybody arranging anything.
+
 ## Why that matters
 
 The single most expensive thing a small business misses is a date nobody was
