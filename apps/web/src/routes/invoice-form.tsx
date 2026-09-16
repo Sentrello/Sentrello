@@ -1,7 +1,7 @@
 import { documentTotals } from "@sentrello/db/money";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { type Contact, api } from "../lib/api";
+import { type Company, type Contact, api } from "../lib/api";
 import { Icon } from "../lib/icons";
 import {
   Button,
@@ -64,6 +64,7 @@ interface DocumentShape {
   paymentTerms?: string | null;
   buyerReference?: string | null;
   validUntil?: string | null;
+  exemptionCertificateId?: string | null;
 }
 
 interface LineDraft {
@@ -150,6 +151,15 @@ export function InvoiceForm({
     queryFn: () => api<{ contacts: Contact[] }>("/api/contacts"),
   });
   /**
+   * The customer's company, for the two things an address decides: which
+   * US jurisdictions' rates apply, and whether an exemption certificate is
+   * on file.
+   */
+  const companies = useQuery({
+    queryKey: ["companies", "all"],
+    queryFn: () => api<{ companies: Company[] }>("/api/companies"),
+  });
+  /**
    * The terms and the units this business offers.
    *
    * Both were free-text boxes, which is how one business ends up with "hour",
@@ -162,6 +172,26 @@ export function InvoiceForm({
       api<{ templates: { id: string; name: string; isDefault: boolean }[] }>(
         "/api/invoicing/templates",
       ),
+  });
+  /**
+   * The customer's exemption certificates, for the US sales-tax case.
+   *
+   * Fetched once and filtered to the chosen customer's company: a reseller
+   * or a non-profit is invoiced under a recorded certificate, and choosing
+   * it here is what makes the sale exempt — and defensible later.
+   */
+  const exemptions = useQuery({
+    queryKey: ["invoicing-exemptions"],
+    queryFn: () =>
+      api<{
+        certificates: {
+          id: string;
+          companyId: string;
+          number: string;
+          state: string;
+          status: string;
+        }[];
+      }>("/api/invoicing/exemptions"),
   });
   const billing = useQuery({
     queryKey: ["invoicing-billing"],
@@ -188,6 +218,8 @@ export function InvoiceForm({
   const [earlyType, setEarlyType] = useState("");
   const [earlyValue, setEarlyValue] = useState("");
   const [earlyDays, setEarlyDays] = useState("10");
+  // The certificate this sale is exempt under, or nothing. Invoices only.
+  const [exemptionCertificateId, setExemptionCertificateId] = useState("");
   const [lines, setLines] = useState<LineDraft[]>([blankLine()]);
 
   /**
@@ -238,6 +270,7 @@ export function InvoiceForm({
         setDueDate(doc.dueDate ? doc.dueDate.slice(0, 10) : "");
         setPaymentTerms(doc.paymentTerms ?? "");
         setBuyerReference(doc.buyerReference ?? "");
+        setExemptionCertificateId(doc.exemptionCertificateId ?? "");
       }
       setLines(
         existing.data.lines.length
@@ -373,6 +406,9 @@ export function InvoiceForm({
               earlyDiscountDays: Number.parseInt(earlyDays || "0", 10),
             }
           : {}),
+        ...(asQuote
+          ? {}
+          : { exemptionCertificateId: exemptionCertificateId || null }),
         lines: lines
           .filter((l) => l.description.trim())
           .map((l) => ({
@@ -455,6 +491,40 @@ export function InvoiceForm({
               ))}
             </Select>
           </Field>
+          {!asQuote &&
+            (() => {
+              const company = (contacts.data?.contacts ?? []).find(
+                (c) => c.id === contactId,
+              )?.companyId;
+              const usable = (exemptions.data?.certificates ?? []).filter(
+                (cert) =>
+                  cert.companyId === company &&
+                  (cert.status === "valid" || cert.status === "expiring-soon"),
+              );
+              // No certificates, no field: the café never sees this.
+              if (!company || usable.length === 0) return null;
+              return (
+                <Field
+                  label="Tax exemption"
+                  hint="Charged at nothing, with the certificate recorded on the invoice as evidence."
+                >
+                  <Select
+                    value={exemptionCertificateId}
+                    onChange={(e) => setExemptionCertificateId(e.target.value)}
+                  >
+                    <option value="">Not exempt</option>
+                    {usable.map((cert) => (
+                      <option key={cert.id} value={cert.id}>
+                        {cert.state} · {cert.number}
+                        {cert.status === "expiring-soon"
+                          ? " (expiring soon)"
+                          : ""}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              );
+            })()}
           {asQuote ? (
             <Field
               label="Valid until"
@@ -543,7 +613,51 @@ export function InvoiceForm({
       </Card>
 
       <Card>
-        <p className="mb-3 font-medium text-sm">Line items</p>
+        <div className="mb-3 flex items-center justify-between">
+          <p className="font-medium text-sm">Line items</p>
+          {(() => {
+            const company = (companies.data?.companies ?? []).find(
+              (c) =>
+                c.id ===
+                (contacts.data?.contacts ?? []).find(
+                  (ct) => ct.id === contactId,
+                )?.companyId,
+            );
+            const inUs = ["US", "USA", "UNITED STATES"].includes(
+              company?.country?.trim().toUpperCase() ?? "",
+            );
+            if (!inUs || !company?.state || exemptionCertificateId) {
+              return null;
+            }
+            return (
+              <button
+                type="button"
+                className="text-sm link-muted"
+                title="Looks up the rates whose jurisdiction matches this customer's state and city, and puts them on every line."
+                onClick={async () => {
+                  const query = new URLSearchParams({
+                    state: company.state ?? "",
+                    city: company.city ?? "",
+                    postcode: company.postcode ?? "",
+                  });
+                  const found = await api<{
+                    taxes: { id: string }[];
+                  }>(`/api/invoicing/us-taxes?${query.toString()}`);
+                  if (found.taxes.length > 0) {
+                    setLines((current) =>
+                      current.map((l) => ({
+                        ...l,
+                        taxDefinitionIds: found.taxes.map((t) => t.id),
+                      })),
+                    );
+                  }
+                }}
+              >
+                Use the customer's local rates
+              </button>
+            );
+          })()}
+        </div>
         <div className="space-y-2">
           {lines.map((line, i) => (
             <div

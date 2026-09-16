@@ -138,6 +138,8 @@ function TaxRates({
   const [name, setName] = useState("");
   const [percent, setPercent] = useState("");
   const [categoryCode, setCategoryCode] = useState("S");
+  // "US-TX", "US-TX-Austin" — which authority the rate is collected for.
+  const [jurisdiction, setJurisdiction] = useState("");
 
   const add = useMutation({
     mutationFn: () =>
@@ -150,11 +152,13 @@ function TaxRates({
             Number.parseFloat(percent.replace(/,/g, "") || "0") * 10_000,
           ),
           categoryCode,
+          ...(jurisdiction.trim() ? { jurisdiction: jurisdiction.trim() } : {}),
         }),
       }),
     onSuccess: () => {
       setName("");
       setPercent("");
+      setJurisdiction("");
       onDone();
     },
   });
@@ -282,6 +286,17 @@ function TaxRates({
               </option>
             ))}
           </Select>
+        </Field>
+        <Field
+          label="Jurisdiction"
+          hint="US sales tax only: US-TX, or US-TX-Austin for a city's share. Leave it blank elsewhere."
+        >
+          <Input
+            value={jurisdiction}
+            placeholder="US-TX"
+            className="w-36"
+            onChange={(e) => setJurisdiction(e.target.value)}
+          />
         </Field>
         <Button
           onClick={() => add.mutate()}

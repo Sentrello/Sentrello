@@ -38,6 +38,7 @@ import {
 } from "./routes/settings";
 import { Setup } from "./routes/setup";
 import { SignIn } from "./routes/sign-in";
+import { UsSalesTax } from "./routes/us-sales-tax";
 import { Authentication } from "./routes/users/authentication";
 import { Events } from "./routes/users/events";
 import { GroupDetail } from "./routes/users/group";
@@ -106,6 +107,7 @@ const SCREENS: Record<string, () => React.ReactElement | null> = {
   "settings-modules": SettingsModules,
   "settings-privacy": Privacy,
   "accounting-vat": VatFiling,
+  "invoicing-us-tax": UsSalesTax,
   users: People,
   "user-groups": Groups,
   "user-policies": Policies,
