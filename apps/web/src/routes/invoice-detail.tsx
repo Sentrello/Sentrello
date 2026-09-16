@@ -156,13 +156,27 @@ export function InvoiceDetail() {
    */
   const eInvoice = useQuery({
     queryKey: ["einvoice", id],
-    queryFn: () =>
-      api<{
-        ready: boolean;
-        missing: string[];
-        addressedTo: string;
-        country: string | null;
-      }>(`/api/invoices/${id}/einvoice`),
+    queryFn: async () => {
+      /*
+       * All three rulebooks at once: the bare norm, the Peppol network's
+       * profile, and Germany's. Readiness differs — a document fine as bare
+       * EN 16931 may still lack the buyer reference Peppol demands — so each
+       * download button answers for itself.
+       */
+      const check = (profile: string) =>
+        api<{
+          ready: boolean;
+          missing: string[];
+          addressedTo: string;
+          country: string | null;
+        }>(`/api/invoices/${id}/einvoice?profile=${profile}`);
+      const [en16931, peppol, xrechnung] = await Promise.all([
+        check("en16931"),
+        check("peppol"),
+        check("xrechnung"),
+      ]);
+      return { en16931, peppol, xrechnung };
+    },
   });
 
   const portalLink = useMutation({
@@ -453,7 +467,7 @@ export function InvoiceDetail() {
               when it would actually validate: a download that fails is worse
               than a button that explains itself.
             */}
-            {eInvoice.data?.ready ? (
+            {eInvoice.data?.en16931.ready ? (
               <Button
                 variant="secondary"
                 onClick={() =>
@@ -467,6 +481,34 @@ export function InvoiceDetail() {
                 E-invoice (XML)
               </Button>
             ) : null}
+            {eInvoice.data?.peppol.ready ? (
+              <Button
+                variant="secondary"
+                onClick={() =>
+                  window.open(
+                    `/api/invoices/${id}/einvoice.xml?profile=peppol`,
+                    "_blank",
+                    "noopener",
+                  )
+                }
+              >
+                Peppol XML
+              </Button>
+            ) : null}
+            {eInvoice.data?.xrechnung.ready ? (
+              <Button
+                variant="secondary"
+                onClick={() =>
+                  window.open(
+                    `/api/invoices/${id}/einvoice.xml?profile=xrechnung`,
+                    "_blank",
+                    "noopener",
+                  )
+                }
+              >
+                XRechnung
+              </Button>
+            ) : null}
             {/*
               Why the button above is absent, when it is.
 
@@ -477,10 +519,32 @@ export function InvoiceDetail() {
               never engaged with structured invoicing is not nagged about it on
               every invoice.
             */}
-            {eInvoice.data && !eInvoice.data.ready && eInvoice.data.country ? (
+            {eInvoice.data &&
+            !eInvoice.data.en16931.ready &&
+            eInvoice.data.en16931.country ? (
               <p className="w-full text-xs" style={muted}>
                 Not yet sendable as a structured e-invoice:{" "}
-                {eInvoice.data.missing.join("; ")}.
+                {eInvoice.data.en16931.missing.join("; ")}.
+              </p>
+            ) : null}
+            {/*
+              The stricter rulebooks, once the floor is met. The extra asks —
+              a buyer reference, an IBAN — belong to the network or to
+              Germany, and saying which spares a business fixing them one
+              rejection at a time.
+            */}
+            {eInvoice.data?.en16931.ready && !eInvoice.data.peppol.ready ? (
+              <p className="w-full text-xs" style={muted}>
+                For the Peppol network it still needs:{" "}
+                {eInvoice.data.peppol.missing.join("; ")}.
+              </p>
+            ) : null}
+            {eInvoice.data?.en16931.ready &&
+            !eInvoice.data.xrechnung.ready &&
+            eInvoice.data.xrechnung.country === "DE" ? (
+              <p className="w-full text-xs" style={muted}>
+                As a German XRechnung it still needs:{" "}
+                {eInvoice.data.xrechnung.missing.join("; ")}.
               </p>
             ) : null}
             <button

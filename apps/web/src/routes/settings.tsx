@@ -32,6 +32,12 @@ interface BusinessDetails {
   taxId: string;
   taxIdLabel: string;
   paymentInstructions: string;
+  city: string;
+  postcode: string;
+  countryCode: string;
+  email: string;
+  phone: string;
+  iban: string;
   timezone: string;
   /** Null is untouched, empty is removed, anything else is the business's. */
   creditText: string | null;
@@ -46,6 +52,12 @@ interface SettingsResponse {
     taxId: string;
     taxIdLabel: string;
     paymentInstructions: string;
+    city: string;
+    postcode: string;
+    countryCode: string;
+    email: string;
+    phone: string;
+    iban: string;
     timezone: string;
     /**
      * Three-valued on purpose: null is untouched (the Sentrello line shows),
@@ -186,6 +198,12 @@ export function Settings() {
     taxId: data.business.taxId,
     taxIdLabel: data.business.taxIdLabel,
     paymentInstructions: data.business.paymentInstructions,
+    city: data.business.city,
+    postcode: data.business.postcode,
+    countryCode: data.business.countryCode,
+    email: data.business.email,
+    phone: data.business.phone,
+    iban: data.business.iban,
     timezone: data.business.timezone,
     creditText: data.business.creditText,
     creditUrl: data.business.creditUrl,
@@ -236,6 +254,52 @@ export function Settings() {
             />
           </Field>
 
+          {/*
+            The same address, in the parts a machine reads. A structured
+            e-invoice cannot take a country out of a line somebody typed, and
+            Germany will not accept one without the city and postcode stated
+            as themselves.
+          */}
+          <div className="grid gap-3 sm:grid-cols-[1fr_8rem_6rem]">
+            <Field label="City" hint="For structured e-invoices.">
+              <Input
+                value={form.city}
+                onChange={(e) => patch({ city: e.target.value })}
+              />
+            </Field>
+            <Field label="Postcode">
+              <Input
+                value={form.postcode}
+                onChange={(e) => patch({ postcode: e.target.value })}
+              />
+            </Field>
+            <Field label="Country" hint='Two letters — "DE", "GB".'>
+              <Input
+                value={form.countryCode}
+                placeholder="DE"
+                onChange={(e) => patch({ countryCode: e.target.value })}
+              />
+            </Field>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field
+              label="Email"
+              hint="A contact point for invoices. Germany requires one."
+            >
+              <Input
+                value={form.email}
+                onChange={(e) => patch({ email: e.target.value })}
+              />
+            </Field>
+            <Field label="Phone">
+              <Input
+                value={form.phone}
+                onChange={(e) => patch({ phone: e.target.value })}
+              />
+            </Field>
+          </div>
+
           <div className="grid gap-3 sm:grid-cols-[10rem_1fr]">
             <Field label="Tax number label" hint="e.g. VAT number, ABN, EIN.">
               <Input
@@ -261,6 +325,19 @@ export function Settings() {
               />
             </Field>
           </div>
+
+          {/* The machine-readable half of "how to pay": an e-invoice carries
+              the account itself, and Germany refuses one without it. */}
+          <Field
+            label="IBAN"
+            hint="Where bank transfers go. Required on German e-invoices."
+          >
+            <Input
+              value={form.iban}
+              placeholder="DE89 3704 0044 0532 0130 00"
+              onChange={(e) => patch({ iban: e.target.value })}
+            />
+          </Field>
 
           <Field
             label="How to pay"

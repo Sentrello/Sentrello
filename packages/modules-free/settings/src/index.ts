@@ -148,6 +148,18 @@ export default defineModule({
             taxIdLabel: org?.taxIdLabel ?? "",
             paymentInstructions: org?.paymentInstructions ?? "",
             /*
+             * The structured half of the identity: what a machine reads where
+             * the free-text address is what a person reads. The e-invoice
+             * refuses without the ones it needs, and this is where they get
+             * fixed.
+             */
+            city: org?.city ?? "",
+            postcode: org?.postcode ?? "",
+            countryCode: org?.countryCode ?? "",
+            email: org?.email ?? "",
+            phone: org?.phone ?? "",
+            iban: org?.iban ?? "",
+            /*
              * Empty means the server's own, which is the honest default rather
              * than guessing. The screen offers to fill it in with the browser's.
              */
@@ -530,6 +542,12 @@ export default defineModule({
         let timezone: string | null;
         let creditText: string | null;
         let creditUrl: string | null;
+        let city: string | null;
+        let postcode: string | null;
+        let countryCode: string | null;
+        let email: string | null;
+        let phone: string | null;
+        let iban: string | null;
         try {
           address = text(body.address, 500, "address");
           taxId = text(body.taxId, 60, "tax number");
@@ -540,6 +558,12 @@ export default defineModule({
             "payment instructions",
           );
           timezone = text(body.timezone, 60, "timezone");
+          city = text(body.city, 120, "city");
+          postcode = text(body.postcode, 20, "postcode");
+          countryCode = text(body.countryCode, 2, "country code");
+          email = text(body.email, 200, "email");
+          phone = text(body.phone, 40, "phone number");
+          iban = text(body.iban, 50, "IBAN");
           /*
            * Not the `text()` helper, which reads an empty string as null.
            * For the credit those are two different decisions: null is the
@@ -596,6 +620,49 @@ export default defineModule({
           );
         }
 
+        /*
+         * The country as two letters — "DE", not "Germany" — because the
+         * e-invoice standard reads nothing else, and a prose country typed
+         * here would surface weeks later as a rejected document.
+         */
+        if (countryCode) {
+          if (!/^[A-Za-z]{2}$/.test(countryCode)) {
+            return c.json(
+              {
+                error: 'the country goes in as two letters — "DE", "GB", "US"',
+              },
+              400,
+            );
+          }
+          countryCode = countryCode.toUpperCase();
+        }
+
+        /*
+         * The IBAN routes actual money, so a typo is checked at the door:
+         * shape first, then the standard mod-97 checksum every bank applies.
+         * Refusing here costs a retype; accepting quietly costs a transfer
+         * that bounces weeks after the invoice went out.
+         */
+        if (iban) {
+          iban = iban.replace(/\s+/g, "").toUpperCase();
+          const shaped = /^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$/.test(iban);
+          const digits = shaped
+            ? (iban.slice(4) + iban.slice(0, 4)).replace(/[A-Z]/g, (ch) =>
+                String(ch.charCodeAt(0) - 55),
+              )
+            : "";
+          let remainder = 0;
+          for (const digit of digits) {
+            remainder = (remainder * 10 + Number(digit)) % 97;
+          }
+          if (!shaped || remainder !== 1) {
+            return c.json(
+              { error: "that IBAN does not check out — one character is off" },
+              400,
+            );
+          }
+        }
+
         const [org] = await db
           .update(schema.organizations)
           .set({
@@ -605,6 +672,12 @@ export default defineModule({
             taxIdLabel,
             paymentInstructions,
             timezone,
+            city,
+            postcode,
+            countryCode,
+            email,
+            phone,
+            iban,
             /*
              * Ignored unless this instance is Pro. The credit on a Free
              * instance is not the business's to change — it is part of what
@@ -623,6 +696,12 @@ export default defineModule({
             taxId: maskTaxId(org?.taxId),
             taxIdLabel: org?.taxIdLabel ?? "",
             paymentInstructions: org?.paymentInstructions ?? "",
+            city: org?.city ?? "",
+            postcode: org?.postcode ?? "",
+            countryCode: org?.countryCode ?? "",
+            email: org?.email ?? "",
+            phone: org?.phone ?? "",
+            iban: org?.iban ?? "",
             timezone: org?.timezone ?? "",
             creditText: org?.creditText ?? null,
             creditUrl: org?.creditUrl ?? "",

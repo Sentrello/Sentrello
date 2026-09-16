@@ -5,7 +5,13 @@ import {
 } from "@sentrello/auth/hono";
 import { and, db, eq, inArray, schema } from "@sentrello/db";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
-import { type EInvoiceInput, missingForEInvoice, toUbl } from "./einvoice";
+import {
+  EINVOICE_PROFILES,
+  type EInvoiceInput,
+  type EInvoiceProfile,
+  missingForEInvoice,
+  toUbl,
+} from "./einvoice";
 
 /**
  * Handing over a structured e-invoice.
@@ -17,6 +23,22 @@ import { type EInvoiceInput, missingForEInvoice, toUbl } from "./einvoice";
  * screen discover the problem by trying, which means the first a business hears
  * of a missing country is a failed download.
  */
+/**
+ * Which rulebook the caller asked for. The bare norm is the default so every
+ * existing consumer keeps the document it always got; `peppol` is what the
+ * network itself validates; `xrechnung` is Germany's. A profile this server
+ * does not know is a 400 in words, not a silently different document.
+ */
+const unknownProfile =
+  "unknown profile — this endpoint produces en16931, peppol or xrechnung";
+
+function readProfile(c: RouteContext): EInvoiceProfile | null {
+  const asked = c.req.query("profile") ?? "en16931";
+  return (EINVOICE_PROFILES as readonly string[]).includes(asked)
+    ? (asked as EInvoiceProfile)
+    : null;
+}
+
 export function registerEInvoice(ctx: ModuleContext) {
   /**
    * Everything the standard needs, gathered from three places.
@@ -142,6 +164,7 @@ export function registerEInvoice(ctx: ModuleContext) {
       issueDate: invoice.issueDate,
       dueDate: invoice.dueDate,
       currency: invoice.currency,
+      kind: invoice.kind,
       seller: {
         name: org?.name ?? "",
         street: org?.address ?? null,
@@ -149,7 +172,18 @@ export function registerEInvoice(ctx: ModuleContext) {
         postcode: org?.postcode ?? null,
         countryCode: org?.countryCode ?? null,
         taxId: org?.taxId ?? null,
+        /*
+         * The contact point Germany requires on every XRechnung (BR-DE-5/6/7).
+         * The business's own name serves as the contact name — a
+         * micro-business is its own switchboard.
+         */
+        contactName: org?.name ?? null,
+        contactPhone: org?.phone ?? null,
+        contactEmail: org?.email ?? null,
       },
+      buyerReference: invoice.buyerReference,
+      paymentTerms: invoice.paymentTerms,
+      payment: { iban: org?.iban ?? null, accountName: org?.name ?? null },
       buyer: {
         // The company's name where there is one: an e-invoice is addressed to
         // the legal entity being billed, not to the person who ordered.
@@ -199,6 +233,7 @@ export function registerEInvoice(ctx: ModuleContext) {
           : null,
       })),
       subtotalCents: invoice.subtotalCents,
+      discountCents: invoice.discountCents,
       taxCents: invoice.taxCents,
       totalCents: invoice.totalCents,
       /*
@@ -216,13 +251,16 @@ export function registerEInvoice(ctx: ModuleContext) {
     requirePermission({ invoicing: ["read"] }),
     async (c: RouteContext) => {
       const orgId = activeOrganizationId(c.get("session"));
+      const profile = readProfile(c);
+      if (!profile) return c.json({ error: unknownProfile }, 400);
       const input = await gather(orgId, c.req.param("id") ?? "");
       if (!input) return c.json({ error: "not found" }, 404);
 
-      const missing = missingForEInvoice(input);
+      const missing = missingForEInvoice({ ...input, profile });
       return c.json({
         ready: missing.length === 0,
         missing,
+        profile,
         /*
          * Sent so the screen can say who it is addressed to. An e-invoice goes
          * to the legal entity rather than the person who ordered, and that is
@@ -240,16 +278,18 @@ export function registerEInvoice(ctx: ModuleContext) {
     requirePermission({ invoicing: ["read"] }),
     async (c: RouteContext) => {
       const orgId = activeOrganizationId(c.get("session"));
+      const profile = readProfile(c);
+      if (!profile) return c.json({ error: unknownProfile }, 400);
       const input = await gather(orgId, c.req.param("id") ?? "");
       if (!input) return c.json({ error: "not found" }, 404);
 
       try {
-        const xml = toUbl(input);
+        const xml = toUbl({ ...input, profile });
         return c.body(xml, 200, {
           "content-type": "application/xml; charset=utf-8",
-          // Named after the invoice, because a folder of `einvoice.xml` files is
-          // a folder nobody can use.
-          "content-disposition": `attachment; filename="${input.number}-en16931.xml"`,
+          // Named after the invoice and the rulebook it satisfies, because a
+          // folder of `einvoice.xml` files is a folder nobody can use.
+          "content-disposition": `attachment; filename="${input.number}-${profile}.xml"`,
         });
       } catch (err) {
         return c.json({ error: (err as Error).message }, 400);
