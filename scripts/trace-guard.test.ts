@@ -235,12 +235,21 @@ describe("permits ordinary English near-misses", () => {
     expect(findViolations("caught by a reviewer before any push")).toEqual([]);
   });
 
-  test("naming this project's own local instructions file is not a vendor mention (real false positive found against history)", () => {
+  /*
+   * This used to assert the opposite — that naming the instructions file was
+   * a false positive to be tolerated. That exemption is what let a comment
+   * saying "see <that file>'s build order" reach the public repository on
+   * 2026-09-16, pushed and unnoticed until a sibling repository's stricter
+   * check found it. Naming the file tells a reader it exists, which is the
+   * thing the rule forbids; the files that must contain the string are exempt
+   * by path instead.
+   */
+  test("naming this project's own local instructions file IS a vendor mention", () => {
     expect(
       findViolations(
         `A test rather than a note in ${INSTRUCTIONS_FILE}, because the note has been true for a while`,
-      ),
-    ).toEqual([]);
+      ).length,
+    ).toBeGreaterThan(0);
   });
 
   test('a business service literally named "Internal review" (real false positive found in Modules)', () => {
@@ -354,4 +363,34 @@ describe("only added lines are scanned, not removed or context lines", () => {
     ].join("\n");
     expect(scanAddedLines(diff)).toEqual([]);
   });
+});
+
+/*
+ * The hole that let a trace reach the public repository on 2026-09-16.
+ *
+ * This rule used to exempt the vendor name followed by `.md`, so that a
+ * comment naming the project's own local instructions file did not read as a
+ * vendor mention. A comment saying "see <that file>'s build order" was then
+ * committed, pushed, and only noticed because a sibling repository ran a
+ * stricter check of its own.
+ *
+ * Naming that file is itself a trace: it tells a reader such a file exists.
+ * The files that genuinely must contain the string are exempt by path, not by
+ * pattern — which is narrower, and which a comment in an unrelated source file
+ * cannot satisfy.
+ */
+test("naming the instructions file in ordinary source is refused", () => {
+  const leaked = `* US sales tax alone — the first market, see ${cap(VENDOR)}.md's build order`;
+
+  expect(findViolations(leaked).length).toBeGreaterThan(0);
+  // And it is refused in the file where it actually happened, which is not
+  // exempt by any path rule.
+  expect(isExcludedPath("packages/db/src/tax-regimes.ts")).toBe(false);
+});
+
+test("the instructions file itself is still exempt, by path", () => {
+  // The exemption that remains is by path and stays: an already-tracked copy
+  // of the instructions file contains these words because that is what it is.
+  expect(isExcludedPath(`${cap(VENDOR)}.md`)).toBe(true);
+  expect(isExcludedPath("scripts/trace-guard.ts")).toBe(true);
 });
