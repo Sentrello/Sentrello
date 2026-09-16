@@ -295,6 +295,11 @@ export async function requestUpdate(version: string): Promise<void> {
  * Carries no parameter at all, which makes it the safest of these requests:
  * there is no value for a form to smuggle anything into. The host decides what
  * to fetch from the licence it already holds.
+ *
+ * Two callers raise this exact signal: someone pressing "Check for updates"
+ * here, and `apps/server/src/module-acquisition.ts` doing the same thing on
+ * its own the moment an hourly refresh shows a newly bought module this
+ * instance does not have yet.
  */
 export async function requestSync(): Promise<void> {
   await mkdir(dataDir(), { recursive: true });

@@ -110,5 +110,7 @@ export async function resolveLicense(
   // shrug and an alarm respectively.
   return { state: live.state, gate, tokenPresent: live.tokenPresent };
 }
-// A pg-boss daily job fetches a fresh token from SENTRELLO_LICENSE_SERVER_URL,
+// A pg-boss hourly job fetches a fresh token from SENTRELLO_LICENSE_SERVER_URL,
 // writes it to tokenPath, and calls `refreshLicenseState` (the online check).
+// The same job also asks the host to fetch and install a newly-entitled
+// bundle it finds missing — see `apps/server/src/module-acquisition.ts`.
