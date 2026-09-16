@@ -11,9 +11,11 @@ import {
   addOnboarding,
   addSearchProvider,
   addSummary,
+  addWidget,
   clearOnboarding,
   clearServices,
   clearSummaries,
+  clearWidgets,
   provideService,
 } from "@sentrello/module-sdk";
 import type { Hono } from "hono";
@@ -53,6 +55,7 @@ export function loadModules(
   // The boot tests load modules more than once in one process, and a summary
   // registered by a run that is over would be drawn by the next one.
   clearSummaries();
+  clearWidgets();
   clearOnboarding();
   /*
    * And what one module offers another. The boot tests load modules more than
@@ -114,6 +117,10 @@ export function loadModules(
         registerPermission: (p) => permissions.push(p),
         registerSummary: (summary) =>
           addSummary({ ...summary, moduleId: m.id }),
+        // One dashboard panel, declared individually. The dashboard arranges
+        // whatever this instance's modules registered, and gates each widget
+        // by its own entitlement and permission before offering it.
+        registerWidget: (widget) => addWidget({ ...widget, moduleId: m.id }),
         // What somebody has to do before this module is any use. Drawn as a
         // checklist of whatever this instance loaded.
         registerOnboarding: (guide) =>

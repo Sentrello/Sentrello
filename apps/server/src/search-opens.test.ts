@@ -40,6 +40,7 @@ beforeAll(async () => {
     registerNav: (entry: { id: string }) => void navIds.add(entry.id),
     registerPermission: () => {},
     registerSummary: () => {},
+    registerWidget: () => {},
     registerPersonalData: () => {},
     registerOnboarding: () => {},
     registerSearch: (provider: unknown) => {

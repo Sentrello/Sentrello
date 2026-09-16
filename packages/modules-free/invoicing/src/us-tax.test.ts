@@ -25,6 +25,7 @@ beforeAll(async () => {
     registerNav: () => {},
     registerPermission: () => {},
     registerSummary: () => {},
+    registerWidget: () => {},
     registerSearch: () => {},
     registerPersonalData: () => {},
     registerOnboarding: () => {},
