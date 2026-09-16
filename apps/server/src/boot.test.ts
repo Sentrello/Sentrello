@@ -423,6 +423,10 @@ test("/api/_meta exposes only the nav the loaded modules registered", async () =
     // Filing a VAT return: its own page, because it is a deliberate act with a
     // legal declaration attached and not something to hunt for in a report.
     "accounting-vat",
+    // The Canadian returns share that reasoning: GST/HST for the CRA, QST
+    // for Revenu Québec, and each PST province's own — one page, one card
+    // per authority the business's rates call for.
+    "accounting-ca-tax",
     "settings",
     // Settings' own pages, so nobody hunts for a VAT number past the licence.
     "settings-business",
