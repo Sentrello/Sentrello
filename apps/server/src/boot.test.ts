@@ -441,6 +441,29 @@ test("/api/_meta exposes only the nav the loaded modules registered", async () =
     "users-console",
   ]);
   expect(body.loaded).not.toContain("pro-core");
+
+  /**
+   * And nothing about dashboard widgets, entitled or otherwise. The layout
+   * endpoint is where widgets are offered, filtered per reader; _meta
+   * carrying them too would be a second copy to leak from. On this
+   * unlicensed instance a Pro panel's id must appear nowhere at all.
+   */
+  const meta = JSON.stringify(body);
+  expect(meta).not.toContain("revenue-trend");
+  expect(meta).not.toContain("who-owes");
+
+  // The same discipline on the layout endpoint itself, through the real
+  // loader: the Free reader is offered the Free panels by name and never
+  // told the Pro ones exist.
+  const layoutRes = await server.fetch(
+    new Request("http://localhost/api/dashboard/layout", { headers }),
+  );
+  expect(layoutRes.status).toBe(200);
+  const layout = JSON.stringify(await layoutRes.json());
+  expect(layout).toContain('"money"');
+  expect(layout).not.toContain("revenue-trend");
+  expect(layout).not.toContain("who-owes");
+
   await cleanUp();
 });
 

@@ -103,13 +103,13 @@ interface Tab {
 }
 
 /**
- * What a module says about itself.
+ * A widget a module declared, with its own figures.
  *
  * The dashboard knows none of them by name. Shop and Booking live in another
- * repository and Core must not import them, so each module registers a few
- * figures on the server and this draws whatever came back.
+ * repository and Core must not import them, so each module declares its
+ * panels on the server and this draws whatever came back.
  */
-interface ModuleSummary {
+interface FigureWidgetData {
   id: string;
   moduleId: string;
   label: string;
@@ -121,6 +121,13 @@ interface ModuleSummary {
     kind?: "money" | "count" | "text";
     tone?: "plain" | "good" | "bad";
   }[];
+}
+
+/** A widget as the arranging screen is offered it: a name for an id. */
+interface WidgetChoice {
+  id: string;
+  label: string;
+  icon: string | null;
 }
 
 interface BalanceSheet {
@@ -162,7 +169,13 @@ interface AgedReceivables {
   totalCents: number;
 }
 
-/** Every panel, and what to call it when somebody is choosing between them. */
+/**
+ * What the shell's own panels call themselves while loading.
+ *
+ * Choosing between panels uses the names the server sends — the server is
+ * the one that knows what this reader may be offered at all. This map only
+ * titles a loading card before its data arrives.
+ */
 const WIDGET_LABELS: Record<string, string> = {
   money: "Money owed",
   attention: "Needs attention",
@@ -239,11 +252,7 @@ function ArrangedDashboard({ data }: { data: Dashboard }) {
   const layout = useQuery({
     queryKey: ["dashboard", "layout"],
     queryFn: () =>
-      api<{
-        tabs: Tab[];
-        widgets: string[];
-        moduleWidgets: { id: string; label: string }[];
-      }>("/api/dashboard/layout"),
+      api<{ tabs: Tab[]; widgets: WidgetChoice[] }>("/api/dashboard/layout"),
   });
   /*
    * Twelve months of ledger, which is the half Free does not buy. The endpoint
@@ -288,11 +297,7 @@ function ArrangedDashboard({ data }: { data: Dashboard }) {
       {arranging ? (
         <Arrange
           tabs={tabs}
-          widgets={[
-            ...layout.data.widgets,
-            ...(layout.data.moduleWidgets ?? []).map((m) => m.id),
-          ]}
-          moduleWidgets={layout.data.moduleWidgets ?? []}
+          widgets={layout.data.widgets}
           onSaved={() => {
             setArranging(false);
             // Back to the first tab, whatever it is now called — arranging is
@@ -365,16 +370,20 @@ function Widget({
           </div>
         </Card>
       );
+    case "revenue-trend":
+    case "cash-position":
+    case "deals-by-stage":
+    case "top-customers":
+    case "invoice-aging":
+      return <InsightWidget id={id} insights={insights} />;
     default:
       /*
        * A panel a module brought with it. The dashboard knows nothing about
        * what it contains — Shop and Booking are in another repository and Core
-       * must not import them — only that the module said it was worth showing.
+       * must not import them — only that the module declared it, with figures
+       * of its own that the generic card draws.
        */
-      if (id.startsWith("summary:")) {
-        return <SummaryWidget summaryId={id.slice("summary:".length)} />;
-      }
-      return <InsightWidget id={id} insights={insights} />;
+      return <FigureWidget widgetId={id} />;
   }
 }
 
@@ -386,10 +395,10 @@ function Widget({
  * a word, and this draws whatever came back — so Shop and Booking reach the
  * first screen a business looks at without Core ever naming them.
  */
-function SummaryCard({ summary }: { summary: ModuleSummary }) {
+function SummaryCard({ summary }: { summary: FigureWidgetData }) {
   const { open } = useNavigation();
 
-  const shown = (figure: ModuleSummary["figures"][number]) => {
+  const shown = (figure: FigureWidgetData["figures"][number]) => {
     // Money crosses the wire in cents and is formatted here, in the reader's
     // own currency and locale rather than the server's.
     if (figure.kind === "money" && typeof figure.value === "number") {
@@ -448,15 +457,15 @@ function SummaryCard({ summary }: { summary: ModuleSummary }) {
  * so it comes back where it was left rather than having been deleted while it
  * was away — and until it does, there is simply nothing to draw.
  */
-function SummaryWidget({ summaryId }: { summaryId: string }) {
+function FigureWidget({ widgetId }: { widgetId: string }) {
   const { data, isLoading } = useQuery({
-    queryKey: ["dashboard", "summaries"],
+    queryKey: ["dashboard", "widgets"],
     queryFn: () =>
-      api<{ summaries: ModuleSummary[] }>("/api/dashboard/summaries"),
+      api<{ widgets: FigureWidgetData[] }>("/api/dashboard/widgets"),
   });
 
   if (isLoading) return <Loading />;
-  const summary = (data?.summaries ?? []).find((s) => s.id === summaryId);
+  const summary = (data?.widgets ?? []).find((s) => s.id === widgetId);
   if (!summary) return null;
   return <SummaryCard summary={summary} />;
 }
@@ -819,19 +828,19 @@ function Stat({
 function Arrange({
   tabs,
   widgets,
-  moduleWidgets,
   onSaved,
 }: {
   tabs: Tab[];
-  widgets: string[];
   /**
-   * The panels this instance's modules brought with them.
+   * Every panel this reader may place, by name.
    *
-   * Passed rather than looked up, because their names belong to the modules:
-   * "Shop" is what the Shop called itself, and a list of `summary:shop` ids is
-   * a list nobody can arrange.
+   * The names come from the server because they belong to the modules:
+   * "Shop" is what the Shop called itself, and a list of `summary:shop` ids
+   * is a list nobody can arrange. The server sends only what this reader's
+   * licence and permissions cover, so nothing here names a panel they cannot
+   * have.
    */
-  moduleWidgets: { id: string; label: string }[];
+  widgets: WidgetChoice[];
   onSaved: () => void;
 }) {
   const qc = useQueryClient();
@@ -850,7 +859,7 @@ function Arrange({
   });
 
   const labelOf = (widget: string) =>
-    moduleWidgets.find((m) => m.id === widget)?.label ??
+    widgets.find((m) => m.id === widget)?.label ??
     WIDGET_LABELS[widget] ??
     widget;
 
@@ -900,13 +909,13 @@ function Arrange({
             </div>
             <div className="mt-2 flex flex-wrap gap-3 text-sm">
               {widgets.map((widget) => (
-                <label key={widget} className="flex items-center gap-1">
+                <label key={widget.id} className="flex items-center gap-1">
                   <input
                     type="checkbox"
-                    checked={tab.widgets.includes(widget)}
-                    onChange={() => toggle(i, widget)}
+                    checked={tab.widgets.includes(widget.id)}
+                    onChange={() => toggle(i, widget.id)}
                   />
-                  {labelOf(widget)}
+                  {widget.label}
                 </label>
               ))}
             </div>
@@ -915,11 +924,13 @@ function Arrange({
       </div>
 
       <div className="mt-3 flex flex-wrap gap-2">
-        {/* Six is the server's limit too. Stopping here as well means somebody
-            is told why rather than losing the seventh tab on save. */}
+        {/* Twelve is the server's limit too. Stopping here as well means
+            somebody is told why rather than losing the thirteenth tab on
+            save. It used to say six here while the server allowed twelve —
+            the screen was the stricter of the two and nobody could tell. */}
         <Button
           variant="secondary"
-          disabled={draft.length >= 6}
+          disabled={draft.length >= 12}
           onClick={() =>
             setDraft((d) => [
               ...d,
@@ -927,7 +938,7 @@ function Arrange({
             ])
           }
         >
-          {draft.length >= 6 ? "Six tabs is the limit" : "Add a tab"}
+          {draft.length >= 12 ? "Twelve tabs is the limit" : "Add a tab"}
         </Button>
         <Button onClick={() => save.mutate()} disabled={save.isPending}>
           {save.isPending ? "Saving…" : "Save layout"}

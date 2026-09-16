@@ -6,8 +6,8 @@ import {
 } from "@sentrello/auth/hono";
 import { db, schema } from "@sentrello/db";
 import {
+  type RegisteredWidget,
   allOnboarding,
-  allSummaries,
   defineMiddleware,
   defineModule,
   resolveGuide,
@@ -15,13 +15,17 @@ import {
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { readHealth } from "./health";
 import {
-  WIDGETS,
+  CORE_WIDGETS,
+  clearStored,
+  declaredWidgets,
+  defaultLayout,
   normalizeLayout,
-  readInsights,
-  readLayout,
-  summaryWidget,
-  writeLayout,
-} from "./pro";
+  readStored,
+  shownTabs,
+  withArrivals,
+  writeStored,
+} from "./layout";
+import { readInsights } from "./pro";
 import { readPromos, refreshPromosIfStale } from "./promos";
 
 /**
@@ -83,6 +87,12 @@ export default defineModule({
       group: "",
     });
     ctx.registerPermission("dashboard:read");
+
+    // The dashboard's own panels, declared like anybody else's. The list —
+    // and why it lives in `layout.ts` — is documented on CORE_WIDGETS.
+    for (const widget of CORE_WIDGETS) {
+      ctx.registerWidget(widget);
+    }
 
     /**
      * The promo document, hourly.
@@ -343,42 +353,64 @@ export default defineModule({
     });
 
     /**
-     * What every loaded module says about itself.
+     * The widgets this reader may see at all.
      *
-     * Not gated to Pro: a Free instance runs Invoicing and Accounting too, and
-     * "what has this module got to tell me" is the same question on both. What
-     * is gated is the arranging of them, which is the Pro dashboard's job.
+     * Three gates, in the order they were decided: the licence loaded the
+     * module or its widgets were never declared; the widget's own
+     * `entitlement` is asked of the licence, per request, because a licence
+     * can arrive or lapse while the process runs; and `requires` is asked of
+     * the reader, because a shop assistant with no bookkeeping permission
+     * should not be handed a tab of the books merely because the business
+     * bought the module.
      *
-     * Each summary is asked for separately and its permission checked
-     * separately. A bookkeeper's first screen should not be missing everything
-     * an owner sees, and an owner's should not fail outright because one panel
-     * was not theirs — so a summary that refuses, or throws, is left out
-     * rather than taking the screen with it.
+     * Everything the dashboard answers is cut down to this list — the
+     * offered widgets, every tab, the figures feed — so no response ever
+     * names a widget the reader cannot have. Being told a panel exists is
+     * being told what the business is hiding from you, or what we are
+     * selling; the first is a leak and the second is advertising done by
+     * error message.
+     */
+    const visibleWidgets = async (headers: Headers) => {
+      const mine = await Promise.all(
+        declaredWidgets().map(async (widget) => {
+          if (widget.entitlement && !ctx.entitled(widget.entitlement))
+            return null;
+          if (widget.requires && !(await mayAccess(headers, widget.requires)))
+            return null;
+          return widget;
+        }),
+      );
+      return mine.filter((w): w is RegisteredWidget => w !== null);
+    };
+
+    /**
+     * The figures for every widget that carries its own.
+     *
+     * Each widget is asked separately and its permission checked separately.
+     * A bookkeeper's first screen should not be missing everything an owner
+     * sees, and an owner's should not fail outright because one panel was
+     * not theirs — so a widget that refuses, or throws, is left out rather
+     * than taking the screen with it.
      */
     ctx.app.get(
-      "/api/dashboard/summaries",
+      "/api/dashboard/widgets",
       requireSession(),
       requirePermission({ dashboard: ["read"] }),
       async (c) => {
-        const session = c.get("session");
-        const orgId = activeOrganizationId(session);
+        const orgId = activeOrganizationId(c.get("session"));
+        const visible = await visibleWidgets(c.req.raw.headers);
 
         const cards = await Promise.all(
-          allSummaries().map(async (summary) => {
-            if (
-              summary.requires &&
-              !(await mayAccess(c.req.raw.headers, summary.requires))
-            ) {
-              return null;
-            }
+          visible.map(async (widget) => {
+            if (!widget.load) return null;
             try {
               return {
-                id: summary.id,
-                moduleId: summary.moduleId,
-                label: summary.label,
-                icon: summary.icon ?? null,
-                opens: summary.opens ?? null,
-                figures: await summary.load(orgId),
+                id: widget.id,
+                moduleId: widget.moduleId,
+                label: widget.label,
+                icon: widget.icon ?? null,
+                opens: widget.opens ?? null,
+                figures: await widget.load(orgId),
               };
             } catch {
               // A module that cannot count itself must not stop the others
@@ -388,28 +420,9 @@ export default defineModule({
           }),
         );
 
-        return c.json({ summaries: cards.filter((card) => card !== null) });
+        return c.json({ widgets: cards.filter((card) => card !== null) });
       },
     );
-
-    /**
-     * The modules this reader may actually see a panel for.
-     *
-     * Loaded is the licence's decision and is already made by the time a
-     * summary is registered at all; `requires` is this reader's. Both, because
-     * a shop assistant with no bookkeeping permission should not be handed a
-     * tab of the books merely because the business bought the module.
-     */
-    const visibleModules = async (headers: Headers) => {
-      const seen = await Promise.all(
-        allSummaries().map(async (summary) =>
-          summary.requires && !(await mayAccess(headers, summary.requires))
-            ? null
-            : { id: summary.id, label: summary.label },
-        ),
-      );
-      return seen.filter((m): m is { id: string; label: string } => m !== null);
-    };
 
     /**
      * What is left to set up, across whatever this instance loaded.
@@ -588,25 +601,35 @@ export default defineModule({
      * something to charge for — what Pro sells is the panels there are to
      * arrange.
      */
+    /**
+     * What this reader's dashboard looks like, cut down to what they may see.
+     *
+     * The tabs are the organization's one arrangement — stored or, until
+     * somebody arranges, the default built from what is visible. Either way a
+     * widget the reader cannot have is not in it, and a widget that arrived
+     * after the arranging — a module bought on day 200 — is appended with a
+     * tab of its own, so buying a module puts it on the screen with nobody
+     * doing anything.
+     */
     ctx.app.get(
       "/api/dashboard/layout",
       requireSession(),
       requirePermission({ dashboard: ["read"] }),
       async (c) => {
-        const session = c.get("session");
-        const modules = await visibleModules(c.req.raw.headers);
+        const orgId = activeOrganizationId(c.get("session"));
+        const visible = await visibleWidgets(c.req.raw.headers);
+        const ids = new Set(visible.map((w) => w.id));
+        const stored = await readStored(orgId);
         return c.json({
-          tabs: await readLayout(
-            activeOrganizationId(session),
-            session.user.id,
-            modules,
-          ),
-          widgets: WIDGETS,
-          // What this instance brought with it, so the arranging screen can
-          // offer them by name rather than by an id somebody has to decode.
-          moduleWidgets: modules.map((m) => ({
-            id: summaryWidget(m.id),
-            label: m.label,
+          tabs: stored
+            ? shownTabs(withArrivals(stored.tabs, stored.known, visible), ids)
+            : defaultLayout(visible),
+          // Offered by name, so the arranging screen has words rather than
+          // ids somebody has to decode.
+          widgets: visible.map((w) => ({
+            id: w.id,
+            label: w.label,
+            icon: w.icon ?? null,
           })),
         });
       },
@@ -615,20 +638,49 @@ export default defineModule({
     ctx.app.put(
       "/api/dashboard/layout",
       requireSession(),
-      // Arranging your own screen is not an administrative act, so it needs no
-      // permission beyond the one that let you see the screen.
+      // Arranging the business's screen is not an administrative act, so it
+      // needs no permission beyond the one that let anybody see the screen.
       requirePermission({ dashboard: ["read"] }),
       async (c) => {
-        const session = c.get("session");
+        const orgId = activeOrganizationId(c.get("session"));
         const body = (await c.req.json().catch(() => ({}))) as {
           tabs?: unknown;
         };
-        const tabs = normalizeLayout(
-          body.tabs,
-          await visibleModules(c.req.raw.headers),
-        );
-        await writeLayout(activeOrganizationId(session), session.user.id, tabs);
-        return c.json({ tabs });
+        const visible = await visibleWidgets(c.req.raw.headers);
+        const tabs = normalizeLayout(body.tabs);
+
+        if (tabs.length === 0) {
+          // An empty save resets rather than empties: a layout with no tabs
+          // is a blank screen with no way back to a usable one.
+          await clearStored(orgId);
+        } else {
+          /*
+           * `known` is what suppresses the day-200 append: everything this
+           * arrangement had the chance to place. The union with what was
+           * known before matters — this writer may lack a permission a
+           * colleague holds, and their save must not turn a colleague's
+           * deliberately-removed widget back into a new arrival.
+           */
+          const stored = await readStored(orgId);
+          const known = [
+            ...new Set([
+              ...(stored?.known ?? []),
+              ...visible.map((w) => w.id),
+              ...tabs.flatMap((t) => t.widgets),
+            ]),
+          ];
+          await writeStored(orgId, tabs, known);
+        }
+
+        // Answer with what this reader now sees, which is also the rule that
+        // a save naming a widget the writer cannot have never echoes it.
+        const ids = new Set(visible.map((w) => w.id));
+        const now = await readStored(orgId);
+        return c.json({
+          tabs: now
+            ? shownTabs(withArrivals(now.tabs, now.known, visible), ids)
+            : defaultLayout(visible),
+        });
       },
     );
   },

@@ -5,8 +5,11 @@ import { db, schema } from "@sentrello/db";
 import {
   addOnboarding,
   addSummary,
+  addWidget,
+  allWidgets,
   clearOnboarding,
   clearSummaries,
+  clearWidgets,
   registerForTest,
 } from "@sentrello/module-sdk";
 import { eq } from "drizzle-orm";
@@ -62,6 +65,9 @@ afterAll(async () => {
   await db
     .delete(schema.userPreferences)
     .where(eq(schema.userPreferences.organizationId, orgId));
+  await db
+    .delete(schema.organizationPreferences)
+    .where(eq(schema.organizationPreferences.organizationId, orgId));
   await db
     .delete(schema.onboardingDismissals)
     .where(eq(schema.onboardingDismissals.organizationId, orgId));
@@ -312,10 +318,12 @@ test("a layout survives a save, and cannot grow past the limit", async () => {
 
   const read = (await (
     await app.request("http://localhost/api/dashboard/layout", { headers })
-  ).json()) as { tabs: { name: string }[]; widgets: string[] };
+  ).json()) as { tabs: { name: string }[]; widgets: { id: string }[] };
   expect(read.tabs).toHaveLength(12);
   expect(read.tabs[0]?.name).toBe("Tab 0");
-  expect(read.widgets).toContain("revenue-trend");
+  // Offered to this fully entitled reader; the Free reader's test below
+  // asserts the same id is never named to somebody it is not for.
+  expect(read.widgets.map((w) => w.id)).toContain("revenue-trend");
 
   // Saving twice is the normal case — every rearrange is a save — and must not
   // leave two answers to a question that has one.
@@ -533,23 +541,23 @@ test("an instance that has never fetched the promo document fetches once", async
  */
 test("a module's own figures reach the dashboard", async () => {
   addSummary({
-    moduleId: "widgets",
-    id: "widgets",
+    moduleId: "hire",
+    id: "hire",
     label: "Widget hire",
     icon: "boxes",
-    opens: "widgets",
+    opens: "hire",
     load: async () => [
       { label: "Out on hire", value: 7, kind: "count" },
       { label: "Owed", value: 12_500, kind: "money", tone: "bad" },
     ],
   });
 
-  const res = await app.request("http://localhost/api/dashboard/summaries", {
+  const res = await app.request("http://localhost/api/dashboard/widgets", {
     headers,
   });
   expect(res.status).toBe(200);
-  const { summaries } = (await res.json()) as {
-    summaries: {
+  const { widgets } = (await res.json()) as {
+    widgets: {
       id: string;
       label: string;
       opens: string | null;
@@ -557,9 +565,10 @@ test("a module's own figures reach the dashboard", async () => {
     }[];
   };
 
-  const hire = summaries.find((s) => s.id === "widgets");
+  // A summary is a widget with no further declaration, under `summary:<id>`.
+  const hire = widgets.find((s) => s.id === "summary:hire");
   expect(hire?.label).toBe("Widget hire");
-  expect(hire?.opens).toBe("widgets");
+  expect(hire?.opens).toBe("hire");
   // Money stays in cents all the way to the browser, which formats it in the
   // reader's own currency.
   expect(hire?.figures).toContainEqual({
@@ -588,12 +597,12 @@ test("a module that cannot count itself does not take the screen with it", async
     load: async () => [{ label: "Things", value: 3, kind: "count" }],
   });
 
-  const res = await app.request("http://localhost/api/dashboard/summaries", {
+  const res = await app.request("http://localhost/api/dashboard/widgets", {
     headers,
   });
   expect(res.status).toBe(200);
-  const { summaries } = (await res.json()) as { summaries: { id: string }[] };
-  expect(summaries.map((s) => s.id)).toEqual(["fine"]);
+  const { widgets } = (await res.json()) as { widgets: { id: string }[] };
+  expect(widgets.map((s) => s.id)).toEqual(["summary:fine"]);
 
   clearSummaries();
 });
@@ -609,12 +618,12 @@ test("a summary somebody may not read is left out, not refused", async () => {
     load: async () => [{ label: "Secrets", value: 1, kind: "count" }],
   });
 
-  const res = await app.request("http://localhost/api/dashboard/summaries", {
+  const res = await app.request("http://localhost/api/dashboard/widgets", {
     headers,
   });
   expect(res.status).toBe(200);
-  const { summaries } = (await res.json()) as { summaries: { id: string }[] };
-  expect(summaries.map((s) => s.id)).not.toContain("vault");
+  const { widgets } = (await res.json()) as { widgets: { id: string }[] };
+  expect(widgets.map((s) => s.id)).not.toContain("summary:vault");
 
   clearSummaries();
 });
@@ -829,4 +838,245 @@ test("a module added later brings its own onboarding, whatever came before", asy
   await db
     .delete(schema.onboardingDismissals)
     .where(eq(schema.onboardingDismissals.organizationId, orgId));
+});
+
+// ---------------------------------------------------------------------------
+// Declared widgets, and an arrangement that never names what a reader
+// cannot have
+// ---------------------------------------------------------------------------
+
+interface Layout {
+  tabs: { name: string; widgets: string[] }[];
+  widgets: { id: string; label: string; icon: string | null }[];
+}
+
+const readLayoutAs = async (
+  on: typeof app,
+  h: Headers = headers,
+): Promise<Layout> =>
+  (await (
+    await on.request("http://localhost/api/dashboard/layout", { headers: h })
+  ).json()) as Layout;
+
+/** Puts the widget registry back the way this test found it. */
+const restoreWidgets = (before: ReturnType<typeof allWidgets>) => {
+  clearWidgets();
+  for (const w of before) addWidget(w);
+};
+
+/**
+ * The mechanism, not any particular module: a made-up module declares one
+ * widget through the SDK and it is offered on the dashboard, with its own
+ * figures, without the dashboard naming it anywhere.
+ */
+test("a module's declared widget appears on the dashboard", async () => {
+  const before = allWidgets();
+  addWidget({
+    moduleId: "hire",
+    id: "hire-fleet",
+    label: "The fleet",
+    icon: "boxes",
+    load: async () => [{ label: "Out on hire", value: 7, kind: "count" }],
+  });
+
+  try {
+    const layout = await readLayoutAs(app);
+    expect(layout.widgets.map((w) => w.id)).toContain("hire-fleet");
+    // Offered by name, so the arranging screen has words rather than ids.
+    expect(layout.widgets.find((w) => w.id === "hire-fleet")?.label).toBe(
+      "The fleet",
+    );
+    // And on the screen itself: a tab of its own, without anybody arranging.
+    expect(layout.tabs.some((t) => t.widgets.includes("hire-fleet"))).toBe(
+      true,
+    );
+
+    const feed = (await (
+      await app.request("http://localhost/api/dashboard/widgets", { headers })
+    ).json()) as {
+      widgets: { id: string; figures: { label: string; value: number }[] }[];
+    };
+    expect(
+      feed.widgets.find((w) => w.id === "hire-fleet")?.figures,
+    ).toContainEqual({ label: "Out on hire", value: 7, kind: "count" });
+  } finally {
+    restoreWidgets(before);
+  }
+});
+
+/**
+ * Not entitled means not disclosed.
+ *
+ * The Free instance's arrangement must never name a Pro panel — not in the
+ * offered list, not in a tab, and not echoed back from a save that tried to
+ * smuggle one in. Telling a Free reader "revenue-trend exists, you cannot
+ * have it" is advertising done by error message.
+ */
+test("a widget whose entitlement is absent is not disclosed anywhere", async () => {
+  const layout = await readLayoutAs(freeApp);
+  const offered = layout.widgets.map((w) => w.id);
+  expect(offered).toContain("money");
+  expect(offered).not.toContain("revenue-trend");
+  expect(offered).not.toContain("who-owes");
+  expect(layout.tabs.flatMap((t) => t.widgets)).not.toContain("revenue-trend");
+
+  // A save that names the Pro panel anyway gets nothing back for it.
+  const saved = (await (
+    await freeApp.request("http://localhost/api/dashboard/layout", {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({
+        tabs: [{ name: "Mine", widgets: ["money", "revenue-trend"] }],
+      }),
+    })
+  ).json()) as Layout;
+  expect(saved.tabs.flatMap((t) => t.widgets)).not.toContain("revenue-trend");
+
+  // And a module-entitlement widget behaves exactly like the tier one.
+  const before = allWidgets();
+  addWidget({
+    moduleId: "boutique",
+    id: "boutique-sales",
+    label: "Boutique sales",
+    entitlement: { module: "boutique" },
+    load: async () => [],
+  });
+  try {
+    const strict = registerForTest(
+      dashboard,
+      undefined,
+      () => false, // entitled to nothing beyond what loaded
+    );
+    const bare = await readLayoutAs(strict);
+    expect(bare.widgets.map((w) => w.id)).not.toContain("boutique-sales");
+    expect(bare.tabs.flatMap((t) => t.widgets)).not.toContain("boutique-sales");
+  } finally {
+    restoreWidgets(before);
+  }
+});
+
+/** The reader's own gate: a widget they may not read is not theirs to see. */
+test("a widget the reader lacks permission for is not disclosed", async () => {
+  const before = allWidgets();
+  addWidget({
+    moduleId: "vault",
+    id: "vault-holdings",
+    label: "Vault",
+    requires: { nonexistent: ["read"] },
+    load: async () => [{ label: "Secrets", value: 1, kind: "count" }],
+  });
+
+  try {
+    const layout = await readLayoutAs(app);
+    expect(layout.widgets.map((w) => w.id)).not.toContain("vault-holdings");
+    expect(layout.tabs.flatMap((t) => t.widgets)).not.toContain(
+      "vault-holdings",
+    );
+
+    const feed = (await (
+      await app.request("http://localhost/api/dashboard/widgets", { headers })
+    ).json()) as { widgets: { id: string }[] };
+    expect(feed.widgets.map((w) => w.id)).not.toContain("vault-holdings");
+  } finally {
+    restoreWidgets(before);
+  }
+});
+
+/**
+ * The arrangement belongs to the business, not to whoever saved it.
+ *
+ * "Look at the Shop tab" has to mean the same thing to everyone in a twelve
+ * person company, so the tabs are one decision per organization.
+ */
+test("an arrangement persists per organization, not per person", async () => {
+  const put = await app.request("http://localhost/api/dashboard/layout", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({
+      tabs: [{ name: "Ours", widgets: ["money", "health"] }],
+    }),
+  });
+  expect(put.status).toBe(200);
+
+  // A colleague, signed in as themselves, sees the same tabs.
+  const colleague = await signUpAsOwner({
+    email: `dash-colleague-${suffix}@x.test`,
+    password: "correct-horse-battery-staple",
+    name: "Colleague",
+  });
+  const cookie = colleague.headers.get("set-cookie");
+  if (!cookie) throw new Error("sign-up returned no session cookie");
+  const colleagueHeaders = new Headers({
+    cookie,
+    "content-type": "application/json",
+  });
+  const colleagueId = colleague.response.user.id;
+  await db.insert(schema.member).values({
+    id: crypto.randomUUID(),
+    organizationId: orgId,
+    userId: colleagueId,
+    role: "admin",
+    baseRole: "admin",
+    createdAt: new Date(),
+  });
+  await auth.api.setActiveOrganization({
+    body: { organizationId: orgId },
+    headers: colleagueHeaders,
+  });
+
+  try {
+    const res = await app.request("http://localhost/api/dashboard/layout", {
+      headers: colleagueHeaders,
+    });
+    expect(res.status).toBe(200);
+    const theirs = (await res.json()) as Layout;
+    expect(theirs.tabs.map((t) => t.name)).toEqual(["Ours"]);
+  } finally {
+    await db.delete(schema.member).where(eq(schema.member.userId, colleagueId));
+    await db
+      .delete(schema.session)
+      .where(eq(schema.session.userId, colleagueId));
+    await db
+      .delete(schema.account)
+      .where(eq(schema.account.userId, colleagueId));
+    await db.delete(schema.user).where(eq(schema.user.id, colleagueId));
+  }
+});
+
+/**
+ * A module bought on day 200 reaches the screen on day 200.
+ *
+ * The business arranged its tabs long ago; the new module's widget was in
+ * nobody's arrangement and never will be unless it puts itself there.
+ */
+test("a newly entitled module's widget appears without the business doing anything", async () => {
+  // The business has arranged — the saved layout knows nothing of what is
+  // about to arrive.
+  await app.request("http://localhost/api/dashboard/layout", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ tabs: [{ name: "Ours", widgets: ["money"] }] }),
+  });
+
+  const before = allWidgets();
+  addWidget({
+    moduleId: "shop",
+    id: "shop-takings",
+    label: "Shop",
+    load: async () => [{ label: "Today", value: 12_300, kind: "money" }],
+  });
+
+  try {
+    const layout = await readLayoutAs(app);
+    // The arranged tab is untouched, and the new module has a tab of its own.
+    expect(layout.tabs[0]).toEqual({ name: "Ours", widgets: ["money"] });
+    const shopTab = layout.tabs.find((t) => t.widgets.includes("shop-takings"));
+    expect(shopTab?.name).toBe("Shop");
+  } finally {
+    restoreWidgets(before);
+    // Reset the arrangement for whatever runs after this.
+    await db
+      .delete(schema.organizationPreferences)
+      .where(eq(schema.organizationPreferences.organizationId, orgId));
+  }
 });
