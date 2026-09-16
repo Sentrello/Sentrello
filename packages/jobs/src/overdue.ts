@@ -1,4 +1,5 @@
 import { db, schema } from "@sentrello/db";
+import { creditedAgainst } from "@sentrello/db/documents";
 import { invoiceStatus } from "@sentrello/db/money";
 import { businessIdentity } from "@sentrello/db/portal";
 import { emailAdapter, mailConfigured } from "@sentrello/email";
@@ -56,7 +57,17 @@ export async function sendOverdueReminders(
       .from(schema.payments)
       .where(eq(schema.payments.invoiceId, invoice.id));
     const paidCents = paid.reduce((s, p) => s + p.amountCents, 0);
-    const { balanceDue } = invoiceStatus(invoice.totalCents, paidCents);
+    // Credits settle debt beside the payments: a partly credited invoice is
+    // chased for the uncredited remainder, not for money nobody is owed.
+    const creditedCents =
+      (await creditedAgainst(invoice.organizationId, [invoice.id])).get(
+        invoice.id,
+      ) ?? 0;
+    const { balanceDue } = invoiceStatus(
+      invoice.totalCents,
+      paidCents,
+      creditedCents,
+    );
 
     if (!isOverdue(invoice.dueDate, balanceDue, now)) continue;
 

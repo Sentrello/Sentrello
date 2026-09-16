@@ -111,7 +111,12 @@ export async function usFilingReport(
           like(schema.taxDefinitions.jurisdiction, "US-%"),
         ),
         isNotNull(schema.taxDefinitions.jurisdiction),
-        inArray(schema.invoices.status, ["open", "partial", "paid"]),
+        inArray(schema.invoices.status, [
+          "open",
+          "partial",
+          "paid",
+          "credited",
+        ]),
         gte(schema.invoices.issueDate, from),
         lte(schema.invoices.issueDate, to),
       ),
@@ -214,7 +219,12 @@ export async function usFilingReport(
       and(
         eq(schema.invoices.organizationId, orgId),
         eq(schema.exemptionCertificates.organizationId, orgId),
-        inArray(schema.invoices.status, ["open", "partial", "paid"]),
+        inArray(schema.invoices.status, [
+          "open",
+          "partial",
+          "paid",
+          "credited",
+        ]),
         gte(schema.invoices.issueDate, from),
         lte(schema.invoices.issueDate, to),
       ),

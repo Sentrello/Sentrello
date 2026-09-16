@@ -5,6 +5,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { db, schema } from "@sentrello/db";
+import { creditedAgainst } from "@sentrello/db/documents";
 import {
   type RegisteredWidget,
   allOnboarding,
@@ -199,18 +200,36 @@ export default defineModule({
             (paidByInvoice.get(p.invoiceId) ?? 0) + p.amountCents,
           );
         }
-        const balanceOf = (invoice: { id: string; totalCents: number }) =>
-          Math.max(
-            0,
-            invoice.totalCents - (paidByInvoice.get(invoice.id) ?? 0),
-          );
-
         // Money owed, and how much of it is late. Two numbers rather than one,
         // because "you are owed £8,000" and "£6,000 of it is overdue" call for
         // completely different afternoons.
+        //
+        // Only live invoices count: a credit note is money going the other
+        // way, a draft was never asked for, and settled is settled whether
+        // money paid it or a credit note wrote it off.
         const unpaid = invoices.filter(
-          (i) => i.status !== "paid" && i.status !== "void",
+          (i) =>
+            i.kind === "invoice" &&
+            !i.deletedAt &&
+            i.status !== "paid" &&
+            i.status !== "credited" &&
+            i.status !== "void" &&
+            i.status !== "draft",
         );
+
+        // Credits settle debt beside the payments; without them a partly
+        // credited invoice showed the credited share as still owed.
+        const creditedByInvoice = await creditedAgainst(
+          orgId,
+          unpaid.map((i) => i.id),
+        );
+        const balanceOf = (invoice: { id: string; totalCents: number }) =>
+          Math.max(
+            0,
+            invoice.totalCents -
+              (paidByInvoice.get(invoice.id) ?? 0) -
+              (creditedByInvoice.get(invoice.id) ?? 0),
+          );
         const owedCents = unpaid.reduce((sum, i) => sum + balanceOf(i), 0);
         const overdue = unpaid.filter(
           (i) => i.dueDate && new Date(i.dueDate) < now,

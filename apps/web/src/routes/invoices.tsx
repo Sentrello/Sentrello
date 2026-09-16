@@ -55,6 +55,8 @@ interface InvoiceRow {
   taxCents: number;
   totalCents: number;
   paidCents: number;
+  /** Settled by credit note rather than by money. */
+  creditedCents: number;
   balanceCents: number;
   overdue: boolean;
   viewCount: number;
@@ -92,6 +94,10 @@ function statusOf(invoice: InvoiceRow): { label: string; tone: string } {
       return { label: "Draft", tone: "var(--text-muted)" };
     case "paid":
       return { label: "Paid", tone: "var(--text-success)" };
+    case "credited":
+      // Settled without money moving: nobody paid it, the business gave the
+      // debt up by credit note. Its own word, because "Paid" would be false.
+      return { label: "Credited", tone: "var(--text-info)" };
     case "void":
       return { label: "Void", tone: "var(--text-muted)" };
     case "partial":
@@ -532,6 +538,9 @@ function InvoiceActions({
   const isDraft = invoice.status === "draft";
   const isVoid = invoice.status === "void";
   const paid = invoice.paidCents > 0;
+  // A credit note already reversed some of it in the books, so voiding is
+  // off the menu — the server refuses it for the same reason.
+  const credited = invoice.creditedCents > 0;
 
   return (
     <span className="relative inline-block">
@@ -593,7 +602,7 @@ function InvoiceActions({
             Duplicate
           </button>
 
-          {!isVoid && !paid ? (
+          {!isVoid && !paid && !credited ? (
             <button
               type="button"
               className="menu-item"

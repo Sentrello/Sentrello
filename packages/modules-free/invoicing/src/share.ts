@@ -5,6 +5,7 @@ import {
   creditFooter,
   creditFor,
 } from "@sentrello/db/credit";
+import { creditedAgainst } from "@sentrello/db/documents";
 import { earlyPaymentTerms } from "@sentrello/db/money";
 import { businessIdentity } from "@sentrello/db/portal";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
@@ -214,6 +215,8 @@ function documentPage(args: {
   taxCents: number;
   totalCents: number;
   paidCents: number;
+  /** Settled by credit note rather than by money. */
+  creditedCents: number;
   notes: string | null;
   paymentTerms: string | null;
   /** Pay by this date and pay this much less. Null when nothing is offered. */
@@ -248,7 +251,7 @@ function documentPage(args: {
 }): string {
   const brand = branding(args.template);
   const noun = args.kind === "invoice" ? "Invoice" : "Quote";
-  const due = args.totalCents - args.paidCents;
+  const due = args.totalCents - args.paidCents - args.creditedCents;
 
   const lineRow = (l: DocumentLine) => `<tr>
       <td>${esc(l.description)}</td>
@@ -392,8 +395,20 @@ ${brand.header}
   <tr><td>Total</td><td class="num">${money(args.totalCents, args.currency)}</td></tr>
   ${
     args.kind === "invoice" && args.paidCents > 0
-      ? `<tr><td>Paid</td><td class="num">−${money(args.paidCents, args.currency)}</td></tr>
-         <tr><td>${due > 0 ? "Still due" : "Settled"}</td><td class="num">${money(Math.max(0, due), args.currency)}</td></tr>`
+      ? `<tr><td>Paid</td><td class="num">−${money(args.paidCents, args.currency)}</td></tr>`
+      : ""
+  }
+  ${
+    /* Named for what it is: a credit is not a payment, and a page that
+       lumped them together would tell the customer money moved when the
+       business gave the debt up instead. */
+    args.kind === "invoice" && args.creditedCents > 0
+      ? `<tr><td>Credited</td><td class="num">−${money(args.creditedCents, args.currency)}</td></tr>`
+      : ""
+  }
+  ${
+    args.kind === "invoice" && args.paidCents + args.creditedCents > 0
+      ? `<tr><td>${due > 0 ? "Still due" : "Settled"}</td><td class="num">${money(Math.max(0, due), args.currency)}</td></tr>`
       : ""
   }
 </table>
@@ -406,7 +421,10 @@ ${
    * Under the totals rather than beside them, because it is not part of what
    * is owed — it is a thing that could still happen to what is owed.
    */
-  args.kind === "invoice" && args.earlyPayment && args.paidCents === 0
+  args.kind === "invoice" &&
+  args.earlyPayment &&
+  args.paidCents === 0 &&
+  due > 0
     ? `<p class="muted">Pay by ${day(args.earlyPayment.deadline)} and take ${money(args.earlyPayment.savingCents, args.currency)} off — ${money(args.earlyPayment.totalCents, args.currency)} settles it in full.</p>`
     : ""
 }
@@ -546,6 +564,7 @@ export function registerShare(ctx: ModuleContext) {
       );
 
       let paidCents = 0;
+      let creditedCents = 0;
       let customer: string | null = null;
       if (kind === "invoice") {
         const payments = await db
@@ -553,6 +572,9 @@ export function registerShare(ctx: ModuleContext) {
           .from(schema.payments)
           .where(eq(schema.payments.invoiceId, row.id));
         paidCents = payments.reduce((sum, p) => sum + p.amountCents, 0);
+        creditedCents =
+          (await creditedAgainst(row.organizationId, [row.id])).get(row.id) ??
+          0;
       }
       if (row.contactId) {
         const [contact] = await db
@@ -620,6 +642,7 @@ export function registerShare(ctx: ModuleContext) {
           taxCents: row.taxCents,
           totalCents: row.totalCents,
           paidCents,
+          creditedCents,
           notes: row.notes,
           paymentTerms: kind === "invoice" ? invoiceRow.paymentTerms : null,
           bands: bands.map((b) => ({

@@ -92,7 +92,14 @@ export interface PortalInvoice {
   currency: string;
   totalCents: number;
   paidCents: number;
+  /** Settled by credit note rather than by money. Absent means none. */
+  creditedCents?: number;
   dueDate: Date | string | null;
+}
+
+/** What a document still asks for, after money and credit alike. */
+function balanceOf(i: PortalInvoice): number {
+  return Math.max(0, i.totalCents - i.paidCents - (i.creditedCents ?? 0));
 }
 
 /**
@@ -133,6 +140,9 @@ invoice. Nothing is charged until you pay it.</p>`;
 /** Overdue is a state the customer should see, not a state the seller knows. */
 function label(invoice: PortalInvoice, now = new Date()): string {
   if (invoice.status === "paid") return "paid";
+  // Settled by credit note: nothing is owed, so it can never be overdue,
+  // and "paid" would tell the customer money moved when none did.
+  if (invoice.status === "credited") return "credited";
   const due = invoice.dueDate ? new Date(invoice.dueDate) : null;
   if (due && due.getTime() < now.getTime()) return "overdue";
   return invoice.status === "partial" ? "part paid" : "due";
@@ -218,10 +228,7 @@ export function portalPage(args: {
     now = new Date(),
   } = args;
 
-  const owed = invoices.reduce(
-    (sum, i) => sum + Math.max(0, i.totalCents - i.paidCents),
-    0,
-  );
+  const owed = invoices.reduce((sum, i) => sum + balanceOf(i), 0);
   const currency = invoices[0]?.currency ?? "USD";
 
   const rows =
@@ -231,8 +238,12 @@ export function portalPage(args: {
           .map((i) => {
             const state = label(i, now);
             const cls =
-              state === "paid" ? "paid" : state === "overdue" ? "over" : "due";
-            const balance = Math.max(0, i.totalCents - i.paidCents);
+              state === "paid" || state === "credited"
+                ? "paid"
+                : state === "overdue"
+                  ? "over"
+                  : "due";
+            const balance = balanceOf(i);
             const pay =
               payPath && balance > 0
                 ? `<form method="post" action="${html(payPath)}/${html(i.id)}">

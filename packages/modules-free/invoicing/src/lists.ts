@@ -110,7 +110,14 @@ function invoiceTab(tab: string, now: Date): (SQL | undefined)[] {
     case "draft":
       return [live, isInvoice, eq(schema.invoices.status, "draft")];
     case "paid":
-      return [live, isInvoice, eq(schema.invoices.status, "paid")];
+      // Settled, however it was settled: paid with money, or written off by
+      // credit note. A credited invoice with no tab of its own would be one
+      // nobody could find again; the status badge says which it was.
+      return [
+        live,
+        isInvoice,
+        inArray(schema.invoices.status, ["paid", "credited"]),
+      ];
     case "void":
       return [live, isInvoice, eq(schema.invoices.status, "void")];
     case "unpaid":
@@ -375,6 +382,7 @@ export function registerLists(ctx: ModuleContext) {
             // Computed, not stored: it depends on today.
             overdue:
               r.status !== "paid" &&
+              r.status !== "credited" &&
               r.status !== "void" &&
               r.status !== "draft" &&
               !!r.dueDate &&

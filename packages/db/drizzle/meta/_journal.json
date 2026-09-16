@@ -561,6 +561,13 @@
       "when": 1789539872162,
       "tag": "0079_a_table_no_invoice_ever_read",
       "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "7",
+      "when": 1789572410340,
+      "tag": "0080_credited_invoices_say_so",
+      "breakpoints": true
     }
   ]
 }

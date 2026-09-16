@@ -38,6 +38,38 @@ test("overdue is shown as overdue", () => {
   expect(html).toContain("overdue");
 });
 
+test("a credited invoice reads credited, owes nothing, and offers no Pay button", () => {
+  // Overdue by date, but settled by credit note: nothing is owed, so it can
+  // never be overdue — and "paid" would claim money moved when none did.
+  const html = portalPage({
+    businessName: "Northfield Joinery",
+    customerName: "Marguerite",
+    invoices: [
+      invoice({
+        status: "credited",
+        creditedCents: 20000,
+        dueDate: new Date("2026-08-01T00:00:00Z"),
+      }),
+    ],
+    payPath: "/portal/token/pay",
+    now,
+  });
+  expect(html).toContain(">credited<");
+  expect(html).not.toContain(">overdue<");
+  expect(html).toContain("Nothing outstanding");
+  expect(html).not.toContain(">Pay</button>");
+});
+
+test("a partly credited invoice asks for the uncredited remainder", () => {
+  const html = portalPage({
+    businessName: "Northfield Joinery",
+    customerName: "Marguerite",
+    invoices: [invoice({ status: "partial", creditedCents: 15000 })],
+    now,
+  });
+  expect(html).toContain("$50.00 outstanding");
+});
+
 test("a paid invoice is not counted as outstanding", () => {
   const html = portalPage({
     businessName: "Northfield Joinery",

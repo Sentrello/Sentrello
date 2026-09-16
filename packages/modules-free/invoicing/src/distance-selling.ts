@@ -139,7 +139,12 @@ export async function distanceSalesPosition(
         // across organisations must not put a stranger's sales in the sum.
         eq(schema.contacts.organizationId, orgId),
         eq(schema.companies.organizationId, orgId),
-        inArray(schema.invoices.status, ["open", "partial", "paid"]),
+        inArray(schema.invoices.status, [
+          "open",
+          "partial",
+          "paid",
+          "credited",
+        ]),
         gte(schema.invoices.issueDate, priorYearStart),
       ),
     );

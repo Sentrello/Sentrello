@@ -82,6 +82,8 @@ interface Detail {
   /** What it has been labelled, for finding it again among four hundred. */
   tags: TagChip[];
   paidCents: number;
+  /** Settled by credit note rather than by money. */
+  creditedCents: number;
   balanceDue: number;
   computedStatus: string;
 }
@@ -376,6 +378,15 @@ export function InvoiceDetail() {
                   <td className="money">−{formatMoney(data.paidCents)}</td>
                 </tr>
               ) : null}
+              {/* Apart from the payments on purpose: a credit is debt given
+                  up, not money that arrived, and the split is the only place
+                  a part-paid-then-credited invoice tells its whole story. */}
+              {data.creditedCents > 0 && !isCredit ? (
+                <tr>
+                  <td style={muted}>Credited</td>
+                  <td className="money">−{formatMoney(data.creditedCents)}</td>
+                </tr>
+              ) : null}
               {!isDraft && !isVoid ? (
                 <tr className="font-semibold">
                   <td>{data.balanceDue > 0 ? "Still due" : "Settled"}</td>
@@ -444,7 +455,7 @@ export function InvoiceDetail() {
             >
               Duplicate
             </Button>
-            {!isVoid && data.paidCents === 0 ? (
+            {!isVoid && data.paidCents === 0 && data.creditedCents === 0 ? (
               <Button
                 variant="danger"
                 onClick={() => act.mutate("void")}

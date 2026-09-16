@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "./client";
 import { rateOn } from "./currency";
 import { postInvoiceIssued } from "./ledger";
@@ -638,4 +638,49 @@ export async function convertQuoteToInstalments(
   // Nothing is posted to the ledger here: these are drafts, and a draft is not
   // revenue. Issuing one posts it, the same as any other invoice.
   return { invoices: made };
+}
+
+/**
+ * What has already been credited against each of these invoices, in cents.
+ *
+ * A credit note settles debt the way a payment does — the customer no longer
+ * owes that part — so everything that answers "what is still due" needs this
+ * beside the payments sum: the status recompute, the over-credit guard, the
+ * balance a screen shows, the amount a reminder chases for. One query and one
+ * definition, because a caller that summed credits its own way is how an
+ * invoice ends up owed two different amounts depending on which screen is
+ * asking.
+ *
+ * In the data layer rather than the invoicing module because the overdue and
+ * reminder jobs need the same sum and may not import a module.
+ *
+ * Absent from the map means zero. Voided credit notes do not count; neither
+ * do deleted ones.
+ */
+export async function creditedAgainst(
+  orgId: string,
+  invoiceIds: string[],
+): Promise<Map<string, number>> {
+  const credited = new Map<string, number>();
+  if (invoiceIds.length === 0) return credited;
+  const rows = await db
+    .select({
+      invoiceId: schema.invoices.referenceInvoiceId,
+      total: sql<number>`coalesce(sum(${schema.invoices.totalCents}), 0)::int`,
+    })
+    .from(schema.invoices)
+    .where(
+      and(
+        eq(schema.invoices.organizationId, orgId),
+        eq(schema.invoices.kind, "credit_note"),
+        inArray(schema.invoices.referenceInvoiceId, invoiceIds),
+        isNull(schema.invoices.deletedAt),
+        sql`${schema.invoices.status} != 'void'`,
+      ),
+    )
+    .groupBy(schema.invoices.referenceInvoiceId);
+  for (const row of rows) {
+    if (row.invoiceId) credited.set(row.invoiceId, row.total);
+  }
+  return credited;
 }
