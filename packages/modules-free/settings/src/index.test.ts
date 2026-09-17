@@ -113,21 +113,24 @@ test("a half-configured Stripe is reported as half-configured", async () => {
   }
 });
 
-test("the webhook addresses are the ones a provider needs", async () => {
+test("each processor is given one address, the platform's own", async () => {
   const body = (await read()) as {
     payments: {
-      stripe: { invoiceWebhookUrl: string; shopWebhookUrl: string };
-      paypal: { shopWebhookUrl: string };
+      stripe: { webhookUrl: string };
+      paypal: { webhookUrl: string };
     };
   };
-  expect(body.payments.stripe.invoiceWebhookUrl).toContain(
-    "/api/webhooks/stripe/invoices",
+  /*
+   * One each, and the same one the connect screen registers automatically.
+   * The screen used to offer an invoice address while the automatic setup
+   * registered a shop one, so whichever route a business took, half of what it
+   * sold was confirmed by nobody.
+   */
+  expect(body.payments.stripe.webhookUrl).toContain(
+    "/api/payments/webhook/stripe",
   );
-  expect(body.payments.stripe.shopWebhookUrl).toContain(
-    "/api/shop/webhook/stripe",
-  );
-  expect(body.payments.paypal.shopWebhookUrl).toContain(
-    "/api/shop/webhook/paypal",
+  expect(body.payments.paypal.webhookUrl).toContain(
+    "/api/payments/webhook/paypal",
   );
 });
 

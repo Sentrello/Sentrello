@@ -2996,6 +2996,53 @@ export const paymentAccounts = pgTable(
   ],
 );
 
+/**
+ * Every event a payment processor has sent us, and who acted on it.
+ *
+ * Three jobs, one row. **Idempotency**: the unique index is what makes a
+ * processor's retry — and every processor retries — post one journal entry
+ * rather than two, because the second delivery loses the insert and is never
+ * dispatched. **Visibility**: a `claimedBy` of null is an event no module on
+ * this instance recognised, which is exactly the state that let a card payment
+ * for an invoice be swallowed by the shop's endpoint for weeks while the
+ * customer was chased for money they had already paid. **Evidence**: when a
+ * business and a processor disagree about what was sent, this is the answer.
+ *
+ * The body is deliberately not kept. It carries a customer's payment details
+ * and the id is enough to ask the processor for it again.
+ */
+export const paymentWebhookEvents = pgTable(
+  "payment_webhook_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: text("organization_id").notNull(),
+    /** stripe | paypal */
+    provider: text("provider").notNull(),
+    /** The processor's own id for the event — `evt_…` on Stripe. */
+    eventId: text("event_id").notNull(),
+    /** The processor's own name for what happened. */
+    eventType: text("event_type").notNull(),
+    /**
+     * Which module recognised it, or null for one nobody did.
+     *
+     * Null is the interesting value and the reason this column exists: an
+     * event nobody claims is a processor telling us something we do not
+     * understand, which is never a no-op.
+     */
+    claimedBy: text("claimed_by"),
+    receivedAt: timestamp("received_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("payment_webhook_events_org_idx").on(t.organizationId),
+    // What makes a redelivery a no-op rather than a second payment.
+    uniqueIndex("payment_webhook_events_once_idx").on(
+      t.organizationId,
+      t.provider,
+      t.eventId,
+    ),
+  ],
+);
+
 export const userGroups = pgTable(
   "user_groups",
   {

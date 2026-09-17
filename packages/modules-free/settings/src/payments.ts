@@ -13,6 +13,7 @@ import {
   secrets,
   stripeProvider,
 } from "@sentrello/module-sdk";
+import { unclaimedPaymentEvents } from "./payment-webhook";
 
 /**
  * Connecting a card processor, from a screen.
@@ -188,6 +189,15 @@ export function registerPaymentAccounts(ctx: ModuleContext) {
         // saying so here is better than a crypto error on save.
         canStoreSecrets: secrets.secretsAvailable(),
         environmentFallback: await environmentFallback(orgId),
+        /*
+         * Events the processor sent that nothing on this instance recognised.
+         *
+         * Here because this is the screen somebody opens when payments are
+         * behaving strangely, and because the failure that made this list
+         * necessary — an invoice paid by card, confirmed by nobody — looked
+         * from every screen exactly like nothing having happened.
+         */
+        unclaimedEvents: await unclaimedPaymentEvents(orgId),
       });
     },
   );
@@ -380,8 +390,16 @@ export function registerPaymentAccounts(ctx: ModuleContext) {
         const base =
           process.env.SENTRELLO_BASE_URL ?? new URL(c.req.url).origin;
         try {
+          /*
+           * The platform's endpoint, not one module's.
+           *
+           * This line used to name the shop's handler, which is why an invoice
+           * paid by card was never confirmed: the event arrived somewhere that
+           * did not recognise it. The address now belongs to the platform and
+           * every module that declared itself hears from it.
+           */
           const made = await live.ensureWebhook(
-            `${base}/api/shop/webhook/${provider}`,
+            `${base}/api/payments/webhook/${provider}`,
           );
           if (made) {
             webhookSecret = secrets.seal(made.secret);

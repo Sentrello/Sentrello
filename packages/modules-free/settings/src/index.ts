@@ -21,6 +21,7 @@ import { defineModule } from "@sentrello/module-sdk";
 import { eq } from "drizzle-orm";
 import { registerCompliance } from "./compliance";
 import { registerEvidence } from "./evidence";
+import { registerPaymentWebhookEndpoint } from "./payment-webhook";
 import { registerPaymentAccounts } from "./payments";
 import { registerPrivacy } from "./privacy";
 import { registerTaxRegimes } from "./tax-regimes";
@@ -124,6 +125,7 @@ export default defineModule({
     }
 
     registerPaymentAccounts(ctx);
+    registerPaymentWebhookEndpoint(ctx);
 
     ctx.app.get(
       "/api/settings",
@@ -205,8 +207,16 @@ export default defineModule({
               testMode: (process.env.STRIPE_SECRET_KEY ?? "").startsWith(
                 "sk_test_",
               ),
-              invoiceWebhookUrl: `${base}/api/webhooks/stripe/invoices`,
-              shopWebhookUrl: `${base}/api/shop/webhook/stripe`,
+              /*
+               * One address per processor, not one per module.
+               *
+               * This used to offer two — an invoice one and a shop one — while
+               * the connect screen automatically registered only the shop's.
+               * A business that pasted the invoice address got its shop orders
+               * dropped, and one that let us set it up got its invoice
+               * payments dropped, which is what actually happened.
+               */
+              webhookUrl: `${base}/api/payments/webhook/stripe`,
             },
             paypal: {
               configured:
@@ -214,7 +224,7 @@ export default defineModule({
                 configured("PAYPAL_CLIENT_SECRET"),
               webhookConfigured: configured("PAYPAL_WEBHOOK_ID"),
               environment: process.env.PAYPAL_ENV ?? "sandbox",
-              shopWebhookUrl: `${base}/api/shop/webhook/paypal`,
+              webhookUrl: `${base}/api/payments/webhook/paypal`,
             },
           },
         });

@@ -82,6 +82,11 @@ const PUBLIC_BY_DESIGN = new Set([
   // the business's session, and the logo is already printed on everything that
   // business sends. Rate-limited, `default-src 'none'`, and `nosniff`.
   "GET /share/template/:id/logo",
+  // A payment processor reporting that money moved. There is no session to
+  // have — the caller is a machine at Stripe — and the signature over the raw
+  // body, checked against this business's own stored secret, is the whole
+  // credential. Nothing is written or dispatched until it verifies.
+  "POST /api/payments/webhook/:provider",
 ]);
 
 const suffix = crypto.randomUUID().slice(0, 8);

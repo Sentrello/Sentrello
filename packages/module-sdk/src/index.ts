@@ -146,6 +146,24 @@ export interface ModuleContext {
   registerAccountSection: (section: AccountSection) => void;
 
   /**
+   * That this module listens to a payment processor.
+   *
+   * The host registers one endpoint per provider and offers every verified
+   * event to whatever declared itself here. Before this, the endpoint the
+   * processor was pointed at was a path written into the connection screen,
+   * and only one module was ever named in it — so a card payment for anything
+   * else arrived somewhere that did not recognise it and was dropped in
+   * silence. See `payments/webhooks.ts`.
+   *
+   * Optional, like `open` on the UI runtime and for the same reason: a module
+   * built against an older host has to keep compiling, and every test harness
+   * in four repositories builds this object by hand. A module calls it as
+   * `ctx.registerPaymentWebhook?.(…)`; the host and `moduleTestApp` always
+   * provide it.
+   */
+  registerPaymentWebhook?: (consumer: PaymentWebhookConsumer) => void;
+
+  /**
    * What somebody has to do before this module is any use.
    *
    * A module arrives switched on and empty, and the person looking at it has
@@ -288,6 +306,10 @@ export interface SentrelloModule {
 import { type AccountSection, addAccountSection } from "./account";
 import { type CrawlableSurface, addCrawlable } from "./crawlable";
 import { type OnboardingGuide, addOnboarding } from "./onboarding";
+import {
+  type PaymentWebhookConsumer,
+  addPaymentWebhook,
+} from "./payments/webhooks";
 import { type PersonalDataSource, addPersonalData } from "./personal-data";
 import { type SearchProvider, addSearchProvider } from "./search";
 import { provideService } from "./services";
@@ -412,6 +434,10 @@ export function registerForTest(
     // it would put on the unified customer account page.
     registerAccountSection: (section) =>
       addAccountSection({ ...section, moduleId: module.id }),
+    // Registered for real, like the others: a module that takes money tests
+    // what it does with the event, not that it remembered to declare itself.
+    registerPaymentWebhook: (consumer) =>
+      addPaymentWebhook({ ...consumer, moduleId: module.id }),
     registerSearch: (provider) =>
       addSearchProvider({ ...provider, moduleId: module.id }),
     // Registered for real, like summaries, so a module's own tests can ask it
@@ -466,5 +492,6 @@ export function registerForTest(
 export * from "./custom-fields";
 export * from "./services";
 export * from "./payments/provider";
+export * from "./payments/webhooks";
 export * from "./payments/stripe";
 export * from "./payments/paypal";
