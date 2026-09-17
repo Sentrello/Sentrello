@@ -27,6 +27,7 @@ import {
   exchangeAccount,
   postJournalEntry,
 } from "@sentrello/db/ledger";
+import { sumCents } from "@sentrello/db/money";
 import { dayFrom } from "@sentrello/db/timezone";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 
@@ -145,7 +146,7 @@ export async function revalueOpenBalances(
     for (const row of await db
       .select({
         invoiceId: schema.payments.invoiceId,
-        cents: sql<number>`coalesce(sum(${schema.payments.amountCents}), 0)::int`,
+        cents: sumCents(schema.payments.amountCents),
       })
       .from(schema.payments)
       .where(
@@ -163,7 +164,7 @@ export async function revalueOpenBalances(
     for (const row of await db
       .select({
         invoiceId: schema.invoices.referenceInvoiceId,
-        cents: sql<number>`coalesce(sum(${schema.invoices.totalCents}), 0)::int`,
+        cents: sumCents(schema.invoices.totalCents),
       })
       .from(schema.invoices)
       .where(
@@ -241,7 +242,7 @@ export async function revalueOpenBalances(
     for (const row of await db
       .select({
         billId: schema.billPayments.billId,
-        cents: sql<number>`coalesce(sum(${schema.billPayments.amountCents}), 0)::int`,
+        cents: sumCents(schema.billPayments.amountCents),
       })
       .from(schema.billPayments)
       .where(

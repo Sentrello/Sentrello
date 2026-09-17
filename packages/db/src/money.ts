@@ -1,3 +1,5 @@
+import { type SQL, type SQLWrapper, sql } from "drizzle-orm";
+
 /**
  * Tax rates are integer millionths of the base — parts per million.
  *
@@ -755,4 +757,44 @@ export function parseAmountToCents(raw: string): number | null {
   if (!Number.isFinite(value)) return null;
   const cents = Math.round(value * 100);
   return negative ? -cents : cents;
+}
+
+/**
+ * A total in cents, added up by the database.
+ *
+ * **Never `sum(...)::int`.** A 32-bit total runs out at 2,147,483,647 cents —
+ * $21,474,836.47 — and the figures across the top of a list screen sum every
+ * row the filter matches, which on an invoice list is every invoice the
+ * business has ever raised. So the ceiling is not annual revenue, it is
+ * lifetime billing: a business turning over $4.3M a year reaches it in its
+ * fifth year, and the invoice list then answers 500 for ever. Measured, not
+ * predicted — five years of a busy business is where this was found, and the
+ * screen does not degrade first, it simply stops.
+ *
+ * `::bigint` moves the ceiling to more money than exists. But a 64-bit value
+ * arrives from the driver as a string, and `"2147483648" + 100` is
+ * `"2147483648100"` — the same bug wearing a better disguise, and this time
+ * silent. So the conversion is part of the expression rather than left to
+ * whoever selects it: every caller gets a `number`, checked.
+ */
+export function sumCents(amount: SQLWrapper): SQL<number> {
+  return sql`coalesce(sum(${amount}), 0)::bigint`.mapWith(centsFromDriver);
+}
+
+/**
+ * A 64-bit figure from the driver, as cents.
+ *
+ * Refused rather than rounded above 2^53, where a JavaScript number stops
+ * being able to hold every integer. That is $90 trillion in cents and nobody
+ * will ever see it; a total that quietly lost its last digits would be worse
+ * than a loud failure, because the books would still balance and be wrong.
+ */
+export function centsFromDriver(value: unknown): number {
+  const cents = typeof value === "bigint" ? Number(value) : Number(value ?? 0);
+  if (!Number.isSafeInteger(cents)) {
+    throw new Error(
+      `a total of ${String(value)} cents cannot be counted exactly`,
+    );
+  }
+  return cents;
 }

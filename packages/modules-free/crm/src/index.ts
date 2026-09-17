@@ -8,13 +8,17 @@ import { recordConsent } from "@sentrello/db/consent";
 import { type CRM_SUBJECTS, crmValues } from "@sentrello/db/crm";
 import {
   type ListSpec,
+  UNPAGED_MAX,
   allConditions,
+  capUnpaged,
   countExpression,
+  inChunks,
   listParams,
   orderBy,
   pageWindow,
   searchCondition,
 } from "@sentrello/db/list-query";
+import { sumCents } from "@sentrello/db/money";
 import { recordChanged } from "@sentrello/db/record-events";
 import type {
   ModuleContext,
@@ -299,14 +303,24 @@ function crud<T extends keyof typeof tables>(
 
       const window = pageWindow(params);
       if (!window) {
-        const rows = await db
+        /*
+         * A caller that never mentioned paging still gets the list, but not
+         * the whole book. Five screens fill a customer picker this way, and
+         * at a hundred thousand contacts that request stopped working
+         * outright — so it is capped, and says when it has been, rather than
+         * handing a dropdown eight megabytes of JSON or nothing at all.
+         */
+        const all = await db
           .select()
           .from(table)
           .where(where)
-          .orderBy(orderBy(list, params));
+          .orderBy(orderBy(list, params))
+          .limit(UNPAGED_MAX + 1);
+        const { rows, truncated } = capUnpaged(all);
         return c.json({
           ...(await decorate(rows as Record<string, unknown>[])),
           total: rows.length,
+          ...(truncated ? { truncated: true } : {}),
           ...(grouped ? { groups: grouped } : {}),
         });
       }
@@ -1050,7 +1064,7 @@ const tables = {
      * not zero, and null cents is not a figure.
      */
     groupAggregates: {
-      amountCents: sql<number>`coalesce(sum(${schema.deals.amountCents}), 0)::int`,
+      amountCents: sumCents(schema.deals.amountCents),
     },
     async narrow(
       query: Record<string, string | undefined>,
@@ -1123,24 +1137,29 @@ async function tagsFor(
   >();
   if (ids.length === 0) return byRecord;
 
-  const rows = await db
-    .select({
-      entityId: schema.taggables.entityId,
-      id: schema.tags.id,
-      name: schema.tags.name,
-      color: schema.tags.color,
-    })
-    .from(schema.taggables)
-    .innerJoin(schema.tags, eq(schema.tags.id, schema.taggables.tagId))
-    // `taggables` carries no organizationId of its own, so the tag's is what
-    // scopes this — the same rule the write side follows.
-    .where(
-      and(
-        eq(schema.tags.organizationId, orgId),
-        eq(schema.taggables.entityType, entityType),
-        inArray(schema.taggables.entityId, ids),
+  // In chunks, because this binds one parameter per id and the wire protocol
+  // counts them in a signed 16-bit field. It is the query that killed the
+  // unpaged contact list, and it failed before the database saw it.
+  const rows = await inChunks(ids, (chunk) =>
+    db
+      .select({
+        entityId: schema.taggables.entityId,
+        id: schema.tags.id,
+        name: schema.tags.name,
+        color: schema.tags.color,
+      })
+      .from(schema.taggables)
+      .innerJoin(schema.tags, eq(schema.tags.id, schema.taggables.tagId))
+      // `taggables` carries no organizationId of its own, so the tag's is what
+      // scopes this — the same rule the write side follows.
+      .where(
+        and(
+          eq(schema.tags.organizationId, orgId),
+          eq(schema.taggables.entityType, entityType),
+          inArray(schema.taggables.entityId, chunk),
+        ),
       ),
-    );
+  );
 
   for (const row of rows) {
     const list = byRecord.get(row.entityId) ?? [];
@@ -1163,17 +1182,19 @@ async function openTaskCounts(
   const counts = new Map<string, number>();
   if (contactIds.length === 0) return counts;
 
-  const rows = await db
-    .select({ contactId: schema.tasks.contactId, total: countExpression })
-    .from(schema.tasks)
-    .where(
-      and(
-        eq(schema.tasks.organizationId, orgId),
-        eq(schema.tasks.done, false),
-        inArray(schema.tasks.contactId, contactIds),
-      ),
-    )
-    .groupBy(schema.tasks.contactId);
+  const rows = await inChunks(contactIds, (chunk) =>
+    db
+      .select({ contactId: schema.tasks.contactId, total: countExpression })
+      .from(schema.tasks)
+      .where(
+        and(
+          eq(schema.tasks.organizationId, orgId),
+          eq(schema.tasks.done, false),
+          inArray(schema.tasks.contactId, chunk),
+        ),
+      )
+      .groupBy(schema.tasks.contactId),
+  );
 
   for (const row of rows) {
     if (row.contactId) counts.set(row.contactId, row.total);

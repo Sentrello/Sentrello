@@ -4,6 +4,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { and, db, eq, inArray, schema } from "@sentrello/db";
+import { inChunks } from "@sentrello/db/list-query";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 
 /**
@@ -35,22 +36,27 @@ export async function tagsFor(
   const out = new Map<string, { id: string; name: string; color: string }[]>();
   if (ids.length === 0) return out;
 
-  const rows = await db
-    .select({
-      entityId: schema.taggables.entityId,
-      id: schema.tags.id,
-      name: schema.tags.name,
-      color: schema.tags.color,
-    })
-    .from(schema.taggables)
-    .innerJoin(schema.tags, eq(schema.tags.id, schema.taggables.tagId))
-    .where(
-      and(
-        eq(schema.taggables.entityType, entityType),
-        inArray(schema.taggables.entityId, ids),
-        eq(schema.tags.organizationId, orgId),
+  // In chunks, because this binds one parameter per id and the Postgres wire
+  // protocol counts a statement's parameters in a signed 16-bit field: past
+  // about 32,767 the request fails before the database sees it.
+  const rows = await inChunks(ids, (chunk) =>
+    db
+      .select({
+        entityId: schema.taggables.entityId,
+        id: schema.tags.id,
+        name: schema.tags.name,
+        color: schema.tags.color,
+      })
+      .from(schema.taggables)
+      .innerJoin(schema.tags, eq(schema.tags.id, schema.taggables.tagId))
+      .where(
+        and(
+          eq(schema.taggables.entityType, entityType),
+          inArray(schema.taggables.entityId, chunk),
+          eq(schema.tags.organizationId, orgId),
+        ),
       ),
-    );
+  );
 
   for (const row of rows) {
     const list = out.get(row.entityId) ?? [];

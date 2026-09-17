@@ -2,7 +2,7 @@ import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "./client";
 import { rateOn } from "./currency";
 import { postInvoiceIssued } from "./ledger";
-import { MoneyError, bpToPpm, documentTotals } from "./money";
+import { MoneyError, bpToPpm, documentTotals, sumCents } from "./money";
 import { nextDocumentNumber } from "./numbering";
 import * as schema from "./schema";
 
@@ -673,7 +673,7 @@ export async function creditedAgainst(
   const rows = await db
     .select({
       invoiceId: schema.invoices.referenceInvoiceId,
-      total: sql<number>`coalesce(sum(${schema.invoices.totalCents}), 0)::int`,
+      total: sumCents(schema.invoices.totalCents),
     })
     .from(schema.invoices)
     .where(

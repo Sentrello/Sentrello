@@ -138,3 +138,57 @@ export function pageWindow(
  * unpaged callers already know the total from the rows they were handed.
  */
 export const countExpression = sql<number>`count(*)::int`;
+
+/**
+ * The most rows a caller that never asked for a page is given.
+ *
+ * "Callers that do not ask for a page still get everything" was the
+ * documented behaviour, and everything is a number that grows. At 100,000
+ * contacts the customer picker stopped opening at all — not slowly, but with
+ * a wire-protocol error from binding one parameter per row on the way out —
+ * and before that it was 8 MB of JSON to fill a dropdown.
+ *
+ * A thousand, so the next screen that forgets to page degrades into a short
+ * list rather than taking the instance down with it, and says it has been cut
+ * rather than quietly lying about the size of the business.
+ */
+export const UNPAGED_MAX = 1000;
+
+/**
+ * A ceiling on an unpaged result, and an honest word about it.
+ *
+ * Select `UNPAGED_MAX + 1` rows: one more than the ceiling is how the caller
+ * knows there were more without a second count.
+ */
+export function capUnpaged<T>(rows: T[]): { rows: T[]; truncated: boolean } {
+  if (rows.length <= UNPAGED_MAX) return { rows, truncated: false };
+  return { rows: rows.slice(0, UNPAGED_MAX), truncated: true };
+}
+
+/**
+ * One query per thousand ids, rather than one query with a hundred thousand
+ * parameters.
+ *
+ * The Postgres wire protocol counts a statement's parameters in a *signed
+ * 16-bit* field, so an `in (...)` of more than about 32,767 ids cannot be
+ * sent at all: the bind message fails before the database sees the query.
+ * That is how the contact list died above 32,000 rows — not on the rows, on
+ * the tags hung off them.
+ *
+ * A thousand keeps the statement small enough to plan well and leaves the
+ * ceiling four hundred times away. The chunks are run in order rather than at
+ * once: this is housekeeping on the way out of a list, not the thing anybody
+ * is waiting for, and a hundred simultaneous statements would take the pool.
+ */
+export async function inChunks<T>(
+  ids: string[],
+  run: (chunk: string[]) => Promise<T[]>,
+  size = 1000,
+): Promise<T[]> {
+  if (ids.length <= size) return ids.length ? await run(ids) : [];
+  const out: T[] = [];
+  for (let at = 0; at < ids.length; at += size) {
+    out.push(...(await run(ids.slice(at, at + size))));
+  }
+  return out;
+}

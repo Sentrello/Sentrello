@@ -5,7 +5,7 @@ import { db, schema } from "@sentrello/db";
 import { CORE_ACCOUNTS, postJournalEntry } from "@sentrello/db/ledger";
 import type { SentrelloEnv } from "@sentrello/module-sdk";
 import { storeAttachment } from "@sentrello/module-sdk";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import { STANDARD_CHART } from "./chart";
 import accounting from "./index";
@@ -926,4 +926,77 @@ test("every core account matches the starter chart it shares a code with", () =>
   }
 
   expect(disagreements).toEqual([]);
+});
+
+/**
+ * The journal is paged, and a page is whole entries.
+ *
+ * It used to return every line the business had ever posted: at five years of
+ * trading, 1.19 million rows, a 356 MB response and 3.9 GB of resident memory
+ * for one request — a denial of service a customer performs on themselves by
+ * opening a menu. The page has to be taken over entries rather than lines,
+ * because the screen groups lines back into entries and half an entry is a
+ * reader shown books that do not balance.
+ */
+test("the journal answers a page of whole entries", async () => {
+  const [cash] = await db
+    .select()
+    .from(schema.accounts)
+    .where(
+      and(
+        eq(schema.accounts.organizationId, orgId),
+        eq(schema.accounts.code, CORE_ACCOUNTS.cash.code),
+      ),
+    );
+  const [sales] = await db
+    .select()
+    .from(schema.accounts)
+    .where(
+      and(
+        eq(schema.accounts.organizationId, orgId),
+        eq(schema.accounts.code, CORE_ACCOUNTS.salesIncome.code),
+      ),
+    );
+  if (!cash || !sales)
+    throw new Error("the chart has no cash or sales account");
+
+  const posted = [];
+  for (const n of [1, 2, 3]) {
+    posted.push(
+      await postJournalEntry(
+        orgId,
+        `Paging ${n}`,
+        `test:paging-${suffix}-${n}`,
+        [
+          { accountId: cash.id, debitCents: 100 * n },
+          { accountId: sales.id, creditCents: 100 * n },
+        ],
+        new Date(2031, 0, n),
+      ),
+    );
+  }
+
+  const first = await get<{
+    lines: { id: string }[];
+    total: number;
+    page: number;
+    perPage: number;
+  }>("/api/journal?page=1&perPage=1");
+  // One entry, and both of its lines — not one line.
+  const ids = new Set(first.lines.map((l) => l.id));
+  expect(ids.size).toBe(1);
+  expect(first.lines).toHaveLength(2);
+  expect(first.total).toBeGreaterThanOrEqual(3);
+  expect(first.perPage).toBe(1);
+  // Newest first, so the third entry is the one on page one.
+  expect(ids.has(posted[2]?.id as string)).toBe(true);
+
+  const second = await get<{ lines: { id: string }[] }>(
+    "/api/journal?page=2&perPage=1",
+  );
+  const nextIds = new Set(second.lines.map((l) => l.id));
+  expect(nextIds.size).toBe(1);
+  // A different entry, rather than the same one offered twice.
+  expect(nextIds.has(posted[2]?.id as string)).toBe(false);
+  expect(nextIds.has(posted[1]?.id as string)).toBe(true);
 });

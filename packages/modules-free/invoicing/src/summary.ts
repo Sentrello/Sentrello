@@ -17,6 +17,7 @@ import {
   sql,
 } from "@sentrello/db";
 import { creditedAgainst } from "@sentrello/db/documents";
+import { sumCents } from "@sentrello/db/money";
 import type { ModuleContext, SummaryFigure } from "@sentrello/module-sdk";
 import { scoreFor } from "@sentrello/module-sdk";
 
@@ -42,12 +43,12 @@ export async function invoicingFigures(
 
   const [row] = await db
     .select({
-      billedCents: sql<number>`coalesce(sum(
+      billedCents: sumCents(sql`
         case when ${schema.invoices.status} <> 'draft'
           and ${schema.invoices.status} <> 'void'
           and ${schema.invoices.issueDate} >= ${at(monthStart)}
           then ${schema.invoices.totalCents} else 0 end
-      ), 0)::int`,
+      `),
       drafts: sql<number>`count(*) filter (
         where ${schema.invoices.status} = 'draft'
       )::int`,
@@ -91,7 +92,7 @@ export async function invoicingFigures(
     const paid = await db
       .select({
         invoiceId: schema.payments.invoiceId,
-        cents: sql<number>`coalesce(sum(${schema.payments.amountCents}), 0)::int`,
+        cents: sumCents(schema.payments.amountCents),
       })
       .from(schema.payments)
       .where(
@@ -133,7 +134,7 @@ export async function invoicingFigures(
    */
   const [received] = await db
     .select({
-      cents: sql<number>`coalesce(sum(${schema.payments.amountCents}), 0)::int`,
+      cents: sumCents(schema.payments.amountCents),
     })
     .from(schema.payments)
     .innerJoin(
@@ -285,7 +286,7 @@ export async function invoicingDashboard(organizationId: string) {
     db
       .select({
         month: sql<string>`to_char(${schema.invoices.issueDate}, 'YYYY-MM')`,
-        billedCents: sql<number>`coalesce(sum(${schema.invoices.totalCents}), 0)::int`,
+        billedCents: sumCents(schema.invoices.totalCents),
       })
       .from(schema.invoices)
       .where(

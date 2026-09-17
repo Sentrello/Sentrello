@@ -3,6 +3,7 @@ import { readZip, writeZip } from "@sentrello/module-sdk";
 import type { SQL } from "drizzle-orm";
 import { db } from "./client";
 import { closedThrough, postJournalEntry } from "./ledger";
+import { centsFromDriver } from "./money";
 import { sql } from "./orm";
 
 /**
@@ -963,7 +964,7 @@ async function carryForward(
       l.account_id as "accountId",
       l.class_id as "classId",
       l.location_id as "locationId",
-      sum(l.debit_cents - l.credit_cents)::int as net
+      sum(l.debit_cents - l.credit_cents)::bigint as net
     from ${ident("journal_lines")} l
     join ${ident("journal_entries")} e on e.id = l.entry_id
     where e.organization_id = ${orgId}
@@ -977,7 +978,15 @@ async function carryForward(
   const byMonth = new Map<string, Summary[]>();
   for (const row of rows) {
     const list = byMonth.get(row.month) ?? [];
-    list.push(row);
+    /*
+     * `::bigint`, never `::int`: a month of a busy ledger can exceed
+     * $21,474,836.47 on one account, and a 32-bit cast answers "integer out of
+     * range" — which here would be an archive that cannot be written rather
+     * than a screen that will not open. A 64-bit total arrives from the driver
+     * as a string, and a string handed to `postJournalEntry` as a debit is a
+     * worse failure than either, so it is converted here and checked.
+     */
+    list.push({ ...row, net: centsFromDriver(row.net) });
     byMonth.set(row.month, list);
   }
 

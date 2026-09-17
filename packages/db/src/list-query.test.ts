@@ -1,0 +1,55 @@
+import { expect, test } from "bun:test";
+import { UNPAGED_MAX, capUnpaged, inChunks, listParams } from "./list-query";
+
+/**
+ * The two guards that keep one request from taking the instance down.
+ *
+ * Both were written after five years of a real business was generated and run
+ * against: the contact list stopped working at 32,000 rows, not because of the
+ * rows but because the tags hung off them bound one parameter each, and the
+ * Postgres wire protocol counts a statement's parameters in a signed 16-bit
+ * field.
+ */
+
+test("ids are sent a thousand at a time, once, in order", async () => {
+  const ids = Array.from({ length: 2_500 }, (_, n) => `id-${n}`);
+  const sizes: number[] = [];
+  const seen = await inChunks(ids, async (chunk) => {
+    sizes.push(chunk.length);
+    return chunk;
+  });
+  expect(sizes).toEqual([1000, 1000, 500]);
+  // Nothing dropped, nothing repeated, nothing reordered — this feeds a map
+  // keyed by id, and a missing chunk is a row that silently loses its tags.
+  expect(seen).toEqual(ids);
+});
+
+test("a short list is one query, and an empty one is none", async () => {
+  let calls = 0;
+  await inChunks(["a", "b"], async (chunk) => {
+    calls += 1;
+    return chunk;
+  });
+  expect(calls).toBe(1);
+  await inChunks([], async () => {
+    calls += 1;
+    return [];
+  });
+  expect(calls).toBe(1);
+});
+
+test("an unpaged result is cut at the ceiling and says it was", () => {
+  const rows = Array.from({ length: UNPAGED_MAX + 1 }, (_, n) => n);
+  const capped = capUnpaged(rows);
+  expect(capped.rows).toHaveLength(UNPAGED_MAX);
+  expect(capped.truncated).toBe(true);
+  // One row under the ceiling is not a truncation, and must not claim to be.
+  const under = capUnpaged(rows.slice(0, UNPAGED_MAX));
+  expect(under.truncated).toBe(false);
+  expect(under.rows).toHaveLength(UNPAGED_MAX);
+});
+
+test("a caller that never mentions paging is still unpaged", () => {
+  expect(listParams({}).page).toBeNull();
+  expect(listParams({ page: "2" }).page).toBe(2);
+});

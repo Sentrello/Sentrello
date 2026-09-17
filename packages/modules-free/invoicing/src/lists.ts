@@ -18,14 +18,16 @@ import {
 } from "@sentrello/db";
 import {
   type ListSpec,
+  UNPAGED_MAX,
   allConditions,
+  capUnpaged,
   countExpression,
   listParams,
   orderBy,
   pageWindow,
   searchCondition,
 } from "@sentrello/db/list-query";
-import { invoiceState } from "@sentrello/db/money";
+import { invoiceState, sumCents } from "@sentrello/db/money";
 import { type ModuleContext, csvDownload, toCsv } from "@sentrello/module-sdk";
 import type { SQL } from "drizzle-orm";
 import { creditedAgainst } from "./documents";
@@ -308,19 +310,19 @@ export function registerLists(ctx: ModuleContext) {
       ]);
 
       const window = pageWindow(params);
-      const rows = await (window
-        ? db
-            .select()
-            .from(schema.invoices)
-            .where(where)
-            .orderBy(orderBy(invoiceList, params))
-            .limit(window.limit)
-            .offset(window.offset)
-        : db
-            .select()
-            .from(schema.invoices)
-            .where(where)
-            .orderBy(orderBy(invoiceList, params)));
+      // Unpaged is capped: a caller that never mentioned paging gets a long
+      // list rather than the whole book, and one more row than the ceiling is
+      // how it knows to say so.
+      const found = await db
+        .select()
+        .from(schema.invoices)
+        .where(where)
+        .orderBy(orderBy(invoiceList, params))
+        .limit(window ? window.limit : UNPAGED_MAX + 1)
+        .offset(window ? window.offset : 0);
+      const { rows, truncated } = window
+        ? { rows: found, truncated: false }
+        : capUnpaged(found);
 
       /**
        * What is actually owed, per invoice.
@@ -337,7 +339,7 @@ export function registerLists(ctx: ModuleContext) {
         const sums = await db
           .select({
             invoiceId: schema.payments.invoiceId,
-            total: sql<number>`coalesce(sum(${schema.payments.amountCents}), 0)::int`,
+            total: sumCents(schema.payments.amountCents),
           })
           .from(schema.payments)
           .where(inArray(schema.payments.invoiceId, ids))
@@ -358,7 +360,7 @@ export function registerLists(ctx: ModuleContext) {
       /** The figures across the top of the screen, for this tab. */
       const [totals] = await db
         .select({
-          totalCents: sql<number>`coalesce(sum(${schema.invoices.totalCents}), 0)::int`,
+          totalCents: sumCents(schema.invoices.totalCents),
         })
         .from(schema.invoices)
         .where(where);
@@ -400,6 +402,7 @@ export function registerLists(ctx: ModuleContext) {
         }),
         total: counted?.total ?? 0,
         billedCents: totals?.totalCents ?? 0,
+        ...(truncated ? { truncated: true } : {}),
         ...(window ? { page: params.page, perPage: params.perPage } : {}),
       });
     },
@@ -425,19 +428,19 @@ export function registerLists(ctx: ModuleContext) {
       ]);
 
       const window = pageWindow(params);
-      const rows = await (window
-        ? db
-            .select()
-            .from(schema.quotes)
-            .where(where)
-            .orderBy(orderBy(quoteList, params))
-            .limit(window.limit)
-            .offset(window.offset)
-        : db
-            .select()
-            .from(schema.quotes)
-            .where(where)
-            .orderBy(orderBy(quoteList, params)));
+      // Unpaged is capped: a caller that never mentioned paging gets a long
+      // list rather than the whole book, and one more row than the ceiling is
+      // how it knows to say so.
+      const found = await db
+        .select()
+        .from(schema.quotes)
+        .where(where)
+        .orderBy(orderBy(quoteList, params))
+        .limit(window ? window.limit : UNPAGED_MAX + 1)
+        .offset(window ? window.offset : 0);
+      const { rows, truncated } = window
+        ? { rows: found, truncated: false }
+        : capUnpaged(found);
 
       const [counted] = window
         ? await db

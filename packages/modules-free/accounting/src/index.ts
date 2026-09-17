@@ -4,7 +4,8 @@ import {
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
-import { and, db, desc, eq, schema } from "@sentrello/db";
+import { and, db, desc, eq, inArray, schema } from "@sentrello/db";
+import { countExpression, listParams } from "@sentrello/db/list-query";
 import { defineModule } from "@sentrello/module-sdk";
 import { registerCaReturns } from "./ca-returns";
 import { registerChart } from "./chart";
@@ -127,45 +128,89 @@ export default defineModule({
       requirePermission({ bookkeeping: ["read"] }),
       async (c) => {
         const orgId = activeOrganizationId(c.get("session"));
-        const rows = await db
-          .select({
-            id: schema.journalEntries.id,
-            memo: schema.journalEntries.memo,
-            source: schema.journalEntries.source,
-            postedAt: schema.journalEntries.postedAt,
-            /**
-             * Who put the figure in the books, where a person did.
-             *
-             * Null for everything a job or a webhook wrote, which is most of
-             * the ledger. The name rather than the id: an audit trail showing
-             * user ids is one somebody has to look up line by line.
-             */
-            postedBy: schema.user.name,
-            postedById: schema.journalEntries.createdBy,
-            debitCents: schema.journalLines.debitCents,
-            creditCents: schema.journalLines.creditCents,
-            accountId: schema.journalLines.accountId,
-            accountCode: schema.accounts.code,
-            accountName: schema.accounts.name,
-          })
-          .from(schema.journalEntries)
-          .innerJoin(
-            schema.journalLines,
-            eq(schema.journalLines.entryId, schema.journalEntries.id),
-          )
-          .leftJoin(
-            schema.accounts,
-            and(
-              eq(schema.journalLines.accountId, schema.accounts.id),
-              eq(schema.accounts.organizationId, orgId),
-            ),
-          )
-          .leftJoin(
-            schema.user,
-            eq(schema.user.id, schema.journalEntries.createdBy),
-          )
-          .where(eq(schema.journalEntries.organizationId, orgId))
-          .orderBy(desc(schema.journalEntries.postedAt));
+        /*
+         * A page of entries, not a page of lines.
+         *
+         * This route returned every line the business had ever posted, joined
+         * to accounts and users, with no limit of any kind. At five years of
+         * trading that is 1.19 million rows: a 356 MB response, four seconds,
+         * and 3.9 GB of resident memory for one request — a denial of service
+         * a customer performs on themselves by opening a menu. No browser
+         * renders it and no self-hosted box survives it.
+         *
+         * The page is taken over `journal_entries` and the lines then fetched
+         * for those entries, because the screen groups lines back into
+         * entries: a limit on the lines would cut an entry in half and show a
+         * reader books that do not balance. Ordered by `postedAt` and then by
+         * id, so two entries posted in the same instant cannot swap places
+         * between page one and page two and hide a row.
+         */
+        const params = listParams(c.req.query());
+        const page = params.page ?? 1;
+        const where = eq(schema.journalEntries.organizationId, orgId);
+        const [entries, [counted]] = await Promise.all([
+          db
+            .select({ id: schema.journalEntries.id })
+            .from(schema.journalEntries)
+            .where(where)
+            .orderBy(
+              desc(schema.journalEntries.postedAt),
+              desc(schema.journalEntries.id),
+            )
+            .limit(params.perPage)
+            .offset((page - 1) * params.perPage),
+          db
+            .select({ total: countExpression })
+            .from(schema.journalEntries)
+            .where(where),
+        ]);
+        const ids = entries.map((e) => e.id);
+
+        const rows =
+          ids.length === 0
+            ? []
+            : await db
+                .select({
+                  id: schema.journalEntries.id,
+                  memo: schema.journalEntries.memo,
+                  source: schema.journalEntries.source,
+                  postedAt: schema.journalEntries.postedAt,
+                  /**
+                   * Who put the figure in the books, where a person did.
+                   *
+                   * Null for everything a job or a webhook wrote, which is most of
+                   * the ledger. The name rather than the id: an audit trail showing
+                   * user ids is one somebody has to look up line by line.
+                   */
+                  postedBy: schema.user.name,
+                  postedById: schema.journalEntries.createdBy,
+                  debitCents: schema.journalLines.debitCents,
+                  creditCents: schema.journalLines.creditCents,
+                  accountId: schema.journalLines.accountId,
+                  accountCode: schema.accounts.code,
+                  accountName: schema.accounts.name,
+                })
+                .from(schema.journalEntries)
+                .innerJoin(
+                  schema.journalLines,
+                  eq(schema.journalLines.entryId, schema.journalEntries.id),
+                )
+                .leftJoin(
+                  schema.accounts,
+                  and(
+                    eq(schema.journalLines.accountId, schema.accounts.id),
+                    eq(schema.accounts.organizationId, orgId),
+                  ),
+                )
+                .leftJoin(
+                  schema.user,
+                  eq(schema.user.id, schema.journalEntries.createdBy),
+                )
+                .where(and(where, inArray(schema.journalEntries.id, ids)))
+                .orderBy(
+                  desc(schema.journalEntries.postedAt),
+                  desc(schema.journalEntries.id),
+                );
 
         /**
          * Whether this person can post one by hand, answered here.
@@ -179,7 +224,15 @@ export default defineModule({
           ctx.entitled({ tier: "pro" }) &&
           (await mayAccess(c.req.raw.headers, { bookkeeping: ["create"] }));
 
-        return c.json({ lines: rows, mayPost });
+        return c.json({
+          lines: rows,
+          mayPost,
+          // Entries, not lines: it is what the screen counts and what its
+          // pager divides by.
+          total: counted?.total ?? 0,
+          page,
+          perPage: params.perPage,
+        });
       },
     );
   },

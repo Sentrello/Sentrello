@@ -2,8 +2,9 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, inArray, schema } from "@sentrello/db";
+import { UNPAGED_MAX } from "@sentrello/db/list-query";
 import type { SentrelloEnv } from "@sentrello/module-sdk";
-import { eq } from "drizzle-orm";
+import { and, eq, like } from "drizzle-orm";
 import { Hono } from "hono";
 import crm, { displayName, toCsv } from "./index";
 
@@ -2538,4 +2539,60 @@ test("a note cannot attach to another organization's record", async () => {
   await db
     .delete(schema.contacts)
     .where(eq(schema.contacts.id, theirContact.id));
+});
+
+/**
+ * A caller that never asked for a page gets a long list, not the whole book.
+ *
+ * "Callers that do not ask for a page still get everything" was the documented
+ * behaviour, and five screens fill a customer picker that way. Everything is a
+ * number that grows: at 100,000 contacts the request stopped working at all —
+ * not slowly, but with a wire-protocol error, because the tags hung off the
+ * rows bind one parameter per row and the protocol counts them in a signed
+ * 16-bit field. Capped at a thousand, and it says when it has cut.
+ */
+test("an unpaged list is capped, and says so", async () => {
+  const many = Array.from({ length: UNPAGED_MAX + 5 }, (_, n) => ({
+    organizationId: orgId,
+    name: `Bulk ${suffix} ${String(n).padStart(5, "0")}`,
+  }));
+  await db.insert(schema.contacts).values(many);
+
+  const res = await app.request("http://localhost/api/contacts", { headers });
+  expect(res.status).toBe(200);
+  const body = (await res.json()) as {
+    contacts: { id: string }[];
+    total: number;
+    truncated?: boolean;
+  };
+  expect(body.contacts).toHaveLength(UNPAGED_MAX);
+  expect(body.total).toBe(UNPAGED_MAX);
+  // Said rather than implied: a screen that quietly shows a thousand of a
+  // hundred thousand contacts is a screen telling somebody their business is
+  // smaller than it is.
+  expect(body.truncated).toBe(true);
+
+  // And a caller that does ask for a page is unaffected, and still told the
+  // real total.
+  const paged = await app.request(
+    "http://localhost/api/contacts?page=1&perPage=25",
+    { headers },
+  );
+  const pagedBody = (await paged.json()) as {
+    contacts: unknown[];
+    total: number;
+    truncated?: boolean;
+  };
+  expect(pagedBody.contacts).toHaveLength(25);
+  expect(pagedBody.total).toBeGreaterThan(UNPAGED_MAX);
+  expect(pagedBody.truncated).toBeUndefined();
+
+  await db
+    .delete(schema.contacts)
+    .where(
+      and(
+        eq(schema.contacts.organizationId, orgId),
+        like(schema.contacts.name, `Bulk ${suffix} %`),
+      ),
+    );
 });
