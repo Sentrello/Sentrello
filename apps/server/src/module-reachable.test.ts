@@ -54,6 +54,29 @@ const CALLED_BY_SOMETHING_ELSE: Record<string, string> = {
   // Verified against the bundle's screens, which read and write it.
   "/api/accounting/period":
     "the pro-accounting bundle's Tax and currency screen",
+  // The three below were never reached by a screen and never reported either:
+  // each was matched by an unrelated path with a variable in it, back when a
+  // wildcard could face a wildcard at every segment that carried meaning. They
+  // are excused here because each is genuinely called, and now they say by
+  // what.
+  //
+  // A payment processor's servers post here. The address is registered with
+  // the provider by the Connect step on the Payments settings screen, which
+  // builds it as `${base}/api/payments/webhook/${provider}` — nothing in the
+  // browser ever asks for it.
+  "/api/payments/webhook/:provider": "the payment processor's servers",
+  // The embed script on a customer's own site, served from `/embed.js`: it
+  // reads the form's definition and posts the visitor's answers back. Both
+  // ends live in the module; neither is an admin screen.
+  "/api/embed/forms/:key": "the embed script served from /embed.js",
+  // The tag chips beside a contact, a company, a deal, an invoice or a quote.
+  // The component takes the document's own path as a prop and appends to it —
+  // `api(\`${path}/tags/${tagId}\`, { method: "DELETE" })` — so the path it
+  // asks for is assembled from a value that arrives from another file, and no
+  // sweep that reads source as text can see it. The Remove button is on the
+  // screen: `TagChips` in `apps/web/src/lib/tags.tsx`, mounted by
+  // `contact-detail.tsx` and `invoice-detail.tsx`.
+  "DELETE /api/*/:id/tags/:tagId": "the tag chips' Remove button, via a prop",
 };
 
 /**
@@ -100,11 +123,27 @@ const KNOWN_GAPS: Record<string, string[]> = {
   crm: ["DELETE /api/tags/:id", "GET /api/activities", "GET /api/notes"],
 };
 
-test.each(modules)("%s: every route has a caller", (name) => {
+/**
+ * Every tree that registers an `/api/…` route, not only the modules.
+ *
+ * The host and the auth package were never swept. Nothing was wrong in either
+ * — all eight of their routes have a caller — but "nothing was wrong" was not
+ * something anybody could have known, and a route added to the host tomorrow
+ * would have had no check at all. The sweep is cheap; leaving a tree out of it
+ * is how the next unreachable feature gets written.
+ */
+const trees: [string, string][] = [
+  ...modules.map((name): [string, string] => [
+    name,
+    join(root, "packages/modules-free", name, "src"),
+  ]),
+  ["host", join(root, "apps/server/src")],
+  ["auth", join(root, "packages/auth/src")],
+];
+
+test.each(trees)("%s: every route has a caller", (name, dir) => {
   const unreachable = unreachableRoutes({
-    routeFiles: sourceFiles(join(root, "packages/modules-free", name, "src"), [
-      ".ts",
-    ]),
+    routeFiles: sourceFiles(dir, [".ts"]),
     screenFiles: screens,
     calledByOther: CALLED_BY_SOMETHING_ELSE,
   });

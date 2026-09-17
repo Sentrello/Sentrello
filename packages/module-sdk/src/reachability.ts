@@ -79,11 +79,47 @@ export function pathShape(path: string): string[] {
   );
 }
 
-function sameShape(a: string[], b: string[]): boolean {
-  return (
-    a.length === b.length &&
-    a.every((segment, i) => segment === "*" || b[i] === "*" || segment === b[i])
-  );
+/**
+ * Whether a route and a path a screen asked for are the same route.
+ *
+ * Two rules, and the second one is here because the first alone is not a
+ * comparison at all.
+ *
+ * **They may not disagree.** Two literals at the same position must be the
+ * same word. A variable on either side — `:id` on the route, `${id}` on the
+ * screen — matches whatever sits opposite it, which is the whole reason paths
+ * are reduced to shapes: `/api/settings/tax` reaches `/api/settings/:section`,
+ * and `/api/invoices/${id}/${action}` reaches all five of that document's
+ * actions, which is how one screen legitimately reaches five routes.
+ *
+ * **And they must agree somewhere past `/api`.** Every path here begins
+ * `/api`, so matching on that alone is matching on nothing. Without this,
+ * `` `/api/${holder}/${id}/receipt` `` on the money screen — `api/*​/*​/receipt`
+ * — met an OAuth callback in another module registered as
+ * `/api/payments/:provider/:mode` — `api/payments/*​/*`. Wildcard faced
+ * wildcard at every segment that carried any meaning, nothing contradicted
+ * anything, and the sweep called the callback reached. Not a warning somebody
+ * ignored: **a pass.** Any four-segment route whose tail was parameters was
+ * excused the same way, for as long as this function has existed.
+ *
+ * One agreeing word is a low bar on purpose. Demanding that the resource
+ * segment agree would fail every screen that builds the resource itself, and
+ * a guard that reports live buttons as broken is a guard somebody switches
+ * off — which is the same hole wearing a different hat.
+ */
+export function sameShape(route: string[], asked: string[]): boolean {
+  if (route.length !== asked.length) return false;
+
+  let agreesSomewhere = false;
+  for (let i = 0; i < route.length; i++) {
+    const r = route[i] as string;
+    const a = asked[i] as string;
+    if (r === "*" || a === "*") continue;
+    if (r !== a) return false;
+    // `/api` is every path's first segment and proves nothing.
+    if (i > 0) agreesSomewhere = true;
+  }
+  return agreesSomewhere;
 }
 
 /**
