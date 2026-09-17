@@ -21,7 +21,12 @@ import type {
   SearchHit,
   SentrelloSession,
 } from "@sentrello/module-sdk";
-import { defineModule, scoreFor, toCsv } from "@sentrello/module-sdk";
+import {
+  defineModule,
+  scoreFor,
+  toCsv,
+  withComputedColumns,
+} from "@sentrello/module-sdk";
 import {
   and,
   asc,
@@ -216,6 +221,36 @@ function crud<T extends keyof typeof tables>(
       const orgId = activeOrganizationId(c.get("session"));
       const query = c.req.query();
 
+      const enrich = (
+        tables[resource] as {
+          enrich?: (
+            rows: Record<string, unknown>[],
+            orgId: string,
+          ) => Promise<Record<string, unknown>[]>;
+        }
+      ).enrich;
+
+      /**
+       * The rows as they go out: what the resource adds of its own, and then
+       * whatever a module works out on top of them.
+       *
+       * Both take the whole page at once. A computed column reads values that
+       * are already on the row, so the page costs no query at all — and a
+       * provider handed the page rather than a record is a provider that
+       * cannot quietly become one lookup per row.
+       *
+       * Nothing is registered on a Free instance, so `columns` is absent and
+       * the rows are the same objects the list has always returned.
+       */
+      const decorate = async (rows: Record<string, unknown>[]) => {
+        const enriched = enrich ? await enrich(rows, orgId) : rows;
+        const computed = await withComputedColumns(singular, orgId, enriched);
+        return {
+          [path]: computed.rows,
+          ...(computed.columns ? { computedColumns: computed.columns } : {}),
+        };
+      };
+
       // A resource with no list spec keeps the old behaviour exactly: every
       // row, unordered, unpaged. Tags and activities are read whole by the
       // screens that use them and gain nothing from a page.
@@ -224,7 +259,7 @@ function crud<T extends keyof typeof tables>(
           .select()
           .from(table)
           .where(eq(table.organizationId, orgId));
-        return c.json({ [path]: rows });
+        return c.json(await decorate(rows as Record<string, unknown>[]));
       }
 
       const params = listParams(query);
@@ -261,15 +296,6 @@ function crud<T extends keyof typeof tables>(
             .orderBy(asc(groupColumn))
         : undefined;
 
-      const enrich = (
-        tables[resource] as {
-          enrich?: (
-            rows: Record<string, unknown>[],
-            orgId: string,
-          ) => Promise<Record<string, unknown>[]>;
-        }
-      ).enrich;
-
       const window = pageWindow(params);
       if (!window) {
         const rows = await db
@@ -278,9 +304,7 @@ function crud<T extends keyof typeof tables>(
           .where(where)
           .orderBy(orderBy(list, params));
         return c.json({
-          [path]: enrich
-            ? await enrich(rows as Record<string, unknown>[], orgId)
-            : rows,
+          ...(await decorate(rows as Record<string, unknown>[])),
           total: rows.length,
           ...(grouped ? { groups: grouped } : {}),
         });
@@ -302,9 +326,7 @@ function crud<T extends keyof typeof tables>(
       ]);
 
       return c.json({
-        [path]: enrich
-          ? await enrich(rows as Record<string, unknown>[], orgId)
-          : rows,
+        ...(await decorate(rows as Record<string, unknown>[])),
         total: counted?.total ?? 0,
         page: params.page,
         perPage: params.perPage,

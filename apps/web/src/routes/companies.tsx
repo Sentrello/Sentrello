@@ -12,6 +12,8 @@ import { CustomValues } from "../lib/custom-fields";
 import { Icon } from "../lib/icons";
 import { ImageUpload } from "../lib/image-upload";
 import {
+  ComputedCells,
+  type ComputedColumn,
   FilterGroup,
   FilterPanel,
   FilterToggle,
@@ -226,6 +228,11 @@ export function Companies() {
                     <CompanyCard
                       key={co.id}
                       company={co}
+                      columns={
+                        response?.computedColumns as
+                          | ComputedColumn[]
+                          | undefined
+                      }
                       onOpen={() =>
                         open({
                           moduleId: "companies",
@@ -257,9 +264,12 @@ export function Companies() {
  */
 function CompanyCard({
   company,
+  columns,
   onOpen,
 }: {
   company: Company;
+  /** Columns a module works out, when this instance has one that does. */
+  columns: ComputedColumn[] | undefined;
   onOpen: () => void;
 }) {
   const staff = company.contacts ?? [];
@@ -284,6 +294,12 @@ function CompanyCard({
         <span className="link mt-1 block font-medium">{company.name}</span>
         <span className="block text-xs" style={muted}>
           {company.sector ?? "\u00a0"}
+        </span>
+        <span
+          className="flex flex-wrap justify-center gap-x-2 text-xs"
+          style={muted}
+        >
+          <ComputedCells columns={columns} row={company} />
         </span>
       </span>
 

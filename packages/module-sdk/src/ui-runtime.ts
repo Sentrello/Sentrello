@@ -302,6 +302,29 @@ export interface SentrelloListUi {
     label: string;
     values: { lastSeenAfter?: string; lastSeenBefore?: string };
   }[];
+  /**
+   * The columns another module worked out for these records, drawn.
+   *
+   * A module's own list gets them the same way Core's does: the values ride
+   * in on the rows the list already loaded, under `computed`, and the columns
+   * that describe them come back beside the rows as `computedColumns`. A cell
+   * with no value draws as a dash carrying the reason, never as a blank.
+   */
+  ComputedCells: React.ComponentType<{
+    columns:
+      | {
+          key: string;
+          label: string;
+          kind?: "money" | "whole" | "days" | "text";
+        }[]
+      | undefined;
+    row: {
+      computed?: Record<
+        string,
+        { value: number | string | null; reason?: string }
+      >;
+    };
+  }>;
 }
 
 /**
@@ -326,6 +349,7 @@ export const LIST_UI_MEMBERS = [
   "PER_PAGE_CHOICES",
   "lastSeenRanges",
   "useLastSeenRanges",
+  "ComputedCells",
 ] as const satisfies readonly (keyof SentrelloListUi)[];
 
 export interface Runtime {

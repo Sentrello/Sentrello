@@ -200,6 +200,21 @@ export interface ModuleContext {
   registerPersonalData: (source: PersonalDataSource) => void;
 
   /**
+   * Columns this module works out, on records Core owns.
+   *
+   * A computed field only earns its keep where somebody looks at their
+   * records, and that is the list — which Core builds for every module out of
+   * one factory. Core cannot name the modules in other repositories, so each
+   * says what it can add and the factory asks whatever this instance loaded.
+   * A Free instance registers none and its lists are unchanged.
+   *
+   * Optional, like `registerPaymentWebhook` and for the same reason: a module
+   * built against an older host has to keep compiling, and every test harness
+   * in four repositories builds this object by hand.
+   */
+  registerComputedColumns?: (provider: ComputedColumns) => void;
+
+  /**
    * What this module can find, for the box that searches everything.
    *
    * The commonest thing somebody does after looking at today's figures is look
@@ -304,6 +319,7 @@ export interface SentrelloModule {
 }
 
 import { type AccountSection, addAccountSection } from "./account";
+import { type ComputedColumns, addComputedColumns } from "./computed-columns";
 import { type CrawlableSurface, addCrawlable } from "./crawlable";
 import { type OnboardingGuide, addOnboarding } from "./onboarding";
 import {
@@ -348,6 +364,7 @@ export * from "./stripe-signature";
 export * from "./summaries";
 export * from "./widgets";
 export * from "./personal-data";
+export * from "./computed-columns";
 export * from "./crawlable";
 export * from "./onboarding";
 export * from "./unread-fields";
@@ -445,6 +462,10 @@ export function registerForTest(
     provide: (name, value) => provideService(name, value),
     registerPersonalData: (source) =>
       addPersonalData({ ...source, moduleId: module.id }),
+    // Registered for real, like the others, so a module's own tests can ask
+    // what it would add to somebody else's list.
+    registerComputedColumns: (provider) =>
+      addComputedColumns({ ...provider, moduleId: module.id }),
     // Registered for real, like the others, so a module's own tests can ask
     // what it would put in front of somebody setting it up.
     registerOnboarding: (guide) =>
