@@ -3,10 +3,13 @@ import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, eq, schema } from "@sentrello/db";
 import {
+  type LedgerTx,
   PeriodClosedError,
+  closedThrough,
   ensureAccount,
   postJournalEntry,
 } from "@sentrello/db/ledger";
+import { dayFrom } from "@sentrello/db/timezone";
 import { registerForTest } from "@sentrello/module-sdk";
 import accounting from "./index";
 
@@ -177,4 +180,96 @@ test("something that is not a date is refused rather than clearing the lock", as
   expect(
     ((await still.json()) as { closedThrough: string }).closedThrough,
   ).toBe("2026-03-31");
+});
+
+/**
+ * Taking the lock off and putting it back, as one transaction.
+ *
+ * Closing a year, and reopening one, is three steps: lift the lock, post a
+ * reversal dated inside the year the lock covers, put the lock back where it
+ * belongs. As three commits a failure anywhere in the middle leaves a
+ * business's closed year open — the control an auditor asks about, off, with
+ * nothing on any screen saying so.
+ *
+ * It could not be one transaction while the lock was read on its own
+ * connection: the unlock would be uncommitted, the read would not see it, and
+ * the post would be refused by a lock the caller had already lifted. So the
+ * two tests below are the seam, from both ends: the sequence works inside one
+ * transaction, and an interruption inside it leaves the year closed.
+ */
+const unlock = (tx: LedgerTx) =>
+  tx
+    .update(schema.ledgerSettings)
+    .set({ closedThrough: null, updatedAt: new Date() })
+    .where(eq(schema.ledgerSettings.organizationId, orgId));
+
+const postIn = async (tx: LedgerTx, postedAt: Date) => {
+  const cash = await ensureAccount(orgId, {
+    code: "1000",
+    name: "Cash",
+    type: "asset",
+  });
+  const income = await ensureAccount(orgId, {
+    code: "4000",
+    name: "Sales",
+    type: "income",
+  });
+  return postJournalEntry(
+    orgId,
+    "reopened",
+    "reopen-test",
+    [
+      { accountId: cash, creditCents: 100 },
+      { accountId: income, debitCents: 100 },
+    ],
+    postedAt,
+    { tx },
+  );
+};
+
+const lockNow = async () =>
+  (await closedThrough(orgId))?.toISOString().slice(0, 10) ?? null;
+
+const reversals = async () =>
+  (
+    await db
+      .select({ id: schema.journalEntries.id })
+      .from(schema.journalEntries)
+      .where(eq(schema.journalEntries.source, "reopen-test"))
+  ).length;
+
+test("a reopen can lift the lock and post under it in one transaction", async () => {
+  expect((await put({ closedThrough: "2026-06-30" })).status).toBe(200);
+
+  await db.transaction(async (tx) => {
+    await unlock(tx);
+    // Dated inside the closed year. Read on its own connection the lock would
+    // still be 2026-06-30 here, and this would be refused.
+    await postIn(tx, new Date("2026-05-20T12:00:00.000Z"));
+    await tx
+      .update(schema.ledgerSettings)
+      .set({ closedThrough: dayFrom("2025-12-31"), updatedAt: new Date() })
+      .where(eq(schema.ledgerSettings.organizationId, orgId));
+  });
+
+  expect(await lockNow()).toBe("2025-12-31");
+  expect(await reversals()).toBe(1);
+});
+
+test("a reopen interrupted between the unlock and the relock leaves the year closed", async () => {
+  expect((await put({ closedThrough: "2026-06-30" })).status).toBe(200);
+  const before = await reversals();
+
+  await expect(
+    db.transaction(async (tx) => {
+      await unlock(tx);
+      await postIn(tx, new Date("2026-05-20T12:00:00.000Z"));
+      // The process dies, the connection drops, the next statement deadlocks.
+      throw new Error("interrupted");
+    }),
+  ).rejects.toThrow("interrupted");
+
+  // The whole point: a crash must not be able to leave a filed year open.
+  expect(await lockNow()).toBe("2026-06-30");
+  expect(await reversals()).toBe(before);
 });
