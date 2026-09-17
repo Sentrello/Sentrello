@@ -4871,3 +4871,94 @@ test("a business that quotes gross raises an invoice that asks for the gross", a
     });
   }
 });
+
+/**
+ * The merge's own tenancy filter, which nothing held.
+ *
+ * `consolidate.ts` ends in an update that soft-deletes the drafts it merged.
+ * Every id reaching it was read back through an organization-filtered select
+ * first, so in practice nothing could reach a stranger's row — but that is a
+ * query that happens to be safe rather than one that says so, and the file was
+ * one of the four the 10 September mutation sweep could not kill. Same shape
+ * as `documents.test.ts`: a row planted for a second business that an unscoped
+ * query would destroy, and the assertion that it is still there.
+ */
+test("merging refuses a draft belonging to another business, and destroys none of it", async () => {
+  const other = `other-${crypto.randomUUID().slice(0, 8)}`;
+  const [theirs] = await db
+    .insert(schema.invoices)
+    .values({
+      organizationId: other,
+      number: `THEIRS-${suffix}`,
+      status: "draft",
+      totalCents: 9_900,
+    })
+    .returning();
+  if (!theirs) throw new Error("planted invoice returned no row");
+
+  try {
+    const draft = async () => {
+      const res = await app.request("http://localhost/api/invoices", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          contactId,
+          status: "draft",
+          lines: [
+            { description: "A visit", quantity: 1, unitPriceCents: 10_000 },
+          ],
+        }),
+      });
+      return ((await res.json()) as { invoice: { id: string } }).invoice;
+    };
+    const mine = await draft();
+
+    const res = await app.request("http://localhost/api/invoices/consolidate", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ invoiceIds: [mine.id, theirs.id] }),
+    });
+    // Fails closed: not "merged what it could", not a 200 with one source.
+    expect(res.status).toBe(404);
+
+    // Their draft is untouched — not soft-deleted, not merged away.
+    const [after] = await db
+      .select({
+        deletedAt: schema.invoices.deletedAt,
+        status: schema.invoices.status,
+      })
+      .from(schema.invoices)
+      .where(eq(schema.invoices.id, theirs.id));
+    expect(after?.deletedAt).toBeNull();
+    expect(after?.status).toBe("draft");
+
+    // And ours is untouched too: a refused merge must not half-happen.
+    const [ours] = await db
+      .select({ deletedAt: schema.invoices.deletedAt })
+      .from(schema.invoices)
+      .where(eq(schema.invoices.id, mine.id));
+    expect(ours?.deletedAt).toBeNull();
+
+    // The refusal is not a function that always says no: two of our own still
+    // merge, and the sources are the rows that get filed away.
+    const second = await draft();
+    const good = await app.request(
+      "http://localhost/api/invoices/consolidate",
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ invoiceIds: [mine.id, second.id] }),
+      },
+    );
+    expect(good.status).toBe(201);
+    const [merged] = await db
+      .select({ deletedAt: schema.invoices.deletedAt })
+      .from(schema.invoices)
+      .where(eq(schema.invoices.id, mine.id));
+    expect(merged?.deletedAt).not.toBeNull();
+  } finally {
+    await db
+      .delete(schema.invoices)
+      .where(eq(schema.invoices.organizationId, other));
+  }
+});
