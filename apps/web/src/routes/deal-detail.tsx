@@ -4,6 +4,7 @@ import { api } from "../lib/api";
 import { useCrmSettings } from "../lib/crm-settings";
 import { CustomFields, CustomValues } from "../lib/custom-fields";
 import { RelatedLink, useNavigation, useRecordTitle } from "../lib/navigation";
+import { RecordPicker } from "../lib/record-picker";
 import {
   Button,
   Card,
@@ -59,14 +60,15 @@ interface Related {
  */
 function EditDeal({
   deal,
-  companyId,
-  contactIds,
+  company,
+  people,
   onDone,
   onDeleted,
 }: {
   deal: Related["deal"];
-  companyId: string | null;
-  contactIds: string[];
+  company: { id: string; name: string } | null;
+  /** Who is already on it, with their names, so nothing has to be looked up. */
+  people: { id: string; name: string }[];
   onDone: () => void;
   /** Deleting leaves nothing to come back to, so the screen navigates away. */
   onDeleted: () => void;
@@ -79,25 +81,22 @@ function EditDeal({
     category: deal.category ?? "",
     description: deal.description ?? "",
     expectedCloseOn: deal.expectedCloseOn ?? "",
-    companyId: companyId ?? "",
   });
+  const [onCompany, setCompany] = useState(company);
   const [customValues, setCustomValues] = useState<
     Record<string, string | number | boolean | null>
   >(deal.customValues ?? {});
-  const [on, setOn] = useState<Set<string>>(new Set(contactIds));
+  /**
+   * Who is on the deal, by name as well as by id.
+   *
+   * It was a checkbox per contact, drawn from the whole contacts table —
+   * which the server caps at a thousand rows, so a business with more than
+   * that could not tick some of its own customers and nothing said so. The
+   * ones already on the deal are shown; anybody else is found by searching.
+   */
+  const [on, setOn] = useState(people);
   const set = (patch: Partial<typeof form>) =>
     setForm((f) => ({ ...f, ...patch }));
-
-  const people = useQuery({
-    queryKey: ["contacts"],
-    queryFn: () =>
-      api<{ contacts: { id: string; name: string }[] }>("/api/contacts"),
-  });
-  const companies = useQuery({
-    queryKey: ["companies"],
-    queryFn: () =>
-      api<{ companies: { id: string; name: string }[] }>("/api/companies"),
-  });
 
   const remove = useMutation({
     mutationFn: () => api(`/api/deals/${deal.id}`, { method: "DELETE" }),
@@ -122,8 +121,8 @@ function EditDeal({
           category: form.category || null,
           description: form.description || null,
           expectedCloseOn: form.expectedCloseOn || null,
-          companyId: form.companyId || null,
-          contactIds: [...on],
+          companyId: onCompany?.id || null,
+          contactIds: on.map((p) => p.id),
           customValues,
         }),
       }),
@@ -168,17 +167,15 @@ function EditDeal({
           />
         </Field>
         <Field label="Company">
-          <Select
-            value={form.companyId}
-            onChange={(e) => set({ companyId: e.target.value })}
-          >
-            <option value="">No company</option>
-            {(companies.data?.companies ?? []).map((co) => (
-              <option key={co.id} value={co.id}>
-                {co.name}
-              </option>
-            ))}
-          </Select>
+          <RecordPicker
+            path="/api/companies"
+            resource="companies"
+            value={onCompany}
+            onChange={setCompany}
+            placeholder="Search companies"
+            clearLabel="No company"
+            noun="company"
+          />
         </Field>
       </div>
 
@@ -200,24 +197,38 @@ function EditDeal({
         label="People on this deal"
         hint="A deal usually involves several."
       >
-        <div className="max-h-48 space-y-1 overflow-y-auto">
-          {(people.data?.contacts ?? []).map((p) => (
-            <label key={p.id} className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={on.has(p.id)}
-                onChange={(e) =>
-                  setOn((prev) => {
-                    const next = new Set(prev);
-                    if (e.target.checked) next.add(p.id);
-                    else next.delete(p.id);
-                    return next;
-                  })
+        <div className="space-y-1">
+          {on.map((p) => (
+            <div key={p.id} className="flex items-center gap-2 text-sm">
+              <span>{p.name}</span>
+              <button
+                type="button"
+                aria-label={`Take ${p.name} off this deal`}
+                onClick={() =>
+                  setOn((prev) => prev.filter((q) => q.id !== p.id))
                 }
-              />
-              {p.name}
-            </label>
+                className="text-xs underline"
+                style={muted}
+              >
+                Remove
+              </button>
+            </div>
           ))}
+          <RecordPicker
+            path="/api/contacts"
+            resource="contacts"
+            value={null}
+            onChange={(picked) =>
+              setOn((prev) =>
+                !picked || prev.some((q) => q.id === picked.id)
+                  ? prev
+                  : [...prev, { id: picked.id, name: picked.name }],
+              )
+            }
+            placeholder="Add somebody"
+            clearLabel={null}
+            noun="contact"
+          />
         </div>
       </Field>
 
@@ -343,8 +354,8 @@ export function DealDetail() {
     return (
       <EditDeal
         deal={deal}
-        companyId={company?.id ?? null}
-        contactIds={contacts.map((p) => p.id)}
+        company={company ?? null}
+        people={contacts.map((p) => ({ id: p.id, name: p.name }))}
         onDone={() => setEditing(false)}
         onDeleted={() => open({ moduleId: "deals", title: "Deals" })}
       />

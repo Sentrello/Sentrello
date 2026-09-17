@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { type Contact, api } from "../lib/api";
+import { api } from "../lib/api";
 import { Bars, type Point } from "../lib/charts";
 import { useNavigation } from "../lib/navigation";
 import {
@@ -37,6 +37,8 @@ interface InvoicingDashboard {
     id: string;
     number: string;
     contactId: string | null;
+    /** Resolved on the server, not by fetching every contact. */
+    contactName: string | null;
     totalCents: number;
     dueDate: string | null;
     daysLate: number;
@@ -45,6 +47,8 @@ interface InvoicingDashboard {
     id: string;
     number: string;
     contactId: string | null;
+    /** Resolved on the server, not by fetching every contact. */
+    contactName: string | null;
     totalCents: number;
     issueDate: string;
   }[];
@@ -55,10 +59,6 @@ export function InvoicingDashboard() {
   const { data, isLoading, error } = useQuery({
     queryKey: ["invoicing", "dashboard"],
     queryFn: () => api<InvoicingDashboard>("/api/invoicing/dashboard"),
-  });
-  const contacts = useQuery({
-    queryKey: ["contacts", "all"],
-    queryFn: () => api<{ contacts: Contact[] }>("/api/contacts"),
   });
   /**
    * The EU distance-selling threshold, shown only when it bites.
@@ -101,8 +101,6 @@ export function InvoicingDashboard() {
   if (error) return <ErrorNote error={error} />;
   if (!data) return null;
 
-  const customer = (id: string | null) =>
-    id ? (contacts.data?.contacts.find((c) => c.id === id)?.name ?? "—") : "—";
   const openInvoice = (id: string, number: string) =>
     open({ moduleId: "invoicing", recordId: id, title: number });
 
@@ -171,9 +169,7 @@ export function InvoicingDashboard() {
                   >
                     {invoice.number}
                   </button>
-                  <span className="truncate">
-                    {customer(invoice.contactId)}
-                  </span>
+                  <span className="truncate">{invoice.contactName ?? "—"}</span>
                   <span style={{ color: "var(--text-danger)" }}>
                     {invoice.daysLate} days
                   </span>
@@ -203,9 +199,7 @@ export function InvoicingDashboard() {
                   >
                     {invoice.number}
                   </button>
-                  <span className="truncate">
-                    {customer(invoice.contactId)}
-                  </span>
+                  <span className="truncate">{invoice.contactName ?? "—"}</span>
                   <span style={muted}>{formatDate(invoice.issueDate)}</span>
                   <span className="ml-auto money">
                     {formatMoney(invoice.totalCents)}

@@ -1,6 +1,6 @@
 import type { CustomField } from "@sentrello/module-sdk/custom-fields";
 import { coerceCustomValues } from "@sentrello/module-sdk/custom-fields";
-import { type SQL, eq, sql } from "drizzle-orm";
+import { type SQL, and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "./client";
 import * as schema from "./schema";
 
@@ -77,4 +77,35 @@ export function contactHasEmail(email: string): SQL {
        where lower(e->>'value') = lower(${email})
     )
   )`;
+}
+
+/**
+ * The names of the contacts on one page of anything.
+ *
+ * Every list that shows a customer's name needs this, and each of them used to
+ * do it by fetching the whole contacts table into the browser and looking
+ * names up there. That works until a business has more customers than the
+ * unpaged ceiling, at which point the name quietly becomes blank for everybody
+ * past the first thousand — sorted, so it is always the same people.
+ *
+ * One query for the page, keyed by the ids already in hand. Organization-
+ * scoped, so a row that somehow names another business's contact resolves to
+ * nothing rather than to their customer.
+ */
+export async function contactNames(
+  organizationId: string,
+  ids: (string | null)[],
+): Promise<Map<string, string>> {
+  const wanted = [...new Set(ids.filter((id): id is string => Boolean(id)))];
+  if (!wanted.length) return new Map();
+  const rows = await db
+    .select({ id: schema.contacts.id, name: schema.contacts.name })
+    .from(schema.contacts)
+    .where(
+      and(
+        eq(schema.contacts.organizationId, organizationId),
+        inArray(schema.contacts.id, wanted),
+      ),
+    );
+  return new Map(rows.map((row) => [row.id, row.name]));
 }

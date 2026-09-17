@@ -1,4 +1,14 @@
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import {
+  type SQL,
+  and,
+  eq,
+  inArray,
+  isNull,
+  ne,
+  notInArray,
+  sql,
+} from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { type DbTx, db } from "./client";
 import { rateOn } from "./currency";
 import { postInvoiceIssued } from "./ledger";
@@ -832,4 +842,108 @@ export async function creditedAgainst(
     if (row.invoiceId) credited.set(row.invoiceId, row.total);
   }
   return credited;
+}
+
+/**
+ * Every live invoice with what is still owed on it, worked out in the query.
+ *
+ * The same arithmetic `invoiceState` does, in the same order: the total, less
+ * anything given up for paying early, less what has been paid, less what has
+ * been credited, floored at zero. `draft` and `void` are excluded by the
+ * filter rather than by the branch at the top of `invoiceState`, and `paid`
+ * and `credited` with them — the stored column is a filter key and that is
+ * what it is being used as.
+ *
+ * Credits count beside the payments because a credit note settles debt the
+ * way money does; without them a partly credited invoice shows the credited
+ * share as still owed. Voided and deleted credit notes do not count, which is
+ * `creditedAgainst`'s rule and is written the same way here.
+ *
+ * **Here rather than on the dashboard, because two screens ask the same
+ * question.** The dashboard's Money panel was rewritten to ask it in one row;
+ * the invoicing panel beside it was not, and went on reading every unpaid
+ * invoice and every payment against them into the process to add up in
+ * JavaScript — 143 MB for four figures. Two spellings of "owed" would also
+ * eventually disagree by a part-payment, on two cards of the same screen.
+ *
+ * Both settlements are added up once each, not once per invoice. Written
+ * first as a correlated subquery, which reads beautifully and is a nested
+ * loop: 8,105 unpaid invoices times every payment and every credit note,
+ * measured at two minutes. Two hash aggregates ask it in one pass each.
+ */
+export function owingInvoices(orgId: string) {
+  const credit = alias(schema.invoices, "credit_note");
+  const paid = db
+    .select({
+      invoiceId: schema.payments.invoiceId,
+      cents: sql<number>`sum(${schema.payments.amountCents})`.as("paid_cents"),
+    })
+    .from(schema.payments)
+    .where(eq(schema.payments.organizationId, orgId))
+    .groupBy(schema.payments.invoiceId)
+    .as("paid");
+  const credited = db
+    .select({
+      invoiceId: credit.referenceInvoiceId,
+      cents: sql<number>`sum(${credit.totalCents})`.as("credited_cents"),
+    })
+    .from(credit)
+    .where(
+      and(
+        eq(credit.organizationId, orgId),
+        eq(credit.kind, "credit_note"),
+        isNull(credit.deletedAt),
+        ne(credit.status, "void"),
+      ),
+    )
+    .groupBy(credit.referenceInvoiceId)
+    .as("credited");
+
+  return db
+    .select({
+      id: schema.invoices.id,
+      number: schema.invoices.number,
+      dueDate: schema.invoices.dueDate,
+      owedCents:
+        sql<number>`greatest(0, ${schema.invoices.totalCents} - coalesce(${schema.invoices.earlyDiscountTakenCents}, 0) - coalesce(${paid.cents}, 0) - coalesce(${credited.cents}, 0))`.as(
+          "owed_cents",
+        ),
+    })
+    .from(schema.invoices)
+    .leftJoin(paid, eq(paid.invoiceId, schema.invoices.id))
+    .leftJoin(credited, eq(credited.invoiceId, schema.invoices.id))
+    .where(
+      and(
+        eq(schema.invoices.organizationId, orgId),
+        eq(schema.invoices.kind, "invoice"),
+        isNull(schema.invoices.deletedAt),
+        notInArray(schema.invoices.status, [
+          "paid",
+          "credited",
+          "void",
+          "draft",
+        ]),
+      ),
+    )
+    .as("owing");
+}
+
+/**
+ * Late is strictly past the moment it was due, and only while money is owed —
+ * `isOverdue`'s rule, said in SQL so the figure and the list agree with the
+ * rest of the product about who is late.
+ *
+ * The instant goes in as text rather than as a `Date`. A due date is stored
+ * without a time zone and read back as though it were UTC, which is what
+ * `toISOString` writes; handing the driver a `Date` inside an expression it
+ * has no column to type it against fails outright, and a cast that guessed
+ * would move the boundary by an offset — which at the end of a month is an
+ * invoice that is overdue on one screen and not on another.
+ */
+export function isOverdueSql(
+  owing: ReturnType<typeof owingInvoices>,
+  now: Date,
+): SQL<boolean> {
+  const at = now.toISOString();
+  return sql<boolean>`${owing.owedCents} > 0 and ${owing.dueDate} is not null and ${owing.dueDate} < ${at}`;
 }

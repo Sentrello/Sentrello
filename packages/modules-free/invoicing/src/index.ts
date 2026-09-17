@@ -1574,6 +1574,10 @@ export default defineModule({
                   id: schema.contacts.id,
                   name: schema.contacts.name,
                   email: schema.contacts.email,
+                  // Which company they belong to: the invoice screen reads it
+                  // for the two things an address decides — which US rates
+                  // apply, and whether an exemption certificate is on file.
+                  companyId: schema.contacts.companyId,
                 })
                 .from(schema.contacts)
                 // Org-filtered even though the write path now checks: a row
@@ -2097,6 +2101,10 @@ export default defineModule({
                   id: schema.contacts.id,
                   name: schema.contacts.name,
                   email: schema.contacts.email,
+                  // Which company they belong to: the invoice screen reads it
+                  // for the two things an address decides — which US rates
+                  // apply, and whether an exemption certificate is on file.
+                  companyId: schema.contacts.companyId,
                 })
                 .from(schema.contacts)
                 // Org-filtered even though the write path now checks: a row
