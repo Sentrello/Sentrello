@@ -223,6 +223,19 @@ export interface ColumnState {
   hiddenCount: number;
 }
 
+/**
+ * A row a `RecordPicker` can offer: something with an id and a name.
+ *
+ * Restated here rather than imported, the same as every other shape in this
+ * file — the SDK cannot see Core's source, and this is the only description
+ * of the surface a module is given.
+ */
+export interface PickableRecord {
+  id: string;
+  name: string;
+  [key: string]: unknown;
+}
+
 export interface SentrelloListUi {
   useListState: (defaults: {
     sort: string;
@@ -310,6 +323,30 @@ export interface SentrelloListUi {
    * that describe them come back beside the rows as `computedColumns`. A cell
    * with no value draws as a dash carrying the reason, never as a blank.
    */
+  /**
+   * Choosing one record out of however many a business has.
+   *
+   * The answer to the capped list, and the reason a module should never fill
+   * a `<select>` from a list endpoint: the server searches as somebody types
+   * and says "showing 20 of 431" rather than ending silently at a thousand.
+   * Core's own invoice, contact, deal and sales-tax screens all go through it.
+   *
+   * Generic, unlike `activeTab` above, because the concrete function is —
+   * a picker hands back the row it was given, with whatever else was on it.
+   */
+  RecordPicker: <T extends PickableRecord>(props: {
+    /** The list endpoint, e.g. "/api/contacts". */
+    path: string;
+    /** The key the endpoint returns its rows under, e.g. "contacts". */
+    resource: string;
+    /** What is chosen now, with its name, or nothing. */
+    value: { id: string; name: string } | null;
+    onChange: (picked: T | null) => void;
+    placeholder?: string;
+    /** The wording for choosing nobody. Absent means the choice is required. */
+    clearLabel?: string | null;
+    noun?: string;
+  }) => React.ReactElement | null;
   ComputedCells: React.ComponentType<{
     columns:
       | {
@@ -349,6 +386,7 @@ export const LIST_UI_MEMBERS = [
   "PER_PAGE_CHOICES",
   "lastSeenRanges",
   "useLastSeenRanges",
+  "RecordPicker",
   "ComputedCells",
 ] as const satisfies readonly (keyof SentrelloListUi)[];
 
