@@ -119,6 +119,65 @@ export const STATUTORY_TABLES = [
   "seo_usage_invoices",
   "seo_cloud.calls",
   "seo_cloud.credits",
+
+  /*
+   * The optional modules' own evidence of money taken.
+   *
+   * Qualified, because these live in schemas of their own and their bare names
+   * are words another module could reasonably use for a log — `orders`,
+   * `discounts`, `events`, `usage`, `tickets`. Named here rather than in the
+   * repository that owns them because the refusal `addRetention` makes is by
+   * name, and one list is the only way a policy written in any repository is
+   * refused by the same rule.
+   *
+   * A till's ticket is a sale; its modifiers are what was on that sale and
+   * what each cost; its adjustments are the voids and refunds; the drawer and
+   * its events are cash counted in and paid out; a closure is a business's
+   * record of a day's takings, which is the single row a tax inspector asks
+   * for; the receipts are the documents handed over.
+   *
+   * A shop's orders and their lines are what was bought and billed. The
+   * fulfilments say what was actually delivered, which is when the revenue is
+   * earned. The allocations, cost layers and stock moves are the inventory
+   * asset's cost basis — a balance-sheet figure and the cost of every sale —
+   * and losing them is the defect found in the shop's own delete path this
+   * week, arriving a second way. The tax classes and rates are what a document
+   * was taxed at, protected for the same reason `tax_definitions` is, and the
+   * discounts explain the difference between the list price and the charge.
+   *
+   * A subscription's charge attempts are money taken and money that failed;
+   * its plan changes are what the customer bought and when that changed; its
+   * dunning cycles are the evidence behind a cancellation and a debt not
+   * collected; its discounts are as the shop's.
+   *
+   * `seo.usage` and `links.events` are metered: each is the basis a bill is
+   * computed from, which is what makes an event log evidence rather than a
+   * log. If either module ever stops billing on one, that is the argument for
+   * taking it off this list — made in review, which is the point of the list.
+   */
+  "pos.tickets",
+  "pos.ticket_line_modifiers",
+  "pos.adjustments",
+  "pos.drawers",
+  "pos.drawer_events",
+  "pos.closures",
+  "pos.receipts",
+  "pos.receipt_issues",
+  "shop.orders",
+  "shop.order_lines",
+  "shop.fulfillments",
+  "shop.allocations",
+  "shop.stock_layers",
+  "shop.stock_moves",
+  "shop.tax_classes",
+  "shop.tax_rates",
+  "shop.discounts",
+  "subscriptions.charge_attempts",
+  "subscriptions.plan_changes",
+  "subscriptions.dunning_cycles",
+  "subscriptions.discounts",
+  "seo.usage",
+  "links.events",
 ] as const;
 
 export type StatutoryTable = (typeof STATUTORY_TABLES)[number];
@@ -253,11 +312,89 @@ export function retentionTableName(table: RetentionTable): string {
  * so an entry like `seo_cloud.calls` refuses exactly that table and leaves a
  * CRM free to keep a log of telephone calls.
  */
-function retentionQualifiedName(table: RetentionTable): string {
+export function retentionQualifiedName(table: RetentionTable): string {
   const named = table as unknown as Record<symbol, unknown>;
   const schema = named[Symbol.for("drizzle:Schema")];
   const name = retentionTableName(table);
   return typeof schema === "string" && schema ? `${schema}.${name}` : name;
+}
+
+/**
+ * Every table a repository's schema exports, as this facility names them.
+ *
+ * A drizzle table carries its name under a registered symbol, which is what
+ * `retentionTableName` reads — so this recognises one without importing the
+ * ORM, the same way everything else here does.
+ */
+export function schemaTableNames(
+  exported: Record<string, unknown>,
+): { name: string; qualified: string }[] {
+  const tables: { name: string; qualified: string }[] = [];
+  for (const value of Object.values(exported)) {
+    if (!value || typeof value !== "object") continue;
+    const table = value as RetentionTable;
+    const name = retentionTableName(table);
+    if (!name) continue;
+    tables.push({ name, qualified: retentionQualifiedName(table) });
+  }
+  return tables;
+}
+
+/** What a schema's classification is missing. Empty on all three is the pass. */
+export interface ClassificationGaps {
+  /** In neither list: nobody has decided what losing this table would cost. */
+  unclassified: string[];
+  /** In both, which is somebody having decided twice and differently. */
+  both: string[];
+  /** Named as ordinary but no longer in the schema — a guard over nothing. */
+  stale: string[];
+}
+
+/**
+ * The ratchet, in one place so three repositories cannot write it three ways.
+ *
+ * `STATUTORY_TABLES` is the refusal and it is central, because `addRetention`
+ * matches by name and a policy written in any repository has to meet the same
+ * list. The *other* half — "this table was looked at and is not evidence of
+ * money" — is local: they are that repository's own logs and settings rows,
+ * and nobody else has an opinion about them.
+ *
+ * So each repository runs this over its own schema with its own ordinary list,
+ * and a table it adds tomorrow is in neither until somebody has decided. That
+ * property held only inside Core until now, which made the guarantee
+ * "protected where we remembered" — twenty-three tables recording money taken
+ * at a till, sold from a shop and billed by subscription were registering
+ * retention policies against a list that had never heard of them.
+ *
+ * The alternative considered was each module declaring its own statutory
+ * tables and this facility consulting them at registration. It is the same
+ * hole one level in: a module that forgets to declare is a module whose tables
+ * are unprotected, and the thing that must not be forgettable is exactly the
+ * declaring.
+ */
+export function classifySchema(
+  exported: Record<string, unknown>,
+  ordinary: readonly string[],
+): ClassificationGaps {
+  const statutory: readonly string[] = STATUTORY_TABLES;
+  const known = new Set(ordinary);
+  const gaps: ClassificationGaps = { unclassified: [], both: [], stale: [] };
+  const present = new Set<string>();
+
+  for (const { name, qualified } of schemaTableNames(exported)) {
+    present.add(name);
+    const isStatutory =
+      statutory.includes(name) || statutory.includes(qualified);
+    const isOrdinary = known.has(name) || known.has(qualified);
+    if (isStatutory && isOrdinary) gaps.both.push(qualified);
+    else if (!isStatutory && !isOrdinary) gaps.unclassified.push(qualified);
+  }
+  for (const name of ordinary) {
+    if (!present.has(name) && !present.has(name.split(".").pop() ?? name)) {
+      gaps.stale.push(name);
+    }
+  }
+  return gaps;
 }
 
 /** Whether a table is one the books depend on and nothing may sweep. */
