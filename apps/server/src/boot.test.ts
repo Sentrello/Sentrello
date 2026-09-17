@@ -547,6 +547,8 @@ test("a business sees only the tax regimes it has chosen, and turning one off ne
   expect(await navIds()).toContain("invoicing-us-tax");
   expect(await navIds()).not.toContain("accounting-vat");
   expect(await navIds()).not.toContain("accounting-ca-tax");
+  // EU VAT gates the One Stop Shop return the same way.
+  expect(await navIds()).not.toContain("invoicing-oss");
 
   // Choosing UK VAT and Canada as well offers both screens immediately.
   const put = await server.fetch(
@@ -561,6 +563,16 @@ test("a business sees only the tax regimes it has chosen, and turning one off ne
   expect(await navIds()).toContain("accounting-ca-tax");
   // US sales tax was not re-chosen, so it is offered no longer.
   expect(await navIds()).not.toContain("invoicing-us-tax");
+
+  // And EU VAT, once chosen, puts the OSS return in the sidebar.
+  await server.fetch(
+    new Request("http://localhost/api/tax-regimes", {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({ regimes: ["uk-vat", "ca-tax", "eu-vat"] }),
+    }),
+  );
+  expect(await navIds()).toContain("invoicing-oss");
 
   // The VAT return itself computes regardless — the nav entry is what is
   // gated, never the figures. Proven both while the regime is chosen and

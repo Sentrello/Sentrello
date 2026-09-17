@@ -33,7 +33,8 @@ test("every regime with a nav entry is reachable from its nav id", () => {
     if (!regime.navId) continue;
     expect(NAV_TAX_REGIME.get(regime.navId)).toBe(regime.id);
   }
-  // EU VAT has no nav entry to gate — its features already show themselves
-  // contextually rather than as a screen offered to everybody.
-  expect(TAX_REGIMES.find((r) => r.id === "eu-vat")?.navId).toBeUndefined();
+  // EU VAT gates the One Stop Shop return, which is the only screen it has.
+  expect(TAX_REGIMES.find((r) => r.id === "eu-vat")?.navId).toBe(
+    "invoicing-oss",
+  );
 });

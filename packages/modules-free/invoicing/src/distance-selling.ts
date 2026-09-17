@@ -64,11 +64,35 @@ const EU_MEMBERS = new Set([
   "SE",
 ]);
 
-const euCountry = (raw: string | null | undefined): string | null => {
+export const euCountry = (raw: string | null | undefined): string | null => {
   const code = raw?.trim().toUpperCase() ?? "";
   if (!EU_MEMBERS.has(code)) return null;
   return code === "EL" ? "GR" : code;
 };
+
+/**
+ * Whether a sale to this customer is B2C — the question both the threshold and
+ * the OSS return turn on, asked once.
+ *
+ * No VAT number on record is a consumer: a registration is what makes a sale
+ * B2B, and its absence is the only signal there is. A number VIES has said is
+ * *invalid* is a consumer too — the register having refused it is precisely the
+ * case where the seller cannot rely on the reverse charge, so the supply is
+ * B2C for VAT whatever the customer believes. A number nobody has checked is
+ * taken at face value, because a business that recorded one meant something by
+ * it and the platform is not its tax inspector.
+ *
+ * Shared rather than written twice: a threshold position and a return that
+ * disagreed about which sales were B2C would leave a business unable to
+ * reconcile the two figures we showed it.
+ */
+export function isConsumerSupply(
+  taxIdentifier: string | null | undefined,
+  taxIdentifierValid: boolean | null | undefined,
+): boolean {
+  if (!taxIdentifier?.trim()) return true;
+  return taxIdentifierValid === false;
+}
 
 export interface DistanceSalesPosition {
   /** False for a seller outside the EU — the threshold is not theirs. */
@@ -122,6 +146,7 @@ export async function distanceSalesPosition(
       rateMicro: schema.invoices.rateMicro,
       buyerCountry: schema.companies.country,
       buyerTaxId: schema.companies.taxIdentifier,
+      buyerTaxIdValid: schema.companies.taxIdentifierValid,
     })
     .from(schema.invoices)
     .innerJoin(
@@ -154,7 +179,8 @@ export async function distanceSalesPosition(
   for (const row of rows) {
     const buyer = euCountry(row.buyerCountry);
     if (!buyer || buyer === seller) continue; // domestic or outside the EU
-    if (row.buyerTaxId?.trim()) continue; // registered: B2B, not distance selling
+    // Registered and unrefuted: B2B, and not distance selling.
+    if (!isConsumerSupply(row.buyerTaxId, row.buyerTaxIdValid)) continue;
 
     const net = toBaseCents(
       row.subtotalCents - row.discountCents,

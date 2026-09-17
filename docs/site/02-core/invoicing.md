@@ -127,6 +127,54 @@ anything into NETFILE or a provincial portal. A credited sale has already
 come back off the right return. If you charge tax in one province, that is
 the only card you will ever see.
 
+## EU VAT and the One Stop Shop
+
+Sell to a consumer in another EU member state and, at first, you charge your
+own country's VAT. That holds until your cross-border sales to consumers pass
+**€10,000 across the whole union in a calendar year** — the current one or the
+one before it. After that, VAT is due at the rate of your *customer's*
+country, on every such sale.
+
+Sentrello watches that line for you from your issued invoices — cross-border,
+unregistered customers, net of VAT, credit notes subtracting — and says on the
+invoicing dashboard which side of it you are on. Registering is your decision
+and your accountant's; the point is that you hear about it rather than
+discover it.
+
+**Which sales count.** Sales to customers in other member states whose company
+record carries no VAT number. A customer with a valid VAT number accounts for
+the tax themselves, and a sale at home is your ordinary domestic return's
+business — neither is distance selling.
+
+**The return.** Rather than registering in every country you sell into, one
+quarterly *One Stop Shop* return covers all of them, filed through your own
+member state. **Money → EU OSS return** shows exactly what that return asks
+for, for any quarter: for each member state, at each rate you applied, the
+taxable amount and the VAT due, in euro, with the total and the date it has to
+be in by — the last day of the month after the quarter ends. Save it as a file
+for your records; the paperwork behind an OSS return has to be produceable for
+ten years.
+
+The screen appears once you tell Sentrello you operate in the EU, under
+Settings → Tax regimes.
+
+**If your books are not in euro.** The return is filed in euro, and the rate is
+not yours to choose: it is the European Central Bank's for the last day of the
+quarter, or the next day it published. Record that rate under Accounting and
+the figures convert exactly. Until you do, Sentrello shows no figures rather
+than converting at a rate that happens to be on file — a return that is
+plausible and wrong is worse than one that is late.
+
+**Corrections.** A return you have filed cannot be amended. A credit note
+raised against an earlier quarter's invoice therefore appears in the
+*corrections* panel of the current return, naming the quarter it relates to,
+which is how the scheme handles it. Corrections are accepted for three years
+from the date the original return was due, and one that falls outside that
+window is flagged rather than quietly included.
+
+**It computes; it does not file.** Nothing is sent anywhere. You submit the
+return through your own member state's portal, and the deadline is yours.
+
 ## The catalogue
 
 Products and services you invoice for repeatedly live in a price list, each with
