@@ -4,6 +4,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { and, asc, db, eq, schema } from "@sentrello/db";
+import { organizationMember } from "@sentrello/db/membership";
 import { record } from "@sentrello/db/security-events";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import { policyKind, seedDefaults } from "./defaults";
@@ -313,17 +314,11 @@ export function registerGroups(ctx: ModuleContext) {
       if (!group) return c.json({ error: "not found" }, 404);
 
       // Only somebody who is already in the business. A group is not a way in.
-      const [member] = await db
-        .select({ id: schema.member.id })
-        .from(schema.member)
-        .where(
-          and(
-            eq(schema.member.organizationId, orgId),
-            eq(schema.member.userId, userId),
-          ),
-        )
-        .limit(1);
-      if (!member) return c.json({ error: "no such person here" }, 404);
+      // Through the platform's own helper, so this module and every other one
+      // asks "do they work here" in the same words.
+      if (!(await organizationMember(orgId, userId))) {
+        return c.json({ error: "no such person here" }, 404);
+      }
 
       await db
         .insert(schema.userGroupMembers)

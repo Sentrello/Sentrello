@@ -31,7 +31,8 @@
     "./tax-regimes": "./src/tax-regimes.ts",
     "./customer-credit": "./src/customer-credit.ts",
     "./erasure": "./src/erasure.ts",
-    "./retention": "./src/retention.ts"
+    "./retention": "./src/retention.ts",
+    "./membership": "./src/membership.ts"
   },
   "scripts": {
     "migrate": "bun run src/migrate.ts"
