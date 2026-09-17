@@ -4,6 +4,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { and, db, eq, inArray, schema } from "@sentrello/db";
+import { rateOn } from "@sentrello/db/currency";
 import { defaultDueDate } from "@sentrello/db/documents";
 import { ownedContact } from "@sentrello/db/ledger";
 import { MoneyError } from "@sentrello/db/money";
@@ -199,13 +200,38 @@ export function registerConsolidate(ctx: ModuleContext) {
         throw err;
       }
 
+      /**
+       * What the merged document's currency is worth, fixed onto it.
+       *
+       * It was never set, so the column default stood and every merged
+       * invoice was 1:1 — a euro merge posted euro cents into dollar books
+       * the moment somebody issued it, which is the same defect `copyInvoice`
+       * was carrying and for the same reason: a field nobody remembered.
+       *
+       * Re-derived at this document's own date rather than inherited from the
+       * drafts, because the merged invoice is the sale now. Refused rather
+       * than guessed where the business has never priced the currency — the
+       * refusal the create route, the copy and the purchase side all make.
+       */
+      const currency = sources[0]?.currency ?? "USD";
+      const rateMicro = await rateOn(orgId, currency, new Date());
+      if (rateMicro === null) {
+        return c.json(
+          {
+            error: `no exchange rate recorded for ${currency} — set one under Accounting first`,
+          },
+          400,
+        );
+      }
+
       const merged = await db.transaction(async (tx) => {
         const [invoice] = await tx
           .insert(schema.invoices)
           .values({
             organizationId: orgId,
             contactId,
-            currency: sources[0]?.currency ?? "USD",
+            currency,
+            rateMicro,
             pricesIncludeTax,
             number: await nextDocumentNumber(tx, orgId, "invoice"),
             status: "draft",
