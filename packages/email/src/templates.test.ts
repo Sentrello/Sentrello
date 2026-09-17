@@ -5,6 +5,7 @@ import {
   orderDespatchedEmail,
   orderPaidEmail,
   overdueReminderEmail,
+  receiptEmail,
 } from "./templates";
 
 /**
@@ -105,6 +106,36 @@ test("a sender that forgets to ask credits the product", () => {
     currency: "GBP",
   });
   expect(mail.html).toContain("Sent by Sentrello");
+});
+
+/**
+ * A receipt asks nothing further of the customer, so it is the one place
+ * among the transactional mails that offers the wider account alongside its
+ * own "see your invoices" link, rather than competing with a pay/accept CTA.
+ */
+test("a receipt offers the wider account, not only this invoice", () => {
+  const mail = receiptEmail({
+    number: "INV-0004",
+    amountCents: 5000,
+    currency: "GBP",
+    balanceCents: 0,
+    portalUrl: "https://acme.example/portal/tok123",
+    accountUrl: "https://acme.example/account/tok123",
+  });
+  expect(mail.html).toContain('href="https://acme.example/portal/tok123"');
+  expect(mail.html).toContain('href="https://acme.example/account/tok123"');
+  expect(mail.html).toContain("See everything you have with us");
+});
+
+test("a receipt with no account url offers no such link", () => {
+  const mail = receiptEmail({
+    number: "INV-0005",
+    amountCents: 5000,
+    currency: "GBP",
+    balanceCents: 0,
+    portalUrl: "https://acme.example/portal/tok123",
+  });
+  expect(mail.html).not.toContain("See everything you have with us");
 });
 
 /**

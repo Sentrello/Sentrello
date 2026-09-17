@@ -507,6 +507,28 @@ test("a customer's portal link shows their invoices and nobody else's", async ()
   expect(body).not.toContain("$999.00");
 });
 
+/**
+ * The unified account page is one hop from the invoice portal, reached with
+ * the same credential rather than a second one. The token in the href is the
+ * literal token this page was opened with, so it can only ever point back at
+ * this same contact — the account module's own tests cover what that token
+ * resolves to and that it never leaks across organizations.
+ */
+test("the portal offers this same customer's account, not a stray token", async () => {
+  const minted = await app.request(
+    `http://localhost/api/contacts/${contactId}/portal-link`,
+    { method: "POST", headers },
+  );
+  const { url } = (await minted.json()) as { url: string };
+  const path = new URL(url).pathname;
+  const token = path.split("/").pop();
+
+  const page = await app.request(`http://localhost${path}`);
+  const html = await page.text();
+  expect(html).toContain(`href="/account/${token}"`);
+  expect(html).toContain("See everything you have with us");
+});
+
 test("a guessed portal link is a 404, and rotating revokes the old one", async () => {
   const first = await app.request(
     `http://localhost/api/contacts/${contactId}/portal-link`,
@@ -4599,4 +4621,90 @@ test("the shared page names the status in the customer's words, not the enum", a
     body: JSON.stringify({ amountCents: 10_000 }),
   });
   expect(await page()).toContain('<span class="pill">Part paid</span>');
+});
+
+/**
+ * Deliberately left alone: a share link is scoped to one document and may be
+ * forwarded on its own — to an accountant, to a subcontractor — without
+ * handing over the broader, per-customer portal token. Offering the wider
+ * account here would put that stronger credential somewhere the narrower one
+ * was going instead.
+ */
+test("a shared document offers no account link — that credential is not this page's", async () => {
+  const created = await app.request("http://localhost/api/invoices", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      contactId,
+      currency: "USD",
+      lines: [{ description: "Share scope", quantity: 1, unitPrice: 5_000 }],
+    }),
+  });
+  const { invoice } = (await created.json()) as { invoice: { id: string } };
+  await app.request(`http://localhost/api/invoices/${invoice.id}/share`, {
+    method: "POST",
+    headers,
+  });
+  const [row] = await db
+    .select({ shareToken: schema.invoices.shareToken })
+    .from(schema.invoices)
+    .where(eq(schema.invoices.id, invoice.id));
+
+  const html = await (
+    await app.request(`http://localhost/share/invoice/${row?.shareToken}`)
+  ).text();
+  expect(html).not.toContain("/account/");
+  expect(html).not.toContain("See everything you have with us");
+});
+
+/**
+ * The receipt is the one transactional email that asks nothing further of the
+ * customer, so it is the one that offers the wider account — same token the
+ * portal link already carries in the same message, sent to the same address.
+ */
+test("a receipt carries the customer's own account link, same token as the portal link", async () => {
+  const created = await app.request("http://localhost/api/invoices", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      contactId,
+      currency: "USD",
+      lines: [{ description: "Receipt link", quantity: 1, unitPrice: 5_000 }],
+    }),
+  });
+  const { invoice } = (await created.json()) as { invoice: { id: string } };
+
+  const sent: { to?: string; subject?: string; html?: string }[] = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (
+    input: Parameters<typeof fetch>[0],
+    init?: Parameters<typeof fetch>[1],
+  ) => {
+    const url = typeof input === "string" ? input : input.toString();
+    if (url.startsWith("https://api.resend.com/")) {
+      sent.push(JSON.parse(String(init?.body ?? "{}")));
+      return new Response(JSON.stringify({ id: "stubbed" }), { status: 200 });
+    }
+    return realFetch(input, init);
+  }) as typeof fetch;
+
+  try {
+    await app.request(`http://localhost/api/invoices/${invoice.id}/payments`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ amountCents: 5_000 }),
+    });
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+
+  const receipt = sent.find((m) => m.subject?.startsWith("Receipt for"));
+  if (!receipt?.html) throw new Error("no receipt was sent");
+
+  const portalMatch = receipt.html.match(/\/portal\/([\w-]{43})/);
+  const accountMatch = receipt.html.match(/\/account\/([\w-]{43})/);
+  expect(portalMatch?.[1]).toBeTruthy();
+  // The same token, not a second credential minted for the same purpose.
+  expect(accountMatch?.[1]).toBe(portalMatch?.[1]);
+  expect(receipt.html).toContain("See everything you have with us");
 });
