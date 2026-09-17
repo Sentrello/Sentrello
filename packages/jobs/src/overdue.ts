@@ -4,7 +4,7 @@ import { invoiceState } from "@sentrello/db/money";
 import { businessIdentity } from "@sentrello/db/portal";
 import { emailAdapter, mailConfigured } from "@sentrello/email";
 import { overdueReminderEmail } from "@sentrello/email/templates";
-import { and, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 
 /** Don't nag: at most one reminder per invoice per this many hours. */
 const REMINDER_INTERVAL_HOURS = 24 * 7;
@@ -21,6 +21,19 @@ export async function sendOverdueReminders(
       and(
         inArray(schema.invoices.status, ["open", "partial"]),
         isNotNull(schema.invoices.dueDate),
+        /*
+         * Filed away is not chased.
+         *
+         * `DELETE /api/invoices/:id` does not delete: it sets `deletedAt` and
+         * moves the document to the "deleted" tab, where nobody in the
+         * business sees it again. This sweep read every open invoice with a
+         * due date, so a document the business had put away kept emailing its
+         * customer once a week for ever — and the business could not see the
+         * invoice it was being asked about. The rule-driven sweep beside this
+         * one already excluded them; two chasers disagreeing about what is
+         * chaseable is how one of them ends up wrong.
+         */
+        isNull(schema.invoices.deletedAt),
       ),
     );
 
