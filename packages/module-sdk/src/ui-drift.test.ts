@@ -1,5 +1,10 @@
 import { expect, test } from "bun:test";
-import { findFillAsText, findHandRolledUi, findUnpagedList } from "./ui-drift";
+import {
+  findDroppedNotice,
+  findFillAsText,
+  findHandRolledUi,
+  findUnpagedList,
+} from "./ui-drift";
 
 /**
  * What a screen must not build for itself once a primitive exists for it.
@@ -234,4 +239,38 @@ test("a screen that must fetch one unpaged says why on the line above", () => {
         'api<{ deals: Deal[] }>("/api/deals")',
     ),
   ).toEqual([]);
+});
+
+/**
+ * The other half of the same defect: asked for a page, told what was cut,
+ * printed nothing. `WhoOwesPanel` was this until it rendered `data.notice`.
+ */
+test("a paged report fetched by a screen that never mentions notice is found", () => {
+  const found = findDroppedNotice(
+    'const { data } = useQuery({ queryFn: () => api<Aged>("/api/reports/accounts-receivable") });',
+  );
+  expect(found).toHaveLength(1);
+  expect(found[0]?.say).toContain("/api/reports/accounts-receivable");
+});
+
+test("rendering the sentence, or saying why not, is not", () => {
+  const rendering =
+    'api<Aged>("/api/reports/accounts-payable");\n{data.notice ? <p>{data.notice}</p> : null}';
+  expect(findDroppedNotice(rendering)).toEqual([]);
+
+  expect(
+    findDroppedNotice(
+      "// ui-drift-ignore: the export takes every row, so nothing is cut\n" +
+        'api<Aged>("/api/reports/accounts-receivable?limit=1000")',
+    ),
+  ).toEqual([]);
+});
+
+test("a doc comment about the notice is not a screen rendering it", () => {
+  // Comments are stripped first, which is the easy way this would be fooled.
+  const found = findDroppedNotice(
+    '/** The report carries a notice. */\napi<Aged>("/api/reports/accounts-receivable")',
+  );
+  expect(found).toHaveLength(1);
+  expect(found[0]?.line).toBe(2);
 });

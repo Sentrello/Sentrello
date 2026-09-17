@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import {
+  findDroppedNotice,
   findFillAsText,
   findHandRolledUi,
   findUnpagedList,
@@ -71,6 +72,25 @@ test("no Core screen reads a capped list without paging it", () => {
   const found: string[] = [];
   for (const path of [...screens(ROUTES), ...screens(import.meta.dir)]) {
     for (const { line, say } of findUnpagedList(readFileSync(path, "utf8"))) {
+      found.push(`${path.split("/apps/web/")[1]}:${line}: ${say}`);
+    }
+  }
+  expect(found).toEqual([]);
+});
+
+/**
+ * And the half of it that looks correct.
+ *
+ * The test above catches a screen asking for a capped list whole. This catches
+ * one that asked for a page properly, was handed a finished sentence saying
+ * what had been cut, and rendered twelve names without it — which is what the
+ * dashboard's "Who owes you" panel did on the day the receivables report was
+ * paged, and which is invisible on any dataset small enough to fit.
+ */
+test("no Core screen drops the notice a paged report hands it", () => {
+  const found: string[] = [];
+  for (const path of [...screens(ROUTES), ...screens(import.meta.dir)]) {
+    for (const { line, say } of findDroppedNotice(readFileSync(path, "utf8"))) {
       found.push(`${path.split("/apps/web/")[1]}:${line}: ${say}`);
     }
   }

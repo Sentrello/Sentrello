@@ -167,6 +167,18 @@ interface AgedReceivables {
     days90plus: number;
   };
   totalCents: number;
+  /**
+   * What the server cut, in a sentence, or null when it cut nothing.
+   *
+   * The report is paged — two hundred invoices by default, a thousand at most
+   * — and the buckets and the total above it are still the whole ledger. A
+   * sentence rather than a flag because the screen that has to compose one
+   * from a boolean is the screen that never gets round to it: `/api/contacts`
+   * capped at a thousand rows and said `truncated: true`, no screen read it,
+   * and five customer pickers offered the first thousand names and looked
+   * complete.
+   */
+  notice: string | null;
 }
 
 /**
@@ -582,7 +594,7 @@ function TrialBalancePanel() {
  * "£4,200 over sixty days" and "the Hendersons, ninety-one days" are answers to
  * different questions and a business asks the second one on a Friday.
  */
-function WhoOwesPanel() {
+export function WhoOwesPanel() {
   const { open } = useNavigation();
   const { data, isLoading, error } = useQuery({
     queryKey: ["reports", "accounts-receivable"],
@@ -651,6 +663,11 @@ function WhoOwesPanel() {
           </li>
         ))}
       </ul>
+      {data?.notice ? (
+        <p className="mt-2 text-xs" style={muted}>
+          {data.notice}
+        </p>
+      ) : null}
     </Card>
   );
 }

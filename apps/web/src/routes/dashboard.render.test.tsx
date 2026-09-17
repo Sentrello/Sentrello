@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 import { NavigationProvider } from "../lib/navigation";
-import { HealthPanel } from "./dashboard";
+import { HealthPanel, WhoOwesPanel } from "./dashboard";
 
 /**
  * Whether this instance is on the current release, said on the screen somebody
@@ -95,4 +95,66 @@ test("no answer means no line, not an error", () => {
   expect(html).toContain("This server");
   expect(html).not.toContain("up to date");
   expect(html).not.toContain("not checked");
+});
+
+/**
+ * The cap the panel is told about has to reach the screen.
+ *
+ * The receivables report is paged — two hundred invoices by default, a
+ * thousand at most — and the buckets and total beside them are still the whole
+ * ledger. The server composes the sentence rather than sending a flag,
+ * precisely because a flag is what `/api/contacts` sent when it capped at a
+ * thousand rows: honest, received by five screens, rendered by none, and five
+ * customer pickers quietly offered the first thousand names.
+ *
+ * Both directions, because a panel that printed a notice unconditionally would
+ * pass the first of these and be a new defect.
+ */
+function owed(notice: string | null): string {
+  (globalThis as { window?: unknown }).window = {
+    location: { pathname: "/", search: "" },
+    history: { pushState() {}, replaceState() {} },
+    addEventListener() {},
+    removeEventListener() {},
+  };
+  const qc = new QueryClient();
+  qc.setQueryData(["reports", "accounts-receivable"], {
+    invoices: [
+      {
+        invoiceId: "inv-1",
+        number: "INV-0001",
+        customerName: "A customer",
+        currency: "USD",
+        balanceDue: 125_00,
+        ageDays: 40,
+      },
+    ],
+    aging: { current: 0, days30: 0, days60: 125_00, days90plus: 0 },
+    totalCents: 125_00,
+    notice,
+  });
+  return renderToStaticMarkup(
+    <QueryClientProvider client={qc}>
+      <NavigationProvider
+        initial={{ moduleId: "dashboard", title: "Dashboard" }}
+      >
+        <WhoOwesPanel />
+      </NavigationProvider>
+    </QueryClientProvider>,
+  );
+}
+
+test("a paged receivables report says on the panel what it cut", () => {
+  const html = owed(
+    "Showing 200 of 6,412 invoices owed to you, oldest first. The figures above cover all 6,412.",
+  );
+  expect(html).toContain("Showing 200 of 6,412 invoices owed to you");
+  // The figures are the whole ledger and must not be hedged by the notice.
+  expect(html).toContain("125.00");
+});
+
+test("a report that cut nothing says nothing", () => {
+  const html = owed(null);
+  expect(html).toContain("INV-0001");
+  expect(html).not.toContain("Showing");
 });
