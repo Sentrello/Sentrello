@@ -195,6 +195,30 @@ test("a tampered or invented token is refused, not merely denied its data", asyn
   expect(real404Check.status).toBe(200);
 });
 
+test("a section whose load throws is left out entirely, not shown empty", async () => {
+  const orgId = await makeOrg(`Throws ${suffix}`);
+  orgIds.push(orgId);
+  const contact = await makeContact(orgId, "Sees No Ghost");
+
+  addAccountSection({
+    id: "flaky",
+    moduleId: "flaky-mod",
+    label: "Flaky Section",
+    hasAny: async () => true,
+    load: async () => {
+      throw new Error("query failed");
+    },
+  });
+
+  const app = registerForTest(account);
+  const res = await app.request(
+    `http://localhost/account/${contact.portalToken}`,
+  );
+  expect(res.status).toBe(200);
+  const html = await res.text();
+  expect(html).not.toContain("Flaky Section");
+});
+
 test("visibleSections: gate order — entitlement, then presence, then load", async () => {
   const calls: string[] = [];
   addAccountSection({
