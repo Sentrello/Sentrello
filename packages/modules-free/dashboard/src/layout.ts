@@ -173,7 +173,7 @@ const WIDGET_ID = /^[a-z0-9][a-z0-9-]{0,63}(:[a-z0-9][a-z0-9-]{0,63})?$/;
  * has no ledger charts on it and a bookkeeperless reader has no Reports tab
  * — a tab of panels that all refuse is worse than no tab.
  */
-const CORE_TABS: Tab[] = [
+export const CORE_TABS: Tab[] = [
   {
     name: "Overview",
     widgets: ["money", "attention", "pipeline", "invoice-aging"],

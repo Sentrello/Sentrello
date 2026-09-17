@@ -1,6 +1,8 @@
 import { expect, test } from "bun:test";
 import type { RegisteredWidget } from "@sentrello/module-sdk";
 import {
+  CORE_TABS,
+  CORE_WIDGETS,
   defaultLayout,
   normalizeLayout,
   shownTabs,
@@ -84,6 +86,27 @@ test("the default layout has no tab for widgets the reader cannot have", () => {
     "Reports",
     "System",
   ]);
+});
+
+/**
+ * Every id the default layout places is a widget the module actually
+ * declared.
+ *
+ * `CORE_TABS` and `CORE_WIDGETS` are two hand-written lists, and nothing
+ * ties them together at the type level — a rename or a deletion in one
+ * leaves a dangling id in the other. `defaultLayout` filters a dangling id
+ * out silently (it is just never shown, to anyone, ever, with no error),
+ * which is exactly why a person has to notice rather than a symptom
+ * appearing — the two cash-flow and trial-balance bugs this guards against
+ * were both a widget wrongly *visible*, not one wrongly invisible; a
+ * dangling id is the same class of drift with the opposite symptom, and
+ * this is the half of the check that has to run without a database.
+ */
+test("every widget the default layout places is a widget the module declared", () => {
+  const declaredIds = new Set(CORE_WIDGETS.map((w) => w.id));
+  const placedIds = new Set(CORE_TABS.flatMap((tab) => tab.widgets));
+  const dangling = [...placedIds].filter((id) => !declaredIds.has(id));
+  expect(dangling).toEqual([]);
 });
 
 /**
