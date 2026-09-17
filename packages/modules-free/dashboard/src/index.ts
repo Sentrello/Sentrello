@@ -17,6 +17,7 @@ import { and, eq, inArray, isNull } from "drizzle-orm";
 import { readHealth } from "./health";
 import {
   CORE_WIDGETS,
+  WIDGET_LOAD_TIMEOUT_MS,
   clearStored,
   declaredWidgets,
   defaultLayout,
@@ -24,6 +25,7 @@ import {
   readStored,
   shownTabs,
   withArrivals,
+  withTimeout,
   writeStored,
 } from "./layout";
 import { readInsights } from "./pro";
@@ -429,7 +431,13 @@ export default defineModule({
                 label: widget.label,
                 icon: widget.icon ?? null,
                 opens: widget.opens ?? null,
-                figures: await widget.load(orgId),
+                // Timed out the same as thrown: every widget answers through
+                // this one request, so a module having a bad day must not
+                // leave everybody else's cards spinning behind it forever.
+                figures: await withTimeout(
+                  widget.load(orgId),
+                  WIDGET_LOAD_TIMEOUT_MS,
+                ),
               };
             } catch {
               // A module that cannot count itself must not stop the others

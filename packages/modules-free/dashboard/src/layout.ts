@@ -24,6 +24,38 @@ export interface Tab {
 }
 
 /**
+ * How long one widget's figures may take before the rest stop waiting for it.
+ *
+ * Every widget on the active tab is fetched through one shared request —
+ * `/api/dashboard/widgets` answers all of them at once — so a widget whose
+ * `load` never settles, a slow query on a module having a bad day, leaves
+ * every other widget's card spinning behind it forever, not just its own.
+ * The route already excludes a widget whose `load` throws rather than losing
+ * the page to it; a hang is the same failure with nothing to throw.
+ */
+export const WIDGET_LOAD_TIMEOUT_MS = 4000;
+
+/** Races a widget's own promise against the clock, whichever settles first. */
+export function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`widget load timed out after ${ms}ms`)),
+      ms,
+    );
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
+
+/**
  * The dashboard's own panels, declared like anybody else's.
  *
  * The dashboard used to hold a closed list of widget ids beside the registry
