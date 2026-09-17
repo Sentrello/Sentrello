@@ -10,11 +10,13 @@ import {
   addAccountSection,
   addCrawlable,
   addOnboarding,
+  addPaymentWebhook,
   addSearchProvider,
   addSummary,
   addWidget,
   clearAccountSections,
   clearOnboarding,
+  clearPaymentWebhooks,
   clearServices,
   clearSummaries,
   clearWidgets,
@@ -60,6 +62,7 @@ export function loadModules(
   clearWidgets();
   clearAccountSections();
   clearOnboarding();
+  clearPaymentWebhooks();
   /*
    * And what one module offers another. The boot tests load modules more than
    * once in a process, and a host's functions left behind by a run that is over
@@ -130,6 +133,12 @@ export function loadModules(
         // page ever mentions it.
         registerAccountSection: (section) =>
           addAccountSection({ ...section, moduleId: m.id }),
+        // That this module listens to a payment processor. One endpoint per
+        // provider, offered to whatever declared itself — rather than a path
+        // written into the connection screen naming one module, which is how
+        // an invoice paid by card was confirmed by nobody.
+        registerPaymentWebhook: (consumer) =>
+          addPaymentWebhook({ ...consumer, moduleId: m.id }),
         // What somebody has to do before this module is any use. Drawn as a
         // checklist of whatever this instance loaded.
         registerOnboarding: (guide) =>

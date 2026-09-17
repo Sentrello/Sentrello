@@ -102,14 +102,13 @@ interface SettingsResponse {
       configured: boolean;
       webhookConfigured: boolean;
       testMode: boolean;
-      invoiceWebhookUrl: string;
-      shopWebhookUrl: string;
+      webhookUrl: string;
     };
     paypal: {
       configured: boolean;
       webhookConfigured: boolean;
       environment: string;
-      shopWebhookUrl: string;
+      webhookUrl: string;
     };
   };
 }
@@ -694,8 +693,8 @@ export function SettingsIntegrations() {
       </Card>
 
       <PaymentConnections
-        stripeWebhook={data.payments.stripe.invoiceWebhookUrl}
-        paypalWebhook={data.payments.paypal.shopWebhookUrl}
+        stripeWebhook={data.payments.stripe.webhookUrl}
+        paypalWebhook={data.payments.paypal.webhookUrl}
       />
     </div>
   );
