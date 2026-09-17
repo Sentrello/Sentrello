@@ -134,6 +134,8 @@ async function sendReceipt(
         business,
         sentrelloCredit,
         portalUrl: `${base}/portal/${token}`,
+        // Same token, same recipient, same email — already theirs to have.
+        accountUrl: `${base}/account/${token}`,
       }),
     });
   } catch (err) {
@@ -1887,6 +1889,9 @@ export default defineModule({
             paymentInstructions: org?.paymentInstructions,
           },
           customerName: contact.name,
+          // The unified account page across every module — same token,
+          // already valid, since it is the one that got them onto this page.
+          accountPath: `/account/${supplied}`,
           quotes,
           quotePath: `/portal/${supplied}/quotes`,
           // Paying online is a Pro feature; a Free instance shows the bill and

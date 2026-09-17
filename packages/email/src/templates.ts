@@ -172,6 +172,13 @@ export function receiptEmail(args: {
   balanceCents: number;
   businessName?: string;
   portalUrl?: string;
+  /**
+   * The customer's hub across every module, not only invoicing. Offered here
+   * rather than on the invoice or quote email: those already carry the one
+   * link that matters — pay this, accept this — and a second link beside it
+   * competes with it. A receipt asks nothing further, so there is room.
+   */
+  accountUrl?: string;
   /** The seller, for the foot of the document. */
   business?: BusinessIdentity;
   /** False on Pro, where the business sends under its own name. */
@@ -187,6 +194,9 @@ export function receiptEmail(args: {
   const link = args.portalUrl
     ? `<p><a href="${escapeHtml(args.portalUrl)}">See your invoices</a></p>`
     : "";
+  const accountLink = args.accountUrl
+    ? `<p><a href="${escapeHtml(args.accountUrl)}">See everything you have with us</a></p>`
+    : "";
   return {
     subject: `Receipt for invoice ${args.number}`,
     html: layout(
@@ -194,7 +204,7 @@ export function receiptEmail(args: {
       `<p>We received <strong>${formatMoney(args.amountCents, args.currency)}</strong>
 towards invoice ${escapeHtml(args.number)}${
         args.businessName ? ` from ${escapeHtml(args.businessName)}` : ""
-      }.</p>${remaining}${link}`,
+      }.</p>${remaining}${link}${accountLink}`,
       args.business,
       args.sentrelloCredit,
     ),

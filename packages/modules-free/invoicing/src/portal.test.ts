@@ -321,3 +321,26 @@ test("a removed credit takes the line off the page, and only the line", () => {
   expect(html).not.toContain('<p class="credit">');
   expect(html).toContain("Northfield Joinery");
 });
+
+test("offers the wider account when there is one to offer", () => {
+  const html = portalPage({
+    businessName: "Northfield Joinery",
+    customerName: "Marguerite",
+    invoices: [invoice()],
+    accountPath: "/account/tok_abc123",
+    now,
+  });
+  expect(html).toContain('href="/account/tok_abc123"');
+  expect(html).toContain("See everything you have with us");
+});
+
+test("no account path, no link — never a broken one", () => {
+  const html = portalPage({
+    businessName: "Northfield Joinery",
+    customerName: "Marguerite",
+    invoices: [invoice()],
+    now,
+  });
+  expect(html).not.toContain("/account/");
+  expect(html).not.toContain("See everything you have with us");
+});

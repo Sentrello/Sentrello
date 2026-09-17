@@ -214,6 +214,14 @@ export function portalPage(args: {
    * still shows the branding — absence of an answer is not removal.
    */
   credit?: Credit | null;
+  /**
+   * The customer's own hub across every module, not only invoicing — Shop
+   * orders, a subscription, a booking. The same token that opens this page
+   * opens that one, so offering it here tells nobody anything they could not
+   * already reach; leave it unset and nothing is shown, rather than a link
+   * built from a token that never existed.
+   */
+  accountPath?: string;
   now?: Date;
 }): string {
   const {
@@ -225,6 +233,7 @@ export function portalPage(args: {
     quotePath,
     payPath,
     credit = SENTRELLO_CREDIT,
+    accountPath,
     now = new Date(),
   } = args;
 
@@ -269,6 +278,7 @@ export function portalPage(args: {
 </head><body><main>
 <h1>${html(businessName)}</h1>
 <p class="sub">For ${html(customerName)}</p>
+${accountPath ? `<p class="muted"><a href="${html(accountPath)}">See everything you have with us</a></p>` : ""}
 ${quoteSection(quotes, quotePath)}
 ${
   invoices.length === 0
