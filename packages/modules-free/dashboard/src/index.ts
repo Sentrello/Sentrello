@@ -5,8 +5,8 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { db, schema } from "@sentrello/db";
-import { creditedAgainst } from "@sentrello/db/documents";
-import { invoiceState } from "@sentrello/db/money";
+import { countExpression } from "@sentrello/db/list-query";
+import { centsFromDriver, sumCents } from "@sentrello/db/money";
 import {
   type RegisteredWidget,
   allOnboarding,
@@ -14,7 +14,19 @@ import {
   defineModule,
   resolveGuide,
 } from "@sentrello/module-sdk";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import type { SQL } from "drizzle-orm";
+import {
+  and,
+  asc,
+  eq,
+  inArray,
+  isNull,
+  lt,
+  ne,
+  notInArray,
+  sql,
+} from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { readHealth } from "./health";
 import {
   CORE_WIDGETS,
@@ -46,6 +58,115 @@ import { readPromos, refreshPromosIfStale } from "./promos";
  * lands somewhere useful — and a Pro instance sees the same figures without
  * the upgrade prompt, because not being sold to is part of what was bought.
  */
+
+/**
+ * How many things the screen asks somebody to deal with.
+ *
+ * Each query below takes at most this many, so the slice at the end can only
+ * ever be cutting between categories rather than discarding rows the database
+ * had already built.
+ */
+const ATTENTION_MAX = 12;
+
+/**
+ * Every live invoice with what is still owed on it, worked out in the query.
+ *
+ * The same arithmetic `invoiceState` does, in the same order: the total, less
+ * anything given up for paying early, less what has been paid, less what has
+ * been credited, floored at zero. `draft` and `void` are excluded by the
+ * filter rather than by the branch at the top of `invoiceState`, and `paid`
+ * and `credited` with them — the stored column is a filter key and that is
+ * what it is being used as.
+ *
+ * Credits count beside the payments because a credit note settles debt the
+ * way money does; without them a partly credited invoice shows the credited
+ * share as still owed. Voided and deleted credit notes do not count, which is
+ * `creditedAgainst`'s rule and is written the same way here.
+ */
+function owingInvoices(orgId: string) {
+  const credit = alias(schema.invoices, "credit_note");
+  /*
+   * Both settlements added up once each, not once per invoice.
+   *
+   * Written first as a correlated subquery, which reads beautifully and is a
+   * nested loop: 8,105 unpaid invoices times every payment and every credit
+   * note, which measured at two minutes. Two hash aggregates and two hash
+   * joins ask the same question in one pass over each table.
+   */
+  const paid = db
+    .select({
+      invoiceId: schema.payments.invoiceId,
+      cents: sql<number>`sum(${schema.payments.amountCents})`.as("paid_cents"),
+    })
+    .from(schema.payments)
+    .where(eq(schema.payments.organizationId, orgId))
+    .groupBy(schema.payments.invoiceId)
+    .as("paid");
+  const credited = db
+    .select({
+      invoiceId: credit.referenceInvoiceId,
+      cents: sql<number>`sum(${credit.totalCents})`.as("credited_cents"),
+    })
+    .from(credit)
+    .where(
+      and(
+        eq(credit.organizationId, orgId),
+        eq(credit.kind, "credit_note"),
+        isNull(credit.deletedAt),
+        ne(credit.status, "void"),
+      ),
+    )
+    .groupBy(credit.referenceInvoiceId)
+    .as("credited");
+
+  return db
+    .select({
+      id: schema.invoices.id,
+      number: schema.invoices.number,
+      dueDate: schema.invoices.dueDate,
+      owedCents:
+        sql<number>`greatest(0, ${schema.invoices.totalCents} - coalesce(${schema.invoices.earlyDiscountTakenCents}, 0) - coalesce(${paid.cents}, 0) - coalesce(${credited.cents}, 0))`.as(
+          "owed_cents",
+        ),
+    })
+    .from(schema.invoices)
+    .leftJoin(paid, eq(paid.invoiceId, schema.invoices.id))
+    .leftJoin(credited, eq(credited.invoiceId, schema.invoices.id))
+    .where(
+      and(
+        eq(schema.invoices.organizationId, orgId),
+        eq(schema.invoices.kind, "invoice"),
+        isNull(schema.invoices.deletedAt),
+        notInArray(schema.invoices.status, [
+          "paid",
+          "credited",
+          "void",
+          "draft",
+        ]),
+      ),
+    )
+    .as("owing");
+}
+
+/**
+ * Late is strictly past the moment it was due, and only while money is owed —
+ * `isOverdue`'s rule, said in SQL so the figure and the list agree with the
+ * rest of the product about who is late.
+ *
+ * The instant goes in as text rather than as a `Date`. A due date is stored
+ * without a time zone and read back as though it were UTC, which is what
+ * `toISOString` writes; handing the driver a `Date` inside an expression it
+ * has no column to type it against fails outright, and a cast that guessed
+ * would move the boundary by an offset — which at the end of a month is an
+ * invoice that is overdue on one screen and not on another.
+ */
+function isOverdueSql(
+  owing: ReturnType<typeof owingInvoices>,
+  now: Date,
+): SQL<boolean> {
+  const at = now.toISOString();
+  return sql<boolean>`${owing.owedCents} > 0 and ${owing.dueDate} is not null and ${owing.dueDate} < ${at}`;
+}
 
 interface Attention {
   id: string;
@@ -146,148 +267,166 @@ export default defineModule({
         const orgId = activeOrganizationId(c.get("session"));
         const now = new Date();
 
-        const [invoices, quotes, tasks, contacts, deals, payments] =
-          await Promise.all([
-            db
-              .select()
-              .from(schema.invoices)
-              .where(eq(schema.invoices.organizationId, orgId)),
-            db
-              .select()
-              .from(schema.quotes)
-              .where(eq(schema.quotes.organizationId, orgId)),
-            db
-              .select()
-              .from(schema.tasks)
-              .where(
-                and(
-                  eq(schema.tasks.organizationId, orgId),
-                  eq(schema.tasks.done, false),
-                ),
-              ),
-            db
-              .select({ id: schema.contacts.id })
-              .from(schema.contacts)
-              .where(eq(schema.contacts.organizationId, orgId)),
-            db
-              .select()
-              .from(schema.deals)
-              .where(
-                and(
-                  eq(schema.deals.organizationId, orgId),
-                  isNull(schema.deals.archivedAt),
-                ),
-              ),
-            db
-              .select({
-                invoiceId: schema.payments.invoiceId,
-                amountCents: schema.payments.amountCents,
-              })
-              .from(schema.payments)
-              .where(eq(schema.payments.organizationId, orgId)),
-          ]);
-
-        /**
-         * What is still owed, not what was billed.
+        /*
+         * One row per figure, not one row per invoice.
          *
-         * A business that took a deposit this morning is owed the rest, and
-         * telling it otherwise overstates the one number on this screen it is
-         * most likely to act on. Found by taking a part payment and watching
-         * the figure not move.
+         * This screen used to read every invoice, every quote, every open
+         * task, every contact id, every deal and every payment the business
+         * had, and work the six figures out in JavaScript. It is the first
+         * thing anybody opens after signing in, and on five years of a busy
+         * business it took 393 ms and about 700 MB of process memory to
+         * produce two kilobytes of JSON. The arithmetic is unchanged; it
+         * happens where the rows already are.
          */
-        const paidByInvoice = new Map<string, number>();
-        for (const p of payments) {
-          if (!p.invoiceId) continue;
-          paidByInvoice.set(
-            p.invoiceId,
-            (paidByInvoice.get(p.invoiceId) ?? 0) + p.amountCents,
-          );
-        }
-        // Money owed, and how much of it is late. Two numbers rather than one,
-        // because "you are owed £8,000" and "£6,000 of it is overdue" call for
-        // completely different afternoons.
-        //
-        // Only live invoices count: a credit note is money going the other
-        // way, a draft was never asked for, and settled is settled whether
-        // money paid it or a credit note wrote it off.
-        const unpaid = invoices.filter(
-          (i) =>
-            i.kind === "invoice" &&
-            !i.deletedAt &&
-            i.status !== "paid" &&
-            i.status !== "credited" &&
-            i.status !== "void" &&
-            i.status !== "draft",
-        );
+        const owing = owingInvoices(orgId);
+        const overdue = isOverdueSql(owing, now);
 
-        // Credits settle debt beside the payments; without them a partly
-        // credited invoice showed the credited share as still owed.
-        const creditedByInvoice = await creditedAgainst(
-          orgId,
-          unpaid.map((i) => i.id),
-        );
-        /**
-         * Balance and lateness from the one call every screen reads.
-         *
-         * The filter above is the stored column, which is what it is for. The
-         * figures are not: an invoice settled by a path that had not updated
-         * the column used to arrive here with nothing owing and still be
-         * announced as overdue, for nothing.
-         */
-        const states = new Map(
-          unpaid.map((i) => [
-            i.id,
-            invoiceState(
-              i,
-              paidByInvoice.get(i.id) ?? 0,
-              creditedByInvoice.get(i.id) ?? 0,
-              now,
-            ),
-          ]),
-        );
-        const balanceOf = (invoice: { id: string }) =>
-          states.get(invoice.id)?.balanceDue ?? 0;
-        const owedCents = unpaid.reduce((sum, i) => sum + balanceOf(i), 0);
-        const overdue = unpaid.filter(
-          (i) => states.get(i.id)?.badge === "overdue",
-        );
-        const overdueCents = overdue.reduce((sum, i) => sum + balanceOf(i), 0);
+        const [
+          [money],
+          stages,
+          [counted],
+          anyInvoice,
+          lateInvoices,
+          waitingQuotes,
+          lateTasks,
+        ] = await Promise.all([
+          db
+            .select({
+              owedCents: sumCents(owing.owedCents),
+              overdueCents: sumCents(
+                sql`case when ${overdue} then ${owing.owedCents} else 0 end`,
+              ),
+              unpaidCount: countExpression,
+              overdueCount: sql<number>`count(*) filter (where ${overdue})::int`,
+            })
+            .from(owing),
+          db
+            .select({
+              stage: schema.deals.stage,
+              count: countExpression,
+              amountCents: sumCents(schema.deals.amountCents),
+            })
+            .from(schema.deals)
+            .where(
+              and(
+                eq(schema.deals.organizationId, orgId),
+                isNull(schema.deals.archivedAt),
+              ),
+            )
+            .groupBy(schema.deals.stage),
+          db
+            .select({ contacts: countExpression })
+            .from(schema.contacts)
+            .where(eq(schema.contacts.organizationId, orgId)),
+          /*
+           * Whether the business has raised anything at all, which is the one
+           * thing the money figures above cannot say: they are about what is
+           * still owed, and a business that has been paid for everything has
+           * no unpaid invoice and is certainly not new.
+           */
+          db
+            .select({ id: schema.invoices.id })
+            .from(schema.invoices)
+            .where(eq(schema.invoices.organizationId, orgId))
+            .limit(1),
+          /*
+           * The twelve most overdue, rather than twelve the database chose.
+           *
+           * `attention` is cut to twelve, and until now the rows it cut from
+           * arrived in whatever order a sequential scan produced — so a
+           * business with thirteen overdue invoices was chased about a
+           * different twelve on each refresh, and the oldest debt could sit
+           * off the bottom of the screen indefinitely.
+           */
+          db
+            .select({
+              id: owing.id,
+              number: owing.number,
+              dueDate: owing.dueDate,
+              /*
+               * Read as a number, not as whatever the driver felt like.
+               *
+               * The balance is an integer minus two `sum()`s, which makes the
+               * expression 64-bit — and a 64-bit value arrives as a string. It
+               * renders correctly on the screen and concatenates the moment
+               * anything adds to it, which is the same defect wearing a
+               * better disguise than the overflow that caused this work.
+               */
+              owedCents: sql<number>`${owing.owedCents}`.mapWith(
+                centsFromDriver,
+              ),
+            })
+            .from(owing)
+            .where(overdue)
+            .orderBy(asc(owing.dueDate))
+            .limit(ATTENTION_MAX),
+          db
+            .select({
+              id: schema.quotes.id,
+              number: schema.quotes.number,
+              totalCents: schema.quotes.totalCents,
+            })
+            .from(schema.quotes)
+            .where(
+              and(
+                eq(schema.quotes.organizationId, orgId),
+                eq(schema.quotes.status, "sent"),
+              ),
+            )
+            .orderBy(asc(schema.quotes.issueDate))
+            .limit(ATTENTION_MAX),
+          db
+            .select({
+              id: schema.tasks.id,
+              title: schema.tasks.title,
+              dueAt: schema.tasks.dueAt,
+            })
+            .from(schema.tasks)
+            .where(
+              and(
+                eq(schema.tasks.organizationId, orgId),
+                eq(schema.tasks.done, false),
+                lt(schema.tasks.dueAt, now),
+              ),
+            )
+            .orderBy(asc(schema.tasks.dueAt))
+            .limit(ATTENTION_MAX),
+        ]);
 
-        const openDeals = deals.filter(
-          (d) => d.stage !== "won" && d.stage !== "lost",
+        /* One row each, and a business with no contacts gets no row at all. */
+        const contacts = counted?.contacts ?? 0;
+        const openStages = stages.filter(
+          (s) => s.stage !== "won" && s.stage !== "lost",
         );
+        const dealCount = stages.reduce((total, s) => total + s.count, 0);
 
         const attention: Attention[] = [
-          ...overdue.map((i) => ({
+          ...lateInvoices.map((i) => ({
             id: i.id,
             kind: "invoice" as const,
             summary: `Invoice ${i.number} is overdue`,
             detail: i.dueDate
               ? `Due ${new Date(i.dueDate).toDateString()}`
               : "",
-            // The balance, for the same reason: chasing somebody for money
-            // they have already sent is worse than not chasing at all.
-            amountCents: balanceOf(i),
+            // The balance, not the total: chasing somebody for money they
+            // have already sent is worse than not chasing at all.
+            amountCents: i.owedCents,
           })),
-          ...quotes
-            .filter((q) => q.status === "sent")
-            .map((q) => ({
-              id: q.id,
-              kind: "quote" as const,
-              summary: `Quote ${q.number} is waiting on an answer`,
-              detail: "Sent and not yet accepted or declined",
-              amountCents: q.totalCents,
-            })),
-          ...tasks
-            .filter((t) => t.dueAt && new Date(t.dueAt) < now)
-            .map((t) => ({
-              id: t.id,
-              kind: "task" as const,
-              summary: t.title,
-              detail: t.dueAt
-                ? `Was due ${new Date(t.dueAt).toDateString()}`
-                : "",
-            })),
+          ...waitingQuotes.map((q) => ({
+            id: q.id,
+            kind: "quote" as const,
+            summary: `Quote ${q.number} is waiting on an answer`,
+            detail: "Sent and not yet accepted or declined",
+            amountCents: q.totalCents,
+          })),
+          ...lateTasks.map((t) => ({
+            id: t.id,
+            kind: "task" as const,
+            summary: t.title,
+            detail: t.dueAt
+              ? `Was due ${new Date(t.dueAt).toDateString()}`
+              : "",
+          })),
         ];
 
         const pro = ctx.entitled({ tier: "pro" });
@@ -305,7 +444,7 @@ export default defineModule({
          * which is why there is nothing to dismiss and nothing to remember.
          */
         const nothingYet =
-          contacts.length === 0 && invoices.length === 0 && deals.length === 0;
+          contacts === 0 && anyInvoice.length === 0 && dealCount === 0;
 
         return c.json({
           tier: pro ? "pro" : "free",
@@ -354,21 +493,19 @@ export default defineModule({
                   };
                 })(),
           health: await readHealth(),
-          money: {
-            owedCents,
-            overdueCents,
-            unpaidCount: unpaid.length,
-            overdueCount: overdue.length,
-          },
+          money,
           pipeline: {
-            openCount: openDeals.length,
-            openCents: openDeals.reduce((s, d) => s + d.amountCents, 0),
-            wonCount: deals.filter((d) => d.stage === "won").length,
+            openCount: openStages.reduce((total, s) => total + s.count, 0),
+            openCents: openStages.reduce(
+              (total, s) => total + s.amountCents,
+              0,
+            ),
+            wonCount: stages.find((s) => s.stage === "won")?.count ?? 0,
           },
-          book: { contacts: contacts.length },
+          book: { contacts },
           // Most urgent first: an overdue invoice is money already earned and
           // not received, which outranks a quote nobody has answered.
-          attention: attention.slice(0, 12),
+          attention: attention.slice(0, ATTENTION_MAX),
         });
       },
     );

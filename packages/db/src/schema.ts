@@ -758,6 +758,17 @@ export const invoices = pgTable(
     index("invoices_org_idx").on(t.organizationId),
     index("invoices_contact_idx").on(t.contactId),
     uniqueIndex("invoices_share_token_idx").on(t.shareToken),
+    /**
+     * The credit notes raised against an invoice.
+     *
+     * Everything that asks what is still owed asks this — the list, the
+     * dashboard, the reminder job, the status recompute — and the column had
+     * no index at all, so each of those questions was a scan of every invoice
+     * the business has ever raised. Asked once per unpaid invoice on the
+     * dashboard, that was 8,105 scans of 60,000 rows: two minutes to draw the
+     * first screen somebody sees after signing in.
+     */
+    index("invoices_credited_idx").on(t.organizationId, t.referenceInvoiceId),
   ],
 );
 
