@@ -53,6 +53,7 @@ import { registerInboundEmail } from "./inbound";
 import { registerCrmManagers } from "./managers";
 import { registerMerge } from "./merge";
 import { registerCrmPersonalData } from "./personal-data";
+import { registerCrmRetention } from "./retention";
 import {
   DEFAULT_LOST_STAGES,
   DEFAULT_WON_STAGES,
@@ -2069,6 +2070,10 @@ export default defineModule({
   tier: "free",
   register(ctx) {
     registerCrmPersonalData(ctx);
+    // How long the change feed is kept, and what is left of it. Beside the
+    // erasure above because the two empty the same two columns and must not
+    // drift.
+    registerCrmRetention(ctx);
     registerCrmSearch(ctx);
     registerVies(ctx);
 

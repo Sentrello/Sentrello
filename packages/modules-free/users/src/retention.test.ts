@@ -1,6 +1,21 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { and, db, eq, inArray, schema, sql } from "@sentrello/db";
-import { pruneAllEvents, pruneEvents } from "./retention";
+import { sweepAllRetention, sweepRetention } from "@sentrello/db/retention";
+import type { RegisteredRetention } from "@sentrello/module-sdk";
+import { EVENT_RETENTION } from "./retention";
+
+/**
+ * The window and the marker are this module's; the batching, the budget, the
+ * loop over every organisation and the failure isolation belong to the shared
+ * facility and are proved in `packages/db/src/retention.test.ts`. What is
+ * proved here is the policy: a year by default, zero meaning for ever, the
+ * `events.pruned` marker written and then never itself removed.
+ */
+const policy: RegisteredRetention = { ...EVENT_RETENTION, moduleId: "users" };
+
+/** What the nightly sweep does to one organisation's audit log. */
+const prune = async (organizationId: string) =>
+  (await sweepRetention(policy, organizationId)).removed;
 
 /**
  * The prune deletes rows, and on a single-organization instance a prune that
@@ -82,7 +97,7 @@ test("the prune removes what is past the window and nothing newer", async () => 
     .returning({ id: schema.securityEvents.id });
   if (!oldRow || !recentRow) throw new Error("insert did not return rows");
 
-  const removed = await pruneEvents(orgId);
+  const removed = await prune(orgId);
   expect(removed).toBe(1);
 
   const left = await db
@@ -99,7 +114,7 @@ test("the prune removes what is past the window and nothing newer", async () => 
 
 test("a prune that removes nothing records nothing", async () => {
   const before = await prunedMarkerCount(orgId);
-  expect(await pruneEvents(orgId)).toBe(0);
+  expect(await prune(orgId)).toBe(0);
   expect(await prunedMarkerCount(orgId)).toBe(before);
 });
 
@@ -117,7 +132,7 @@ test("pruning one organization does not touch another's history", async () => {
     .returning({ id: schema.securityEvents.id });
   if (!otherOld) throw new Error("insert did not return a row");
 
-  const removed = await pruneEvents(orgId);
+  const removed = await prune(orgId);
 
   const [stillThere] = await db
     .select({ id: schema.securityEvents.id })
@@ -133,7 +148,7 @@ test("pruning one organization does not touch another's history", async () => {
 test("a retention window of zero turns pruning off entirely", async () => {
   // policyFor inserts the default row the first time an organization is
   // touched, so this needs a real update rather than an insert.
-  await pruneEvents(orgId);
+  await prune(orgId);
   await db
     .update(schema.securityPolicy)
     .set({ eventRetentionDays: 0 })
@@ -152,7 +167,7 @@ test("a retention window of zero turns pruning off entirely", async () => {
     .returning({ id: schema.securityEvents.id });
   if (!ancient) throw new Error("insert did not return a row");
 
-  expect(await pruneEvents(orgId)).toBe(0);
+  expect(await prune(orgId)).toBe(0);
 
   const [stillThere] = await db
     .select({ id: schema.securityEvents.id })
@@ -166,7 +181,7 @@ test("a retention window of zero turns pruning off entirely", async () => {
     .where(eq(schema.securityPolicy.organizationId, orgId));
 });
 
-test("pruneAllEvents reaches every organization, not just the one it was last called with", async () => {
+test("the sweep reaches every organization, not just the one it was last called with", async () => {
   const old = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000);
   const [rowA] = await db
     .insert(schema.securityEvents)
@@ -190,7 +205,9 @@ test("pruneAllEvents reaches every organization, not just the one it was last ca
     .returning({ id: schema.securityEvents.id });
   if (!rowA || !rowB) throw new Error("insert did not return rows");
 
-  const total = await pruneAllEvents();
+  // The nightly job's own entry point, over every organisation on the
+  // instance rather than the one it was last handed.
+  const total = (await sweepAllRetention([policy])).removed;
   // Other organizations may exist in this database with nothing to prune;
   // the claim is only that this call's own two rows are both gone, which a
   // loop that stopped after the first organization would not achieve.
@@ -223,7 +240,7 @@ test("an old pruned-marker row is never itself pruned", async () => {
     .returning({ id: schema.securityEvents.id });
   if (!marker) throw new Error("insert did not return a row");
 
-  await pruneEvents(orgId);
+  await prune(orgId);
 
   const [stillThere] = await db
     .select({ id: schema.securityEvents.id })

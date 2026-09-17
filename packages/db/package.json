@@ -30,7 +30,8 @@
     "./credit": "./src/credit.ts",
     "./tax-regimes": "./src/tax-regimes.ts",
     "./customer-credit": "./src/customer-credit.ts",
-    "./erasure": "./src/erasure.ts"
+    "./erasure": "./src/erasure.ts",
+    "./retention": "./src/retention.ts"
   },
   "scripts": {
     "migrate": "bun run src/migrate.ts"
