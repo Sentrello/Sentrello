@@ -28,7 +28,8 @@
     "./subscriptions": "./src/subscriptions.ts",
     "./credit": "./src/credit.ts",
     "./tax-regimes": "./src/tax-regimes.ts",
-    "./customer-credit": "./src/customer-credit.ts"
+    "./customer-credit": "./src/customer-credit.ts",
+    "./erasure": "./src/erasure.ts"
   },
   "scripts": {
     "migrate": "bun run src/migrate.ts"
