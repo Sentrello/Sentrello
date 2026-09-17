@@ -78,7 +78,7 @@ import { portalPage } from "./portal";
 import { registerShare } from "./share";
 import { registerInvoiceSearch, registerInvoicingSummary } from "./summary";
 import { registerDocumentTags, tagsFor } from "./tags";
-import { registerTemplates } from "./templates";
+import { ownedTemplateId, registerTemplates } from "./templates";
 import { registerUsFiling } from "./us-filing";
 import { registerUsNexus } from "./us-nexus";
 import { registerUsRates } from "./us-rates";
@@ -444,7 +444,7 @@ export default defineModule({
               // BT-10 on the e-invoice: the customer's PO or reference, or a
               // German public body's Leitweg-ID.
               buyerReference: String(body.buyerReference ?? "").trim() || null,
-              templateId: (body.templateId as string) || null,
+              templateId: await ownedTemplateId(orgId, body.templateId),
               discountType:
                 (body.discountType as string) === "percent" ||
                 (body.discountType as string) === "amount"
@@ -1097,7 +1097,7 @@ export default defineModule({
               validUntil: validUntil ? new Date(validUntil) : null,
               pricesIncludeTax,
               notes: String(body.notes ?? "").trim() || null,
-              templateId: (body.templateId as string) || null,
+              templateId: await ownedTemplateId(orgId, body.templateId),
               discountType:
                 (body.discountType as string) === "percent" ||
                 (body.discountType as string) === "amount"
@@ -1381,7 +1381,7 @@ export default defineModule({
               String(body.buyerReference ?? "").trim() || null;
           }
           if (typeof body.templateId === "string") {
-            values.templateId = body.templateId || null;
+            values.templateId = await ownedTemplateId(orgId, body.templateId);
           }
           if (exemptionCertificateId !== undefined) {
             values.exemptionCertificateId = exemptionCertificateId;
@@ -1591,7 +1591,7 @@ export default defineModule({
               : null;
           }
           if (typeof body.templateId === "string") {
-            values.templateId = body.templateId || null;
+            values.templateId = await ownedTemplateId(orgId, body.templateId);
           }
           if (prepared) {
             values.discountType =

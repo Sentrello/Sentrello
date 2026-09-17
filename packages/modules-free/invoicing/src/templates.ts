@@ -119,6 +119,63 @@ export type Template = typeof schema.documentTemplates.$inferSelect;
  * a working document, because a business that has never opened this screen
  * still has to be able to send an invoice.
  */
+/**
+ * The letterhead id a request asked for, if this business owns it.
+ *
+ * **The decision, taken 17 September 2026, on the one `body.*Id` the
+ * cross-tenant sweep left open.** Every other id in a request body — the
+ * customer on an invoice, the tax rate on a line, the vendor on a bill — is
+ * verified and refused with 404. This one was written unverified and was inert
+ * only because `templateFor` below filters by organization and falls back to
+ * the default. Inert by accident is not a security posture: the row still held
+ * another business's id, waiting for the next reader written without the
+ * filter — which is precisely how the contact leak worked, twice.
+ *
+ * It is normalised rather than refused, and the difference from `ownedContact`
+ * is deliberate:
+ *
+ *  - **Nothing is lost.** A missing customer means an invoice that reaches
+ *    nobody, so that has to be refused out loud. A missing letterhead means
+ *    the business's default one, which is a defined, correct answer the read
+ *    side has always given.
+ *  - **Refusing would break an ordinary edit.** Templates are deleted
+ *    outright, and documents that named one keep the dangling id on purpose.
+ *    The edit form sends the document's stored `templateId` back when it
+ *    saves, so a strict check would make every draft that named a since-
+ *    deleted letterhead unsaveable.
+ *  - **Nothing is disclosed.** Owned, deleted and foreign all produce the same
+ *    document on the default letterhead, so this cannot be asked whether a
+ *    given id exists somewhere else.
+ *
+ * What changes is the row: a foreign id is never stored again, and a dangling
+ * one is cleared to the null the read already behaves as if it were.
+ */
+export async function ownedTemplateId(
+  orgId: string,
+  templateId: unknown,
+): Promise<string | null> {
+  if (typeof templateId !== "string" || !templateId) return null;
+  // Uuid-shaped first, so a malformed id is null rather than a Postgres error.
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      templateId,
+    )
+  ) {
+    return null;
+  }
+  const [owned] = await db
+    .select({ id: schema.documentTemplates.id })
+    .from(schema.documentTemplates)
+    .where(
+      and(
+        eq(schema.documentTemplates.id, templateId),
+        eq(schema.documentTemplates.organizationId, orgId),
+      ),
+    )
+    .limit(1);
+  return owned?.id ?? null;
+}
+
 export async function templateFor(
   orgId: string,
   templateId: string | null,
