@@ -2102,6 +2102,10 @@ test("a change of consent is written down, and an unchanged one is not", async (
   // Who recorded it, because "somebody ticked a box" is not a defence.
   expect(rows[0]?.actorId).toBeTruthy();
   expect(rows[0]?.subjectLabel).toContain("Grace");
+  // The business that ticked the box is the business that holds the evidence.
+  // Read unscoped above on purpose — a record in anybody else's name would be
+  // invisible to a query that already assumed the answer.
+  expect(rows[0]?.organizationId).toBe(orgId);
 
   /*
    * Saving the contact again without touching consent must not write another.
