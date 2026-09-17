@@ -2658,6 +2658,62 @@ test("drafts in different currencies are refused rather than added up", async ()
     .where(eq(schema.exchangeRates.organizationId, orgId));
 });
 
+/**
+ * A merged foreign-currency invoice keeps what that currency is worth.
+ *
+ * `rateMicro` was never written, so the column default stood and every merged
+ * document was 1:1 — a euro merge put euro cents into dollar books the moment
+ * somebody issued it, unattended, with nothing downstream to question it. The
+ * same field `copyInvoice` had already been caught dropping.
+ */
+test("a merged invoice carries the rate its currency was worth", async () => {
+  const when = new Date();
+  when.setDate(when.getDate() - 1);
+  await db.insert(schema.exchangeRates).values({
+    organizationId: orgId,
+    code: "EUR",
+    rateMicro: 1_100_000,
+    asOf: when,
+  });
+
+  const make = async () => {
+    const res = await app.request("http://localhost/api/invoices", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        contactId,
+        status: "draft",
+        currency: "EUR",
+        lines: [
+          { description: "A visit", quantity: 1, unitPriceCents: 40_000 },
+        ],
+      }),
+    });
+    return ((await res.json()) as { invoice: { id: string } }).invoice;
+  };
+
+  const first = await make();
+  const second = await make();
+  const merged = await app.request(
+    "http://localhost/api/invoices/consolidate",
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ invoiceIds: [first.id, second.id] }),
+    },
+  );
+  expect(merged.status).toBe(201);
+  const { invoice } = (await merged.json()) as {
+    invoice: { id: string; currency: string; rateMicro: number };
+  };
+  expect(invoice.currency).toBe("EUR");
+  expect(invoice.rateMicro).toBe(1_100_000);
+
+  await db
+    .delete(schema.exchangeRates)
+    .where(eq(schema.exchangeRates.organizationId, orgId));
+});
+
 test("merging needs more than one draft to merge", async () => {
   const res = await app.request("http://localhost/api/invoices/consolidate", {
     method: "POST",
