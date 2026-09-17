@@ -40,6 +40,7 @@ import type { SQL } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 import { registerAttachments } from "./attachments";
 import { registerCrmDashboard } from "./dashboard";
+import { CRM_ENTITY, type CrmResource } from "./entities";
 import { registerForms } from "./forms";
 import { registerCrmHistory } from "./history";
 import { registerCrmImages } from "./images";
@@ -194,7 +195,8 @@ function crud<T extends keyof typeof tables>(
   ctx: Parameters<Parameters<typeof defineModule>[0]["register"]>[0],
   resource: T,
 ) {
-  const { table, path, singular, permission } = tables[resource];
+  const { table, path, permission } = tables[resource];
+  const singular = CRM_ENTITY[resource];
 
   const list = (tables[resource] as { list?: ListSpec }).list;
   const narrow = (
@@ -547,13 +549,14 @@ function crud<T extends keyof typeof tables>(
  * forgets one. That reasoning is right, and this is how to keep it: do not have
  * a second path, have one.
  *
- * The entity name is the singular of the resource, so an automation says
- * "deal" and "contact" rather than "deals" and "contacts". It is the word
- * somebody would use out loud.
+ * The entity name comes from `CRM_ENTITY` — written down per resource, never
+ * worked out from the path — so an automation says "deal" and "company" rather
+ * than "deals" and "companie". It is the word somebody would use out loud, and
+ * it is the same word the subscriber picks from, read out of the same map.
  */
 async function announce(
   orgId: string,
-  resource: string,
+  resource: CrmResource,
   row: Record<string, unknown> | undefined,
   action: "created" | "updated" | "deleted",
   before: Record<string, unknown> | null | undefined,
@@ -562,7 +565,7 @@ async function announce(
   if (!row?.id) return;
   await recordChanged({
     organizationId: orgId,
-    entity: resource.replace(/s$/, ""),
+    entity: CRM_ENTITY[resource],
     entityId: String(row.id),
     action,
     before: before ?? null,
@@ -699,7 +702,6 @@ const tables = {
   contacts: {
     table: schema.contacts,
     path: "contacts",
-    singular: "contact",
     permission: "crm",
     /**
      * Background is searched too. It is where "met at the trade show, knows
@@ -850,7 +852,6 @@ const tables = {
   companies: {
     table: schema.companies,
     path: "companies",
-    singular: "company",
     permission: "crm",
     /**
      * What the card shows besides the company's own fields: who works there
@@ -952,13 +953,11 @@ const tables = {
   activities: {
     table: schema.activities,
     path: "activities",
-    singular: "activity",
     permission: "crm",
   },
   tasks: {
     table: schema.tasks,
     path: "tasks",
-    singular: "task",
     permission: "crm",
     list: {
       sortable: {
@@ -998,13 +997,11 @@ const tables = {
   tags: {
     table: schema.tags,
     path: "tags",
-    singular: "tag",
     permission: "crm",
   },
   deals: {
     table: schema.deals,
     path: "deals",
-    singular: "deal",
     permission: "crm",
     list: {
       // The board is ordered by hand, so `position` is the default rather
@@ -1081,7 +1078,6 @@ const tables = {
   notes: {
     table: schema.notes,
     path: "notes",
-    singular: "note",
     permission: "crm",
   },
 } as const;

@@ -211,6 +211,59 @@ test("an entity the endpoint did not ask about is not delivered", async () => {
   expect(calls).toHaveLength(0);
 });
 
+/**
+ * The bug this exists to stop coming back.
+ *
+ * An endpoint asked about companies was told about nothing, for ever, because
+ * the feed announced a company as "companie" — the resource name with its last
+ * letter taken off — while everything that subscribes says "company". Two
+ * halves that never met, no error anywhere, and a business whose integration
+ * simply never fired.
+ *
+ * So this drives both halves for real: subscribe the way a person does, create
+ * a company the way a person does, and read what left the machine.
+ */
+test("an endpoint asked about companies is told about a company", async () => {
+  const made = await app.request("http://localhost/api/crm/webhooks", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      url: "https://93.184.216.35/hook",
+      entities: ["company"],
+      allowInsecure: false,
+    }),
+  });
+  expect(made.status).toBe(201);
+  const { webhook } = (await made.json()) as { webhook: { id: string } };
+
+  const created = await app.request("http://localhost/api/companies", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name: "Told About Us" }),
+  });
+  expect(created.status).toBe(201);
+  const { company } = (await created.json()) as { company: { id: string } };
+
+  const { calls, send } = fakeSender();
+  await fanOutDue();
+  await deliverDue(new Date(), send);
+
+  const sent = calls.map(
+    (call) =>
+      JSON.parse(String(call.init.body)) as { event: string; entityId: string },
+  );
+  expect(sent.map((s) => s.event)).toContain("company.created");
+  expect(sent.find((s) => s.event === "company.created")?.entityId).toBe(
+    company.id,
+  );
+
+  // Taken away again so the retry test below still finds the delivery it means.
+  await app.request(`http://localhost/api/crm/webhooks/${webhook.id}`, {
+    method: "DELETE",
+    headers,
+  });
+});
+
 test("another organization's events never reach this endpoint", async () => {
   await db.insert(schema.recordEvents).values({
     organizationId: `foreign-${suffix}`,

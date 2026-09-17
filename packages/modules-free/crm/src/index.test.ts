@@ -2154,6 +2154,90 @@ test("a change of consent is written down, and an unchanged one is not", async (
  * logged — on the reasoning that a second write path starts lying the first
  * time somebody forgets one. That reasoning is right; this is how to hold it.
  */
+/**
+ * Every kind of record, announced by the word it is offered under.
+ *
+ * The word used to be computed — the resource name with a trailing "s" taken
+ * off — and a computed word is a word that can disagree with the one on the
+ * screen. It did: a company went out as "companie" and an activity as
+ * "activitie", so every subscription and every automation built on either was
+ * a thing that could never fire. No error, no warning, nothing at all.
+ *
+ * Driven through the routes rather than asserting two constants match, because
+ * two constants matching is exactly what the unit tests said while the product
+ * was broken.
+ */
+test("every kind of record announces itself by the word it is offered under", async () => {
+  const anchorContact = await app.request("http://localhost/api/contacts", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name: `Announcer ${suffix}` }),
+  });
+  const { contact: anchorRow } = (await anchorContact.json()) as {
+    contact: { id: string };
+  };
+
+  const made: { path: string; body: Record<string, unknown>; word: string }[] =
+    [
+      {
+        path: "contacts",
+        body: { name: `Announced ${suffix}` },
+        word: "contact",
+      },
+      {
+        path: "companies",
+        body: { name: `Announced Co ${suffix}` },
+        word: "company",
+      },
+      {
+        path: "activities",
+        body: { contactId: anchorRow.id, type: "note", body: "Announced" },
+        word: "activity",
+      },
+      {
+        path: "tasks",
+        body: { title: `Announced task ${suffix}` },
+        word: "task",
+      },
+      { path: "tags", body: { name: `announced-${suffix}` }, word: "tag" },
+      {
+        path: "deals",
+        body: { name: `Announced deal ${suffix}`, stage: "lead" },
+        word: "deal",
+      },
+      {
+        path: "notes",
+        body: {
+          entityType: "contact",
+          entityId: anchorRow.id,
+          text: "Announced",
+        },
+        word: "note",
+      },
+    ];
+
+  for (const kind of made) {
+    const res = await app.request(`http://localhost/api/${kind.path}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(kind.body),
+    });
+    expect(res.status).toBe(201);
+    const created = (await res.json()) as Record<string, { id: string }>;
+    const row = created[kind.word];
+    // The key the route answers under is the same word, so a screen and the
+    // feed cannot drift apart either.
+    expect(row?.id).toBeTruthy();
+
+    const events = await db
+      .select()
+      .from(schema.recordEvents)
+      .where(eq(schema.recordEvents.entityId, String(row?.id)));
+    expect(events).toHaveLength(1);
+    expect(events[0]?.entity).toBe(kind.word);
+  }
+});
+
 test("changing a deal is written down, with what changed", async () => {
   const made = await app.request("http://localhost/api/deals", {
     method: "POST",
