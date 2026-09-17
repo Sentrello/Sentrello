@@ -214,3 +214,63 @@ export function findUnpagedList(source: string): HandRolledFinding[] {
   }
   return findings.sort((a, b) => a.line - b.line);
 }
+
+/**
+ * The routes that answer with a sentence about what they cut.
+ *
+ * A paged report hands back `notice`: "Showing 200 of 6,412 invoices owed to
+ * you, oldest first. The figures above cover all 6,412." Already composed, on
+ * purpose — the lesson of `truncated: true`, which four screens received and
+ * none printed, so a picker offered the first thousand customers and looked
+ * complete. A sentence only has to be rendered.
+ *
+ * A route that starts answering with a `notice` belongs in this list. Like
+ * `CAPPED_LISTS` above, this reads text and cannot discover them.
+ */
+const NOTICED_ROUTES = [
+  "reports/accounts-receivable",
+  "reports/accounts-payable",
+];
+
+const NOTICED_FETCH = new RegExp(
+  `\\bapi\\s*(?:<[^(){}]*(?:\\{[^{}]*\\}[^(){}]*)*>)?\\(\\s*["\`](/api/(?:${NOTICED_ROUTES.join("|")}))(\\?[^"\`]*)?["\`]`,
+);
+
+/**
+ * A screen that fetches one of those and never mentions `notice`.
+ *
+ * This is the other half of `findUnpagedList`. That one catches a screen
+ * asking for a capped list whole; this catches a screen that asked correctly,
+ * was told what was cut, and dropped the sentence on the floor — which looks
+ * identical on any dataset a developer has, and on a real one silently
+ * presents a page as the whole thing. `WhoOwesPanel` was exactly that: the
+ * receivables report paged, said so, and the dashboard printed twelve names
+ * with nothing saying there were six thousand more.
+ *
+ * **The blind spot, stated:** this is per-file and per-word. A screen whose
+ * fetch lives in one file and whose markup lives in another passes without
+ * rendering anything, and any use of the word `notice` in code satisfies it.
+ * Both are deliberate — the cheap check catches the shape the defect has
+ * actually taken every time, and the precise one needs a type-aware pass over
+ * the whole tree to say which field of a response reached the DOM.
+ */
+export function findDroppedNotice(source: string): HandRolledFinding[] {
+  const rawLines = source.split("\n");
+  const clean = stripComments(source);
+  // Comments stripped first: a doc comment explaining the notice is not a
+  // screen rendering it, and that is the easy way to fool this.
+  const renders = /\bnotice\b/.test(clean);
+  if (renders) return [];
+  const findings: HandRolledFinding[] = [];
+  for (const match of clean.matchAll(
+    new RegExp(NOTICED_FETCH.source, `${NOTICED_FETCH.flags}g`),
+  )) {
+    const line = lineOf(clean, match.index);
+    if (exceptedAbove(rawLines, line, "ui-drift")) continue;
+    findings.push({
+      line,
+      say: `${match[1]} is paged and answers with \`notice\`, a finished sentence saying what it cut — render it, or this screen shows one page as though it were everything`,
+    });
+  }
+  return findings.sort((a, b) => a.line - b.line);
+}
