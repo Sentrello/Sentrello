@@ -65,6 +65,8 @@ interface DocumentShape {
   buyerReference?: string | null;
   validUntil?: string | null;
   exemptionCertificateId?: string | null;
+  /** The prices on this document already contain the tax. */
+  pricesIncludeTax?: boolean;
 }
 
 interface LineDraft {
@@ -200,6 +202,7 @@ export function InvoiceForm({
         settings: {
           paymentTermOptions: { label: string; days: number }[];
           units: string[];
+          pricesIncludeTax?: boolean;
         };
       }>("/api/invoicing/settings"),
   });
@@ -317,6 +320,19 @@ export function InvoiceForm({
   const taxFor = (id: string) => rates.find((r) => r.id === id);
 
   /**
+   * Whether the prices being typed already contain the tax.
+   *
+   * A document already raised answers for itself; a new one takes the
+   * business's setting, which is the same order the server decides it in. The
+   * two must agree or the running total on the screen is not the total that
+   * gets saved.
+   */
+  const pricesIncludeTax =
+    (existing.data?.quote ?? existing.data?.invoice)?.pricesIncludeTax ??
+    billing.data?.settings.pricesIncludeTax ??
+    false;
+
+  /**
    * The running total, from the same function the server uses.
    *
    * Not a second implementation. The screen and the invoice have to agree
@@ -349,6 +365,7 @@ export function InvoiceForm({
         : discountType === "amount"
           ? { type: "amount", value: toCents(discountValue) }
           : null,
+      { pricesIncludeTax },
     );
   } catch {
     // Mid-keystroke. The buttons are disabled until the lines are usable.
@@ -715,7 +732,11 @@ export function InvoiceForm({
                 value={line.unitPrice}
                 inputMode="decimal"
                 placeholder="0.00"
-                aria-label={`Line ${i + 1} unit price`}
+                aria-label={
+                  pricesIncludeTax
+                    ? `Line ${i + 1} unit price including tax`
+                    : `Line ${i + 1} unit price`
+                }
                 onChange={(e) => setLine(i, { unitPrice: e.target.value })}
               />
               {/* One select per tax on the line, plus one to add another —
@@ -892,7 +913,9 @@ export function InvoiceForm({
             every tax authority expects, and the one the server uses.
           */}
           <p className="mt-2 text-xs" style={muted}>
-            Worked out with the same code the invoice is saved with.
+            {pricesIncludeTax
+              ? "Prices include tax, so the total is what you typed. The tax is shown separately above because the document has to state it."
+              : "Worked out with the same code the invoice is saved with."}
           </p>
         </Card>
       </div>

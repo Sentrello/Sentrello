@@ -4708,3 +4708,166 @@ test("a receipt carries the customer's own account link, same token as the porta
   expect(accountMatch?.[1]).toBe(portalMatch?.[1]);
   expect(receipt.html).toContain("See everything you have with us");
 });
+
+/**
+ * A business that quotes gross, end to end.
+ *
+ * The arithmetic itself is held by `money.test.ts`; what this holds is that
+ * the setting reaches the document, the document keeps its own copy of the
+ * answer, and the figure a UK business typed is the figure the invoice asks
+ * for. That last one is the whole feature: £120 inc. VAT has to be £120.
+ */
+test("a business that quotes gross raises an invoice that asks for the gross", async () => {
+  const { tax } = (await (
+    await app.request("http://localhost/api/invoicing/taxes", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ name: "VAT 20%", ratePpm: 200_000 }),
+    })
+  ).json()) as { tax: { id: string } };
+
+  const settings = (await (
+    await app.request("http://localhost/api/invoicing/settings", { headers })
+  ).json()) as { settings: { pricesIncludeTax?: boolean } };
+  expect(settings.settings.pricesIncludeTax ?? false).toBe(false);
+
+  await app.request("http://localhost/api/invoicing/settings", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ pricesIncludeTax: true }),
+  });
+
+  try {
+    const created = await app.request("http://localhost/api/invoices", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        contactId,
+        currency: "USD",
+        status: "draft",
+        lines: [
+          {
+            description: "A day on site",
+            quantity: 1,
+            unitPrice: 12_000,
+            taxDefinitionId: tax.id,
+          },
+        ],
+      }),
+    });
+    expect(created.status).toBe(201);
+    const { invoice } = (await created.json()) as {
+      invoice: {
+        id: string;
+        pricesIncludeTax: boolean;
+        subtotalCents: number;
+        taxCents: number;
+        totalCents: number;
+      };
+    };
+
+    // £120 was typed and £120 is owed — the VAT came out of it, not onto it.
+    expect(invoice.totalCents).toBe(12_000);
+    expect(invoice.subtotalCents).toBe(10_000);
+    expect(invoice.taxCents).toBe(2_000);
+    // And the document says so itself, so an edit later cannot re-read its
+    // gross prices as net.
+    expect(invoice.pricesIncludeTax).toBe(true);
+
+    // The band a tax return reads is banded on the net, not the gross.
+    const [band] = await db
+      .select()
+      .from(schema.documentTaxes)
+      .where(
+        and(
+          eq(schema.documentTaxes.organizationId, orgId),
+          eq(schema.documentTaxes.documentId, invoice.id),
+        ),
+      );
+    expect(band?.taxableCents).toBe(10_000);
+    expect(band?.taxCents).toBe(2_000);
+
+    // The customer's own copy of it says the prices include the tax, so the
+    // £120 line above a £100 subtotal reads as arithmetic rather than a bug.
+    await app.request(`http://localhost/api/invoices/${invoice.id}/publish`, {
+      method: "POST",
+      headers,
+    });
+    const [row] = await db
+      .select({ shareToken: schema.invoices.shareToken })
+      .from(schema.invoices)
+      .where(eq(schema.invoices.id, invoice.id));
+    if (row?.shareToken) {
+      const page = await app.request(
+        `http://localhost/share/invoice/${row.shareToken}`,
+      );
+      const html = await page.text();
+      expect(html).toContain("Unit price (inc. tax)");
+    }
+
+    /*
+     * Switching the setting back does not restate what is already raised.
+     * The draft is edited afterwards and must still come to £120 — a business
+     * that changed its mind in March must not find February's invoices worth
+     * a fifth more.
+     */
+    await app.request("http://localhost/api/invoicing/settings", {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({ pricesIncludeTax: false }),
+    });
+    const patched = await app.request(
+      `http://localhost/api/invoices/${invoice.id}`,
+      {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({
+          lines: [
+            {
+              description: "A day on site",
+              quantity: 1,
+              unitPrice: 12_000,
+              taxDefinitionId: tax.id,
+            },
+          ],
+        }),
+      },
+    );
+    expect(patched.status).toBe(200);
+    const after = (await patched.json()) as {
+      invoice: { totalCents: number; taxCents: number };
+    };
+    expect(after.invoice.totalCents).toBe(12_000);
+    expect(after.invoice.taxCents).toBe(2_000);
+
+    // A net-quoted invoice raised now behaves exactly as it always did.
+    const net = await app.request("http://localhost/api/invoices", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        contactId,
+        currency: "USD",
+        status: "draft",
+        lines: [
+          {
+            description: "A day on site",
+            quantity: 1,
+            unitPrice: 12_000,
+            taxDefinitionId: tax.id,
+          },
+        ],
+      }),
+    });
+    const plain = (await net.json()) as {
+      invoice: { totalCents: number; pricesIncludeTax: boolean };
+    };
+    expect(plain.invoice.pricesIncludeTax).toBe(false);
+    expect(plain.invoice.totalCents).toBe(14_400);
+  } finally {
+    await app.request("http://localhost/api/invoicing/settings", {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({ pricesIncludeTax: false }),
+    });
+  }
+});

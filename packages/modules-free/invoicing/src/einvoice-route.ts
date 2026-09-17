@@ -4,6 +4,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { and, db, eq, inArray, schema } from "@sentrello/db";
+import { type LineTax, lineCharges } from "@sentrello/db/money";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import {
   EINVOICE_PROFILES,
@@ -194,34 +195,55 @@ export function registerEInvoice(ctx: ModuleContext) {
         countryCode: company?.country ?? null,
         taxId: company?.taxIdentifier ?? null,
       },
-      lines: lines.map((line) => ({
-        description: line.description,
-        quantityMilli: line.quantityMilli,
-        unit: line.unit,
-        unitPriceCents: line.unitPriceCents,
-        netCents: Math.round((line.quantityMilli * line.unitPriceCents) / 1000),
-        taxRateBp: line.taxRateBp,
-        taxRatePpm: line.taxRatePpm,
-        // The line's own frozen taxes where it has them; otherwise the
-        // category from its definition — which is how an exempt or
-        // reverse-charge line recorded before lines carried categories still
-        // reaches the XML as E or AE rather than mislabelled Z.
-        taxes: line.taxes?.length
+      lines: lines.map((line) => {
+        /*
+         * EN 16931 states line amounts net of tax, always — BT-131 and BT-146
+         * are net whatever a business quotes in. A gross-quoted line holds its
+         * tax inside the price, so it comes back out here through the same
+         * back-out the totals were built with; otherwise the XML would state
+         * the gross as the net and every validator would reject the sums.
+         */
+        const quoted = Math.round(
+          (line.quantityMilli * line.unitPriceCents) / 1000,
+        );
+        const onLine: LineTax[] = line.taxes?.length
           ? line.taxes
-          : line.taxDefinitionId && definitions.has(line.taxDefinitionId)
-            ? [
-                {
-                  rateBp: line.taxRateBp,
-                  ratePpm: line.taxRatePpm,
-                  categoryCode: (
-                    definitions.get(line.taxDefinitionId) as {
-                      categoryCode: string;
-                    }
-                  ).categoryCode,
-                },
-              ]
-            : null,
-      })),
+          : [{ ratePpm: line.taxRatePpm, rateBp: line.taxRateBp }];
+        const netCents = invoice.pricesIncludeTax
+          ? lineCharges(quoted, onLine, true).netCents
+          : quoted;
+        return {
+          description: line.description,
+          quantityMilli: line.quantityMilli,
+          unitPriceCents:
+            line.quantityMilli > 0
+              ? Math.round((netCents * 1000) / line.quantityMilli)
+              : line.unitPriceCents,
+          unit: line.unit,
+          netCents,
+          taxRateBp: line.taxRateBp,
+          taxRatePpm: line.taxRatePpm,
+          // The line's own frozen taxes where it has them; otherwise the
+          // category from its definition — which is how an exempt or
+          // reverse-charge line recorded before lines carried categories still
+          // reaches the XML as E or AE rather than mislabelled Z.
+          taxes: line.taxes?.length
+            ? line.taxes
+            : line.taxDefinitionId && definitions.has(line.taxDefinitionId)
+              ? [
+                  {
+                    rateBp: line.taxRateBp,
+                    ratePpm: line.taxRatePpm,
+                    categoryCode: (
+                      definitions.get(line.taxDefinitionId) as {
+                        categoryCode: string;
+                      }
+                    ).categoryCode,
+                  },
+                ]
+              : null,
+        };
+      }),
       bands: bands.map((band) => ({
         rateBp: band.rateBp,
         ratePpm: band.ratePpm,

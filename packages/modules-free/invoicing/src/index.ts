@@ -60,6 +60,7 @@ import {
   parseDiscount,
   parseEarlyPayment,
   prepareDocument,
+  quotesGross,
   writeTaxBands,
 } from "./documents";
 import { registerEInvoice } from "./einvoice-route";
@@ -319,6 +320,15 @@ export default defineModule({
           );
         }
 
+        /**
+         * Whether the prices on these lines already contain the tax.
+         *
+         * The business's setting at the moment the document is raised, copied
+         * onto it below. A UK business that quotes £120 inc. VAT types 120,
+         * and 120 is what the invoice asks for.
+         */
+        const pricesIncludeTax = await quotesGross(orgId);
+
         let prepared: Awaited<ReturnType<typeof prepareDocument>>;
         let early: ReturnType<typeof parseEarlyPayment>;
         try {
@@ -326,6 +336,7 @@ export default defineModule({
             orgId,
             (body.lines ?? []) as IncomingLine[],
             parseDiscount(body),
+            pricesIncludeTax,
           );
           early = parseEarlyPayment(body);
         } catch (err) {
@@ -404,6 +415,7 @@ export default defineModule({
                 await ensureExemptDefinition(orgId),
               ),
               parseDiscount(body),
+              pricesIncludeTax,
             );
           } catch (err) {
             if (err instanceof MoneyError) {
@@ -442,6 +454,7 @@ export default defineModule({
                 ? (body.discountValue as number)
                 : 0,
               discountCents: prepared.discountCents,
+              pricesIncludeTax,
               rateMicro,
               earlyDiscountType: early.type,
               earlyDiscountValue: early.value,
@@ -1057,12 +1070,14 @@ export default defineModule({
 
         // The same path an invoice takes. A quote is the same document before
         // it is owed, and two sets of arithmetic is two answers.
+        const pricesIncludeTax = await quotesGross(orgId);
         let prepared: Awaited<ReturnType<typeof prepareDocument>>;
         try {
           prepared = await prepareDocument(
             orgId,
             (body.lines ?? []) as IncomingLine[],
             parseDiscount(body),
+            pricesIncludeTax,
           );
         } catch (err) {
           if (err instanceof MoneyError) {
@@ -1080,6 +1095,7 @@ export default defineModule({
               currency,
               number: await nextDocumentNumber(tx, orgId, "quote"),
               validUntil: validUntil ? new Date(validUntil) : null,
+              pricesIncludeTax,
               notes: String(body.notes ?? "").trim() || null,
               templateId: (body.templateId as string) || null,
               discountType:
@@ -1166,6 +1182,7 @@ export default defineModule({
           );
         }
 
+        const pricesIncludeTax = await quotesGross(orgId);
         let prepared: Awaited<ReturnType<typeof prepareDocument>>;
         try {
           prepared = await prepareDocument(
@@ -1178,6 +1195,7 @@ export default defineModule({
               },
             ] as IncomingLine[],
             parseDiscount({}),
+            pricesIncludeTax,
           );
         } catch (err) {
           if (err instanceof MoneyError) {
@@ -1194,6 +1212,7 @@ export default defineModule({
               contactId,
               dealId: deal.id,
               number: await nextDocumentNumber(tx, orgId, "quote"),
+              pricesIncludeTax,
               notes: deal.description,
               subtotalCents: prepared.subtotalCents,
               discountCents: prepared.discountCents,
@@ -1327,6 +1346,10 @@ export default defineModule({
                   )
                 : incomingLines,
               parseDiscount(body),
+              // The document's own answer, not the business's current setting:
+              // a draft raised while quoting net stays net even if the setting
+              // has been flipped since, or its total would change under it.
+              invoice.pricesIncludeTax,
             );
           } catch (err) {
             if (err instanceof MoneyError) {
@@ -1535,6 +1558,8 @@ export default defineModule({
               orgId,
               body.lines as IncomingLine[],
               parseDiscount(body),
+              // The quote's own answer — see the invoice patch above.
+              quote.pricesIncludeTax,
             );
           } catch (err) {
             if (err instanceof MoneyError) {

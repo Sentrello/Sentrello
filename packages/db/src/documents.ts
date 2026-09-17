@@ -77,6 +77,10 @@ export async function convertQuoteToInvoice(
         currency: quote.currency,
         number: await nextDocumentNumber(tx, organizationId, "invoice"),
         status: "open",
+        // Gross-quoted or net-quoted travels with the document. The customer
+        // accepted the figure on the quote, and the invoice states it the
+        // same way round.
+        pricesIncludeTax: quote.pricesIncludeTax,
         // Without this, converting a quote produced an invoice that could
         // never be chased. The portal's own acceptance path set one; this one
         // did not, so which screen accepted the work decided whether the
@@ -219,6 +223,9 @@ export async function copyInvoice(
         notes: source.notes,
         paymentTerms: source.paymentTerms,
         templateId: source.templateId,
+        // A copy quotes the way its original did, or its gross unit prices
+        // would be read back as net and the copy would ask for less.
+        pricesIncludeTax: source.pricesIncludeTax,
         discountType: source.discountType,
         discountValue: source.discountValue,
         discountCents: source.discountCents,

@@ -243,6 +243,8 @@ function documentPage(args: {
   discountCents: number;
   taxCents: number;
   totalCents: number;
+  /** The unit prices in `lines` already contain the tax — UK/EU gross quoting. */
+  pricesIncludeTax: boolean;
   paidCents: number;
   /** Settled by credit note rather than by money. */
   creditedCents: number;
@@ -280,6 +282,14 @@ function documentPage(args: {
 }): string {
   const brand = branding(args.template);
   const noun = args.kind === "invoice" ? "Invoice" : "Quote";
+  /*
+   * Said in the column headings rather than in a footnote.
+   *
+   * A gross-quoted document shows £120 on the line and £100 under Subtotal,
+   * and without a word saying why, the two look like a mistake. The customer
+   * reads the line first, so the line is where the sentence belongs.
+   */
+  const inc = args.pricesIncludeTax ? " (inc. tax)" : "";
   const due = args.totalCents - args.paidCents - args.creditedCents;
 
   const lineRow = (l: DocumentLine) => `<tr>
@@ -409,7 +419,7 @@ function documentPage(args: {
 ${brand.header}
 
 <table>
-  <thead><tr><th>Description</th><th>Qty</th><th>Unit price</th><th>Amount</th></tr></thead>
+  <thead><tr><th>Description</th><th>Qty</th><th>Unit price${inc}</th><th>Amount${inc}</th></tr></thead>
   <tbody>${rows}</tbody>
 </table>
 
@@ -670,6 +680,7 @@ export function registerShare(ctx: ModuleContext) {
           discountCents: row.discountCents,
           taxCents: row.taxCents,
           totalCents: row.totalCents,
+          pricesIncludeTax: row.pricesIncludeTax,
           paidCents,
           creditedCents,
           notes: row.notes,
