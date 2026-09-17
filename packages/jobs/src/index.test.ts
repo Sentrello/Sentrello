@@ -135,6 +135,100 @@ test("license-refresh keeps the old token when the server rejects the key", asyn
   }
 });
 
+/**
+ * `not_entitled` at 402 is the one answer the licence server gives that
+ * means, in as many words, "this licence is not valid any more" (see
+ * `control-plane/src/license-server.ts`). Everything else short of it — a
+ * refused request for any other reason, an error string this job does not
+ * recognise — must leave the token alone; getting this the wrong way round
+ * drops a paying customer to Free over a network hiccup.
+ */
+test("license-refresh clears the token immediately on an explicit revocation", async () => {
+  const tokenPath = "secrets/test-revoked-token.jwt";
+  await Bun.write(tokenPath, "still-nominally-valid-token");
+  const server = Bun.serve({
+    port: 0,
+    fetch: () =>
+      Response.json({ error: "not_entitled", tier: "free" }, { status: 402 }),
+  });
+  try {
+    expect(
+      await refreshLicenseToken({
+        serverUrl: `http://127.0.0.1:${server.port}`,
+        licenseKey: "lic_cancelled",
+        instanceId: "inst_test",
+        tokenPath,
+      }),
+    ).toEqual({ refreshed: false, error: "not_entitled", revoked: true });
+    // Cleared, not merely left alone: the next refresh must see no token,
+    // not the one that technically still has hours left on it.
+    expect(await Bun.file(tokenPath).text()).toBe("");
+  } finally {
+    server.stop(true);
+    await Bun.file(tokenPath)
+      .delete()
+      .catch(() => {});
+  }
+});
+
+test("an ambiguous or unrecognised refusal is treated as no answer, not a revocation", async () => {
+  const tokenPath = "secrets/test-ambiguous-token.jwt";
+  await Bun.write(tokenPath, "still-nominally-valid-token");
+  const server = Bun.serve({
+    port: 0,
+    fetch: () =>
+      Response.json(
+        { error: "instance_limit", reason: "too many installs" },
+        { status: 409 },
+      ),
+  });
+  try {
+    expect(
+      await refreshLicenseToken({
+        serverUrl: `http://127.0.0.1:${server.port}`,
+        licenseKey: "lic_busy",
+        instanceId: "inst_test",
+        tokenPath,
+      }),
+    ).toEqual({ refreshed: false, error: "instance_limit" });
+    expect(await Bun.file(tokenPath).text()).toBe(
+      "still-nominally-valid-token",
+    );
+  } finally {
+    server.stop(true);
+    await Bun.file(tokenPath)
+      .delete()
+      .catch(() => {});
+  }
+});
+
+test("a 5xx from the license server leaves the token untouched", async () => {
+  const tokenPath = "secrets/test-5xx-token.jwt";
+  await Bun.write(tokenPath, "still-nominally-valid-token");
+  const server = Bun.serve({
+    port: 0,
+    fetch: () => new Response("internal error", { status: 500 }),
+  });
+  try {
+    expect(
+      await refreshLicenseToken({
+        serverUrl: `http://127.0.0.1:${server.port}`,
+        licenseKey: "lic_test",
+        instanceId: "inst_test",
+        tokenPath,
+      }),
+    ).toEqual({ refreshed: false });
+    expect(await Bun.file(tokenPath).text()).toBe(
+      "still-nominally-valid-token",
+    );
+  } finally {
+    server.stop(true);
+    await Bun.file(tokenPath)
+      .delete()
+      .catch(() => {});
+  }
+});
+
 test("license-refresh writes a fresh token when the server issues one", async () => {
   const tokenPath = "secrets/test-refreshed-token.jwt";
   const server = Bun.serve({

@@ -9,6 +9,17 @@ export interface LicenseRefreshConfig {
   keyConfigured?: boolean | undefined;
 }
 
+export interface LicenseRefreshResult {
+  refreshed: boolean;
+  error?: string | undefined;
+  /**
+   * Set only when the server just told us, in this response, that the
+   * licence is not entitled any more — never inferred, never set for a
+   * status this job does not recognise. See `refreshLicenseToken` below.
+   */
+  revoked?: true | undefined;
+}
+
 /**
  * The key comes from `licenseKey()` rather than straight from the environment,
  * so a key entered in Settings by someone upgrading from Free is picked up by
@@ -37,11 +48,17 @@ async function configFromEnv(): Promise<LicenseRefreshConfig> {
 
 /**
  * The hourly online check that keeps a licensed instance's token fresh. Fetches
- * a fresh short-lived token; if the server is unreachable or the
- * subscription lapsed, the instance keeps its last token until expiry and
- * then downgrades to Free.
+ * a fresh short-lived token; if the server is unreachable or answers with
+ * anything short of an explicit revocation, the instance keeps its last
+ * token until expiry and then downgrades to Free. The one exception is a
+ * server that says outright, in this request's own response, that the
+ * licence is no longer entitled (402 `not_entitled`) — that clears the token
+ * on the spot, so the next `refreshLicenseState` (apps/server/src/license.ts)
+ * degrades immediately instead of riding out the old token's remaining TTL.
  */
-export async function refreshLicenseToken(config?: LicenseRefreshConfig) {
+export async function refreshLicenseToken(
+  config?: LicenseRefreshConfig,
+): Promise<LicenseRefreshResult> {
   const { serverUrl, licenseKey, instanceId, tokenPath, keyConfigured } =
     config ?? (await configFromEnv());
 
@@ -77,7 +94,20 @@ export async function refreshLicenseToken(config?: LicenseRefreshConfig) {
       const { error } = (await res.json().catch(() => ({}))) as {
         error?: string;
       };
-      return { refreshed: false, error };
+
+      // The one status the licence server uses to say, in as many words,
+      // "this licence is not entitled any more" (see
+      // control-plane/src/license-server.ts, `issueToken`'s `not_entitled`
+      // branch). Everything else short of this — instance_limit, a malformed
+      // request, a 5xx, an error string we don't recognise — is "could not
+      // tell you", not "told us no", and must leave the token exactly alone.
+      // Getting this wrong in the permissive direction drops a paying
+      // customer to Free because of a network hiccup; getting it wrong in the
+      // strict direction only costs a little of the revocation speed this was
+      // built for, so an unrecognised answer defaults to "no answer".
+      const revoked = res.status === 402 && error === "not_entitled";
+      if (revoked) await Bun.write(tokenPath, "");
+      return { refreshed: false, error, ...(revoked ? { revoked } : {}) };
     }
     const { token } = (await res.json()) as { token?: string };
     if (!token) return { refreshed: false };

@@ -128,6 +128,132 @@ test("a transient refresh failure leaves entitlement intact", async () => {
   expect(currentLicenseState().valid).toBe(true);
 });
 
+/**
+ * The whole point of this change: a licence server that says outright, in
+ * this response, that the licence is not entitled any more must not wait for
+ * the old (still perfectly verifying) token to run out its 72h. A full hour
+ * is deliberately left on the token below, so the only thing that could make
+ * this degrade is the explicit answer itself.
+ */
+test("an explicit revocation degrades entitlement immediately, without waiting for the token's own expiry", async () => {
+  await writeToken({ tier: "pro", modules: [], license_id: "l1" }, "1h");
+  await resolveLicense(publicKeyPem);
+  expect(gate({ tier: "pro" })).toBe(true);
+
+  const server = Bun.serve({
+    port: 0,
+    fetch: () =>
+      Response.json({ error: "not_entitled", tier: "free" }, { status: 402 }),
+  });
+  try {
+    const result = await refreshLicenseToken({
+      serverUrl: `http://127.0.0.1:${server.port}`,
+      licenseKey: "lic_cancelled",
+      instanceId: "inst_test",
+      tokenPath,
+    });
+    expect(result.revoked).toBe(true);
+
+    await refreshLicenseState(publicKeyPem);
+    expect(gate({ tier: "pro" })).toBe(false);
+    expect(currentLicenseState().valid).toBe(false);
+  } finally {
+    server.stop(true);
+  }
+});
+
+/** Paid routes must not lag the state change above. */
+test("a paid route 404s promptly after a revocation", async () => {
+  await writeToken({ tier: "pro", modules: [], license_id: "l1" }, "1h");
+  await resolveLicense(publicKeyPem);
+
+  const app = new Hono<SentrelloEnv>();
+  loadModules(app, gate, [proRoute()]);
+  expect((await app.request("http://localhost/api/pro-thing")).status).toBe(
+    200,
+  );
+
+  const server = Bun.serve({
+    port: 0,
+    fetch: () =>
+      Response.json({ error: "not_entitled", tier: "free" }, { status: 402 }),
+  });
+  try {
+    await refreshLicenseToken({
+      serverUrl: `http://127.0.0.1:${server.port}`,
+      licenseKey: "lic_cancelled",
+      instanceId: "inst_test",
+      tokenPath,
+    });
+    await refreshLicenseState(publicKeyPem);
+    expect((await app.request("http://localhost/api/pro-thing")).status).toBe(
+      404,
+    );
+  } finally {
+    server.stop(true);
+  }
+});
+
+test("a 5xx from the license server leaves entitlement untouched", async () => {
+  await writeToken({ tier: "pro", modules: [], license_id: "l1" }, "1h");
+  await resolveLicense(publicKeyPem);
+  expect(gate({ tier: "pro" })).toBe(true);
+
+  const server = Bun.serve({
+    port: 0,
+    fetch: () => new Response("internal error", { status: 500 }),
+  });
+  try {
+    const result = await refreshLicenseToken({
+      serverUrl: `http://127.0.0.1:${server.port}`,
+      licenseKey: "lic_test",
+      instanceId: "inst_test",
+      tokenPath,
+    });
+    expect(result.revoked).toBeUndefined();
+
+    await refreshLicenseState(publicKeyPem);
+    expect(gate({ tier: "pro" })).toBe(true);
+  } finally {
+    server.stop(true);
+  }
+});
+
+/**
+ * `instance_limit` means this particular install was refused a token, not
+ * that the licence itself is invalid — the licence may be in perfect
+ * standing. Treated the same as any other answer this code cannot be certain
+ * about: no change.
+ */
+test("an ambiguous refusal — not an explicit revocation — leaves entitlement untouched", async () => {
+  await writeToken({ tier: "pro", modules: [], license_id: "l1" }, "1h");
+  await resolveLicense(publicKeyPem);
+  expect(gate({ tier: "pro" })).toBe(true);
+
+  const server = Bun.serve({
+    port: 0,
+    fetch: () =>
+      Response.json(
+        { error: "instance_limit", reason: "too many installs" },
+        { status: 409 },
+      ),
+  });
+  try {
+    const result = await refreshLicenseToken({
+      serverUrl: `http://127.0.0.1:${server.port}`,
+      licenseKey: "lic_test",
+      instanceId: "inst_test",
+      tokenPath,
+    });
+    expect(result.revoked).toBeUndefined();
+
+    await refreshLicenseState(publicKeyPem);
+    expect(gate({ tier: "pro" })).toBe(true);
+  } finally {
+    server.stop(true);
+  }
+});
+
 test("a token that has genuinely expired downgrades even though the server cannot be reached", async () => {
   await writeToken({ tier: "pro", modules: [] }, "1h");
   await resolveLicense(publicKeyPem);
