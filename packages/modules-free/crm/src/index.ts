@@ -258,8 +258,9 @@ function crud<T extends keyof typeof tables>(
       };
 
       // A resource with no list spec keeps the old behaviour exactly: every
-      // row, unordered, unpaged. Tags and activities are read whole by the
-      // screens that use them and gain nothing from a page.
+      // row, unordered, unpaged. What is left on that path is tags, of which
+      // a business has tens — activities and notes were on it too, and at
+      // 150,084 rows that was a 40 MB response.
       if (!list) {
         const rows = await db
           .select()
@@ -1041,6 +1042,41 @@ const tables = {
     table: schema.activities,
     path: "activities",
     permission: "crm",
+    /**
+     * A page, newest first, because there is no other order to read what
+     * happened in.
+     *
+     * It had no list spec at all, which in this route means every row: at
+     * 150,084 activities that was a 40 MB response and three quarters of a
+     * gigabyte of process memory to draw a panel that shows a handful. A
+     * caller that still asks for no page now gets the most recent thousand
+     * and is told it was cut, which is the shared behaviour every other list
+     * here already has.
+     */
+    list: {
+      search: [schema.activities.body],
+      sortable: {
+        occurredAt: schema.activities.occurredAt,
+        type: schema.activities.type,
+      },
+      defaultSort: { field: "occurredAt", order: "desc" },
+    } satisfies ListSpec,
+    /**
+     * Whose activity it is, asked of the database.
+     *
+     * An activity has one subject, and the panels that show "what happened
+     * with this person" had no way to say so — so they either took the whole
+     * table or took a page of somebody else's rows and sifted in the browser.
+     */
+    narrow(query: Record<string, string | undefined>) {
+      return [
+        query.contactId
+          ? eq(schema.activities.contactId, query.contactId)
+          : undefined,
+        query.dealId ? eq(schema.activities.dealId, query.dealId) : undefined,
+        query.type ? eq(schema.activities.type, query.type) : undefined,
+      ];
+    },
   },
   tasks: {
     table: schema.tasks,
@@ -1166,6 +1202,26 @@ const tables = {
     table: schema.notes,
     path: "notes",
     permission: "crm",
+    /**
+     * The same, for the same reason. Notes were never measured because
+     * nothing in the browser reads this route directly — the timeline asks
+     * for a contact's, in one query, with a limit — but the route is there,
+     * it is reachable, and it had the same "every row, unordered" behaviour
+     * the activities list did.
+     */
+    list: {
+      search: [schema.notes.text],
+      sortable: { createdAt: schema.notes.createdAt },
+      defaultSort: { field: "createdAt", order: "desc" },
+    } satisfies ListSpec,
+    narrow(query: Record<string, string | undefined>) {
+      return [
+        query.entityType
+          ? eq(schema.notes.entityType, query.entityType)
+          : undefined,
+        query.entityId ? eq(schema.notes.entityId, query.entityId) : undefined,
+      ];
+    },
   },
 } as const;
 
