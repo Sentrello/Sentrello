@@ -143,22 +143,31 @@ export function registerLifecycle(ctx: ModuleContext) {
         }
       }
 
-      const [issued] = await db
-        .update(schema.invoices)
-        .set({ status: "open", issueDate: issuedOn, updatedAt: new Date() })
-        .where(eq(schema.invoices.id, invoice.id))
-        .returning();
-      if (!issued) throw new Error("issue returned no row");
-
       /**
-       * The one posting function, shared with the create route and the
-       * recurring job. The copy that used to live here credited income with
-       * subtotal-less-discount and ignored the exchange rate entirely, so a
-       * euro invoice put euro cents into dollar books — the two bugs the
-       * shared one was written to fix, still sitting in this path because
-       * nobody had noticed there were two implementations.
+       * Issued and posted in one commit, or neither.
+       *
+       * The status was written first and the entry posted afterwards, and the
+       * gap is reachable by the very feature this route advertises: posting
+       * refuses a date inside a closed period, so issuing a back-dated
+       * invoice into a closed month left the document reading `open` — a debt
+       * on every aging report, chased by the reminder sweep — with no entry
+       * behind it at all.
+       *
+       * The posting itself is the one shared function, used by the create
+       * route and the recurring job too. The copy that used to live here
+       * credited income with subtotal-less-discount and ignored the exchange
+       * rate entirely, so a euro invoice put euro cents into dollar books.
        */
-      await postInvoiceIssued(orgId, issued, undefined, issuedOn);
+      const issued = await db.transaction(async (tx) => {
+        const [row] = await tx
+          .update(schema.invoices)
+          .set({ status: "open", issueDate: issuedOn, updatedAt: new Date() })
+          .where(eq(schema.invoices.id, invoice.id))
+          .returning();
+        if (!row) throw new Error("issue returned no row");
+        await postInvoiceIssued(orgId, row, undefined, issuedOn, { tx });
+        return row;
+      });
 
       return c.json({ invoice: issued });
     },
@@ -303,6 +312,27 @@ export function registerLifecycle(ctx: ModuleContext) {
       if (source.kind === "credit_note") {
         return c.json({ error: "a credit note cannot be credited" }, 409);
       }
+      /**
+       * The mirror of the refusal the void route already makes.
+       *
+       * Void refuses once a credit note stands against an invoice, because the
+       * note has already reversed the sale and a void's reversal on top would
+       * take the income out twice. The same is true the other way round and
+       * nothing said so: crediting an invoice that had been voided posted a
+       * second reversal of a sale already reversed, and crediting a draft took
+       * revenue out of the books that had never been put in.
+       */
+      if (source.status === "void" || source.status === "draft") {
+        return c.json(
+          {
+            error:
+              source.status === "void"
+                ? "this invoice is void; the books already carry its reversal"
+                : "this invoice is still a draft — it is not in the books, so there is nothing to credit",
+          },
+          409,
+        );
+      }
 
       const body = (await c.req.json().catch(() => ({}))) as {
         amountCents?: unknown;
@@ -429,14 +459,24 @@ export function registerLifecycle(ctx: ModuleContext) {
         // and the tax summary read documents band by band, and a credit with
         // no bands is a credit those figures never see.
         await writeTaxBands(tx, orgId, "invoice", made.id, bands);
+        /*
+         * Posted in the same commit as the note.
+         *
+         * A credit note settles the invoice the moment it exists —
+         * `creditedAgainst` counts every note that is not void, posted or
+         * not — so a note written and then failing to post is a customer's
+         * debt reduced with nothing in the books to match it, and an invoice
+         * nobody chases for money the ledger still says is owed.
+         */
+        await postCreditNoteIssued(
+          orgId,
+          made,
+          `Credit note ${made.number} against ${source.number}`,
+          undefined,
+          { tx },
+        );
         return made;
       });
-
-      await postCreditNoteIssued(
-        orgId,
-        note,
-        `Credit note ${note.number} against ${source.number}`,
-      );
 
       /**
        * The credit settles the invoice the way a payment does: the customer

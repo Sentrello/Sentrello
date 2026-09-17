@@ -164,13 +164,18 @@ export async function convertQuoteToInvoice(
         updatedAt: new Date(),
       })
       .where(eq(schema.quotes.id, quoteId));
+
+    /*
+     * An invoice from an accepted quote is an invoice: it posts the same entry
+     * as one raised directly, or the revenue exists on the invoice and nowhere
+     * in the books. Inside this transaction, so a posting that is refused
+     * takes the invoice and the quote's acceptance back with it — and so the
+     * tax bands written a few lines above are visible to the split that reads
+     * them.
+     */
+    await postInvoiceIssued(organizationId, inv, undefined, undefined, { tx });
     return inv;
   });
-
-  // An invoice from an accepted quote is an invoice: it posts the same entry
-  // as one raised directly, or the revenue exists on the invoice and nowhere
-  // in the books.
-  await postInvoiceIssued(organizationId, invoice);
   return invoice;
 }
 
@@ -452,11 +457,11 @@ export async function raiseInvoice(
         sortOrder: i,
       })),
     );
+    // In the books, or the revenue exists on a document and nowhere else —
+    // and in the same commit, so a refusal takes the document with it.
+    await postInvoiceIssued(organizationId, inv, undefined, undefined, { tx });
     return inv;
   });
-
-  // In the books, or the revenue exists on a document and nowhere else.
-  await postInvoiceIssued(organizationId, invoice);
   return invoice;
 }
 
