@@ -10,11 +10,13 @@ import {
   eq,
   gte,
   ilike,
+  inArray,
   isNull,
   or,
   schema,
   sql,
 } from "@sentrello/db";
+import { creditedAgainst } from "@sentrello/db/documents";
 import type { ModuleContext, SummaryFigure } from "@sentrello/module-sdk";
 import { scoreFor } from "@sentrello/module-sdk";
 
@@ -27,8 +29,10 @@ import { scoreFor } from "@sentrello/module-sdk";
  * nothing else surfaces — an invoice written and never issued is work already
  * done and money nobody has been asked for.
  *
- * One query. The dashboard draws several of these at once and a panel that
- * costs five round trips is a first screen that takes a second to appear.
+ * A handful of small queries rather than one: what is owed has to net off
+ * payments and credit notes per invoice, the same way the dashboard's own
+ * Money widget does, or the two cards on one screen tell two different
+ * amounts for the same invoice.
  */
 export async function invoicingFigures(
   organizationId: string,
@@ -38,18 +42,6 @@ export async function invoicingFigures(
 
   const [row] = await db
     .select({
-      // What has been issued and not settled. Drafts and voids owe nothing:
-      // nobody has been asked for a draft.
-      owedCents: sql<number>`coalesce(sum(
-        case when ${schema.invoices.status} in ('open', 'partial', 'overdue')
-          then ${schema.invoices.totalCents} else 0 end
-      ), 0)::int`,
-      lateCents: sql<number>`coalesce(sum(
-        case when ${schema.invoices.status} in ('open', 'partial', 'overdue')
-          and ${schema.invoices.dueDate} is not null
-          and ${schema.invoices.dueDate} < ${at(now)}
-          then ${schema.invoices.totalCents} else 0 end
-      ), 0)::int`,
       billedCents: sql<number>`coalesce(sum(
         case when ${schema.invoices.status} <> 'draft'
           and ${schema.invoices.status} <> 'void'
@@ -67,6 +59,70 @@ export async function invoicingFigures(
         isNull(schema.invoices.deletedAt),
       ),
     );
+
+  /**
+   * What has been issued and not settled — not what was issued.
+   *
+   * Summing `totalCents` for every open invoice used to be the whole
+   * calculation, which overstated a partially paid one by exactly what had
+   * already come in for it: the dashboard's own Money widget nets payments
+   * and credit notes off the total before calling anything "owed", and this
+   * panel sat right beside it disagreeing by the part-payment. Same
+   * definition here, so the two cards on one screen cannot tell two different
+   * amounts for the same invoice.
+   */
+  const unpaid = await db
+    .select({
+      id: schema.invoices.id,
+      totalCents: schema.invoices.totalCents,
+      dueDate: schema.invoices.dueDate,
+    })
+    .from(schema.invoices)
+    .where(
+      and(
+        eq(schema.invoices.organizationId, organizationId),
+        isNull(schema.invoices.deletedAt),
+        sql`${schema.invoices.status} in ('open', 'partial', 'overdue')`,
+      ),
+    );
+
+  const paidByInvoice = new Map<string, number>();
+  if (unpaid.length > 0) {
+    const paid = await db
+      .select({
+        invoiceId: schema.payments.invoiceId,
+        cents: sql<number>`coalesce(sum(${schema.payments.amountCents}), 0)::int`,
+      })
+      .from(schema.payments)
+      .where(
+        and(
+          eq(schema.payments.organizationId, organizationId),
+          inArray(
+            schema.payments.invoiceId,
+            unpaid.map((i) => i.id),
+          ),
+        ),
+      )
+      .groupBy(schema.payments.invoiceId);
+    for (const p of paid) {
+      if (p.invoiceId) paidByInvoice.set(p.invoiceId, p.cents);
+    }
+  }
+  const creditedByInvoice = await creditedAgainst(
+    organizationId,
+    unpaid.map((i) => i.id),
+  );
+  const balanceOf = (invoice: { id: string; totalCents: number }) =>
+    Math.max(
+      0,
+      invoice.totalCents -
+        (paidByInvoice.get(invoice.id) ?? 0) -
+        (creditedByInvoice.get(invoice.id) ?? 0),
+    );
+  const owedCents = unpaid.reduce((sum, i) => sum + balanceOf(i), 0);
+  const lateCents = unpaid
+    .filter((i) => i.dueDate && new Date(i.dueDate) < now)
+    .reduce((sum, i) => sum + balanceOf(i), 0);
 
   /**
    * Paid is read from the payments, not from the invoice.
@@ -92,13 +148,13 @@ export async function invoicingFigures(
     );
 
   return [
-    { label: "Owed to you", value: row?.owedCents ?? 0, kind: "money" },
+    { label: "Owed to you", value: owedCents, kind: "money" },
     {
       label: "Past its date",
-      value: row?.lateCents ?? 0,
+      value: lateCents,
       kind: "money",
       // The one figure here somebody is meant to do something about.
-      tone: (row?.lateCents ?? 0) > 0 ? "bad" : "plain",
+      tone: lateCents > 0 ? "bad" : "plain",
     },
     {
       label: "Paid this month",

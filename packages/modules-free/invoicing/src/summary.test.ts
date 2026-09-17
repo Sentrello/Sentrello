@@ -150,6 +150,78 @@ test("the dashboard answers for a business with months of history", async () => 
   expect(dashboard.drafts.length).toBe(1);
 });
 
+/**
+ * A part-payment settles part of the debt, and "Owed to you" has to say so.
+ *
+ * Summing every open invoice's total used to be the whole calculation, so a
+ * customer who had paid half of a bill was still counted for the whole of
+ * it — the same invoice reading two different amounts depending on whether
+ * somebody looked at this card or the Money widget beside it.
+ */
+test("owed and late both net off what has already been paid", async () => {
+  const [org] = await db
+    .insert(schema.organizations)
+    .values({
+      id: crypto.randomUUID(),
+      name: `Partial ${suffix}`,
+      slug: `partial-${suffix}`,
+      createdAt: new Date(),
+    })
+    .returning();
+  if (!org) throw new Error("could not create test organization");
+
+  try {
+    const [contact] = await db
+      .insert(schema.contacts)
+      .values({ organizationId: org.id, name: "Kepler", email: "ap@k.test" })
+      .returning();
+    if (!contact) throw new Error("could not create test contact");
+
+    // Overdue, and forty of its hundred already paid.
+    const [invoice] = await db
+      .insert(schema.invoices)
+      .values({
+        organizationId: org.id,
+        contactId: contact.id,
+        number: "INV-TEST-1",
+        status: "partial",
+        totalCents: 100_000,
+        dueDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+      })
+      .returning();
+    if (!invoice) throw new Error("could not create test invoice");
+
+    await db.insert(schema.payments).values({
+      organizationId: org.id,
+      invoiceId: invoice.id,
+      amountCents: 40_000,
+      method: "bank_transfer",
+      receivedAt: new Date(),
+    });
+
+    const figures = await invoicingFigures(org.id);
+    const byLabel = (label: string) =>
+      figures.find((f) => f.label === label)?.value;
+    // The balance, not the total: 100,000 owed less the 40,000 already in.
+    expect(byLabel("Owed to you")).toBe(60_000);
+    // Overdue too, and for the same reason.
+    expect(byLabel("Past its date")).toBe(60_000);
+  } finally {
+    await db
+      .delete(schema.payments)
+      .where(eq(schema.payments.organizationId, org.id));
+    await db
+      .delete(schema.invoices)
+      .where(eq(schema.invoices.organizationId, org.id));
+    await db
+      .delete(schema.contacts)
+      .where(eq(schema.contacts.organizationId, org.id));
+    await db
+      .delete(schema.organizations)
+      .where(eq(schema.organizations.id, org.id));
+  }
+});
+
 test("a business with nothing in it still answers", async () => {
   const [empty] = await db
     .insert(schema.organizations)
