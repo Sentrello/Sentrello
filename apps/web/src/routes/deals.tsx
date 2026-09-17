@@ -9,7 +9,12 @@ import {
   useCrmSettings,
 } from "../lib/crm-settings";
 import { Icon } from "../lib/icons";
-import { listQueryString, useListState } from "../lib/list-ui";
+import {
+  ComputedCells,
+  type ComputedColumn,
+  listQueryString,
+  useListState,
+} from "../lib/list-ui";
 import { RelatedLink, useNavigation } from "../lib/navigation";
 import { SavedViews } from "../lib/saved-views";
 import {
@@ -43,6 +48,8 @@ interface Deal {
   position: number;
   companyId: string | null;
   archivedAt: string | null;
+  /** Worked out on read by whatever module defines computed columns. */
+  computed?: Record<string, { value: number | string | null; reason?: string }>;
 }
 
 /** Left to right, in the order a deal actually travels. */
@@ -126,6 +133,7 @@ function Column({
   stage,
   label,
   deals,
+  columns,
   companyName,
   onMove,
 }: {
@@ -134,6 +142,8 @@ function Column({
   stage: string;
   label: string;
   deals: Deal[];
+  /** Columns a module works out, when this instance has one that does. */
+  columns: ComputedColumn[] | undefined;
   companyName: (id: string | null) => string | undefined;
   onMove: (id: string, stage: string) => void;
 }) {
@@ -195,9 +205,15 @@ function Column({
                 >
                   {d.name}
                 </RelatedLink>
-                <div className="mt-0.5 text-xs" style={muted}>
-                  {formatMoney(d.amountCents)}
-                  {d.category ? ` · ${d.category}` : ""}
+                <div
+                  className="mt-0.5 flex flex-wrap gap-x-2 text-xs"
+                  style={muted}
+                >
+                  <span>
+                    {formatMoney(d.amountCents)}
+                    {d.category ? ` · ${d.category}` : ""}
+                  </span>
+                  <ComputedCells columns={columns} row={d} />
                 </div>
               </div>
 
@@ -239,7 +255,10 @@ export function Deals() {
   const query = listQueryString(state, false);
   const { data, isLoading, error } = useQuery({
     queryKey: ["deals", query],
-    queryFn: () => api<{ deals: Deal[] }>(`/api/deals?${query}`),
+    queryFn: () =>
+      api<{ deals: Deal[]; computedColumns?: ComputedColumn[] }>(
+        `/api/deals?${query}`,
+      ),
     placeholderData: (previous) => previous,
   });
 
@@ -510,6 +529,7 @@ export function Deals() {
             stage={s.id}
             label={s.label}
             deals={byStage(s.id)}
+            columns={data?.computedColumns}
             companyName={companyName}
             onMove={(id, stage) => move.mutate({ id, stage })}
           />

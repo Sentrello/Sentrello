@@ -2,7 +2,7 @@ import { type Query, useQuery } from "@tanstack/react-query";
 import { type ReactNode, useMemo, useState } from "react";
 import { api } from "./api";
 import { Icon, type IconName } from "./icons";
-import { Button, Select, border, muted } from "./ui";
+import { Button, Select, border, formatMoney, muted } from "./ui";
 
 /**
  * The furniture every list screen needs: search, filters, sort, pages.
@@ -372,6 +372,70 @@ export function FilterToggle({
  * number, the row's own actions. Offering to hide those is offering somebody a
  * way to break their own screen.
  */
+/**
+ * A column a module worked out, drawn beside the record it belongs to.
+ *
+ * The values arrive on the rows the list already loaded — the server computes
+ * them on read, for the whole page at once — so this is only ever formatting.
+ *
+ * A cell with no value is a dash and the reason it could not be worked out,
+ * never an empty space: an empty cell reads as a number somebody forgot to
+ * type, and "no value for Value" is the sentence that tells them which field
+ * to fill in.
+ */
+export interface ComputedColumn {
+  key: string;
+  label: string;
+  kind?: "money" | "whole" | "days" | "text";
+}
+
+export interface ComputedValue {
+  value: number | string | null;
+  reason?: string;
+}
+
+export function ComputedCells({
+  columns,
+  row,
+}: {
+  columns: ComputedColumn[] | undefined;
+  row: { computed?: Record<string, ComputedValue> };
+}) {
+  if (!columns?.length) return null;
+  return (
+    <>
+      {columns.map((column) => {
+        const cell = row.computed?.[column.key];
+        return (
+          <span
+            key={column.key}
+            className="shrink-0 whitespace-nowrap"
+            title={cell?.reason}
+          >
+            {column.label}{" "}
+            <span className="font-medium">{computedText(cell, column)}</span>
+          </span>
+        );
+      })}
+    </>
+  );
+}
+
+function computedText(
+  cell: ComputedValue | undefined,
+  column: ComputedColumn,
+): string {
+  if (!cell || cell.value === null || cell.value === undefined) return "—";
+  if (typeof cell.value === "string") return cell.value;
+  // Money stays in cents all the way here, and is formatted in the reader's
+  // own currency rather than the server's.
+  if (column.kind === "money") return formatMoney(cell.value);
+  if (column.kind === "days") {
+    return `${cell.value} day${cell.value === 1 ? "" : "s"}`;
+  }
+  return cell.value.toLocaleString();
+}
+
 export interface ListColumn {
   field: string;
   label: string;

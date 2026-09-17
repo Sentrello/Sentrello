@@ -8,6 +8,7 @@ import type {
 import { addPersonalData } from "@sentrello/module-sdk";
 import {
   addAccountSection,
+  addComputedColumns,
   addCrawlable,
   addOnboarding,
   addPaymentWebhook,
@@ -15,6 +16,7 @@ import {
   addSummary,
   addWidget,
   clearAccountSections,
+  clearComputedColumns,
   clearOnboarding,
   clearPaymentWebhooks,
   clearServices,
@@ -63,6 +65,7 @@ export function loadModules(
   clearAccountSections();
   clearOnboarding();
   clearPaymentWebhooks();
+  clearComputedColumns();
   /*
    * And what one module offers another. The boot tests load modules more than
    * once in a process, and a host's functions left behind by a run that is over
@@ -160,6 +163,12 @@ export function loadModules(
         // the correct answer rather than a gap.
         registerPersonalData: (source) =>
           addPersonalData({ ...source, moduleId: m.id }),
+        // Columns a module works out on records Core owns. Core builds every
+        // list from one factory and cannot name the modules that would add to
+        // it, so each says what it can add and the factory asks whatever this
+        // instance loaded.
+        registerComputedColumns: (provider) =>
+          addComputedColumns({ ...provider, moduleId: m.id }),
         // namespaced: two modules may both want a job called "reminders"
         registerJob: (j) => jobs.push({ ...j, name: `${m.id}:${j.name}` }),
       });

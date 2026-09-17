@@ -81,6 +81,19 @@ export type Meta = {
 
 export type LabelledValue = { label: string; value: string };
 
+/**
+ * A column a module worked out for this record, keyed by the column's key.
+ *
+ * Never stored and never written: the server computes these as it reads, so a
+ * figure counting days is right on the day it is read rather than on the day
+ * somebody last saved the record. Absent on an instance where nothing
+ * registers any, which is what a Free list looks like.
+ */
+export type ComputedValues = Record<
+  string,
+  { value: number | string | null; reason?: string }
+>;
+
 export type Contact = {
   id: string;
   name: string;
@@ -114,6 +127,8 @@ export type Contact = {
   openTasks?: number;
   /** Whatever this business added for itself, keyed by field id. */
   customValues?: Record<string, string | number | boolean | null> | null;
+  /** Worked out on read by whatever module defines computed columns. */
+  computed?: ComputedValues;
 };
 
 export type Tag = { id: string; name: string; color: string };
@@ -148,6 +163,8 @@ export type Company = {
   contacts?: { id: string; name: string; avatarPath: string | null }[];
   contactCount?: number;
   dealCount?: number;
+  /** Worked out on read by whatever module defines computed columns. */
+  computed?: ComputedValues;
 };
 
 /**

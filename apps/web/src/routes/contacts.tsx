@@ -12,6 +12,8 @@ import {
 } from "../lib/crm-settings";
 import { Icon } from "../lib/icons";
 import {
+  ComputedCells,
+  type ComputedColumn,
   FilterGroup,
   FilterPanel,
   FilterToggle,
@@ -414,6 +416,14 @@ export function Contacts() {
                           style={muted}
                         >
                           {describe(c, companyName(c.companyId))}
+                          <ComputedCells
+                            columns={
+                              response?.computedColumns as
+                                | ComputedColumn[]
+                                | undefined
+                            }
+                            row={c}
+                          />
                           {c.tags?.map((tag) => (
                             <span
                               key={tag.id}
