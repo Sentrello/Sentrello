@@ -5,6 +5,7 @@ import {
   normalizeLayout,
   shownTabs,
   withArrivals,
+  withTimeout,
 } from "./layout";
 
 /**
@@ -157,4 +158,30 @@ test("a new arrival gets a tab, a deliberate removal stays removed", () => {
   expect(
     withArrivals(tabs, known, [widget("money"), widget("attention")]),
   ).toEqual(tabs);
+});
+
+/**
+ * Every widget on a tab answers through one shared request, so a `load` that
+ * never settles — not one that throws, one that simply never comes back —
+ * would otherwise leave every other widget's card spinning behind it
+ * forever. Raced against the clock instead: a hang becomes a rejection, which
+ * the route already treats exactly like a thrown error.
+ */
+test("a widget load that never settles times out rather than hanging", async () => {
+  const hangs = new Promise<string>(() => {}); // deliberately never resolves
+  await expect(withTimeout(hangs, 10)).rejects.toThrow(/timed out/);
+});
+
+/** A widget that answers in time is unaffected by the race. */
+test("a widget load that finishes before the deadline is unaffected", async () => {
+  await expect(withTimeout(Promise.resolve("fine"), 1000)).resolves.toBe(
+    "fine",
+  );
+});
+
+/** A widget that fails on its own still fails on its own, not on a timer. */
+test("a widget load that rejects on its own keeps its own reason", async () => {
+  await expect(
+    withTimeout(Promise.reject(new Error("boom")), 1000),
+  ).rejects.toThrow("boom");
 });
