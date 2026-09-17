@@ -34,6 +34,82 @@ import * as schema from "./schema";
  */
 
 /**
+ * Every other table in this schema, looked at once and found not to be
+ * evidence of money.
+ *
+ * The pair of this and `STATUTORY_TABLES` has to cover the schema, and the
+ * ratchet beside it fails when a table is in neither. That is the whole
+ * point: a column-name test cannot tell a record of a sale from a settings
+ * row — four tables recording what customers bought slipped past one, because
+ * none of them carries an amount — so the decision is made by a person, and
+ * the thing that is now impossible is making it by accident. A new table
+ * fails the suite until somebody says which half it belongs to.
+ *
+ * Being here is not permission to sweep anything. Most of these are live
+ * business records that no retention policy has any business touching either;
+ * it says only that losing one would not stop a business answering an
+ * auditor. The logs among them — `record_events`, `security_events`,
+ * `crm_webhook_deliveries`, `reminder_log`, `payment_webhook_events`,
+ * `archive_runs` — are the ones a policy is actually written against.
+ *
+ * Core's schema only. A module in another repository keeps its own list
+ * against its own schema; what protects the shared names across the boundary
+ * is `STATUTORY_TABLES`, which matches by name.
+ */
+export const NON_STATUTORY_TABLES = [
+  "account",
+  "activities",
+  "archive_runs",
+  "bank_connections",
+  "bank_provider_accounts",
+  "companies",
+  "compliance_settings",
+  "consent_records",
+  "contact_duplicate_dismissals",
+  "contact_merges",
+  "contacts",
+  "crm_settings",
+  "crm_webhook_deliveries",
+  "crm_webhooks",
+  "dimensions",
+  "document_templates",
+  "form_submissions",
+  "forms",
+  "invitation",
+  "invoicing_settings",
+  "ledger_settings",
+  "license_cache",
+  "member",
+  "module_state",
+  "mtd_connections",
+  "notes",
+  "onboarding_dismissals",
+  "organization_preferences",
+  "organization_role",
+  "organizations",
+  "payees",
+  "payment_accounts",
+  "payment_webhook_events",
+  "record_events",
+  "reminder_log",
+  "reminder_rules",
+  "saved_views",
+  "security_events",
+  "security_policy",
+  "session",
+  "sso_provider",
+  "taggables",
+  "tags",
+  "tasks",
+  "two_factor",
+  "user",
+  "user_group_members",
+  "user_groups",
+  "user_preferences",
+  "verification",
+] as const;
+
+/**
  * Rows touched by one statement.
  *
  * One `delete` over two years of a busy log takes a row lock on every row and
