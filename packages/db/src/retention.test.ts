@@ -11,6 +11,7 @@ import { db } from "./client";
 import { redactPayloads } from "./erasure";
 import { RECORD_EVENT_PAYLOADS } from "./record-events";
 import {
+  NON_STATUTORY_TABLES,
   forgetRetentionSweep,
   lastRetentionSweep,
   retentionBacklog,
@@ -405,4 +406,99 @@ test("every table carrying money is named as statutory", () => {
   // A new table that holds an amount and is not on the list is a table a
   // retention policy could be pointed at. Add it to STATUTORY_TABLES.
   expect(unguarded).toEqual([]);
+});
+
+/**
+ * And the ratchet that catches what a column name cannot see.
+ *
+ * The test above is a cheap net over the common case and it is not the
+ * guarantee. It passed for months while four tables recording what customers
+ * bought and were billed for sat unprotected, because a licence, a
+ * subscription and an entitlement are evidence of a sale written entirely in
+ * dates and identifiers and carry no amount at all — and widening the net by
+ * column name goes wrong in the other direction just as fast, since
+ * `companies.tax_identifier` and `organizations.base_currency` read like
+ * money and are a VAT number and a preference.
+ *
+ * So the decision is a person's, and this is what makes it a deliberate one:
+ * every table in the schema has to be named in one list or the other. A table
+ * added tomorrow is in neither, and this fails until somebody has looked at
+ * it.
+ */
+test("every table in the schema has been classified, one way or the other", () => {
+  const statutory = new Set<string>(STATUTORY_TABLES as readonly string[]);
+  const ordinary = new Set<string>(NON_STATUTORY_TABLES as readonly string[]);
+
+  const unclassified: string[] = [];
+  const both: string[] = [];
+  const present = new Set<string>();
+  for (const exported of Object.values(schema)) {
+    if (!isTable(exported)) continue;
+    const name = getTableName(exported);
+    present.add(name);
+    if (statutory.has(name) && ordinary.has(name)) both.push(name);
+    else if (!statutory.has(name) && !ordinary.has(name))
+      unclassified.push(name);
+  }
+
+  // A new table. Decide whether losing it would stop a business answering an
+  // auditor, and name it in STATUTORY_TABLES or NON_STATUTORY_TABLES.
+  expect(unclassified).toEqual([]);
+  expect(both).toEqual([]);
+  // And the other way: a name left behind by a table that has been removed or
+  // renamed, which would quietly stop guarding anything.
+  expect([...ordinary].filter((name) => !present.has(name))).toEqual([]);
+});
+
+/**
+ * The control plane's own records, by name.
+ *
+ * They are not in this schema — they belong to the instance that sells
+ * licences rather than to a business's own — but the refusal is by table
+ * name, so naming them here is what stops a policy being written against them
+ * anywhere. Every one is the answer to "what did this customer buy, and what
+ * were they billed for it", which is the same question an invoice answers.
+ */
+test("what a customer bought and was billed for is statutory too", () => {
+  clearRetention();
+  const table = (name: string, schemaName?: string) => {
+    const made = {
+      _: { name },
+      id: { name: "id", getSQL: () => null },
+      organizationId: { name: "organization_id", getSQL: () => null },
+    } as Record<string | symbol, unknown>;
+    made[Symbol.for("drizzle:Name")] = name;
+    if (schemaName) made[Symbol.for("drizzle:Schema")] = schemaName;
+    return made;
+  };
+
+  for (const [name, schemaName] of [
+    ["licenses", undefined],
+    ["license_subscriptions", undefined],
+    ["entitlements", undefined],
+    ["seo_usage_invoices", undefined],
+    ["calls", "seo_cloud"],
+    ["credits", "seo_cloud"],
+  ] as [string, string | undefined][]) {
+    const greedy = {
+      ...policy({ id: `control-plane-${name}` }),
+      table: table(name, schemaName),
+    } as unknown as RegisteredRetention;
+    expect(() => addRetention(greedy)).toThrow(/statutory/);
+  }
+  expect(retentionPolicies()).toHaveLength(0);
+
+  /*
+   * And the qualified names are qualified for a reason: a module that keeps a
+   * log of telephone calls is not touching the metered-usage ledger, and
+   * refusing every table in the product called `calls` would be a rule
+   * nobody could work with.
+   */
+  const ownCalls = {
+    ...policy({ id: "a-crm-call-log" }),
+    table: table("calls", "crm"),
+  } as unknown as RegisteredRetention;
+  addRetention(ownCalls);
+  expect(retentionPolicies()).toHaveLength(1);
+  clearRetention();
 });

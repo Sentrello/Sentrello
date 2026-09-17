@@ -36,17 +36,32 @@
 /**
  * Tables a retention policy may never be pointed at.
  *
- * The books, the evidence behind them, and the numbering that ties the two
- * together. It errs wide on purpose — `deals` is here because it carries an
- * amount, not because anybody would prune it — since the cost of a table
- * being on this list is that somebody has to come and argue for it in review,
- * and the cost of one being missing is a business that cannot produce an
- * invoice for a tax authority.
+ * The property is **evidence that money changed hands, or that somebody
+ * bought something** — the books, the documents behind them, the numbering
+ * that ties the two together, and what a customer was sold and billed for. It
+ * errs wide on purpose: `deals` is here because it carries an amount, not
+ * because anybody would prune it. The cost of a table being on this list is
+ * that somebody has to come and argue for it in review; the cost of one being
+ * missing is a business that cannot produce an invoice for a tax authority.
+ *
+ * **A column name cannot express that property, and this list is the proof.**
+ * The ratchet that used to keep it honest looked for a column ending in
+ * `_cents`, and four tables recording what customers bought and were billed
+ * walked straight past it because none of them carries an amount at all — a
+ * licence, a subscription and an entitlement are evidence of a purchase
+ * written entirely in dates and identifiers. The mistake does not only go one
+ * way: `companies.tax_identifier` and `organizations.base_currency` read like
+ * money and are a VAT number and a preference. So the list is maintained by
+ * hand, and what changed is that leaving a table off it is no longer
+ * something that can happen quietly — see `NON_STATUTORY_TABLES` in
+ * `@sentrello/db/retention`, which every other table in the schema has to be
+ * named in, and the ratchet in `packages/db/src/retention.test.ts` that
+ * refuses a table missing from both.
  *
  * By table name, so a Pro or optional module's table called `invoices` is
- * refused exactly as Core's is. Kept honest by the ratchet in
- * `packages/db/src/retention.test.ts`: any table in the schema carrying an
- * amount in cents has to be named here.
+ * refused exactly as Core's is. A name with a schema on it — `seo_cloud.calls`
+ * — is matched qualified instead, for the handful whose bare name is a word
+ * an unrelated module could reasonably use for a log of its own.
  */
 export const STATUTORY_TABLES = [
   "accounts",
@@ -86,6 +101,24 @@ export const STATUTORY_TABLES = [
   "transactions",
   "vendor_credit_applications",
   "vendor_credits",
+
+  /*
+   * What a customer bought from us, and what we billed them for it.
+   *
+   * These live in the control plane rather than in a business's own instance,
+   * and none of them carries an amount — which is exactly why the column-name
+   * ratchet never saw them. A licence, its subscription and the entitlements
+   * it grants are the record of a sale: the answer to "what did they pay for,
+   * and when did it start" is in dates and identifiers, and it is the evidence
+   * behind every invoice we raise. The usage invoices and the call and credit
+   * ledgers behind them are the metered half of the same thing.
+   */
+  "licenses",
+  "license_subscriptions",
+  "entitlements",
+  "seo_usage_invoices",
+  "seo_cloud.calls",
+  "seo_cloud.credits",
 ] as const;
 
 export type StatutoryTable = (typeof STATUTORY_TABLES)[number];
@@ -211,6 +244,31 @@ export function retentionTableName(table: RetentionTable): string {
   return typeof name === "string" ? name : "";
 }
 
+/**
+ * The same table, with the schema it lives in when it has one.
+ *
+ * `shop.orders` rather than `orders`. Both forms are matched against the
+ * statutory list: the bare name so an entry like `invoices` refuses any
+ * module's table of that name whatever schema it is in, and the qualified one
+ * so an entry like `seo_cloud.calls` refuses exactly that table and leaves a
+ * CRM free to keep a log of telephone calls.
+ */
+function retentionQualifiedName(table: RetentionTable): string {
+  const named = table as unknown as Record<symbol, unknown>;
+  const schema = named[Symbol.for("drizzle:Schema")];
+  const name = retentionTableName(table);
+  return typeof schema === "string" && schema ? `${schema}.${name}` : name;
+}
+
+/** Whether a table is one the books depend on and nothing may sweep. */
+export function isStatutoryTable(table: RetentionTable): boolean {
+  const names: readonly string[] = STATUTORY_TABLES;
+  return (
+    names.includes(retentionTableName(table)) ||
+    names.includes(retentionQualifiedName(table))
+  );
+}
+
 const policies: RegisteredRetention[] = [];
 
 /**
@@ -232,7 +290,7 @@ export function addRetention(policy: RegisteredRetention): void {
       `retention policy "${policy.id}" was given something that is not a table`,
     );
   }
-  if ((STATUTORY_TABLES as readonly string[]).includes(table)) {
+  if (isStatutoryTable(policy.table)) {
     throw new Error(
       `retention policy "${policy.id}" points at "${table}", which is a statutory record and is never swept`,
     );
