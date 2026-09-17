@@ -2596,3 +2596,126 @@ test("an unpaged list is capped, and says so", async () => {
       ),
     );
 });
+
+/**
+ * The activities list used to have no list spec, which in this route means
+ * every row, unordered.
+ *
+ * At 150,084 activities that was a 40 MB response and three quarters of a
+ * gigabyte of process memory to draw a panel that shows a handful — and
+ * because the rows were unordered, a caller that took the first fifty took
+ * fifty the database chose rather than the fifty most recent.
+ */
+test("activities page, newest first, and a contact's are found by the database", async () => {
+  const [mine] = await db
+    .insert(schema.contacts)
+    .values({ organizationId: orgId, name: `Timeline ${suffix}` })
+    .returning();
+  const [other] = await db
+    .insert(schema.contacts)
+    .values({ organizationId: orgId, name: `Someone else ${suffix}` })
+    .returning();
+  if (!mine || !other) throw new Error("could not create the contacts");
+
+  // Earlier tests in this file logged calls of their own; this one counts.
+  await db
+    .delete(schema.activities)
+    .where(eq(schema.activities.organizationId, orgId));
+
+  const day = 86_400_000;
+  await db.insert(schema.activities).values(
+    Array.from({ length: 30 }, (_, n) => ({
+      organizationId: orgId,
+      // Two thirds belong to somebody else, so a route that filtered a page
+      // in JavaScript would come back short.
+      contactId: n % 3 === 0 ? mine.id : other.id,
+      type: "note",
+      body: `Entry ${String(n).padStart(2, "0")}`,
+      occurredAt: new Date(Date.now() - (30 - n) * day),
+    })),
+  );
+
+  try {
+    const page = async (query: string) => {
+      const res = await app.request(
+        `http://localhost/api/activities?${query}`,
+        { headers },
+      );
+      expect(res.status).toBe(200);
+      return (await res.json()) as {
+        activities: { body: string; contactId: string | null }[];
+        total: number;
+      };
+    };
+
+    const first = await page("page=1&perPage=10");
+    expect(first.total).toBe(30);
+    expect(first.activities).toHaveLength(10);
+    // Newest first, which is the only order a list of what happened is read in.
+    expect(first.activities[0]?.body).toBe("Entry 29");
+    expect(first.activities.at(-1)?.body).toBe("Entry 20");
+
+    const third = await page("page=3&perPage=10");
+    expect(third.activities.map((a) => a.body)).toEqual(
+      Array.from(
+        { length: 10 },
+        (_, n) => `Entry ${String(9 - n).padStart(2, "0")}`,
+      ),
+    );
+
+    // One person's, asked of the database rather than sifted afterwards: ten
+    // of the thirty are theirs, and all ten come back on one page of ten.
+    const theirs = await page(`contactId=${mine.id}&page=1&perPage=10`);
+    expect(theirs.total).toBe(10);
+    expect(theirs.activities).toHaveLength(10);
+    expect(theirs.activities.every((a) => a.contactId === mine.id)).toBe(true);
+
+    // And a caller that still asks for no page gets the list ordered and
+    // bounded, rather than the whole table in whatever order it was stored.
+    const unpaged = await page("");
+    expect(unpaged.activities[0]?.body).toBe("Entry 29");
+    expect(unpaged.activities.length).toBeLessThanOrEqual(UNPAGED_MAX);
+  } finally {
+    await db
+      .delete(schema.activities)
+      .where(eq(schema.activities.organizationId, orgId));
+    await db
+      .delete(schema.contacts)
+      .where(inArray(schema.contacts.id, [mine.id, other.id]));
+  }
+});
+
+/** Notes were on the same unpaged path, for the same reason. */
+test("notes page too, newest first", async () => {
+  const [contact] = await db
+    .insert(schema.contacts)
+    .values({ organizationId: orgId, name: `Noted ${suffix}` })
+    .returning();
+  if (!contact) throw new Error("could not create the contact");
+  const day = 86_400_000;
+  await db.insert(schema.notes).values(
+    Array.from({ length: 5 }, (_, n) => ({
+      organizationId: orgId,
+      entityType: "contact",
+      entityId: contact.id,
+      text: `Note ${n}`,
+      createdAt: new Date(Date.now() - (5 - n) * day),
+    })),
+  );
+
+  try {
+    const res = await app.request(
+      `http://localhost/api/notes?entityType=contact&entityId=${contact.id}&page=1&perPage=2`,
+      { headers },
+    );
+    const body = (await res.json()) as {
+      notes: { text: string }[];
+      total: number;
+    };
+    expect(body.total).toBe(5);
+    expect(body.notes.map((n) => n.text)).toEqual(["Note 4", "Note 3"]);
+  } finally {
+    await db.delete(schema.notes).where(eq(schema.notes.organizationId, orgId));
+    await db.delete(schema.contacts).where(eq(schema.contacts.id, contact.id));
+  }
+});
