@@ -1,4 +1,4 @@
-import type { LedgerRow } from "./ledger";
+import { type LedgerRow, isTaxPayableCode } from "./ledger";
 
 /**
  * A UK VAT return, computed from the ledger.
@@ -22,9 +22,6 @@ import type { LedgerRow } from "./ledger";
  * the product read it: the screens that show a return and the MTD path that
  * files one are not always in the same package.
  */
-
-/** The account code VAT is carried on. */
-const VAT_ACCOUNT = "2200";
 
 export interface VatReturn {
   /** VAT due on sales and other outputs. */
@@ -94,7 +91,7 @@ export function vatReturn(rows: LedgerRow[]): VatReturn {
     };
     if (row.type === "income") entry.sale = true;
     if (row.type === "expense") entry.purchase = true;
-    if (row.code === VAT_ACCOUNT) {
+    if (isTaxPayableCode(row.code)) {
       entry.vatCredit += row.creditCents;
       entry.vatDebit += row.debitCents;
     }
@@ -242,7 +239,7 @@ export function flatRateTurnoverCents(rows: LedgerRow[]): number {
     const entry = entries.get(row.entryId) ?? { income: 0, vat: 0 };
     if (row.type === "income") {
       entry.income += row.creditCents - row.debitCents;
-    } else if (row.code === VAT_ACCOUNT) {
+    } else if (isTaxPayableCode(row.code)) {
       entry.vat += row.creditCents - row.debitCents;
     }
     entries.set(row.entryId, entry);

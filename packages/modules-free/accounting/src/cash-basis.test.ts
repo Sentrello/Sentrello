@@ -433,6 +433,39 @@ test("once everything is paid, the two bases agree to the penny", () => {
   expect(cash.totalValuePurchasesExVAT).toBe(accrual.totalValuePurchasesExVAT);
 });
 
+/**
+ * A document carrying two named taxes posts each to an account of its own —
+ * "2200-" plus the definition's id — and the cash-basis conversion matched the
+ * bare code, so that invoice's VAT was neither pooled against the receivable
+ * nor emitted when the money arrived. The return read zero.
+ */
+test("VAT on an authority's own account is pooled and released like any other", () => {
+  const split = (at: string) =>
+    entry(at, [
+      { code: "1100", type: "asset", debit: 1_200 },
+      { code: "4000", type: "income", credit: 1_000 },
+      {
+        code: "2200-1a2b3c4d",
+        type: "liability",
+        credit: 160,
+        name: "VAT 20%",
+      },
+      { code: "2200-5e6f7a8b", type: "liability", credit: 40, name: "VAT 5%" },
+    ]);
+  const all = [
+    ...split("2026-03-10T00:00:00Z"),
+    ...receipt("2026-03-20T00:00:00Z", 1_200),
+  ];
+  const cash = vatReturn(
+    cashBasisVatRows(all, {
+      from: new Date("2026-03-01T00:00:00Z"),
+      to: new Date("2026-03-31T23:59:59Z"),
+    }),
+  );
+  expect(cash.vatDueSales).toBe(200);
+  expect(cash.totalValueSalesExVAT).toBe(1_000);
+});
+
 test("VAT lands in the period the money moved, not the period of the invoice", () => {
   const all = [
     ...invoice("2026-03-10T00:00:00Z"),

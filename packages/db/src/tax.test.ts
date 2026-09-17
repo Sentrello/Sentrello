@@ -43,6 +43,39 @@ test("VAT charged is box 1, VAT reclaimed is box 4, and box 3 is their sum", () 
 });
 
 /**
+ * An invoice carrying two named VAT rates — standard on the labour, reduced on
+ * the materials — does not post its VAT to "2200" at all.
+ *
+ * The ledger gives each named tax an account of its own, coded "2200-" plus
+ * the definition's id, so that a business owing two authorities can read a
+ * figure for each. This return matched the code exactly, so every penny of
+ * that document's VAT fell out of box 1: the return was understated by the
+ * whole of it, and nothing on the screen said so.
+ */
+test("VAT on an authority's own account is still box 1", () => {
+  const out = vatReturn([
+    row({ creditCents: 100_000 }),
+    row({
+      code: "2200-1a2b3c4d",
+      type: "liability",
+      name: "VAT 20%",
+      creditCents: 16_000,
+    }),
+    row({
+      code: "2200-5e6f7a8b",
+      type: "liability",
+      name: "VAT 5%",
+      creditCents: 1_000,
+    }),
+  ]);
+  expect(out.vatDueSales).toBe(17_000);
+  expect(out.netVatDue).toBe(17_000);
+  // And the turnover is still net of it: a tax account is not income,
+  // whichever authority's name is on it.
+  expect(out.totalValueSalesExVAT).toBe(100_000);
+});
+
+/**
  * A business owed money by HMRC puts the amount it is owed in box 5, not a
  * negative number. The direction is implied by boxes 3 and 4.
  */
