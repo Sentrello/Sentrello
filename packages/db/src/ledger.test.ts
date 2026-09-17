@@ -294,3 +294,52 @@ test("totalsByAccount — an expense account reads its debits as positive", () =
     },
   ]);
 });
+
+/**
+ * The row recording a financial event and the entry posting it live or die
+ * together — in that direction too.
+ *
+ * `recordCreditMovement`'s tests prove the row-then-post half: a posting
+ * refused by the closed books does not leave the row behind. This is the other
+ * half, and the shape an audit of nineteen posting sites found eight times:
+ * post first, write the row second, and nothing at all if the row fails. A
+ * spend posted to the profit and loss with no cost row behind it is money
+ * leaving the books that no screen can explain, and it is unfindable — the
+ * entry looks perfectly ordinary.
+ *
+ * No new seam: `postJournalEntry` already takes the caller's transaction. This
+ * is here so a caller can be pointed at a test rather than at an argument.
+ */
+test("an entry posted in a caller's transaction dies with the row it explains", async () => {
+  const before = await db
+    .select({ id: schema.journalEntries.id })
+    .from(schema.journalEntries)
+    .where(eq(schema.journalEntries.source, "cost-row-test"));
+
+  await expect(
+    db.transaction(async (tx) => {
+      await postJournalEntry(
+        orgId,
+        "A day of scaffold",
+        "cost-row-test",
+        [
+          { accountId: cashId, creditCents: 4_000 },
+          { accountId: arId, debitCents: 4_000 },
+        ],
+        new Date("2024-03-04T12:00:00.000Z"),
+        { tx },
+      );
+      // The row the entry exists to explain, rejected by the database — a
+      // missing column here stands in for every way an insert fails.
+      await tx
+        .insert(schema.transactions)
+        .values({ organizationId: orgId } as never);
+    }),
+  ).rejects.toThrow();
+
+  const after = await db
+    .select({ id: schema.journalEntries.id })
+    .from(schema.journalEntries)
+    .where(eq(schema.journalEntries.source, "cost-row-test"));
+  expect(after.length).toBe(before.length);
+});
