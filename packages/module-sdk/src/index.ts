@@ -134,6 +134,18 @@ export interface ModuleContext {
   registerWidget: (widget: ModuleWidget) => void;
 
   /**
+   * One section of a customer's own account with this business.
+   *
+   * The unified account page arranges whatever this instance's modules
+   * declared here — a customer of a Shop-and-Booking-and-Subscriptions
+   * business sees one page with a section per thing they actually have,
+   * rather than four disconnected logins. See `account.ts` for the two gates
+   * every section carries and why the customer viewer needs a different one
+   * from a staff widget's `requires`.
+   */
+  registerAccountSection: (section: AccountSection) => void;
+
+  /**
    * What somebody has to do before this module is any use.
    *
    * A module arrives switched on and empty, and the person looking at it has
@@ -273,6 +285,7 @@ export interface SentrelloModule {
   register(ctx: ModuleContext): void;
 }
 
+import { type AccountSection, addAccountSection } from "./account";
 import { type CrawlableSurface, addCrawlable } from "./crawlable";
 import { type OnboardingGuide, addOnboarding } from "./onboarding";
 import { type PersonalDataSource, addPersonalData } from "./personal-data";
@@ -282,6 +295,7 @@ import { type ModuleSummary, addSummary } from "./summaries";
 import { type ModuleWidget, addWidget } from "./widgets";
 
 export * from "./attachments";
+export * from "./account";
 export * from "./search";
 export * from "./csv";
 export * from "./images";
@@ -394,6 +408,10 @@ export function registerForTest(
     // Registered for real, like summaries, so a module's own tests can ask
     // what panels it put on the dashboard.
     registerWidget: (widget) => addWidget({ ...widget, moduleId: module.id }),
+    // Registered for real, like widgets, so a module's own tests can ask what
+    // it would put on the unified customer account page.
+    registerAccountSection: (section) =>
+      addAccountSection({ ...section, moduleId: module.id }),
     registerSearch: (provider) =>
       addSearchProvider({ ...provider, moduleId: module.id }),
     // Registered for real, like summaries, so a module's own tests can ask it

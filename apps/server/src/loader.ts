@@ -7,11 +7,13 @@ import type {
 } from "@sentrello/module-sdk";
 import { addPersonalData } from "@sentrello/module-sdk";
 import {
+  addAccountSection,
   addCrawlable,
   addOnboarding,
   addSearchProvider,
   addSummary,
   addWidget,
+  clearAccountSections,
   clearOnboarding,
   clearServices,
   clearSummaries,
@@ -56,6 +58,7 @@ export function loadModules(
   // registered by a run that is over would be drawn by the next one.
   clearSummaries();
   clearWidgets();
+  clearAccountSections();
   clearOnboarding();
   /*
    * And what one module offers another. The boot tests load modules more than
@@ -121,6 +124,12 @@ export function loadModules(
         // whatever this instance's modules registered, and gates each widget
         // by its own entitlement and permission before offering it.
         registerWidget: (widget) => addWidget({ ...widget, moduleId: m.id }),
+        // One section of the unified customer account page, declared
+        // individually like a widget. Gated the same two ways: entitlement
+        // decides whether it exists at all, `hasAny` whether this customer's
+        // page ever mentions it.
+        registerAccountSection: (section) =>
+          addAccountSection({ ...section, moduleId: m.id }),
         // What somebody has to do before this module is any use. Drawn as a
         // checklist of whatever this instance loaded.
         registerOnboarding: (guide) =>
