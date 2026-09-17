@@ -214,6 +214,15 @@ export interface SortField {
  * used by Core's lists for months before any module could reach them — see
  * `list-ui.tsx`, which this mirrors.
  */
+/** What `useColumns` hands back: which are on, and how to turn one off. */
+export interface ColumnState {
+  columns: { field: string; label: string; fixed?: boolean }[];
+  shown: (field: string) => boolean;
+  toggle: (field: string) => void;
+  reset: () => void;
+  hiddenCount: number;
+}
+
 export interface SentrelloListUi {
   useListState: (defaults: {
     sort: string;
@@ -270,6 +279,17 @@ export interface SentrelloListUi {
     count?: number;
   }>;
   SortMenu: React.ComponentType<{ state: ListState; fields: SortField[] }>;
+  /**
+   * Which columns this person wants to see, remembered per browser.
+   *
+   * `fixed` marks the ones a list stops making sense without — the row's own
+   * identifier, its actions — and those are never offered.
+   */
+  useColumns: (
+    key: string,
+    columns: { field: string; label: string; fixed?: boolean }[],
+  ) => ColumnState;
+  ColumnsMenu: React.ComponentType<{ state: ColumnState }>;
   Pagination: React.ComponentType<{ state: ListState; total: number }>;
   /** How many rows before the screen offers pages at all. */
   PAGINATION_THRESHOLD: number;
@@ -299,6 +319,8 @@ export const LIST_UI_MEMBERS = [
   "FilterGroup",
   "FilterToggle",
   "SortMenu",
+  "useColumns",
+  "ColumnsMenu",
   "Pagination",
   "PAGINATION_THRESHOLD",
   "PER_PAGE_CHOICES",

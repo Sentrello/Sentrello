@@ -18,6 +18,11 @@ import { Button, ConfirmButton, Input, Select, muted } from "./ui";
  *
  * Views are personal: the server scopes them to the signed-in user inside
  * the organization, so this menu only ever shows your own.
+ *
+ * Every list, not only the CRM's three. The machinery was built for contacts,
+ * companies and deals and the invoice and quote lists were left without it —
+ * which is to say the two lists a business looks at most on a Monday morning
+ * were the two it could not save a question against.
  */
 
 export interface SavedView {
@@ -37,7 +42,7 @@ export function SavedViews({
   state,
   defaults,
 }: {
-  resource: "contacts" | "companies" | "deals";
+  resource: "contacts" | "companies" | "deals" | "invoices" | "quotes";
   state: ListState;
   /** What "no view" means for this screen, so applying nothing restores it. */
   defaults: { sort: string; order: "asc" | "desc" };
@@ -48,9 +53,9 @@ export function SavedViews({
   const [name, setName] = useState("");
 
   const views = useQuery({
-    queryKey: ["crm/views", resource],
+    queryKey: ["views", resource],
     queryFn: () =>
-      api<{ views: SavedView[] }>(`/api/crm/views?resource=${resource}`),
+      api<{ views: SavedView[] }>(`/api/views?resource=${resource}`),
   });
 
   /** The screen's current state, as the server stores it. */
@@ -62,11 +67,11 @@ export function SavedViews({
   });
 
   const invalidate = () =>
-    qc.invalidateQueries({ queryKey: ["crm/views", resource] });
+    qc.invalidateQueries({ queryKey: ["views", resource] });
 
   const create = useMutation({
     mutationFn: () =>
-      api<{ view: SavedView }>("/api/crm/views", {
+      api<{ view: SavedView }>("/api/views", {
         method: "POST",
         body: JSON.stringify({ resource, name, view: stateNow() }),
       }),
@@ -80,7 +85,7 @@ export function SavedViews({
 
   const update = useMutation({
     mutationFn: (id: string) =>
-      api(`/api/crm/views/${id}`, {
+      api(`/api/views/${id}`, {
         method: "PATCH",
         body: JSON.stringify({ view: stateNow() }),
       }),
@@ -88,8 +93,7 @@ export function SavedViews({
   });
 
   const remove = useMutation({
-    mutationFn: (id: string) =>
-      api(`/api/crm/views/${id}`, { method: "DELETE" }),
+    mutationFn: (id: string) => api(`/api/views/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       setActiveId("");
       invalidate();

@@ -362,6 +362,140 @@ export function FilterToggle({
 }
 
 // ---------------------------------------------------------------------------
+// Which columns are worth the width
+// ---------------------------------------------------------------------------
+
+/**
+ * One column a person may turn off.
+ *
+ * `fixed` is for the ones a list stops making sense without — the invoice
+ * number, the row's own actions. Offering to hide those is offering somebody a
+ * way to break their own screen.
+ */
+export interface ListColumn {
+  field: string;
+  label: string;
+  fixed?: boolean;
+}
+
+export interface ColumnState {
+  columns: ListColumn[];
+  shown: (field: string) => boolean;
+  toggle: (field: string) => void;
+  /** Back to every column, for a screen somebody has hidden their way out of. */
+  reset: () => void;
+  hiddenCount: number;
+}
+
+/**
+ * Which columns this person wants to see, remembered.
+ *
+ * Personal rather than the business's: two people working the same list want
+ * different things in front of them, and one of them turning a column off for
+ * everybody is worse than neither being able to.
+ *
+ * ponytail: kept in localStorage, so it is per browser rather than per person.
+ * Move it to `user_preferences` beside the profile's own settings if somebody
+ * asks why their columns did not follow them to a second machine.
+ */
+export function useColumns(key: string, columns: ListColumn[]): ColumnState {
+  const storageKey = `sentrello:columns:${key}`;
+  const [hidden, setHidden] = useState<string[]>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(storageKey) ?? "[]");
+      return Array.isArray(saved)
+        ? saved.filter((f) => typeof f === "string")
+        : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const remember = (next: string[]) => {
+    setHidden(next);
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(next));
+    } catch {
+      // A browser with storage refused is a browser that shows every column,
+      // which is the right thing to do rather than the reason to fail.
+    }
+  };
+
+  const optional = columns.filter((c) => !c.fixed);
+  return {
+    columns,
+    // A fixed column is shown whatever is remembered, so a stale entry from
+    // before a column became fixed cannot hide it.
+    shown: (field) =>
+      columns.find((c) => c.field === field)?.fixed === true ||
+      !hidden.includes(field),
+    toggle: (field) =>
+      remember(
+        hidden.includes(field)
+          ? hidden.filter((f) => f !== field)
+          : [...hidden, field],
+      ),
+    reset: () => remember([]),
+    hiddenCount: optional.filter((c) => hidden.includes(c.field)).length,
+  };
+}
+
+/**
+ * The control that turns them on and off.
+ *
+ * `details`/`summary` rather than a popover built out of state and an outside
+ * click handler: the browser already closes it, already handles the keyboard,
+ * and already tells a screen reader what it is.
+ */
+export function ColumnsMenu({ state }: { state: ColumnState }) {
+  const optional = state.columns.filter((c) => !c.fixed);
+  if (optional.length === 0) return null;
+  return (
+    <details className="relative">
+      <summary
+        className="flex cursor-pointer items-center gap-1.5 rounded border px-2 py-1 text-sm"
+        style={{ ...border, ...muted }}
+      >
+        <Icon name="layout" size={14} />
+        Columns
+        {state.hiddenCount > 0 ? (
+          <span className="text-xs tabular-nums">
+            {optional.length - state.hiddenCount}/{optional.length}
+          </span>
+        ) : null}
+      </summary>
+      <div
+        className="absolute right-0 z-20 mt-1 w-52 rounded-md border p-2 shadow-lg"
+        style={{ ...border, background: "var(--surface-raised)" }}
+      >
+        {optional.map((column) => (
+          <label
+            key={column.field}
+            className="flex items-center gap-2 rounded px-1 py-1 text-sm"
+          >
+            <input
+              type="checkbox"
+              checked={state.shown(column.field)}
+              onChange={() => state.toggle(column.field)}
+            />
+            {column.label}
+          </label>
+        ))}
+        {state.hiddenCount > 0 ? (
+          <button
+            type="button"
+            className="mt-1 px-1 text-xs link-muted"
+            onClick={state.reset}
+          >
+            Show them all
+          </button>
+        ) : null}
+      </div>
+    </details>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Sorting and paging
 // ---------------------------------------------------------------------------
 

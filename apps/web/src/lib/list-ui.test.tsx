@@ -1,7 +1,12 @@
 import { expect, test } from "bun:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
-import { type ListState, listQueryString, useListQuery } from "./list-ui";
+import {
+  type ListState,
+  listQueryString,
+  useColumns,
+  useListQuery,
+} from "./list-ui";
 
 const STATE: ListState = {
   q: "",
@@ -236,4 +241,68 @@ test("a caller that does not ask to poll gets no interval", () => {
   const cached = qc.getQueryCache().find({ queryKey: ["contacts", query] });
   const options = cached?.options as { refetchInterval?: unknown };
   expect(options?.refetchInterval).toBeUndefined();
+});
+
+/**
+ * Column visibility, which is a list ergonomic and therefore shared.
+ *
+ * Rendered rather than called directly: `useColumns` is a hook, and the
+ * property worth pinning is what the screen ends up drawing — a column turned
+ * off disappears, a fixed one cannot be turned off at all, and the answer
+ * survives the screen being left and come back to.
+ */
+/**
+ * The browser's own store, which this runner does not have.
+ *
+ * Stubbed rather than mocked away: the hook reads and writes real strings, and
+ * a stub that answers like the real thing is what makes the round trip — hide
+ * a column, come back tomorrow, still hidden — a thing this test can see.
+ */
+const store = new Map<string, string>();
+(globalThis as { localStorage?: unknown }).localStorage = {
+  getItem: (key: string) => store.get(key) ?? null,
+  setItem: (key: string, value: string) => {
+    store.set(key, value);
+  },
+};
+
+function Columns({ hidden }: { hidden: string[] }) {
+  store.set("sentrello:columns:probe", JSON.stringify(hidden));
+  const state = useColumns("probe", [
+    { field: "number", label: "Number", fixed: true },
+    { field: "customer", label: "Customer" },
+    { field: "dueDate", label: "Due" },
+  ]);
+  return (
+    <>
+      {state.columns
+        .filter((c) => state.shown(c.field))
+        .map((c) => c.field)
+        .join(",")}
+      |{state.hiddenCount}
+    </>
+  );
+}
+
+test("a column somebody turned off is not drawn, and a fixed one cannot be", () => {
+  // Nothing hidden: the list as it ships.
+  expect(renderToStaticMarkup(<Columns hidden={[]} />)).toBe(
+    "number,customer,dueDate|0",
+  );
+
+  // One hidden, remembered from the last visit to this screen.
+  expect(renderToStaticMarkup(<Columns hidden={["dueDate"]} />)).toBe(
+    "number,customer|1",
+  );
+
+  /*
+   * A fixed column named in what was remembered is still drawn.
+   *
+   * Not hypothetical: a column that was optional when somebody hid it and has
+   * since become fixed would otherwise stay hidden for that one person, on a
+   * screen with no control left to bring it back.
+   */
+  expect(
+    renderToStaticMarkup(<Columns hidden={["number", "customer"]} />),
+  ).toBe("number,dueDate|1");
 });

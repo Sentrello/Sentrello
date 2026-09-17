@@ -114,7 +114,7 @@ test("a saved view round-trips its state and returns the same rows", async () =>
   const before = (await direct.json()) as { contacts: { name: string }[] };
   expect(before.contacts.map((c) => c.name)).toEqual(["Hot One", "Hot Two"]);
 
-  const saved = await app.request("http://localhost/api/crm/views", {
+  const saved = await app.request("http://localhost/api/views", {
     method: "POST",
     headers,
     body: JSON.stringify({
@@ -132,7 +132,7 @@ test("a saved view round-trips its state and returns the same rows", async () =>
 
   // Read it back the way the screen would, and replay it.
   const listed = await app.request(
-    "http://localhost/api/crm/views?resource=contacts",
+    "http://localhost/api/views?resource=contacts",
     { headers },
   );
   const { views } = (await listed.json()) as {
@@ -175,7 +175,7 @@ test("a view belongs to its person: a colleague's views are not listed", async (
   });
 
   const listed = await app.request(
-    "http://localhost/api/crm/views?resource=contacts",
+    "http://localhost/api/views?resource=contacts",
     { headers },
   );
   const { views } = (await listed.json()) as { views: { name: string }[] };
@@ -184,14 +184,14 @@ test("a view belongs to its person: a colleague's views are not listed", async (
 
 test("updating a view replaces its state; deleting removes it", async () => {
   const listed = await app.request(
-    "http://localhost/api/crm/views?resource=contacts",
+    "http://localhost/api/views?resource=contacts",
     { headers },
   );
   const { views } = (await listed.json()) as { views: { id: string }[] };
   const id = views[0]?.id;
   if (!id) throw new Error("no view to update");
 
-  const patched = await app.request(`http://localhost/api/crm/views/${id}`, {
+  const patched = await app.request(`http://localhost/api/views/${id}`, {
     method: "PATCH",
     headers,
     body: JSON.stringify({ view: { filters: { status: "cold" } } }),
@@ -202,13 +202,13 @@ test("updating a view replaces its state; deleting removes it", async () => {
   };
   expect(view.view.filters).toEqual({ status: "cold" });
 
-  const deleted = await app.request(`http://localhost/api/crm/views/${id}`, {
+  const deleted = await app.request(`http://localhost/api/views/${id}`, {
     method: "DELETE",
     headers,
   });
   expect(deleted.status).toBe(200);
   const again = await app.request(
-    "http://localhost/api/crm/views?resource=contacts",
+    "http://localhost/api/views?resource=contacts",
     { headers },
   );
   const remaining = (await again.json()) as { views: { id: string }[] };
@@ -259,4 +259,74 @@ test("a field not on the allow-list groups nothing rather than erroring", async 
   expect(res.status).toBe(200);
   const body = (await res.json()) as { groups?: unknown };
   expect(body.groups).toBeUndefined();
+});
+
+/**
+ * Money's own lists are lists too.
+ *
+ * Saved views were built for contacts, companies and deals and addressed as
+ * `/api/crm/views` behind `crm: read`. The table was always generic; the only
+ * thing that made this the CRM's feature was the door. So the invoice and
+ * quote lists — the two a business actually opens on a Monday morning — could
+ * not save a question, and a bookkeeper with no CRM permission could not have
+ * saved one even if they could reach it.
+ */
+test("an invoice list's view is saved and comes back with its filters", async () => {
+  const saved = await app.request("http://localhost/api/views", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      resource: "invoices",
+      name: "Overdue, oldest first",
+      view: {
+        sort: "dueDate",
+        order: "asc",
+        filters: { tab: "overdue" },
+      },
+    }),
+  });
+  expect(saved.status).toBe(201);
+  const { view } = (await saved.json()) as {
+    view: { id: string; resource: string };
+  };
+  expect(view.resource).toBe("invoices");
+
+  const mine = await app.request(
+    "http://localhost/api/views?resource=invoices",
+    { headers },
+  );
+  const { views } = (await mine.json()) as {
+    views: {
+      name: string;
+      view: { sort?: string; filters?: Record<string, string> };
+    }[];
+  };
+  expect(views.map((v) => v.name)).toEqual(["Overdue, oldest first"]);
+  expect(views[0]?.view.sort).toBe("dueDate");
+  expect(views[0]?.view.filters).toEqual({ tab: "overdue" });
+
+  // And the contact list is not shown somebody's invoice views: the resource
+  // is what a view belongs to, not decoration on it.
+  const contacts = await app.request(
+    "http://localhost/api/views?resource=contacts",
+    { headers },
+  );
+  const theirs = (await contacts.json()) as { views: { name: string }[] };
+  expect(theirs.views.map((v) => v.name)).not.toContain(
+    "Overdue, oldest first",
+  );
+
+  await app.request(`http://localhost/api/views/${view.id}`, {
+    method: "DELETE",
+    headers,
+  });
+});
+
+test("a list views do not exist for is refused rather than stored", async () => {
+  const res = await app.request("http://localhost/api/views", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ resource: "payroll", name: "Anything" }),
+  });
+  expect(res.status).toBe(400);
 });

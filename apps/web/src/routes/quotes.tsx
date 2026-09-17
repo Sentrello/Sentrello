@@ -3,12 +3,15 @@ import { useState } from "react";
 import { type Contact, api } from "../lib/api";
 import { Icon } from "../lib/icons";
 import {
+  ColumnsMenu,
   Pagination,
   SortMenu,
   listQueryString,
+  useColumns,
   useListState,
 } from "../lib/list-ui";
 import { useNavigation } from "../lib/navigation";
+import { SavedViews } from "../lib/saved-views";
 import {
   Button,
   Card,
@@ -94,6 +97,19 @@ export function Quotes() {
   const [splitting, setSplitting] = useState<QuoteRow | null>(null);
 
   const state = useListState({ sort: "issueDate", order: "desc" });
+  /**
+   * Which columns are worth the width. The number, the total and the row's
+   * own actions stay; the rest is somebody's own choice — see the invoice
+   * list, which this deliberately matches.
+   */
+  const columns = useColumns("quotes", [
+    { field: "number", label: "Number", fixed: true },
+    { field: "customer", label: "Customer" },
+    { field: "issueDate", label: "Date" },
+    { field: "validUntil", label: "Valid until" },
+    { field: "totalCents", label: "Total", fixed: true },
+    { field: "status", label: "Status" },
+  ]);
   const query = `${listQueryString(state, true)}&tab=${tab}`;
 
   const { data, isLoading, error } = useQuery({
@@ -187,6 +203,14 @@ export function Quotes() {
           ]}
         />
 
+        <SavedViews
+          resource="quotes"
+          state={state}
+          defaults={{ sort: "issueDate", order: "desc" }}
+        />
+
+        <ColumnsMenu state={columns} />
+
         <div className="ml-auto">
           {/* The same query the table is showing, so what is exported is
               what is on screen. */}
@@ -239,11 +263,11 @@ export function Quotes() {
             <Table
               headers={[
                 "Number",
-                "Customer",
-                "Date",
-                "Valid until",
+                ...(columns.shown("customer") ? ["Customer"] : []),
+                ...(columns.shown("issueDate") ? ["Date"] : []),
+                ...(columns.shown("validUntil") ? ["Valid until"] : []),
                 { label: "Total", money: true },
-                "Status",
+                ...(columns.shown("status") ? ["Status"] : []),
                 "",
               ]}
             >
@@ -272,21 +296,29 @@ export function Quotes() {
                         </span>
                       ) : null}
                     </td>
-                    <td className="max-w-44 truncate">
-                      {customer(quote.contactId) ?? "—"}
-                    </td>
-                    <td className="whitespace-nowrap" style={muted}>
-                      {formatDate(quote.issueDate)}
-                    </td>
-                    <td className="whitespace-nowrap" style={muted}>
-                      {quote.validUntil ? formatDate(quote.validUntil) : "—"}
-                    </td>
+                    {columns.shown("customer") ? (
+                      <td className="max-w-44 truncate">
+                        {customer(quote.contactId) ?? "—"}
+                      </td>
+                    ) : null}
+                    {columns.shown("issueDate") ? (
+                      <td className="whitespace-nowrap" style={muted}>
+                        {formatDate(quote.issueDate)}
+                      </td>
+                    ) : null}
+                    {columns.shown("validUntil") ? (
+                      <td className="whitespace-nowrap" style={muted}>
+                        {quote.validUntil ? formatDate(quote.validUntil) : "—"}
+                      </td>
+                    ) : null}
                     <td className="money">{formatMoney(quote.totalCents)}</td>
-                    <td className="whitespace-nowrap">
-                      <span className="text-sm" style={{ color: shown.tone }}>
-                        {shown.label}
-                      </span>
-                    </td>
+                    {columns.shown("status") ? (
+                      <td className="whitespace-nowrap">
+                        <span className="text-sm" style={{ color: shown.tone }}>
+                          {shown.label}
+                        </span>
+                      </td>
+                    ) : null}
                     <td className="text-right">
                       <QuoteActions
                         quote={quote}

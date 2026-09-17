@@ -3,12 +3,15 @@ import { useState } from "react";
 import { type Contact, api } from "../lib/api";
 import { Icon } from "../lib/icons";
 import {
+  ColumnsMenu,
   Pagination,
   SortMenu,
   listQueryString,
+  useColumns,
   useListState,
 } from "../lib/list-ui";
 import { useNavigation } from "../lib/navigation";
+import { SavedViews } from "../lib/saved-views";
 import type { TagChip } from "../lib/tags";
 import {
   Button,
@@ -125,6 +128,23 @@ export function Invoices() {
   const [tagId, setTagId] = useState("");
 
   const state = useListState({ sort: "issueDate", order: "desc" });
+  /**
+   * Which columns are worth the width on this screen.
+   *
+   * The number, the total and the row's own actions are fixed: a list of
+   * invoices without them is not a list of invoices. Everything else is
+   * somebody's own choice — a business that never uses due dates because it
+   * is paid on the day should not scroll past them for ever.
+   */
+  const columns = useColumns("invoices", [
+    { field: "number", label: "Number", fixed: true },
+    { field: "customer", label: "Customer" },
+    { field: "issueDate", label: "Issued" },
+    { field: "dueDate", label: "Due" },
+    { field: "totalCents", label: "Total", fixed: true },
+    { field: "balanceCents", label: "Owed" },
+    { field: "status", label: "Status" },
+  ]);
   const query = `${listQueryString(state, true)}&tab=${tab}${
     tagId ? `&tagId=${encodeURIComponent(tagId)}` : ""
   }`;
@@ -300,6 +320,14 @@ export function Invoices() {
           ]}
         />
 
+        <SavedViews
+          resource="invoices"
+          state={state}
+          defaults={{ sort: "issueDate", order: "desc" }}
+        />
+
+        <ColumnsMenu state={columns} />
+
         <div className="ml-auto flex items-center gap-2">
           <span className="text-sm" style={muted}>
             {formatMoney(data?.billedCents ?? 0)} across {data?.total ?? 0}
@@ -381,12 +409,14 @@ export function Invoices() {
               headers={[
                 "",
                 "Number",
-                "Customer",
-                "Issued",
-                "Due",
+                ...(columns.shown("customer") ? ["Customer"] : []),
+                ...(columns.shown("issueDate") ? ["Issued"] : []),
+                ...(columns.shown("dueDate") ? ["Due"] : []),
                 { label: "Total", money: true },
-                { label: "Owed", money: true },
-                "Status",
+                ...(columns.shown("balanceCents")
+                  ? [{ label: "Owed", money: true }]
+                  : []),
+                ...(columns.shown("status") ? ["Status"] : []),
                 "",
               ]}
             >
@@ -450,26 +480,39 @@ export function Invoices() {
                         </span>
                       ))}
                     </td>
-                    <td className="max-w-44 truncate">
-                      {customer(invoice.contactId) ?? "—"}
-                    </td>
-                    <td className="whitespace-nowrap" style={muted}>
-                      {formatDate(invoice.issueDate)}
-                    </td>
-                    <td className="whitespace-nowrap" style={muted}>
-                      {invoice.dueDate ? formatDate(invoice.dueDate) : "—"}
-                    </td>
+                    {columns.shown("customer") ? (
+                      <td className="max-w-44 truncate">
+                        {customer(invoice.contactId) ?? "—"}
+                      </td>
+                    ) : null}
+                    {columns.shown("issueDate") ? (
+                      <td className="whitespace-nowrap" style={muted}>
+                        {formatDate(invoice.issueDate)}
+                      </td>
+                    ) : null}
+                    {columns.shown("dueDate") ? (
+                      <td className="whitespace-nowrap" style={muted}>
+                        {invoice.dueDate ? formatDate(invoice.dueDate) : "—"}
+                      </td>
+                    ) : null}
                     <td className="money">{formatMoney(invoice.totalCents)}</td>
-                    <td className="money">
-                      {invoice.balanceCents > 0
-                        ? formatMoney(invoice.balanceCents)
-                        : "—"}
-                    </td>
-                    <td className="whitespace-nowrap">
-                      <span className="text-sm" style={{ color: state_.tone }}>
-                        {state_.label}
-                      </span>
-                    </td>
+                    {columns.shown("balanceCents") ? (
+                      <td className="money">
+                        {invoice.balanceCents > 0
+                          ? formatMoney(invoice.balanceCents)
+                          : "—"}
+                      </td>
+                    ) : null}
+                    {columns.shown("status") ? (
+                      <td className="whitespace-nowrap">
+                        <span
+                          className="text-sm"
+                          style={{ color: state_.tone }}
+                        >
+                          {state_.label}
+                        </span>
+                      </td>
+                    ) : null}
                     <td className="text-right">
                       <InvoiceActions
                         invoice={invoice}
