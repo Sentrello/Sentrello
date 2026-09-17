@@ -171,6 +171,64 @@ export function dayFrom(value: unknown): Date | null {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return null;
   }
-  const date = new Date(`${value}T00:00:00.000Z`);
-  return Number.isNaN(date.getTime()) ? null : date;
+  return dateFrom(`${value}T00:00:00.000Z`);
+}
+
+/**
+ * A date somebody typed, refusing a day that never existed.
+ *
+ * `new Date` rolls an impossible day *forward* without complaint: the 30th of
+ * February becomes the 2nd of March, `2024-02-29` is a real day and
+ * `2026-02-29` is the 1st of March. A shape check of `YYYY-MM-DD` cannot see
+ * the difference, and neither can anything downstream — by then it is a
+ * perfectly valid date, in the wrong month.
+ *
+ * That matters here more than it would elsewhere, because a date in this
+ * product decides *which period a figure lands in*: an accounting period, a
+ * VAT quarter, a US filing period, a retention window, a statement window. A
+ * day that rolls silently puts money in a month nobody chose and passes every
+ * check after it.
+ *
+ * The test is a round trip. A day that does not format back to the one it was
+ * given was never that day. The month and year need no such check — `new Date`
+ * already refuses `2026-13-01` and `2026-00-10` outright.
+ */
+export function dateFrom(value: unknown): Date | null {
+  if (typeof value !== "string") return null;
+  const text = value.trim();
+  const parsed = new Date(text);
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  const named = /^(\d{4}-\d{2}-\d{2})/.exec(text)?.[1];
+  if (named) {
+    const probe = new Date(`${named}T00:00:00.000Z`);
+    if (
+      Number.isNaN(probe.getTime()) ||
+      probe.toISOString().slice(0, 10) !== named
+    ) {
+      return null;
+    }
+  }
+  return parsed;
+}
+
+/**
+ * A date that is not readable is a 400, wherever it was read.
+ *
+ * Thrown rather than returned so that the places a date is parsed *deep* in a
+ * request — a list filter, a report period, a query parameter three functions
+ * below the route — can refuse without every one of them growing its own
+ * error path. `app.onError` turns this into a 400 carrying the value that was
+ * wrong, which is the difference between a form somebody can correct and a
+ * filter that quietly went missing.
+ */
+export class UnreadableDateError extends Error {}
+
+/** `dateFrom`, insisting. */
+export function demandDate(value: unknown): Date {
+  const date = dateFrom(value);
+  if (!date) {
+    throw new UnreadableDateError(`"${String(value)}" is not a real date`);
+  }
+  return date;
 }

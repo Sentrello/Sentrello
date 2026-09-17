@@ -43,6 +43,7 @@ import {
   contactByPortalToken,
   ensurePortalToken,
 } from "@sentrello/db/portal";
+import { dateFrom, demandDate } from "@sentrello/db/timezone";
 import { emailAdapter, mailConfigured } from "@sentrello/email";
 import {
   invoiceEmail,
@@ -388,8 +389,11 @@ export default defineModule({
          * that does not exist yet, and it would sit outside every aging bucket
          * while quietly counting as income.
          */
-        const issued = body.issueDate ? new Date(String(body.issueDate)) : null;
-        if (issued && Number.isNaN(issued.getTime())) {
+        // The 30th of February is unreadable too, however plainly it reads:
+        // `new Date` rolls it to the 2nd of March, and the issue date is the
+        // month this sale is booked into.
+        const issued = body.issueDate ? dateFrom(String(body.issueDate)) : null;
+        if (body.issueDate && !issued) {
           return c.json({ error: "unreadable issue date" }, 400);
         }
         if (issued && issued.getTime() > Date.now() + 86_400_000) {
@@ -1461,8 +1465,11 @@ export default defineModule({
             values.notes = String(body.notes ?? "").trim() || null;
           }
           if (body.dueDate !== undefined) {
+            // `demandDate`, so "2026-02-30" is a 400 rather than an aging
+            // bucket two days out. It throws, which also unwinds this
+            // transaction rather than leaving half an edit behind.
             values.dueDate = body.dueDate
-              ? new Date(String(body.dueDate))
+              ? demandDate(String(body.dueDate))
               : null;
           }
           if (body.paymentTerms !== undefined) {
@@ -1684,7 +1691,7 @@ export default defineModule({
           }
           if (body.validUntil !== undefined) {
             values.validUntil = body.validUntil
-              ? new Date(String(body.validUntil))
+              ? demandDate(String(body.validUntil))
               : null;
           }
           if (typeof body.templateId === "string") {

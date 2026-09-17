@@ -4,6 +4,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { and, db, desc, eq, schema } from "@sentrello/db";
+import { dateFrom } from "@sentrello/db/timezone";
 import type { ModuleContext } from "@sentrello/module-sdk";
 import type { IncomingLine } from "./documents";
 import { usStateCode } from "./us-nexus-thresholds";
@@ -68,8 +69,11 @@ function parseCertificate(body: Record<string, unknown>): {
 
   let expiresAt: Date | null = null;
   if (body.expiresAt !== undefined && body.expiresAt !== null) {
-    expiresAt = new Date(String(body.expiresAt));
-    if (Number.isNaN(expiresAt.getTime())) {
+    // A certificate's expiry decides whether a sale is charged tax at all, so
+    // a day that rolls — 30 February becoming 2 March — moves the line
+    // between an excused sale and a taxable one.
+    expiresAt = dateFrom(String(body.expiresAt));
+    if (!expiresAt) {
       throw new ExemptionError("unreadable expiry date");
     }
   }

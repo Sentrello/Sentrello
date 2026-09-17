@@ -20,6 +20,7 @@ import {
   type SecurityAction,
   verifyChain,
 } from "@sentrello/db/security-events";
+import { demandDate } from "@sentrello/db/timezone";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 
 /**
@@ -43,11 +44,17 @@ const EVENTS_LIST: ListSpec = {
   defaultSort: { field: "at", order: "desc" },
 };
 
-/** A `from`/`to` query value, or `undefined` if it does not parse. */
+/**
+ * A `from`/`to` query value, or nothing when it was not given.
+ *
+ * A value that *was* given and cannot be read is refused, not dropped: an
+ * audit log silently widened back to all time is the answer somebody would
+ * least like to be given while looking for one afternoon. `2026-02-30` counts
+ * as unreadable — `new Date` rolls it to the 2nd of March, which would move
+ * the window without saying so.
+ */
 function dateParam(raw: string | undefined): Date | undefined {
-  if (!raw) return undefined;
-  const parsed = new Date(raw);
-  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+  return raw ? demandDate(raw) : undefined;
 }
 
 export function registerEvents(ctx: ModuleContext) {
