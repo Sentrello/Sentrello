@@ -74,6 +74,7 @@ import {
 } from "./exemptions";
 import { registerLifecycle } from "./lifecycle";
 import { registerLists } from "./lists";
+import { registerOssReturn } from "./oss-return";
 import { registerInvoicingPersonalData } from "./personal-data";
 import { portalPage } from "./portal";
 import { registerShare } from "./share";
@@ -206,6 +207,7 @@ export default defineModule({
     registerInvoiceSearch(ctx);
     registerEInvoice(ctx);
     registerDistanceSelling(ctx);
+    registerOssReturn(ctx);
     registerUsNexus(ctx);
     registerUsRates(ctx);
     registerUsFiling(ctx);
@@ -239,6 +241,14 @@ export default defineModule({
      * filing figures are, is a deliberate act with money on it — not a
      * panel to hunt for.
      */
+    ctx.registerNav({
+      id: "invoicing-oss",
+      label: "EU OSS return",
+      order: 20.6,
+      group: "Money",
+      icon: "landmark",
+      requires: { invoicing: ["read"] },
+    });
     ctx.registerNav({
       id: "invoicing-us-tax",
       label: "US sales tax",

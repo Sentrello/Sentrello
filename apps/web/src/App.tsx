@@ -29,6 +29,7 @@ import { Invoices } from "./routes/invoices";
 import { InvoicingDashboard } from "./routes/invoicing-dashboard";
 import { InvoicingSettings } from "./routes/invoicing-settings";
 import { ModuleScreen } from "./routes/module-screen";
+import { OssReturn } from "./routes/oss-return";
 import { Privacy } from "./routes/privacy";
 import { type Profile, ProfileScreen } from "./routes/profile";
 import { Quotes } from "./routes/quotes";
@@ -110,6 +111,7 @@ const SCREENS: Record<string, () => React.ReactElement | null> = {
   "settings-privacy": Privacy,
   "accounting-vat": VatFiling,
   "accounting-ca-tax": CanadianTax,
+  "invoicing-oss": OssReturn,
   "invoicing-us-tax": UsSalesTax,
   users: People,
   "user-groups": Groups,

@@ -12,10 +12,11 @@ import * as schema from "./schema";
  * every regime's screen in its sidebar regardless of where it traded, which
  * reads as unfinished to the business that sells in exactly one of them.
  *
- * `navId` is the nav entry the regime gates, where one exists. EU VAT has none
- * today: its features — VIES checks, e-invoicing, distance selling — already
- * show themselves only where the data calls for them, rather than as a nav
- * entry offered to everybody.
+ * `navId` is the nav entry the regime gates, where one exists. EU VAT's other
+ * features — VIES checks, e-invoicing, the distance-selling threshold — still
+ * show themselves only where the data calls for them; the One Stop Shop return
+ * is a screen, and a screen offered to a business that trades nowhere near the
+ * EU reads as unfinished.
  */
 export interface TaxRegime {
   id: string;
@@ -31,7 +32,7 @@ export const TAX_REGIMES: TaxRegime[] = [
     navId: "accounting-ca-tax",
   },
   { id: "us-sales-tax", label: "US sales tax", navId: "invoicing-us-tax" },
-  { id: "eu-vat", label: "EU VAT" },
+  { id: "eu-vat", label: "EU VAT", navId: "invoicing-oss" },
 ];
 
 const KNOWN_REGIME_IDS = new Set(TAX_REGIMES.map((r) => r.id));
