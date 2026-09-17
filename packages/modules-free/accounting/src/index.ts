@@ -8,6 +8,7 @@ import { and, db, desc, eq, schema } from "@sentrello/db";
 import { defineModule } from "@sentrello/module-sdk";
 import { registerCaReturns } from "./ca-returns";
 import { registerChart } from "./chart";
+import { registerFxRevaluation } from "./fx-revaluation";
 import { registerMtd } from "./mtd-routes";
 import { registerPeriodLock } from "./period";
 import { registerReceipts } from "./receipts";
@@ -110,6 +111,7 @@ export default defineModule({
     registerReports(ctx);
     registerReceipts(ctx);
     registerPeriodLock(ctx);
+    registerFxRevaluation(ctx);
 
     /**
      * The journal itself.

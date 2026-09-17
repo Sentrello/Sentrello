@@ -329,6 +329,8 @@ export function Summary() {
         </>
       ) : null}
 
+      <FxRevaluation asOf={to} />
+
       {sheet.data ? (
         <Card>
           <SectionHeading>
@@ -352,6 +354,134 @@ export function Summary() {
         </Card>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * What the open foreign balances are worth at the end of the period.
+ *
+ * Absent unless there is something to say. A business that invoices in one
+ * currency has nothing here, and a control offering to revalue nothing is a
+ * question somebody has to work out the answer to before they can ignore it.
+ *
+ * The date is the one the balance sheet above is drawn to, deliberately: the
+ * figure being restated is the receivable and payable on that very statement,
+ * and two dates would let somebody revalue to a day the sheet does not show.
+ */
+function FxRevaluation({ asOf }: { asOf: string }) {
+  const qc = useQueryClient();
+  const movement = useQuery({
+    queryKey: ["fx-revaluation", asOf],
+    queryFn: () =>
+      api<{
+        baseCurrency: string;
+        receivableCents: number;
+        payableCents: number;
+        alreadyPosted: boolean;
+        missingRates: string[];
+        lines: {
+          kind: string;
+          number: string | null;
+          currency: string;
+          outstandingCents: number;
+          carryingCents: number;
+          revaluedCents: number;
+          differenceCents: number;
+        }[];
+      }>(`/api/accounting/fx-revaluation?asOf=${asOf}`),
+    retry: false,
+  });
+
+  const post = useMutation({
+    mutationFn: () =>
+      api("/api/accounting/fx-revaluation", {
+        method: "POST",
+        body: JSON.stringify({ asOf }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["fx-revaluation"] });
+      qc.invalidateQueries({ queryKey: ["balance-sheet"] });
+      qc.invalidateQueries({ queryKey: ["journal"] });
+    },
+  });
+
+  const data = movement.data;
+  if (!data) return null;
+  const nothing = data.lines.length === 0 && data.missingRates.length === 0;
+  if (nothing) return null;
+
+  const net = data.receivableCents - data.payableCents;
+
+  return (
+    <Card>
+      <SectionHeading>
+        Open foreign balances at {formatDate(asOf)}
+      </SectionHeading>
+      <p className="mb-2 text-sm" style={muted}>
+        What is still outstanding in a currency the books are not kept in, at
+        what it was worth when it was raised and what it is worth now. Posting
+        it puts the difference in the books as an unrealised gain or loss, and
+        reverses it on the first day of the next period so nothing compounds.
+      </p>
+      {data.missingRates.length > 0 ? (
+        <p className="mb-2 text-sm" style={{ color: "var(--text-warning)" }}>
+          No rate is recorded on or before this date for{" "}
+          {data.missingRates.join(", ")}. Record one before revaluing, or the
+          figure would be a guess.
+        </p>
+      ) : null}
+      <Table
+        headers={[
+          "Document",
+          { label: "Outstanding", money: true },
+          { label: "In the books", money: true },
+          { label: "Worth now", money: true },
+          { label: "Difference", money: true },
+        ]}
+      >
+        {data.lines.map((line) => (
+          <Row key={`${line.kind}-${line.number}-${line.currency}`}>
+            <td>
+              {line.number ?? "—"}
+              <span className="ml-1 text-xs" style={muted}>
+                {line.kind === "receivable" ? "owed to you" : "you owe"}
+              </span>
+            </td>
+            <td className="money">
+              {formatMoney(line.outstandingCents)} {line.currency}
+            </td>
+            <td className="money">{formatMoney(line.carryingCents)}</td>
+            <td className="money">{formatMoney(line.revaluedCents)}</td>
+            <td className="money">{formatMoney(line.differenceCents)}</td>
+          </Row>
+        ))}
+      </Table>
+      <div className="mt-3 flex items-center justify-between">
+        <span className="text-sm" style={muted}>
+          {net === 0
+            ? `Nothing to post in ${data.baseCurrency}.`
+            : net > 0
+              ? `A gain of ${formatMoney(net)} ${data.baseCurrency}.`
+              : `A loss of ${formatMoney(-net)} ${data.baseCurrency}.`}
+        </span>
+        <Button
+          onClick={() => post.mutate()}
+          disabled={
+            data.alreadyPosted ||
+            data.missingRates.length > 0 ||
+            post.isPending ||
+            net === 0
+          }
+        >
+          {data.alreadyPosted
+            ? "Already revalued to this date"
+            : post.isPending
+              ? "Posting…"
+              : "Post the revaluation"}
+        </Button>
+      </div>
+      {post.error ? <ErrorNote error={post.error} /> : null}
+    </Card>
   );
 }
 
