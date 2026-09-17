@@ -1,5 +1,6 @@
 import { and, db, eq, inArray, or, schema, sql } from "@sentrello/db";
 import { consentHistory, describeConsent } from "@sentrello/db/consent";
+import { redactPayloads } from "@sentrello/db/erasure";
 import type {
   DataSubject,
   EraseOutcome,
@@ -179,12 +180,78 @@ export function registerCrmPersonalData(ctx: ModuleContext) {
           ),
         );
 
+      /*
+       * And every log that kept a copy of them on the way past.
+       *
+       * Deleting the contact was never the hard part. The platform writes the
+       * record down in several places as it works — the change feed, the
+       * outbound delivery log, what a merge folded in, what somebody typed
+       * into a form — and an erasure that leaves any of them full is not an
+       * erasure. It is worse than the gap, because the screen then tells a
+       * data subject something untrue.
+       *
+       * Emptied rather than deleted. A business still has to be able to say
+       * that a delivery was attempted and abandoned, that a merge happened, or
+       * that a form was submitted on the third; those are facts about the
+       * business, not about the person. The rows and their shape stay and the
+       * person comes out of them.
+       *
+       * Once per person, keyed on everything we know them by — the same one
+       * function every other store in the product uses, including the workflow
+       * run logs in the paid bundle, so no two logs forget somebody to two
+       * different standards.
+       */
+      let logs = 0;
+      for (const person of people) {
+        const who = {
+          id: person.id,
+          email: person.email ?? subject.email,
+          phone: person.phone ?? subject.phone,
+        };
+        logs += await redactPayloads({
+          table: schema.recordEvents,
+          organizationId: orgId,
+          subject: who,
+          payloads: [schema.recordEvents.before, schema.recordEvents.after],
+        });
+        logs += await redactPayloads({
+          table: schema.crmWebhookDeliveries,
+          organizationId: orgId,
+          subject: who,
+          // The envelope is the operational record — which endpoint, which
+          // event, how many attempts. Only the record it carried comes out.
+          payloads: [
+            {
+              column: schema.crmWebhookDeliveries.payload,
+              keys: ["before", "after"],
+            },
+          ],
+        });
+        logs += await redactPayloads({
+          table: schema.contactMerges,
+          organizationId: orgId,
+          subject: who,
+          payloads: [schema.contactMerges.mergedRecord],
+        });
+        logs += await redactPayloads({
+          table: schema.formSubmissions,
+          organizationId: orgId,
+          subject: who,
+          payloads: [schema.formSubmissions.payload],
+        });
+      }
+
       return {
         removed: [
           `${people.length} contact record${people.length === 1 ? "" : "s"}`,
           ...(notes.length ? [`${notes.length} notes`] : []),
           ...(activities.length
             ? [`${activities.length} calls and activities`]
+            : []),
+          ...(logs
+            ? [
+                `their details in ${logs} log entr${logs === 1 ? "y" : "ies"} — the change feed, webhook deliveries, merges and form submissions`,
+              ]
             : []),
         ],
         /*
@@ -201,6 +268,10 @@ export function registerCrmPersonalData(ctx: ModuleContext) {
           {
             what: "Deals this contact was named on",
             why: "the business's own record of its trading; the person is no longer named",
+          },
+          {
+            what: "That each log entry happened, and what it did",
+            why: "a delivery that was attempted and abandoned, a merge, a form submission: the business's own operational record, now holding no personal data and only the internal reference the deleted record had",
           },
         ],
       };
