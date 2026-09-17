@@ -13,6 +13,7 @@ import {
   or,
   sql,
 } from "drizzle-orm";
+import type { PgColumn } from "drizzle-orm/pg-core";
 import { alias } from "drizzle-orm/pg-core";
 import { currentActor } from "./actor";
 import type { DbTx } from "./client";
@@ -204,6 +205,36 @@ export class PeriodClosedError extends Error {
 }
 
 /** The last closed day for an organization, or null when nothing is closed. */
+/**
+ * Is this account the tax a return reads?
+ *
+ * "2200" is the shared Tax Payable account, and a document that charges two
+ * named taxes — Canada's GST beside a PST, a UK invoice carrying standard and
+ * reduced rates, any US jurisdiction at all — posts each one to an account of
+ * its own, coded `2200-` plus the definition's id. That split is deliberate
+ * and each filing needs its own figure.
+ *
+ * What was not deliberate is that every reader matched the code exactly. A UK
+ * business whose invoice carried two VAT rates put its VAT on `2200-xxxxxxxx`
+ * and its return's box 1 never saw a penny of it: the return was understated,
+ * quietly, by the whole of that document's tax.
+ *
+ * One predicate, so a reader cannot be written that knows about the shared
+ * account and not about the authorities' own.
+ */
+export function isTaxPayableCode(code: string): boolean {
+  return (
+    code === CORE_ACCOUNTS.taxPayable.code ||
+    code.startsWith(`${CORE_ACCOUNTS.taxPayable.code}-`)
+  );
+}
+
+/** The same rule as SQL, for a read that narrows on the code. */
+export function taxPayableCodeMatch(column: PgColumn): SQL {
+  return sql`(${column} = ${CORE_ACCOUNTS.taxPayable.code}
+    or ${column} like ${`${CORE_ACCOUNTS.taxPayable.code}-%`})`;
+}
+
 export async function closedThrough(orgId: string): Promise<Date | null> {
   const [row] = await db
     .select({ closedThrough: schema.ledgerSettings.closedThrough })
@@ -505,6 +536,15 @@ export async function postInvoiceIssued(
    * year of trading into whichever month the loading happened in.
    */
   postedAt?: Date,
+  /**
+   * The transaction the document itself was written in.
+   *
+   * An invoice row saying `open` and no entry behind it is revenue on a
+   * document and nowhere in the books — and it is reachable, because posting
+   * refuses a date inside a closed period and every one of these callers
+   * accepts a back-dated issue date. The two go in one commit or neither does.
+   */
+  options?: PostOptions,
 ): Promise<void> {
   const [ar, income, taxPayable] = await Promise.all([
     ensureAccount(orgId, CORE_ACCOUNTS.accountsReceivable),
@@ -538,15 +578,23 @@ export async function postInvoiceIssued(
       { accountId: ar, debitCents: debit },
       { accountId: income, creditCents: net },
       ...(tax > 0
-        ? (await taxShares(orgId, invoice.id, tax, rate, taxPayable)).map(
-            (share) => ({
-              accountId: share.accountId,
-              creditCents: share.cents,
-            }),
-          )
+        ? (
+            await taxShares(
+              orgId,
+              invoice.id,
+              tax,
+              rate,
+              taxPayable,
+              options?.tx,
+            )
+          ).map((share) => ({
+            accountId: share.accountId,
+            creditCents: share.cents,
+          }))
         : []),
     ],
     postedAt,
+    options,
   );
 }
 
@@ -574,6 +622,8 @@ export async function postCreditNoteIssued(
   },
   memo?: string,
   postedAt?: Date,
+  /** The transaction the note itself was written in. See `postInvoiceIssued`. */
+  options?: PostOptions,
 ): Promise<void> {
   const [ar, income, taxPayable] = await Promise.all([
     ensureAccount(orgId, CORE_ACCOUNTS.accountsReceivable),
@@ -593,16 +643,17 @@ export async function postCreditNoteIssued(
     [
       ...(net > 0 ? [{ accountId: income, debitCents: net }] : []),
       ...(tax > 0
-        ? (await taxShares(orgId, note.id, tax, rate, taxPayable)).map(
-            (share) => ({
-              accountId: share.accountId,
-              debitCents: share.cents,
-            }),
-          )
+        ? (
+            await taxShares(orgId, note.id, tax, rate, taxPayable, options?.tx)
+          ).map((share) => ({
+            accountId: share.accountId,
+            debitCents: share.cents,
+          }))
         : []),
       { accountId: ar, creditCents: credit },
     ],
     postedAt,
+    options,
   );
 }
 
@@ -641,8 +692,17 @@ async function taxShares(
   taxBase: number,
   rateMicro: number,
   taxPayable: string,
+  /**
+   * Where to read the bands from.
+   *
+   * The caller may have written them in a transaction that has not committed
+   * — converting a quote does exactly that — and bands read on another
+   * connection would come back empty, sending a split document's whole tax to
+   * the shared account instead of the authorities' own.
+   */
+  conn: LedgerTx | typeof db = db,
 ): Promise<{ accountId: string; cents: number }[]> {
-  const bands = await db
+  const bands = await conn
     .select({
       taxDefinitionId: schema.documentTaxes.taxDefinitionId,
       name: schema.documentTaxes.name,
@@ -1073,9 +1133,6 @@ const CONTROL_CODES = [
  * return passes. Leaving them where they are takes another 236,577 lines off
  * the same read.
  */
-const readableCodes = (tax: boolean) =>
-  tax ? [...CONTROL_CODES, CORE_ACCOUNTS.taxPayable.code] : CONTROL_CODES;
-
 /**
  * The lines, in the order the conversion has to see them.
  *
@@ -1141,7 +1198,11 @@ function cashBasisQuery(
         eq(schema.accounts.organizationId, orgId),
         or(
           inArray(schema.accounts.type, ["income", "expense"]),
-          inArray(schema.accounts.code, readableCodes(tax)),
+          inArray(schema.accounts.code, CONTROL_CODES),
+          // The tax account and every authority's own, when a return asked
+          // for them: narrowing to the bare "2200" left a split document's
+          // tax out of the read altogether.
+          ...(tax ? [taxPayableCodeMatch(schema.accounts.code)] : []),
         ),
         ...extra,
       ),

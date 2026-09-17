@@ -5,6 +5,7 @@ import { ensurePortalToken } from "@sentrello/db/portal";
 import { allAccountSections, registerForTest } from "@sentrello/module-sdk";
 import { eq } from "drizzle-orm";
 import {
+  customerBalance,
   invoicingAccountFigures,
   invoicingHasAccountActivity,
 } from "./account-section";
@@ -262,6 +263,36 @@ test("one business's customer cannot see another's invoices", async () => {
 
   const figures = await invoicingAccountFigures(orgB, alice.id);
   expect(figures.find((f) => f.label === "You owe")?.value).toBe(0);
+});
+
+/**
+ * The figure the portal-link email quotes at the customer.
+ *
+ * That email worked its own total out — every invoice ever raised for them,
+ * whatever its status, less the payments — so a business sending somebody a
+ * link to their account told them they owed for drafts nobody had sent, for
+ * invoices that had been voided, and for the credit notes it had given them.
+ * It reads `customerBalance` now, which is what the page at the other end of
+ * the link shows.
+ */
+test("a customer's balance counts neither drafts, voids nor credit notes", async () => {
+  const organizationId = await makeOrg("Balance");
+  const contact = await makeContact(organizationId, "Nkemdirim");
+
+  const owed = await makeInvoice({ organizationId, contactId: contact.id });
+  await makeInvoice({ organizationId, contactId: contact.id, status: "draft" });
+  await makeInvoice({ organizationId, contactId: contact.id, status: "void" });
+  const credited = await makeInvoice({ organizationId, contactId: contact.id });
+  await makeCreditNote({
+    organizationId,
+    contactId: contact.id,
+    referenceInvoiceId: credited.id,
+    totalCents: credited.totalCents,
+  });
+
+  const balance = await customerBalance(organizationId, contact.id);
+  // Only the one invoice that is actually a debt.
+  expect(balance.owedCents).toBe(owed.totalCents);
 });
 
 test("registers as a section with no entitlement of its own, and its href leads to the real portal", async () => {

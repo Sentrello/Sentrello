@@ -23,6 +23,7 @@ import {
 } from "@sentrello/db/documents";
 import {
   CORE_ACCOUNTS,
+  type LedgerTx,
   ensureAccount,
   exchangeAccount,
   ownedContact,
@@ -51,7 +52,10 @@ import {
 } from "@sentrello/email/templates";
 import { defineModule, rateLimit } from "@sentrello/module-sdk";
 import { and, eq, isNotNull, isNull, notInArray } from "drizzle-orm";
-import { registerInvoicingAccountSection } from "./account-section";
+import {
+  customerBalance,
+  registerInvoicingAccountSection,
+} from "./account-section";
 import { registerBillingRules, registerCatalogue } from "./catalogue";
 import { registerConsolidate } from "./consolidate";
 import { registerDistanceSelling } from "./distance-selling";
@@ -190,12 +194,15 @@ async function postIssued(
    * the loading happened in.
    */
   postedAt?: Date,
+  /** The transaction the invoice row was written in, so the two commit as one. */
+  options?: { tx?: LedgerTx },
 ): Promise<void> {
   await postInvoiceIssued(
     orgId,
     { ...invoice, ...amounts },
     undefined,
     postedAt,
+    options,
   );
 }
 
@@ -482,12 +489,20 @@ export default defineModule({
             .insert(schema.invoiceLines)
             .values(prepared.lines.map((l) => ({ invoiceId: inv.id, ...l })));
           await writeTaxBands(tx, orgId, "invoice", inv.id, prepared.bands);
+          /*
+           * Raised and posted in one commit.
+           *
+           * Posted after the commit, an invoice created with a back-dated
+           * issue date inside a closed period was written as `open` and then
+           * refused by the ledger — leaving a debt on every report with no
+           * entry behind it, and a 500 that says nothing about the invoice
+           * that now exists.
+           */
+          if (!asDraft) {
+            await postIssued(orgId, inv, prepared, issued ?? undefined, { tx });
+          }
           return inv;
         });
-
-        if (!asDraft) {
-          await postIssued(orgId, invoice, prepared, issued ?? undefined);
-        }
 
         return c.json({ invoice }, 201);
       },
@@ -538,6 +553,30 @@ export default defineModule({
           )
           .limit(1);
         if (!invoice) return c.json({ error: "not found" }, 404);
+
+        /**
+         * A draft is not a debt and a void is not one any more.
+         *
+         * Neither carries a balance — `invoiceState` says so, and every screen
+         * that reads it agrees — but this route worked the balance out
+         * longhand from `totalCents` and so accepted money against both. A
+         * payment against a draft cleared a receivable the books never carried
+         * and left the document reading `paid` without the sale ever being
+         * posted; a payment against a void cleared one that had already been
+         * reversed. Both put the receivable account below zero, quietly,
+         * with the invoice looking settled.
+         */
+        if (invoice.status === "draft" || invoice.status === "void") {
+          return c.json(
+            {
+              error:
+                invoice.status === "draft"
+                  ? "this invoice is still a draft — issue it before recording a payment"
+                  : "this invoice is void; nothing is owed on it",
+            },
+            409,
+          );
+        }
 
         /**
          * What is already settled, read before this payment joins the total —
@@ -653,22 +692,6 @@ export default defineModule({
           overCents = amountCents - appliedCents;
         }
 
-        const [payment] = await db
-          .insert(schema.payments)
-          .values({
-            organizationId: orgId,
-            invoiceId,
-            // Only what actually settles this invoice — the excess is
-            // recorded separately, as credit, never as a payment against a
-            // debt that no longer exists once this clears it.
-            amountCents: appliedCents,
-            method: method ?? "manual",
-            gatewayRef,
-            receivedAt: received,
-          })
-          .returning();
-        if (!payment) throw new Error("payment insert returned no row");
-
         const paidCents = paidBeforeCents + appliedCents;
         const { status, balanceDue } = invoiceStatus(
           invoice.totalCents - forgiven,
@@ -676,15 +699,12 @@ export default defineModule({
           creditedCents,
         );
 
-        await db
-          .update(schema.invoices)
-          .set(
-            takingIt
-              ? { status, earlyDiscountTakenCents: terms.savingCents }
-              : { status },
-          )
-          .where(eq(schema.invoices.id, invoiceId));
-
+        /*
+         * Every account this entry needs, before the transaction opens.
+         *
+         * Creating one is a write of its own on its own connection, and it
+         * would sit behind the locks the transaction below is about to take.
+         */
         const [cash, ar] = await Promise.all([
           ensureAccount(orgId, CORE_ACCOUNTS.cash),
           ensureAccount(orgId, CORE_ACCOUNTS.accountsReceivable),
@@ -784,21 +804,50 @@ export default defineModule({
           postings.push({ accountId: ar, creditCents: savedCents });
         }
         /*
-         * The entry and the subsidiary ledger behind it, together.
+         * The payment, the status it produces, the entry and the subsidiary
+         * ledger behind it — one event, one commit.
          *
-         * The credit row says which customer the liability posted above is
-         * held for, so a later invoice can offer it back. Written in a commit
-         * of its own, a crash between the two leaves the books owing money to
-         * nobody in particular, or a customer holding credit the books never
-         * heard of.
+         * The row and the status used to be written first and the entry
+         * posted afterwards. `postJournalEntry` refuses a date inside a closed
+         * period, and `receivedAt` is a date somebody types: a cheque entered
+         * against a closed month left the payment recorded and the invoice
+         * reading `paid` with nothing in the books at all. The credit row
+         * belongs in the same commit for the same reason — a crash between
+         * them leaves the books owing money to nobody in particular, or a
+         * customer holding credit the books never heard of.
          */
-        await db.transaction(async (tx) => {
+        const payment = await db.transaction(async (tx) => {
+          const [row] = await tx
+            .insert(schema.payments)
+            .values({
+              organizationId: orgId,
+              invoiceId,
+              // Only what actually settles this invoice — the excess is
+              // recorded separately, as credit, never as a payment against a
+              // debt that no longer exists once this clears it.
+              amountCents: appliedCents,
+              method: method ?? "manual",
+              gatewayRef,
+              receivedAt: received,
+            })
+            .returning();
+          if (!row) throw new Error("payment insert returned no row");
+
+          await tx
+            .update(schema.invoices)
+            .set(
+              takingIt
+                ? { status, earlyDiscountTakenCents: terms.savingCents }
+                : { status },
+            )
+            .where(eq(schema.invoices.id, invoiceId));
+
           await postJournalEntry(
             orgId,
             takingIt
               ? `Payment for ${invoice.number}, less early-payment discount`
               : `Payment for ${invoice.number}`,
-            `payment:${payment.id}`,
+            `payment:${row.id}`,
             postings,
             received,
             { tx },
@@ -809,13 +858,14 @@ export default defineModule({
                 organizationId: orgId,
                 contactId: invoice.contactId,
                 cents: overCentsBase,
-                paymentId: payment.id,
+                paymentId: row.id,
                 invoiceId: invoice.id,
                 reason: `Overpayment on invoice ${invoice.number}`,
               },
               { tx },
             );
           }
+          return row;
         });
 
         await sendReceipt(
@@ -1829,29 +1879,19 @@ export default defineModule({
             );
           }
 
-          const rows = await db
-            .select()
-            .from(schema.invoices)
-            .where(
-              and(
-                eq(schema.invoices.organizationId, orgId),
-                eq(schema.invoices.contactId, contact.id),
-              ),
-            );
-          const paid = await db
-            .select({
-              invoiceId: schema.payments.invoiceId,
-              amountCents: schema.payments.amountCents,
-            })
-            .from(schema.payments)
-            .where(eq(schema.payments.organizationId, orgId));
-
-          const outstandingCents = rows.reduce((sum, invoice) => {
-            const settled = paid
-              .filter((p) => p.invoiceId === invoice.id)
-              .reduce((n, p) => n + p.amountCents, 0);
-            return sum + Math.max(0, invoice.totalCents - settled);
-          }, 0);
+          /*
+           * The figure their own page will show them, from the one function
+           * that knows what a debt is.
+           *
+           * It was worked out here instead: every invoice ever raised for the
+           * customer — drafts nobody had sent, invoices that had been voided,
+           * credit notes, filed-away documents — less the payments. So the
+           * email that hands somebody a link to their account opened by
+           * telling them they owed a number the account itself disagreed
+           * with, usually a much larger one.
+           */
+          const { owedCents: outstandingCents, currency } =
+            await customerBalance(orgId, contact.id);
 
           const [org] = await db
             .select({ name: schema.organizations.name })
@@ -1866,7 +1906,7 @@ export default defineModule({
                 businessName: org?.name ?? "Your supplier",
                 url,
                 outstandingCents,
-                currency: rows[0]?.currency,
+                currency,
               }),
             });
           } catch (err) {

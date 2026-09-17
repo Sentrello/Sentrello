@@ -48,10 +48,26 @@ export async function invoicingHasAccountActivity(
   return Boolean(row);
 }
 
-export async function invoicingAccountFigures(
+/**
+ * What one customer owes, what they have paid, and how much of it is late.
+ *
+ * The one definition, because three places state it to the customer: this
+ * page, the portal, and the email that sends them the link. The email used to
+ * work it out on its own — every invoice ever raised for them, whatever its
+ * status, less the payments — so it counted drafts nobody had sent, invoices
+ * that had been voided and credit notes as debts, and told the customer they
+ * owed a figure no screen in the product agreed with.
+ */
+export async function customerBalance(
   organizationId: string,
   contactId: string,
-): Promise<SummaryFigure[]> {
+): Promise<{
+  owedCents: number;
+  paidCents: number;
+  overdueCents: number;
+  currency: string;
+  invoices: number;
+}> {
   const invoices = await db
     .select({
       id: schema.invoices.id,
@@ -69,7 +85,13 @@ export async function invoicingAccountFigures(
 
   const currency = invoices[0]?.currency ?? "USD";
   if (invoices.length === 0) {
-    return [{ label: "You owe", value: 0, kind: "money", currency }];
+    return {
+      owedCents: 0,
+      paidCents: 0,
+      overdueCents: 0,
+      currency,
+      invoices: 0,
+    };
   }
 
   const ids = invoices.map((i) => i.id);
@@ -110,6 +132,25 @@ export async function invoicingAccountFigures(
     // the same invoice, so they are the same decision: one function, one rule
     // about the instant a bill falls due.
     if (badge === "overdue") overdueCents += balanceDue;
+  }
+
+  return {
+    owedCents,
+    paidCents,
+    overdueCents,
+    currency,
+    invoices: invoices.length,
+  };
+}
+
+export async function invoicingAccountFigures(
+  organizationId: string,
+  contactId: string,
+): Promise<SummaryFigure[]> {
+  const { owedCents, paidCents, overdueCents, currency, invoices } =
+    await customerBalance(organizationId, contactId);
+  if (invoices === 0) {
+    return [{ label: "You owe", value: 0, kind: "money", currency }];
   }
 
   const figures: SummaryFigure[] = [
