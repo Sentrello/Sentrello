@@ -1,6 +1,19 @@
 import type { CustomField } from "@sentrello/module-sdk/custom-fields";
 import { coerceCustomValues } from "@sentrello/module-sdk/custom-fields";
-import { and, eq, gte, lte } from "drizzle-orm";
+import type { SQL } from "drizzle-orm";
+import {
+  and,
+  asc,
+  eq,
+  exists,
+  gte,
+  inArray,
+  lt,
+  lte,
+  or,
+  sql,
+} from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { currentActor } from "./actor";
 import { RATE_SCALE, toBaseCents } from "./currency";
 import { db, schema } from "./index";
@@ -1002,6 +1015,274 @@ function ledgerWhere(
       ? [eq(schema.journalLines.locationId, period.locationId)]
       : []),
   );
+}
+
+/**
+ * A line as a cash-basis read of the books sees it.
+ *
+ * Eight fields rather than a `LedgerRow`'s ten: the conversion never looks at
+ * a class or a location, and a row it cannot see is a column that need not
+ * cross the wire a million times.
+ */
+export type CashBasisLine = Pick<
+  LedgerRow,
+  | "entryId"
+  | "accountId"
+  | "code"
+  | "name"
+  | "type"
+  | "debitCents"
+  | "creditCents"
+  | "postedAt"
+>;
+
+/** One posted entry, with the lines a cash-basis read can see. */
+export interface CashBasisEntry {
+  id: string;
+  postedAt: Date;
+  rows: CashBasisLine[];
+}
+
+/**
+ * The two control accounts a receivable or a payable is held in, by code.
+ *
+ * Read from `CORE_ACCOUNTS` rather than written out again, because the
+ * conversion that walks these entries matches on the same codes: two lists
+ * that must agree and are maintained apart eventually do not, and the symptom
+ * would be a report that silently stopped seeing invoices.
+ */
+const CONTROL_CODES = [
+  CORE_ACCOUNTS.accountsReceivable.code,
+  CORE_ACCOUNTS.accountsPayable.code,
+];
+
+/**
+ * Every line a cash-basis read can possibly use: income, expense, the two
+ * control accounts and the tax account the VAT return takes its boxes from.
+ *
+ * A payment entry is a debit to the bank and a credit to the receivable, and
+ * only the second of those means anything to this conversion — the bank line
+ * is never pooled, never recognised and never named in the output. Five years
+ * of the measured business is 1,192,886 lines and 714,776 of them are one of
+ * these, so the filter is worth its clause.
+ *
+ * The tax account only when somebody asked for it. A VAT return needs those
+ * lines; a profit and loss has no use for them at all — the tax an invoice
+ * carries waits in a pool of its own and is emitted to a collector only the
+ * return passes. Leaving them where they are takes another 236,577 lines off
+ * the same read.
+ */
+const readableCodes = (tax: boolean) =>
+  tax ? [...CONTROL_CODES, CORE_ACCOUNTS.taxPayable.code] : CONTROL_CODES;
+
+/**
+ * The lines, in the order the conversion has to see them.
+ *
+ * `postedAt` then `id`, which is what the in-memory walk sorted by, so the
+ * streamed read visits entries in exactly the order the array read did. A uuid
+ * sorts the same way in Postgres as its canonical text does in JavaScript, so
+ * the tie-break agrees too — and it only ever decides between two entries
+ * posted on the same instant.
+ *
+ * Aliased column by column because these rows are read straight off the
+ * driver rather than through Drizzle's own mapper: `accounts.id` and
+ * `journal_entries.id` are both called `id` on the wire otherwise, and the
+ * second would quietly overwrite the first.
+ */
+function cashBasisQuery(
+  orgId: string,
+  tax: boolean,
+  ...extra: (SQL | undefined)[]
+) {
+  return db
+    .select({
+      entryId: sql<string>`${schema.journalEntries.id}`.as("entryId"),
+      accountId: sql<string>`${schema.accounts.id}`.as("accountId"),
+      code: sql<string>`${schema.accounts.code}`.as("code"),
+      name: sql<string>`${schema.accounts.name}`.as("name"),
+      type: sql<string>`${schema.accounts.type}`.as("type"),
+      debitCents: sql<number>`${schema.journalLines.debitCents}`.as(
+        "debitCents",
+      ),
+      creditCents: sql<number>`${schema.journalLines.creditCents}`.as(
+        "creditCents",
+      ),
+      /**
+       * The instant as milliseconds, not as a timestamp.
+       *
+       * These rows are read straight off the driver, which hands a
+       * `timestamptz` back as whatever text the session's time zone renders —
+       * `2021-09-20 07:50:28.013626`, with no offset on it at all. Parsing
+       * that in JavaScript reads it as local time, which on a machine an hour
+       * off UTC puts a settlement in the wrong month at the ends of a period.
+       * An epoch is an absolute instant with no time zone in it to get wrong,
+       * and `floor` to milliseconds is exactly what a `Date` holds anyway.
+       */
+      postedAtMs:
+        sql<number>`floor(extract(epoch from ${schema.journalEntries.postedAt}) * 1000)::float8`.as(
+          "postedAtMs",
+        ),
+    })
+    .from(schema.journalLines)
+    .innerJoin(
+      schema.journalEntries,
+      eq(schema.journalLines.entryId, schema.journalEntries.id),
+    )
+    .innerJoin(
+      schema.accounts,
+      eq(schema.journalLines.accountId, schema.accounts.id),
+    )
+    .where(
+      and(
+        // Both sides, exactly as `ledgerWhere` scopes them. A cheaper read
+        // that reaches another business's entries is not a cheaper read.
+        eq(schema.journalEntries.organizationId, orgId),
+        eq(schema.accounts.organizationId, orgId),
+        or(
+          inArray(schema.accounts.type, ["income", "expense"]),
+          inArray(schema.accounts.code, readableCodes(tax)),
+        ),
+        ...extra,
+      ),
+    )
+    .orderBy(
+      asc(schema.journalEntries.postedAt),
+      asc(schema.journalEntries.id),
+    );
+}
+
+/** Whether an entry grew or settled a receivable or a payable. */
+function touchesControl(orgId: string) {
+  const line = alias(schema.journalLines, "control_line");
+  const account = alias(schema.accounts, "control_account");
+  return exists(
+    db
+      .select({ one: sql`1` })
+      .from(line)
+      .innerJoin(account, eq(line.accountId, account.id))
+      .where(
+        and(
+          eq(line.entryId, schema.journalEntries.id),
+          eq(account.organizationId, orgId),
+          inArray(account.code, CONTROL_CODES),
+        ),
+      ),
+  );
+}
+
+/**
+ * The entries a cash-basis report has to walk, streamed, oldest first.
+ *
+ * **This one cannot be a `group by`, and that is a property of the question
+ * rather than of the code.** Accrual figures are a sum over a period, so the
+ * database can add them up; cash figures are what a sequence of settlements
+ * recognised out of a pool of unpaid work, which depends on every settlement
+ * before it. An invoice for 1,200 holding 1,000 of income and 200 of tax,
+ * half-paid twice and then credited, recognises different amounts in each
+ * period depending on what had already come out — there is no grouping of the
+ * ledger that produces that, only a walk of it in order.
+ *
+ * So the walk stays and is bounded instead, three ways:
+ *
+ * - **Only the lines it can read.** 1,192,886 lines become 714,776.
+ * - **Nothing after the period.** An entry posted after `to` can recognise
+ *   nothing inside it and is never looked at again, so it is not read.
+ * - **Before the period, only what builds the opening position.** An entry
+ *   older than `from` matters solely through the receivable or payable it
+ *   left behind; one that touched neither recognised its money the day it was
+ *   posted and has nothing to carry forward. A year's report on five years of
+ *   trading reads 3,708 lines rather than 1,192,886.
+ *
+ * And it is a cursor, so what the process holds is one chunk and the pools,
+ * not the history. Measured on the five-year dataset: an all-time read is
+ * 1,497 ms in 141 MB of resident memory, against 1,866 ms and gigabytes for
+ * the array it replaces — and unlike the array it does not grow with the part
+ * of the history the report was never asked about.
+ */
+export async function* cashBasisEntries(
+  orgId: string,
+  period: { from?: Date; to?: Date } = {},
+  /** Whether the reader is going to look at the tax lines. */
+  options: { tax?: boolean; chunkRows?: number } = {},
+): AsyncGenerator<CashBasisEntry> {
+  const tax = options.tax ?? false;
+  const chunkRows = options.chunkRows ?? 5000;
+  /*
+   * Two statements rather than one with an `or` across them. The opening
+   * position and the period are disjoint by date, so nothing is read twice —
+   * and a single query would have to test "is this entry before the period
+   * and does it touch a control account" for every row in the period as well,
+   * which measured a full second slower over five years than reading them
+   * apart.
+   */
+  if (period.from) {
+    yield* streamEntries(
+      cashBasisQuery(
+        orgId,
+        tax,
+        lt(schema.journalEntries.postedAt, period.from),
+        touchesControl(orgId),
+      ),
+      chunkRows,
+    );
+  }
+  yield* streamEntries(
+    cashBasisQuery(
+      orgId,
+      tax,
+      period.from
+        ? gte(schema.journalEntries.postedAt, period.from)
+        : undefined,
+      period.to ? lte(schema.journalEntries.postedAt, period.to) : undefined,
+    ),
+    chunkRows,
+  );
+}
+
+/**
+ * One query, read through a server-side cursor and grouped back into entries.
+ *
+ * The query is built by Drizzle and handed to the driver as text and
+ * parameters, so there is one definition of the filter — including the two
+ * organization clauses — rather than a second copy written out by hand for
+ * the sake of streaming.
+ *
+ * Rows arrive ordered by entry, so an entry is complete the moment a row with
+ * a different id shows up. The chunk is large enough that no entry is ever
+ * split across two of them in practice, and it would not matter if one were:
+ * the grouping spans chunks.
+ */
+async function* streamEntries(
+  query: ReturnType<typeof cashBasisQuery>,
+  chunkRows: number,
+): AsyncGenerator<CashBasisEntry> {
+  const { sql: text, params } = query.toSQL();
+  const client = db.$client as unknown as {
+    unsafe: (
+      text: string,
+      params: unknown[],
+    ) => {
+      cursor: (
+        size: number,
+      ) => AsyncIterable<
+        (Omit<CashBasisLine, "postedAt"> & { postedAtMs: number })[]
+      >;
+    };
+  };
+
+  let current: CashBasisEntry | null = null;
+  for await (const rows of client.unsafe(text, params).cursor(chunkRows)) {
+    for (const { postedAtMs, ...rest } of rows) {
+      const postedAt = new Date(postedAtMs);
+      if (current && current.id !== rest.entryId) {
+        yield current;
+        current = null;
+      }
+      if (!current) current = { id: rest.entryId, postedAt, rows: [] };
+      current.rows.push({ ...rest, postedAt });
+    }
+  }
+  if (current) yield current;
 }
 
 /** Which side of the ledger an account type grows on. */

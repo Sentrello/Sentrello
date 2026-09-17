@@ -6,7 +6,7 @@ import {
 import { db, eq, schema } from "@sentrello/db";
 import { percentFromPpm } from "@sentrello/db/money";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
-import { cashBasisVatRows } from "./cash-basis";
+import { cashBasisVatRowsFor } from "./cash-basis";
 import { ledgerRows, periodFrom } from "./reports";
 import {
   type LimitedCostFigures,
@@ -90,7 +90,7 @@ export async function vatBoxesFor(
    */
   const rows =
     scheme.basis === "cash"
-      ? cashBasisVatRows(await ledgerRows(orgId), period)
+      ? await cashBasisVatRowsFor(orgId, period)
       : await ledgerRows(orgId, period);
 
   if (scheme.scheme === "flat-rate") {

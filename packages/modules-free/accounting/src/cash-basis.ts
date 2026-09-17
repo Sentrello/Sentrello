@@ -1,3 +1,9 @@
+import {
+  CORE_ACCOUNTS,
+  type CashBasisEntry,
+  type CashBasisLine,
+  cashBasisEntries,
+} from "@sentrello/db/ledger";
 import type { LedgerRow } from "./reports";
 
 /**
@@ -24,11 +30,17 @@ import type { LedgerRow } from "./reports";
  * question each time another module learned how to post.
  */
 
-/** The two control accounts, by the codes every module posts to them with. */
-const RECEIVABLE_CODE = "1100";
-const PAYABLE_CODE = "2000";
-/** Where VAT lands, by the code the return arithmetic reads it from. */
-const VAT_CODE = "2200";
+/**
+ * The two control accounts, and the tax account, by code.
+ *
+ * Taken from the chart every module posts against rather than written out
+ * again: `cashBasisEntries` narrows the read to these same three codes, and
+ * two lists that have to agree and are kept apart eventually do not — the
+ * symptom being a report that quietly stopped seeing invoices.
+ */
+const RECEIVABLE_CODE = CORE_ACCOUNTS.accountsReceivable.code;
+const PAYABLE_CODE = CORE_ACCOUNTS.accountsPayable.code;
+const VAT_CODE = CORE_ACCOUNTS.taxPayable.code;
 
 export interface CashBasisRow {
   /** The entry that recognised the amount — the settlement, not the invoice. */
@@ -58,13 +70,9 @@ interface Pool {
 
 const emptyPool = (): Pool => ({ outstandingCents: 0, byAccount: new Map() });
 
-interface Entry {
-  id: string;
-  postedAt: Date;
-  rows: LedgerRow[];
-}
+type Entry = CashBasisEntry;
 
-function entriesOf(rows: LedgerRow[]): Entry[] {
+function entriesOf(rows: CashBasisLine[]): Entry[] {
   const byEntry = new Map<string, Entry>();
   for (const row of rows) {
     const found = byEntry.get(row.entryId);
@@ -87,7 +95,7 @@ function entriesOf(rows: LedgerRow[]): Entry[] {
 }
 
 /** In the direction the account type is read. */
-function amountOf(row: LedgerRow): number {
+function amountOf(row: CashBasisLine): number {
   return row.type === "income" ||
     row.type === "liability" ||
     row.type === "equity"
@@ -96,14 +104,17 @@ function amountOf(row: LedgerRow): number {
 }
 
 /**
- * The income and expense a period actually saw the money for.
+ * The income and expense a period actually saw the money for, from rows
+ * already in hand.
  *
  * Takes the business's whole history rather than the period's rows: money
  * received in June for work invoiced in March is June's, and June's entries
- * alone cannot say so.
+ * alone cannot say so. `cashBasisRowsFor` asks the database for the same walk
+ * without holding the history; this is for a caller that has the rows anyway,
+ * which since the routes moved across means the tests and nothing else.
  */
 export function cashBasisRows(
-  all: LedgerRow[],
+  all: CashBasisLine[],
   period: { from?: Date; to?: Date } = {},
   /**
    * Where the VAT rows land, for the caller that wants them.
@@ -117,6 +128,46 @@ export function cashBasisRows(
    */
   vatOut?: CashBasisRow[],
 ): CashBasisRow[] {
+  const walk = cashBasisWalk(period, vatOut);
+  for (const entry of entriesOf(all)) walk.take(entry);
+  return walk.rows;
+}
+
+/**
+ * The same figures, one entry at a time, without the history in memory.
+ *
+ * The walk is unavoidable — what a period recognises depends on every
+ * settlement before it, which is not a question a `group by` can answer — so
+ * what is bounded is the reading of it: only the lines a cash-basis read can
+ * see, nothing posted after the period, and before it only the entries that
+ * left a receivable or a payable behind. `cashBasisEntries` is where that is
+ * written down and measured.
+ *
+ * Identical arithmetic to the array above, entry for entry, because it is the
+ * same code: both hand entries to the same walk in the same order.
+ */
+export async function cashBasisRowsFor(
+  orgId: string,
+  period: { from?: Date; to?: Date } = {},
+  vatOut?: CashBasisRow[],
+): Promise<CashBasisRow[]> {
+  const walk = cashBasisWalk(period, vatOut);
+  const entries = cashBasisEntries(orgId, period, { tax: Boolean(vatOut) });
+  for await (const entry of entries) walk.take(entry);
+  return walk.rows;
+}
+
+/**
+ * The conversion, as a thing that can be fed one entry at a time.
+ *
+ * Everything that has to survive between entries lives here: what is owed and
+ * unrecognised, and what each account is called. Entries arrive oldest first
+ * and are never revisited, which is what lets the caller stream them.
+ */
+function cashBasisWalk(
+  period: { from?: Date; to?: Date },
+  vatOut?: CashBasisRow[],
+) {
   /**
    * What each account is called, learned as the ledger is read.
    *
@@ -125,8 +176,7 @@ export function cashBasisRows(
    * in the module, so two businesses reported on in one process cannot end up
    * reading each other's account names.
    */
-  const names = new Map<string, LedgerRow>();
-  for (const row of all) names.set(row.accountId, row);
+  const names = new Map<string, CashBasisLine>();
 
   const receivable = emptyPool();
   const payable = emptyPool();
@@ -173,7 +223,16 @@ export function cashBasisRows(
     if (vatOut) push(vatOut, accountId, amountCents, entry);
   };
 
-  for (const entry of entriesOf(all)) {
+  const take = (entry: Entry) => {
+    /*
+     * The names this entry teaches, before anything is emitted.
+     *
+     * An account is only ever emitted from an entry that named it or from a
+     * pool an earlier entry filled, so by the time a figure needs a name the
+     * name has been seen.
+     */
+    for (const row of entry.rows) names.set(row.accountId, row);
+
     const controlDelta = (code: string) =>
       entry.rows
         .filter((row) => row.code === code)
@@ -319,9 +378,9 @@ export function cashBasisRows(
         emitVat(row.accountId, row.creditCents - row.debitCents, entry);
       }
     }
-  }
+  };
 
-  return out;
+  return { take, rows: out };
 }
 
 /**
@@ -343,11 +402,24 @@ export function cashBasisRows(
  * owes no VAT; a business writing debts off should adjust for them.
  */
 export function cashBasisVatRows(
-  all: LedgerRow[],
+  all: CashBasisLine[],
   period: { from?: Date; to?: Date } = {},
 ): LedgerRow[] {
   const vat: CashBasisRow[] = [];
-  const rows = cashBasisRows(all, period, vat);
+  return asLedgerRows(cashBasisRows(all, period, vat), vat);
+}
+
+/** The same, read from the database rather than from an array. */
+export async function cashBasisVatRowsFor(
+  orgId: string,
+  period: { from?: Date; to?: Date } = {},
+): Promise<LedgerRow[]> {
+  const vat: CashBasisRow[] = [];
+  return asLedgerRows(await cashBasisRowsFor(orgId, period, vat), vat);
+}
+
+/** Recognised amounts, back in the row shape the return arithmetic reads. */
+function asLedgerRows(rows: CashBasisRow[], vat: CashBasisRow[]): LedgerRow[] {
   return [...rows, ...vat].map((row) => {
     // Back into debits and credits, in the direction each type is read —
     // the inverse of `amountOf`, so a round trip changes nothing.
