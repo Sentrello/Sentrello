@@ -50,6 +50,7 @@ import {
 } from "@sentrello/email/templates";
 import { defineModule, rateLimit } from "@sentrello/module-sdk";
 import { and, eq, isNotNull, isNull, notInArray } from "drizzle-orm";
+import { registerInvoicingAccountSection } from "./account-section";
 import { registerBillingRules, registerCatalogue } from "./catalogue";
 import { registerConsolidate } from "./consolidate";
 import { registerDistanceSelling } from "./distance-selling";
@@ -264,6 +265,7 @@ export default defineModule({
     registerShare(ctx);
     registerTemplates(ctx);
     registerInvoicingSummary(ctx);
+    registerInvoicingAccountSection(ctx);
 
     ctx.app.post(
       "/api/invoices",

@@ -41,8 +41,10 @@ beforeAll(async () => {
     registerPermission: () => {},
     registerSummary: () => {},
     registerWidget: () => {},
+    registerAccountSection: () => {},
     registerPersonalData: () => {},
     registerOnboarding: () => {},
+    registerCrawlable: () => {},
     registerSearch: (provider: unknown) => {
       // Registered for real, so the sweep below asks the same providers a
       // running instance would.
