@@ -16,7 +16,11 @@ import {
   schema,
   sql,
 } from "@sentrello/db";
-import { creditedAgainst } from "@sentrello/db/documents";
+import {
+  creditedAgainst,
+  isOverdueSql,
+  owingInvoices,
+} from "@sentrello/db/documents";
 import { sumCents } from "@sentrello/db/money";
 import type { ModuleContext, SummaryFigure } from "@sentrello/module-sdk";
 import { scoreFor } from "@sentrello/module-sdk";
@@ -68,62 +72,28 @@ export async function invoicingFigures(
    * calculation, which overstated a partially paid one by exactly what had
    * already come in for it: the dashboard's own Money widget nets payments
    * and credit notes off the total before calling anything "owed", and this
-   * panel sat right beside it disagreeing by the part-payment. Same
-   * definition here, so the two cards on one screen cannot tell two different
-   * amounts for the same invoice.
+   * panel sat right beside it disagreeing by the part-payment.
+   *
+   * It is now not merely the same definition but the same query. The fix for
+   * that disagreement read every unpaid invoice, then every payment against
+   * them, and added them up in JavaScript — four figures for 143 MB of
+   * process memory on a busy business, on the route that draws every panel on
+   * the front page. `owingInvoices` asks it where the rows already are, and
+   * two cards on one screen cannot tell two different amounts for the same
+   * invoice because there is one definition of "owed" and both read it.
    */
-  const unpaid = await db
+  const owing = owingInvoices(organizationId);
+  const overdue = isOverdueSql(owing, now);
+  const [outstanding] = await db
     .select({
-      id: schema.invoices.id,
-      totalCents: schema.invoices.totalCents,
-      dueDate: schema.invoices.dueDate,
-    })
-    .from(schema.invoices)
-    .where(
-      and(
-        eq(schema.invoices.organizationId, organizationId),
-        isNull(schema.invoices.deletedAt),
-        sql`${schema.invoices.status} in ('open', 'partial', 'overdue')`,
+      owedCents: sumCents(owing.owedCents),
+      lateCents: sumCents(
+        sql`case when ${overdue} then ${owing.owedCents} else 0 end`,
       ),
-    );
-
-  const paidByInvoice = new Map<string, number>();
-  if (unpaid.length > 0) {
-    const paid = await db
-      .select({
-        invoiceId: schema.payments.invoiceId,
-        cents: sumCents(schema.payments.amountCents),
-      })
-      .from(schema.payments)
-      .where(
-        and(
-          eq(schema.payments.organizationId, organizationId),
-          inArray(
-            schema.payments.invoiceId,
-            unpaid.map((i) => i.id),
-          ),
-        ),
-      )
-      .groupBy(schema.payments.invoiceId);
-    for (const p of paid) {
-      if (p.invoiceId) paidByInvoice.set(p.invoiceId, p.cents);
-    }
-  }
-  const creditedByInvoice = await creditedAgainst(
-    organizationId,
-    unpaid.map((i) => i.id),
-  );
-  const balanceOf = (invoice: { id: string; totalCents: number }) =>
-    Math.max(
-      0,
-      invoice.totalCents -
-        (paidByInvoice.get(invoice.id) ?? 0) -
-        (creditedByInvoice.get(invoice.id) ?? 0),
-    );
-  const owedCents = unpaid.reduce((sum, i) => sum + balanceOf(i), 0);
-  const lateCents = unpaid
-    .filter((i) => i.dueDate && new Date(i.dueDate) < now)
-    .reduce((sum, i) => sum + balanceOf(i), 0);
+    })
+    .from(owing);
+  const owedCents = outstanding?.owedCents ?? 0;
+  const lateCents = outstanding?.lateCents ?? 0;
 
   /**
    * Paid is read from the payments, not from the invoice.
@@ -300,15 +270,30 @@ export async function invoicingDashboard(organizationId: string) {
       .groupBy(sql`to_char(${schema.invoices.issueDate}, 'YYYY-MM')`)
       .orderBy(sql`to_char(${schema.invoices.issueDate}, 'YYYY-MM')`),
 
+    /*
+     * The customer's name comes with the row, by the join the search below
+     * already uses. This screen used to fetch every contact the business has
+     * and resolve the name in the browser — which shows a dash instead of a
+     * name for everybody past the unpaged ceiling, and is a whole table for
+     * ten rows either way.
+     */
     db
       .select({
         id: schema.invoices.id,
         number: schema.invoices.number,
         contactId: schema.invoices.contactId,
+        contactName: schema.contacts.name,
         totalCents: schema.invoices.totalCents,
         dueDate: schema.invoices.dueDate,
       })
       .from(schema.invoices)
+      .leftJoin(
+        schema.contacts,
+        and(
+          eq(schema.contacts.id, schema.invoices.contactId),
+          eq(schema.contacts.organizationId, organizationId),
+        ),
+      )
       .where(
         and(
           eq(schema.invoices.organizationId, organizationId),
@@ -325,10 +310,18 @@ export async function invoicingDashboard(organizationId: string) {
         id: schema.invoices.id,
         number: schema.invoices.number,
         contactId: schema.invoices.contactId,
+        contactName: schema.contacts.name,
         totalCents: schema.invoices.totalCents,
         issueDate: schema.invoices.issueDate,
       })
       .from(schema.invoices)
+      .leftJoin(
+        schema.contacts,
+        and(
+          eq(schema.contacts.id, schema.invoices.contactId),
+          eq(schema.contacts.organizationId, organizationId),
+        ),
+      )
       .where(
         and(
           eq(schema.invoices.organizationId, organizationId),

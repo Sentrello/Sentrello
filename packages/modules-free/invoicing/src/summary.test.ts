@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
-import { db, schema } from "@sentrello/db";
+import { db, schema, watchQueries } from "@sentrello/db";
 import type { SentrelloEnv } from "@sentrello/module-sdk";
 import { eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
@@ -249,5 +249,82 @@ test("a business with nothing in it still answers", async () => {
     await db
       .delete(schema.organizations)
       .where(eq(schema.organizations.id, empty.id));
+  }
+});
+
+/**
+ * The front page's own panel, and what it costs to draw.
+ *
+ * `/api/dashboard/widgets` asks every module for its figures at once, and this
+ * is the one Core answers. It used to answer by reading every unpaid invoice
+ * and every payment against them into the process and adding them up in
+ * JavaScript: four numbers for 143 MB of memory, on the screen signing in
+ * lands on. The main dashboard beside it was rewritten to ask in one row; this
+ * was missed in that pass.
+ *
+ * Asserted by reading the queries rather than the answer, because the answer
+ * is identical either way — which is exactly why nobody noticed. Two hundred
+ * invoices is enough: the property is that the count of rows crossing the wire
+ * does not depend on it.
+ */
+test("the dashboard's invoicing panel reads figures, not invoices", async () => {
+  const [org] = await db
+    .insert(schema.organizations)
+    .values({
+      id: crypto.randomUUID(),
+      name: `Widgets ${suffix}`,
+      slug: `widgets-${suffix}`,
+      createdAt: new Date(),
+    })
+    .returning();
+  if (!org) throw new Error("could not create organization");
+
+  try {
+    await db.insert(schema.invoices).values(
+      Array.from({ length: 200 }, (_, i) => ({
+        organizationId: org.id,
+        number: `W-${i}`,
+        status: "open",
+        totalCents: 1_000,
+        issueDate: new Date(),
+        dueDate: new Date(Date.now() - 24 * 60 * 60 * 1000),
+      })),
+    );
+
+    const seen: string[] = [];
+    watchQueries.onQuery = (query) => seen.push(query);
+    let figures: Awaited<ReturnType<typeof invoicingFigures>>;
+    try {
+      figures = await invoicingFigures(org.id);
+    } finally {
+      watchQueries.onQuery = undefined;
+    }
+
+    // Still right: two hundred invoices of ten pounds, all past their date.
+    const byLabel = (label: string) =>
+      figures.find((f) => f.label === label)?.value;
+    expect(byLabel("Owed to you")).toBe(200_000);
+    expect(byLabel("Past its date")).toBe(200_000);
+
+    /*
+     * And none of it read a row per invoice. A query that touches the money
+     * tables either aggregates or takes a bounded slice; one that does
+     * neither returns the whole book, which is the defect however small the
+     * response it is turned into afterwards.
+     */
+    const perRow = seen.filter(
+      (query) =>
+        /from "(invoices|payments)"/.test(query) &&
+        !/\b(sum|count)\(/i.test(query) &&
+        !/\blimit\b/i.test(query),
+    );
+    expect(perRow).toEqual([]);
+  } finally {
+    await db
+      .delete(schema.invoices)
+      .where(eq(schema.invoices.organizationId, org.id));
+    await db
+      .delete(schema.organizations)
+      .where(eq(schema.organizations.id, org.id));
   }
 });

@@ -3,6 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { type Company, type Contact, api } from "../lib/api";
 import { Icon } from "../lib/icons";
+import { RecordPicker } from "../lib/record-picker";
 import {
   Button,
   Card,
@@ -148,10 +149,20 @@ export function InvoiceForm({
     queryKey: ["invoicing-items"],
     queryFn: () => api<{ items: BillableItem[] }>("/api/invoicing/items"),
   });
-  const contacts = useQuery({
-    queryKey: ["contacts", "all"],
-    queryFn: () => api<{ contacts: Contact[] }>("/api/contacts"),
-  });
+  /**
+   * The customer, chosen by searching rather than by scrolling.
+   *
+   * This was a `<select>` filled from the whole contacts table. That list is
+   * capped at a thousand rows, and nothing here read the flag saying so — so a
+   * business with more customers than that had some of them simply missing
+   * from the picker, always the same ones, with nothing on screen to say why.
+   * `RecordPicker` searches the server as somebody types.
+   */
+  const [customer, setCustomer] = useState<{
+    id: string;
+    name: string;
+    companyId?: string | null;
+  } | null>(null);
   /**
    * The customer's company, for the two things an address decides: which
    * US jurisdictions' rates apply, and whether an exemption certificate is
@@ -207,7 +218,6 @@ export function InvoiceForm({
       }>("/api/invoicing/settings"),
   });
 
-  const [contactId, setContactId] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [validUntil, setValidUntil] = useState("");
   const [paymentTerms, setPaymentTerms] = useState("");
@@ -239,6 +249,8 @@ export function InvoiceForm({
       api<{
         quote?: DocumentShape;
         invoice?: DocumentShape;
+        /** The document's customer, so the picker needs no lookup of its own. */
+        contact?: { id: string; name: string; companyId: string | null } | null;
         lines: {
           description: string;
           quantityMilli: number;
@@ -262,7 +274,7 @@ export function InvoiceForm({
     const doc = existing.data.quote ?? existing.data.invoice;
     if (doc) {
       setLoaded(true);
-      setContactId(doc.contactId ?? "");
+      setCustomer(existing.data.contact ?? null);
       setNotes(doc.notes ?? "");
       setTemplateId(doc.templateId ?? "");
       setDiscountType(doc.discountType ?? "");
@@ -392,7 +404,7 @@ export function InvoiceForm({
   const save = useMutation({
     mutationFn: async (status: "draft" | "open") => {
       const body = {
-        contactId: contactId || null,
+        contactId: customer?.id ?? null,
         currency: "USD",
         status,
         ...(asQuote
@@ -462,7 +474,7 @@ export function InvoiceForm({
     onSuccess: (saved) => onDone(saved),
   });
 
-  if (taxes.isLoading || contacts.isLoading) return <Loading />;
+  if (taxes.isLoading) return <Loading />;
 
   const usable = lines.some(
     (l) => l.description.trim() && toCents(l.unitPrice) >= 0,
@@ -496,23 +508,19 @@ export function InvoiceForm({
         </p>
         <div className="grid gap-3 sm:grid-cols-3">
           <Field label="Customer">
-            <Select
-              value={contactId}
-              onChange={(e) => setContactId(e.target.value)}
-            >
-              <option value="">Choose a customer</option>
-              {(contacts.data?.contacts ?? []).map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </Select>
+            <RecordPicker<Contact>
+              path="/api/contacts"
+              resource="contacts"
+              value={customer}
+              onChange={setCustomer}
+              placeholder="Choose a customer"
+              clearLabel="No customer"
+              noun="customer"
+            />
           </Field>
           {!asQuote &&
             (() => {
-              const company = (contacts.data?.contacts ?? []).find(
-                (c) => c.id === contactId,
-              )?.companyId;
+              const company = customer?.companyId;
               const usable = (exemptions.data?.certificates ?? []).filter(
                 (cert) =>
                   cert.companyId === company &&
@@ -634,11 +642,7 @@ export function InvoiceForm({
           <p className="font-medium text-sm">Line items</p>
           {(() => {
             const company = (companies.data?.companies ?? []).find(
-              (c) =>
-                c.id ===
-                (contacts.data?.contacts ?? []).find(
-                  (ct) => ct.id === contactId,
-                )?.companyId,
+              (c) => c.id === customer?.companyId,
             );
             const inUs = ["US", "USA", "UNITED STATES"].includes(
               company?.country?.trim().toUpperCase() ?? "",

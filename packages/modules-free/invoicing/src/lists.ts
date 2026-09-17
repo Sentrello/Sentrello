@@ -16,6 +16,7 @@ import {
   schema,
   sql,
 } from "@sentrello/db";
+import { contactNames } from "@sentrello/db/crm";
 import { periodFrom } from "@sentrello/db/ledger";
 import {
   type ListSpec,
@@ -351,6 +352,16 @@ export function registerLists(ctx: ModuleContext) {
       const ids = rows.map((r) => r.id);
       // One query for the page's labels, not one per row.
       const labels = await tagsFor(orgId, "invoice", ids);
+      /*
+       * And one for the page's customer names. The screen used to fetch every
+       * contact the business has and look them up in the browser, which stops
+       * working — silently, and always for the same people — the moment there
+       * are more contacts than an unpaged list will return.
+       */
+      const customers = await contactNames(
+        orgId,
+        rows.map((r) => r.contactId),
+      );
       const paid = new Map<string, number>();
       if (ids.length > 0) {
         const sums = await db
@@ -409,6 +420,9 @@ export function registerLists(ctx: ModuleContext) {
           return {
             ...r,
             status,
+            contactName: r.contactId
+              ? (customers.get(r.contactId) ?? null)
+              : null,
             tags: labels.get(r.id) ?? [],
             paidCents,
             creditedCents,
@@ -466,9 +480,20 @@ export function registerLists(ctx: ModuleContext) {
             .where(where)
         : [{ total: rows.length }];
 
+      // The page's customer names, for the reason the invoice list above has
+      // them: a screen that looked them up out of the whole contacts table
+      // showed nothing at all past the unpaged ceiling.
+      const customers = await contactNames(
+        orgId,
+        rows.map((r) => r.contactId),
+      );
+
       return c.json({
         quotes: rows.map((r) => ({
           ...r,
+          contactName: r.contactId
+            ? (customers.get(r.contactId) ?? null)
+            : null,
           expired:
             (r.status === "draft" || r.status === "sent") &&
             !!r.validUntil &&

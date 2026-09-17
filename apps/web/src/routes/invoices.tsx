@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { type Contact, api } from "../lib/api";
+import { api } from "../lib/api";
 import { Icon } from "../lib/icons";
 import {
   ColumnsMenu,
@@ -49,6 +49,8 @@ interface InvoiceRow {
   number: string;
   kind: string;
   contactId: string | null;
+  /** Resolved on the server, per page, not by fetching every contact. */
+  contactName: string | null;
   status: string;
   currency: string;
   issueDate: string;
@@ -172,13 +174,6 @@ export function Invoices() {
     queryKey: ["tags"],
     queryFn: () => api<{ tags: TagChip[] }>("/api/tags"),
   });
-
-  const contacts = useQuery({
-    queryKey: ["contacts", "all"],
-    queryFn: () => api<{ contacts: Contact[] }>("/api/contacts"),
-  });
-  const customer = (id: string | null) =>
-    id ? contacts.data?.contacts.find((c) => c.id === id)?.name : undefined;
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["invoices"] });
@@ -482,7 +477,7 @@ export function Invoices() {
                     </td>
                     {columns.shown("customer") ? (
                       <td className="max-w-44 truncate">
-                        {customer(invoice.contactId) ?? "—"}
+                        {invoice.contactName ?? "—"}
                       </td>
                     ) : null}
                     {columns.shown("issueDate") ? (

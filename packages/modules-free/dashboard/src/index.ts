@@ -5,6 +5,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { db, schema } from "@sentrello/db";
+import { isOverdueSql, owingInvoices } from "@sentrello/db/documents";
 import { countExpression } from "@sentrello/db/list-query";
 import { centsFromDriver, sumCents } from "@sentrello/db/money";
 import {
@@ -67,106 +68,6 @@ import { readPromos, refreshPromosIfStale } from "./promos";
  * had already built.
  */
 const ATTENTION_MAX = 12;
-
-/**
- * Every live invoice with what is still owed on it, worked out in the query.
- *
- * The same arithmetic `invoiceState` does, in the same order: the total, less
- * anything given up for paying early, less what has been paid, less what has
- * been credited, floored at zero. `draft` and `void` are excluded by the
- * filter rather than by the branch at the top of `invoiceState`, and `paid`
- * and `credited` with them — the stored column is a filter key and that is
- * what it is being used as.
- *
- * Credits count beside the payments because a credit note settles debt the
- * way money does; without them a partly credited invoice shows the credited
- * share as still owed. Voided and deleted credit notes do not count, which is
- * `creditedAgainst`'s rule and is written the same way here.
- */
-function owingInvoices(orgId: string) {
-  const credit = alias(schema.invoices, "credit_note");
-  /*
-   * Both settlements added up once each, not once per invoice.
-   *
-   * Written first as a correlated subquery, which reads beautifully and is a
-   * nested loop: 8,105 unpaid invoices times every payment and every credit
-   * note, which measured at two minutes. Two hash aggregates and two hash
-   * joins ask the same question in one pass over each table.
-   */
-  const paid = db
-    .select({
-      invoiceId: schema.payments.invoiceId,
-      cents: sql<number>`sum(${schema.payments.amountCents})`.as("paid_cents"),
-    })
-    .from(schema.payments)
-    .where(eq(schema.payments.organizationId, orgId))
-    .groupBy(schema.payments.invoiceId)
-    .as("paid");
-  const credited = db
-    .select({
-      invoiceId: credit.referenceInvoiceId,
-      cents: sql<number>`sum(${credit.totalCents})`.as("credited_cents"),
-    })
-    .from(credit)
-    .where(
-      and(
-        eq(credit.organizationId, orgId),
-        eq(credit.kind, "credit_note"),
-        isNull(credit.deletedAt),
-        ne(credit.status, "void"),
-      ),
-    )
-    .groupBy(credit.referenceInvoiceId)
-    .as("credited");
-
-  return db
-    .select({
-      id: schema.invoices.id,
-      number: schema.invoices.number,
-      dueDate: schema.invoices.dueDate,
-      owedCents:
-        sql<number>`greatest(0, ${schema.invoices.totalCents} - coalesce(${schema.invoices.earlyDiscountTakenCents}, 0) - coalesce(${paid.cents}, 0) - coalesce(${credited.cents}, 0))`.as(
-          "owed_cents",
-        ),
-    })
-    .from(schema.invoices)
-    .leftJoin(paid, eq(paid.invoiceId, schema.invoices.id))
-    .leftJoin(credited, eq(credited.invoiceId, schema.invoices.id))
-    .where(
-      and(
-        eq(schema.invoices.organizationId, orgId),
-        eq(schema.invoices.kind, "invoice"),
-        isNull(schema.invoices.deletedAt),
-        notInArray(schema.invoices.status, [
-          "paid",
-          "credited",
-          "void",
-          "draft",
-        ]),
-      ),
-    )
-    .as("owing");
-}
-
-/**
- * Late is strictly past the moment it was due, and only while money is owed —
- * `isOverdue`'s rule, said in SQL so the figure and the list agree with the
- * rest of the product about who is late.
- *
- * The instant goes in as text rather than as a `Date`. A due date is stored
- * without a time zone and read back as though it were UTC, which is what
- * `toISOString` writes; handing the driver a `Date` inside an expression it
- * has no column to type it against fails outright, and a cast that guessed
- * would move the boundary by an offset — which at the end of a month is an
- * invoice that is overdue on one screen and not on another.
- */
-function isOverdueSql(
-  owing: ReturnType<typeof owingInvoices>,
-  now: Date,
-): SQL<boolean> {
-  const at = now.toISOString();
-  return sql<boolean>`${owing.owedCents} > 0 and ${owing.dueDate} is not null and ${owing.dueDate} < ${at}`;
-}
 
 interface Attention {
   id: string;
