@@ -6,7 +6,8 @@ import {
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
-import { and, db, eq, schema } from "@sentrello/db";
+import { and, db, eq, or, schema } from "@sentrello/db";
+import { contactHasEmail } from "@sentrello/db/crm";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import { rateLimit } from "@sentrello/module-sdk";
 import { displayFilename, safeExtension } from "./attachments";
@@ -311,17 +312,35 @@ export function registerInboundEmail(ctx: ModuleContext) {
         message,
         settings?.inboundAddress ?? null,
       );
-      if (addresses.length === 0) return c.json({ matched: false });
+      /*
+       * Two different nothings, said differently.
+       *
+       * A message with no usable address on it and a message from somebody who
+       * is not a customer are both "nothing was filed", and until now they
+       * were the same word — which is how a real defect hid: mail to a
+       * contact's second address matched nobody and looked exactly like mail
+       * from a stranger. The only place anybody would look said the same
+       * thing either way.
+       */
+      if (addresses.length === 0) {
+        return c.json({ matched: false, reason: "no address to match on" });
+      }
 
-      const contacts = await db
-        .select({ id: schema.contacts.id, email: schema.contacts.email })
+      /*
+       * Every address the message carries, against every address a contact
+       * has — asked of the database rather than by reading the contact book
+       * into memory and comparing the primary column.
+       */
+      const [contact] = await db
+        .select({ id: schema.contacts.id })
         .from(schema.contacts)
-        .where(eq(schema.contacts.organizationId, orgId));
-
-      const wanted = new Set(addresses);
-      const contact = contacts.find(
-        (row) => row.email && wanted.has(row.email.toLowerCase()),
-      );
+        .where(
+          and(
+            eq(schema.contacts.organizationId, orgId),
+            or(...addresses.map((address) => contactHasEmail(address))),
+          ),
+        )
+        .limit(1);
       /**
        * Nobody matched, so nothing is written.
        *
@@ -330,7 +349,9 @@ export function registerInboundEmail(ctx: ModuleContext) {
        * paper trail. 200 rather than 404 because the provider is not at
        * fault and should not retry.
        */
-      if (!contact) return c.json({ matched: false });
+      if (!contact) {
+        return c.json({ matched: false, reason: "no contact at that address" });
+      }
 
       const attachments: {
         name: string;

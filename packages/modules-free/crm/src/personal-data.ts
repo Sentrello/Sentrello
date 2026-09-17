@@ -1,5 +1,6 @@
 import { and, db, eq, inArray, or, schema, sql } from "@sentrello/db";
 import { consentHistory, describeConsent } from "@sentrello/db/consent";
+import { contactHasEmail } from "@sentrello/db/crm";
 import { redactPayloads } from "@sentrello/db/erasure";
 import { RECORD_EVENT_PAYLOADS } from "@sentrello/db/record-events";
 import type {
@@ -23,19 +24,15 @@ import type {
 async function matching(orgId: string, subject: DataSubject) {
   const tests = [
     subject.id ? eq(schema.contacts.id, subject.id) : null,
-    subject.email
-      ? sql`lower(${schema.contacts.email}) = lower(${subject.email})`
-      : null,
     /*
      * The extra addresses too. A person who gave a work address and a personal
      * one is one person, and answering only on the primary address is how a
      * business tells somebody "we hold nothing about you" while holding a
-     * record filed under their other email.
+     * record filed under their other email. The same condition the form
+     * handler and inbound mail match on, so the three cannot disagree about
+     * whose address it is.
      */
-    subject.email
-      ? sql`exists (select 1 from jsonb_array_elements(coalesce(${schema.contacts.emails}, '[]'::jsonb)) e
-             where lower(e->>'value') = lower(${subject.email}))`
-      : null,
+    subject.email ? contactHasEmail(subject.email) : null,
     subject.phone ? eq(schema.contacts.phone, subject.phone) : null,
   ].filter(Boolean);
   if (!tests.length) return [];
