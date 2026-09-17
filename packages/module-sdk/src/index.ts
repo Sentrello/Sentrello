@@ -336,6 +336,12 @@ export * from "./attachments";
 export * from "./account";
 export * from "./search";
 export * from "./csv";
+/**
+ * The container an archive is written in. A zip, because the business that
+ * takes one off its server has to be able to open it in ten years without us.
+ */
+export * from "./zip";
+export * from "./archive-destination";
 export * from "./images";
 export * from "./customer-session";
 export * from "./public-endpoints";
