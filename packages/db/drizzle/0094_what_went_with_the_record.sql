@@ -1,0 +1,1 @@
+ALTER TABLE "record_events" ADD COLUMN "related" jsonb;

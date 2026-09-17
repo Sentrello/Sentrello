@@ -188,3 +188,169 @@ test("a company with people on it is not deletable", async () => {
   expect(gone.status).toBe(200);
   expect(await duedTasks()).toEqual([]);
 });
+
+/**
+ * Putting one back needs what went with it, and the trail is gone by then.
+ *
+ * The delete takes the notes, calls, follow-ups and tag links in its own
+ * transaction — which is right, and which commits before anything reads the
+ * change feed. Anything that restores a deleted record therefore cannot go
+ * looking for them afterwards: there is nothing left to find. So the delete
+ * says what it took, on the event, and a restore is a matter of reading it.
+ *
+ * Without that the paid tier's thirty-day restore brings a contact back bare —
+ * no notes, no calls, no follow-ups, no tags — and says nothing about it,
+ * which is a worse promise than not offering a restore at all.
+ */
+
+/** The stored row, ready to go back into its table. Dates come back as text. */
+function rehydrate(table: unknown, stored: Record<string, unknown>) {
+  const out: Record<string, unknown> = {};
+  for (const [key, column] of Object.entries(
+    table as Record<string, { dataType?: string }>,
+  )) {
+    if (!column?.dataType) continue;
+    const value = stored[key];
+    if (value === undefined) continue;
+    out[key] =
+      column.dataType === "date" && typeof value === "string"
+        ? new Date(value)
+        : value;
+  }
+  return out;
+}
+
+async function deletedEvent(entityId: string) {
+  const [event] = await db
+    .select()
+    .from(schema.recordEvents)
+    .where(
+      and(
+        eq(schema.recordEvents.organizationId, orgId),
+        eq(schema.recordEvents.entityId, entityId),
+        eq(schema.recordEvents.action, "deleted"),
+      ),
+    );
+  return event;
+}
+
+test("a deleted contact comes back with its notes, calls, tasks and tags", async () => {
+  const contactId = await create("contacts", { name: `Restorable ${suffix}` });
+  const tagId = await create("tags", { name: `Leaky ${suffix}` });
+  await create("tasks", {
+    title: "Ring back about the boiler",
+    contactId,
+    dueAt: new Date().toISOString(),
+  });
+  await create("notes", {
+    entityType: "contact",
+    entityId: contactId,
+    text: "Prefers the afternoon",
+  });
+  await create("activities", {
+    type: "call",
+    contactId,
+    body: "Spoke for ten minutes",
+  });
+  await db.insert(schema.taggables).values({
+    tagId,
+    entityType: "contact",
+    entityId: contactId,
+  });
+
+  const res = await app.request(`http://localhost/api/contacts/${contactId}`, {
+    method: "DELETE",
+    headers,
+  });
+  expect(res.status).toBe(200);
+
+  // Everything went, which is the property the delete is there for.
+  expect(await duedTasks()).toEqual([]);
+
+  // And the event says what went, whole, because nothing can look it up now.
+  const event = await deletedEvent(contactId);
+  if (!event) throw new Error("the deletion was not announced");
+  const related = event.related;
+  if (!related)
+    throw new Error("the deletion took the trail and did not say so");
+  expect(related.notes).toHaveLength(1);
+  expect(related.activities).toHaveLength(1);
+  expect(related.tasks).toHaveLength(1);
+  expect(related.taggables).toHaveLength(1);
+  expect(related.notes?.[0]?.text).toBe("Prefers the afternoon");
+  expect(related.tasks?.[0]?.title).toBe("Ring back about the boiler");
+  expect(related.activities?.[0]?.body).toBe("Spoke for ten minutes");
+
+  // A restore is then a matter of reading it back.
+  await db
+    .insert(schema.contacts)
+    .values(rehydrate(schema.contacts, event.before ?? {}) as never);
+  for (const [name, rows] of Object.entries(related)) {
+    const table = (schema as unknown as Record<string, unknown>)[name];
+    if (!table || !rows.length)
+      throw new Error(`nothing to put back in ${name}`);
+    await db
+      .insert(table as typeof schema.notes)
+      .values(rows.map((r) => rehydrate(table, r)) as never[]);
+  }
+
+  const [backTask] = await duedTasks();
+  expect(backTask?.title).toBe("Ring back about the boiler");
+  const [backNote] = await db
+    .select({ text: schema.notes.text })
+    .from(schema.notes)
+    .where(
+      and(
+        eq(schema.notes.organizationId, orgId),
+        eq(schema.notes.entityId, contactId),
+      ),
+    );
+  expect(backNote?.text).toBe("Prefers the afternoon");
+  const [backCall] = await db
+    .select({ body: schema.activities.body })
+    .from(schema.activities)
+    .where(
+      and(
+        eq(schema.activities.organizationId, orgId),
+        eq(schema.activities.contactId, contactId),
+      ),
+    );
+  expect(backCall?.body).toBe("Spoke for ten minutes");
+  const backTags = await db
+    .select({ tagId: schema.taggables.tagId })
+    .from(schema.taggables)
+    .where(eq(schema.taggables.entityId, contactId));
+  expect(backTags.map((t) => t.tagId)).toEqual([tagId]);
+
+  // Put back the way it was found, so the next test starts clean.
+  await app.request(`http://localhost/api/contacts/${contactId}`, {
+    method: "DELETE",
+    headers,
+  });
+});
+
+test("a company and a deal say what went with them too", async () => {
+  const companyId = await create("companies", { name: `Trail Co ${suffix}` });
+  await create("tasks", {
+    title: "Renew the contract",
+    companyId,
+    dueAt: new Date().toISOString(),
+  });
+  const dealId = await create("deals", { name: `Trail job ${suffix}` });
+  await create("activities", { type: "call", dealId, body: "Talked figures" });
+
+  for (const [path, id] of [
+    ["companies", companyId],
+    ["deals", dealId],
+  ] as const) {
+    const res = await app.request(`http://localhost/api/${path}/${id}`, {
+      method: "DELETE",
+      headers,
+    });
+    expect(res.status).toBe(200);
+  }
+
+  expect((await deletedEvent(companyId))?.related?.tasks).toHaveLength(1);
+  expect((await deletedEvent(dealId))?.related?.activities).toHaveLength(1);
+  expect(await duedTasks()).toEqual([]);
+});

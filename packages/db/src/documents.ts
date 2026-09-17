@@ -1,5 +1,5 @@
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
-import { db } from "./client";
+import { type DbTx, db } from "./client";
 import { rateOn } from "./currency";
 import { postInvoiceIssued } from "./ledger";
 import { MoneyError, bpToPpm, documentTotals, sumCents } from "./money";
@@ -236,6 +236,14 @@ export async function convertQuoteToInvoice(
  * a copy of it would credit that invoice a second time. Copying one used to
  * produce a plain invoice — the `kind` was dropped and the column default took
  * over — which is a document changing what it is on the way through.
+ *
+ * **A caller may lend it their transaction.** A copy raised as `open` is a
+ * sale, and a sale has to reach the books or it has not happened: the recurring
+ * run copies the template, commits, and only then posts the entry, so a period
+ * closed between the two leaves an open invoice owed by a customer with no
+ * receivable anywhere in the ledger — and nothing says so. Passing `tx` puts
+ * the copy and its posting in one commit, which is the rule everywhere else
+ * money is written: the document and the entry live or die together.
  */
 export async function copyInvoice(
   organizationId: string,
@@ -252,9 +260,15 @@ export async function copyInvoice(
      * the rate is read here for the copy's issue date.
      */
     rateMicro?: number;
+    /**
+     * The caller's transaction, when the copy has to commit with something
+     * else — its ledger entry above all.
+     */
+    tx?: DbTx;
   } = {},
 ): Promise<typeof schema.invoices.$inferSelect | null> {
-  const [source] = await db
+  const conn = overrides.tx ?? db;
+  const [source] = await conn
     .select()
     .from(schema.invoices)
     .where(
@@ -282,11 +296,11 @@ export async function copyInvoice(
   }
 
   const [lines, bands] = await Promise.all([
-    db
+    conn
       .select()
       .from(schema.invoiceLines)
       .where(eq(schema.invoiceLines.invoiceId, source.id)),
-    db
+    conn
       .select()
       .from(schema.documentTaxes)
       .where(
@@ -297,7 +311,12 @@ export async function copyInvoice(
       ),
   ]);
 
-  return await db.transaction(async (tx) => {
+  /*
+   * The caller's transaction is used as it stands rather than nested inside a
+   * second one: a savepoint here would let this half roll back while the
+   * caller's half stood, which is the failure this option exists to remove.
+   */
+  const write = async (tx: DbTx) => {
     const [made] = await tx
       .insert(schema.invoices)
       .values({
@@ -358,7 +377,8 @@ export async function copyInvoice(
       );
     }
     return made;
-  });
+  };
+  return overrides.tx ? await write(overrides.tx) : await db.transaction(write);
 }
 
 /**

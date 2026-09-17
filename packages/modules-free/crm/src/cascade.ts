@@ -21,13 +21,29 @@ import type { DbTx } from "@sentrello/db";
  * One function because three callers need the identical sweep and would
  * otherwise each forget a different table: the CRUD delete route, the privacy
  * erasure, and whatever deletes a record next.
+ *
+ * **It hands back the rows, not a tally.** Nothing in this transaction can be
+ * looked up again once it commits, and something has to be able to put a
+ * deleted record back — the paid tier keeps a copy for thirty days. That copy
+ * used to be assembled *after* the commit, by going and deleting the trail a
+ * second time; once this function started taking the trail in the same
+ * transaction there was nothing left for it to find, and a restored contact
+ * came back with no notes, no calls, no follow-ups and no tags. So what
+ * travels with a record is decided here, once, and said out loud on the way
+ * past rather than guessed at from the other side of a commit.
  */
-export interface TrailRemoved {
-  notes: number;
-  activities: number;
-  tasks: number;
-  tagLinks: number;
-}
+
+/**
+ * The rows that went, keyed by the table they came out of.
+ *
+ * The keys are the schema's own names — `notes`, `activities`, `tasks`,
+ * `taggables` — so a reader putting them back needs no second map translating
+ * a word into a table.
+ */
+export type TrailRemoved = Record<
+  "notes" | "activities" | "tasks" | "taggables",
+  Record<string, unknown>[]
+>;
 
 export async function removeCrmTrail(
   organizationId: string,
@@ -36,10 +52,10 @@ export async function removeCrmTrail(
   conn: DbTx | typeof db = db,
 ): Promise<TrailRemoved> {
   const removed: TrailRemoved = {
-    notes: 0,
-    activities: 0,
-    tasks: 0,
-    tagLinks: 0,
+    notes: [],
+    activities: [],
+    tasks: [],
+    taggables: [],
   };
   if (ids.length === 0) return removed;
 
@@ -60,8 +76,8 @@ export async function removeCrmTrail(
           inArray(schema.notes.entityId, ids),
         ),
       )
-      .returning({ id: schema.notes.id });
-    removed.notes = notes.length;
+      .returning();
+    removed.notes = notes;
 
     const column =
       subject === "contact"
@@ -75,8 +91,8 @@ export async function removeCrmTrail(
           inArray(column, ids),
         ),
       )
-      .returning({ id: schema.activities.id });
-    removed.activities = activities.length;
+      .returning();
+    removed.activities = activities;
   }
 
   const taskColumn =
@@ -93,8 +109,8 @@ export async function removeCrmTrail(
         inArray(taskColumn, ids),
       ),
     )
-    .returning({ id: schema.tasks.id });
-  removed.tasks = tasks.length;
+    .returning();
+  removed.tasks = tasks;
 
   // The label, not the tag: a tag is a record of the business's own and
   // survives everything it was ever put on.
@@ -106,8 +122,8 @@ export async function removeCrmTrail(
         inArray(schema.taggables.entityId, ids),
       ),
     )
-    .returning({ id: schema.taggables.id });
-  removed.tagLinks = links.length;
+    .returning();
+  removed.taggables = links;
 
   return removed;
 }

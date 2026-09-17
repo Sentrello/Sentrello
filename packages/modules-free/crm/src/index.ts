@@ -49,7 +49,7 @@ import {
 import type { SQL } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 import { registerAttachments } from "./attachments";
-import { removeCrmTrail } from "./cascade";
+import { type TrailRemoved, removeCrmTrail } from "./cascade";
 import { registerCrmDashboard } from "./dashboard";
 import { CRM_ENTITY, type CrmResource } from "./entities";
 import { registerForms } from "./forms";
@@ -577,6 +577,7 @@ function crud<T extends keyof typeof tables>(
        * cannot leave the half that gets chased.
        */
       const trail = CRM_ENTITY[resource];
+      let related: TrailRemoved | null = null;
       const [row] = await db.transaction(async (tx) => {
         const deleted = await tx
           .delete(table)
@@ -591,12 +592,26 @@ function crud<T extends keyof typeof tables>(
           deleted[0] &&
           (trail === "contact" || trail === "company" || trail === "deal")
         ) {
-          await removeCrmTrail(orgId, trail, [String(deleted[0].id)], tx);
+          related = await removeCrmTrail(
+            orgId,
+            trail,
+            [String(deleted[0].id)],
+            tx,
+          );
         }
         return deleted;
       });
       if (!row) return c.json({ error: "not found" }, 404);
-      await announce(orgId, resource, row, "deleted", row, null);
+      /*
+       * And what went with it, on the event rather than left to be looked up.
+       *
+       * The trail was deleted in the transaction above, so by the time anything
+       * reads this feed there is nothing left to find. A restore built on
+       * looking afterwards brings the record back bare — the notes, calls,
+       * follow-ups and tags simply gone — and says nothing about it, which is
+       * worse than not offering a restore at all.
+       */
+      await announce(orgId, resource, row, "deleted", row, null, related);
       return c.json({ deleted: row.id });
     },
   );
@@ -625,6 +640,8 @@ async function announce(
   action: "created" | "updated" | "deleted",
   before: Record<string, unknown> | null | undefined,
   after: Record<string, unknown> | null | undefined,
+  /** The rows a delete took with it. See `removeCrmTrail`. */
+  related: TrailRemoved | null = null,
 ): Promise<void> {
   if (!row?.id) return;
   await recordChanged({
@@ -634,6 +651,7 @@ async function announce(
     action,
     before: before ?? null,
     after: after ?? null,
+    related,
   });
 }
 
