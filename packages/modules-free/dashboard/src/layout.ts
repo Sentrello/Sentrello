@@ -61,8 +61,23 @@ export const CORE_WIDGETS: ModuleWidget[] = [
   },
   // The reports, drawn from the ledger; a reader needs the books.
   { id: "balance-sheet", label: "Balance sheet", requires: needsReports },
-  { id: "cash-flow", label: "Cash in and out", requires: needsReports },
-  { id: "trial-balance", label: "Trial balance", requires: needsReports },
+  // Cash flow and the trial balance are answered by Pro's accounting bundle,
+  // not by Core — unlike Balance sheet, which Core answers itself. Missing
+  // `entitlement` here left both declared, offered and placed on a Free
+  // instance's default Reports tab with nothing behind them to answer, a 404
+  // on the very first Reports tab anybody opened.
+  {
+    id: "cash-flow",
+    label: "Cash in and out",
+    requires: needsReports,
+    entitlement: needsPro,
+  },
+  {
+    id: "trial-balance",
+    label: "Trial balance",
+    requires: needsReports,
+    entitlement: needsPro,
+  },
   {
     id: "who-owes",
     label: "Who owes you",

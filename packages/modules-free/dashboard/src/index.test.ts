@@ -918,6 +918,11 @@ test("a widget whose entitlement is absent is not disclosed anywhere", async () 
   expect(offered).toContain("money");
   expect(offered).not.toContain("revenue-trend");
   expect(offered).not.toContain("who-owes");
+  // Answered by Pro's accounting bundle, absent on a Free instance the same
+  // way who-owes is: offering either here would put a 404 on the Reports tab
+  // everybody sees by default.
+  expect(offered).not.toContain("cash-flow");
+  expect(offered).not.toContain("trial-balance");
   expect(layout.tabs.flatMap((t) => t.widgets)).not.toContain("revenue-trend");
 
   // A save that names the Pro panel anyway gets nothing back for it.
