@@ -12,7 +12,7 @@ import {
   clearWidgets,
   registerForTest,
 } from "@sentrello/module-sdk";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import dashboard from "./index";
 
 const app = registerForTest(dashboard);
@@ -1083,5 +1083,324 @@ test("a newly entitled module's widget appears without the business doing anythi
     await db
       .delete(schema.organizationPreferences)
       .where(eq(schema.organizationPreferences.organizationId, orgId));
+  }
+});
+
+/**
+ * The figures are six aggregates now, and every one of them is scoped.
+ *
+ * This screen used to read every invoice, quote, task, contact, deal and
+ * payment the business had and work the numbers out in JavaScript; it now asks
+ * the database for the numbers. That is only an improvement if the answer is
+ * the same answer, and the part of "the same answer" that matters most is
+ * whose it is — a faster query that reaches another business's rows is not a
+ * faster query. Remove the organization filter from any of the six and this
+ * fails.
+ */
+test("another business's rows are in none of the six figures", async () => {
+  const theirs = crypto.randomUUID();
+  await db.insert(schema.organizations).values({
+    id: theirs,
+    name: `Someone else ${theirs}`,
+    slug: `someone-else-${theirs}`,
+    createdAt: new Date(),
+  });
+  const longAgo = new Date(Date.now() - 400 * 86_400_000);
+
+  const figures = async () => {
+    const body = (await (await get()).json()) as {
+      money: Record<string, number>;
+      pipeline: Record<string, number>;
+      book: { contacts: number };
+      attention: { id: string }[];
+    };
+    return body;
+  };
+  const before = await figures();
+
+  const [theirInvoice] = await db
+    .insert(schema.invoices)
+    .values({
+      organizationId: theirs,
+      number: "THEIRS-1",
+      status: "sent",
+      currency: "USD",
+      issueDate: longAgo,
+      dueDate: longAgo,
+      subtotalCents: 5_000_000,
+      taxCents: 0,
+      totalCents: 5_000_000,
+    })
+    .returning();
+  if (!theirInvoice) throw new Error("could not create their invoice");
+  const [theirContact] = await db
+    .insert(schema.contacts)
+    .values({ organizationId: theirs, name: "Their customer" })
+    .returning();
+  const [theirDeal] = await db
+    .insert(schema.deals)
+    .values({
+      organizationId: theirs,
+      name: "Their deal",
+      stage: "opportunity",
+      amountCents: 999_000,
+    })
+    .returning();
+  const [theirQuote] = await db
+    .insert(schema.quotes)
+    .values({
+      organizationId: theirs,
+      number: "THEIR-Q1",
+      status: "sent",
+      currency: "USD",
+      subtotalCents: 1_000,
+      taxCents: 0,
+      totalCents: 1_000,
+    })
+    .returning();
+  const [theirTask] = await db
+    .insert(schema.tasks)
+    .values({
+      organizationId: theirs,
+      title: "Their overdue follow-up",
+      dueAt: longAgo,
+      done: false,
+    })
+    .returning();
+  const [theirPayment] = await db
+    .insert(schema.payments)
+    .values({
+      organizationId: theirs,
+      invoiceId: theirInvoice.id,
+      amountCents: 1_000,
+    })
+    .returning();
+
+  try {
+    const after = await figures();
+    expect(after.money).toEqual(before.money);
+    expect(after.pipeline).toEqual(before.pipeline);
+    expect(after.book).toEqual(before.book);
+    expect(after.attention.map((a) => a.id)).toEqual(
+      before.attention.map((a) => a.id),
+    );
+    // And nothing of theirs by name, in case a figure happened to tie.
+    expect(JSON.stringify(after)).not.toContain("THEIRS-1");
+    expect(JSON.stringify(after)).not.toContain("THEIR-Q1");
+    expect(JSON.stringify(after)).not.toContain("Their overdue follow-up");
+  } finally {
+    for (const [table, id] of [
+      [schema.payments, theirPayment?.id],
+      [schema.invoices, theirInvoice.id],
+      [schema.contacts, theirContact?.id],
+      [schema.deals, theirDeal?.id],
+      [schema.quotes, theirQuote?.id],
+      [schema.tasks, theirTask?.id],
+    ] as const) {
+      if (id) await db.delete(table).where(eq(table.id, id));
+    }
+    await db
+      .delete(schema.organizations)
+      .where(eq(schema.organizations.id, theirs));
+  }
+});
+
+/**
+ * Twelve of them, and the twelve that matter.
+ *
+ * The list is cut to twelve, and the rows it was cut from used to arrive in
+ * whatever order a scan produced — so a business with thirteen overdue
+ * invoices was chased about a different twelve on each refresh, and the oldest
+ * debt could sit off the bottom of the screen indefinitely.
+ */
+test("the twelve most overdue, oldest first", async () => {
+  const day = 86_400_000;
+  const made = await db
+    .insert(schema.invoices)
+    .values(
+      Array.from({ length: 15 }, (_, i) => ({
+        organizationId: orgId,
+        number: `LATE-${String(i).padStart(2, "0")}`,
+        status: "sent",
+        currency: "USD",
+        issueDate: new Date(Date.now() - (200 - i) * day),
+        // Oldest first: LATE-00 is the most overdue.
+        dueDate: new Date(Date.now() - (100 - i) * day),
+        subtotalCents: 1_000 + i,
+        taxCents: 0,
+        totalCents: 1_000 + i,
+      })),
+    )
+    .returning();
+
+  try {
+    const body = (await (await get()).json()) as {
+      attention: { kind: string; summary: string }[];
+    };
+    expect(body.attention).toHaveLength(12);
+    const numbers = body.attention
+      .filter((a) => a.kind === "invoice")
+      .map((a) => a.summary.replace("Invoice ", "").replace(" is overdue", ""));
+    // INV-100 from the earlier test is overdue by a day; these fifteen are
+    // overdue by a hundred, so the twelve oldest are the first twelve of them.
+    expect(numbers).toEqual(
+      Array.from(
+        { length: 12 },
+        (_, i) => `LATE-${String(i).padStart(2, "0")}`,
+      ),
+    );
+  } finally {
+    await db.delete(schema.invoices).where(
+      inArray(
+        schema.invoices.id,
+        made.map((i) => i.id),
+      ),
+    );
+  }
+});
+
+/**
+ * A credit note settles debt the way money does.
+ *
+ * Without it a partly credited invoice shows the credited share as still owed,
+ * and the one figure on this screen somebody is most likely to act on is too
+ * big.
+ */
+test("a credit note comes off what is owed, like a payment", async () => {
+  const yesterday = new Date(Date.now() - 86_400_000);
+  const [invoice] = await db
+    .insert(schema.invoices)
+    .values({
+      organizationId: orgId,
+      number: "CREDITED-1",
+      status: "sent",
+      currency: "USD",
+      issueDate: yesterday,
+      dueDate: yesterday,
+      subtotalCents: 30_000,
+      taxCents: 0,
+      totalCents: 30_000,
+    })
+    .returning();
+  if (!invoice) throw new Error("could not create the invoice");
+
+  const owed = async () =>
+    ((await (await get()).json()) as { money: { owedCents: number } }).money
+      .owedCents;
+  const withInvoice = await owed();
+
+  const [note] = await db
+    .insert(schema.invoices)
+    .values({
+      organizationId: orgId,
+      number: "CN-1",
+      kind: "credit_note",
+      referenceInvoiceId: invoice.id,
+      status: "sent",
+      currency: "USD",
+      issueDate: new Date(),
+      subtotalCents: 12_000,
+      taxCents: 0,
+      totalCents: 12_000,
+    })
+    .returning();
+  if (!note) throw new Error("could not create the credit note");
+
+  try {
+    expect(await owed()).toBe(withInvoice - 12_000);
+    // A voided credit note gives the debt back.
+    await db
+      .update(schema.invoices)
+      .set({ status: "void" })
+      .where(eq(schema.invoices.id, note.id));
+    expect(await owed()).toBe(withInvoice);
+  } finally {
+    await db
+      .delete(schema.invoices)
+      .where(inArray(schema.invoices.id, [invoice.id, note.id]));
+  }
+});
+
+/**
+ * The two rows that tell the remaining organization filters apart.
+ *
+ * The settlements are found by the invoice they name, and the invoices are
+ * already this business's — so with well-formed data the filters on the
+ * payment and on the credit note look like decoration. They are not: a row
+ * pointing across is exactly what a bug writes, and without those filters
+ * another business's payment would reduce this one's debt. So both are
+ * written here on purpose. Remove either filter and one of these fails.
+ */
+test("a settlement belonging to another business does not pay this one's invoice", async () => {
+  const theirs = crypto.randomUUID();
+  await db.insert(schema.organizations).values({
+    id: theirs,
+    name: `Crossing ${theirs}`,
+    slug: `crossing-${theirs}`,
+    createdAt: new Date(),
+  });
+  const yesterday = new Date(Date.now() - 86_400_000);
+  const [invoice] = await db
+    .insert(schema.invoices)
+    .values({
+      organizationId: orgId,
+      number: "CROSSED-1",
+      status: "sent",
+      currency: "USD",
+      issueDate: yesterday,
+      dueDate: yesterday,
+      subtotalCents: 40_000,
+      taxCents: 0,
+      totalCents: 40_000,
+    })
+    .returning();
+  if (!invoice) throw new Error("could not create the invoice");
+
+  const owed = async () =>
+    ((await (await get()).json()) as { money: { owedCents: number } }).money
+      .owedCents;
+  const full = await owed();
+
+  const [payment] = await db
+    .insert(schema.payments)
+    .values({
+      organizationId: theirs,
+      invoiceId: invoice.id,
+      amountCents: 15_000,
+    })
+    .returning();
+  const [note] = await db
+    .insert(schema.invoices)
+    .values({
+      organizationId: theirs,
+      number: "CROSSED-CN",
+      kind: "credit_note",
+      referenceInvoiceId: invoice.id,
+      status: "sent",
+      currency: "USD",
+      issueDate: new Date(),
+      subtotalCents: 9_000,
+      taxCents: 0,
+      totalCents: 9_000,
+    })
+    .returning();
+
+  try {
+    expect(await owed()).toBe(full);
+  } finally {
+    if (payment) {
+      await db
+        .delete(schema.payments)
+        .where(eq(schema.payments.id, payment.id));
+    }
+    await db.delete(schema.invoices).where(
+      inArray(
+        schema.invoices.id,
+        [invoice.id, note?.id].filter((id): id is string => Boolean(id)),
+      ),
+    );
+    await db
+      .delete(schema.organizations)
+      .where(eq(schema.organizations.id, theirs));
   }
 });
