@@ -1,4 +1,9 @@
-import { pathShape, registeredRoutes, requestedPaths } from "./reachability";
+import {
+  pathShape,
+  registeredRoutes,
+  requestedPaths,
+  sameShape,
+} from "./reachability";
 import { templateRoutes } from "./reachability";
 
 /**
@@ -56,14 +61,19 @@ export function unregisteredRequests(args: {
     const verbs = anyVerb ? ["ANY"] : [...asked.methods];
 
     for (const method of verbs) {
+      /**
+       * `sameShape`, not a comparison written out again here.
+       *
+       * This had its own copy, and it had the same hole: wildcards matched
+       * wildcards, so a screen asking `` `/api/${holder}/${id}/receipt` ``
+       * counted as answered by an OAuth callback in another module with two
+       * parameters at its tail. The two sweeps disagreeing about what "the same
+       * route" means is how a hole gets fixed in one of them and left in the
+       * other.
+       */
       const hit = known.some(
         (k) =>
-          k.shape.length === asked.shape.length &&
-          k.shape.every(
-            (seg, i) =>
-              seg === "*" || asked.shape[i] === "*" || seg === asked.shape[i],
-          ) &&
-          (anyVerb || k.method === method),
+          sameShape(k.shape, asked.shape) && (anyVerb || k.method === method),
       );
       if (!hit) missing.add(anyVerb ? `(any) ${path}` : `${method} ${path}`);
     }

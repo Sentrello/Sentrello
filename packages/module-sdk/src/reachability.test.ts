@@ -75,3 +75,31 @@ test("a template-literal resource does not excuse an unrelated two-segment route
     unreachableRoutes({ routeFiles: [shortRoute], screenFiles: [screen] }),
   ).toEqual(["GET /api/products"]);
 });
+
+/**
+ * The defect this matching was rewritten for.
+ *
+ * `\`/api/${holder}/${id}/receipt\`` on one screen reduces to
+ * `api/*​/*​/receipt`, and a route whose own tail is parameters — an OAuth
+ * callback in another module, `/api/payments/:provider/:mode` — reduces to
+ * `api/payments/*​/*`. Wildcards matched wildcards on both sides, so the two
+ * met at every segment and the sweep called the callback reached. Nothing
+ * about the two paths agrees: not the resource, not the action. The sweep did
+ * not report a problem somebody then ignored — **it reported success.**
+ */
+test("a screen's variable prefix does not excuse an unrelated route of the same length", () => {
+  const callback = write(
+    "callback-route.ts",
+    `app.get("/api/payments/:provider/:mode", (c) => c.json({ ok: true }));`,
+  );
+  const screen = write(
+    "receipt.tsx",
+    `function Receipt({ holder, id }) {
+       return api(\`/api/\${holder}/\${id}/receipt\`);
+     }`,
+  );
+
+  expect(
+    unreachableRoutes({ routeFiles: [callback], screenFiles: [screen] }),
+  ).toEqual(["GET /api/payments/:provider/:mode"]);
+});
