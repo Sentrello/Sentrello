@@ -14,6 +14,7 @@ import {
 import { RelatedLink, useNavigation, useRecordTitle } from "../lib/navigation";
 import { TagChips } from "../lib/tags";
 import { TaskList } from "../lib/tasks";
+import { type TimelineEntry, mergeTimeline } from "../lib/timeline";
 import {
   Button,
   Card,
@@ -660,6 +661,13 @@ export function HistoryPanel({
           detail: string | null;
           /** Present where a person wrote it, and only then. */
           activityId?: string;
+          /**
+           * What this line is about, where the server says.
+           *
+           * Read by the merge below to recognise a deal the richer timeline
+           * also sends, so the same deal is not drawn twice.
+           */
+          link?: { moduleId: string; recordId: string; title: string } | null;
         }[];
       }>(`/api/crm/history?${query}`),
     enabled: query !== "",
@@ -687,13 +695,7 @@ export function HistoryPanel({
     queryKey: ["contact-timeline", contactId],
     queryFn: () =>
       api<{
-        timeline: {
-          kind: string;
-          at: string;
-          id: string;
-          summary: string | null;
-          amountCents?: number;
-        }[];
+        timeline: TimelineEntry[];
       }>(`/api/contacts/${contactId}/timeline`),
     enabled: Boolean(contactId) && tier === "pro",
   });
@@ -702,25 +704,16 @@ export function HistoryPanel({
    * Merged into one column rather than shown beside it, because "what has gone
    * on with these people" is one question and an invoice raised the day after
    * a call is the answer to it.
+   *
+   * The merge itself is in `lib/timeline.ts` and is tested there. It used to
+   * be a whitelist here, which dropped every kind of entry it had not been
+   * told about — see that file for what that cost.
    */
-  const entries = [
-    ...(data?.history ?? []),
-    ...(money.data?.timeline ?? [])
-      .filter((row) => row.kind === "invoice" || row.kind === "payment")
-      .map((row) => ({
-        at: row.at,
-        kind: row.kind,
-        title:
-          row.kind === "invoice"
-            ? `Invoice ${row.summary ?? ""}`.trim()
-            : `Paid${row.summary ? ` by ${row.summary}` : ""}`,
-        detail:
-          row.amountCents === undefined ? null : formatMoney(row.amountCents),
-        // An invoice or a payment is a record of what happened, not something
-        // typed; naming the field keeps the merged list one shape.
-        activityId: undefined as string | undefined,
-      })),
-  ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+  const entries = mergeTimeline(
+    data?.history,
+    money.data?.timeline,
+    formatMoney,
+  );
 
   const icon: Record<string, string> = {
     note: "clipboard",
