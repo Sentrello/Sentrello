@@ -610,6 +610,13 @@
       "when": 1789581913574,
       "tag": "0086_a_customer_can_owe_the_other_way",
       "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1789649629049,
+      "tag": "0087_a_price_with_the_tax_inside_it",
+      "breakpoints": true
     }
   ]
 }

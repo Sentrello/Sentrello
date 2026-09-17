@@ -619,6 +619,7 @@ export function registerBillingRules(ctx: ModuleContext) {
           lateFeeValue: 0,
           lateFeeGraceDays: 7,
           overpaymentPolicy: "refuse",
+          pricesIncludeTax: false,
         },
         rules,
         usingDefaults: !row,
@@ -662,6 +663,15 @@ export function registerBillingRules(ctx: ModuleContext) {
       const overpaymentPolicy =
         body.overpaymentPolicy === "credit" ? "credit" : "refuse";
 
+      /*
+       * Gross or net, for documents raised from here on.
+       *
+       * Changing it never reaches a document that already exists: each one
+       * carries its own answer, so February's invoices keep meaning what they
+       * meant after a business switches in March.
+       */
+      const pricesIncludeTax = body.pricesIncludeTax === true;
+
       const values = {
         defaultDueDays,
         defaultPaymentTerms:
@@ -674,6 +684,7 @@ export function registerBillingRules(ctx: ModuleContext) {
           ? Math.max(0, Math.min(180, body.lateFeeGraceDays as number))
           : 7,
         overpaymentPolicy,
+        pricesIncludeTax,
         updatedAt: new Date(),
       };
 

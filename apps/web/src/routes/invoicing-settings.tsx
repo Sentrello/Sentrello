@@ -555,6 +555,8 @@ interface BillingSettings {
   lateFeeGraceDays: number;
   /** What happens when a payment recorded against an invoice is more than it asks for. */
   overpaymentPolicy: string;
+  /** Whether the prices typed onto a document already contain the tax. */
+  pricesIncludeTax: boolean;
 }
 
 /** "-3" reads as "3 days before it is due", which is what somebody means. */
@@ -862,6 +864,33 @@ function BillingRules() {
             >
               <option value="refuse">Refuse the excess</option>
               <option value="credit">Hold it as credit on their account</option>
+            </Select>
+          </Field>
+        </div>
+
+        {/*
+          Gross or net. A UK or EU business publishes a price with the VAT
+          already inside it; a US one publishes a price and the sales tax
+          appears at the till. Documents already raised keep the answer they
+          were raised under, so switching never restates anything sent.
+        */}
+        <div className="mt-5">
+          <Field
+            label="How you quote prices"
+            hint="Invoices and quotes already raised keep the way they were quoted."
+          >
+            <Select
+              value={settings.pricesIncludeTax ? "inclusive" : "exclusive"}
+              className="w-64"
+              aria-label="How you quote prices"
+              onChange={(e) =>
+                saveSettings.mutate({
+                  pricesIncludeTax: e.target.value === "inclusive",
+                })
+              }
+            >
+              <option value="exclusive">Tax is added to the price</option>
+              <option value="inclusive">Prices include tax</option>
             </Select>
           </Field>
         </div>

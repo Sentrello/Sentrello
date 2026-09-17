@@ -301,6 +301,114 @@ export interface TaxBand {
   taxCents: number;
 }
 
+/**
+ * The tax inside a gross amount, or on top of a net one.
+ *
+ * Two formulas, and reaching for the wrong one is not a rounding error — it is
+ * the rate. The UK and the EU quote gross: a price list says £120 and the VAT
+ * is already inside it. The US quotes net and adds the tax at the till.
+ *
+ * The same function the Shop half of the platform has always priced baskets
+ * with, moved here so both halves of one platform answer "what is the VAT on
+ * £120" with one number rather than two implementations of it.
+ */
+export function taxOf(
+  amountCents: number,
+  ratePpm: number,
+  inclusive: boolean,
+): number {
+  if (ratePpm <= 0 || amountCents === 0) return 0;
+  return inclusive
+    ? Math.round((amountCents * ratePpm) / (RATE_SCALE_PPM + ratePpm))
+    : Math.round((amountCents * ratePpm) / RATE_SCALE_PPM);
+}
+
+/** One tax on a line, as charged: the base it was worked out on, and the tax. */
+export interface LineCharge {
+  tax: LineTax;
+  ratePpm: number;
+  /** What this tax was charged on — for a compound tax, including the ones under it. */
+  baseCents: number;
+  taxCents: number;
+}
+
+/**
+ * What a line amount is worth net, and what each tax on it comes to.
+ *
+ * Exclusive is the forward direction: the amount *is* the net, and each tax is
+ * a share of it. Simple rates first, compound afterwards on the running total.
+ *
+ * Inclusive runs the same sum backwards, and it has to run backwards in the
+ * same order, mirrored — the compound taxes went on last, so they come off
+ * first. Taking each one out with `gross × r ÷ (1 + r)` leaves exactly the base
+ * it was charged on, which is what makes the two directions inverses rather
+ * than two approximations of each other.
+ *
+ * Then the simple rates come out together, against the sum of their rates: a
+ * line at 5% GST and 7% PST holds its net plus 12%, not its net plus 5% and
+ * then that plus 7%. Each tax rounds once, and the net is whatever the amount
+ * has left afterwards — so **net + every tax is the gross the customer was
+ * quoted, to the cent, always.** Nothing is derived twice and no residue has to
+ * be chased into a line somewhere; a quoted £120 invoice totals £120.
+ */
+export function lineCharges(
+  amountCents: number,
+  taxes: LineTax[],
+  pricesIncludeTax: boolean,
+  field = "taxRatePpm",
+): { netCents: number; charges: LineCharge[] } {
+  const rated = taxes.map((tax) => ({
+    tax,
+    ratePpm: resolveRatePpm(tax?.ratePpm, tax?.rateBp, field),
+  }));
+  const simple = rated.filter((r) => !r.tax.compound);
+  const compound = rated.filter((r) => r.tax.compound);
+
+  if (!pricesIncludeTax) {
+    const charges: LineCharge[] = [];
+    let stacked = 0;
+    for (const { tax, ratePpm } of [...simple, ...compound]) {
+      const baseCents = tax.compound ? amountCents + stacked : amountCents;
+      const taxCents = taxOf(baseCents, ratePpm, false);
+      stacked += taxCents;
+      charges.push({ tax, ratePpm, baseCents, taxCents });
+    }
+    return { netCents: amountCents, charges };
+  }
+
+  // Backwards, outermost first: the last compound tax applied is the first out.
+  const unstacked: LineCharge[] = [];
+  let remaining = amountCents;
+  for (let i = compound.length - 1; i >= 0; i -= 1) {
+    const { tax, ratePpm } = compound[i] as (typeof compound)[number];
+    const taxCents = taxOf(remaining, ratePpm, true);
+    remaining -= taxCents;
+    // What is left is precisely the base this tax was charged on.
+    unstacked.unshift({ tax, ratePpm, baseCents: remaining, taxCents });
+  }
+
+  // `remaining` is now the net plus the simple taxes, so they come out of it
+  // against their combined rate. With one tax this is `taxOf(x, r, true)`.
+  const combinedPpm = simple.reduce(
+    (sum, r) => sum + Math.max(0, r.ratePpm),
+    0,
+  );
+  const simpleCharges = simple.map(({ tax, ratePpm }) => ({
+    tax,
+    ratePpm,
+    baseCents: 0,
+    taxCents:
+      ratePpm <= 0 || remaining === 0
+        ? 0
+        : Math.round((remaining * ratePpm) / (RATE_SCALE_PPM + combinedPpm)),
+  }));
+  const netCents =
+    remaining - simpleCharges.reduce((sum, ch) => sum + ch.taxCents, 0);
+  for (const charge of simpleCharges) charge.baseCents = netCents;
+
+  return { netCents, charges: [...simpleCharges, ...unstacked] };
+}
+
 export interface DocumentTotals {
   subtotal: number;
   discount: number;
@@ -309,13 +417,40 @@ export interface DocumentTotals {
   bands: TaxBand[];
 }
 
+export interface DocumentTotalsOptions {
+  /**
+   * The unit prices on these lines already contain the tax.
+   *
+   * How the UK and the EU quote: a price list says £120 and the VAT is inside
+   * it, so £120 is what the customer pays. The US quotes net and adds tax at
+   * the till, which is the default here and everything written before this.
+   *
+   * What changes is only where the tax comes from, never the shape of the
+   * answer: `subtotal` stays net of tax, `tax` is the tax, and `total` is what
+   * the document asks for — which for a gross-quoted document is exactly the
+   * figure that was typed into it, to the cent.
+   */
+  pricesIncludeTax?: boolean;
+}
+
 export function documentTotals(
   lines: DocumentLine[],
   discount: Discount = null,
+  options: DocumentTotalsOptions = {},
 ): DocumentTotals {
-  // Net per line first, so the discount has something to be a share of.
-  const nets: number[] = [];
-  let subtotal = 0;
+  const inclusive = options.pricesIncludeTax === true;
+
+  /**
+   * What each line comes to at the price it was quoted at.
+   *
+   * Net when the business quotes net, gross when it quotes gross — and the
+   * discount is a share of the same thing either way, which is the point. A
+   * £10 code off a gross-quoted invoice takes £10 off what the customer pays,
+   * not £10 off a net figure they were never shown.
+   */
+  const amounts: number[] = [];
+  const charged: LineTax[][] = [];
+  let quoted = 0;
   for (const [i, l] of lines.entries()) {
     const quantity = l?.quantity;
     if (typeof quantity !== "number" || !Number.isFinite(quantity)) {
@@ -323,9 +458,25 @@ export function documentTotals(
     }
     const unitPrice = cents(l?.unitPrice, `line ${i + 1}: unitPrice`);
     resolveRatePpm(l?.taxRatePpm, l?.taxRateBp, `line ${i + 1}: taxRatePpm`);
-    const net = Math.round(quantity * unitPrice);
-    nets.push(net);
-    subtotal += net;
+    const amount = Math.round(quantity * unitPrice);
+    amounts.push(amount);
+    quoted += amount;
+
+    // The multi-tax list when the line carries one; otherwise the single-tax
+    // fields, spelled as a one-entry list so there is one loop, not two.
+    charged.push(
+      l?.taxes?.length
+        ? l.taxes
+        : [
+            {
+              taxDefinitionId: l?.taxDefinitionId ?? null,
+              name: l?.taxName ?? null,
+              ratePpm: l?.taxRatePpm,
+              rateBp: l?.taxRateBp,
+              categoryCode: l?.categoryCode ?? null,
+            },
+          ],
+    );
   }
 
   let discountCents = 0;
@@ -337,12 +488,12 @@ export function documentTotals(
     if (value < 0) throw new MoneyError("a discount cannot be negative");
     discountCents =
       discount.type === "percent"
-        ? Math.round((subtotal * value) / 10000)
+        ? Math.round((quoted * value) / 10000)
         : value;
     // A discount larger than the document is a typo, not a refund. Capping it
     // keeps the total at zero rather than producing an invoice that owes the
     // customer money — which is what a credit note is for.
-    discountCents = Math.min(discountCents, subtotal);
+    discountCents = Math.min(discountCents, quoted);
   }
 
   /**
@@ -354,14 +505,14 @@ export function documentTotals(
    * 3.33 + 3.33 + 3.33 = 9.99, and the missing cent has to land somewhere or
    * the bands will not add up to the total.
    */
-  const relief: number[] = nets.map((net) =>
-    subtotal > 0 ? Math.round((discountCents * net) / subtotal) : 0,
+  const relief: number[] = amounts.map((amount) =>
+    quoted > 0 ? Math.round((discountCents * amount) / quoted) : 0,
   );
   const spread = relief.reduce((sum, r) => sum + r, 0);
   if (spread !== discountCents && relief.length > 0) {
     let biggest = 0;
-    for (let i = 1; i < nets.length; i += 1) {
-      if ((nets[i] as number) > (nets[biggest] as number)) biggest = i;
+    for (let i = 1; i < amounts.length; i += 1) {
+      if ((amounts[i] as number) > (amounts[biggest] as number)) biggest = i;
     }
     relief[biggest] = (relief[biggest] as number) + (discountCents - spread);
   }
@@ -383,44 +534,35 @@ export function documentTotals(
    * Each tax on a line rounds independently: GST and PST on the same line are
    * two computations on the same base, not one computation split afterwards —
    * which is exactly how the two filings will want them.
+   *
+   * A gross-quoted line runs the identical banding over the identical bases;
+   * only the direction the net and the tax are derived in differs, and
+   * `lineCharges` owns that.
    */
   const byBand = new Map<string, TaxBand>();
   let tax = 0;
+  let netAfterDiscount = 0;
+  let netBeforeDiscount = 0;
   for (const [i, l] of lines.entries()) {
-    const taxable = (nets[i] as number) - (relief[i] as number);
+    const taxable = (amounts[i] as number) - (relief[i] as number);
+    const ordered = charged[i] as LineTax[];
+    const field = `line ${i + 1}: taxRatePpm`;
 
-    // The multi-tax list when the line carries one; otherwise the single-tax
-    // fields, spelled as a one-entry list so there is one loop, not two.
-    const charged: LineTax[] = l?.taxes?.length
-      ? l.taxes
-      : [
-          {
-            taxDefinitionId: l?.taxDefinitionId ?? null,
-            name: l?.taxName ?? null,
-            ratePpm: l?.taxRatePpm,
-            rateBp: l?.taxRateBp,
-            categoryCode: l?.categoryCode ?? null,
-          },
-        ];
+    const after = lineCharges(taxable, ordered, inclusive, field);
+    netAfterDiscount += after.netCents;
+    /*
+     * The subtotal is what the goods came to before the discount was taken
+     * off, because that is the line a document shows above the one that takes
+     * it off. Net-quoted, that is the quoted amount itself. Gross-quoted, the
+     * tax has to come out of the undiscounted amount too — the same back-out,
+     * against the same rates.
+     */
+    netBeforeDiscount += inclusive
+      ? lineCharges(amounts[i] as number, ordered, true, field).netCents
+      : (amounts[i] as number);
 
-    // Simple rates first, then compound on the running total — the same
-    // order the accounting side stacks in.
-    const ordered = [
-      ...charged.filter((t) => !t.compound),
-      ...charged.filter((t) => t.compound),
-    ];
-
-    let stacked = 0;
-    for (const t of ordered) {
-      const ratePpm = resolveRatePpm(
-        t?.ratePpm,
-        t?.rateBp,
-        `line ${i + 1}: taxRatePpm`,
-      );
-      const base = t.compound ? taxable + stacked : taxable;
-      const lineTax = Math.round((base * ratePpm) / RATE_SCALE_PPM);
-      stacked += lineTax;
-      tax += lineTax;
+    for (const { tax: t, ratePpm, baseCents, taxCents } of after.charges) {
+      tax += taxCents;
 
       // Banded by the rate actually charged, not by the definition: two rates
       // that happen to be equal are one line on a tax summary, and a rate that
@@ -438,17 +580,28 @@ export function documentTotals(
       };
       // The base the tax was actually charged on — for a compound tax that
       // includes the taxes under it, which is what its return will ask for.
-      band.taxableCents += base;
-      band.taxCents += lineTax;
+      band.taxableCents += baseCents;
+      band.taxCents += taxCents;
       byBand.set(key, band);
     }
   }
 
+  /*
+   * Everything a document states is stated net of tax except the total, which
+   * is what is actually owed — and the three add up exactly, in both
+   * directions, because the discount is reported as the net it relieved rather
+   * than as the gross figure somebody typed. A £10 code on a 20% VAT invoice
+   * relieves £8.33 of net and £1.67 of VAT, and the customer pays £10 less.
+   */
+  const discountReported = inclusive
+    ? netBeforeDiscount - netAfterDiscount
+    : discountCents;
+
   return {
-    subtotal,
-    discount: discountCents,
+    subtotal: netBeforeDiscount,
+    discount: discountReported,
     tax,
-    total: subtotal - discountCents + tax,
+    total: netAfterDiscount + tax,
     bands: [...byBand.values()].sort((a, b) => b.ratePpm - a.ratePpm),
   };
 }

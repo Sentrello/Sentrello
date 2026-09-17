@@ -512,6 +512,15 @@ export const quotes = pgTable(
     firstViewedAt: timestamp("first_viewed_at"),
     lastViewedAt: timestamp("last_viewed_at"),
     viewCount: integer("view_count").notNull().default(0),
+    /**
+     * The prices on this document already contain the tax.
+     *
+     * Frozen onto the document rather than read from the business's settings
+     * each time, for the same reason the exchange rate is: a business that
+     * switches to gross quoting in March must not have February's invoices
+     * silently re-read as gross and lose a fifth of their value.
+     */
+    pricesIncludeTax: boolean("prices_include_tax").notNull().default(false),
     /** Which template the PDF is rendered with. Null means the default. */
     templateId: uuid("template_id"),
     /** Set once it has become an invoice, so converting twice cannot happen. */
@@ -697,6 +706,15 @@ export const invoices = pgTable(
     firstViewedAt: timestamp("first_viewed_at"),
     lastViewedAt: timestamp("last_viewed_at"),
     viewCount: integer("view_count").notNull().default(0),
+    /**
+     * The prices on this document already contain the tax.
+     *
+     * Frozen onto the document rather than read from the business's settings
+     * each time, for the same reason the exchange rate is: a business that
+     * switches to gross quoting in March must not have February's invoices
+     * silently re-read as gross and lose a fifth of their value.
+     */
+    pricesIncludeTax: boolean("prices_include_tax").notNull().default(false),
     /** Which template the PDF is rendered with. Null means the default. */
     templateId: uuid("template_id"),
     lastReminderAt: timestamp("last_reminder_at"),
@@ -1254,6 +1272,19 @@ export const invoicingSettings = pgTable("invoicing_settings", {
    * the simpler of the two and the one that cannot surprise anybody.
    */
   overpaymentPolicy: text("overpayment_policy").notNull().default("refuse"), // refuse|credit
+  /**
+   * Whether this business quotes gross.
+   *
+   * A UK or EU business publishes £120 and the VAT is inside it; a US one
+   * publishes $100 and the sales tax appears at the till. Both are ordinary,
+   * neither is a default that suits the other, and doing the arithmetic by
+   * hand to enter one as the other is where the pennies go missing.
+   *
+   * Off unless a business turns it on, so nothing that exists changes meaning.
+   * Each document keeps its own copy of the answer — see `pricesIncludeTax` on
+   * invoices and quotes.
+   */
+  pricesIncludeTax: boolean("prices_include_tax").notNull().default(false),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 

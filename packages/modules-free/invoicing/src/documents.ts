@@ -128,6 +128,7 @@ export async function prepareDocument(
   orgId: string,
   incoming: IncomingLine[],
   discount: Discount = null,
+  pricesIncludeTax = false,
 ): Promise<PreparedDocument> {
   if (!Array.isArray(incoming) || incoming.length === 0) {
     throw new MoneyError("a document needs at least one line");
@@ -270,6 +271,7 @@ export async function prepareDocument(
       }),
     ),
     discount,
+    { pricesIncludeTax },
   );
 
   return {
@@ -392,3 +394,21 @@ export function shareToken(): string {
  * and one definition.
  */
 export { creditedAgainst } from "@sentrello/db/documents";
+
+/**
+ * Whether this business quotes gross.
+ *
+ * Read from the business's own settings once, at the moment a document is
+ * created, and then frozen onto that document — see `pricesIncludeTax` in the
+ * schema. Every later edit of it reads the document's own answer, so a
+ * business that changes the setting does not silently restate what it has
+ * already sent.
+ */
+export async function quotesGross(orgId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ pricesIncludeTax: schema.invoicingSettings.pricesIncludeTax })
+    .from(schema.invoicingSettings)
+    .where(eq(schema.invoicingSettings.organizationId, orgId))
+    .limit(1);
+  return row?.pricesIncludeTax === true;
+}

@@ -97,6 +97,27 @@ export function registerConsolidate(ctx: ModuleContext) {
         );
       }
 
+      /*
+       * One way of quoting, too.
+       *
+       * A gross-quoted draft and a net-quoted one hold their unit prices in
+       * different units — £120 meaning £120 and £120 meaning £144. Merging
+       * them would add the two together and produce a document that asks for
+       * a figure neither draft ever said. Only possible where the setting was
+       * changed between the two drafts, and refusing beats guessing.
+       */
+      const bases = new Set(sources.map((s) => s.pricesIncludeTax));
+      if (bases.size > 1) {
+        return c.json(
+          {
+            error:
+              "some of those drafts include tax in their prices and some do not",
+          },
+          409,
+        );
+      }
+      const pricesIncludeTax = sources[0]?.pricesIncludeTax ?? false;
+
       const contacts = new Set(sources.map((s) => s.contactId ?? ""));
       if (contacts.size > 1) {
         return c.json(
@@ -165,7 +186,12 @@ export function registerConsolidate(ctx: ModuleContext) {
 
       let prepared: Awaited<ReturnType<typeof prepareDocument>>;
       try {
-        prepared = await prepareDocument(orgId, incoming, parseDiscount(body));
+        prepared = await prepareDocument(
+          orgId,
+          incoming,
+          parseDiscount(body),
+          pricesIncludeTax,
+        );
       } catch (err) {
         if (err instanceof MoneyError) {
           return c.json({ error: err.message }, 400);
@@ -180,6 +206,7 @@ export function registerConsolidate(ctx: ModuleContext) {
             organizationId: orgId,
             contactId,
             currency: sources[0]?.currency ?? "USD",
+            pricesIncludeTax,
             number: await nextDocumentNumber(tx, orgId, "invoice"),
             status: "draft",
             issueDate: new Date(),

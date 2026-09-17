@@ -652,3 +652,227 @@ test("an unreadable rate inside a taxes list names the line and is refused", () 
     ]),
   ).toThrow(MoneyError);
 });
+
+/*
+ * Tax-inclusive pricing — the way the UK and the EU quote.
+ *
+ * A price list says £120 and the VAT is already inside it. Everything below
+ * checks the same property from a different angle: **the total is the figure
+ * that was quoted, to the cent**, and the net plus the tax is that figure.
+ * Inclusive tax is where rounding bugs turn into a customer holding a receipt
+ * that disagrees with the invoice.
+ */
+
+test("a gross price that does not divide evenly still totals the gross", () => {
+  // £120.00 inc. 20% VAT. 120 ÷ 1.2 is exact, so take one that is not:
+  // £100.00 inc. 20% is 83.333… net. The net must be 8333 and the VAT 1667,
+  // because 8333 + 1667 is 10000 and nothing else is.
+  const t = documentTotals(
+    [{ quantity: 1, unitPrice: 10_000, taxRatePpm: 200_000 }],
+    null,
+    { pricesIncludeTax: true },
+  );
+  expect(t.subtotal).toBe(8_333);
+  expect(t.tax).toBe(1_667);
+  expect(t.total).toBe(10_000);
+  expect(t.bands[0]?.taxableCents).toBe(8_333);
+  expect(t.bands[0]?.taxCents).toBe(1_667);
+});
+
+test("the round trip: £120 inc. VAT is quoted, £120 is owed", () => {
+  const t = documentTotals(
+    [{ quantity: 1, unitPrice: 12_000, taxRatePpm: 200_000 }],
+    null,
+    { pricesIncludeTax: true },
+  );
+  expect(t).toMatchObject({ subtotal: 10_000, tax: 2_000, total: 12_000 });
+});
+
+test("line rounding and total rounding disagree, and the lines win", () => {
+  /*
+   * Three lines at £9.99 inc. 20% VAT.
+   *
+   * Per line: 999 × 200000 ÷ 1200000 = 166.5 → 167 (half away from zero), net
+   * 832. Three lines: net 2496, VAT 501, total 2997.
+   *
+   * Rounding the document instead: 2997 × 0.2 ÷ 1.2 = 499.5 → 500, which is a
+   * penny short of what the three lines actually charge. The customer's three
+   * receipts add up to 501, so 501 is the honest figure and the one the tax
+   * summary has to report.
+   */
+  const t = documentTotals(
+    [
+      { quantity: 1, unitPrice: 999, taxRatePpm: 200_000 },
+      { quantity: 1, unitPrice: 999, taxRatePpm: 200_000 },
+      { quantity: 1, unitPrice: 999, taxRatePpm: 200_000 },
+    ],
+    null,
+    { pricesIncludeTax: true },
+  );
+  expect(t.tax).toBe(501);
+  expect(t.subtotal).toBe(2_496);
+  expect(t.total).toBe(2_997);
+  // And the total is still exactly what the three quoted prices came to.
+  expect(t.total).toBe(999 * 3);
+});
+
+test("each of the four markets' rates backs out of a gross price exactly", () => {
+  // One row per rate: what it is, the gross quoted, and the net and tax that
+  // must come out of it. Every one of these is a real published rate.
+  const markets: [string, number, number, number, number][] = [
+    // US sales tax, New York City, 8.875% — the reason rates are millionths.
+    ["NYC sales tax 8.875%", 88_750, 10_000, 9_185, 815],
+    // Canada: GST 5%, HST 13% (Ontario), PST 7% (BC), QST 9.975% (Quebec).
+    ["GST 5%", 50_000, 10_000, 9_524, 476],
+    ["HST 13%", 130_000, 10_000, 8_850, 1_150],
+    ["PST 7%", 70_000, 10_000, 9_346, 654],
+    ["QST 9.975%", 99_750, 10_000, 9_093, 907],
+    // UK VAT, standard and the 5% reduced rate.
+    ["UK VAT 20%", 200_000, 12_000, 10_000, 2_000],
+    ["UK VAT 5%", 50_000, 9_999, 9_523, 476],
+    // EU: Ireland 23%, Germany 19%.
+    ["IE VAT 23%", 230_000, 10_000, 8_130, 1_870],
+    ["DE VAT 19%", 190_000, 11_900, 10_000, 1_900],
+  ];
+
+  for (const [name, ratePpm, gross, net, tax] of markets) {
+    const t = documentTotals(
+      [{ quantity: 1, unitPrice: gross, taxRatePpm: ratePpm }],
+      null,
+      { pricesIncludeTax: true },
+    );
+    expect(`${name}: ${t.subtotal}/${t.tax}/${t.total}`).toBe(
+      `${name}: ${net}/${tax}/${gross}`,
+    );
+  }
+});
+
+test("two Canadian taxes come out of one gross price together", () => {
+  /*
+   * Quebec quotes GST 5% and QST 9.975% on the same line. A gross of $114.98
+   * holds a net of $100 plus $5 plus $9.98 — the two taxes come out against
+   * their combined 14.975%, not one after the other, or the second would be
+   * taken out of a figure the first had already shrunk.
+   */
+  const t = documentTotals(
+    [
+      {
+        quantity: 1,
+        unitPrice: 11_498,
+        taxes: [
+          { name: "GST", ratePpm: 50_000 },
+          { name: "QST", ratePpm: 99_750 },
+        ],
+      },
+    ],
+    null,
+    { pricesIncludeTax: true },
+  );
+  expect(t.subtotal).toBe(10_000);
+  expect(t.tax).toBe(1_498);
+  expect(t.total).toBe(11_498);
+  const gst = t.bands.find((b) => b.name === "GST");
+  const qst = t.bands.find((b) => b.name === "QST");
+  expect(gst?.taxCents).toBe(500);
+  expect(qst?.taxCents).toBe(998);
+  // Each is charged on the net, which is what each return will ask for.
+  expect(gst?.taxableCents).toBe(10_000);
+  expect(qst?.taxableCents).toBe(10_000);
+});
+
+test("a compound tax comes out in the reverse of the order it went on", () => {
+  // Net 10000, GST 5% → 500, then a compound 10% on 10500 → 1050. Gross 11550.
+  const exclusive = documentTotals([
+    {
+      quantity: 1,
+      unitPrice: 10_000,
+      taxes: [
+        { name: "GST", ratePpm: 50_000 },
+        { name: "PST", ratePpm: 100_000, compound: true },
+      ],
+    },
+  ]);
+  expect(exclusive.total).toBe(11_550);
+
+  const inclusive = documentTotals(
+    [
+      {
+        quantity: 1,
+        unitPrice: 11_550,
+        taxes: [
+          { name: "GST", ratePpm: 50_000 },
+          { name: "PST", ratePpm: 100_000, compound: true },
+        ],
+      },
+    ],
+    null,
+    { pricesIncludeTax: true },
+  );
+  // The exact inverse: the same net, the same two taxes, the same total.
+  expect(inclusive.subtotal).toBe(10_000);
+  expect(inclusive.total).toBe(11_550);
+  expect(inclusive.bands.map((b) => b.taxCents).sort((a, b) => a - b)).toEqual([
+    500, 1_050,
+  ]);
+});
+
+test("a discount off a gross-quoted invoice comes off what is paid", () => {
+  /*
+   * £10 off a £120 inc-VAT invoice: the customer pays £110, not £110 plus
+   * VAT on the £10 they did not pay. The document states it net — £8.33 of
+   * goods relieved and £1.67 of VAT not charged — and the three figures add
+   * up, which is the property a printed invoice lives or dies by.
+   */
+  const t = documentTotals(
+    [{ quantity: 1, unitPrice: 12_000, taxRatePpm: 200_000 }],
+    { type: "amount", value: 1_000 },
+    { pricesIncludeTax: true },
+  );
+  expect(t.total).toBe(11_000);
+  expect(t.subtotal - t.discount + t.tax).toBe(t.total);
+  expect(t.discount).toBe(833);
+  expect(t.tax).toBe(1_833);
+});
+
+test("net-quoted documents are untouched by any of this", () => {
+  // The same lines with the flag off must total exactly what they always did.
+  const lines = [
+    { quantity: 3, unitPrice: 999, taxRatePpm: 200_000 },
+    { quantity: 1, unitPrice: 12_345, taxRatePpm: 99_750 },
+  ];
+  expect(documentTotals(lines, { type: "percent", value: 500 })).toEqual(
+    documentTotals(lines, { type: "percent", value: 500 }, {}),
+  );
+  const t = documentTotals(lines);
+  expect(t.subtotal).toBe(2_997 + 12_345);
+  expect(t.total).toBe(t.subtotal + t.tax);
+});
+
+test("the multi-line gross invoice a UK business would actually send", () => {
+  /*
+   * Three lines quoted gross, one of them zero-rated, and a 5% code on the
+   * whole thing. What must hold is only ever the same two sentences: the
+   * total is what the quoted prices come to after the code, and subtotal
+   * minus discount plus tax equals it.
+   */
+  const t = documentTotals(
+    [
+      {
+        quantity: 2,
+        unitPrice: 4_999,
+        taxRatePpm: 200_000,
+        taxName: "VAT 20%",
+      },
+      { quantity: 1, unitPrice: 1_750, taxRatePpm: 0, taxName: "Zero rated" },
+      { quantity: 3, unitPrice: 333, taxRatePpm: 200_000, taxName: "VAT 20%" },
+    ],
+    { type: "percent", value: 500 },
+    { pricesIncludeTax: true },
+  );
+  const quoted = 2 * 4_999 + 1_750 + 3 * 333;
+  expect(t.total).toBe(quoted - Math.round((quoted * 500) / 10_000));
+  expect(t.subtotal - t.discount + t.tax).toBe(t.total);
+  // The bands add up to the tax, and the zero-rated line contributes none.
+  expect(t.bands.reduce((sum, b) => sum + b.taxCents, 0)).toBe(t.tax);
+  expect(t.bands.find((b) => b.ratePpm === 0)?.taxCents).toBe(0);
+});
