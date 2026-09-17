@@ -614,3 +614,33 @@ test("filing figures for the period reconcile to the ledger, jurisdiction by jur
   expect(exemptKs?.exemptCents).toBe(50_000);
   expect(exemptKs?.invoices).toBe(1);
 });
+
+/**
+ * A return filed up to today includes today.
+ *
+ * The route read "to=2026-03-31" as an instant, which for a bare date is
+ * midnight — so every document raised on the period's last day fell out of
+ * both columns of the return. Both columns agreed with each other, so the
+ * figure looked reconciled and was short by a day's sales, every quarter.
+ */
+test("the period's last day is in the period", async () => {
+  const year = new Date().getUTCFullYear();
+  const today = new Date().toISOString().slice(0, 10);
+  const whole = (await (
+    await app.request(
+      `http://localhost/api/invoicing/us-filing?from=${year}-01-01&to=${year}-12-31`,
+      { headers },
+    )
+  ).json()) as { jurisdictions: { jurisdiction: string; taxCents: number }[] };
+  const toToday = (await (
+    await app.request(
+      `http://localhost/api/invoicing/us-filing?from=${year}-01-01&to=${today}`,
+      { headers },
+    )
+  ).json()) as { jurisdictions: { jurisdiction: string; taxCents: number }[] };
+
+  const of = (report: typeof whole, jurisdiction: string) =>
+    report.jurisdictions.find((j) => j.jurisdiction === jurisdiction)?.taxCents;
+  expect(of(whole, "US-KS")).toBeGreaterThan(0);
+  expect(of(toToday, "US-KS")).toBe(of(whole, "US-KS") as number);
+});
