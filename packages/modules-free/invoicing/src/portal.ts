@@ -14,6 +14,7 @@ import {
   SENTRELLO_CREDIT,
   creditFooter,
 } from "@sentrello/db/credit";
+import { invoiceState } from "@sentrello/db/money";
 
 const html = (s: string) =>
   s.replace(
@@ -88,18 +89,16 @@ export interface PortalQuote {
 export interface PortalInvoice {
   id: string;
   number: string;
+  /** The stored column. Read only for draft and void — never for the badge. */
   status: string;
   currency: string;
   totalCents: number;
   paidCents: number;
   /** Settled by credit note rather than by money. Absent means none. */
   creditedCents?: number;
+  /** Debt given up for paying early. It settles the invoice; no money moved. */
+  earlyDiscountTakenCents?: number | null;
   dueDate: Date | string | null;
-}
-
-/** What a document still asks for, after money and credit alike. */
-function balanceOf(i: PortalInvoice): number {
-  return Math.max(0, i.totalCents - i.paidCents - (i.creditedCents ?? 0));
 }
 
 /**
@@ -137,15 +136,24 @@ function quoteSection(quotes: PortalQuote[], quotePath?: string): string {
 invoice. Nothing is charged until you pay it.</p>`;
 }
 
-/** Overdue is a state the customer should see, not a state the seller knows. */
-function label(invoice: PortalInvoice, now = new Date()): string {
-  if (invoice.status === "paid") return "paid";
-  // Settled by credit note: nothing is owed, so it can never be overdue,
-  // and "paid" would tell the customer money moved when none did.
-  if (invoice.status === "credited") return "credited";
-  const due = invoice.dueDate ? new Date(invoice.dueDate) : null;
-  if (due && due.getTime() < now.getTime()) return "overdue";
-  return invoice.status === "partial" ? "part paid" : "due";
+/**
+ * The badge and the balance, from one computation.
+ *
+ * `invoiceState` is the whole of it — the same function the customer's
+ * account summary and the invoice list read. The badge used to come off the
+ * stored `status` column while the figure under the table was worked out live
+ * from payments and credits, which is two answers to one question on one
+ * page: an invoice settled by a path that forgot to update the column read
+ * "due" above "Nothing outstanding", and one settled for less because the
+ * customer paid early read "paid" above a figure they no longer owed.
+ */
+function state(invoice: PortalInvoice, now: Date) {
+  return invoiceState(
+    invoice,
+    invoice.paidCents,
+    invoice.creditedCents ?? 0,
+    now,
+  );
 }
 
 /** Who the business is, as it must appear on a document a customer files. */
@@ -237,7 +245,13 @@ export function portalPage(args: {
     now = new Date(),
   } = args;
 
-  const owed = invoices.reduce((sum, i) => sum + balanceOf(i), 0);
+  // Worked out once per invoice and then read from, so the badge in a row and
+  // the figure under the table can never be answers to two different sums.
+  const states = new Map(invoices.map((i) => [i.id, state(i, now)]));
+  const owed = invoices.reduce(
+    (sum, i) => sum + (states.get(i.id)?.balanceDue ?? 0),
+    0,
+  );
   const currency = invoices[0]?.currency ?? "USD";
 
   const rows =
@@ -245,14 +259,14 @@ export function portalPage(args: {
       ? `<tr><td colspan="5" class="muted">Nothing outstanding.</td></tr>`
       : invoices
           .map((i) => {
-            const state = label(i, now);
+            const { badge, balanceDue: balance } =
+              states.get(i.id) ?? state(i, now);
             const cls =
-              state === "paid" || state === "credited"
+              badge === "paid" || badge === "credited"
                 ? "paid"
-                : state === "overdue"
+                : badge === "overdue"
                   ? "over"
                   : "due";
-            const balance = balanceOf(i);
             const pay =
               payPath && balance > 0
                 ? `<form method="post" action="${html(payPath)}/${html(i.id)}">
@@ -261,7 +275,7 @@ export function portalPage(args: {
             return `<tr>
   <td>${html(i.number)}</td>
   <td>${html(day(i.dueDate))}</td>
-  <td class="${cls}">${html(state)}</td>
+  <td class="${cls}">${html(badge)}</td>
   <td class="num">${html(money(balance || i.totalCents, i.currency))}</td>
   <td class="num">${pay}</td>
 </tr>`;

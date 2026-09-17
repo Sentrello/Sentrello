@@ -1,5 +1,5 @@
 import { db, schema } from "@sentrello/db";
-import { invoiceStatus } from "@sentrello/db/money";
+import { invoiceState } from "@sentrello/db/money";
 import { ensurePortalToken } from "@sentrello/db/portal";
 import type { ModuleContext, SummaryFigure } from "@sentrello/module-sdk";
 import { and, eq, inArray, isNull, notInArray } from "drizzle-orm";
@@ -18,8 +18,9 @@ import { creditedAgainst } from "./documents";
  * same filter `/portal/:token` applies. Every total is derived the way the
  * portal derives its own: `totalCents` came out of `documentTotals` when the
  * invoice was raised, credited amounts come from the one shared
- * `creditedAgainst`, and `invoiceStatus` turns the two into a balance —
- * nothing here recomputes a tax or a total a second way.
+ * `creditedAgainst`, and `invoiceState` turns the two into a balance and the
+ * word for it — the same call the portal's badge comes from, so the figure
+ * here and the badge there cannot tell two stories.
  */
 
 const NOT_SENT = ["draft", "void"];
@@ -57,6 +58,11 @@ export async function invoicingAccountFigures(
       totalCents: schema.invoices.totalCents,
       currency: schema.invoices.currency,
       dueDate: schema.invoices.dueDate,
+      status: schema.invoices.status,
+      // Debt given up for paying early settles the invoice without any money
+      // arriving. Left out, this page kept billing a customer for the saving
+      // their invoice had already granted them.
+      earlyDiscountTakenCents: schema.invoices.earlyDiscountTakenCents,
     })
     .from(schema.invoices)
     .where(invoiceScope(organizationId, contactId));
@@ -83,7 +89,7 @@ export async function invoicingAccountFigures(
     creditedAgainst(organizationId, ids),
   ]);
 
-  const now = Date.now();
+  const now = new Date();
   let owedCents = 0;
   let paidCents = 0;
   let overdueCents = 0;
@@ -93,17 +99,17 @@ export async function invoicingAccountFigures(
       .reduce((sum, p) => sum + p.amountCents, 0);
     paidCents += paid;
 
-    const { balanceDue } = invoiceStatus(
-      invoice.totalCents,
+    const { balanceDue, badge } = invoiceState(
+      invoice,
       paid,
       credited.get(invoice.id) ?? 0,
+      now,
     );
-    if (balanceDue > 0) {
-      owedCents += balanceDue;
-      if (invoice.dueDate && invoice.dueDate.getTime() <= now) {
-        overdueCents += balanceDue;
-      }
-    }
+    owedCents += balanceDue;
+    // "Overdue" here and "overdue" on the portal badge are the same word about
+    // the same invoice, so they are the same decision: one function, one rule
+    // about the instant a bill falls due.
+    if (badge === "overdue") overdueCents += balanceDue;
   }
 
   const figures: SummaryFigure[] = [

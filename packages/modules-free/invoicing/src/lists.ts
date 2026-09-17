@@ -11,6 +11,7 @@ import {
   inArray,
   isNotNull,
   isNull,
+  lt,
   lte,
   schema,
   sql,
@@ -24,6 +25,7 @@ import {
   pageWindow,
   searchCondition,
 } from "@sentrello/db/list-query";
+import { invoiceState } from "@sentrello/db/money";
 import { type ModuleContext, csvDownload, toCsv } from "@sentrello/module-sdk";
 import type { SQL } from "drizzle-orm";
 import { creditedAgainst } from "./documents";
@@ -128,12 +130,15 @@ function invoiceTab(tab: string, now: Date): (SQL | undefined)[] {
         inArray(schema.invoices.status, ["open", "partial"]),
       ];
     case "overdue":
+      // Strictly past, matching `isOverdue` and so the badge on every screen:
+      // at the instant a bill falls due it is due, not late. This read `<=`,
+      // which disagreed with the customer's own page by a single instant.
       return [
         live,
         isInvoice,
         inArray(schema.invoices.status, ["open", "partial"]),
         isNotNull(schema.invoices.dueDate),
-        lte(schema.invoices.dueDate, now),
+        lt(schema.invoices.dueDate, now),
       ];
     default:
       // "All" still hides what was deleted and what is a credit note: both
@@ -361,32 +366,36 @@ export function registerLists(ctx: ModuleContext) {
       return c.json({
         invoices: rows.map((r) => {
           const paidCents = paid.get(r.id) ?? 0;
-          /**
-           * A draft owes nothing, and neither does a void.
-           *
-           * Nobody has been asked for a draft, so showing its total as
-           * outstanding puts money in the "owed" column that the business has
-           * no claim to — and the figure at the top of the screen is the one
-           * people quote to their accountant.
-           */
-          const claimable = r.status !== "draft" && r.status !== "void";
           const creditedCents = credited.get(r.id) ?? 0;
+          /**
+           * The state, the balance and whether it is late, from one call.
+           *
+           * The column filtered this query and the column is what it stays
+           * for — deriving the status in SQL would mean a correlated subquery
+           * over payments and credit notes for every row of every tab. But
+           * the rows are in hand here, with their payments and their credits
+           * already loaded, so what the screen *says* costs nothing to derive
+           * and is never a second opinion about the same invoice.
+           *
+           * A draft owes nothing and neither does a void: nobody has been
+           * asked for either, and the figure at the top of the screen is the
+           * one people quote to their accountant. `invoiceState` keeps that.
+           */
+          const { status, balanceDue, badge } = invoiceState(
+            r,
+            paidCents,
+            creditedCents,
+            now,
+          );
           return {
             ...r,
+            status,
             tags: labels.get(r.id) ?? [],
             paidCents,
             creditedCents,
-            balanceCents: claimable
-              ? Math.max(0, r.totalCents - paidCents - creditedCents)
-              : 0,
+            balanceCents: balanceDue,
             // Computed, not stored: it depends on today.
-            overdue:
-              r.status !== "paid" &&
-              r.status !== "credited" &&
-              r.status !== "void" &&
-              r.status !== "draft" &&
-              !!r.dueDate &&
-              new Date(r.dueDate) < now,
+            overdue: badge === "overdue",
           };
         }),
         total: counted?.total ?? 0,

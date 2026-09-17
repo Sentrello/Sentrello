@@ -4,7 +4,9 @@ import {
   bpToPpm,
   documentTotals,
   earlyPaymentTerms,
+  invoiceState,
   invoiceStatus,
+  isOverdue,
   lineTotals,
   parseAmountToCents,
   percentFromPpm,
@@ -108,6 +110,86 @@ test("a partial credit still reads as outstanding, for the balance", () => {
 
 test("a zero-total invoice with no credits stays paid", () => {
   expect(invoiceStatus(0, 0)).toEqual({ balanceDue: 0, status: "paid" });
+});
+
+/**
+ * The instant a bill falls due.
+ *
+ * Unobservable through any page — the clock has moved on by the time HTML is
+ * rendered — and that is why it went unnoticed that three places read it
+ * differently: the portal `<`, the account summary `<=`, the list's overdue
+ * tab `<=` again in SQL. Pinned here, where the clock can be held still.
+ */
+test("at the instant it falls due, a bill is due and not yet late", () => {
+  const due = new Date("2026-09-17T00:00:00Z");
+  expect(isOverdue(due, 10_000, due)).toBe(false);
+  expect(isOverdue(due, 10_000, new Date(due.getTime() + 1))).toBe(true);
+  // Nothing owed is never late, however long ago it was due.
+  expect(isOverdue(due, 0, new Date(due.getTime() + 86_400_000))).toBe(false);
+  expect(isOverdue(null, 10_000, due)).toBe(false);
+});
+
+test("invoiceState reads a draft and a void off the column, and nothing else", () => {
+  // Nobody was asked for a draft and a void was taken back: no amount of
+  // payment arithmetic can discover that, so the column is the only witness.
+  for (const status of ["draft", "void"] as const) {
+    expect(
+      invoiceState(
+        { status, totalCents: 10_000, dueDate: new Date("2020-01-01") },
+        0,
+      ),
+    ).toEqual({ balanceDue: 0, status, badge: status });
+  }
+});
+
+test("invoiceState ignores a stored status that disagrees with the money", () => {
+  const past = new Date("2020-01-01");
+  // Settled, column never updated: the customer must not be told they owe it.
+  expect(
+    invoiceState({ status: "open", totalCents: 10_000, dueDate: past }, 10_000),
+  ).toEqual({ balanceDue: 0, status: "paid", badge: "paid" });
+  // The column says paid and nobody paid: the badge follows the money.
+  expect(
+    invoiceState({ status: "paid", totalCents: 10_000, dueDate: past }, 0),
+  ).toEqual({ balanceDue: 10_000, status: "open", badge: "overdue" });
+});
+
+test("invoiceState counts the early-payment saving as debt given up", () => {
+  // 2% off for paying inside ten days: 9,800 arrives and the invoice is
+  // settled. Counting only the money left the saving outstanding for ever.
+  expect(
+    invoiceState(
+      { status: "open", totalCents: 10_000, earlyDiscountTakenCents: 200 },
+      9_800,
+    ),
+  ).toEqual({ balanceDue: 0, status: "paid", badge: "paid" });
+});
+
+test("invoiceState never tells a customer they owe a negative sum", () => {
+  // Paid in full and then credited as well: the business holds their money,
+  // which is not the same as the customer owing minus ten thousand.
+  expect(
+    invoiceState({ status: "paid", totalCents: 10_000 }, 10_000, 10_000),
+  ).toEqual({ balanceDue: 0, status: "paid", badge: "paid" });
+});
+
+test("invoiceState words a part payment and a part credit the same way", () => {
+  const soon = new Date(Date.now() + 86_400_000);
+  expect(
+    invoiceState({ status: "open", totalCents: 10_000, dueDate: soon }, 4_000)
+      .badge,
+  ).toBe("part paid");
+  expect(
+    invoiceState(
+      { status: "open", totalCents: 10_000, dueDate: soon },
+      0,
+      4_000,
+    ).badge,
+  ).toBe("part paid");
+  // Settled by credit alone: its own word, because nobody paid it.
+  expect(
+    invoiceState({ status: "open", totalCents: 10_000 }, 0, 10_000).badge,
+  ).toBe("credited");
 });
 
 /**
