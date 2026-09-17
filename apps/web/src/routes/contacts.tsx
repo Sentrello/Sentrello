@@ -65,7 +65,7 @@ export function Contacts() {
    * Which rows are ticked, for the actions that work on several at once.
    *
    * Tagging forty contacts one at a time is the job a CRM is supposed to
-   * remove, so Atomic puts tag, export and delete behind a selection and this
+   * remove, so the reference puts tag, export and delete behind a selection and this
    * does the same.
    */
   const [selected, setSelected] = useState<string[]>([]);
@@ -338,7 +338,7 @@ export function Contacts() {
             {/*
               A list of rows, not a table of columns.
               
-              Atomic lays a contact out as one line — who they are, then what
+              The reference lays a contact out as one line — who they are, then what
               little there is worth knowing at a glance — rather than as six
               columns of which four are usually "—". A table of email, phone,
               company and status spends most of its width on dashes; this
@@ -510,7 +510,7 @@ export function sinceLabel(value: string | null): string {
 /**
  * What you can do to several contacts at once.
  *
- * Tag, export and delete, which is Atomic's set. Deleting is behind a second
+ * Tag, export and delete, which is the reference's set. Deleting is behind a second
  * click because it is the only one of the three that cannot be undone, and a
  * selection of forty is exactly when a misclick is expensive.
  */

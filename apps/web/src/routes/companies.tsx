@@ -60,7 +60,7 @@ const CLOSED = new Set(["won", "lost"]);
 /**
  * The companies the business sells to, as cards.
  *
- * Atomic shows a grid rather than a table, and it is right to: what somebody
+ * The reference shows a grid rather than a table, and it is right to: what somebody
  * wants from this screen is "who are we working with", answered by a logo, a
  * sector, the faces of the people there and how many deals are open. A table
  * of the same information is five columns of text nobody reads.

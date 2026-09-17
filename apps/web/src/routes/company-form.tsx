@@ -24,7 +24,7 @@ import {
  *
  * Creating one used to ask for a name and a sector, which meant a company was
  * always half-entered and had to be opened and corrected straight afterwards.
- * The groups here are Atomic's — who they are, what they do, where they are,
+ * The groups here are the reference's — who they are, what they do, where they are,
  * and background — because a company record is read in that order.
  */
 

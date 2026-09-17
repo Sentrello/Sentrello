@@ -20,6 +20,44 @@ cd "$(dirname "$0")/.." || exit 1
 # as a test failure is worse than no gate.
 export PATH="$HOME/.bun/bin:$PATH"
 command -v bun >/dev/null || { echo "  bun not found on PATH"; exit 1; }
+
+# --- which database the tests use --------------------------------------------
+#
+# One database per repository, chosen here rather than left to whoever happens
+# to be calling. Every repository used to default to a single shared
+# `sentrello` database, which failed in three ways on 2026-09-17 alone:
+#
+#   - It collected 313 tables across 14 schemas, because five suites had been
+#     writing into it through their commit hooks. A run there fails on another
+#     repository's migrations, so the failures name files nobody touched.
+#   - Two sessions running at once fail each other's `leftovers` check, since a
+#     row one suite is mid-way through creating is a row the other calls litter.
+#   - The remedy this script printed for that was an unscoped `delete from
+#     organizations`, which somebody duly ran against the shared database.
+#
+# Exported, not local: `bun test` reads DATABASE_URL from the environment, so a
+# default that only reached psql left the tests themselves pointed elsewhere —
+# which is exactly how a commit hook came to run against the wrong database.
+export DATABASE_URL="${DATABASE_URL:-postgres://sentrello:sentrello@localhost:5433/sentrello_t_core}"
+
+# Three things this must never be allowed to point at. The suites truncate
+# tables; being wrong about where is not recoverable by reading the output
+# afterwards.
+case "$DATABASE_URL" in
+  *localhost*|*127.0.0.1*) ;;
+  *) echo "  refusing to run tests against a remote database: $DATABASE_URL"; exit 1 ;;
+esac
+case "$DATABASE_URL" in
+  */sentrello_dev*)
+    echo "  refusing to run tests against sentrello_dev — that is the browser"
+    echo "  instance, and its organization would be destroyed."
+    exit 1 ;;
+  */sentrello)
+    echo "  refusing to run tests against the shared sentrello database."
+    echo "  It is retired: every repository now has its own. Unset DATABASE_URL"
+    echo "  to use this one's, or name the database you meant."
+    exit 1 ;;
+esac
 failed=0
 
 step() {
@@ -65,7 +103,7 @@ fi
 #
 # So the state of the database after the tests is part of whether they passed.
 step_leftovers() {
-  local url="${DATABASE_URL:-postgres://sentrello:sentrello@localhost:5433/sentrello}"
+  local url="$DATABASE_URL"
   printf '  %-12s ' "leftovers"
   command -v psql >/dev/null || { echo "skipped (no psql)"; return; }
 
