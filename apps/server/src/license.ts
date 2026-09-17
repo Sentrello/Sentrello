@@ -52,6 +52,15 @@ async function readTokenFromDisk(): Promise<string> {
  * downgrades an instance because our server had a bad night — only because
  * the token on disk no longer verifies. Moving from a daily to an hourly
  * refresh raises how often that proof runs, never what it proves.
+ *
+ * The one case that jumps the queue: `refreshLicenseToken`
+ * (packages/jobs/src/license-refresh.ts) clears the token file outright when
+ * the licence server has just told us, explicitly, that this licence is no
+ * longer entitled — rather than leaving the old (still-verifying) token in
+ * place until its own 72h runs out. That still goes through this same
+ * function and the same rule: state changes here only because what is on
+ * disk stopped verifying, it is just that "stopped verifying" now sometimes
+ * happens on purpose, a request early, instead of by the clock.
  */
 export async function refreshLicenseState(
   trustedKeys: string | string[] = SENTRELLO_LICENSE_PUBLIC_KEYS,
