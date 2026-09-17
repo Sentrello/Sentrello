@@ -235,8 +235,25 @@ export function taxPayableCodeMatch(column: PgColumn): SQL {
     or ${column} like ${`${CORE_ACCOUNTS.taxPayable.code}-%`})`;
 }
 
-export async function closedThrough(orgId: string): Promise<Date | null> {
-  const [row] = await db
+/**
+ * `tx` joins a transaction the caller already has open, the same option
+ * `postJournalEntry` and `recordCreditMovement` take.
+ *
+ * Without it this read is always on its own connection, and so never sees a
+ * change to the lock that the caller has made but not yet committed. That is
+ * what stopped a year-end reopen being one transaction: the sequence unlocks,
+ * posts a reversal dated inside the closed year, and locks again — and the
+ * post is refused by a lock the reopen has already lifted, because the read
+ * looked somewhere the unlock had not reached. So the three steps were three
+ * commits, and a failure between the first and the last left a business's
+ * closed year open, silently, with nothing on any screen saying so. A closed
+ * period is a control an auditor asks about; it must not come off by accident.
+ */
+export async function closedThrough(
+  orgId: string,
+  options: { tx?: LedgerTx } = {},
+): Promise<Date | null> {
+  const [row] = await (options.tx ?? db)
     .select({ closedThrough: schema.ledgerSettings.closedThrough })
     .from(schema.ledgerSettings)
     .where(eq(schema.ledgerSettings.organizationId, orgId))
@@ -455,15 +472,22 @@ export async function postJournalEntry(
   if (d !== c) throw new Error(`Unbalanced entry: debits ${d} != credits ${c}`);
 
   /*
-   * Checked before the transaction opens, because a refusal is not a rollback:
-   * nothing should be written and then undone to find out the answer.
+   * Checked before this function opens a transaction of its own, because a
+   * refusal is not a rollback: nothing should be written and then undone to
+   * find out the answer.
+   *
+   * Read on the caller's transaction when there is one, so a caller that has
+   * just moved the lock inside that transaction is answered by the lock as it
+   * now stands rather than as it was committed.
    *
    * The comparison is against the whole of the closed day. `closedThrough` is
    * the last day that is closed, so an entry timestamped anywhere inside it is
    * inside the closed period — storing the boundary as a date and comparing
    * instants is how a lock lets in everything after breakfast on its last day.
    */
-  const closed = options?.intoClosedPeriod ? null : await closedThrough(orgId);
+  const closed = options?.intoClosedPeriod
+    ? null
+    : await closedThrough(orgId, { tx: options?.tx });
   if (closed) {
     const endOfClosedDay = new Date(closed);
     endOfClosedDay.setUTCHours(23, 59, 59, 999);
