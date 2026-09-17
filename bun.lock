@@ -26,6 +26,7 @@
         "@sentrello/licensing-client": "*",
         "@sentrello/module-account": "*",
         "@sentrello/module-accounting": "*",
+        "@sentrello/module-archive": "*",
         "@sentrello/module-crm": "*",
         "@sentrello/module-dashboard": "*",
         "@sentrello/module-invoicing": "*",
@@ -150,6 +151,17 @@
         "@sentrello/auth": "*",
         "@sentrello/db": "*",
         "@sentrello/jobs": "*",
+        "@sentrello/module-sdk": "*",
+        "drizzle-orm": "^0.45.0",
+        "hono": "^4.13.5",
+      },
+    },
+    "packages/modules-free/archive": {
+      "name": "@sentrello/module-archive",
+      "version": "0.0.0",
+      "dependencies": {
+        "@sentrello/auth": "*",
+        "@sentrello/db": "*",
         "@sentrello/module-sdk": "*",
         "drizzle-orm": "^0.45.0",
         "hono": "^4.13.5",
@@ -514,6 +526,8 @@
     "@sentrello/module-account": ["@sentrello/module-account@workspace:packages/modules-free/account"],
 
     "@sentrello/module-accounting": ["@sentrello/module-accounting@workspace:packages/modules-free/accounting"],
+
+    "@sentrello/module-archive": ["@sentrello/module-archive@workspace:packages/modules-free/archive"],
 
     "@sentrello/module-crm": ["@sentrello/module-crm@workspace:packages/modules-free/crm"],
 

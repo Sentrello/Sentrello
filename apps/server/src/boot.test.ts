@@ -302,6 +302,9 @@ test("/healthz boots and reports Free when no token is present", async () => {
       "settings",
       "profile",
       "users",
+      // Taking old records off this server: Free, because the business most
+      // likely to fill a disk is the one on the smallest machine.
+      "archive",
       "account",
     ],
     // A bundle that will not load is reported rather than only logged: it
@@ -433,6 +436,9 @@ test("/api/_meta exposes only the nav the loaded modules registered", async () =
     // Answering somebody who asks what is held about them, which has a legal
     // deadline — so it sits beside the other settings rather than inside one.
     "settings-privacy",
+    // Taking old records off this server, beside the other settings for the
+    // same reason: it is a decision about the instance, not about the books.
+    "settings-archive",
     // The console heading itself, at order 91 with the other Configure
     // entries — last, because its children numbered themselves from 1.
     "users-console",

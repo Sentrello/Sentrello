@@ -42,6 +42,9 @@
     },
     {
       "path": "./packages/modules-free/money"
+    },
+    {
+      "path": "./packages/modules-free/archive"
     }
   ]
 }
