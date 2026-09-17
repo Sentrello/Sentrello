@@ -268,7 +268,6 @@ test("a skipped module registers no routes", async () => {
 });
 
 test("resolveLicense falls back to Free when the token file is missing", async () => {
-  process.env.SENTRELLO_LICENSE_PUBLIC_KEY_PATH = "secrets/license_public.pem";
   process.env.SENTRELLO_LICENSE_TOKEN_PATH = "secrets/does-not-exist.jwt";
   const { state, gate, tokenPresent } = await resolveLicense();
   expect(state.valid).toBe(false);
@@ -280,7 +279,6 @@ test("resolveLicense falls back to Free when the token file is missing", async (
 });
 
 test("/healthz boots and reports Free when no token is present", async () => {
-  process.env.SENTRELLO_LICENSE_PUBLIC_KEY_PATH = "secrets/license_public.pem";
   process.env.SENTRELLO_LICENSE_TOKEN_PATH = "secrets/does-not-exist.jwt";
   const server = (await import("./index")).default;
   const res = await server.fetch(new Request("http://localhost/healthz"));
@@ -317,7 +315,6 @@ test("/healthz reports degraded when the database has not been migrated", async 
   // described: the demo's reset emptied its database on 2026-08-22, the
   // migration that should have refilled it was killed part-way, and /healthz
   // went on answering "ok" for seven hours while every sign-in returned 500.
-  process.env.SENTRELLO_LICENSE_PUBLIC_KEY_PATH = "secrets/license_public.pem";
   process.env.SENTRELLO_LICENSE_TOKEN_PATH = "secrets/does-not-exist.jwt";
   const server = (await import("./index")).default;
 
@@ -340,7 +337,6 @@ test("/healthz reports degraded when the database has not been migrated", async 
 test("/healthz reports the version the image was built with", async () => {
   // "Which version are you on?" is the first question of every support
   // conversation, and the only way to answer it used to be docker inspect.
-  process.env.SENTRELLO_LICENSE_PUBLIC_KEY_PATH = "secrets/license_public.pem";
   process.env.SENTRELLO_LICENSE_TOKEN_PATH = "secrets/does-not-exist.jwt";
   process.env.SENTRELLO_VERSION = "9.9.9";
 
@@ -354,7 +350,6 @@ test("/healthz reports the version the image was built with", async () => {
 });
 
 test("/api/_meta exposes only the nav the loaded modules registered", async () => {
-  process.env.SENTRELLO_LICENSE_PUBLIC_KEY_PATH = "secrets/license_public.pem";
   process.env.SENTRELLO_LICENSE_TOKEN_PATH = "secrets/does-not-exist.jwt";
   const server = (await import("./index")).default;
 
@@ -470,7 +465,6 @@ test("/api/_meta exposes only the nav the loaded modules registered", async () =
 });
 
 test("a business sees only the tax regimes it has chosen, and turning one off never breaks an old report", async () => {
-  process.env.SENTRELLO_LICENSE_PUBLIC_KEY_PATH = "secrets/license_public.pem";
   process.env.SENTRELLO_LICENSE_TOKEN_PATH = "secrets/does-not-exist.jwt";
   const server = (await import("./index")).default;
   const { headers, cleanUp } = await signedIn();
@@ -537,7 +531,6 @@ test("a business sees only the tax regimes it has chosen, and turning one off ne
  * offered, every route refusing them after the click.
  */
 test("somebody who belongs to no business is offered nothing at all", async () => {
-  process.env.SENTRELLO_LICENSE_PUBLIC_KEY_PATH = "secrets/license_public.pem";
   process.env.SENTRELLO_LICENSE_TOKEN_PATH = "secrets/does-not-exist.jwt";
   const server = (await import("./index")).default;
 
@@ -575,7 +568,6 @@ test("somebody who belongs to no business is offered nothing at all", async () =
 });
 
 test("a module's screens are not served when the module did not load", async () => {
-  process.env.SENTRELLO_LICENSE_PUBLIC_KEY_PATH = "secrets/license_public.pem";
   process.env.SENTRELLO_LICENSE_TOKEN_PATH = "secrets/does-not-exist.jwt";
   const server = (await import("./index")).default;
 
@@ -595,7 +587,6 @@ test("a module's screens are not served when the module did not load", async () 
 });
 
 test("a module id cannot be used to reach a file off the map", async () => {
-  process.env.SENTRELLO_LICENSE_PUBLIC_KEY_PATH = "secrets/license_public.pem";
   process.env.SENTRELLO_LICENSE_TOKEN_PATH = "secrets/does-not-exist.jwt";
   const server = (await import("./index")).default;
 
@@ -616,7 +607,6 @@ test("a module id cannot be used to reach a file off the map", async () => {
 test("the licence is not readable without a session", async () => {
   // It names the licence and the modules bought: not something to hand to
   // the internet, unlike /healthz which only says free or pro.
-  process.env.SENTRELLO_LICENSE_PUBLIC_KEY_PATH = "secrets/license_public.pem";
   process.env.SENTRELLO_LICENSE_TOKEN_PATH = "secrets/does-not-exist.jwt";
   const server = (await import("./index")).default;
   const res = await server.fetch(new Request("http://localhost/api/license"));
@@ -624,7 +614,6 @@ test("the licence is not readable without a session", async () => {
 });
 
 test("a business route is 401 without a session", async () => {
-  process.env.SENTRELLO_LICENSE_PUBLIC_KEY_PATH = "secrets/license_public.pem";
   process.env.SENTRELLO_LICENSE_TOKEN_PATH = "secrets/does-not-exist.jwt";
   const server = (await import("./index")).default;
   const res = await server.fetch(new Request("http://localhost/api/contacts"));
@@ -636,7 +625,6 @@ test("a body that is not JSON is a 400, not a crash", async () => {
   // Routes parse with `c.req.json()`; before the onError mapping, a stray
   // byte in the body answered "something went wrong" with a 500 and a stack
   // trace in the log, for what is the caller's typo.
-  process.env.SENTRELLO_LICENSE_PUBLIC_KEY_PATH = "secrets/license_public.pem";
   process.env.SENTRELLO_LICENSE_TOKEN_PATH = "secrets/does-not-exist.jwt";
   const server = (await import("./index")).default;
   const { headers, cleanUp } = await signedIn();
@@ -750,7 +738,6 @@ test("nav entries declare what they need, and the roles agree", () => {
  * ended up as five siblings of the Shop.
  */
 test("/api/_meta says which entries are a module's own pages", async () => {
-  process.env.SENTRELLO_LICENSE_PUBLIC_KEY_PATH = "secrets/license_public.pem";
   process.env.SENTRELLO_LICENSE_TOKEN_PATH = "secrets/does-not-exist.jwt";
   const server = (await import("./index")).default;
 
@@ -787,7 +774,6 @@ test("/api/_meta says which entries are a module's own pages", async () => {
 });
 
 test("Users opens out into the screens of a console, not one page", async () => {
-  process.env.SENTRELLO_LICENSE_PUBLIC_KEY_PATH = "secrets/license_public.pem";
   process.env.SENTRELLO_LICENSE_TOKEN_PATH = "secrets/does-not-exist.jwt";
   const server = (await import("./index")).default;
 
@@ -836,7 +822,6 @@ test("Users opens out into the screens of a console, not one page", async () => 
  * puts a menu item in front of somebody the route will answer 403.
  */
 test("a caller with settings:read alone is offered none of the Users console", async () => {
-  process.env.SENTRELLO_LICENSE_PUBLIC_KEY_PATH = "secrets/license_public.pem";
   process.env.SENTRELLO_LICENSE_TOKEN_PATH = "secrets/does-not-exist.jwt";
   const server = (await import("./index")).default;
 
@@ -943,7 +928,6 @@ test("security.txt says where to report a vulnerability, without a session", asy
  * its own source; publishing ours discharges nothing on their behalf.
  */
 test("the source offer answers anybody, and can name the operator's own repository", async () => {
-  process.env.SENTRELLO_LICENSE_PUBLIC_KEY_PATH = "secrets/license_public.pem";
   process.env.SENTRELLO_LICENSE_TOKEN_PATH = "secrets/does-not-exist.jwt";
   const server = (await import("./index")).default;
 
@@ -987,7 +971,6 @@ test("the source offer answers anybody, and can name the operator's own reposito
  * a rule with a hole in it is worth testing at the hole.
  */
 test("every response refuses to be framed, except the one meant to be embedded", async () => {
-  process.env.SENTRELLO_LICENSE_PUBLIC_KEY_PATH = "secrets/license_public.pem";
   process.env.SENTRELLO_LICENSE_TOKEN_PATH = "secrets/does-not-exist.jwt";
   const server = (await import("./index")).default;
 
@@ -1137,7 +1120,6 @@ test("a path under a published prefix is left alone", async () => {
  * travels to the screen an administrator is actually on.
  */
 test("a bundle that did not start reaches /healthz and the shell's meta", async () => {
-  process.env.SENTRELLO_LICENSE_PUBLIC_KEY_PATH = "secrets/license_public.pem";
   process.env.SENTRELLO_LICENSE_TOKEN_PATH = "secrets/does-not-exist.jwt";
   const server = (await import("./index")).default;
 
@@ -1170,7 +1152,6 @@ test("a bundle that did not start reaches /healthz and the shell's meta", async 
 
 /** And a healthy instance's shell hears nothing at all. */
 test("no failures means an empty list in the shell's meta", async () => {
-  process.env.SENTRELLO_LICENSE_PUBLIC_KEY_PATH = "secrets/license_public.pem";
   process.env.SENTRELLO_LICENSE_TOKEN_PATH = "secrets/does-not-exist.jwt";
   const server = (await import("./index")).default;
   const { headers, cleanUp } = await signedIn();
