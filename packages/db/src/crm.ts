@@ -1,6 +1,6 @@
 import type { CustomField } from "@sentrello/module-sdk/custom-fields";
 import { coerceCustomValues } from "@sentrello/module-sdk/custom-fields";
-import { eq } from "drizzle-orm";
+import { type SQL, eq, sql } from "drizzle-orm";
 import { db } from "./client";
 import * as schema from "./schema";
 
@@ -42,4 +42,39 @@ export async function crmValues(
 ): Promise<Record<string, string | number | boolean | null>> {
   if (input === undefined) return {};
   return coerceCustomValues(await crmFieldsFor(organizationId), subject, input);
+}
+
+/**
+ * Whether a contact is reachable at an address — primary or otherwise.
+ *
+ * A contact carries one address on the record and a list beside it, and the
+ * list is where a work address, an accounts inbox and the address somebody
+ * was merged in under end up. Asking only the primary column answers "whose
+ * email is this?" wrongly in two ways, and both reach customers:
+ *
+ * - Mail to a secondary address matches nobody, and the miss looks exactly
+ *   like mail from a stranger, so nothing in the product says it happened.
+ * - Merging two contacts turns one primary into a secondary, so a thread that
+ *   was on the record yesterday is silently missing today.
+ *
+ * Three places answered this question and three answered it differently: the
+ * subject-access search read the list, inbound mail read the primary column in
+ * JavaScript over every contact in the business, and the form handler compared
+ * the primary column exactly — so `Jane@Example.com` made a second contact
+ * beside `jane@example.com`. One condition now, case-insensitive, matched in
+ * the database.
+ *
+ * A condition rather than a query, because the callers want different things
+ * around it: one wants it beside a name and a phone number in an `or`, one
+ * wants the first row, one wants any of several addresses off one message.
+ */
+export function contactHasEmail(email: string): SQL {
+  return sql`(
+    lower(${schema.contacts.email}) = lower(${email})
+    or exists (
+      select 1
+        from jsonb_array_elements(coalesce(${schema.contacts.emails}, '[]'::jsonb)) e
+       where lower(e->>'value') = lower(${email})
+    )
+  )`;
 }

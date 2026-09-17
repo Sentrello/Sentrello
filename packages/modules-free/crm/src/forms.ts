@@ -6,6 +6,7 @@ import {
 } from "@sentrello/auth/hono";
 import { and, asc, db, eq, schema, sql } from "@sentrello/db";
 import { creditFor } from "@sentrello/db/credit";
+import { contactHasEmail } from "@sentrello/db/crm";
 import { lineTotals } from "@sentrello/db/money";
 import { nextDocumentNumber } from "@sentrello/db/numbering";
 import { emailAdapter } from "@sentrello/email";
@@ -903,14 +904,17 @@ async function upsertContact(
   payload: Record<string, string>,
 ): Promise<string> {
   if (email) {
+    /*
+     * Any address this person is known by, not the primary column compared
+     * exactly. `Jane@Example.com` used to make a second contact beside
+     * `jane@example.com`, and an enquiry from somebody's work address made one
+     * beside the record that already held it.
+     */
     const [existing] = await db
       .select({ id: schema.contacts.id })
       .from(schema.contacts)
       .where(
-        and(
-          eq(schema.contacts.organizationId, orgId),
-          eq(schema.contacts.email, email),
-        ),
+        and(eq(schema.contacts.organizationId, orgId), contactHasEmail(email)),
       )
       .limit(1);
     if (existing) return existing.id;
