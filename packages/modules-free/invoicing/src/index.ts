@@ -1691,7 +1691,18 @@ export default defineModule({
           return c.json({ invoices: result.invoices }, 201);
         }
 
-        const invoice = await convertQuoteToInvoice(orgId, c.req.param("id"));
+        const invoice = await convertQuoteToInvoice(
+          orgId,
+          c.req.param("id"),
+        ).catch((err: unknown) => {
+          // A quote in a currency this business has never priced. Declined
+          // with the reason, the way the instalment plan beside it is.
+          if (err instanceof MoneyError) return err;
+          throw err;
+        });
+        if (invoice instanceof MoneyError) {
+          return c.json({ error: invoice.message }, 400);
+        }
         if (invoice) return c.json({ invoice }, 201);
 
         /**
@@ -2239,10 +2250,24 @@ export default defineModule({
        * set `convertedInvoiceId`, which is the guard against the same quote
        * becoming two invoices.
        */
+      /**
+       * A customer accepting in their own portal.
+       *
+       * The conversion refuses a currency the business has never priced, and
+       * that refusal reaches a customer rather than staff — so it is a 400
+       * with the reason rather than a stack trace, and the quote stays open
+       * for whoever fixes the rate.
+       */
       const invoice = await convertQuoteToInvoice(
         contact.organizationId,
         quote.id,
-      );
+      ).catch((err: unknown) => {
+        if (err instanceof MoneyError) return err;
+        throw err;
+      });
+      if (invoice instanceof MoneyError) {
+        return c.json({ error: invoice.message }, 400);
+      }
       if (!invoice) return c.notFound();
 
       // The business should find out from its own timeline, not by noticing.
