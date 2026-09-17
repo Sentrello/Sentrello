@@ -1702,6 +1702,60 @@ test("a contact's history is everything that happened, newest first", async () =
   expect(history[1]?.title).toBe("Done: Call about the second unit");
 });
 
+/**
+ * The bug only exists once a business has more deals than the page.
+ *
+ * The history used to load a hundred of the organization's deals and keep the
+ * matching ones in JavaScript. On an empty database that is the same answer; on
+ * a real book the hundred it loaded are not this person's hundred, so the panel
+ * showed the wrong deals or none — and it would have reached a customer long
+ * before it reached us. So the fixture is deliberately over the page size, and
+ * the one deal that matters is created first so a limit without a filter would
+ * miss it.
+ */
+test("a contact's deals are found however many the business has", async () => {
+  const made = await app.request("http://localhost/api/contacts", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name: "Bea Deals", email: "bea@deals.test" }),
+  });
+  const { contact } = (await made.json()) as { contact: { id: string } };
+
+  await db.insert(schema.deals).values({
+    organizationId: orgId,
+    name: "Bea's conservatory",
+    contactIds: [contact.id],
+    // A stage this business actually has: the settings test further down saves
+    // the pipeline back unchanged and is refused if a deal stands in a stage
+    // the pipeline does not name.
+    stage: "proposal",
+    createdAt: new Date("2020-01-01T09:00:00Z"),
+  });
+  // A hundred and twenty belonging to other people, all newer, so any limit
+  // applied before the filter takes the whole page and leaves hers out.
+  await db.insert(schema.deals).values(
+    Array.from({ length: 120 }, (_, n) => ({
+      organizationId: orgId,
+      name: `Somebody else ${n}`,
+      contactIds: [crypto.randomUUID()],
+      stage: "proposal",
+      createdAt: new Date(2026, 0, 1 + n),
+    })),
+  );
+
+  const res = await app.request(
+    `http://localhost/api/crm/history?contactId=${contact.id}`,
+    { headers },
+  );
+  const { history } = (await res.json()) as {
+    history: { kind: string; title: string }[];
+  };
+  const deals = history.filter((h) => h.kind === "deal");
+  expect(deals.map((d) => d.title)).toEqual([
+    "Deal opened: Bea's conservatory",
+  ]);
+});
+
 test("a company's history is its people's history", async () => {
   // Nothing hangs off a company directly, so without gathering its contacts
   // the panel is permanently empty.

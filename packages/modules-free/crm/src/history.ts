@@ -3,7 +3,7 @@ import {
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
-import { and, db, desc, eq, inArray, schema } from "@sentrello/db";
+import { and, db, desc, eq, inArray, or, schema, sql } from "@sentrello/db";
 import { consentHistory, describeConsent } from "@sentrello/db/consent";
 import { recordRead } from "@sentrello/db/security-events";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
@@ -182,6 +182,15 @@ export function registerCrmHistory(ctx: ModuleContext) {
                   : undefined,
             ),
           )
+          /*
+           * Newest first, by whichever date the entry will be drawn under. An
+           * unordered limit is a hundred rows the database chose, which is a
+           * different hundred on any two runs — so on a busy contact the panel
+           * showed an arbitrary hundred tasks rather than the last hundred.
+           */
+          .orderBy(
+            desc(sql`coalesce(${schema.tasks.doneAt}, ${schema.tasks.dueAt})`),
+          )
           .limit(100),
         db
           .select()
@@ -191,8 +200,29 @@ export function registerCrmHistory(ctx: ModuleContext) {
               eq(schema.deals.organizationId, orgId),
               dealId ? eq(schema.deals.id, dealId) : undefined,
               companyId ? eq(schema.deals.companyId, companyId) : undefined,
+              /**
+               * Only the deals these people are on, asked of the database.
+               *
+               * A deal carries its contacts in a jsonb array, and this used to
+               * load a hundred of the organization's deals and keep the
+               * matching ones in JavaScript. On an empty database that is the
+               * same answer; on a real one the hundred it loaded are not this
+               * person's hundred, so a customer's history showed somebody
+               * else's deals, or none at all. It only goes wrong once a
+               * business has more deals than the page — which means it reaches
+               * a customer long before it reaches us.
+               */
+              !dealId && !companyId && contactIds.length > 0
+                ? or(
+                    ...contactIds.map(
+                      (id) =>
+                        sql`${schema.deals.contactIds} @> ${JSON.stringify([id])}::jsonb`,
+                    ),
+                  )
+                : undefined,
             ),
           )
+          .orderBy(desc(schema.deals.createdAt))
           .limit(100),
       ]);
 
@@ -237,32 +267,17 @@ export function registerCrmHistory(ctx: ModuleContext) {
           }
           return rows;
         }),
-        /**
-         * Only the deals these people are actually on.
-         *
-         * A deal carries its contacts in a JSON column, so the filter happens
-         * here rather than in the query. Without it, asking for one person's
-         * history returned every deal the business has ever opened — which is
-         * how this was found: the panel was right on an empty database and
-         * wrong on a real one.
-         */
-        ...deals
-          .filter(
-            (deal) =>
-              !scoped ||
-              Boolean(dealId) ||
-              Boolean(companyId) ||
-              (deal.contactIds ?? []).some((id) => contactIds.includes(id)),
-          )
-          .map((deal) => ({
-            at: (deal.archivedAt ?? deal.createdAt).toISOString(),
-            kind: "deal" as const,
-            title: deal.archivedAt
-              ? `Filed away: ${deal.name}`
-              : `Deal opened: ${deal.name}`,
-            detail: deal.stage,
-            link: { moduleId: "deals", recordId: deal.id, title: deal.name },
-          })),
+        // Already the right deals: the query above asks for the ones these
+        // people are on rather than sorting a page of somebody else's.
+        ...deals.map((deal) => ({
+          at: (deal.archivedAt ?? deal.createdAt).toISOString(),
+          kind: "deal" as const,
+          title: deal.archivedAt
+            ? `Filed away: ${deal.name}`
+            : `Deal opened: ${deal.name}`,
+          detail: deal.stage,
+          link: { moduleId: "deals", recordId: deal.id, title: deal.name },
+        })),
       ];
 
       /*
