@@ -3,6 +3,7 @@ import { useState } from "react";
 import { type Account, type Meta, type ProfitAndLoss, api } from "../lib/api";
 import type { CustomField } from "../lib/crm-settings";
 import { CustomFields } from "../lib/custom-fields";
+import { PAGINATION_THRESHOLD, Pagination, useListState } from "../lib/list-ui";
 import { toCents } from "../lib/money";
 import {
   Button,
@@ -1368,16 +1369,29 @@ function isReversal(entry: JournalEntry): boolean {
  */
 export function Journal() {
   const [composing, setComposing] = useState(false);
+  /*
+   * A page at a time, through the same list state every other screen uses.
+   *
+   * This used to ask for the whole ledger — every line the business had ever
+   * posted — which at five years of trading is a 356 MB response the browser
+   * cannot render and the server cannot build without taking the box with it.
+   */
+  const state = useListState({ sort: "postedAt", order: "desc" });
   const journal = useQuery({
-    queryKey: ["journal"],
+    queryKey: ["journal", state.page, state.perPage],
     queryFn: () =>
-      api<{ lines: JournalLine[]; mayPost?: boolean }>("/api/journal"),
+      api<{
+        lines: JournalLine[];
+        mayPost?: boolean;
+        total: number;
+      }>(`/api/journal?page=${state.page}&perPage=${state.perPage}`),
   });
 
   if (journal.isLoading) return <Loading />;
   if (journal.error) return <ErrorNote error={journal.error} />;
 
   const entries = asEntries(journal.data?.lines ?? []);
+  const total = journal.data?.total ?? entries.length;
   // Asked of the server: a Free instance has no route to post to, and a person
   // without `bookkeeping.create` would be offered a button that answers 403.
   const mayPost = journal.data?.mayPost === true;
@@ -1397,9 +1411,14 @@ export function Journal() {
       {entries.length === 0 ? (
         <Empty title="Nothing posted yet" />
       ) : (
-        entries.map((entry) => (
-          <EntryCard key={entry.id} entry={entry} mayPost={mayPost} />
-        ))
+        <>
+          {entries.map((entry) => (
+            <EntryCard key={entry.id} entry={entry} mayPost={mayPost} />
+          ))}
+          {total > PAGINATION_THRESHOLD ? (
+            <Pagination state={state} total={total} />
+          ) : null}
+        </>
       )}
     </div>
   );

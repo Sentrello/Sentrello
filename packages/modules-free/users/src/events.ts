@@ -6,7 +6,9 @@ import {
 import { db, schema } from "@sentrello/db";
 import {
   type ListSpec,
+  UNPAGED_MAX,
   allConditions,
+  capUnpaged,
   countExpression,
   listParams,
   orderBy,
@@ -120,12 +122,21 @@ export function registerEvents(ctx: ModuleContext) {
 
       const window = pageWindow(params);
       if (!window) {
-        const rows = await db
+        // Capped, like every other unpaged list: an audit log is the table
+        // most likely to have a year of rows in it, and a caller that never
+        // asked for a page should not be able to ask for all of them.
+        const found = await db
           .select()
           .from(schema.securityEvents)
           .where(where)
-          .orderBy(order);
-        return c.json({ events: rows.map(toRow), total: rows.length });
+          .orderBy(order)
+          .limit(UNPAGED_MAX + 1);
+        const { rows, truncated } = capUnpaged(found);
+        return c.json({
+          events: rows.map(toRow),
+          total: rows.length,
+          ...(truncated ? { truncated: true } : {}),
+        });
       }
 
       // Two queries rather than a window function, matching the CRM list:

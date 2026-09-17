@@ -1,4 +1,5 @@
 import { db } from "./client";
+import { sumCents } from "./money";
 import { and, eq, sql } from "./orm";
 import * as schema from "./schema";
 
@@ -22,7 +23,7 @@ export async function creditBalanceFor(
 ): Promise<number> {
   const [row] = await db
     .select({
-      total: sql<number>`coalesce(sum(${schema.customerCredits.cents}), 0)::int`,
+      total: sumCents(schema.customerCredits.cents),
     })
     .from(schema.customerCredits)
     .where(

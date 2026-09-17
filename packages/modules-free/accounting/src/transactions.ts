@@ -13,6 +13,7 @@ import {
   reverseJournalEntries,
   taggingFrom,
 } from "@sentrello/db/ledger";
+import { sumCents } from "@sentrello/db/money";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import type { AccountType } from "./chart";
 import { isUuid, ownedAccount, ownedAccountOfType } from "./chart";
@@ -307,16 +308,16 @@ export function registerTransactions(ctx: ModuleContext) {
        */
       const [totals] = await db
         .select({
-          inCents: sql<number>`coalesce(sum(
+          inCents: sumCents(sql`
             case when ${schema.transactions.kind} = 'income'
               and ${schema.transactions.reversedAt} is null
               then ${schema.transactions.amountCents} else 0 end
-          ), 0)::int`,
-          outCents: sql<number>`coalesce(sum(
+          `),
+          outCents: sumCents(sql`
             case when ${schema.transactions.kind} = 'expense'
               and ${schema.transactions.reversedAt} is null
               then ${schema.transactions.amountCents} else 0 end
-          ), 0)::int`,
+          `),
         })
         .from(schema.transactions)
         .where(where);
