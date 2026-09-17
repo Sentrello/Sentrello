@@ -6,6 +6,7 @@ import {
 } from "@sentrello/auth/hono";
 import { db, schema } from "@sentrello/db";
 import { creditedAgainst } from "@sentrello/db/documents";
+import { invoiceState } from "@sentrello/db/money";
 import {
   type RegisteredWidget,
   allOnboarding,
@@ -225,16 +226,30 @@ export default defineModule({
           orgId,
           unpaid.map((i) => i.id),
         );
-        const balanceOf = (invoice: { id: string; totalCents: number }) =>
-          Math.max(
-            0,
-            invoice.totalCents -
-              (paidByInvoice.get(invoice.id) ?? 0) -
-              (creditedByInvoice.get(invoice.id) ?? 0),
-          );
+        /**
+         * Balance and lateness from the one call every screen reads.
+         *
+         * The filter above is the stored column, which is what it is for. The
+         * figures are not: an invoice settled by a path that had not updated
+         * the column used to arrive here with nothing owing and still be
+         * announced as overdue, for nothing.
+         */
+        const states = new Map(
+          unpaid.map((i) => [
+            i.id,
+            invoiceState(
+              i,
+              paidByInvoice.get(i.id) ?? 0,
+              creditedByInvoice.get(i.id) ?? 0,
+              now,
+            ),
+          ]),
+        );
+        const balanceOf = (invoice: { id: string }) =>
+          states.get(invoice.id)?.balanceDue ?? 0;
         const owedCents = unpaid.reduce((sum, i) => sum + balanceOf(i), 0);
         const overdue = unpaid.filter(
-          (i) => i.dueDate && new Date(i.dueDate) < now,
+          (i) => states.get(i.id)?.badge === "overdue",
         );
         const overdueCents = overdue.reduce((sum, i) => sum + balanceOf(i), 0);
 

@@ -9,10 +9,10 @@ export {
   nextRun,
 } from "@sentrello/db/subscriptions";
 
-export function isOverdue(
-  dueDate: Date,
-  balanceDueCents: number,
-  now = new Date(),
-): boolean {
-  return balanceDueCents > 0 && dueDate.getTime() < now.getTime();
-}
+/*
+ * Late has one definition, and it lives with the money: the badge a customer
+ * reads, the "overdue" tab, the account summary and this chase all have to
+ * agree about the instant a bill falls due. Re-exported so every existing
+ * importer is unchanged and there is still one implementation.
+ */
+export { isOverdue } from "@sentrello/db/money";

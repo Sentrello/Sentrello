@@ -153,6 +153,107 @@ export function invoiceStatus(
 }
 
 /**
+ * Late is strictly past the moment it was due, and only while money is owed.
+ *
+ * One definition, because three had grown: the portal said `dueDate < now`,
+ * the customer's account page `dueDate <= now`, and the invoice list's
+ * "overdue" tab a third thing again in SQL. The gap is a single instant and
+ * nobody would ever have seen it, which is exactly why it would have stayed —
+ * and a rule about whether somebody is late should not have three readings.
+ *
+ * Strictly past is the kinder reading and the one the chase job already used:
+ * at the instant a bill falls due, it is due, not late.
+ */
+export function isOverdue(
+  dueDate: Date | string | null | undefined,
+  balanceDueCents: number,
+  now: Date = new Date(),
+): boolean {
+  if (balanceDueCents <= 0 || !dueDate) return false;
+  const due = dueDate instanceof Date ? dueDate : new Date(dueDate);
+  return !Number.isNaN(due.getTime()) && due.getTime() < now.getTime();
+}
+
+/** What a customer is shown. Not the stored column, which is a filter key. */
+export type InvoiceBadge =
+  | "draft"
+  | "due"
+  | "part paid"
+  | "overdue"
+  | "paid"
+  | "credited"
+  | "void";
+
+export interface SettledInvoice {
+  /** The stored `status` column — read here only for draft and void. */
+  status: string;
+  totalCents: number;
+  /** Given up for paying early: it reduces the debt, and no money arrived. */
+  earlyDiscountTakenCents?: number | null;
+  dueDate?: Date | string | null;
+}
+
+/**
+ * The whole of what a screen says about one invoice, from one computation.
+ *
+ * The badge and the balance beside it used to be two answers: the badge read
+ * the stored `status` column, the balance was worked out live from payments
+ * and credit notes. Two ways of computing one number is how they drift, and
+ * this pair is shown to the customer — a row reading `paid` above a total
+ * saying they owe money is the business calling itself unreliable on the one
+ * page it cannot explain itself on.
+ *
+ * So nothing displayed comes from the column. The column stays, because the
+ * invoice list filters, counts and sorts on it in SQL and deriving it there
+ * would mean a correlated subquery over payments and credit notes for every
+ * row of every tab; but every caller here already holds the payments and the
+ * credits it needs, so deriving the badge costs no query at all.
+ *
+ * Two readings of the column survive, and only two: a draft was never sent
+ * and a void was taken back. Neither is a debt, whatever has been paid
+ * against it, and no arithmetic over payments can discover that.
+ *
+ * `balanceDue` never goes below zero. An overpayment is the business holding
+ * the customer's money, not the customer owing a negative sum, and a page
+ * that showed it that way would be stating something untrue.
+ */
+export function invoiceState(
+  invoice: SettledInvoice,
+  paidCents: number,
+  creditedCents = 0,
+  now: Date = new Date(),
+): { balanceDue: number; status: string; badge: InvoiceBadge } {
+  if (invoice.status === "draft" || invoice.status === "void") {
+    return {
+      balanceDue: 0,
+      status: invoice.status,
+      badge: invoice.status as InvoiceBadge,
+    };
+  }
+
+  const { balanceDue, status } = invoiceStatus(
+    invoice.totalCents - (invoice.earlyDiscountTakenCents ?? 0),
+    paidCents,
+    creditedCents,
+  );
+  const owed = Math.max(0, balanceDue);
+  return {
+    balanceDue: owed,
+    status,
+    badge:
+      status === "paid"
+        ? "paid"
+        : status === "credited"
+          ? "credited"
+          : isOverdue(invoice.dueDate, owed, now)
+            ? "overdue"
+            : status === "partial"
+              ? "part paid"
+              : "due",
+  };
+}
+
+/**
  * Pay early, pay less.
  *
  * Skonto: an invoice offers a percentage or a fixed sum off if it is settled

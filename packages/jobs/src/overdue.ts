@@ -1,11 +1,10 @@
 import { db, schema } from "@sentrello/db";
 import { creditedAgainst } from "@sentrello/db/documents";
-import { invoiceStatus } from "@sentrello/db/money";
+import { invoiceState } from "@sentrello/db/money";
 import { businessIdentity } from "@sentrello/db/portal";
 import { emailAdapter, mailConfigured } from "@sentrello/email";
 import { overdueReminderEmail } from "@sentrello/email/templates";
 import { and, eq, inArray, isNotNull } from "drizzle-orm";
-import { isOverdue } from "./dates";
 
 /** Don't nag: at most one reminder per invoice per this many hours. */
 const REMINDER_INTERVAL_HOURS = 24 * 7;
@@ -63,13 +62,17 @@ export async function sendOverdueReminders(
       (await creditedAgainst(invoice.organizationId, [invoice.id])).get(
         invoice.id,
       ) ?? 0;
-    const { balanceDue } = invoiceStatus(
-      invoice.totalCents,
+    // The same call the customer's own page reads, so nobody is chased for a
+    // bill their portal says is settled — including the part of it given up
+    // for paying early, which settles the invoice without any money arriving.
+    const { balanceDue, badge } = invoiceState(
+      invoice,
       paidCents,
       creditedCents,
+      now,
     );
 
-    if (!isOverdue(invoice.dueDate, balanceDue, now)) continue;
+    if (badge !== "overdue") continue;
 
     const throttledUntil = invoice.lastReminderAt
       ? invoice.lastReminderAt.getTime() +

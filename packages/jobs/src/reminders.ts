@@ -1,6 +1,6 @@
 import { db, schema } from "@sentrello/db";
 import { creditedAgainst } from "@sentrello/db/documents";
-import { invoiceStatus } from "@sentrello/db/money";
+import { invoiceState } from "@sentrello/db/money";
 import { businessIdentity } from "@sentrello/db/portal";
 import { emailAdapter, mailConfigured } from "@sentrello/email";
 import { overdueReminderEmail } from "@sentrello/email/templates";
@@ -208,11 +208,11 @@ export async function runReminders(
     // chased for the uncredited remainder, not for money nobody is owed.
     const creditedCents =
       (await creditedAgainst(orgId, [invoice.id])).get(invoice.id) ?? 0;
-    const { balanceDue } = invoiceStatus(
-      invoice.totalCents,
-      paidCents,
-      creditedCents,
-    );
+    // The balance the customer's own portal shows them, worked out by the
+    // same call — a chase for a figure their page disagrees with is worse
+    // than no chase. The early-payment saving is part of that: it settles
+    // the invoice without any money arriving.
+    const { balanceDue } = invoiceState(invoice, paidCents, creditedCents);
     if (balanceDue <= 0) continue;
 
     const overdueBy = daysPastDue(invoice.dueDate, now);

@@ -32,6 +32,7 @@ import {
 import {
   MoneyError,
   earlyPaymentTerms,
+  invoiceState,
   invoiceStatus,
   lineTotals,
 } from "@sentrello/db/money";
@@ -2023,8 +2024,12 @@ export default defineModule({
         // them would show money the customer no longer owes.
         const creditedCents =
           (await creditedAgainst(orgId, [invoice.id])).get(invoice.id) ?? 0;
-        const { balanceDue, status } = invoiceStatus(
-          invoice.totalCents,
+        // Balance, state and lateness from the one call every customer-facing
+        // surface uses — including the early-payment saving, which is debt
+        // given up rather than money received. Without it this screen showed a
+        // discounted invoice as still owing the saving for ever.
+        const { balanceDue, status } = invoiceState(
+          invoice,
           paidCents,
           creditedCents,
         );
@@ -2063,13 +2068,12 @@ export default defineModule({
             [],
           paidCents,
           creditedCents,
-          // A draft is not owed: nobody has been asked for it yet.
-          balanceDue:
-            invoice.status === "draft" || invoice.status === "void"
-              ? 0
-              : balanceDue,
-          // What the status would be from the payments alone, so a stale
-          // stored status is visible rather than believed.
+          // A draft is not owed: nobody has been asked for it yet, and
+          // `invoiceState` already answers zero for a draft and a void.
+          balanceDue,
+          // What the status is from the payments and credits, which is what
+          // every screen shows. Kept under its old name because the detail
+          // page reads it; the stored column beside it is the filter key.
           computedStatus: status,
           // What this customer could apply here, offered rather than
           // spent automatically. See "/api/invoices/:id/apply-credit".
