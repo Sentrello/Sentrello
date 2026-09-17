@@ -62,6 +62,24 @@ export async function convertQuoteToInvoice(
    */
   if (quote.convertedInvoiceId) return null;
 
+  /**
+   * What the quote's currency is worth on the day the invoice is raised.
+   *
+   * The same omission `copyInvoice` had, with the same consequence: nothing
+   * set `rateMicro`, so an accepted euro quote became an invoice at the column
+   * default of 1:1 and posted euro cents into dollar books — and this path
+   * posts immediately, so the wrong figure is in the ledger before anybody
+   * opens the document. Derived at today's date rather than the quote's,
+   * because the invoice is raised now and the money will be received at now's
+   * rate; refused rather than guessed, as everywhere else that raises one.
+   */
+  const rateMicro = await rateOn(organizationId, quote.currency, new Date());
+  if (rateMicro === null) {
+    throw new MoneyError(
+      `no exchange rate recorded for ${quote.currency} — set one under Accounting first`,
+    );
+  }
+
   const lines = await db
     .select()
     .from(schema.quoteLines)
@@ -75,8 +93,12 @@ export async function convertQuoteToInvoice(
         contactId: quote.contactId,
         quoteId: quote.id,
         currency: quote.currency,
+        rateMicro,
         number: await nextDocumentNumber(tx, organizationId, "invoice"),
         status: "open",
+        // The letterhead the customer was quoted on, so the invoice for the
+        // same work does not arrive looking like it came from somewhere else.
+        templateId: quote.templateId,
         // Gross-quoted or net-quoted travels with the document. The customer
         // accepted the figure on the quote, and the invoice states it the
         // same way round.
@@ -162,10 +184,53 @@ export async function convertQuoteToInvoice(
  * that asks the customer for a different amount than the one it was copied
  * from — and the two callers would drop different fields.
  *
- * Everything on the line travels: the unit, the fractional quantity, the tax
- * rate. So do the stored tax bands, rather than being recomputed — the bands
- * are what the document was taxed at, and recomputing gives a different answer
- * the day after a rate changes.
+ * **What a copy carries is decided here and nowhere else.** The rule is that a
+ * copy carries everything that makes the original correct, re-derives what
+ * belongs to the new document's own date, and carries nothing that is a fact
+ * about the original rather than about the sale. Written out because the
+ * alternative is what happened: fields omitted by accident, differently, in
+ * each caller, and nobody able to say which omissions were meant.
+ *
+ * **Carried.** The customer, the currency, the notes and payment terms, the
+ * template, whether the prices quoted include tax, every discount *term*, the
+ * totals, and the lines with their unit, fractional quantity and tax rate. The
+ * stored tax bands travel rather than being recomputed — the bands are what the
+ * document was taxed at, and recomputing gives a different answer the day after
+ * a rate changes. `buyerReference` travels because it is the customer's own
+ * reference and an invoice without it is one their accounts department cannot
+ * match. The early-payment terms travel because they are an offer this business
+ * makes to this customer, not something that happened once.
+ *
+ * `exemptionCertificateId` travels only while the customer does. It is why this
+ * document carries no tax, and the certificate belongs to one buyer — carrying
+ * it onto a copy addressed to somebody else would justify a zero-rating with a
+ * stranger's paperwork.
+ *
+ * **Re-derived: the exchange rate.** `rateMicro` was never set at all, so every
+ * copy took the column default of 1:1 and a euro invoice went into the books at
+ * face value. Unattended, monthly, in the recurring path, with nobody looking.
+ * It is re-derived at the copy's own issue date rather than inherited, because
+ * a copy is a *new sale*, and money invoiced this month will be received at
+ * this month's rate — inheriting would post January's rate for December's
+ * invoice, which is the same defect moving more slowly. A credit note is the
+ * opposite case and stays the opposite case: it unwinds a specific sale at the
+ * rate that sale was booked at, and it says so where it is written.
+ *
+ * Refused rather than guessed when the business has never priced the currency —
+ * the same refusal `raiseInvoice` and the invoice screen make. A caller that
+ * has already looked the rate up passes it as `rateMicro` and no second lookup
+ * happens.
+ *
+ * **Deliberately not carried**, each because it is a fact about the original
+ * document and not about the sale: the quote it came from, the share link and
+ * everything the customer's viewing of it recorded, the reminders sent, any
+ * late fee applied, the early-payment discount actually *taken*, and the
+ * number, status and issue date, which every copy gets new.
+ *
+ * **Credit notes are refused.** A credit note credits one specific invoice, so
+ * a copy of it would credit that invoice a second time. Copying one used to
+ * produce a plain invoice — the `kind` was dropped and the column default took
+ * over — which is a document changing what it is on the way through.
  */
 export async function copyInvoice(
   organizationId: string,
@@ -175,6 +240,13 @@ export async function copyInvoice(
     issueDate?: Date;
     dueDate?: Date | null;
     contactId?: string | null;
+    /**
+     * The rate the caller has already looked up for this copy's date.
+     *
+     * For the recurring run, which reads one rate for the whole batch. Absent,
+     * the rate is read here for the copy's issue date.
+     */
+    rateMicro?: number;
   } = {},
 ): Promise<typeof schema.invoices.$inferSelect | null> {
   const [source] = await db
@@ -188,6 +260,21 @@ export async function copyInvoice(
     )
     .limit(1);
   if (!source) return null;
+  if (source.kind !== "invoice") {
+    throw new MoneyError(
+      "a credit note cannot be copied — it credits one invoice, and a second copy would credit it twice",
+    );
+  }
+
+  const issueDate = overrides.issueDate ?? new Date();
+  const rateMicro =
+    overrides.rateMicro ??
+    (await rateOn(organizationId, source.currency, issueDate));
+  if (rateMicro === null) {
+    throw new MoneyError(
+      `no exchange rate recorded for ${source.currency} — set one under Accounting first`,
+    );
+  }
 
   const [lines, bands] = await Promise.all([
     db
@@ -215,14 +302,27 @@ export async function copyInvoice(
             ? overrides.contactId
             : source.contactId,
         currency: source.currency,
+        rateMicro,
         number: await nextDocumentNumber(tx, organizationId, "invoice"),
         status: overrides.status ?? "draft",
-        issueDate: overrides.issueDate ?? new Date(),
+        issueDate,
         dueDate:
           overrides.dueDate !== undefined ? overrides.dueDate : source.dueDate,
         notes: source.notes,
         paymentTerms: source.paymentTerms,
+        buyerReference: source.buyerReference,
         templateId: source.templateId,
+        // The offer, not what somebody once took: `earlyDiscountTakenCents`
+        // is a settlement on the original and starts at nothing here.
+        earlyDiscountType: source.earlyDiscountType,
+        earlyDiscountValue: source.earlyDiscountValue,
+        earlyDiscountDays: source.earlyDiscountDays,
+        // Only while it is the same buyer's document.
+        exemptionCertificateId:
+          overrides.contactId !== undefined &&
+          overrides.contactId !== source.contactId
+            ? null
+            : source.exemptionCertificateId,
         // A copy quotes the way its original did, or its gross unit prices
         // would be read back as net and the copy would ask for less.
         pricesIncludeTax: source.pricesIncludeTax,
@@ -452,6 +552,18 @@ export async function convertQuoteToInstalments(
   if (quote.convertedInvoiceId) {
     return { error: "that quote has already been turned into an invoice" };
   }
+  /**
+   * Every instalment is raised in the quote's currency, so every one of them
+   * needs the rate. Refused as a message rather than thrown, because this
+   * function answers its caller that way and a plan of six invoices half of
+   * which were made at 1:1 is worse than none.
+   */
+  const rateMicro = await rateOn(organizationId, quote.currency, new Date());
+  if (rateMicro === null) {
+    return {
+      error: `no exchange rate recorded for ${quote.currency} — set one under Accounting first`,
+    };
+  }
 
   const bands = await db
     .select()
@@ -542,8 +654,13 @@ export async function convertQuoteToInstalments(
           contactId: quote.contactId,
           quoteId: quote.id,
           currency: quote.currency,
+          rateMicro,
           number: await nextDocumentNumber(tx, organizationId, "invoice"),
           status: "draft",
+          // Quoted gross stays quoted gross, on its own letterhead — the same
+          // two fields the single conversion carries.
+          pricesIncludeTax: quote.pricesIncludeTax,
+          templateId: quote.templateId,
           dueDate: due,
           subtotalCents: subtotal,
           discountCents: 0,

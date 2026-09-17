@@ -10,7 +10,7 @@ import {
   postInvoiceIssued,
   reverseJournalEntries,
 } from "@sentrello/db/ledger";
-import { invoiceStatus } from "@sentrello/db/money";
+import { MoneyError, invoiceStatus } from "@sentrello/db/money";
 import { nextDocumentNumber } from "@sentrello/db/numbering";
 import type { ModuleContext } from "@sentrello/module-sdk";
 import { creditedAgainst, shareToken, writeTaxBands } from "./documents";
@@ -182,13 +182,26 @@ export function registerLifecycle(ctx: ModuleContext) {
       // invoice from a template one the same way. A copy that drops a field
       // asks the customer for a different amount than the document it came
       // from, and two implementations drop different fields.
-      const copy = await copyInvoice(orgId, c.req.param("id"), {
-        status: "draft",
-        issueDate: new Date(),
-      });
-      if (!copy) return c.json({ error: "not found" }, 404);
+      try {
+        const copy = await copyInvoice(orgId, c.req.param("id"), {
+          status: "draft",
+          issueDate: new Date(),
+        });
+        if (!copy) return c.json({ error: "not found" }, 404);
 
-      return c.json({ invoice: copy }, 201);
+        return c.json({ invoice: copy }, 201);
+      } catch (err) {
+        /*
+         * A refusal, not a failure. Copying is declined when the currency has
+         * never been priced and when the document is a credit note, and both
+         * are things the person pressing the button can act on — a 500 with a
+         * stack trace tells them only that the product is broken.
+         */
+        if (err instanceof MoneyError) {
+          return c.json({ error: err.message }, 400);
+        }
+        throw err;
+      }
     },
   );
 
