@@ -3,6 +3,7 @@ import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, eq, inArray, schema } from "@sentrello/db";
 import { postJournalEntry } from "@sentrello/db/ledger";
+import { dropOrganization } from "@sentrello/db/testing";
 import accounting from "@sentrello/module-accounting";
 import crm from "@sentrello/module-crm";
 import dashboard from "@sentrello/module-dashboard";
@@ -336,20 +337,18 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  for (const orgId of [aOrgId, bOrgId]) {
-    await db
-      .delete(schema.contacts)
-      .where(eq(schema.contacts.organizationId, orgId));
-    await db
-      .delete(schema.companies)
-      .where(eq(schema.companies.organizationId, orgId));
-    await db
-      .delete(schema.member)
-      .where(eq(schema.member.organizationId, orgId));
-    await db
-      .delete(schema.organizations)
-      .where(eq(schema.organizations.id, orgId));
-  }
+  /*
+   * `dropOrganization`, not four deletes written out here.
+   *
+   * This used to name contacts, companies, membership and the organization —
+   * the four tables the suite seeded on the day it was written. It seeds
+   * invoices now, and quotes, deals, tags, tax definitions and a journal
+   * entry, and every run left two open invoices behind with a due date on
+   * them. Nothing reads them, because every reader is scoped to an
+   * organization that no longer exists; the dunning sweep is not, and 176 of
+   * them had accumulated before the leftovers check widened enough to see it.
+   */
+  await dropOrganization(aOrgId, bOrgId);
   await db
     .delete(schema.session)
     .where(inArray(schema.session.userId, [aUserId, bUserId]));

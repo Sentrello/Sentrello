@@ -113,27 +113,74 @@ step_leftovers() {
     return
   }
 
-  if [ "$left" = "0" ]; then
+  # One statement, built from the catalogue, existence-shaped: on a clean run
+  # every branch scans an empty table and the whole thing is a few
+  # milliseconds. Measured at 27ms against a database holding 200k rows.
+  local generator parts due
+  generator="select coalesce(string_agg(format(
+      'select %L as t, count(*) as n from %I.%I x
+         where x.%I is not null
+           and not exists (select 1 from public.organizations o
+                            where o.id = x.organization_id)',
+      n.nspname || '.' || c.relname, n.nspname, c.relname, a.attname),
+    ' union all '), 'select null::text as t, 0::bigint as n')
+    from pg_attribute a
+    join pg_class c on c.oid = a.attrelid and c.relkind = 'r'
+    join pg_namespace n on n.oid = c.relnamespace
+    where a.attnum > 0 and not a.attisdropped
+      and n.nspname not in ('pg_catalog', 'information_schema')
+      and (a.attname like 'next\_%\_at'
+           or a.attname in ('due_at', 'due_date', 'send_at', 'scheduled_at',
+                            'starts_at', 'run_at', 'retry_at', 'process_at'))
+      and exists (select 1 from pg_attribute w
+                   where w.attrelid = c.oid and w.attname = 'organization_id'
+                     and w.attnum > 0 and not w.attisdropped)"
+  parts="$(psql "$url" -tAc "$generator" 2>/dev/null)"
+  due=""
+  [ -n "$parts" ] && due="$(psql "$url" -tA -F'  ' -c \
+    "select t, n from ($parts) z where n > 0 order by n desc, t" 2>/dev/null)"
+
+  if [ "$left" = "0" ] && [ -z "$due" ]; then
     echo "ok"
     return
   fi
-
   echo "FAILED"
-  # The database is named because this message used to suggest wiping a table
-  # without saying which database it was in. Run from a hook, or with no
-  # DATABASE_URL set, this is the shared default rather than whichever one the
-  # tests just used — and the rows may belong to somebody else's run.
-  echo "      $left organization(s) left in: $url"
-  # Named, so whoever reads this knows which suite to look at rather than
-  # having to open a database client to find out.
-  psql "$url" -tA -F'  ' -c \
-    'select id, name from organizations order by created_at limit 10' \
-    2>/dev/null | sed 's/^/        /'
-  echo "      A suite did not clean up. Remove the rows above BY ID:"
-  echo "        psql \"$url\" -c \"delete from organizations where id = '<id>'\""
-  echo "      Not the whole table: another session may be mid-run against it."
   failed=1
+
+  if [ "$left" != "0" ]; then
+    echo "      $left organization(s) left in the test database:"
+    # Named, so whoever reads this knows which suite to look at rather than
+    # having to open a database client to find out.
+    psql "$url" -tA -F'  ' -c \
+      'select id, name from organizations order by created_at limit 10' \
+      2>/dev/null | sed 's/^/        /'
+    echo "      A suite did not clean up. Remove them by id — never with an"
+    echo "      unscoped delete, which has been run against a shared database"
+    echo "      once already on the strength of a line like this one:"
+    echo "        psql \"$url\" -c \"delete from organizations where id = '...'\""
+  fi
+
+  if [ -n "$due" ]; then
+    echo "      work still scheduled in an organization that no longer exists:"
+    # The table names the module, which names the suite.
+    printf '%s\n' "$due" | sed 's/^/        /'
+    echo "      Every sweep in the platform selects what is due across all"
+    echo "      organizations, so these are rows another suite's run will pick"
+    echo "      up and count. Either the suite that made them does not clean"
+    echo "      up, or a delete path leaves its children behind."
+  fi
 }
+# Before the tests as well as after: a database that starts dirty makes the
+# run's own leftovers unreadable, and the suites are not worth the minutes if
+# the answer at the end cannot be trusted. It says nothing about being ready —
+# that word belongs after the tests have run, and printing it here is how a
+# commit went in on the strength of a line the tests had not reached yet.
+step_leftovers
+
+if [ "$failed" -ne 0 ]; then
+  printf '\n  not ready to commit\n'
+  exit 1
+fi
 
 step "tests" bun test
 step_leftovers
