@@ -6,7 +6,7 @@ import {
   creditFor,
 } from "@sentrello/db/credit";
 import { creditedAgainst } from "@sentrello/db/documents";
-import { earlyPaymentTerms } from "@sentrello/db/money";
+import { earlyPaymentTerms, invoiceState } from "@sentrello/db/money";
 import { businessIdentity } from "@sentrello/db/portal";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import { rateLimit } from "@sentrello/module-sdk";
@@ -248,6 +248,8 @@ function documentPage(args: {
   paidCents: number;
   /** Settled by credit note rather than by money. */
   creditedCents: number;
+  /** Given up for paying early: it settles the debt, and no money arrived. */
+  earlyDiscountTakenCents: number;
   notes: string | null;
   paymentTerms: string | null;
   /** Pay by this date and pay this much less. Null when nothing is offered. */
@@ -290,7 +292,31 @@ function documentPage(args: {
    * reads the line first, so the line is where the sentence belongs.
    */
   const inc = args.pricesIncludeTax ? " (inc. tax)" : "";
-  const due = args.totalCents - args.paidCents - args.creditedCents;
+  /**
+   * What is still owed, asked rather than worked out.
+   *
+   * This line used to subtract the payments and the credits from the total and
+   * call the answer a debt, which is wrong twice over on a page a customer
+   * reads. A **void** invoice still showed a balance — with the pill above it
+   * saying "Void" — and offered them a discount for settling it today. And an
+   * invoice settled in full under its own early-payment terms showed the
+   * saving as "Still due", because the saving is not a payment and nothing
+   * here took it off. `invoiceState` is the one place that knows both, and it
+   * is what the portal, the account page and the chase job already ask.
+   */
+  const due =
+    args.kind === "invoice"
+      ? invoiceState(
+          {
+            status: args.status,
+            totalCents: args.totalCents,
+            earlyDiscountTakenCents: args.earlyDiscountTakenCents,
+            dueDate: args.dueDate,
+          },
+          args.paidCents,
+          args.creditedCents,
+        ).balanceDue
+      : args.totalCents - args.paidCents - args.creditedCents;
 
   const lineRow = (l: DocumentLine) => `<tr>
       <td>${esc(l.description)}</td>
@@ -683,6 +709,8 @@ export function registerShare(ctx: ModuleContext) {
           pricesIncludeTax: row.pricesIncludeTax,
           paidCents,
           creditedCents,
+          earlyDiscountTakenCents:
+            kind === "invoice" ? invoiceRow.earlyDiscountTakenCents : 0,
           notes: row.notes,
           paymentTerms: kind === "invoice" ? invoiceRow.paymentTerms : null,
           bands: bands.map((b) => ({
