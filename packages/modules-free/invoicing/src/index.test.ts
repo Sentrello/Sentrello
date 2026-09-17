@@ -4962,3 +4962,87 @@ test("merging refuses a draft belonging to another business, and destroys none o
       .where(eq(schema.invoices.organizationId, other));
   }
 });
+
+/**
+ * The letterhead id, which was the one body id left unverified.
+ *
+ * It was inert — `templateFor` filters by organization and falls back to the
+ * default — and inert by accident is not a security posture: the row still
+ * held a stranger's id, waiting for the next reader written without the
+ * filter, which is exactly how the contact leak worked. Normalised rather than
+ * refused, because a missing letterhead has a correct answer and a missing
+ * customer does not; the reasoning is written out over `ownedTemplateId`.
+ */
+test("a letterhead belonging to somebody else is never written onto a document", async () => {
+  const other = `other-${crypto.randomUUID().slice(0, 8)}`;
+  const [theirs] = await db
+    .insert(schema.documentTemplates)
+    .values({ organizationId: other, name: `Their letterhead ${suffix}` })
+    .returning();
+  const [ours] = await db
+    .insert(schema.documentTemplates)
+    .values({ organizationId: orgId, name: `Our letterhead ${suffix}` })
+    .returning();
+  if (!theirs || !ours) throw new Error("template insert returned no row");
+
+  const raise = async (templateId: string) => {
+    const res = await app.request("http://localhost/api/invoices", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        contactId,
+        status: "draft",
+        templateId,
+        lines: [{ description: "A visit", quantity: 1, unitPriceCents: 1_000 }],
+      }),
+    });
+    expect(res.status).toBe(201);
+    return (
+      (await res.json()) as {
+        invoice: { id: string; templateId: string | null };
+      }
+    ).invoice;
+  };
+
+  // Ours is kept, which is what makes the two below mean something.
+  expect((await raise(ours.id)).templateId).toBe(ours.id);
+
+  // Theirs is not written at all. The document goes out on this business's
+  // own default letterhead, which is what the reader already did with it.
+  const foreign = await raise(theirs.id);
+  expect(foreign.templateId).toBeNull();
+
+  // A letterhead that has since been deleted is cleared rather than refused:
+  // templates are deleted outright and the edit form sends the stored id back,
+  // so refusing would make every such draft unsaveable.
+  const gone = await raise(crypto.randomUUID());
+  expect(gone.templateId).toBeNull();
+
+  // And the same on the way through an edit, which is the path that would
+  // have rewritten a clean row with a stranger's id.
+  const patched = await app.request(
+    `http://localhost/api/invoices/${foreign.id}`,
+    {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ templateId: theirs.id }),
+    },
+  );
+  expect(patched.status).toBe(200);
+  const [after] = await db
+    .select({ templateId: schema.invoices.templateId })
+    .from(schema.invoices)
+    .where(eq(schema.invoices.id, foreign.id));
+  expect(after?.templateId).toBeNull();
+
+  // Nothing anywhere in this business points at their letterhead.
+  const carrying = await db
+    .select({ id: schema.invoices.id })
+    .from(schema.invoices)
+    .where(eq(schema.invoices.templateId, theirs.id));
+  expect(carrying.length).toBe(0);
+
+  await db
+    .delete(schema.documentTemplates)
+    .where(eq(schema.documentTemplates.organizationId, other));
+});
