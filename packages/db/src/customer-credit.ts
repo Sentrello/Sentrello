@@ -1,4 +1,4 @@
-import { db } from "./client";
+import { type DbTx, db } from "./client";
 import { sumCents } from "./money";
 import { and, eq, sql } from "./orm";
 import * as schema from "./schema";
@@ -35,14 +35,32 @@ export async function creditBalanceFor(
   return row?.total ?? 0;
 }
 
-/** Records a movement: positive grants credit, negative spends it. */
-export async function recordCreditMovement(entry: {
-  organizationId: string;
-  contactId: string;
-  cents: number;
-  paymentId?: string;
-  invoiceId?: string;
-  reason: string;
-}): Promise<void> {
-  await db.insert(schema.customerCredits).values(entry);
+/**
+ * Records a movement: positive grants credit, negative spends it.
+ *
+ * `tx` joins a transaction the caller already has open, the same option
+ * `postJournalEntry` takes — and for the same reason. This row is the
+ * subsidiary ledger behind a posting to the customer credits account: which
+ * customer the liability is held for. Written in a commit of its own, a crash
+ * between the two leaves a business owing money the books say it owes and no
+ * record of whose it is, or a customer holding credit nothing was posted for.
+ * Either way the subsidiary ledger and the account it explains disagree, and
+ * nothing notices until somebody asks for their money.
+ *
+ * It was added because callers had begun writing the insert out by hand to
+ * get inside their own transaction, which is the same row recorded in three
+ * places and the shape most of this project's defects have had.
+ */
+export async function recordCreditMovement(
+  entry: {
+    organizationId: string;
+    contactId: string;
+    cents: number;
+    paymentId?: string;
+    invoiceId?: string;
+    reason: string;
+  },
+  options: { tx?: DbTx } = {},
+): Promise<void> {
+  await (options.tx ?? db).insert(schema.customerCredits).values(entry);
 }
