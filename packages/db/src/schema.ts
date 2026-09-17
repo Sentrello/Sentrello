@@ -287,7 +287,7 @@ export const deals = pgTable(
 /**
  * Notes against a contact or a deal, with files.
  *
- * One table rather than Atomic's two, matching how `taggables` already works
+ * One table rather than the reference's two, matching how `taggables` already works
  * here — the shape is identical and two tables would mean two of every query.
  */
 export const notes = pgTable(

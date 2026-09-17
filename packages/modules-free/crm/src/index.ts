@@ -797,7 +797,7 @@ const tables = {
     },
     /**
      * What the list row needs beyond the contact's own columns: its tags, and
-     * how much is outstanding on it. Atomic shows both on every row, and both
+     * how much is outstanding on it. The reference shows both on every row, and both
      * are the reason somebody picks one contact out of a page of them.
      */
     async enrich(rows: Record<string, unknown>[], orgId: string) {

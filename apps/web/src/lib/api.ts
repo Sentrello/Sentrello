@@ -168,7 +168,7 @@ export type Company = {
 };
 
 /**
- * Headcount bands, matching Atomic's.
+ * Headcount bands, matching the reference's.
  *
  * Bands rather than a number because nobody knows the number, and the stored
  * value is the top of the band so it sorts correctly.
