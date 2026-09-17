@@ -1,6 +1,6 @@
 ---
 title: When something is wrong
-sidebar_position: 3
+sidebar_position: 4
 description: The three things to check, and what the common failures actually mean.
 tags: [operations, support]
 ---

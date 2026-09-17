@@ -41,6 +41,25 @@ export const statement = {
    * point.
    */
   payments: ["read", "connect", "send"],
+  /**
+   * Taking old records off this server.
+   *
+   * Its own resource rather than actions on `settings`, for the same reason
+   * `payments` is its own rather than actions on `bookkeeping`: writing a copy
+   * of the books and destroying five years of them are not the same authority,
+   * and neither is deciding where a business's records get sent.
+   *
+   * `read` looks at what could be archived and at what has been. `create`
+   * writes an archive, which deletes nothing. **`delete` is the one that
+   * removes local rows** once an archive has been verified, and is the most
+   * destructive grant in the product. `connect` configures the destination —
+   * somebody who can point archives at a bucket can point them at *their*
+   * bucket, which is a decision about where the business's records go rather
+   * than about the archive screen.
+   *
+   * Granted by no default role except the owner's.
+   */
+  archive: ["read", "create", "delete", "connect"],
   reports: ["read"],
   settings: ["read", "update"],
   // Optional modules declare their resources here too: the access-control
@@ -160,6 +179,9 @@ export const admin = ac.newRole({
   bookkeeping: ["read", "create", "update", "delete"],
   // The owner of the instance can pay people. Nobody else does by default.
   payments: ["read", "connect", "send"],
+  // And is the only one who can take records off the server, or say where
+  // they go.
+  archive: ["read", "create", "delete", "connect"],
   reports: ["read"],
   settings: ["read", "update"],
   time: ["read", "create", "update", "delete", "approve"],

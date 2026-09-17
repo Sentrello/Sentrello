@@ -14,6 +14,7 @@
     "@sentrello/licensing-client": "*",
     "@sentrello/module-account": "*",
     "@sentrello/module-accounting": "*",
+    "@sentrello/module-archive": "*",
     "@sentrello/module-crm": "*",
     "@sentrello/module-dashboard": "*",
     "@sentrello/module-invoicing": "*",

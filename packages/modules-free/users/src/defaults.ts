@@ -66,6 +66,16 @@ export const DEFAULT_USER_POLICIES: DefaultPolicy[] = [
       // Administrators can pay suppliers. Every other default role can see
       // that a payment happened and cannot make one.
       payments: ["read", "connect", "send"],
+      /**
+       * And can take old records off the server.
+       *
+       * `delete` here is the grant that removes local rows once an archive has
+       * been written and read back — the most destructive thing this product
+       * can be asked to do. No other default role has any of it, deliberately:
+       * a bookkeeper who wants a copy off-site should be given `read` and
+       * `create` on purpose, by somebody who thought about it.
+       */
+      archive: ["read", "create", "delete", "connect"],
       reports: ["read"],
       settings: ["read", "update"],
       scheduling: ["read", "create", "update", "delete"],

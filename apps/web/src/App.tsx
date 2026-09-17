@@ -13,6 +13,7 @@ import {
 import { Loading, muted, setFormats } from "./lib/ui";
 import { AcceptInvitation } from "./routes/accept-invitation";
 import { Accounts, Journal, Money, Summary } from "./routes/accounting";
+import { Archive } from "./routes/archive";
 import { CanadianTax } from "./routes/ca-tax";
 import { Companies, CompanyDetail } from "./routes/companies";
 import { ContactDetail } from "./routes/contact-detail";
@@ -109,6 +110,7 @@ const SCREENS: Record<string, () => React.ReactElement | null> = {
   "settings-licence": SettingsLicence,
   "settings-modules": SettingsModules,
   "settings-privacy": Privacy,
+  "settings-archive": Archive,
   "accounting-vat": VatFiling,
   "accounting-ca-tax": CanadianTax,
   "invoicing-oss": OssReturn,

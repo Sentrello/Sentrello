@@ -21,6 +21,7 @@ import { NAV_TAX_REGIME, taxRegimesFor } from "@sentrello/db/tax-regimes";
 import { mailConfigured } from "@sentrello/email";
 import { startJobs } from "@sentrello/jobs";
 import account from "@sentrello/module-account";
+import archive from "@sentrello/module-archive";
 import crm from "@sentrello/module-crm";
 import dashboard from "@sentrello/module-dashboard";
 import money from "@sentrello/module-money";
@@ -167,6 +168,12 @@ const modules: SentrelloModule[] = [
   settings,
   profile,
   users,
+  /*
+   * Taking old records off this server. Free, because the business most likely
+   * to fill a disk is the one on the smallest machine, and a business that
+   * cannot archive safely deletes unsafely instead.
+   */
+  archive,
   // The unified customer account page: no screens of its own, only the
   // `/account/:token` surface that arranges whatever this instance's other
   // modules declared with `registerAccountSection`.
