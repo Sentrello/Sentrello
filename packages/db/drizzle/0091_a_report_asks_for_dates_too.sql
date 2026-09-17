@@ -1,0 +1,1 @@
+CREATE INDEX "journal_entries_org_posted_idx" ON "journal_entries" USING btree ("organization_id","posted_at");
