@@ -13,7 +13,7 @@ import {
   totalsByAccount,
 } from "@sentrello/db/ledger";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
-import { type CashBasisRow, cashBasisRows } from "./cash-basis";
+import { type CashBasisRow, cashBasisRowsFor } from "./cash-basis";
 
 /**
  * The two statements every business is asked for.
@@ -174,13 +174,17 @@ export function registerReports(ctx: ModuleContext) {
       }
 
       /**
-       * The whole history, not the period.
+       * More than the period, and much less than the whole history.
        *
        * Money received in June for work invoiced in March is June's income on
-       * this basis, and June's entries alone cannot say so. The period is
-       * applied to what is recognised rather than to what is read.
+       * this basis, and June's entries alone cannot say so — so the walk still
+       * starts before the period and the period is applied to what is
+       * recognised rather than to what is read. What it no longer does is read
+       * everything since the business opened to answer a question about one
+       * month: `cashBasisEntries` reads the period, the opening position it
+       * needs, and nothing else, an entry at a time.
        */
-      const rows = cashBasisRows(await ledgerRows(orgId), period);
+      const rows = await cashBasisRowsFor(orgId, period);
       const income = totalsOfCashRows(rows, "income");
       const expenses = totalsOfCashRows(rows, "expense");
       const incomeCents = sum(income);
