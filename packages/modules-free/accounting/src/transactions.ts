@@ -14,6 +14,7 @@ import {
   taggingFrom,
 } from "@sentrello/db/ledger";
 import { sumCents } from "@sentrello/db/money";
+import { dateFrom, demandDate } from "@sentrello/db/timezone";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import type { AccountType } from "./chart";
 import { isUuid, ownedAccount, ownedAccountOfType } from "./chart";
@@ -85,11 +86,17 @@ export function sourceOf(kind: TransactionKind, id: string): string {
   return `${kind}:${id}`;
 }
 
-/** A date the caller supplied, or now. Rejects nonsense rather than storing it. */
+/**
+ * A date the caller supplied, or now. Rejects nonsense rather than storing it.
+ *
+ * "Nonsense" includes the 30th of February, which `new Date` rolls forward to
+ * the 2nd of March rather than refusing — and the date on a transaction is the
+ * date its journal entry is posted under, so a rolled day books the money into
+ * a month nobody chose and every report after it agrees.
+ */
 export function parseDate(value: unknown): Date | null {
   if (value === undefined || value === null || value === "") return new Date();
-  const date = new Date(String(value));
-  return Number.isNaN(date.getTime()) ? null : date;
+  return dateFrom(String(value));
 }
 
 async function defaultCategory(
@@ -271,8 +278,13 @@ export function registerTransactions(ctx: ModuleContext) {
     async (c: RouteContext) => {
       const orgId = activeOrganizationId(c.get("session"));
       const kind = c.req.query("kind");
-      const from = parseDate(c.req.query("from") ?? null);
-      const to = parseDate(c.req.query("to") ?? null);
+      // Refused rather than ignored: a period parameter that could not be read
+      // used to drop out of the filter, which answers a question about March
+      // with the whole book and looks like a list rather than a mistake.
+      const fromParam = c.req.query("from");
+      const toParam = c.req.query("to");
+      const from = fromParam ? demandDate(fromParam) : undefined;
+      const to = toParam ? demandDate(toParam) : undefined;
 
       // By what it says on the line: "Screwfix", "diesel", the reference off a
       // statement. Searching in the browser means fetching a year of entries
@@ -284,12 +296,8 @@ export function registerTransactions(ctx: ModuleContext) {
         ...(kind && (TRANSACTION_KINDS as readonly string[]).includes(kind)
           ? [eq(schema.transactions.kind, kind)]
           : []),
-        ...(c.req.query("from") && from
-          ? [gte(schema.transactions.occurredAt, from)]
-          : []),
-        ...(c.req.query("to") && to
-          ? [lte(schema.transactions.occurredAt, to)]
-          : []),
+        ...(from ? [gte(schema.transactions.occurredAt, from)] : []),
+        ...(to ? [lte(schema.transactions.occurredAt, to)] : []),
         ...(q ? [ilike(schema.transactions.description, `%${q}%`)] : []),
       );
 

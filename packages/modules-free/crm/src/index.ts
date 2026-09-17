@@ -21,6 +21,7 @@ import {
 import { organizationMember } from "@sentrello/db/membership";
 import { sumCents } from "@sentrello/db/money";
 import { recordChanged } from "@sentrello/db/record-events";
+import { dateFrom, dayFrom, demandDate } from "@sentrello/db/timezone";
 import type {
   ModuleContext,
   SearchHit,
@@ -112,12 +113,38 @@ function withParsedDates(
       continue;
     }
     if (raw instanceof Date) continue;
-    const parsed = new Date(String(raw));
-    if (Number.isNaN(parsed.getTime())) return { ok: false, field };
+    const parsed = dateFrom(String(raw));
+    if (!parsed) return { ok: false, field };
     out[field] = parsed;
+  }
+  /*
+   * A plain calendar column is left a string, and still has to be a real day.
+   *
+   * `expectedCloseOn` is a `date`, not a timestamp, so it goes to the driver
+   * as the string it arrived as — and Postgres refuses "2026-02-30" with a
+   * type error, which reaches the person as a 500 on ordinary typed input.
+   * Refused here instead, where the answer can name the field.
+   */
+  for (const field of DAY_FIELDS) {
+    const raw = out[field];
+    if (raw === undefined) continue;
+    if (raw === null || raw === "") {
+      out[field] = null;
+      continue;
+    }
+    if (!dayFrom(String(raw))) return { ok: false, field };
+    out[field] = String(raw);
   }
   return { ok: true, value: out };
 }
+
+/**
+ * Columns that are a day rather than a moment.
+ *
+ * Kept as `YYYY-MM-DD` strings because that is what a `date` column is, and
+ * turning one into a Date would move it by a timezone on the way back out.
+ */
+const DAY_FIELDS = new Set(["expectedCloseOn"]);
 
 /**
  * An empty status is no status, and the column's default is what that means.
@@ -942,11 +969,14 @@ const tables = {
         // "Last seen" is five buttons in the sidebar, all of which resolve to
         // one end of a range — so one pair of parameters serves all of them
         // rather than five named filters the server has to know the meaning of.
+        // Refused rather than ignored. An unreadable value used to reach the
+        // driver as an Invalid Date, and an impossible day — 30 February —
+        // moved the boundary two days without the list saying anything.
         query.lastSeenAfter
-          ? gte(schema.contacts.lastSeenAt, new Date(query.lastSeenAfter))
+          ? gte(schema.contacts.lastSeenAt, demandDate(query.lastSeenAfter))
           : undefined,
         query.lastSeenBefore
-          ? lte(schema.contacts.lastSeenAt, new Date(query.lastSeenBefore))
+          ? lte(schema.contacts.lastSeenAt, demandDate(query.lastSeenBefore))
           : undefined,
         query.ownerId ? eq(schema.contacts.ownerId, query.ownerId) : undefined,
         query.companyId

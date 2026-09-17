@@ -310,6 +310,61 @@ test("an account belonging to someone else is refused", async () => {
     .where(eq(schema.accounts.id, foreign?.id ?? ""));
 });
 
+/**
+ * The 30th of February is a 400, not a journal entry in March.
+ *
+ * `new Date` rolls an impossible day forward without complaint, so a shape
+ * check of `YYYY-MM-DD` used to let one through — and the date on a
+ * transaction is the date its journal entry is posted under. The books would
+ * have carried the money in a month nobody chose, and every report after it
+ * would have agreed, because by then it is a perfectly valid date.
+ */
+test("a day that never existed is refused, and posts nothing", async () => {
+  const description = `Impossible ${suffix}`;
+  const res = await post("/api/transactions", {
+    kind: "expense",
+    description,
+    amountCents: 1234,
+    occurredAt: "2026-02-30",
+  });
+  expect(res.status).toBe(400);
+
+  const rows = await db
+    .select()
+    .from(schema.transactions)
+    .where(
+      and(
+        eq(schema.transactions.organizationId, orgId),
+        eq(schema.transactions.description, description),
+      ),
+    );
+  expect(rows).toHaveLength(0);
+
+  const entries = await db
+    .select()
+    .from(schema.journalEntries)
+    .where(
+      and(
+        eq(schema.journalEntries.organizationId, orgId),
+        eq(schema.journalEntries.memo, description),
+      ),
+    );
+  expect(entries).toHaveLength(0);
+
+  // The day either side of it is a real day, and lands in February.
+  const ok = await post("/api/transactions", {
+    kind: "expense",
+    description: `Real ${suffix}`,
+    amountCents: 1234,
+    occurredAt: "2026-02-28",
+  });
+  expect(ok.status).toBe(201);
+  const { transaction } = (await ok.json()) as {
+    transaction: { occurredAt: string };
+  };
+  expect(transaction.occurredAt.slice(0, 7)).toBe("2026-02");
+});
+
 test("an amount that is not integer cents is refused", async () => {
   const res = await post("/api/transactions", {
     description: "Rounding",

@@ -8,6 +8,7 @@ import {
   forgetHipaaRules,
   record as recordSecurityEvent,
 } from "@sentrello/db/security-events";
+import { dateFrom } from "@sentrello/db/timezone";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import { REGIMES, suggestedRegimes } from "./regimes";
 
@@ -244,9 +245,20 @@ export function registerCompliance(ctx: ModuleContext) {
         patch.idleTimeoutMinutes = minutes;
       }
       if (body.riskAssessmentOn !== undefined) {
-        patch.riskAssessmentOn = body.riskAssessmentOn
-          ? new Date(String(body.riskAssessmentOn))
+        /*
+         * A date, or nothing. Neither `new Date("soon")` nor the 30th of
+         * February: the first reached the driver as an Invalid Date and came
+         * back a 500, and the second was quietly stored as the 2nd of March —
+         * which matters on a field whose whole job is to say when the last
+         * assessment was and when the next one is due.
+         */
+        const on = body.riskAssessmentOn
+          ? dateFrom(body.riskAssessmentOn)
           : null;
+        if (body.riskAssessmentOn && !on) {
+          return c.json({ error: "a date looks like 2026-03-31" }, 400);
+        }
+        patch.riskAssessmentOn = on;
       }
 
       const [row] = await db

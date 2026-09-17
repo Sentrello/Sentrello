@@ -161,8 +161,29 @@ export function coerceCustomValues(
         out[field.id] = value === true || value === "true";
         break;
       case "date": {
-        const date = new Date(String(value));
-        if (!Number.isNaN(date.getTime())) {
+        const text = String(value);
+        const date = new Date(text);
+        /*
+         * Stored as the day it names, or not at all.
+         *
+         * `new Date` rolls an impossible day *forward* rather than refusing
+         * it: 30 February becomes 2 March, and a custom date field is read by
+         * reports that group by month. The round trip tells them apart — a
+         * day that does not format back to the one it was given was never
+         * that day.
+         *
+         * The same check as `dateFrom` in `@sentrello/db/timezone`, written
+         * out rather than imported: the SDK is what the database package
+         * depends on, not the other way round, and four lines are cheaper
+         * than a cycle between them.
+         */
+        const named = /^(\d{4}-\d{2}-\d{2})/.exec(text)?.[1];
+        const probe = named ? new Date(`${named}T00:00:00.000Z`) : null;
+        const realDay =
+          !probe ||
+          (!Number.isNaN(probe.getTime()) &&
+            probe.toISOString().slice(0, 10) === named);
+        if (!Number.isNaN(date.getTime()) && realDay) {
           out[field.id] = date.toISOString().slice(0, 10);
         }
         break;

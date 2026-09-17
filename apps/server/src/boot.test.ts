@@ -708,6 +708,34 @@ test("a business route is 401 without a session", async () => {
   expect(await res.json()).toEqual({ error: "unauthorized" });
 });
 
+/**
+ * A date that never existed is a 400, wherever it was read.
+ *
+ * `new Date` rolls the 30th of February forward to the 2nd of March rather
+ * than refusing it, so a filter or a period parameter would quietly answer a
+ * question about February with March. The parsers throw; this is the mapping
+ * that turns the throw into something the person who typed it can act on,
+ * rather than "something went wrong".
+ */
+test("an impossible date is a 400 that names it, not a 500", async () => {
+  process.env.SENTRELLO_LICENSE_TOKEN_PATH = "secrets/does-not-exist.jwt";
+  const server = (await import("./index")).default;
+  const { headers, cleanUp } = await signedIn();
+  try {
+    const res = await server.fetch(
+      new Request("http://localhost/api/contacts?lastSeenAfter=2026-02-30", {
+        headers,
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: string }).error).toContain(
+      "2026-02-30",
+    );
+  } finally {
+    await cleanUp();
+  }
+});
+
 test("a body that is not JSON is a 400, not a crash", async () => {
   // Routes parse with `c.req.json()`; before the onError mapping, a stray
   // byte in the body answered "something went wrong" with a 500 and a stack

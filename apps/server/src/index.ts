@@ -19,6 +19,7 @@ import {
 import { and, eq, sql } from "@sentrello/db/orm";
 import { lastRetentionSweep } from "@sentrello/db/retention";
 import { NAV_TAX_REGIME, taxRegimesFor } from "@sentrello/db/tax-regimes";
+import { UnreadableDateError } from "@sentrello/db/timezone";
 import { mailConfigured } from "@sentrello/email";
 import { startJobs } from "@sentrello/jobs";
 import account from "@sentrello/module-account";
@@ -65,11 +66,25 @@ const app = new Hono<SentrelloEnv>();
  * routes would need its own try/catch to avoid answering 500 to a rule working
  * exactly as intended.
  *
- * Nothing else is caught here. Every other failure keeps the behaviour it had.
+ * Only the caller's own mistakes are caught here. Every other failure keeps
+ * the behaviour it had.
  */
 app.onError((err, c) => {
   if (err instanceof PeriodClosedError) {
     return c.json({ error: err.message }, 409);
+  }
+  /*
+   * A date that never existed is the caller's mistake too.
+   *
+   * Dates are read deep inside a request — a list filter, a report period, a
+   * query parameter three functions below the route — and `new Date` rolls an
+   * impossible day forward rather than refusing it, so "2026-02-30" would
+   * otherwise land figures in March without anything saying so. The parser
+   * throws; this is the one place that can turn it into an answer, for every
+   * route at once.
+   */
+  if (err instanceof UnreadableDateError) {
+    return c.json({ error: err.message }, 400);
   }
   // A body that is not JSON is the caller's mistake, not a crash. The parse
   // happens inside `c.req.json()` in whichever route was hit, so this is the

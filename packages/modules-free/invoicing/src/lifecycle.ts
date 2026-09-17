@@ -12,6 +12,7 @@ import {
 } from "@sentrello/db/ledger";
 import { MoneyError, invoiceStatus } from "@sentrello/db/money";
 import { nextDocumentNumber } from "@sentrello/db/numbering";
+import { dateFrom } from "@sentrello/db/timezone";
 import type { ModuleContext } from "@sentrello/module-sdk";
 import { creditedAgainst, shareToken, writeTaxBands } from "./documents";
 import { ExemptionError, exemptionForInvoice } from "./exemptions";
@@ -64,9 +65,18 @@ export function requestedIssueDate(value: unknown): Date | Error {
     return new Error("the issue date has to be a date");
   }
 
+  /*
+   * The 30th of February is not a date, however plainly it is written.
+   * `new Date` rolls it to the 2nd of March without complaint, and the issue
+   * date is the date this invoice's journal entry is posted under — so a
+   * rolled day books the sale into a month nobody chose, and every report
+   * after it agrees with itself.
+   */
   const plain = /^\d{4}-\d{2}-\d{2}$/.test(value.trim());
-  const parsed = new Date(plain ? `${value.trim()}T12:00:00.000Z` : value);
-  if (Number.isNaN(parsed.getTime())) {
+  const parsed = dateFrom(
+    plain ? `${value.trim()}T12:00:00.000Z` : value.trim(),
+  );
+  if (!parsed) {
     return new Error("that is not a date we can read");
   }
 

@@ -1,5 +1,13 @@
 import { expect, test } from "bun:test";
-import { dayFrom, knownTimezone, momentAt, partsIn } from "./timezone";
+import {
+  UnreadableDateError,
+  dateFrom,
+  dayFrom,
+  demandDate,
+  knownTimezone,
+  momentAt,
+  partsIn,
+} from "./timezone";
 
 /**
  * Where a business is, in time.
@@ -112,4 +120,49 @@ test("a date is a date", () => {
   expect(dayFrom("31/03/2026")).toBeNull();
   expect(dayFrom("")).toBeNull();
   expect(dayFrom(null)).toBeNull();
+});
+
+/**
+ * The 30th of February is not a date, and `new Date` says it is.
+ *
+ * It rolls the impossible day forward rather than refusing it, so a shape
+ * check of `YYYY-MM-DD` passes a day that never existed straight through — and
+ * everything downstream sees the 2nd of March, in the wrong month, looking
+ * entirely valid. The round trip is what catches it.
+ */
+test("a day that never existed is refused, not rolled into the next month", () => {
+  expect(dayFrom("2026-02-30")).toBeNull();
+  expect(dayFrom("2026-02-28")?.toISOString()).toBe("2026-02-28T00:00:00.000Z");
+  expect(dayFrom("2026-04-31")).toBeNull();
+  expect(dayFrom("2026-13-01")).toBeNull();
+  expect(dayFrom("2026-00-10")).toBeNull();
+  expect(dayFrom("2026-01-00")).toBeNull();
+});
+
+test("a leap day exists in a leap year and nowhere else", () => {
+  expect(dayFrom("2024-02-29")?.toISOString()).toBe("2024-02-29T00:00:00.000Z");
+  expect(dayFrom("2026-02-29")).toBeNull();
+  // 1900 was not a leap year; 2000 was. The century rule is the one every
+  // hand-rolled check gets wrong, so it is the runtime's and not ours.
+  expect(dayFrom("1900-02-29")).toBeNull();
+  expect(dayFrom("2000-02-29")?.toISOString()).toBe("2000-02-29T00:00:00.000Z");
+});
+
+/** A time on the end does not excuse the day: `new Date` rolls that too. */
+test("a date with a time is held to the same day", () => {
+  expect(dateFrom("2026-02-30T12:00:00.000Z")).toBeNull();
+  expect(dateFrom("2026-02-30 12:00")).toBeNull();
+  expect(dateFrom("2026-02-28T12:00:00.000Z")?.toISOString()).toBe(
+    "2026-02-28T12:00:00.000Z",
+  );
+  expect(dateFrom("not a date")).toBeNull();
+  expect(dateFrom(null)).toBeNull();
+});
+
+test("demandDate refuses out loud, carrying the value that was wrong", () => {
+  expect(() => demandDate("2026-02-30")).toThrow(UnreadableDateError);
+  expect(() => demandDate("2026-02-30")).toThrow("2026-02-30");
+  expect(demandDate("2026-02-28").toISOString()).toBe(
+    "2026-02-28T00:00:00.000Z",
+  );
 });

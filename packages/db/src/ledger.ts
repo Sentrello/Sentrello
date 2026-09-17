@@ -20,6 +20,7 @@ import type { DbTx } from "./client";
 import { RATE_SCALE, toBaseCents } from "./currency";
 import { db, schema } from "./index";
 import { sumCents } from "./money";
+import { demandDate } from "./timezone";
 
 type Posting = {
   accountId: string;
@@ -395,8 +396,17 @@ export function periodFrom(query: (name: string) => string | undefined): {
 } {
   const parse = (value: string | undefined, endOfDay = false) => {
     if (!value) return undefined;
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return undefined;
+    /*
+     * Refused rather than ignored.
+     *
+     * A period parameter that could not be read used to fall back to "no
+     * bound", which turns "the March quarter" into the whole history of the
+     * business and looks like a report rather than a mistake. And a day that
+     * never existed — 30 February — rolled forward into the next month, which
+     * moved the boundary of a VAT quarter or a US filing period by two days
+     * with every figure downstream agreeing with itself.
+     */
+    const date = demandDate(value);
     // Only a bare date is stretched. A caller who sent a time meant that time.
     if (endOfDay && /^\d{4}-\d{2}-\d{2}$/.test(value.trim())) {
       return new Date(date.getTime() + 24 * 60 * 60 * 1000 - 1);
