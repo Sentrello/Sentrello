@@ -5,8 +5,10 @@ import {
 } from "@sentrello/auth/hono";
 import {
   type AccountTotal,
+  type LedgerAmounts,
   type LedgerRow,
   ledgerRows,
+  ledgerTotals,
   periodFrom,
   totalsByAccount,
 } from "@sentrello/db/ledger";
@@ -34,8 +36,10 @@ import { type CashBasisRow, cashBasisRows } from "./cash-basis";
  */
 export {
   type AccountTotal,
+  type LedgerAmounts,
   type LedgerRow,
   ledgerRows,
+  ledgerTotals,
   periodFrom,
   totalsByAccount,
 };
@@ -72,7 +76,7 @@ export function totalsOfCashRows(
   return [...totals.values()].sort((a, b) => a.code.localeCompare(b.code));
 }
 
-export function profitAndLoss(rows: LedgerRow[]) {
+export function profitAndLoss(rows: LedgerAmounts[]) {
   const income = totalsByAccount(rows, "income");
   const expenses = totalsByAccount(rows, "expense");
   const incomeCents = sum(income);
@@ -103,7 +107,7 @@ export function profitAndLoss(rows: LedgerRow[]) {
  * something reached the ledger that should not have, and the statement should
  * say so rather than be quietly wrong.
  */
-export function balanceSheet(rows: LedgerRow[]) {
+export function balanceSheet(rows: LedgerAmounts[]) {
   const assets = totalsByAccount(rows, "asset");
   const liabilities = totalsByAccount(rows, "liability");
   const equity = totalsByAccount(rows, "equity");
@@ -165,7 +169,7 @@ export function registerReports(ctx: ModuleContext) {
       if (c.req.query("basis") !== "cash") {
         return c.json({
           basis: "accrual",
-          ...profitAndLoss(await ledgerRows(orgId, period)),
+          ...profitAndLoss(await ledgerTotals(orgId, period)),
         });
       }
 
@@ -207,7 +211,7 @@ export function registerReports(ctx: ModuleContext) {
       ).to;
       return c.json({
         asOf: to ?? new Date(),
-        ...balanceSheet(await ledgerRows(orgId, { to })),
+        ...balanceSheet(await ledgerTotals(orgId, { to })),
       });
     },
   );

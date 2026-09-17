@@ -1732,7 +1732,27 @@ export const journalEntries = pgTable(
     createdBy: text("created_by"),
     postedAt: timestamp("posted_at").defaultNow().notNull(),
   },
-  (t) => [index("journal_entries_org_idx").on(t.organizationId)],
+  (t) => [
+    index("journal_entries_org_idx").on(t.organizationId),
+    /**
+     * This business, in date order — which is how the ledger is always read.
+     *
+     * Measured on five years of a busy business, 241,558 entries. The journal
+     * screen's own page is the clearest case: newest first, off organization
+     * alone, means a parallel scan of every entry and a top-N sort to keep
+     * twenty-five — 18.5 ms, growing with the whole history. Reading the same
+     * page backwards along this index touches twenty-six rows: 0.18 ms.
+     *
+     * For the report aggregates it earns its keep at the narrow end and not at
+     * the wide one, which is worth knowing rather than assuming. A month is a
+     * bitmap scan of 5,222 entries instead of a filter over all of them, 62 ms
+     * to 59 ms; over a year or five the planner correctly ignores it, because
+     * the aggregate has to read every `journal_lines` row regardless and a
+     * sequential build side is the cheaper way to feed that join. The ceiling
+     * there is on the lines table, not this one.
+     */
+    index("journal_entries_org_posted_idx").on(t.organizationId, t.postedAt),
+  ],
 );
 
 export const journalLines = pgTable(

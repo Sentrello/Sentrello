@@ -17,6 +17,7 @@ import {
   CORE_ACCOUNTS,
   ensureAccount,
   ledgerRows,
+  ledgerTotals,
   postJournalEntry,
 } from "./ledger";
 import { eq, inArray, sql } from "./orm";
@@ -421,6 +422,10 @@ test("the same report over the same dates reads the same after an archive", asyn
 
   expect(balanceOf(await ledgerRows(orgId, period))).toEqual(before);
   expect(balanceOf(await ledgerRows(orgId))).toEqual(wholeBefore);
+  // The same claim through the reports' own reader, which adds up in SQL and
+  // so has to be told about the carried-forward summaries by the same means.
+  expect(balanceOf(await ledgerTotals(orgId, period))).toEqual(before);
+  expect(balanceOf(await ledgerTotals(orgId))).toEqual(wholeBefore);
   // And per month, which is the unit the carry-forward keeps.
   expect(
     balanceOf(
