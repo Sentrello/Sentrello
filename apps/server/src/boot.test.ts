@@ -464,6 +464,70 @@ test("/api/_meta exposes only the nav the loaded modules registered", async () =
   await cleanUp();
 });
 
+/**
+ * A report widget is offered to a reader only when its own route can
+ * actually answer them — and never the other way round.
+ *
+ * `visibleWidgets` in the dashboard module decides what a reader is told
+ * about; for the four report panels, what actually answers lives in a
+ * different module's routes (Core's own accounting bundle for
+ * `balance-sheet`, Pro's for the rest) — not in the dashboard's own
+ * `/api/dashboard/widgets`. The two bugs this guards against were both the
+ * same shape: the widget was offered (no `entitlement: needsPro`) while the
+ * route behind it did not exist on this instance at all.
+ *
+ * Core cannot hold a list of which report widgets are "Pro" — that is
+ * exactly the fact Pro's internals must not be named from here. So this
+ * checks the two sides against each other instead of against a label:
+ * whatever the layout endpoint discloses, the matching route must actually
+ * answer; whatever it withholds, the route must not. Run against the real
+ * unlicensed boot, with the real accounting module's real routes, not a
+ * fake or a stub — so a widget's `entitlement` and its route only ever
+ * drift apart in a way this test can see.
+ *
+ * What this cannot catch: a route that answers 200 but returns the wrong
+ * data (a widget pointed at somebody else's report), or a fifth report
+ * widget added to the layout without adding its path to `REPORT_ROUTE`
+ * below — that map is Core's own web shell's routing
+ * (`apps/web/src/routes/dashboard.tsx`), which nothing ties to the widget
+ * declaration at the type level either. Both are narrower failures than
+ * "disclosed and broken," which is the one that has shipped twice.
+ */
+test("a report widget is disclosed to a reader if and only if its own route can answer them", async () => {
+  process.env.SENTRELLO_LICENSE_TOKEN_PATH = "secrets/does-not-exist.jwt";
+  const server = (await import("./index")).default;
+  const { headers, cleanUp } = await signedIn();
+
+  const layoutRes = await server.fetch(
+    new Request("http://localhost/api/dashboard/layout", { headers }),
+  );
+  const layout = (await layoutRes.json()) as { widgets: { id: string }[] };
+  const offered = new Set(layout.widgets.map((w) => w.id));
+
+  // The path each report widget's own renderer fetches, from
+  // apps/web/src/routes/dashboard.tsx. Every id matches its own
+  // `/api/reports/<id>` except "who-owes", which reads the aged-debt report
+  // under its Pro name.
+  const REPORT_ROUTE: Record<string, string> = {
+    "balance-sheet": "/api/reports/balance-sheet",
+    "cash-flow": "/api/reports/cash-flow",
+    "trial-balance": "/api/reports/trial-balance",
+    "who-owes": "/api/reports/accounts-receivable",
+  };
+
+  for (const [id, path] of Object.entries(REPORT_ROUTE)) {
+    const res = await server.fetch(
+      new Request(`http://localhost${path}`, { headers }),
+    );
+    // 404 is "does not exist on this instance", the same answer a module
+    // that never loaded gives for any of its routes. Disclosed must mean
+    // answers, withheld must mean does not — never a mismatch either way.
+    expect([id, offered.has(id)]).toEqual([id, res.status !== 404]);
+  }
+
+  await cleanUp();
+});
+
 test("a business sees only the tax regimes it has chosen, and turning one off never breaks an old report", async () => {
   process.env.SENTRELLO_LICENSE_TOKEN_PATH = "secrets/does-not-exist.jwt";
   const server = (await import("./index")).default;
