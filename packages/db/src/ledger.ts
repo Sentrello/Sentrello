@@ -372,12 +372,37 @@ export function periodFrom(query: (name: string) => string | undefined): {
  * rather than in each caller that would have to remember it. Off by default:
  * an organization with no lock behaves as it always has.
  */
+/** A transaction handle, for a caller that has one open already. */
+export type LedgerTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+export interface PostOptions {
+  /**
+   * Post into a period the books are closed through.
+   *
+   * There is exactly one caller, and it is the archive's carry-forward: the
+   * summary standing in for a closed period's removed detail has to be dated
+   * inside that period or it would move every report over it. Every other
+   * caller — every route, every job, every webhook — leaves this alone and is
+   * refused by the lock, which is the point of the lock.
+   */
+  intoClosedPeriod?: boolean;
+  /**
+   * Join a transaction the caller already has open.
+   *
+   * So that posting a summary and removing the detail it stands for either
+   * both happen or neither does. Without it the two are separate commits and a
+   * crash between them leaves the books stating a period twice.
+   */
+  tx?: LedgerTx;
+}
+
 export async function postJournalEntry(
   orgId: string,
   memo: string,
   source: string,
   lines: Posting[],
   postedAt?: Date,
+  options?: PostOptions,
 ) {
   const d = lines.reduce((s, l) => s + (l.debitCents ?? 0), 0);
   const c = lines.reduce((s, l) => s + (l.creditCents ?? 0), 0);
@@ -392,7 +417,7 @@ export async function postJournalEntry(
    * inside the closed period — storing the boundary as a date and comparing
    * instants is how a lock lets in everything after breakfast on its last day.
    */
-  const closed = await closedThrough(orgId);
+  const closed = options?.intoClosedPeriod ? null : await closedThrough(orgId);
   if (closed) {
     const endOfClosedDay = new Date(closed);
     endOfClosedDay.setUTCHours(23, 59, 59, 999);
@@ -400,7 +425,8 @@ export async function postJournalEntry(
       throw new PeriodClosedError(closed);
     }
   }
-  return db.transaction(async (tx) => {
+  const connection = options?.tx ?? db;
+  return connection.transaction(async (tx) => {
     const [entry] = await tx
       .insert(schema.journalEntries)
       .values({

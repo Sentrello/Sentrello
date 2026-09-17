@@ -1,4 +1,5 @@
 import {
+  bigint,
   boolean,
   date,
   index,
@@ -3360,4 +3361,61 @@ export const contactDuplicateDismissals = pgTable(
       t.secondId,
     ),
   ],
+);
+
+/**
+ * An archive that was written, and what became of it.
+ *
+ * The row outlives the file on purpose. A business that took 2015 off its
+ * server, downloaded the zip and deleted the copy here still needs to be able
+ * to answer "what happened to 2015" — which period left, when, who decided it,
+ * what it weighed, and the checksum to compare the file in the drawer against.
+ * Without that the only record of a deletion is the absence of the rows.
+ *
+ * `rows` and `removedRows` are kept apart because they are different claims:
+ * the first is what the archive holds, the second is what was taken out of the
+ * database on the strength of it. They match on a run that completed, and a run
+ * that stopped at `verified` shows a copy taken with everything kept — which is
+ * the right and expected outcome for anything inside its retention window.
+ */
+export const archiveRuns = pgTable(
+  "archive_runs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: text("organization_id").notNull(),
+    /** Which set — "ledger", "documents", "activity", or a module's own. */
+    setId: text("set_id").notNull(),
+    periodFrom: timestamp("period_from").notNull(),
+    periodTo: timestamp("period_to").notNull(),
+    /** The id inside the manifest, and what a carry-forward entry names. */
+    archiveId: uuid("archive_id").notNull(),
+    filename: text("filename").notNull(),
+    destinationId: text("destination_id").notNull(),
+    /** How the destination finds it again. Only the destination reads it. */
+    locator: text("locator").notNull(),
+    /** written | verified | removed | failed */
+    status: text("status").notNull().default("written"),
+    /** Sixty-four bits: an archive can be larger than a 32-bit count of bytes. */
+    bytes: bigint("bytes", { mode: "number" }).notNull().default(0),
+    /** Of the whole file, so the copy in the drawer can be checked years later. */
+    sha256: text("sha256"),
+    rows: jsonb("rows")
+      .$type<{ table: string; rows: number }[]>()
+      .notNull()
+      .default([]),
+    removedRows:
+      jsonb("removed_rows").$type<{ table: string; rows: number }[]>(),
+    /** The summary entries posted in place of a removed closed period. */
+    carriedForward: jsonb("carried_forward")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    /** Why it stopped, where it did. Shown to the operator as written. */
+    error: text("error"),
+    verifiedAt: timestamp("verified_at"),
+    removedAt: timestamp("removed_at"),
+    createdBy: text("created_by"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("archive_runs_org_idx").on(t.organizationId, t.createdAt)],
 );

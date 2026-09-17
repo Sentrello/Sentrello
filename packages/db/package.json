@@ -4,6 +4,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./archive": "./src/archive.ts",
     "./money": "./src/money.ts",
     "./tax": "./src/tax.ts",
     "./ca-tax": "./src/ca-tax.ts",
