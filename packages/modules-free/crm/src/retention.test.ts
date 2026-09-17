@@ -36,7 +36,11 @@ afterAll(async () => {
   clearRetention();
 });
 
-async function event(daysAgo: number, payload: Record<string, unknown>) {
+async function event(
+  daysAgo: number,
+  payload: Record<string, unknown>,
+  related?: Record<string, Record<string, unknown>[]>,
+) {
   const [row] = await db
     .insert(schema.recordEvents)
     .values({
@@ -47,6 +51,7 @@ async function event(daysAgo: number, payload: Record<string, unknown>) {
       changed: ["email"],
       before: payload,
       after: payload,
+      related: related ?? null,
       at: new Date(Date.now() - daysAgo * DAY),
     })
     .returning();
@@ -78,8 +83,47 @@ test("the change feed keeps the copies ninety days and the fact four hundred", a
   expect((await read(whole.id))?.before).toEqual({ email: "c@x.test" });
 });
 
+/**
+ * The rows a delete carried are a copy of the person too.
+ *
+ * `related` holds whole notes and calls — what somebody said, and what was
+ * said about them. It ages out on the ninety days the other two copies do,
+ * because a column that kept correspondence for four hundred days while the
+ * record it belonged to was emptied at ninety would be the longest-lived copy
+ * of a person in the product, and the least obvious.
+ */
+test("what a delete carried is emptied on the same ninety days", async () => {
+  const old = await event(
+    91,
+    { email: "f@x.test" },
+    {
+      notes: [{ text: "Prefers the afternoon" }],
+    },
+  );
+  const fresh = await event(
+    89,
+    { email: "g@x.test" },
+    {
+      notes: [{ text: "Rings on Fridays" }],
+    },
+  );
+
+  await sweepRetention(policy, org);
+
+  expect((await read(old.id))?.related).toBeNull();
+  expect((await read(fresh.id))?.related).toEqual({
+    notes: [{ text: "Rings on Fridays" }],
+  });
+});
+
 test("a person erased from the feed is not put back by the sweep", async () => {
-  const row = await event(30, { email: "erased@x.test" });
+  const row = await event(
+    30,
+    { email: "erased@x.test" },
+    {
+      notes: [{ text: "erased@x.test rang twice" }],
+    },
+  );
   await redactPayloads({
     table: schema.recordEvents,
     organizationId: org,
@@ -94,6 +138,7 @@ test("a person erased from the feed is not put back by the sweep", async () => {
   expect(after).toBeDefined();
   expect(after?.before).toBeNull();
   expect(after?.after).toBeNull();
+  expect(after?.related).toBeNull();
 });
 
 test("the module registers the policy rather than only exporting it", () => {

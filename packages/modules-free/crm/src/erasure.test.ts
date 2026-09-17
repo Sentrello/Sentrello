@@ -242,3 +242,96 @@ test("erasing somebody empties the logs that kept a copy of them", async () => {
     subjectEmail,
   );
 });
+
+/**
+ * A week after the business deleted them, they ask to be forgotten.
+ *
+ * The contact row is long gone, so nothing matches by email any more — and the
+ * change feed is now the only copy. It holds the record the delete carried,
+ * and, since the delete takes a contact's notes, calls, follow-ups and tag
+ * links with it in the same transaction, it holds those too: somebody's
+ * correspondence, whole, in a column called `related`.
+ *
+ * An erasure that emptied `before` and `after` and left that behind would have
+ * moved the person rather than removed them, and said on a screen that it was
+ * done.
+ */
+test("a contact deleted last week is still erased out of the feed", async () => {
+  const gone = `deleted-then-erased-${suffix}@example.test`;
+  const created = await app.request("http://localhost/api/contacts", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name: "Already Gone", email: gone }),
+  });
+  expect(created.status).toBe(201);
+  const { contact } = (await created.json()) as { contact: { id: string } };
+
+  await app.request("http://localhost/api/notes", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      entityType: "contact",
+      entityId: contact.id,
+      text: "Said he is off work until the ninth",
+    }),
+  });
+  await app.request("http://localhost/api/activities", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      type: "call",
+      contactId: contact.id,
+      body: "Rang about the invoice",
+    }),
+  });
+
+  const deleted = await app.request(
+    `http://localhost/api/contacts/${contact.id}`,
+    { method: "DELETE", headers },
+  );
+  expect(deleted.status).toBe(200);
+
+  // The feed is carrying them, twice over.
+  const [before] = await db
+    .select()
+    .from(schema.recordEvents)
+    .where(
+      and(
+        eq(schema.recordEvents.organizationId, orgId),
+        eq(schema.recordEvents.entityId, contact.id),
+        eq(schema.recordEvents.action, "deleted"),
+      ),
+    );
+  expect(JSON.stringify(before?.related)).toContain("off work until the ninth");
+
+  const outcome = await source.erase?.(orgId, { email: gone });
+  expect(outcome?.removed.join(" ")).toContain("log entr");
+
+  const events = await db
+    .select()
+    .from(schema.recordEvents)
+    .where(
+      and(
+        eq(schema.recordEvents.organizationId, orgId),
+        eq(schema.recordEvents.entityId, contact.id),
+      ),
+    );
+  expect(events.length).toBeGreaterThan(0);
+  for (const event of events) {
+    // The fact stays: a contact was created, changed, deleted, and by whom.
+    expect(event.entity).toBe("contact");
+    expect(event.before).toBeNull();
+    expect(event.after).toBeNull();
+    expect(event.related).toBeNull();
+  }
+
+  const trace = await db.execute(
+    `select count(*)::int as found from record_events
+       where organization_id = '${orgId}'
+         and (before::text ilike '%off work until the ninth%'
+              or after::text ilike '%off work until the ninth%'
+              or related::text ilike '%off work until the ninth%'
+              or related::text ilike '%${gone}%')`,
+  );
+  expect((trace[0] as { found: number }).found).toBe(0);
+});

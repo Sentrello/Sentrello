@@ -3220,6 +3220,22 @@ export const recordEvents = pgTable(
     before: jsonb("before").$type<Record<string, unknown>>(),
     after: jsonb("after").$type<Record<string, unknown>>(),
     /**
+     * The rows that were deleted *with* the record, whole.
+     *
+     * A contact's notes, calls, follow-ups and tag links have no meaning
+     * without the contact, so the delete takes them in the same transaction —
+     * and that transaction commits before anything reads this feed. Anything
+     * wanting to put the record back therefore cannot go and look for them:
+     * by the time it runs they are gone. So the delete says what went with it,
+     * keyed by the table the rows came out of.
+     *
+     * It is personal data, exactly as `before` and `after` are — a note is
+     * correspondence about a person — so it is in `RECORD_EVENT_PAYLOADS` and
+     * an erasure and the retention sweep empty it with the other two.
+     */
+    related:
+      jsonb("related").$type<Record<string, Record<string, unknown>[]>>(),
+    /**
      * Who did it, where a person did.
      *
      * Null for a job or an automation, which is the distinction that stops a

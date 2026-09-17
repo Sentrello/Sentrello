@@ -51,8 +51,17 @@ export type Payload = PgColumn | { column: PgColumn; keys: string[] };
  * redacted too. That is the right direction to be wrong in — the reference is
  * to them — and it never leaves the organization, because the caller's
  * `organizationId` is on the same `where`.
+ *
+ * Exported because a caller sometimes has to read the matching rows *before*
+ * emptying them: the CRM answers an erasure for somebody it deleted last week
+ * by taking their internal id back off the change feed, and a second hand-
+ * written version of this test is how two stores come to disagree about whose
+ * row is whose. The one written here is the one that runs.
  */
-function mentions(columns: PgColumn[], subject: DataSubject): SQL | undefined {
+export function mentionsSubject(
+  columns: PgColumn[],
+  subject: DataSubject,
+): SQL | undefined {
   const values = [subject.id, subject.email, subject.phone, subject.address]
     .map((value) => value?.trim())
     .filter((value): value is string => Boolean(value));
@@ -114,7 +123,7 @@ export async function redactPayloads(request: {
 }): Promise<number> {
   const { table, organizationId, subject, payloads } = request;
   const columns = payloads.map((p) => ("column" in p ? p.column : p));
-  const match = mentions(columns, subject);
+  const match = mentionsSubject(columns, subject);
   // Nothing to go on is not an erasure of everything. A caller that knows
   // nothing about the person changes nothing.
   if (!match) return 0;

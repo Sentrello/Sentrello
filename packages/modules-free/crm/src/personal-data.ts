@@ -1,7 +1,7 @@
 import { and, db, eq, inArray, or, schema, sql } from "@sentrello/db";
 import { consentHistory, describeConsent } from "@sentrello/db/consent";
 import { contactHasEmail } from "@sentrello/db/crm";
-import { redactPayloads } from "@sentrello/db/erasure";
+import { mentionsSubject, redactPayloads } from "@sentrello/db/erasure";
 import { RECORD_EVENT_PAYLOADS } from "@sentrello/db/record-events";
 import type {
   DataSubject,
@@ -47,6 +47,40 @@ async function matching(orgId: string, subject: DataSubject) {
         or(...(tests as NonNullable<(typeof tests)[number]>[])),
       ),
     );
+}
+
+/**
+ * The internal id of somebody the business has already deleted.
+ *
+ * A contact's own record is what carries their address, so it is the thing a
+ * subject access request can be matched against — and once the contact is
+ * deleted, the last copy of it is the change feed. Their id is worth having
+ * back because half of what the platform wrote down about them refers to them
+ * by it and by nothing else: a note names the contact as `entityId` and holds
+ * only the text, so a note about somebody who has been deleted is
+ * unrecognisable as theirs without it.
+ *
+ * Matched with the platform's own test rather than a second spelling of it,
+ * and read before anything is emptied, because emptying is what destroys the
+ * link.
+ */
+async function deletedIds(
+  orgId: string,
+  subject: DataSubject,
+): Promise<string[]> {
+  const match = mentionsSubject([...RECORD_EVENT_PAYLOADS], subject);
+  if (!match) return [];
+  const rows = await db
+    .selectDistinct({ id: schema.recordEvents.entityId })
+    .from(schema.recordEvents)
+    .where(
+      and(
+        eq(schema.recordEvents.organizationId, orgId),
+        eq(schema.recordEvents.entity, "contact"),
+        match,
+      ),
+    );
+  return rows.map((row) => row.id);
 }
 
 export function registerCrmPersonalData(ctx: ModuleContext) {
@@ -146,7 +180,6 @@ export function registerCrmPersonalData(ctx: ModuleContext) {
 
     erase: async (orgId, subject): Promise<EraseOutcome> => {
       const people = await matching(orgId, subject);
-      if (!people.length) return { removed: [], kept: [] };
       const ids = people.map((p) => p.id);
 
       /*
@@ -159,14 +192,16 @@ export function registerCrmPersonalData(ctx: ModuleContext) {
        */
       const trail = await removeCrmTrail(orgId, "contact", ids);
 
-      await db
-        .delete(schema.contacts)
-        .where(
-          and(
-            eq(schema.contacts.organizationId, orgId),
-            inArray(schema.contacts.id, ids),
-          ),
-        );
+      if (ids.length) {
+        await db
+          .delete(schema.contacts)
+          .where(
+            and(
+              eq(schema.contacts.organizationId, orgId),
+              inArray(schema.contacts.id, ids),
+            ),
+          );
+      }
 
       /*
        * And every log that kept a copy of them on the way past.
@@ -188,14 +223,35 @@ export function registerCrmPersonalData(ctx: ModuleContext) {
        * function every other store in the product uses, including the workflow
        * run logs in the paid bundle, so no two logs forget somebody to two
        * different standards.
+       *
+       * **Emptied whether or not a contact is still here to find.** This used
+       * to give up the moment no contact matched, which is the one
+       * case where the logs are the *only* copy left: a contact deleted last
+       * week is gone from `contacts` and whole in the change feed, both as the
+       * record the delete carried and as the notes, calls and follow-ups that
+       * went with it. Somebody asking to be forgotten a week after the
+       * business deleted them was told nothing was found.
        */
       let logs = 0;
-      for (const person of people) {
-        const who = {
-          id: person.id,
-          email: person.email ?? subject.email,
-          phone: person.phone ?? subject.phone,
-        };
+      const known: DataSubject[] = people.length
+        ? people.map((person) => ({
+            id: person.id,
+            email: person.email ?? subject.email,
+            phone: person.phone ?? subject.phone,
+          }))
+        : (await deletedIds(orgId, subject)).map((id) => ({
+            id,
+            email: subject.email,
+            phone: subject.phone,
+          }));
+      if (!known.length) {
+        known.push({
+          id: subject.id,
+          email: subject.email,
+          phone: subject.phone,
+        });
+      }
+      for (const who of known) {
         logs += await redactPayloads({
           table: schema.recordEvents,
           organizationId: orgId,
@@ -232,15 +288,23 @@ export function registerCrmPersonalData(ctx: ModuleContext) {
         });
       }
 
+      if (!people.length && !logs) return { removed: [], kept: [] };
+
       return {
         removed: [
-          `${people.length} contact record${people.length === 1 ? "" : "s"}`,
-          ...(trail.notes ? [`${trail.notes} notes`] : []),
-          ...(trail.activities
-            ? [`${trail.activities} calls and activities`]
+          ...(people.length
+            ? [
+                `${people.length} contact record${people.length === 1 ? "" : "s"}`,
+              ]
             : []),
-          ...(trail.tasks
-            ? [`${trail.tasks} task${trail.tasks === 1 ? "" : "s"}`]
+          ...(trail.notes.length ? [`${trail.notes.length} notes`] : []),
+          ...(trail.activities.length
+            ? [`${trail.activities.length} calls and activities`]
+            : []),
+          ...(trail.tasks.length
+            ? [
+                `${trail.tasks.length} task${trail.tasks.length === 1 ? "" : "s"}`,
+              ]
             : []),
           ...(logs
             ? [

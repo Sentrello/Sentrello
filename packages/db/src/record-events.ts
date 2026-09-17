@@ -27,10 +27,17 @@ import { recordEvents } from "./schema";
  *
  * `changed` is not here: which fields differ is a fact about the change, not a
  * copy of anybody, and it is what makes a trimmed row still worth having.
+ *
+ * `related` is here, and it is the one that would be easiest to leave out. It
+ * holds whole rows — a person's notes, their calls, the follow-ups about them
+ * — so an erasure that emptied `before` and `after` and left it would have
+ * moved the copy rather than removed it, while the privacy screen reported the
+ * erasure done.
  */
 export const RECORD_EVENT_PAYLOADS = [
   recordEvents.before,
   recordEvents.after,
+  recordEvents.related,
 ] as const;
 
 export interface RecordChange {
@@ -41,6 +48,17 @@ export interface RecordChange {
   action: "created" | "updated" | "deleted";
   before?: Record<string, unknown> | null;
   after?: Record<string, unknown> | null;
+  /**
+   * The rows that went with it, whole, keyed by the table they came out of.
+   *
+   * For a delete that takes a trail with it. Nothing here has a foreign key,
+   * so a record's notes, activities, tasks and tag links are removed by the
+   * delete itself, in its transaction — which commits before this row exists.
+   * A reader arriving afterwards has no way to find them, so the delete says
+   * what it took rather than leaving it to be guessed at from the other side
+   * of a commit.
+   */
+  related?: Record<string, Record<string, unknown>[]> | null;
   /**
    * The workflow run this change came from, when it came from one.
    *
@@ -108,6 +126,7 @@ export async function recordChanged(change: RecordChange): Promise<void> {
         changed: changedFields(change.before, change.after),
         before: change.before ?? null,
         after: change.after ?? null,
+        related: change.related ?? null,
         actorId: currentActor(),
         causedByRunId: change.causedByRunId ?? null,
       })
