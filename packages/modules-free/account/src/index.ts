@@ -103,15 +103,22 @@ export async function visibleSections(
       }
       if (!present) return null;
 
-      const [figures, href] = await Promise.all([
-        section.load(organizationId, contactId).catch((err) => {
-          console.error(`[account] ${section.id} load failed`, err);
-          return [] as SummaryFigure[];
-        }),
-        section.href
-          ? section.href(organizationId, contactId).catch(() => null)
-          : Promise.resolve(null),
-      ]);
+      // A caught `load` used to still return the section, empty figures and
+      // all — a heading with nothing under it, which reads as broken rather
+      // than absent. `hasAny` said there was something, `load` couldn't say
+      // what, so the honest answer is the same as `hasAny` failing: leave it
+      // out. `href` staying independently caught is deliberate — a section
+      // with figures but no working link is still worth showing.
+      let figures: SummaryFigure[];
+      try {
+        figures = await section.load(organizationId, contactId);
+      } catch (err) {
+        console.error(`[account] ${section.id} load failed`, err);
+        return null;
+      }
+      const href = section.href
+        ? await section.href(organizationId, contactId).catch(() => null)
+        : null;
 
       return {
         id: section.id,
