@@ -131,3 +131,64 @@ test("consent history is one business's record of one person", async () => {
   expect(theirs.map((row) => row.organizationId)).toEqual([beta]);
   expect(theirs[0]?.granted).toBe(false);
 });
+
+test("a consent written inside a transaction lands in the business that wrote it", async () => {
+  /*
+   * The write, not the read.
+   *
+   * The history above pins `consentHistory`. Nothing pinned `recordConsent`
+   * itself in the shape the product actually uses it: inside the caller's
+   * transaction, alongside the tick it describes, so the record and the state
+   * it evidences cannot disagree. A wrong organization here is not a leak — it
+   * is worse. The business that ticked the box would have no evidence it did,
+   * and another business would hold a consent record for somebody it has never
+   * heard of and could be asked to stand behind.
+   *
+   * The same subject in both, deliberately: a contact id is unique, so a write
+   * that went to the wrong business would usually look like nothing at all.
+   */
+  const subject = { kind: "contact" as const, id: crypto.randomUUID() };
+
+  await recordConsent({
+    organizationId: beta,
+    subject,
+    purpose: "privacy" as const,
+    granted: false,
+    source: "form",
+  });
+
+  await db.transaction(async (tx) => {
+    await recordConsent(
+      {
+        organizationId: alpha,
+        subject,
+        purpose: "privacy" as const,
+        granted: true,
+        source: "staff",
+        actor: { id: "someone", name: "Someone" },
+      },
+      tx,
+    );
+  });
+
+  const mine = await consentHistory(alpha, subject);
+  expect(mine.map((row) => row.organizationId)).toEqual([alpha]);
+  expect(mine[0]?.granted).toBe(true);
+  expect(mine[0]?.source).toBe("staff");
+
+  // Untouched: one row, theirs, saying what it always said.
+  const theirs = await consentHistory(beta, subject);
+  expect(theirs.map((row) => row.organizationId)).toEqual([beta]);
+  expect(theirs[0]?.granted).toBe(false);
+
+  // And nothing else anywhere holds a record for this person: two rows in
+  // total, one each, which an unscoped read of the table can see and the two
+  // scoped reads above cannot.
+  const everywhere = await db
+    .select({ organizationId: schema.consentRecords.organizationId })
+    .from(schema.consentRecords)
+    .where(eq(schema.consentRecords.subjectId, subject.id));
+  expect(everywhere.map((r) => r.organizationId).sort()).toEqual(
+    [alpha, beta].sort(),
+  );
+});
