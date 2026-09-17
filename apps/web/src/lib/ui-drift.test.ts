@@ -1,22 +1,47 @@
 import { expect, test } from "bun:test";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import {
-  findDroppedNotice,
-  findFillAsText,
-  findHandRolledUi,
-  findUnpagedList,
-} from "@sentrello/module-sdk/ui-drift";
+import * as uiDrift from "@sentrello/module-sdk/ui-drift";
 
 /**
- * Core holds itself to what it asks of modules.
+ * Every drift scanner the SDK exports, run over Core's own screens.
  *
- * The pass that produced this found Core hand-rolling a tab strip while the
- * shared one sat in the same file it imports from — so "modules drifted" was
- * never the accurate description, and a guard over modules alone would have
- * been the wrong shape.
+ * Read off the module rather than listed here, and that is the whole point.
+ * The modules repository had nine hand-written copies of this idea and they
+ * had quietly drifted into three different tests: seven ran one scanner, two
+ * ran only another, and none ran the two newest — including the one written
+ * to catch a dropped "showing 12 of 6,000" notice, which was therefore not
+ * running anywhere. It found a sixth customer picker the moment it did.
+ *
+ * Core held the fifth copy of that pattern. Reading `Object.entries` instead
+ * means a scanner added to the SDK tomorrow runs here tomorrow, unedited —
+ * and one of a different shape throws and names itself rather than being
+ * skipped in silence.
+ *
+ * Core is scanned at all because Core holds itself to what it asks of
+ * modules: the pass that produced these found Core hand-rolling a tab strip
+ * while the shared one sat in the file it imports from.
+ *
+ * What they are looking for, since nothing here names them any more:
+ * `findHandRolledUi` catches a screen rebuilding a primitive.
+ * `findFillAsText` catches a fill token written where text expects one — one
+ * of those in `ui.tsx`'s status badge put a failing colour on every screen
+ * showing an invoice. `findUnpagedList` catches a screen asking a capped
+ * endpoint for everything, which is how five customer pickers offered the
+ * first thousand rows and the invoice form failed to find a company and
+ * charged no tax. `findDroppedNotice` catches the half that looks correct: a
+ * screen that paged properly, was handed a finished sentence saying what had
+ * been cut, and rendered the rows without it.
  */
 const ROUTES = join(import.meta.dir, "..", "routes");
+const LIB = import.meta.dir;
+
+/**
+ * Scanners that cannot be pointed at `lib/`, because `lib/` is where the
+ * primitive they recommend is *defined*. `findHandRolledUi` recognises a tab
+ * strip; `ui.tsx` contains the only one that should exist.
+ */
+const ROUTES_ONLY = new Set(["findHandRolledUi"]);
 
 function screens(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -28,70 +53,28 @@ function screens(dir: string): string[] {
   });
 }
 
-test("no Core screen builds what a primitive already covers", () => {
-  const found: string[] = [];
-  for (const path of screens(ROUTES)) {
-    for (const { line, say } of findHandRolledUi(readFileSync(path, "utf8"))) {
-      found.push(`${path.split("/apps/web/")[1]}:${line}: ${say}`);
-    }
-  }
-  expect(found).toEqual([]);
-});
+const scanners = Object.entries(uiDrift).filter(([name]) =>
+  name.startsWith("find"),
+);
 
-/**
- * Both trees, because the shared components are where this bug did the most
- * damage: one fill-as-text in `ui.tsx`'s status badge put a failing colour on
- * every screen that showed an invoice. `theme-contrast.test.ts` keeps the
- * token *values* over the line; this keeps screens writing the right tokens.
- */
-test("no Core screen writes a fill token as text", () => {
-  const found: string[] = [];
-  for (const path of [...screens(ROUTES), ...screens(import.meta.dir)]) {
-    for (const { line, say } of findFillAsText(readFileSync(path, "utf8"))) {
-      found.push(`${path.split("/apps/web/")[1]}:${line}: ${say}`);
-    }
-  }
-  expect(found).toEqual([]);
-});
+test("no Core screen drifts from what the SDK asks of a module", () => {
+  // A rename that left nothing matching would pass this file silently.
+  expect(scanners.length).toBeGreaterThan(3);
 
-/**
- * The silence this closes.
- *
- * `/api/contacts` and `/api/companies` cap an unpaged answer at a thousand
- * rows and say `truncated: true`. Nothing on any screen read it, so five
- * customer pickers offered the first thousand, the invoice form failed to
- * find a company and charged no tax, and two audit tabs showed part of a
- * history as though it were all of it. Every one of them looked correct on
- * any dataset a developer has, which rules out a runtime warning: this has to
- * be answerable from the source, on every commit, at every row count.
- *
- * Both trees, because the shared components fetch too — `RecordPicker` is
- * where four of those pickers now go.
- */
-test("no Core screen reads a capped list without paging it", () => {
   const found: string[] = [];
-  for (const path of [...screens(ROUTES), ...screens(import.meta.dir)]) {
-    for (const { line, say } of findUnpagedList(readFileSync(path, "utf8"))) {
-      found.push(`${path.split("/apps/web/")[1]}:${line}: ${say}`);
+  for (const [name, scan] of scanners) {
+    if (typeof scan !== "function" || scan.length !== 1) {
+      throw new Error(
+        `${name} is exported from ui-drift but is not a scanner of one source — either give it that shape or rename it so it is not picked up here`,
+      );
     }
-  }
-  expect(found).toEqual([]);
-});
-
-/**
- * And the half of it that looks correct.
- *
- * The test above catches a screen asking for a capped list whole. This catches
- * one that asked for a page properly, was handed a finished sentence saying
- * what had been cut, and rendered twelve names without it — which is what the
- * dashboard's "Who owes you" panel did on the day the receivables report was
- * paged, and which is invisible on any dataset small enough to fit.
- */
-test("no Core screen drops the notice a paged report hands it", () => {
-  const found: string[] = [];
-  for (const path of [...screens(ROUTES), ...screens(import.meta.dir)]) {
-    for (const { line, say } of findDroppedNotice(readFileSync(path, "utf8"))) {
-      found.push(`${path.split("/apps/web/")[1]}:${line}: ${say}`);
+    const tree = ROUTES_ONLY.has(name)
+      ? screens(ROUTES)
+      : [...screens(ROUTES), ...screens(LIB)];
+    for (const path of tree) {
+      for (const { line, say } of scan(readFileSync(path, "utf8"))) {
+        found.push(`${name} — ${path.split("/apps/web/")[1]}:${line}: ${say}`);
+      }
     }
   }
   expect(found).toEqual([]);

@@ -732,3 +732,20 @@ export function lastSeenRanges(now = new Date()): {
 export function useLastSeenRanges() {
   return useMemo(() => lastSeenRanges(), []);
 }
+
+/**
+ * The picker that answers the capped list, re-exported here so modules get it.
+ *
+ * It lives in `record-picker.tsx` and is what `findUnpagedList` tells a screen
+ * to reach for: the list endpoint is capped at a thousand rows, so the way to
+ * choose one record out of however many a business has is to let the server
+ * search. A module could not reach it, and the first one that needed a picker
+ * hand-built an `Input` and a `Select` instead — which is the seventh copy of
+ * the bug that primitive was written to end.
+ *
+ * Here rather than in `ui.tsx` for two reasons: this is list machinery, not a
+ * plain control — it takes a list endpoint and pages it — and `ui.tsx` is what
+ * `record-picker.tsx` itself imports, so re-exporting there would be a cycle.
+ */
+export { RecordPicker } from "./record-picker";
+export type { PickableRecord } from "./record-picker";
