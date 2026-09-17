@@ -15,6 +15,7 @@ import {
 } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { currentActor } from "./actor";
+import type { DbTx } from "./client";
 import { RATE_SCALE, toBaseCents } from "./currency";
 import { db, schema } from "./index";
 import { sumCents } from "./money";
@@ -387,7 +388,7 @@ export function periodFrom(query: (name: string) => string | undefined): {
  * an organization with no lock behaves as it always has.
  */
 /** A transaction handle, for a caller that has one open already. */
-export type LedgerTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+export type LedgerTx = DbTx;
 
 export interface PostOptions {
   /**

@@ -783,28 +783,40 @@ export default defineModule({
           });
           postings.push({ accountId: ar, creditCents: savedCents });
         }
-        await postJournalEntry(
-          orgId,
-          takingIt
-            ? `Payment for ${invoice.number}, less early-payment discount`
-            : `Payment for ${invoice.number}`,
-          `payment:${payment.id}`,
-          postings,
-          received,
-        );
-
-        // The subsidiary ledger behind the liability posting above: which
-        // customer it is held for, so a later invoice can offer it back.
-        if (overCentsBase !== 0 && invoice.contactId) {
-          await recordCreditMovement({
-            organizationId: orgId,
-            contactId: invoice.contactId,
-            cents: overCentsBase,
-            paymentId: payment.id,
-            invoiceId: invoice.id,
-            reason: `Overpayment on invoice ${invoice.number}`,
-          });
-        }
+        /*
+         * The entry and the subsidiary ledger behind it, together.
+         *
+         * The credit row says which customer the liability posted above is
+         * held for, so a later invoice can offer it back. Written in a commit
+         * of its own, a crash between the two leaves the books owing money to
+         * nobody in particular, or a customer holding credit the books never
+         * heard of.
+         */
+        await db.transaction(async (tx) => {
+          await postJournalEntry(
+            orgId,
+            takingIt
+              ? `Payment for ${invoice.number}, less early-payment discount`
+              : `Payment for ${invoice.number}`,
+            `payment:${payment.id}`,
+            postings,
+            received,
+            { tx },
+          );
+          if (overCentsBase !== 0 && invoice.contactId) {
+            await recordCreditMovement(
+              {
+                organizationId: orgId,
+                contactId: invoice.contactId,
+                cents: overCentsBase,
+                paymentId: payment.id,
+                invoiceId: invoice.id,
+                reason: `Overpayment on invoice ${invoice.number}`,
+              },
+              { tx },
+            );
+          }
+        });
 
         await sendReceipt(
           orgId,
@@ -910,55 +922,75 @@ export default defineModule({
         }
 
         const applied = Math.min(available, owed);
-
-        const [payment] = await db
-          .insert(schema.payments)
-          .values({
-            organizationId: orgId,
-            invoiceId,
-            amountCents: applied,
-            method: "credit",
-            receivedAt: new Date(),
-          })
-          .returning();
-        if (!payment) throw new Error("payment insert returned no row");
-
-        await recordCreditMovement({
-          organizationId: orgId,
-          contactId: invoice.contactId,
-          cents: -applied,
-          paymentId: payment.id,
-          invoiceId: invoice.id,
-          reason: `Applied to invoice ${invoice.number}`,
-        });
-
         const { status, balanceDue } = invoiceStatus(
           invoice.totalCents - invoice.earlyDiscountTakenCents,
           paidCents + applied,
           creditedCents,
         );
-        await db
-          .update(schema.invoices)
-          .set({ status })
-          .where(eq(schema.invoices.id, invoiceId));
 
+        // Before the transaction: creating an account is a write of its own,
+        // on its own connection, and it would sit behind the locks this
+        // transaction is about to take.
         const [ar, liability] = await Promise.all([
           ensureAccount(orgId, CORE_ACCOUNTS.accountsReceivable),
           ensureAccount(orgId, CORE_ACCOUNTS.customerCredits),
         ]);
-        // No cash moves and no FX applies: this reclassifies a liability the
-        // business already owed the customer into a receivable it no longer
-        // owes them for — one balanced entry, nothing new comes in.
-        await postJournalEntry(
-          orgId,
-          `Credit applied to ${invoice.number}`,
-          `payment:${payment.id}`,
-          [
-            { accountId: liability, debitCents: applied },
-            { accountId: ar, creditCents: applied },
-          ],
-          payment.receivedAt,
-        );
+
+        /*
+         * Four writes that are one event, so they commit as one.
+         *
+         * Spending a credit is a payment recorded, the credit drawn down, the
+         * invoice's status recomputed and the entry that moves a liability
+         * into a settled receivable. Any of those alone is a business whose
+         * credit ledger and whose books disagree — and the disagreement is
+         * money, so nothing notices until somebody asks for theirs back.
+         */
+        const payment = await db.transaction(async (tx) => {
+          const [row] = await tx
+            .insert(schema.payments)
+            .values({
+              organizationId: orgId,
+              invoiceId,
+              amountCents: applied,
+              method: "credit",
+              receivedAt: new Date(),
+            })
+            .returning();
+          if (!row) throw new Error("payment insert returned no row");
+
+          await recordCreditMovement(
+            {
+              organizationId: orgId,
+              contactId: invoice.contactId as string,
+              cents: -applied,
+              paymentId: row.id,
+              invoiceId: invoice.id,
+              reason: `Applied to invoice ${invoice.number}`,
+            },
+            { tx },
+          );
+
+          await tx
+            .update(schema.invoices)
+            .set({ status })
+            .where(eq(schema.invoices.id, invoiceId));
+
+          // No cash moves and no FX applies: this reclassifies a liability the
+          // business already owed the customer into a receivable it no longer
+          // owes them for — one balanced entry, nothing new comes in.
+          await postJournalEntry(
+            orgId,
+            `Credit applied to ${invoice.number}`,
+            `payment:${row.id}`,
+            [
+              { accountId: liability, debitCents: applied },
+              { accountId: ar, creditCents: applied },
+            ],
+            row.receivedAt,
+            { tx },
+          );
+          return row;
+        });
 
         return c.json({ payment, status, balanceDue, appliedCents: applied });
       },

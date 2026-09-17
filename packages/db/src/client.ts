@@ -92,3 +92,15 @@ export const db = drizzle(sql, {
   logger: { logQuery: (query) => watchQueries.onQuery?.(query) },
 });
 export { schema };
+
+/**
+ * A transaction handle, for a helper a caller wants inside its own.
+ *
+ * Here rather than in each file that needs one, because there were three
+ * spellings of the same type and the one place that had none is where a money
+ * row ended up being inserted by hand: a helper that cannot join a
+ * transaction is a helper callers copy the body of, and two copies of an
+ * insert is how the row and the journal entry it belongs with stop living or
+ * dying together.
+ */
+export type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];

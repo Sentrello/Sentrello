@@ -1,7 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
-import { type db, schema } from "./index";
-
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+import type { DbTx as Tx } from "./client";
+import { schema } from "./index";
 
 /**
  * The next number in a per-org sequence, taken safely.
