@@ -16,6 +16,7 @@ import {
   schema,
   sql,
 } from "@sentrello/db";
+import { periodFrom } from "@sentrello/db/ledger";
 import {
   type ListSpec,
   UNPAGED_MAX,
@@ -32,6 +33,26 @@ import { type ModuleContext, csvDownload, toCsv } from "@sentrello/module-sdk";
 import type { SQL } from "drizzle-orm";
 import { creditedAgainst } from "./documents";
 import { tagsFor } from "./tags";
+
+/**
+ * "From this date to that one", with the last day actually in it.
+ *
+ * Both list routes read `to` as an instant, which for a bare date is
+ * midnight — so filtering to the end of a quarter hid every document raised on
+ * the quarter's last day, and the list simply looked short. The shared parser
+ * in the ledger stretches a bare date to the whole of it, and is the reason
+ * every report already gets this right.
+ */
+function issuedBetween(
+  table: typeof schema.invoices | typeof schema.quotes,
+  query: Record<string, string | undefined>,
+): (SQL | undefined)[] {
+  const { from, to } = periodFrom((name) => query[name]);
+  return [
+    from ? gte(table.issueDate, from) : undefined,
+    to ? lte(table.issueDate, to) : undefined,
+  ];
+}
 
 /**
  * The invoice and quote lists, with everything a real one needs.
@@ -207,8 +228,9 @@ export function registerLists(ctx: ModuleContext) {
             ? invoiceTab(query.tab ?? "all", now)
             : quoteTab(query.tab ?? "all", now)),
           query.contactId ? eq(table.contactId, query.contactId) : undefined,
-          query.from ? gte(table.issueDate, new Date(query.from)) : undefined,
-          query.to ? lte(table.issueDate, new Date(query.to)) : undefined,
+          // A bare "to" date means the whole of that day: read as midnight,
+          // the filter hid everything raised on the last day it named.
+          ...issuedBetween(table, query),
         ]);
 
         const [rows, contacts] = await Promise.all([
@@ -301,12 +323,7 @@ export function registerLists(ctx: ModuleContext) {
                 ),
             )
           : undefined,
-        query.from
-          ? gte(schema.invoices.issueDate, new Date(query.from))
-          : undefined,
-        query.to
-          ? lte(schema.invoices.issueDate, new Date(query.to))
-          : undefined,
+        ...issuedBetween(schema.invoices, query),
       ]);
 
       const window = pageWindow(params);

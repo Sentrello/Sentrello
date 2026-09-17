@@ -16,6 +16,7 @@ import {
   schema,
 } from "@sentrello/db";
 import { RATE_SCALE, toBaseCents } from "@sentrello/db/currency";
+import { periodFrom } from "@sentrello/db/ledger";
 import type { ModuleContext } from "@sentrello/module-sdk";
 
 /**
@@ -265,9 +266,18 @@ export function registerUsFiling(ctx: ModuleContext) {
     requirePermission({ invoicing: ["read"] }),
     async (c) => {
       const orgId = activeOrganizationId(c.get("session"));
-      const from = new Date(c.req.query("from") ?? "");
-      const to = new Date(c.req.query("to") ?? "");
-      if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
+      /*
+       * `periodFrom`, not two `new Date(...)` calls.
+       *
+       * "to=2026-03-31" read as an instant is midnight, and the period's last
+       * day was then excluded from both columns of the return — the documents
+       * and the ledger agreed with each other and both understated the
+       * quarter by a day's sales, which is the hardest kind of wrong figure
+       * to notice. The shared parser stretches a bare date to the whole of
+       * it, which is what somebody typing a quarter end means.
+       */
+      const { from, to } = periodFrom((name) => c.req.query(name));
+      if (!from || !to) {
         return c.json(
           { error: "which period? from and to are both required dates" },
           400,
