@@ -28,6 +28,30 @@ interface LicenseResponse {
   failedBundles: { name: string; reason: string }[];
 }
 
+/**
+ * `reason` on `/api/license` is whatever `jose` said while verifying the
+ * token — "Invalid Compact JWS", `"exp" claim timestamp check failed`,
+ * "signature verification failed". Exactly right for a log line, and
+ * meaningless to the business owner it was being shown to verbatim: "Running
+ * as Free: Invalid Compact JWS" answers nothing for someone who did not write
+ * the verifier. Matched by substring rather than exact string, because the
+ * library's wording is not a contract this screen can pin to a release.
+ */
+export function friendlyLicenseReason(reason: string | null): string | null {
+  if (!reason) return null;
+  const r = reason.toLowerCase();
+  if (r.includes('"exp"') || r.includes("expired")) {
+    return "this licence has expired";
+  }
+  if (r.includes('"iss"') || r.includes("issuer")) {
+    return "this token was not issued by sentrello.com";
+  }
+  if (r.includes("signature")) {
+    return "this licence does not check out — it may be for a different instance, or damaged in transit";
+  }
+  return "this does not look like a valid licence token";
+}
+
 /** The editable half of the business card, held and saved as one. */
 interface BusinessDetails {
   address: string;
@@ -1044,6 +1068,28 @@ function Connection({
 }
 
 /**
+ * What happens right after a key is saved.
+ *
+ * `POST /api/settings/license` only ever asks the host to go fetch a token
+ * when an update agent is listening; without one, storing the key does
+ * nothing else on its own. Before this note existed, the input just cleared
+ * and the card sat exactly as it was — a business with no agent installed had
+ * no way to learn that saving the key was not the whole job, only the answer
+ * `sync.error` already gives, and only once a licence is already Pro (see the
+ * button beneath this branch). Read straight from what `enterKey` itself was
+ * told, since that is the one place that already knows.
+ */
+export function LicenseSyncNote({ syncing }: { syncing: boolean }) {
+  return (
+    <p className="mt-2 text-sm" style={muted}>
+      {syncing
+        ? "Key saved. Checking your subscription — this can take a minute; the Updates panel below will show progress."
+        : "Key saved, but this instance has no update agent to fetch your licence automatically. Run `sentrello activate` on the server, then reload this page."}
+    </p>
+  );
+}
+
+/**
  * What this instance is licensed for, and what version it runs.
  *
  * Together because they are one question in practice: a licence decides which
@@ -1057,10 +1103,6 @@ export function SettingsLicence() {
     queryKey: ["settings"],
     queryFn: () => api<SettingsResponse>("/api/settings"),
   });
-  const licence = useQuery({
-    queryKey: ["license"],
-    queryFn: () => api<LicenseResponse>("/api/license"),
-  });
   const updates = useQuery({
     queryKey: ["updates"],
     queryFn: () => api<UpdatesResponse>("/api/settings/updates"),
@@ -1069,6 +1111,22 @@ export function SettingsLicence() {
     refetchInterval: (q) =>
       q.state.data &&
       ["requested", "running"].includes(q.state.data.status.state)
+        ? 5_000
+        : false,
+  });
+  const licence = useQuery({
+    queryKey: ["license"],
+    queryFn: () => api<LicenseResponse>("/api/license"),
+    // Entering a key or pressing "check my subscription" only *asks* the host
+    // to go fetch a token — the fetch itself finishes on the host's own time,
+    // outside this request. Without this, the only way to see the result was
+    // to reload the page: the Updates card above already polls while the host
+    // is working, and this rides the same signal so the Licence card catches
+    // up the moment that work is done, not only when somebody happens to know
+    // to refresh.
+    refetchInterval: () =>
+      updates.data &&
+      ["requested", "running"].includes(updates.data.status.state)
         ? 5_000
         : false,
   });
@@ -1106,7 +1164,7 @@ export function SettingsLicence() {
   const [keyInput, setKeyInput] = useState("");
   const enterKey = useMutation({
     mutationFn: () =>
-      api("/api/settings/license", {
+      api<{ stored: true; syncing: boolean }>("/api/settings/license", {
         method: "POST",
         body: JSON.stringify({ key: keyInput }),
       }),
@@ -1182,9 +1240,11 @@ export function SettingsLicence() {
                 style={{ color: "var(--text-warning)" }}
               >
                 Running as Free
-                {licence.data.reason ? `: ${licence.data.reason}` : "."} Paid
-                features stay dark until a valid licence is in place. Your data
-                is untouched and returns when it is.
+                {(() => {
+                  const friendly = friendlyLicenseReason(licence.data.reason);
+                  return friendly ? `: ${friendly}.` : ".";
+                })()} Paid features stay dark until a valid licence is in place.
+                Your data is untouched and returns when it is.
               </p>
             ) : null}
 
@@ -1218,6 +1278,9 @@ export function SettingsLicence() {
                   </Button>
                 </div>
                 {enterKey.error ? <ErrorNote error={enterKey.error} /> : null}
+                {enterKey.data ? (
+                  <LicenseSyncNote syncing={enterKey.data.syncing} />
+                ) : null}
               </div>
             ) : (
               // Bought a module on the website a minute ago? This is what makes
