@@ -2,7 +2,9 @@ import { afterAll, expect, test } from "bun:test";
 import {
   STATUTORY_TABLES,
   addRetention,
+  classifySchema,
   clearRetention,
+  isStatutoryTable,
   retentionPolicies,
 } from "@sentrello/module-sdk";
 import type { RegisteredRetention } from "@sentrello/module-sdk";
@@ -426,28 +428,74 @@ test("every table carrying money is named as statutory", () => {
  * it.
  */
 test("every table in the schema has been classified, one way or the other", () => {
-  const statutory = new Set<string>(STATUTORY_TABLES as readonly string[]);
-  const ordinary = new Set<string>(NON_STATUTORY_TABLES as readonly string[]);
-
-  const unclassified: string[] = [];
-  const both: string[] = [];
-  const present = new Set<string>();
-  for (const exported of Object.values(schema)) {
-    if (!isTable(exported)) continue;
-    const name = getTableName(exported);
-    present.add(name);
-    if (statutory.has(name) && ordinary.has(name)) both.push(name);
-    else if (!statutory.has(name) && !ordinary.has(name))
-      unclassified.push(name);
-  }
+  // The ratchet itself lives in the SDK, so the three repositories that have
+  // to hold this property run the same one over their own schemas rather than
+  // writing it three ways. Core's is the first caller.
+  const gaps = classifySchema(schema, NON_STATUTORY_TABLES);
 
   // A new table. Decide whether losing it would stop a business answering an
   // auditor, and name it in STATUTORY_TABLES or NON_STATUTORY_TABLES.
-  expect(unclassified).toEqual([]);
-  expect(both).toEqual([]);
+  expect(gaps.unclassified).toEqual([]);
+  expect(gaps.both).toEqual([]);
   // And the other way: a name left behind by a table that has been removed or
   // renamed, which would quietly stop guarding anything.
-  expect([...ordinary].filter((name) => !present.has(name))).toEqual([]);
+  expect(gaps.stale).toEqual([]);
+});
+
+/**
+ * And the half of the guarantee that lives outside this repository.
+ *
+ * The refusal is by name, so naming a module's table here is what protects it
+ * — and until today not one of the optional modules' tables was named, while
+ * thirteen retention policies were registered against that schema. A policy
+ * pointed at a till's Z closure, a shop's cost layers or a subscription's
+ * charge attempts would have compiled, registered and run.
+ *
+ * This test names them as the modules repository spells them. It cannot see
+ * that schema, so it builds the table the way drizzle does — the name and the
+ * schema under the symbols `retentionTableName` reads — and asks the same
+ * question `addRetention` asks. `classifySchema` is what stops the *next* one
+ * being missed, over there, in that repository's own suite.
+ */
+test("the optional modules' records of money taken are refused too", () => {
+  const foreign = (qualified: string) => {
+    const [schemaName, name] = qualified.split(".");
+    return {
+      [Symbol.for("drizzle:Name")]: name,
+      [Symbol.for("drizzle:Schema")]: schemaName,
+    } as unknown as Parameters<typeof isStatutoryTable>[0];
+  };
+
+  const unguarded = [
+    "pos.tickets",
+    "pos.ticket_line_modifiers",
+    "pos.adjustments",
+    "pos.drawers",
+    "pos.drawer_events",
+    "pos.closures",
+    "pos.receipts",
+    "pos.receipt_issues",
+    "shop.orders",
+    "shop.order_lines",
+    "shop.fulfillments",
+    "shop.allocations",
+    "shop.stock_layers",
+    "shop.stock_moves",
+    "shop.tax_classes",
+    "shop.tax_rates",
+    "shop.discounts",
+    "subscriptions.charge_attempts",
+    "subscriptions.plan_changes",
+    "subscriptions.dunning_cycles",
+    "subscriptions.discounts",
+    "seo.usage",
+    "links.events",
+  ].filter((name) => !isStatutoryTable(foreign(name)));
+  expect(unguarded).toEqual([]);
+
+  // And a module's own log is still sweepable: a qualified entry refuses that
+  // table and not every table that happens to share its bare name.
+  expect(isStatutoryTable(foreign("crm.events"))).toBe(false);
 });
 
 /**
