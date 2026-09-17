@@ -49,6 +49,7 @@ import {
 import type { SQL } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 import { registerAttachments } from "./attachments";
+import { removeCrmTrail } from "./cascade";
 import { registerCrmDashboard } from "./dashboard";
 import { CRM_ENTITY, type CrmResource } from "./entities";
 import { registerForms } from "./forms";
@@ -564,12 +565,36 @@ function crud<T extends keyof typeof tables>(
         if (reason) return c.json({ error: reason }, 409);
       }
 
-      const [row] = await db
-        .delete(table)
-        .where(
-          and(eq(table.id, c.req.param("id")), eq(table.organizationId, orgId)),
-        )
-        .returning();
+      /*
+       * The record and everything that was only ever about it, together.
+       *
+       * Nothing here has a foreign key, so the trail does not follow by
+       * itself — and one row of that trail is a task, which carries a due
+       * date and is read by a sweep that selects across every organization.
+       * A task about a customer the CRM can no longer show is a reminder
+       * somebody still gets. `removeCrmTrail` decides what goes; this decides
+       * that it goes in the same commit as the record, so a failure half way
+       * cannot leave the half that gets chased.
+       */
+      const trail = CRM_ENTITY[resource];
+      const [row] = await db.transaction(async (tx) => {
+        const deleted = await tx
+          .delete(table)
+          .where(
+            and(
+              eq(table.id, c.req.param("id")),
+              eq(table.organizationId, orgId),
+            ),
+          )
+          .returning();
+        if (
+          deleted[0] &&
+          (trail === "contact" || trail === "company" || trail === "deal")
+        ) {
+          await removeCrmTrail(orgId, trail, [String(deleted[0].id)], tx);
+        }
+        return deleted;
+      });
       if (!row) return c.json({ error: "not found" }, 404);
       await announce(orgId, resource, row, "deleted", row, null);
       return c.json({ deleted: row.id });
@@ -941,6 +966,50 @@ const tables = {
     table: schema.companies,
     path: "companies",
     permission: "crm",
+    /**
+     * A company with people or deals on it is not deletable.
+     *
+     * The same rule contacts already follow, for the same reason: a contact
+     * and a deal are records in their own right, nothing gives them back the
+     * company they pointed at, and the detachment is silent. It is not only
+     * cosmetic — the economic-nexus figures read a sale's buyer through the
+     * contact's company, so a detached contact quietly takes its invoices out
+     * of a tax threshold calculation.
+     *
+     * Refusing is recoverable: move the people, or delete them first.
+     */
+    async blocksDelete(orgId: string, id: string) {
+      const [people, deals] = await Promise.all([
+        db
+          .select({ id: schema.contacts.id })
+          .from(schema.contacts)
+          .where(
+            and(
+              eq(schema.contacts.organizationId, orgId),
+              eq(schema.contacts.companyId, id),
+            ),
+          ),
+        db
+          .select({ id: schema.deals.id })
+          .from(schema.deals)
+          .where(
+            and(
+              eq(schema.deals.organizationId, orgId),
+              eq(schema.deals.companyId, id),
+            ),
+          ),
+      ]);
+      const parts: string[] = [];
+      if (people.length) {
+        parts.push(`${people.length} contact${people.length > 1 ? "s" : ""}`);
+      }
+      if (deals.length) {
+        parts.push(`${deals.length} deal${deals.length > 1 ? "s" : ""}`);
+      }
+      return parts.length
+        ? `This company has ${parts.join(" and ")} on it. Move or delete those first.`
+        : null;
+    },
     /**
      * What the card shows besides the company's own fields: who works there
      * and how much is in play. Both are counted for the page in one query

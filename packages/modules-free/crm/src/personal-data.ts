@@ -9,6 +9,7 @@ import type {
   ModuleContext,
   PersonalRecord,
 } from "@sentrello/module-sdk";
+import { removeCrmTrail } from "./cascade";
 
 /**
  * What the CRM holds about a person, and what it can do about it.
@@ -148,26 +149,15 @@ export function registerCrmPersonalData(ctx: ModuleContext) {
       if (!people.length) return { removed: [], kept: [] };
       const ids = people.map((p) => p.id);
 
-      const notes = await db
-        .delete(schema.notes)
-        .where(
-          and(
-            eq(schema.notes.organizationId, orgId),
-            eq(schema.notes.entityType, "contact"),
-            inArray(schema.notes.entityId, ids),
-          ),
-        )
-        .returning({ id: schema.notes.id });
-
-      const activities = await db
-        .delete(schema.activities)
-        .where(
-          and(
-            eq(schema.activities.organizationId, orgId),
-            inArray(schema.activities.contactId, ids),
-          ),
-        )
-        .returning({ id: schema.activities.id });
+      /*
+       * The same sweep the delete route makes, rather than this file's own.
+       *
+       * It used to be two deletes written out here — notes and activities —
+       * and it missed the tasks, which is the worst one to miss: "Call Dave
+       * about the leak" is the person's name in a row with a due date on it,
+       * left behind by an erasure that reported itself complete.
+       */
+      const trail = await removeCrmTrail(orgId, "contact", ids);
 
       await db
         .delete(schema.contacts)
@@ -245,9 +235,12 @@ export function registerCrmPersonalData(ctx: ModuleContext) {
       return {
         removed: [
           `${people.length} contact record${people.length === 1 ? "" : "s"}`,
-          ...(notes.length ? [`${notes.length} notes`] : []),
-          ...(activities.length
-            ? [`${activities.length} calls and activities`]
+          ...(trail.notes ? [`${trail.notes} notes`] : []),
+          ...(trail.activities
+            ? [`${trail.activities} calls and activities`]
+            : []),
+          ...(trail.tasks
+            ? [`${trail.tasks} task${trail.tasks === 1 ? "" : "s"}`]
             : []),
           ...(logs
             ? [
