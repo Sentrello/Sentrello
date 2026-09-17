@@ -3,6 +3,7 @@ import {
   type CashBasisEntry,
   type CashBasisLine,
   cashBasisEntries,
+  isTaxPayableCode,
 } from "@sentrello/db/ledger";
 import type { LedgerRow } from "./reports";
 
@@ -40,7 +41,6 @@ import type { LedgerRow } from "./reports";
  */
 const RECEIVABLE_CODE = CORE_ACCOUNTS.accountsReceivable.code;
 const PAYABLE_CODE = CORE_ACCOUNTS.accountsPayable.code;
-const VAT_CODE = CORE_ACCOUNTS.taxPayable.code;
 
 export interface CashBasisRow {
   /** The entry that recognised the amount — the settlement, not the invoice. */
@@ -244,7 +244,10 @@ function cashBasisWalk(
 
     const income = entry.rows.filter((row) => row.type === "income");
     const expense = entry.rows.filter((row) => row.type === "expense");
-    const vat = entry.rows.filter((row) => row.code === VAT_CODE);
+    // The shared tax account and every authority's own: a document carrying
+    // two named taxes posts to "2200-<definition>", and matching the bare
+    // code left that VAT out of the cash-basis return entirely.
+    const vat = entry.rows.filter((row) => isTaxPayableCode(row.code));
     const incomeDelta = income.reduce((sum, row) => sum + amountOf(row), 0);
     const expenseDelta = expense.reduce((sum, row) => sum + amountOf(row), 0);
     /** Credit-positive: VAT charged on a sale, negative when reclaimable. */
