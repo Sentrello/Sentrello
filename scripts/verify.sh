@@ -81,14 +81,19 @@ step_leftovers() {
   fi
 
   echo "FAILED"
-  echo "      $left organization(s) left in the test database:"
+  # The database is named because this message used to suggest wiping a table
+  # without saying which database it was in. Run from a hook, or with no
+  # DATABASE_URL set, this is the shared default rather than whichever one the
+  # tests just used — and the rows may belong to somebody else's run.
+  echo "      $left organization(s) left in: $url"
   # Named, so whoever reads this knows which suite to look at rather than
   # having to open a database client to find out.
   psql "$url" -tA -F'  ' -c \
     'select id, name from organizations order by created_at limit 10' \
     2>/dev/null | sed 's/^/        /'
-  echo "      A suite did not clean up. Delete them before trusting any run:"
-  echo "        psql \"$url\" -c 'delete from organizations'"
+  echo "      A suite did not clean up. Remove the rows above BY ID:"
+  echo "        psql \"$url\" -c \"delete from organizations where id = '<id>'\""
+  echo "      Not the whole table: another session may be mid-run against it."
   failed=1
 }
 
