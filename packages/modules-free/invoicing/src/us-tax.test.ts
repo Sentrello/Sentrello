@@ -230,6 +230,71 @@ test("the manual lookup stacks the state rate with the city's", async () => {
   expect(other.taxes.map((t) => t.jurisdiction)).toEqual(["US-KS"]);
 });
 
+/**
+ * The invoice form asks "who is this for", not "where are they".
+ *
+ * It used to ask the second question in the browser, by fetching every
+ * company and finding the one on the chosen contact. That list is capped at a
+ * thousand rows, so at a business with more companies than that the address
+ * was simply not found and the invoice went out with no tax on it. The
+ * address is the server's to read, from the contact.
+ */
+test("the lookup resolves the customer's own address from the contact", async () => {
+  const res = await app.request(
+    `http://localhost/api/invoicing/us-taxes?contactId=${contactId}`,
+    { headers },
+  );
+  expect(res.status).toBe(200);
+  const body = (await res.json()) as {
+    taxes: { jurisdiction: string; ratePpm: number }[];
+  };
+  // The same answer the address parameters give for Wichita, Kansas — the
+  // state rate and the city's, stacked, in millionths.
+  expect(body.taxes.map((t) => t.jurisdiction).sort()).toEqual([
+    "US-KS",
+    "US-KS-WICHITA",
+  ]);
+  expect(body.taxes.map((t) => t.ratePpm).sort((a, b) => a - b)).toEqual([
+    10_000, 65_000,
+  ]);
+});
+
+test("a customer with no US address is offered nothing rather than refused", async () => {
+  const [abroad] = await db
+    .insert(schema.companies)
+    .values({
+      organizationId: orgId,
+      name: "Prairie Supply Canada",
+      country: "Canada",
+      state: "Ontario",
+    })
+    .returning();
+  if (!abroad) throw new Error("could not create the overseas company");
+  const [theirBuyer] = await db
+    .insert(schema.contacts)
+    .values({
+      organizationId: orgId,
+      name: "Sam Abroad",
+      companyId: abroad.id,
+    })
+    .returning();
+  if (!theirBuyer) throw new Error("could not create the overseas contact");
+
+  // No local rates is an answer, not a failure: the form draws no offer and
+  // the rest of the invoice is unaffected.
+  for (const id of [theirBuyer.id, crypto.randomUUID()]) {
+    const res = await app.request(
+      `http://localhost/api/invoicing/us-taxes?contactId=${id}`,
+      { headers },
+    );
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { taxes: unknown[] }).taxes).toEqual([]);
+  }
+
+  await db.delete(schema.contacts).where(eq(schema.contacts.id, theirBuyer.id));
+  await db.delete(schema.companies).where(eq(schema.companies.id, abroad.id));
+});
+
 test("stacked jurisdiction taxes total to the cent and post to separate liability accounts", async () => {
   // $1,234.56 at 6.5% + 1%: each tax rounds on its own, per line.
   const res = await app.request("http://localhost/api/invoices", {

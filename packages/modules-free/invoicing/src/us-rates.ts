@@ -5,6 +5,7 @@ import {
 } from "@sentrello/auth/hono";
 import { and, db, eq, isNotNull, like, or, schema } from "@sentrello/db";
 import type { ModuleContext } from "@sentrello/module-sdk";
+import { US_COUNTRY } from "./us-nexus";
 import { usStateCode } from "./us-nexus-thresholds";
 
 /**
@@ -204,6 +205,55 @@ export async function usTaxesFor(
   return { source: "manual", taxes: await manualUsRates(orgId, query) };
 }
 
+/**
+ * Where a customer is, for tax, in one query.
+ *
+ * The invoice form used to answer this in the browser: fetch every company,
+ * find the one on the chosen contact, read its country and state. That list
+ * is capped at a thousand rows, so at a business with more companies than
+ * that the customer's address was simply not found — and because the address
+ * only decides which rates are *offered*, the invoice went out looking
+ * complete with no tax on it. Losing a row is visible; charging the wrong tax
+ * is not.
+ *
+ * Asked here instead, where the rows are and where the country spellings are
+ * already written down. Organization-scoped on both sides of the join: a
+ * contact id from another business resolves to nothing, not to their
+ * customer's address.
+ */
+async function addressOfCustomer(
+  orgId: string,
+  contactId: string,
+): Promise<UsRateQuery | null> {
+  const [row] = await db
+    .select({
+      country: schema.companies.country,
+      state: schema.companies.state,
+      city: schema.companies.city,
+      postcode: schema.companies.postcode,
+    })
+    .from(schema.contacts)
+    .innerJoin(
+      schema.companies,
+      and(
+        eq(schema.contacts.companyId, schema.companies.id),
+        eq(schema.companies.organizationId, orgId),
+      ),
+    )
+    .where(
+      and(
+        eq(schema.contacts.id, contactId),
+        eq(schema.contacts.organizationId, orgId),
+      ),
+    )
+    .limit(1);
+  if (!row) return null;
+  if (!US_COUNTRY.has(row.country?.trim().toUpperCase() ?? "")) return null;
+  const state = usStateCode(row.state);
+  if (!state) return null;
+  return { state, city: row.city, postcode: row.postcode };
+}
+
 export function registerUsRates(ctx: ModuleContext) {
   ctx.app.get(
     "/api/invoicing/us-taxes",
@@ -211,6 +261,25 @@ export function registerUsRates(ctx: ModuleContext) {
     requirePermission({ invoicing: ["read"] }),
     async (c) => {
       const orgId = activeOrganizationId(c.get("session"));
+
+      /*
+       * `contactId` is how the invoice form asks: it knows who the invoice is
+       * for and nothing about where they are, which is the right division —
+       * the address is the server's to read. A customer with no company, one
+       * outside the US, or one whose state cannot be read gets an empty list
+       * rather than an error: there are no local rates to offer, which is an
+       * answer, not a failure.
+       */
+      const contactId = c.req.query("contactId");
+      if (contactId) {
+        const where = await addressOfCustomer(orgId, contactId);
+        return c.json(
+          where
+            ? await usTaxesFor(orgId, where)
+            : { source: "none", taxes: [] },
+        );
+      }
+
       const state = c.req.query("state") ?? "";
       if (!usStateCode(state)) {
         return c.json(

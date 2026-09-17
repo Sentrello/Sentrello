@@ -101,6 +101,14 @@ export type Contact = {
   lastName: string | null;
   title: string | null;
   companyId: string | null;
+  /**
+   * Where they work, resolved for the page by the list route.
+   *
+   * Sent with the row rather than looked up in the browser: the screens that
+   * needed it used to fetch every company to build a lookup table, and that
+   * route stops at a thousand rows.
+   */
+  companyName?: string | null;
   /** Stored filename of the resized WebP, or null. Never the bytes. */
   avatarPath?: string | null;
   email: string | null;

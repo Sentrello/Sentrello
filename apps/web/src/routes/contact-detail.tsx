@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { type Company, type Contact, type Meta, api } from "../lib/api";
+import { type Contact, type Meta, api } from "../lib/api";
 import { useCrmSettings } from "../lib/crm-settings";
 import { CustomValues } from "../lib/custom-fields";
 import { Icon } from "../lib/icons";
@@ -377,11 +377,6 @@ export function ContactDetail() {
     enabled: Boolean(id),
   });
 
-  const companies = useQuery({
-    queryKey: ["companies", "all"],
-    queryFn: () => api<{ companies: Company[] }>("/api/companies"),
-  });
-
   // So a link somebody was sent shows the person's name, not "Contacts".
   useRecordTitle(data?.contact.name);
 
@@ -402,9 +397,11 @@ export function ContactDetail() {
     // reason a second email could only be added after the contact existed.
     return (
       <ContactForm
-        contact={contact}
+        // The name comes from the related payload, which already resolved it
+        // — the form's picker needs it to show what is chosen before anybody
+        // searches.
+        contact={{ ...contact, companyName: company?.name ?? null }}
         settings={settings}
-        companies={companies.data?.companies ?? []}
         onDone={() => {
           setEditing(false);
           qc.invalidateQueries({ queryKey: ["contact-related", id] });

@@ -643,36 +643,52 @@ function Sessions({ userId }: { userId: string }) {
 }
 
 /**
- * Every event where they are the actor or the subject.
+ * The most recent events where they are the actor or the subject.
  *
  * `GET /api/users/events` filters by one or the other, not both — two
  * requests, merged and sorted here, rather than a new server parameter for a
  * question only this one screen asks.
+ *
+ * Both ask for a page. Unpaged, that route answers with at most a thousand
+ * rows and a `truncated: true` nothing here read, so a long-serving
+ * administrator's tab showed the first thousand of their history as though it
+ * were all of it. A tab is a summary either way; what was missing was saying
+ * so, and where the whole log is.
  */
+const RECENT = 50;
+
 function Activity({ userId }: { userId: string }) {
   const { data, isLoading, error } = useQuery({
     queryKey: ["person-activity", userId],
     queryFn: async () => {
+      const page = `page=1&perPage=${RECENT}&sort=at&order=desc`;
       const [asActor, asSubject] = await Promise.all([
-        api<{ events: Event[] }>(
-          `/api/users/events?actor=${encodeURIComponent(userId)}`,
+        api<{ events: Event[]; total: number }>(
+          `/api/users/events?actor=${encodeURIComponent(userId)}&${page}`,
         ),
-        api<{ events: Event[] }>(
-          `/api/users/events?subject=${encodeURIComponent(userId)}`,
+        api<{ events: Event[]; total: number }>(
+          `/api/users/events?subject=${encodeURIComponent(userId)}&${page}`,
         ),
       ]);
       const byId = new Map<string, Event>();
       for (const e of [...asActor.events, ...asSubject.events]) {
         byId.set(e.id, e);
       }
-      return [...byId.values()].sort((a, b) => (a.at < b.at ? 1 : -1));
+      return {
+        events: [...byId.values()].sort((a, b) => (a.at < b.at ? 1 : -1)),
+        // An upper bound on the whole history: the two filters overlap, so
+        // the sum over-counts rather than under-counts, and the only claim
+        // made from it is "there is more than this".
+        total: asActor.total + asSubject.total,
+      };
     },
   });
 
   if (isLoading) return <Loading />;
   if (error) return <ErrorNote error={error} />;
 
-  const events = data ?? [];
+  const events = data?.events ?? [];
+  const more = (data?.total ?? 0) > events.length;
   if (events.length === 0) return <Empty title="Nothing recorded yet" />;
 
   return (
@@ -691,6 +707,12 @@ function Activity({ userId }: { userId: string }) {
           </li>
         ))}
       </ul>
+      {more ? (
+        <p className="mt-2 text-xs" style={muted}>
+          The {events.length} most recent. Their whole history is under Events,
+          filtered by name.
+        </p>
+      ) : null}
     </Card>
   );
 }

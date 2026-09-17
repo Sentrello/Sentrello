@@ -1,7 +1,7 @@
 import { documentTotals } from "@sentrello/db/money";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { type Company, type Contact, api } from "../lib/api";
+import { type Contact, api } from "../lib/api";
 import { Icon } from "../lib/icons";
 import { RecordPicker } from "../lib/record-picker";
 import {
@@ -164,13 +164,30 @@ export function InvoiceForm({
     companyId?: string | null;
   } | null>(null);
   /**
-   * The customer's company, for the two things an address decides: which
-   * US jurisdictions' rates apply, and whether an exemption certificate is
-   * on file.
+   * The rates this customer's own jurisdictions charge, if any.
+   *
+   * This used to be worked out here: fetch every company, find the one on the
+   * chosen contact, read its country and state, and offer the lookup if both
+   * looked American. `/api/companies` is capped at a thousand rows and says
+   * `truncated: true` when it has cut — which nothing here read, so at a
+   * business with more companies than that the customer's address was simply
+   * not found. No error, no empty state: the offer just never appeared and
+   * the invoice went out with no tax on it. That is worse than a row going
+   * missing, because the document looks finished.
+   *
+   * So the question goes to the server as "who is this for", and the server
+   * reads the address. It also answers before anybody clicks, which means the
+   * offer appears only when there is something to apply — the old button
+   * showed itself on any US address and then quietly did nothing when no rate
+   * matched.
    */
-  const companies = useQuery({
-    queryKey: ["companies", "all"],
-    queryFn: () => api<{ companies: Company[] }>("/api/companies"),
+  const localRates = useQuery({
+    queryKey: ["us-taxes", customer?.id],
+    enabled: Boolean(customer?.id) && !asQuote,
+    queryFn: () =>
+      api<{ taxes: { id: string }[] }>(
+        `/api/invoicing/us-taxes?contactId=${encodeURIComponent(customer?.id ?? "")}`,
+      ),
   });
   /**
    * The terms and the units this business offers.
@@ -641,38 +658,23 @@ export function InvoiceForm({
         <div className="mb-3 flex items-center justify-between">
           <p className="font-medium text-sm">Line items</p>
           {(() => {
-            const company = (companies.data?.companies ?? []).find(
-              (c) => c.id === customer?.companyId,
-            );
-            const inUs = ["US", "USA", "UNITED STATES"].includes(
-              company?.country?.trim().toUpperCase() ?? "",
-            );
-            if (!inUs || !company?.state || exemptionCertificateId) {
-              return null;
-            }
+            const local = localRates.data?.taxes ?? [];
+            // Nothing to apply, or the sale is exempt under a certificate —
+            // in which case offering to put tax on it is the wrong suggestion.
+            if (local.length === 0 || exemptionCertificateId) return null;
             return (
               <button
                 type="button"
                 className="text-sm link-muted"
-                title="Looks up the rates whose jurisdiction matches this customer's state and city, and puts them on every line."
-                onClick={async () => {
-                  const query = new URLSearchParams({
-                    state: company.state ?? "",
-                    city: company.city ?? "",
-                    postcode: company.postcode ?? "",
-                  });
-                  const found = await api<{
-                    taxes: { id: string }[];
-                  }>(`/api/invoicing/us-taxes?${query.toString()}`);
-                  if (found.taxes.length > 0) {
-                    setLines((current) =>
-                      current.map((l) => ({
-                        ...l,
-                        taxDefinitionIds: found.taxes.map((t) => t.id),
-                      })),
-                    );
-                  }
-                }}
+                title="Puts the rates for this customer's own state and city on every line."
+                onClick={() =>
+                  setLines((current) =>
+                    current.map((l) => ({
+                      ...l,
+                      taxDefinitionIds: local.map((t) => t.id),
+                    })),
+                  )
+                }
               >
                 Use the customer's local rates
               </button>

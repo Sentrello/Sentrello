@@ -109,3 +109,30 @@ export async function contactNames(
     );
   return new Map(rows.map((row) => [row.id, row.name]));
 }
+
+/**
+ * The names of the companies on one page of anything, the same way.
+ *
+ * The contact list and the deal board each turned a `companyId` into a name
+ * by fetching every company into the browser — a lookup table built from a
+ * route capped at a thousand rows, so past the thousandth company the name
+ * silently became nothing. On the board that also took the avatar's initials
+ * with it, which is the only thing on a card that says who the job is for.
+ */
+export async function companyNames(
+  organizationId: string,
+  ids: (string | null)[],
+): Promise<Map<string, string>> {
+  const wanted = [...new Set(ids.filter((id): id is string => Boolean(id)))];
+  if (!wanted.length) return new Map();
+  const rows = await db
+    .select({ id: schema.companies.id, name: schema.companies.name })
+    .from(schema.companies)
+    .where(
+      and(
+        eq(schema.companies.organizationId, organizationId),
+        inArray(schema.companies.id, wanted),
+      ),
+    );
+  return new Map(rows.map((row) => [row.id, row.name]));
+}

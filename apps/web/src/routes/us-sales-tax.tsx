@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { type Company, api } from "../lib/api";
+import { api } from "../lib/api";
+import { RecordPicker } from "../lib/record-picker";
 import {
   Button,
   Card,
@@ -275,12 +276,20 @@ function CertificatesCard() {
     queryFn: () =>
       api<{ certificates: Certificate[] }>("/api/invoicing/exemptions"),
   });
-  const companies = useQuery({
-    queryKey: ["companies", "all"],
-    queryFn: () => api<{ companies: Company[] }>("/api/companies"),
-  });
-
-  const [companyId, setCompanyId] = useState("");
+  /**
+   * Whose certificate it is, chosen by searching.
+   *
+   * This was a `<select>` filled from `/api/companies` whole. That route is
+   * capped at a thousand rows and says `truncated: true` when it has cut;
+   * nothing here read it, so at a business with more companies than that the
+   * exempt customer was simply not in the list — and recording a certificate
+   * against the wrong company, or not at all, is what turns an audit into a
+   * bill. `RecordPicker` searches the server as somebody types.
+   */
+  const [company, setCompany] = useState<{ id: string; name: string } | null>(
+    null,
+  );
+  const companyId = company?.id ?? "";
   const [number, setNumber] = useState("");
   const [state, setState] = useState("");
   const [reason, setReason] = useState("resale");
@@ -308,6 +317,7 @@ function CertificatesCard() {
       setState("");
       setExpiresAt("");
       setDocumentPath("");
+      setCompany(null);
       done();
     },
   });
@@ -395,18 +405,16 @@ function CertificatesCard() {
 
       <div className="mt-3 flex flex-wrap items-end gap-2">
         <Field label="Customer">
-          <Select
-            value={companyId}
-            className="w-48"
-            onChange={(e) => setCompanyId(e.target.value)}
-          >
-            <option value="">Choose a company</option>
-            {(companies.data?.companies ?? []).map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </Select>
+          <div className="w-48">
+            <RecordPicker
+              path="/api/companies"
+              resource="companies"
+              value={company}
+              onChange={setCompany}
+              placeholder="Choose a company"
+              noun="company"
+            />
+          </div>
         </Field>
         <Field label="Certificate number">
           <Input

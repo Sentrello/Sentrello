@@ -1,11 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
-import {
-  type Company,
-  type Contact,
-  type LabelledValue,
-  api,
-} from "../lib/api";
+import { type Contact, type LabelledValue, api } from "../lib/api";
 import {
   type CrmSettings,
   managerName,
@@ -13,6 +8,7 @@ import {
 } from "../lib/crm-settings";
 import { CustomFields } from "../lib/custom-fields";
 import { Icon } from "../lib/icons";
+import { RecordPicker } from "../lib/record-picker";
 import {
   Button,
   Card,
@@ -171,20 +167,31 @@ export function nameBoxes(contact?: {
 export function ContactForm({
   contact,
   settings,
-  companies,
   onDone,
 }: {
   /** Absent when creating. */
   contact?: Contact;
   settings: CrmSettings;
-  companies: Company[];
   onDone: (saved?: Contact) => void;
 }) {
   const boxes = nameBoxes(contact);
   const [firstName, setFirstName] = useState(boxes.firstName);
   const [lastName, setLastName] = useState(boxes.lastName);
   const [title, setTitle] = useState(contact?.title ?? "");
-  const [companyId, setCompanyId] = useState(contact?.companyId ?? "");
+  /**
+   * Where they work, chosen by searching.
+   *
+   * Two screens used to hand this form the whole companies list to fill a
+   * `<select>`, and `/api/companies` stops at a thousand rows — so at a
+   * larger business the right company was simply not among the options, and
+   * the contact was saved attached to nobody or to whoever was nearest.
+   */
+  const [company, setCompany] = useState<{ id: string; name: string } | null>(
+    contact?.companyId
+      ? { id: contact.companyId, name: contact.companyName ?? "" }
+      : null,
+  );
+  const companyId = company?.id ?? "";
   const [status, setStatus] = useState(
     contact?.status ?? settings.contactStatuses[0]?.id ?? "cold",
   );
@@ -282,17 +289,15 @@ export function ContactForm({
             <Input value={title} onChange={(e) => setTitle(e.target.value)} />
           </Field>
           <Field label="Company">
-            <Select
-              value={companyId}
-              onChange={(e) => setCompanyId(e.target.value)}
-            >
-              <option value="">No company</option>
-              {companies.map((company) => (
-                <option key={company.id} value={company.id}>
-                  {company.name}
-                </option>
-              ))}
-            </Select>
+            <RecordPicker
+              path="/api/companies"
+              resource="companies"
+              value={company}
+              onChange={setCompany}
+              placeholder="Search companies"
+              clearLabel="No company"
+              noun="company"
+            />
           </Field>
         </div>
 

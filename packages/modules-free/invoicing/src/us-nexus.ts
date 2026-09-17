@@ -41,7 +41,15 @@ import {
  * silently in nobody's column.
  */
 
-const US_COUNTRY = new Set([
+/**
+ * The ways a company record can say "the United States".
+ *
+ * Exported because the rate lookup asks the same question, and the browser
+ * used to ask it a fourth time with a shorter list — three spellings against
+ * these five, so a customer whose country read "United States of America"
+ * was quietly treated as foreign and charged no US tax at all.
+ */
+export const US_COUNTRY = new Set([
   "US",
   "USA",
   "UNITED STATES",

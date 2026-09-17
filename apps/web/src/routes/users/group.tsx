@@ -277,12 +277,18 @@ function Access({ group }: { group: GroupRow }) {
  * complete — an administrator would read this tab and conclude nobody had
  * ever been added to the group.
  */
+/** How many of a group's events this tab shows before pointing at the log. */
+const RECENT = 50;
+
 function Activity({ groupId }: { groupId: string }) {
   const { data, isLoading, error } = useQuery({
     queryKey: ["group-activity", groupId],
     queryFn: () =>
-      api<{ events: Event[] }>(
-        `/api/users/events?group=${encodeURIComponent(groupId)}`,
+      // Asked for as a page. Unpaged, this route answers with at most a
+      // thousand rows and a `truncated: true` nothing here read — so a group
+      // with a long history showed part of it as though it were all of it.
+      api<{ events: Event[]; total: number }>(
+        `/api/users/events?group=${encodeURIComponent(groupId)}&page=1&perPage=${RECENT}&sort=at&order=desc`,
       ),
   });
 
@@ -309,6 +315,12 @@ function Activity({ groupId }: { groupId: string }) {
           </li>
         ))}
       </ul>
+      {(data?.total ?? 0) > events.length ? (
+        <p className="mt-2 text-xs" style={muted}>
+          The {events.length} most recent of {data?.total}. The whole log is
+          under Events.
+        </p>
+      ) : null}
     </Card>
   );
 }
