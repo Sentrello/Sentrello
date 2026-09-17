@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { type Company, type Tag, api } from "../lib/api";
+import { type Tag, api } from "../lib/api";
 import { useSession } from "../lib/auth";
 import { Avatar } from "../lib/avatar";
 import {
@@ -47,6 +47,14 @@ interface Deal {
   expectedCloseOn: string | null;
   position: number;
   companyId: string | null;
+  /**
+   * Whose job it is, resolved for the page by the list route.
+   *
+   * The board used to build its own lookup by fetching every company, which
+   * is capped at a thousand rows — so at a larger business a card lost the
+   * customer's name and, with it, the initials on its avatar.
+   */
+  companyName: string | null;
   archivedAt: string | null;
   /** Worked out on read by whatever module defines computed columns. */
   computed?: Record<string, { value: number | string | null; reason?: string }>;
@@ -134,7 +142,6 @@ function Column({
   label,
   deals,
   columns,
-  companyName,
   onMove,
 }: {
   /** Every stage, so a card can be moved to any of them without a mouse. */
@@ -144,7 +151,6 @@ function Column({
   deals: Deal[];
   /** Columns a module works out, when this instance has one that does. */
   columns: ComputedColumn[] | undefined;
-  companyName: (id: string | null) => string | undefined;
   onMove: (id: string, stage: string) => void;
 }) {
   const { open } = useNavigation();
@@ -194,7 +200,7 @@ function Column({
                   // The company's initials, not the deal's: the mark is there
                   // to say who the job is for, and "RR" for "Roof
                   // replacement" says nothing at all.
-                  name={companyName(d.companyId) ?? d.name}
+                  name={d.companyName ?? d.name}
                   size={24}
                   rounded="md"
                 />
@@ -250,15 +256,23 @@ export function Deals() {
    * A board is never paged: every column has to show everything in it, or the
    * totals across the top are lies. So the query goes out unpaged, and the
    * narrowing is done by the search and the filters instead.
+   *
+   * Unpaged is still capped — a thousand rows, said in `truncated` — and that
+   * is the one case where the paragraph above stops being true. So the flag
+   * is read and the board says the totals are of what it can see, instead of
+   * printing a figure that is confidently short. Narrowing the filters is the
+   * answer, and it is the answer the board already has.
    */
   const state = useListState({ sort: "position", order: "asc" });
   const query = listQueryString(state, false);
   const { data, isLoading, error } = useQuery({
     queryKey: ["deals", query],
     queryFn: () =>
-      api<{ deals: Deal[]; computedColumns?: ComputedColumn[] }>(
-        `/api/deals?${query}`,
-      ),
+      api<{
+        deals: Deal[];
+        computedColumns?: ComputedColumn[];
+        truncated?: boolean;
+      }>(`/api/deals?${query}`),
     placeholderData: (previous) => previous,
   });
 
@@ -281,13 +295,6 @@ export function Deals() {
     queryKey: ["tags"],
     queryFn: () => api<{ tags: Tag[] }>("/api/tags"),
   });
-
-  const companies = useQuery({
-    queryKey: ["companies", "all"],
-    queryFn: () => api<{ companies: Company[] }>("/api/companies"),
-  });
-  const companyName = (id: string | null) =>
-    id ? companies.data?.companies.find((c) => c.id === id)?.name : undefined;
 
   const move = useMutation({
     mutationFn: ({ id, stage }: { id: string; stage: string }) =>
@@ -477,6 +484,9 @@ export function Deals() {
       <p className="text-sm" style={muted}>
         {formatMoney(openTotal)} in play across {deals.length}{" "}
         {deals.length === 1 ? "deal" : "deals"}
+        {data?.truncated
+          ? " — the first 1,000 only. Search or filter to see the rest; the totals above count what is shown."
+          : ""}
       </p>
 
       {adding ? (
@@ -530,7 +540,6 @@ export function Deals() {
             label={s.label}
             deals={byStage(s.id)}
             columns={data?.computedColumns}
-            companyName={companyName}
             onMove={(id, stage) => move.mutate({ id, stage })}
           />
         ))}

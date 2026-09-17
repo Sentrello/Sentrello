@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
-import { type Company, type Contact, type Tag, api } from "../lib/api";
+import { type Contact, type Tag, api } from "../lib/api";
 import { useSession } from "../lib/auth";
 import { Avatar } from "../lib/avatar";
 import {
@@ -93,14 +93,6 @@ export function Contacts() {
   // modules, and has never carried a user.
   const session = useSession();
   const myId = session.data?.user?.id;
-
-  const companies = useQuery({
-    queryKey: ["companies", "all"],
-    queryFn: () => api<{ companies: Company[] }>("/api/companies"),
-  });
-
-  const companyName = (id: string | null) =>
-    id ? companies.data?.companies.find((c) => c.id === id)?.name : undefined;
 
   /**
    * A selection only means anything against the rows it was made on.
@@ -294,7 +286,6 @@ export function Contacts() {
         {adding ? (
           <ContactForm
             settings={settings}
-            companies={companies.data?.companies ?? []}
             onDone={(created) => {
               setAdding(false);
               qc.invalidateQueries({ queryKey: ["contacts"] });
@@ -415,7 +406,7 @@ export function Contacts() {
                           className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs"
                           style={muted}
                         >
-                          {describe(c, companyName(c.companyId))}
+                          {describe(c, c.companyName ?? undefined)}
                           <ComputedCells
                             columns={
                               response?.computedColumns as

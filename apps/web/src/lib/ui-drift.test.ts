@@ -4,6 +4,7 @@ import { join } from "node:path";
 import {
   findFillAsText,
   findHandRolledUi,
+  findUnpagedList,
 } from "@sentrello/module-sdk/ui-drift";
 
 /**
@@ -46,6 +47,30 @@ test("no Core screen writes a fill token as text", () => {
   const found: string[] = [];
   for (const path of [...screens(ROUTES), ...screens(import.meta.dir)]) {
     for (const { line, say } of findFillAsText(readFileSync(path, "utf8"))) {
+      found.push(`${path.split("/apps/web/")[1]}:${line}: ${say}`);
+    }
+  }
+  expect(found).toEqual([]);
+});
+
+/**
+ * The silence this closes.
+ *
+ * `/api/contacts` and `/api/companies` cap an unpaged answer at a thousand
+ * rows and say `truncated: true`. Nothing on any screen read it, so five
+ * customer pickers offered the first thousand, the invoice form failed to
+ * find a company and charged no tax, and two audit tabs showed part of a
+ * history as though it were all of it. Every one of them looked correct on
+ * any dataset a developer has, which rules out a runtime warning: this has to
+ * be answerable from the source, on every commit, at every row count.
+ *
+ * Both trees, because the shared components fetch too — `RecordPicker` is
+ * where four of those pickers now go.
+ */
+test("no Core screen reads a capped list without paging it", () => {
+  const found: string[] = [];
+  for (const path of [...screens(ROUTES), ...screens(import.meta.dir)]) {
+    for (const { line, say } of findUnpagedList(readFileSync(path, "utf8"))) {
       found.push(`${path.split("/apps/web/")[1]}:${line}: ${say}`);
     }
   }

@@ -5,7 +5,7 @@ import {
 } from "@sentrello/auth/hono";
 import { db, schema } from "@sentrello/db";
 import { recordConsent } from "@sentrello/db/consent";
-import { type CRM_SUBJECTS, crmValues } from "@sentrello/db/crm";
+import { type CRM_SUBJECTS, companyNames, crmValues } from "@sentrello/db/crm";
 import {
   type ListSpec,
   UNPAGED_MAX,
@@ -911,14 +911,25 @@ const tables = {
      */
     async enrich(rows: Record<string, unknown>[], orgId: string) {
       const ids = rows.map((row) => String(row.id));
-      const [tags, tasks] = await Promise.all([
+      const [tags, tasks, employers] = await Promise.all([
         tagsFor(orgId, "contact", ids),
         openTaskCounts(orgId, ids),
+        // Where they work, as a name. The list screen used to build this
+        // lookup by fetching every company into the browser, which stops
+        // being the whole table at a thousand rows and says so in a flag
+        // nothing read — so past that, rows lost their company silently.
+        companyNames(
+          orgId,
+          rows.map((row) => (row.companyId as string | null) ?? null),
+        ),
       ]);
       return rows.map((row) => ({
         ...row,
         tags: tags.get(String(row.id)) ?? [],
         openTasks: tasks.get(String(row.id)) ?? 0,
+        companyName: row.companyId
+          ? (employers.get(String(row.companyId)) ?? null)
+          : null,
       }));
     },
     narrow(
@@ -1213,6 +1224,24 @@ const tables = {
     table: schema.deals,
     path: "deals",
     permission: "crm",
+    /**
+     * Who the job is for. The board drew this from a lookup table it built by
+     * fetching every company, which is capped at a thousand rows — so at a
+     * larger business a card lost both its customer's name and the initials
+     * on its avatar, which is the only thing on a card that says whose it is.
+     */
+    async enrich(rows: Record<string, unknown>[], orgId: string) {
+      const customers = await companyNames(
+        orgId,
+        rows.map((row) => (row.companyId as string | null) ?? null),
+      );
+      return rows.map((row) => ({
+        ...row,
+        companyName: row.companyId
+          ? (customers.get(String(row.companyId)) ?? null)
+          : null,
+      }));
+    },
     list: {
       // The board is ordered by hand, so `position` is the default rather
       // than a date: a column somebody arranged has to come back arranged.

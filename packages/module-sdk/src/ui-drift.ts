@@ -130,3 +130,87 @@ export function findHandRolledUi(source: string): HandRolledFinding[] {
 
   return findings.sort((a, b) => a.line - b.line);
 }
+
+/**
+ * A capped list route fetched by a screen that never asked for a page.
+ *
+ * The list routes cap an unpaged answer at a thousand rows and say so —
+ * `truncated: true` in the body. That guard is right. What kept going wrong is
+ * the other half of it: three separate defects in one day were a route
+ * answering honestly and a caller reading only the rows. Five customer pickers
+ * offered the first thousand contacts and called it the customer list; the
+ * invoice form looked a company up in a list that stopped before it and
+ * charged no tax at all; a person's audit tab showed a thousand events as
+ * though it were their history. None of them errored, and none of them were
+ * visible on any developer's data — which is exactly why a runtime warning in
+ * development is no use here. The dataset that trips it is the customer's.
+ *
+ * So it is checked at the only time it can be: over the source, on every
+ * commit, at every business's row count including zero. A screen may still
+ * fetch one of these unpaged — a board that has to draw every card is a real
+ * case — but it has to say why on the line above, and then it is its own job
+ * to read `truncated` and tell somebody.
+ *
+ *   // ui-drift-ignore: a board draws every column whole; `truncated` is read below
+ *   api<{ deals: Deal[] }>(`/api/deals?${query}`)
+ *
+ * A module that adds a list route of its own with the same cap belongs in the
+ * list below; this reads text and cannot discover them.
+ */
+const CAPPED_LISTS = [
+  "contacts",
+  "companies",
+  "deals",
+  "activities",
+  "tasks",
+  "notes",
+  "invoices",
+  "quotes",
+  "users/events",
+];
+
+/**
+ * One whole `api(...)` read of a capped list: `api<{ companies: Company[] }>
+ * ("/api/companies")`.
+ *
+ * The call, not the bare string, and a call with exactly one argument. That
+ * is what separates a read from everything else the same path is written for
+ * — `api("/api/notes", { method: "POST" })` writes one, `path="/api/contacts"`
+ * hands `RecordPicker` somewhere to search — and what keeps the rule from
+ * crying wolf on code that was never the problem. A path continuing into
+ * another segment (`/api/invoices/counts`, `/api/contacts/import`) is a
+ * different route and is not a list.
+ *
+ * The blind spot, stated: a query assembled by a helper —
+ * `` `/api/deals?${query}` `` — cannot be read as text, so it is skipped. The
+ * one caller in Core that builds an unpaged query that way is the deal board,
+ * which reads `truncated` and says so on screen.
+ */
+const CAPPED_FETCH = new RegExp(
+  `\\bapi\\s*(?:<[^(){}]*(?:\\{[^{}]*\\}[^(){}]*)*>)?\\(\\s*["\`](/api/(?:${CAPPED_LISTS.join("|")}))(\\?[^"\`]*)?["\`]\\s*\\)`,
+);
+
+/** A query that is nothing but one interpolation: `?${query}`, a builder. */
+const WHOLE_QUERY_BUILT = /^\?\$\{[^}]*\}$/;
+
+export function findUnpagedList(source: string): HandRolledFinding[] {
+  const rawLines = source.split("\n");
+  const clean = stripComments(source);
+  const findings: HandRolledFinding[] = [];
+  for (const match of clean.matchAll(
+    new RegExp(CAPPED_FETCH.source, `${CAPPED_FETCH.flags}g`),
+  )) {
+    const query = match[2] ?? "";
+    // A query assembled elsewhere cannot be read from here, so it is left
+    // alone rather than guessed at — the blind spot named above.
+    if (WHOLE_QUERY_BUILT.test(query)) continue;
+    if (/[?&](page|perPage)=/.test(query)) continue;
+    const line = lineOf(clean, match.index);
+    if (exceptedAbove(rawLines, line, "ui-drift")) continue;
+    findings.push({
+      line,
+      say: `${match[1]} is capped at 1,000 rows and says \`truncated\` when it cuts — ask for a page, search it server-side through RecordPicker, or have the server answer the question the list was standing in for`,
+    });
+  }
+  return findings.sort((a, b) => a.line - b.line);
+}

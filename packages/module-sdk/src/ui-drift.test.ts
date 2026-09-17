@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { findFillAsText, findHandRolledUi } from "./ui-drift";
+import { findFillAsText, findHandRolledUi, findUnpagedList } from "./ui-drift";
 
 /**
  * What a screen must not build for itself once a primitive exists for it.
@@ -179,6 +179,59 @@ test("a marked fill-as-text line is excepted", () => {
     findFillAsText(
       "// ui-drift-ignore: printed on the invoice PDF, which is always light\n" +
         'style={{ color: "var(--color-danger)" }}',
+    ),
+  ).toEqual([]);
+});
+
+/**
+ * The exact line that shipped the defect, and the shapes that must not be
+ * mistaken for it.
+ *
+ * Written from the real code rather than from the rule: the first of these is
+ * `invoice-form.tsx` as it stood, and the rest are the calls on the same paths
+ * that were always fine and would make the guard a nuisance if it flagged
+ * them.
+ */
+test("a capped list read without a page is found", () => {
+  const found = findUnpagedList(
+    'api<{ companies: Company[] }>("/api/companies")',
+  );
+  expect(found).toHaveLength(1);
+  expect(found[0]?.say).toContain("/api/companies");
+
+  // A literal query with no paging in it is the same defect wearing a filter.
+  expect(
+    findUnpagedList(
+      "api<{ events: Event[] }>(`/api/users/events?actor=${encodeURIComponent(id)}`)",
+    ),
+  ).toHaveLength(1);
+});
+
+test("paging it, writing to it, or handing the path to a picker is not", () => {
+  const fine = [
+    // Asked for a page: the whole point.
+    'api<{ contacts: Contact[] }>("/api/contacts?page=1&perPage=20")',
+    "api<{ events: Event[] }>(`/api/users/events?subject=${id}&page=1&perPage=50`)",
+    // Writes, which have always used the same path.
+    'api("/api/notes", { method: "POST", body })',
+    'api("/api/deals", { method: "POST", body: JSON.stringify(deal) })',
+    // A path handed to something that searches server-side.
+    '<RecordPicker path="/api/companies" resource="companies" />',
+    // A route that only starts with the same words.
+    'api<{ counts: Counts }>("/api/invoices/counts")',
+    // A query built elsewhere: unreadable as text, so left alone.
+    "api<{ quotes: Quote[] }>(`/api/quotes?${query}`)",
+  ];
+  for (const source of fine) {
+    expect([source, findUnpagedList(source)]).toEqual([source, []]);
+  }
+});
+
+test("a screen that must fetch one unpaged says why on the line above", () => {
+  expect(
+    findUnpagedList(
+      "// ui-drift-ignore: a board draws every column whole; truncated is read below\n" +
+        'api<{ deals: Deal[] }>("/api/deals")',
     ),
   ).toEqual([]);
 });
