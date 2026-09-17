@@ -17,6 +17,7 @@ import {
   setModuleEnabled,
 } from "@sentrello/db/modules";
 import { and, eq, sql } from "@sentrello/db/orm";
+import { lastRetentionSweep } from "@sentrello/db/retention";
 import { NAV_TAX_REGIME, taxRegimesFor } from "@sentrello/db/tax-regimes";
 import { mailConfigured } from "@sentrello/email";
 import { startJobs } from "@sentrello/jobs";
@@ -362,6 +363,19 @@ app.get("/healthz", async (c) => {
     // Named, not detailed: enough for monitoring to alert on, without
     // publishing an error message to anyone who can reach /healthz.
     modules_failed: failedBundles.map((f) => f.name),
+    /*
+     * What the nightly retention sweep last did, because a housekeeping job
+     * that has quietly stopped is how a disk fills anyway — and the person
+     * whose disk it is has no IT department and is not reading logs.
+     *
+     * Counts and an age, never a name from any row: this endpoint is
+     * unauthenticated, the same as `modules_loaded` beside it. Null until a
+     * sweep has run in this process, which after a restart is simply true.
+     * `backlog` at zero is the healthy answer; a number that sits there
+     * across several days, or an `at` that stops moving, is the job not
+     * running.
+     */
+    retention: lastRetentionSweep(),
   });
 });
 

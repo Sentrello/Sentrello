@@ -72,8 +72,15 @@ function mentions(columns: PgColumn[], subject: DataSubject): SQL | undefined {
   return sql`(${sql.join(tests, sql` or `)})`;
 }
 
-/** What one column looks like once the person is out of it. */
-function emptied(payload: Payload): SQL {
+/**
+ * What one column looks like once the person is out of it.
+ *
+ * Exported because the retention sweep writes exactly this, by calling this.
+ * Two functions spelling out what an empty payload is would agree for a
+ * fortnight, and the night they drifted the sweep would either re-empty every
+ * erased row for ever or put a person back.
+ */
+export function emptied(payload: Payload): SQL {
   const column = "column" in payload ? payload.column : payload;
   const name = sql.identifier(column.name);
   if (!("column" in payload)) {

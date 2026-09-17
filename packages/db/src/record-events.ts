@@ -16,6 +16,23 @@ import { recordEvents } from "./schema";
  * automation rather than a broken CRM.
  */
 
+/**
+ * The copies of a record a feed row carries.
+ *
+ * Named here, beside the columns, because three things write to them and they
+ * must agree byte for byte: the erasure that takes a person out of the feed,
+ * the retention sweep that takes the copies out of an old row, and whatever
+ * reads one afterwards. Two lists would agree for a fortnight, and the one
+ * that drifted would be the one telling a data subject their copy was gone.
+ *
+ * `changed` is not here: which fields differ is a fact about the change, not a
+ * copy of anybody, and it is what makes a trimmed row still worth having.
+ */
+export const RECORD_EVENT_PAYLOADS = [
+  recordEvents.before,
+  recordEvents.after,
+] as const;
+
 export interface RecordChange {
   organizationId: string;
   /** What kind of thing changed: "deal", "contact", "invoice". */

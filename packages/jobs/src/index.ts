@@ -1,3 +1,4 @@
+import { sweepAllRetention } from "@sentrello/db/retention";
 import { dbSsl } from "@sentrello/db/ssl";
 import PgBoss from "pg-boss";
 import { refreshLicenseToken } from "./license-refresh";
@@ -20,6 +21,7 @@ export const QUEUES = {
   overdueReminders: "overdue-reminders",
   licenseRefresh: "license-refresh",
   telemetry: "telemetry",
+  retention: "retention",
 } as const;
 
 /**
@@ -54,6 +56,17 @@ export const SCHEDULES: Record<string, string> = {
   // Once a day, at an hour nobody is working. It sends nothing at all unless
   // the instance was asked at install time and said yes.
   [QUEUES.telemetry]: "17 4 * * *",
+  /**
+   * Once a night, not once a minute.
+   *
+   * Nothing about retention is urgent to the hour, and a sweep that runs while
+   * the office does is a sweep competing with the application for the same
+   * rows. The trash purge is every minute because a restore screen has to be
+   * right immediately; this has no such promise to keep. Off the hour and away
+   * from the others, so the one long-running job of the night has the box to
+   * itself.
+   */
+  [QUEUES.retention]: "23 3 * * *",
 };
 
 /** A job a module asked the host to run. */
@@ -193,6 +206,17 @@ export async function startJobs(
       name: QUEUES.telemetry,
       handler: () =>
         sendTelemetry({ tier: options.tier, modules: options.modules }),
+    },
+    {
+      /**
+       * Every module's logs, brought back inside the windows they declared.
+       *
+       * One job for all of them rather than one each: the budget that stops a
+       * first sweep running until breakfast has to be shared to mean anything,
+       * and a module that forgets to register a job is a table nobody prunes.
+       */
+      name: QUEUES.retention,
+      handler: () => sweepAllRetention(),
     },
     ...moduleJobs,
   ];

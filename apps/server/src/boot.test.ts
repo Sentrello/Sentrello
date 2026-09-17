@@ -310,6 +310,11 @@ test("/healthz boots and reports Free when no token is present", async () => {
     // A bundle that will not load is reported rather than only logged: it
     // takes every feature of that module with it.
     modules_failed: [],
+    // Null until the nightly sweep has run in this process — which after a
+    // restart is simply true. Once it has, monitoring reads the backlog and
+    // the time here, because a housekeeping job that quietly stopped is how
+    // a self-hosted disk fills.
+    retention: null,
   });
 });
 

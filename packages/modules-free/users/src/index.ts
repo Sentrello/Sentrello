@@ -6,7 +6,7 @@ import { registerEvents } from "./events";
 import { registerGroups } from "./groups";
 import { registerInvitations } from "./invitations";
 import { registerPeople } from "./people";
-import { pruneAllEvents } from "./retention";
+import { registerEventRetention } from "./retention";
 import { registerRolePolicy } from "./roles";
 import { registerSessions } from "./sessions";
 import { registerSso } from "./sso";
@@ -169,12 +169,16 @@ export default defineModule({
     // written, and every static route added since has raised it.
     registerPeople(ctx);
 
-    ctx.registerJob({
-      name: "prune-events",
-      // Nightly, off the hour: nothing else runs at 03:41.
-      cron: "41 3 * * *",
-      handler: async () => ({ pruned: await pruneAllEvents() }),
-    });
+    /*
+     * How long the audit log is kept.
+     *
+     * A policy now rather than a job of this module's own: the platform owns
+     * the sweeping — batches, a budget, every organisation in turn, and one
+     * module's failure costing no other module its night — and this module
+     * owns only the window and what it spares. The single unbatched `delete`
+     * this replaces took a row lock on every row past the cutoff at once.
+     */
+    registerEventRetention(ctx);
   },
 });
 

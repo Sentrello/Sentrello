@@ -215,6 +215,27 @@ export interface ModuleContext {
   registerComputedColumns?: (provider: ComputedColumns) => void;
 
   /**
+   * How long this module's own logs are kept.
+   *
+   * A log is the one kind of table that only ever grows, and a self-hosted
+   * instance has nobody watching the disk. The module says what it keeps and
+   * for how long; the platform owns the sweeping — batches, a budget, every
+   * organisation in turn, and one module's bad policy costing no other module
+   * its night.
+   *
+   * Statutory records cannot be reached from here. A policy on `invoices`,
+   * `payments` or the ledger does not compile — the table resolves to `never`
+   * through `NotStatutory` — and is refused again at registration.
+   *
+   * Optional, like `registerPaymentWebhook` and for the same reason: a module
+   * built against an older host has to keep compiling, and every test harness
+   * in four repositories builds this object by hand.
+   */
+  registerRetention?: <T extends RetentionTable>(
+    policy: RetentionPolicy<T> & { table: NotStatutory<T> },
+  ) => void;
+
+  /**
    * What this module can find, for the box that searches everything.
    *
    * The commonest thing somebody does after looking at today's figures is look
@@ -327,6 +348,12 @@ import {
   addPaymentWebhook,
 } from "./payments/webhooks";
 import { type PersonalDataSource, addPersonalData } from "./personal-data";
+import {
+  type NotStatutory,
+  type RetentionPolicy,
+  type RetentionTable,
+  addRetention,
+} from "./retention";
 import { type SearchProvider, addSearchProvider } from "./search";
 import { provideService } from "./services";
 import { type ModuleSummary, addSummary } from "./summaries";
@@ -335,6 +362,7 @@ import { type ModuleWidget, addWidget } from "./widgets";
 export * from "./attachments";
 export * from "./account";
 export * from "./search";
+export * from "./retention";
 export * from "./csv";
 /**
  * The container an archive is written in. A zip, because the business that
@@ -472,6 +500,10 @@ export function registerForTest(
     // what it would add to somebody else's list.
     registerComputedColumns: (provider) =>
       addComputedColumns({ ...provider, moduleId: module.id }),
+    // Registered for real, like the others, so a module's own tests can sweep
+    // its own log rather than assert that it remembered to declare one.
+    registerRetention: (policy) =>
+      addRetention({ ...policy, moduleId: module.id }),
     // Registered for real, like the others, so a module's own tests can ask
     // what it would put in front of somebody setting it up.
     registerOnboarding: (guide) =>

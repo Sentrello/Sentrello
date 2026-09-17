@@ -1,6 +1,7 @@
 import { and, db, eq, inArray, or, schema, sql } from "@sentrello/db";
 import { consentHistory, describeConsent } from "@sentrello/db/consent";
 import { redactPayloads } from "@sentrello/db/erasure";
+import { RECORD_EVENT_PAYLOADS } from "@sentrello/db/record-events";
 import type {
   DataSubject,
   EraseOutcome,
@@ -212,7 +213,10 @@ export function registerCrmPersonalData(ctx: ModuleContext) {
           table: schema.recordEvents,
           organizationId: orgId,
           subject: who,
-          payloads: [schema.recordEvents.before, schema.recordEvents.after],
+          // From the list beside the columns, which the retention sweep reads
+          // too: two spellings of what a payload is would agree for a
+          // fortnight, and the one that drifted would be this one.
+          payloads: [...RECORD_EVENT_PAYLOADS],
         });
         logs += await redactPayloads({
           table: schema.crmWebhookDeliveries,

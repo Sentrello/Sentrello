@@ -12,6 +12,7 @@ import {
   addCrawlable,
   addOnboarding,
   addPaymentWebhook,
+  addRetention,
   addSearchProvider,
   addSummary,
   addWidget,
@@ -19,6 +20,7 @@ import {
   clearComputedColumns,
   clearOnboarding,
   clearPaymentWebhooks,
+  clearRetention,
   clearServices,
   clearSummaries,
   clearWidgets,
@@ -66,6 +68,7 @@ export function loadModules(
   clearOnboarding();
   clearPaymentWebhooks();
   clearComputedColumns();
+  clearRetention();
   /*
    * And what one module offers another. The boot tests load modules more than
    * once in a process, and a host's functions left behind by a run that is over
@@ -169,6 +172,12 @@ export function loadModules(
         // instance loaded.
         registerComputedColumns: (provider) =>
           addComputedColumns({ ...provider, moduleId: m.id }),
+        // How long this module's own logs are kept. A log is the one kind of
+        // table that only ever grows and nobody on a self-hosted instance is
+        // watching the disk; the module says what it keeps, the platform does
+        // the sweeping, and no policy can name a statutory record.
+        registerRetention: (policy) =>
+          addRetention({ ...policy, moduleId: m.id }),
         // namespaced: two modules may both want a job called "reminders"
         registerJob: (j) => jobs.push({ ...j, name: `${m.id}:${j.name}` }),
       });
