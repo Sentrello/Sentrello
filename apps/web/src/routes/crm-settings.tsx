@@ -1,3 +1,4 @@
+import { CRM_RESOURCE, WEBHOOK_ENTITIES } from "@sentrello/module-crm/entities";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { type Meta, api } from "../lib/api";
@@ -763,14 +764,14 @@ function Webhooks() {
           />
         </Field>
         <div className="flex flex-wrap items-center gap-4 text-sm">
-          {["contact", "company", "deal"].map((entity) => (
+          {WEBHOOK_ENTITIES.map((entity) => (
             <label key={entity} className="flex items-center gap-1.5">
               <input
                 type="checkbox"
                 checked={entities.includes(entity)}
                 onChange={(e) => toggleEntity(entity, e.target.checked)}
               />
-              {entity}s
+              {CRM_RESOURCE[entity]}
             </label>
           ))}
           <label className="flex items-center gap-1.5" style={muted}>

@@ -8,6 +8,7 @@ import { record } from "@sentrello/db/security-events";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import { mayCall, secrets, signOutbound } from "@sentrello/module-sdk";
 import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { WEBHOOK_ENTITIES } from "./entities";
 
 /**
  * Telling the business's own systems that a record changed.
@@ -23,9 +24,6 @@ import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
  * endpoint added today does not replay the business's history at whoever
  * just typed the URL.
  */
-
-/** The records an endpoint can ask to hear about. */
-export const WEBHOOK_ENTITIES = ["contact", "company", "deal"] as const;
 
 /**
  * Minutes until the next try, by how many tries have already failed.
