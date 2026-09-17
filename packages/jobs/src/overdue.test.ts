@@ -85,6 +85,32 @@ test("with no mail configured, nobody is chased and nothing is marked", async ()
   expect(after?.lastReminderAt).toBeNull();
 });
 
+/**
+ * An invoice the business has filed away.
+ *
+ * `DELETE /api/invoices/:id` is a soft delete — the document goes to the
+ * "deleted" tab and out of every screen. This sweep read it anyway and kept
+ * chasing the customer weekly for a bill the business could no longer see.
+ */
+test("an invoice that has been filed away is not chased", async () => {
+  process.env.RESEND_API_KEY = undefined;
+  process.env.SMTP_HOST = undefined;
+
+  const before = await sendOverdueReminders(new Date(), {});
+  await db
+    .update(schema.invoices)
+    .set({ deletedAt: new Date() })
+    .where(eq(schema.invoices.id, invoiceId));
+
+  const after = await sendOverdueReminders(new Date(), {});
+  expect(after.skipped).toBe((before.skipped ?? 0) - 1);
+
+  await db
+    .update(schema.invoices)
+    .set({ deletedAt: null })
+    .where(eq(schema.invoices.id, invoiceId));
+});
+
 test("it says how many were waiting, so the silence is explainable", async () => {
   process.env.RESEND_API_KEY = undefined;
   process.env.SMTP_HOST = undefined;
