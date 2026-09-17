@@ -5,6 +5,7 @@ import {
 } from "@sentrello/auth/hono";
 import { and, db, desc, eq, schema } from "@sentrello/db";
 import { policyFor } from "@sentrello/db/lockout";
+import { organizationMember } from "@sentrello/db/membership";
 import { record } from "@sentrello/db/security-events";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import { effectiveRoles, twoFactorRequired } from "./roles";
@@ -231,17 +232,11 @@ export function registerSessions(ctx: ModuleContext) {
 
       // Only people in this business. A user id is not a licence to read
       // sessions on an instance somebody else's account happens to share.
-      const [member] = await db
-        .select({ id: schema.member.id })
-        .from(schema.member)
-        .where(
-          and(
-            eq(schema.member.organizationId, orgId),
-            eq(schema.member.userId, userId),
-          ),
-        )
-        .limit(1);
-      if (!member) return c.json({ error: "not found" }, 404);
+      // Whose sessions these are has to be somebody who works here, or the
+      // route is a way to end a stranger's session by guessing an id.
+      if (!(await organizationMember(orgId, userId))) {
+        return c.json({ error: "not found" }, 404);
+      }
 
       return c.json({ sessions: await sessionsOf(userId, null) });
     },

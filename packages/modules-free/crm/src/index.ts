@@ -18,6 +18,7 @@ import {
   pageWindow,
   searchCondition,
 } from "@sentrello/db/list-query";
+import { organizationMember } from "@sentrello/db/membership";
 import { sumCents } from "@sentrello/db/money";
 import { recordChanged } from "@sentrello/db/record-events";
 import type {
@@ -370,7 +371,7 @@ function crud<T extends keyof typeof tables>(
       await withCustomValues(resource, orgId, parsed.value);
       if (resource === "deals") await withDecidedAt(orgId, parsed.value);
       const refError = await checkLinkedRecords(resource, orgId, parsed.value);
-      if (refError) return c.json({ error: refError }, 404);
+      if (refError) return c.json({ error: refError.error }, refError.status);
       const [row] = await db
         .insert(table)
         .values({ ...parsed.value, organizationId: orgId })
@@ -413,7 +414,7 @@ function crud<T extends keyof typeof tables>(
       await withCustomValues(resource, orgId, parsed.value);
       if (resource === "deals") await withDecidedAt(orgId, parsed.value);
       const refError = await checkLinkedRecords(resource, orgId, parsed.value);
-      if (refError) return c.json({ error: refError }, 404);
+      if (refError) return c.json({ error: refError.error }, refError.status);
 
       /**
        * Two of these fields are legal positions rather than preferences, and
@@ -664,11 +665,25 @@ async function dealSearch(
  * another's — and an id that is not a uuid at all would otherwise surface as
  * a database error rather than the 404 it is.
  */
+/**
+ * What a refusal is, and which answer it deserves.
+ *
+ * A linked record that cannot be found is 404, as it always was. A person who
+ * does not work here is 400: the id is not a record this caller was trying to
+ * reach, it is a value in a field they filled in wrongly, and the difference
+ * is what tells a browser whether to show "not found" or to put the cursor
+ * back in the box.
+ */
+interface LinkRefusal {
+  error: string;
+  status: 400 | 404;
+}
+
 async function checkLinkedRecords(
   resource: string,
   orgId: string,
   value: Record<string, unknown>,
-): Promise<string | null> {
+): Promise<LinkRefusal | null> {
   const uuid =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const owned = async (
@@ -715,8 +730,15 @@ async function checkLinkedRecords(
       company: schema.companies,
       deal: schema.deals,
     }[String(value.entityType)];
-    if (!table) return "a note attaches to a contact, company or deal";
-    if (!(await owned(table, value.entityId))) return "no such record";
+    if (!table) {
+      return {
+        error: "a note attaches to a contact, company or deal",
+        status: 404,
+      };
+    }
+    if (!(await owned(table, value.entityId))) {
+      return { error: "no such record", status: 404 };
+    }
   }
   if (resource === "deals" && Array.isArray(value.contactIds)) {
     // Filtered rather than refused: a deal being re-saved may still carry the
@@ -730,7 +752,35 @@ async function checkLinkedRecords(
     value.contactIds = kept;
   }
   for (const [id, table, message] of links) {
-    if (!(await owned(table, id))) return message;
+    if (!(await owned(table, id))) return { error: message, status: 404 };
+  }
+
+  /**
+   * And the person the record belongs to.
+   *
+   * `ownerId` on a contact, a company or a deal and `assigneeId` on a task are
+   * platform user ids, and every one of them used to be written exactly as it
+   * arrived. The `user` table has no `organization_id` — it cannot have one,
+   * the same person may work at two businesses — so a stranger's id stored
+   * here is a name from another business waiting to be printed on this one's
+   * screen by whatever resolves it. The check has to happen on the way in.
+   *
+   * Refused, not quietly emptied. A missing letterhead has a correct default
+   * and an owner does not: nobody means "give it to the person we do not
+   * employ", so there is nothing to fall back to — and dropping it in silence
+   * tells whoever pressed Save that the record was assigned when it was not.
+   *
+   * `null` is allowed through, because unassigning is a real thing to do.
+   */
+  for (const field of ["ownerId", "assigneeId"] as const) {
+    const who = value[field];
+    if (who === undefined || who === null || who === "") continue;
+    if (!(await organizationMember(orgId, who))) {
+      return {
+        error: `${field === "ownerId" ? "the owner" : "the assignee"} is not a member of this organization`,
+        status: 400,
+      };
+    }
   }
   return null;
 }
