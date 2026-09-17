@@ -12,6 +12,7 @@
     "@sentrello/email": "*",
     "@sentrello/jobs": "*",
     "@sentrello/licensing-client": "*",
+    "@sentrello/module-account": "*",
     "@sentrello/module-accounting": "*",
     "@sentrello/module-crm": "*",
     "@sentrello/module-dashboard": "*",

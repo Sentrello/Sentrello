@@ -20,6 +20,7 @@ import { and, eq, sql } from "@sentrello/db/orm";
 import { NAV_TAX_REGIME, taxRegimesFor } from "@sentrello/db/tax-regimes";
 import { mailConfigured } from "@sentrello/email";
 import { startJobs } from "@sentrello/jobs";
+import account from "@sentrello/module-account";
 import crm from "@sentrello/module-crm";
 import dashboard from "@sentrello/module-dashboard";
 import money from "@sentrello/module-money";
@@ -166,6 +167,10 @@ const modules: SentrelloModule[] = [
   settings,
   profile,
   users,
+  // The unified customer account page: no screens of its own, only the
+  // `/account/:token` surface that arranges whatever this instance's other
+  // modules declared with `registerAccountSection`.
+  account,
   ...(await discoverOptionalModules()),
 ];
 const { nav, navVisibility, navPermissions, tiers, loaded, jobs, unmet } =
