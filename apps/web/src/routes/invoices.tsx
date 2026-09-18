@@ -27,6 +27,7 @@ import {
   formatDate,
   formatMoney,
   muted,
+  textOn,
 } from "../lib/ui";
 import { InvoiceForm } from "./invoice-form";
 
@@ -469,7 +470,10 @@ export function Invoices() {
                         <span
                           key={tag.id}
                           className="ml-1.5 rounded-full px-1.5 py-0.5 text-xs"
-                          style={{ background: tag.color, color: "#111" }}
+                          style={{
+                            background: tag.color,
+                            color: textOn(tag.color),
+                          }}
                         >
                           {tag.name}
                         </span>

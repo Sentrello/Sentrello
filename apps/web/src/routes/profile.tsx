@@ -595,6 +595,10 @@ function TwoFactor() {
           </p>
           <div className="mt-3 flex flex-wrap items-start gap-4">
             {uri ? (
+              // White on purpose, in both themes: a QR code is read by a
+              // camera looking for dark modules on a light ground with a quiet
+              // zone around them, so this is a specification rather than a
+              // colour choice a token should be making.
               <div className="rounded p-2" style={{ background: "#ffffff" }}>
                 <QrCode
                   value={uri}
