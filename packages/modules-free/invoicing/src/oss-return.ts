@@ -11,14 +11,14 @@ import {
   eq,
   gte,
   inArray,
-  like,
   lt,
   lte,
-  or,
+  ne,
   schema,
 } from "@sentrello/db";
 import { RATE_SCALE } from "@sentrello/db/currency";
 import { percentFromPpm } from "@sentrello/db/money";
+import { postedSales } from "@sentrello/db/sale-place";
 import { csvDownload, toCsv } from "@sentrello/module-sdk";
 import type { ModuleContext } from "@sentrello/module-sdk";
 import { euCountry, isConsumerSupply } from "./distance-selling";
@@ -45,9 +45,6 @@ import { euCountry, isConsumerSupply } from "./distance-selling";
  * the VAT due, in euro, and the total. Beside it, corrections — see below —
  * and the date it has to be in by.
  */
-
-/** The VAT liability accounts: the shared one, and the per-definition splits. */
-const VAT_ACCOUNT = "2200";
 
 /** Services and goods are separate parts of the return; so are the unknowns. */
 export type SupplyType = "goods" | "services" | "unclassified";
@@ -89,6 +86,37 @@ export interface OssCorrection {
   withinThreeYears: boolean;
 }
 
+/**
+ * A sale the return could not take, and why.
+ *
+ * Counted rather than dropped, because the two ways of not reporting a supply
+ * look identical on a filed return and are not remotely the same thing. A
+ * cross-border sale at 0% is a rate somebody charged; a sale whose place was
+ * never established is a figure missing from a legal declaration. Both used to
+ * come out as nothing at all — one of them behind an inner join that removed
+ * the row before any rate was applied.
+ */
+export interface OssOmission {
+  /**
+   * `no-place`: nothing on the sale says which country it belongs to.
+   * `no-rate-set`: it is placed in a member state, it carried no tax, and no
+   * band records a rate — so nothing says the zero was chosen. This is the
+   * business selling into a country it has not set a rate for, and it is the
+   * expensive one: VAT on a cross-border sale to a consumer is due from the
+   * first euro with no threshold to sit under, so they are keeping money they
+   * owe and will find out from the authority.
+   * `no-rate`: tax *was* posted, and no band records what rate it was posted
+   * at. That is a posting inconsistency rather than a business decision.
+   */
+  reason: "no-place" | "no-rate-set" | "no-rate";
+  /** Where, when the sale was placed and only the rate is missing. */
+  memberState?: string;
+  sales: number;
+  /** In base-currency cents — these are not on the return, so not converted. */
+  netCents: number;
+  vatCents: number;
+}
+
 export interface OssConversion {
   /** The currency the books are kept in. */
   from: string;
@@ -124,6 +152,8 @@ export interface OssReturn {
   totalTaxableCents: number;
   /** Lines and corrections together — what is actually owed for the quarter. */
   totalVatCents: number;
+  /** Sales that could not be reported, with their figures. Never silent. */
+  omissions: OssOmission[];
   /** Why there are no figures, where there are none and there should be. */
   problem: string | null;
   /** The sentence that has to be read before anything is typed into a portal. */
@@ -243,11 +273,13 @@ function toEuroCents(baseCents: number, conversion: OssConversion | null) {
   return Math.round((baseCents * RATE_SCALE) / conversion.rateMicro);
 }
 
-interface DocumentFigures {
+interface QualifyingSale {
   memberState: string;
   supplyType: SupplyType;
   netCents: number;
   vatCents: number;
+  /** Where the bands, the kind and the catalogue lines are, if anywhere. */
+  documentId: string | null;
   kind: string;
   referenceInvoiceId: string | null;
 }
@@ -294,6 +326,7 @@ export async function ossReturn(
     corrections: [],
     totalTaxableCents: 0,
     totalVatCents: 0,
+    omissions: [],
     problem: null,
     filing: OSS_FILING_NOTICE,
     caveats: [],
@@ -314,116 +347,116 @@ export async function ossReturn(
     conversion = { from: baseCurrency, ...rate };
   }
 
-  /**
-   * The ledger side: every entry raised by a sales document and posted inside
-   * the quarter, with its movement on income and on VAT. Credits less debits
-   * on both, which gives an invoice a positive figure and a credit note a
-   * negative one without anywhere having to ask which it was.
+  /*
+   * The ledger side: what was sold in the quarter, where, and to whom.
+   *
+   * Shared rather than queried here, and the sharing is the fix. The version
+   * this replaces took `invoice:%` and `credit-note:%` sources only — a list
+   * of the ways Core itself sells — so a storefront order, the one thing that
+   * actually produces business-to-consumer sales across a border, never
+   * reached the return the scheme exists for. What makes an entry a sale is
+   * that it moved income and something recorded where it happened; neither of
+   * those depends on which module raised it.
    */
-  const lines = await db
-    .select({
-      source: schema.journalEntries.source,
-      type: schema.accounts.type,
-      code: schema.accounts.code,
-      debitCents: schema.journalLines.debitCents,
-      creditCents: schema.journalLines.creditCents,
-    })
-    .from(schema.journalLines)
-    .innerJoin(
-      schema.journalEntries,
-      eq(schema.journalLines.entryId, schema.journalEntries.id),
-    )
-    .innerJoin(
-      schema.accounts,
-      eq(schema.journalLines.accountId, schema.accounts.id),
-    )
-    .where(
-      and(
-        eq(schema.journalEntries.organizationId, orgId),
-        eq(schema.accounts.organizationId, orgId),
-        gte(schema.journalEntries.postedAt, from),
-        lte(schema.journalEntries.postedAt, to),
-        or(
-          like(schema.journalEntries.source, "invoice:%"),
-          like(schema.journalEntries.source, "credit-note:%"),
-        ),
-      ),
-    );
+  const sales = await postedSales(orgId, { from, to });
 
-  const posted = new Map<string, { netCents: number; vatCents: number }>();
-  for (const line of lines) {
-    const documentId = line.source?.split(":")[1];
-    if (!documentId) continue;
-    const figures = posted.get(documentId) ?? { netCents: 0, vatCents: 0 };
-    const movement = line.creditCents - line.debitCents;
-    if (line.type === "income") figures.netCents += movement;
-    if (line.code === VAT_ACCOUNT || line.code.startsWith(`${VAT_ACCOUNT}-`)) {
-      figures.vatCents += movement;
+  /**
+   * Which sales belong on the return, and what happened to the rest.
+   *
+   * Three ways out, and only one of them is silent. A sale placed in the
+   * seller's own member state or outside the EU is off this return by the
+   * rules, deliberately, and needs no note. A sale to a customer with a
+   * registration the register has not refused is B2B, likewise. A sale with no
+   * place at all is neither: it is a hole in the figures, and it is counted.
+   */
+  const omitted = new Map<string, OssOmission>();
+  const omit = (
+    reason: OssOmission["reason"],
+    netCents: number,
+    vatCents: number,
+    memberState?: string,
+  ) => {
+    const key = `${reason}|${memberState ?? ""}`;
+    const found = omitted.get(key) ?? {
+      reason,
+      ...(memberState ? { memberState } : {}),
+      sales: 0,
+      netCents: 0,
+      vatCents: 0,
+    };
+    found.sales += 1;
+    found.netCents += netCents;
+    found.vatCents += vatCents;
+    omitted.set(key, found);
+  };
+
+  const qualifying = new Map<string, QualifyingSale>();
+  for (const sale of sales) {
+    if (!sale.place) {
+      omit("no-place", sale.netCents, sale.vatCents);
+      continue;
     }
-    posted.set(documentId, figures);
-  }
-  if (posted.size === 0) {
-    return { ...empty, applies: true, conversion, caveats: caveatsFor([]) };
-  }
-
-  /**
-   * The classification side. Which member state and whether the customer is a
-   * consumer come from the company record; a customer saved only as a person
-   * has no country, so such a sale cannot be placed and is a known floor.
-   */
-  const documentIds = [...posted.keys()];
-  const documents = await db
-    .select({
-      id: schema.invoices.id,
-      kind: schema.invoices.kind,
-      referenceInvoiceId: schema.invoices.referenceInvoiceId,
-      buyerCountry: schema.companies.country,
-      buyerTaxId: schema.companies.taxIdentifier,
-      buyerTaxIdValid: schema.companies.taxIdentifierValid,
-    })
-    .from(schema.invoices)
-    .innerJoin(
-      schema.contacts,
-      eq(schema.invoices.contactId, schema.contacts.id),
-    )
-    .innerJoin(
-      schema.companies,
-      eq(schema.contacts.companyId, schema.companies.id),
-    )
-    .where(
-      and(
-        eq(schema.invoices.organizationId, orgId),
-        // The same fence on every join: a contact or company row reattached
-        // across organisations must not put a stranger's sales on this return.
-        eq(schema.contacts.organizationId, orgId),
-        eq(schema.companies.organizationId, orgId),
-        inArray(schema.invoices.id, documentIds),
-      ),
-    );
-
-  const qualifying = new Map<string, DocumentFigures>();
-  for (const document of documents) {
-    const buyer = euCountry(document.buyerCountry);
+    const buyer = euCountry(sale.place.country);
     if (!buyer || buyer === seller) continue; // domestic, or outside the EU
-    if (!isConsumerSupply(document.buyerTaxId, document.buyerTaxIdValid)) {
+    if (
+      !isConsumerSupply(sale.place.taxIdentifier, sale.place.taxIdentifierValid)
+    ) {
       continue; // registered and unrefuted: B2B, taxed where the customer is
     }
-    const figures = posted.get(document.id);
-    if (!figures) continue;
-    qualifying.set(document.id, {
+    qualifying.set(sale.source, {
       memberState: buyer,
       supplyType: "unclassified",
-      netCents: figures.netCents,
-      vatCents: figures.vatCents,
-      kind: document.kind,
-      referenceInvoiceId: document.referenceInvoiceId,
+      netCents: sale.netCents,
+      vatCents: sale.vatCents,
+      documentId: sale.place.documentId,
+      kind: "invoice",
+      referenceInvoiceId: null,
     });
   }
   if (qualifying.size === 0) {
-    return { ...empty, applies: true, conversion, caveats: caveatsFor([]) };
+    return {
+      ...empty,
+      applies: true,
+      conversion,
+      omissions: [...omitted.values()],
+      caveats: caveatsFor([], [...omitted.values()]),
+    };
   }
 
-  const ids = [...qualifying.keys()];
+  /*
+   * Which of these are documents this module raised, and what they credit.
+   *
+   * Read by document id and nothing else: a sale whose id matches no invoice
+   * row was raised by another module, is a supply in its own right, and is
+   * neither a credit note nor a correction. No join to a contact or a company
+   * anywhere — the place came off the sale, which is the whole change.
+   */
+  const ids = [...qualifying.values()]
+    .map((d) => d.documentId)
+    .filter((id): id is string => Boolean(id));
+  if (ids.length > 0) {
+    const documents = await db
+      .select({
+        id: schema.invoices.id,
+        kind: schema.invoices.kind,
+        referenceInvoiceId: schema.invoices.referenceInvoiceId,
+      })
+      .from(schema.invoices)
+      .where(
+        and(
+          eq(schema.invoices.organizationId, orgId),
+          inArray(schema.invoices.id, ids),
+        ),
+      );
+    const byId = new Map(documents.map((d) => [d.id, d]));
+    for (const sale of qualifying.values()) {
+      const document = sale.documentId ? byId.get(sale.documentId) : undefined;
+      if (!document) continue;
+      sale.kind = document.kind;
+      sale.referenceInvoiceId = document.referenceInvoiceId;
+    }
+  }
+
   const referenced = [...qualifying.values()]
     .map((d) => d.referenceInvoiceId)
     .filter((id): id is string => Boolean(id));
@@ -440,7 +473,13 @@ export async function ossReturn(
       .where(
         and(
           eq(schema.documentTaxes.organizationId, orgId),
-          eq(schema.documentTaxes.documentType, "invoice"),
+          /*
+           * Every kind of sold document, not just this module's. A quote is
+           * the one thing excluded: nothing was sold, so it has no place on a
+           * return — and an id is a random uuid, so matching on it alone
+           * cannot pick up somebody else's row.
+           */
+          ne(schema.documentTaxes.documentType, "quote"),
           inArray(schema.documentTaxes.documentId, ids),
         ),
       ),
@@ -484,9 +523,9 @@ export async function ossReturn(
     set.add(item.kind);
     kinds.set(item.invoiceId, set);
   }
-  for (const [id, document] of qualifying) {
+  for (const document of qualifying.values()) {
     const set =
-      kinds.get(id) ??
+      (document.documentId ? kinds.get(document.documentId) : undefined) ??
       (document.referenceInvoiceId
         ? kinds.get(document.referenceInvoiceId)
         : undefined);
@@ -510,7 +549,7 @@ export async function ossReturn(
    */
   const rows = new Map<string, OssLine>();
   const fixes = new Map<string, OssCorrection>();
-  for (const [id, document] of qualifying) {
+  for (const document of qualifying.values()) {
     /*
      * A credit note against an earlier quarter's invoice is a correction: the
      * original return cannot be amended, so it goes on this one naming the
@@ -551,7 +590,35 @@ export async function ossReturn(
       continue;
     }
 
-    const documentBands = bandsByDocument.get(id) ?? [];
+    const documentBands = document.documentId
+      ? (bandsByDocument.get(document.documentId) ?? [])
+      : [];
+    /*
+     * No band at all, which is not the same thing as a band of nothing.
+     *
+     * A deliberate zero is a band: a line charged at 0% writes one, named and
+     * rated, and it belongs on the return at 0% like any other rate. No band
+     * means nothing ever worked a rate out for this sale — the seller has no
+     * rate recorded for that member state — and the sale left with no VAT on
+     * it. Reporting that at 0% declares to the member state that no tax was
+     * due, which is the opposite of true and hides the one thing the business
+     * has to act on. So it comes off the return and is named, with the country
+     * and the money beside it.
+     *
+     * Tax posted with no band is the other way round and rarer: money is in
+     * the VAT account at a rate nothing records. Named separately, because it
+     * is a posting to look at rather than a rate to set.
+     */
+    if (documentBands.length === 0) {
+      omit(
+        document.vatCents === 0 ? "no-rate-set" : "no-rate",
+        document.netCents,
+        document.vatCents,
+        document.memberState,
+      );
+      continue;
+    }
+
     const nets = allocate(
       document.netCents,
       documentBands.map((b) => b.taxableCents),
@@ -560,17 +627,11 @@ export async function ossReturn(
       document.vatCents,
       documentBands.map((b) => b.taxCents),
     );
-    const split =
-      documentBands.length > 0
-        ? documentBands.map((band, index) => ({
-            ratePpm: band.ratePpm ?? band.rateBp * 100,
-            netCents: nets[index] ?? 0,
-            vatCents: vats[index] ?? 0,
-          }))
-        : // No band at all: a cross-border sale with nothing charged on it.
-          // Reported at 0% rather than dropped — it is a supply, and the
-          // return has a place for it.
-          [{ ratePpm: 0, netCents: document.netCents, vatCents: 0 }];
+    const split = documentBands.map((band, index) => ({
+      ratePpm: band.ratePpm ?? band.rateBp * 100,
+      netCents: nets[index] ?? 0,
+      vatCents: vats[index] ?? 0,
+    }));
 
     for (const part of split) {
       const key = `${document.memberState}|${part.ratePpm}|${document.supplyType}`;
@@ -628,9 +689,10 @@ export async function ossReturn(
     totalVatCents:
       ordered.reduce((sum, row) => sum + row.vatCents, 0) +
       corrections.reduce((sum, fix) => sum + fix.vatCents, 0),
+    omissions: [...omitted.values()],
     problem: null,
     filing: OSS_FILING_NOTICE,
-    caveats: caveatsFor(ordered),
+    caveats: caveatsFor(ordered, [...omitted.values()]),
   };
 }
 
@@ -671,11 +733,14 @@ async function correctedPeriods(
  * The limits, said out loud on the screen rather than discovered on a portal.
  *
  * Only the ones that apply: a caveat list nobody can act on is read once and
- * then ignored, taking the one that mattered with it.
+ * then ignored, taking the one that mattered with it. That is why the two
+ * about omitted sales carry their figures and appear only when there are any —
+ * the sentence this replaced said every quarter, to every business, that some
+ * sales might be missing, which is a warning nobody can do anything with.
  */
-function caveatsFor(lines: OssLine[]): string[] {
+function caveatsFor(lines: OssLine[], omissions: OssOmission[] = []): string[] {
+  const money = (cents: number) => (cents / 100).toFixed(2);
   const caveats = [
-    "Customers saved only as a person have no country on record, so their sales cannot be placed in a member state and are not counted here.",
     "Goods dispatched from a member state other than your own, and services supplied from an establishment in another member state, need extra parts of the return this report does not produce.",
   ];
   if (lines.length === 0) {
@@ -686,6 +751,31 @@ function caveatsFor(lines: OssLine[]): string[] {
   if (lines.some((line) => line.supplyType === "unclassified")) {
     caveats.unshift(
       "Some supplies could not be told apart as goods or services — the lines did not come from your catalogue, or mixed both. The return has separate parts for them: classify the items, or split those rows by hand.",
+    );
+  }
+  /*
+   * Unshifted, so the last one handled leads the list — and the one that leads
+   * it is the one that costs money. A caveat about classification read before
+   * a caveat about unbilled VAT is a caveat list in the wrong order.
+   */
+  const urgency = { "no-place": 0, "no-rate": 1, "no-rate-set": 2 } as const;
+  for (const omission of [...omissions].sort(
+    (a, b) => urgency[a.reason] - urgency[b.reason],
+  )) {
+    const many = omission.sales === 1 ? "" : "s";
+    const count = `${omission.sales} sale${many}`;
+    if (omission.reason === "no-rate-set") {
+      // Worded as the bill it is: the sale is made, the tax was not charged,
+      // and it is still owed.
+      caveats.unshift(
+        `${count} into ${omission.memberState} totalling ${money(omission.netCents)} charged no VAT, and you have no ${omission.memberState} rate set — so nothing says the zero was deliberate. VAT on a cross-border sale to a consumer is due from the first one, with no threshold below it, so this is tax you owe ${omission.memberState} and did not collect. Set a rate for ${omission.memberState}, then decide with your accountant what to do about these. They are not on this return: declaring them at 0% would tell ${omission.memberState} no tax was due.`,
+      );
+      continue;
+    }
+    caveats.unshift(
+      omission.reason === "no-place"
+        ? `${count} totalling ${money(omission.netCents)} net could not be placed in any country, so none of them are on this return — including any that belong on it. A sale is placed when it is posted, from the customer's address or from the evidence a storefront collected; these have neither. Record where they happened before you file.`
+        : `${count}${omission.memberState ? ` into ${omission.memberState}` : ""} totalling ${money(omission.netCents)} net carry ${money(omission.vatCents)} of tax at a rate nothing records, so they are not on this return. Reporting them at 0% would have declared the sale and dropped the tax.`,
     );
   }
   return caveats;

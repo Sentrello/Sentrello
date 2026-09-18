@@ -20,6 +20,7 @@ import type { DbTx } from "./client";
 import { RATE_SCALE, toBaseCents } from "./currency";
 import { db, schema } from "./index";
 import { sumCents } from "./money";
+import { recordSalePlace } from "./sale-place";
 import { demandDate } from "./timezone";
 
 type Posting = {
@@ -602,6 +603,85 @@ export async function postJournalEntry(
 }
 
 /**
+ * Where a document's sale happened, written onto the sale as it reaches the
+ * books.
+ *
+ * Here rather than at each of the five places that post an invoice, for the
+ * reason the posting itself is here: a sale whose place was recorded by only
+ * some of its callers is a return that is right until somebody bills from the
+ * other screen.
+ *
+ * The address is the customer's company record, which is the only address this
+ * platform keeps — but it is *copied onto the sale*, not joined to at reporting
+ * time, and those are different things. A join drops a consumer, because a
+ * consumer is a person with no company; it also re-reads a country that may
+ * have been edited since, so a filed quarter could change underneath a return
+ * that has already been submitted. A copy does neither.
+ *
+ * Nothing is written when there is no country to write. A sale nobody can
+ * place is reported as exactly that, with its figures beside it — inventing
+ * the seller's own country here would put a cross-border supply on a domestic
+ * return and never be noticed.
+ */
+async function placeFromCustomer(
+  orgId: string,
+  source: string,
+  documentId: string,
+  tx?: DbTx,
+): Promise<void> {
+  const [buyer] = await (tx ?? db)
+    .select({
+      country: schema.companies.country,
+      region: schema.companies.state,
+      taxIdentifier: schema.companies.taxIdentifier,
+      taxIdentifierValid: schema.companies.taxIdentifierValid,
+    })
+    .from(schema.invoices)
+    // Left, every time. An inner join here would silently record nothing for
+    // exactly the customer this exists to reach.
+    .leftJoin(
+      schema.contacts,
+      and(
+        eq(schema.invoices.contactId, schema.contacts.id),
+        eq(schema.contacts.organizationId, orgId),
+      ),
+    )
+    .leftJoin(
+      schema.companies,
+      and(
+        eq(schema.contacts.companyId, schema.companies.id),
+        eq(schema.companies.organizationId, orgId),
+      ),
+    )
+    .where(
+      and(
+        eq(schema.invoices.organizationId, orgId),
+        eq(schema.invoices.id, documentId),
+      ),
+    )
+    .limit(1);
+
+  const country = buyer?.country?.trim();
+  if (!country) return;
+  await recordSalePlace(
+    orgId,
+    source,
+    {
+      country,
+      region: buyer?.region,
+      basis: "customer-address",
+      evidence: [
+        { kind: "customer-address", country, region: buyer?.region ?? null },
+      ],
+      documentId,
+      customerTaxId: buyer?.taxIdentifier,
+      customerTaxIdValid: buyer?.taxIdentifierValid,
+    },
+    tx,
+  );
+}
+
+/**
  * The entry raising an invoice makes: Dr Accounts Receivable, Cr Income, plus
  * any tax.
  *
@@ -692,6 +772,12 @@ export async function postInvoiceIssued(
     postedAt,
     options,
   );
+  await placeFromCustomer(
+    orgId,
+    `invoice:${invoice.id}`,
+    invoice.id,
+    options?.tx,
+  );
 }
 
 /**
@@ -750,6 +836,12 @@ export async function postCreditNoteIssued(
     ],
     postedAt,
     options,
+  );
+  await placeFromCustomer(
+    orgId,
+    `credit-note:${note.id}`,
+    note.id,
+    options?.tx,
   );
 }
 

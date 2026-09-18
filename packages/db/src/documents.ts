@@ -762,7 +762,6 @@ export async function convertQuoteToInstalments(
           (band) =>
             (band.taxables[index] ?? 0) !== 0 || (band.taxes[index] ?? 0) !== 0,
         )
-        .filter((band) => band.ratePpm > 0)
         .map((band) => ({
           organizationId,
           documentType: "invoice",

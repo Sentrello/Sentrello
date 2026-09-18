@@ -817,6 +817,97 @@ export const documentTaxes = pgTable(
 );
 
 /**
+ * One thing that was relied on to say where the customer is.
+ *
+ * `kind` is the item as the rules name it, so the stored record reads the same
+ * way the guidance does: the EU and the UK both ask for two non-contradictory
+ * items below the €100,000 simplification, and "we charged 19%" is not an
+ * answer years later without "because these two things said Germany".
+ */
+export interface PlaceEvidence {
+  kind:
+    | "billing-address"
+    | "delivery-address"
+    | "customer-address"
+    | "shop-location"
+    | "ip-address";
+  country: string;
+  region?: string | null;
+}
+
+/**
+ * Where a sale happened, written down when it reached the books.
+ *
+ * A VAT return has to say which country each supply belongs to, and until this
+ * existed the only answer was a join: invoice → contact → company → country.
+ * That works for exactly one kind of customer. A consumer is a person with no
+ * company, so the join dropped them before any rate was applied — and the EU
+ * One Stop Shop return exists for business-to-consumer sales and nothing else,
+ * which made it a report that could not see the only trade it is for. A sale
+ * raised by a storefront rather than by an invoice was invisible for a second
+ * reason: it has no invoice row to join from at all.
+ *
+ * So the place is a property of the sale, keyed by the ledger `source` of the
+ * entry it posted. Every module that sells records one the same way and the
+ * returns read it without knowing who raised the sale — the same arrangement
+ * the ledger itself has, where Shop's orders reach Accounting because both
+ * read the same tables and neither imports the other.
+ *
+ * Nothing is inferred on the way out. A sale with no row here is a sale whose
+ * place was never established, and a return says so with a figure beside it
+ * rather than reporting it at nothing: a zero has to be a rate somebody
+ * charged, never a lookup that found nothing.
+ */
+export const salePlaces = pgTable(
+  "sale_places",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: text("organization_id").notNull(),
+    /**
+     * The journal entry this places — "invoice:<id>", "shop-order:<id>".
+     *
+     * The ledger's own key, because the ledger is what a return is derived
+     * from. A report that matched on anything else could disagree with the
+     * books about which sales happened.
+     */
+    source: text("source").notNull(),
+    /**
+     * Where this sale's `document_taxes` bands are filed, when it has any.
+     *
+     * One sale can carry two rates — books at 7% beside electronics at 19% —
+     * and the bands are what say how the posted total divides.
+     */
+    documentId: uuid("document_id"),
+    /** ISO 3166-1 alpha-2, upper case: "DE". */
+    country: text("country").notNull(),
+    /** A state or province, where one decides the rate. Null everywhere else. */
+    region: text("region"),
+    /**
+     * Which rule placed it: delivery, billing, customer-address,
+     * shop-location, ip-address. Kept because the rules differ by what is
+     * being sold, and an auditor asks which one was applied.
+     */
+    basis: text("basis").notNull(),
+    evidence: jsonb("evidence").$type<PlaceEvidence[]>(),
+    /**
+     * The customer's registration as it stood at the sale, and what the
+     * register said about it.
+     *
+     * Frozen here rather than read back off the customer record: whether a
+     * supply was B2C is decided when it is made, and a number added to a
+     * contact next year must not retrospectively take last quarter's sale off
+     * a return that has been filed.
+     */
+    customerTaxId: text("customer_tax_id"),
+    customerTaxIdValid: boolean("customer_tax_id_valid"),
+  },
+  (t) => [
+    uniqueIndex("sale_places_source_idx").on(t.organizationId, t.source),
+    index("sale_places_document_idx").on(t.organizationId, t.documentId),
+  ],
+);
+
+/**
  * The tax rates a business actually charges, named.
  *
  * A rate typed into a line is a rate somebody will mistype. Naming them once —

@@ -3,18 +3,9 @@ import {
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
-import {
-  and,
-  db,
-  eq,
-  gte,
-  inArray,
-  isNotNull,
-  like,
-  or,
-  schema,
-} from "@sentrello/db";
-import { RATE_SCALE, toBaseCents } from "@sentrello/db/currency";
+import { and, db, eq, isNotNull, like, or, schema } from "@sentrello/db";
+import type { PostedSale } from "@sentrello/db/sale-place";
+import { postedSales } from "@sentrello/db/sale-place";
 import type { ModuleContext } from "@sentrello/module-sdk";
 import {
   US_NEXUS_CHECKED,
@@ -33,12 +24,12 @@ import {
  * charges; it watches the figures and says which side of each state's line
  * the business is on. Registering is their decision, and their accountant's.
  *
- * What counts: issued invoices (open, partial, paid) to customers whose
- * company record puts them in a US state; credit notes subtract; sums are
- * net of tax, converted to the organisation's base currency. What cannot be
- * counted is stated rather than hidden — a customer with no company record,
- * or one whose state cannot be read, lands in `unattributed` instead of
- * silently in nobody's column.
+ * What counts: every posted sale placed in a US state, however it was sold;
+ * credit notes subtract, because the ledger reads them as negative movement on
+ * income; sums are net of tax, in the organisation's base currency. What
+ * cannot be counted is stated rather than hidden — a sale nobody placed, or
+ * one whose state cannot be read, lands in `unattributed` instead of silently
+ * in nobody's column.
  */
 
 /**
@@ -139,87 +130,82 @@ export async function usNexusPosition(
     .limit(1);
   const currency = org?.baseCurrency ?? "USD";
 
-  const priorYearStart = new Date(Date.UTC(now.getUTCFullYear() - 1, 0, 1));
-  const rows = await db
-    .select({
-      kind: schema.invoices.kind,
-      issueDate: schema.invoices.issueDate,
-      subtotalCents: schema.invoices.subtotalCents,
-      discountCents: schema.invoices.discountCents,
-      rateMicro: schema.invoices.rateMicro,
-      buyerCountry: schema.companies.country,
-      buyerState: schema.companies.state,
-    })
-    .from(schema.invoices)
-    .innerJoin(
-      schema.contacts,
-      eq(schema.invoices.contactId, schema.contacts.id),
-    )
-    .innerJoin(
-      schema.companies,
-      eq(schema.contacts.companyId, schema.companies.id),
-    )
-    .where(
-      and(
-        eq(schema.invoices.organizationId, orgId),
-        // The same fence twice over: a contact or company row reattached
-        // across organisations must not put a stranger's sales in the sum.
-        eq(schema.contacts.organizationId, orgId),
-        eq(schema.companies.organizationId, orgId),
-        inArray(schema.invoices.status, [
-          "open",
-          "partial",
-          "paid",
-          "credited",
-        ]),
-        gte(schema.invoices.issueDate, priorYearStart),
-      ),
-    );
+  /*
+   * Read from posted entries and the place recorded on each sale, not from
+   * invoice rows joined through a contact to a company.
+   *
+   * The join had the two faults the OSS return had. A sale a storefront raised
+   * has no invoice row to find, and a consumer is a person with no company, so
+   * the join removed them before any state was read — not into `unattributed`,
+   * where a sale nobody can place belongs, but out of the figures entirely.
+   * Economic nexus is a threshold on *volume into a state*, and the volume it
+   * is usually crossed by is consumers buying from a website.
+   */
+  const yearOf = (year: number) => ({
+    from: new Date(Date.UTC(year, 0, 1)),
+    to: new Date(Date.UTC(year + 1, 0, 1) - 1),
+  });
+  const year = now.getUTCFullYear();
+  const [thisYear, lastYear] = await Promise.all([
+    postedSales(orgId, yearOf(year)),
+    postedSales(orgId, yearOf(year - 1)),
+  ]);
 
   const byState = new Map<string, StateNexusPosition>();
   let unattributedCents = 0;
   let unattributedTransactions = 0;
 
-  for (const row of rows) {
-    const country = row.buyerCountry?.trim().toUpperCase() ?? "";
-    const state = usStateCode(row.buyerState);
-    // Puerto Rico arrives either way: as the country, or as a state of one
-    // of the US spellings. Anything not recognisably American is skipped.
-    const code = country === "PUERTO RICO" ? "PR" : state;
-    if (!US_COUNTRY.has(country)) continue;
+  /**
+   * A transaction is a sale, not a reversal.
+   *
+   * The count is of sales made into the state, so a credit note subtracts from
+   * the money and leaves the count alone — which is what the old reading of
+   * `kind !== "credit_note"` meant, said in the ledger's own terms.
+   */
+  const countSales = (sales: PostedSale[], thisOne: boolean) => {
+    for (const sale of sales) {
+      const country = sale.place?.country?.trim().toUpperCase() ?? "";
+      // Puerto Rico arrives either way: as the country, or as a state of one
+      // of the US spellings. Anything not recognisably American is skipped —
+      // but a sale with no place at all is not "not American", it is a sale
+      // nobody placed, and it is counted as one.
+      if (!sale.place) {
+        unattributedCents += sale.netCents;
+        if (sale.netCents > 0) unattributedTransactions += 1;
+        continue;
+      }
+      if (!US_COUNTRY.has(country)) continue;
+      const code =
+        country === "PUERTO RICO" ? "PR" : usStateCode(sale.place.region);
 
-    const net = toBaseCents(
-      row.subtotalCents - row.discountCents,
-      row.rateMicro ?? RATE_SCALE,
-    );
-    const signed = row.kind === "credit_note" ? -net : net;
-    const thisYear = row.issueDate.getUTCFullYear() === now.getUTCFullYear();
+      if (!code) {
+        unattributedCents += sale.netCents;
+        if (sale.netCents > 0) unattributedTransactions += 1;
+        continue;
+      }
 
-    if (!code) {
-      unattributedCents += signed;
-      if (row.kind !== "credit_note") unattributedTransactions += 1;
-      continue;
+      const entry = byState.get(code) ?? {
+        state: code,
+        yearCents: 0,
+        priorYearCents: 0,
+        yearTransactions: 0,
+        priorYearTransactions: 0,
+        threshold: null,
+        collecting: false,
+        status: "under" as const,
+      };
+      if (thisOne) {
+        entry.yearCents += sale.netCents;
+        if (sale.netCents > 0) entry.yearTransactions += 1;
+      } else {
+        entry.priorYearCents += sale.netCents;
+        if (sale.netCents > 0) entry.priorYearTransactions += 1;
+      }
+      byState.set(code, entry);
     }
-
-    const entry = byState.get(code) ?? {
-      state: code,
-      yearCents: 0,
-      priorYearCents: 0,
-      yearTransactions: 0,
-      priorYearTransactions: 0,
-      threshold: null,
-      collecting: false,
-      status: "under" as const,
-    };
-    if (thisYear) {
-      entry.yearCents += signed;
-      if (row.kind !== "credit_note") entry.yearTransactions += 1;
-    } else {
-      entry.priorYearCents += signed;
-      if (row.kind !== "credit_note") entry.priorYearTransactions += 1;
-    }
-    byState.set(code, entry);
-  }
+  };
+  countSales(thisYear, true);
+  countSales(lastYear, false);
 
   /**
    * "Already collecting there" is read off the rate table rather than asked
