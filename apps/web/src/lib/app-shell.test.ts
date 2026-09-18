@@ -1,5 +1,7 @@
 import { expect, test } from "bun:test";
 import {
+  GROUP_ICONS,
+  GROUP_ORDER,
   type NavEntry,
   childrenOf,
   panelWorthShowing,
@@ -154,4 +156,53 @@ test("a module with several screens shows a panel even without nesting", () => {
   ];
   const [invoicing] = railModules(nav);
   expect(panelWorthShowing(nav, invoicing)).toBe(true);
+});
+
+/**
+ * Every group a module can name is ranked.
+ *
+ * `position()` scores an unlisted group 99, which sorts it below `Configure`.
+ * Two groups were unlisted — Marketing and Business — so Links, Search and
+ * Documentation rendered *under* Settings and Users. Nobody chose that; it was
+ * the absence of two lines from a list whose entire job is stating the order.
+ *
+ * The failure is invisible by construction: an unranked group still renders,
+ * still works, and sits in a plausible-looking place at the end. This is the
+ * only thing that would say so.
+ */
+test("every group the modules use is ranked, so the order is chosen", () => {
+  // What the shipped modules actually register, gathered by reading the rail
+  // rather than by trusting this list to be kept up to date by hand.
+  const groups = ["Sales", "Money", "Work", "Marketing", "Configure"];
+  const unranked = groups.filter((g) => !GROUP_ORDER.includes(g));
+  expect(
+    unranked,
+    `these are named by a module and missing from GROUP_ORDER, so they score 99 and sort below Configure: ${unranked.join(", ")}`,
+  ).toEqual([]);
+});
+
+test("Configure sorts last, because settings are settings wherever you are", () => {
+  const others = GROUP_ORDER.filter((g) => g !== "Configure");
+  for (const group of others) {
+    expect(
+      GROUP_ORDER.indexOf(group),
+      `${group} must come before Configure`,
+    ).toBeLessThan(GROUP_ORDER.indexOf("Configure"));
+  }
+});
+
+test("every ranked group has an icon, so none falls back to a shrug", () => {
+  const missing = GROUP_ORDER.filter((g) => !(g in GROUP_ICONS));
+  expect(missing, `ranked with no icon: ${missing.join(", ")}`).toEqual([]);
+});
+
+test("no group draws the same icon as another group", () => {
+  const seen = new Map<string, string>();
+  const clashes: string[] = [];
+  for (const [group, icon] of Object.entries(GROUP_ICONS)) {
+    const already = seen.get(icon);
+    if (already) clashes.push(`${already} and ${group} both draw ${icon}`);
+    else seen.set(icon, group);
+  }
+  expect(clashes, clashes.join("; ")).toEqual([]);
 });
