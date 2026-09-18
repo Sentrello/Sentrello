@@ -2380,6 +2380,7 @@ export default defineModule({
       label: "Contacts",
       order: 2,
       parent: "crm",
+      section: "Records",
       icon: "user",
       requires: { crm: ["read"] },
     });
@@ -2388,6 +2389,7 @@ export default defineModule({
       label: "Companies",
       order: 3,
       parent: "crm",
+      section: "Records",
       icon: "building",
       requires: { crm: ["read"] },
     });
@@ -2397,14 +2399,23 @@ export default defineModule({
       label: "Deals",
       order: 4,
       parent: "crm",
+      section: "Records",
       icon: "trending-up",
       requires: { crm: ["read"] },
     });
     ctx.registerNav({
       id: "crm-settings",
       label: "Settings",
-      order: 5,
+      /*
+       * Last, under its own heading.
+       *
+       * It was 5, which put it between the deals and the Pro half's notes,
+       * mailbox and automations — in the middle of the module, above things a
+       * person uses every day. Settings are settings: they go at the bottom.
+       */
+      order: 9,
       parent: "crm",
+      section: "Settings",
       icon: "settings",
       // Stages, tags and the labels this business uses: configuration of the
       // CRM itself, which is not the same authority as reading it.

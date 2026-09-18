@@ -64,6 +64,13 @@ const HEAD = "money";
  * relative position was whatever the sort did that run. Money is the thing
  * that arranges these two packages, so the arrangement belongs to Money.
  *
+ * **Only the pages that come through here.** This wraps invoicing and
+ * accounting, the two packages Money composes. The paid half ships as
+ * `pro-accounting`, which the loader registers beside Money rather than
+ * through it, so nothing written here can reach those seven pages — they name
+ * their own sections, in the same words, and `pro-accounting/src/nav.test.ts`
+ * pins the full set of headings so the two halves cannot drift apart.
+ *
  * Keyed by nav id, and deliberately not exhaustive: a page nobody has placed
  * keeps its own order and gets no heading, so it renders at the top with the
  * dashboard — visible, and obviously unplaced. The alternative, a default
@@ -73,26 +80,20 @@ const SECTIONS: Record<string, { section: string; order: number }> = {
   // What the business is owed, and the paperwork that asks for it.
   quotes: { section: "Getting paid", order: 19 },
   invoicing: { section: "Getting paid", order: 19.1 },
-  recurring: { section: "Getting paid", order: 19.2 },
   "invoicing-settings": { section: "Getting paid", order: 19.3 },
 
   // What it owes, and what it has spent.
-  "accounting-bills": { section: "Spending", order: 20 },
   "accounting-money": { section: "Spending", order: 20.1 },
 
   // Where the money actually is.
-  "accounting-banking": { section: "Banking", order: 21 },
   "accounting-accounts": { section: "Banking", order: 21.1 },
 
   // The record underneath all of it.
   accounting: { section: "The books", order: 22 },
   "accounting-summary": { section: "The books", order: 22.1 },
   "accounting-journal": { section: "The books", order: 22.2 },
-  "accounting-reports": { section: "The books", order: 22.3 },
 
   // What is expected, and what is owned.
-  "accounting-budgets": { section: "Planning", order: 23 },
-  "accounting-assets": { section: "Planning", order: 23.1 },
 
   /*
    * What has to be declared, and to whom.
@@ -107,7 +108,6 @@ const SECTIONS: Record<string, { section: string; order: number }> = {
   "invoicing-oss": { section: "Tax", order: 24.1 },
   "accounting-vat": { section: "Tax", order: 24.2 },
   "accounting-ca-tax": { section: "Tax", order: 24.3 },
-  "accounting-tax": { section: "Tax", order: 24.4 },
 };
 
 /**
