@@ -3,8 +3,9 @@ import {
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
-import { and, db, eq, gte, inArray, schema } from "@sentrello/db";
-import { RATE_SCALE, toBaseCents } from "@sentrello/db/currency";
+import { and, db, eq, inArray, ne, schema } from "@sentrello/db";
+import type { PostedSale } from "@sentrello/db/sale-place";
+import { postedSales } from "@sentrello/db/sale-place";
 import type { ModuleContext } from "@sentrello/module-sdk";
 
 /**
@@ -101,24 +102,54 @@ export interface DistanceSalesPosition {
   currency?: string;
   yearCents?: number;
   priorYearCents?: number;
+  /**
+   * Sales in the two years that nothing placed in any country.
+   *
+   * Beside the totals rather than folded into them: a business sitting under
+   * the threshold needs to know whether it is under it or merely unable to
+   * say. Zero here means every sale was placed, which is a different fact
+   * from a small figure above.
+   */
+  unplacedCents?: number;
+  /**
+   * Member states sold into with no VAT charged and no rate on record.
+   *
+   * A different problem from the threshold beside it, and a worse one. The
+   * threshold is a line a business may cross next year; this is money already
+   * owed. VAT on a cross-border sale to a consumer is due in the customer's
+   * own country from the first sale, with no small-seller threshold under it
+   * for a digital supply — so a shop that has not set a Belgian rate and sold
+   * a download into Belgium has kept Belgium's VAT without knowing.
+   *
+   * Only where nothing recorded a rate at all. A band saying 0% is a zero
+   * somebody chose, and it is not this.
+   */
+  unratedStates?: { memberState: string; sales: number; netCents: number }[];
   /** Null when the base currency is not the euro — see below. */
   thresholdCents?: number | null;
   exceeded?: boolean | null;
 }
 
 /**
- * Where the business stands against the threshold, from its own invoices.
+ * Where the business stands against the threshold, from its own books.
  *
- * What counts: invoices to customers in *other* member states with no VAT
- * number on record — no registration is what makes the sale B2C for VAT.
- * Credit notes subtract. Sums are net of VAT, because the directive counts
- * the value of the supplies.
+ * What counts: sales to consumers in *other* member states — no VAT number on
+ * record is what makes a sale B2C for VAT. Credit notes subtract, because the
+ * ledger reads them as negative movement on income without anybody having to
+ * ask which kind of document it was. Sums are net of VAT, because the
+ * directive counts the value of the supplies and tax posts to its own account.
  *
- * What cannot be counted is stated rather than hidden: a customer saved only
- * as a person has no country here (addresses live on company records), so
- * the figure is a floor. The nine member states outside the euro state the
- * threshold in their own currency; for a base currency other than EUR the
- * totals are reported and the comparison left open, with the threshold null.
+ * Read from posted entries and the place recorded on each sale. It used to
+ * read invoice rows and join through a contact to a company for the country,
+ * which had the two faults the OSS return had: a storefront sale has no
+ * invoice row to find, and a consumer is a person with no company, so the join
+ * dropped exactly the customer this threshold is about. A threshold for
+ * business-to-consumer distance selling that could not see a consumer would
+ * have told a business it was under €10,000 while it was over.
+ *
+ * The nine member states outside the euro state the threshold in their own
+ * currency; for a base currency other than EUR the totals are reported and the
+ * comparison left open, with the threshold null.
  */
 export async function distanceSalesPosition(
   orgId: string,
@@ -136,63 +167,55 @@ export async function distanceSalesPosition(
   const seller = euCountry(org?.countryCode);
   if (!seller) return { applies: false };
 
-  const priorYearStart = new Date(Date.UTC(now.getUTCFullYear() - 1, 0, 1));
-  const rows = await db
-    .select({
-      kind: schema.invoices.kind,
-      issueDate: schema.invoices.issueDate,
-      subtotalCents: schema.invoices.subtotalCents,
-      discountCents: schema.invoices.discountCents,
-      rateMicro: schema.invoices.rateMicro,
-      buyerCountry: schema.companies.country,
-      buyerTaxId: schema.companies.taxIdentifier,
-      buyerTaxIdValid: schema.companies.taxIdentifierValid,
-    })
-    .from(schema.invoices)
-    .innerJoin(
-      schema.contacts,
-      eq(schema.invoices.contactId, schema.contacts.id),
-    )
-    .innerJoin(
-      schema.companies,
-      eq(schema.contacts.companyId, schema.companies.id),
-    )
-    .where(
-      and(
-        eq(schema.invoices.organizationId, orgId),
-        // The same fence twice over: a contact or company row reattached
-        // across organisations must not put a stranger's sales in the sum.
-        eq(schema.contacts.organizationId, orgId),
-        eq(schema.companies.organizationId, orgId),
-        inArray(schema.invoices.status, [
-          "open",
-          "partial",
-          "paid",
-          "credited",
-        ]),
-        gte(schema.invoices.issueDate, priorYearStart),
-      ),
-    );
+  const yearOf = (year: number) => ({
+    from: new Date(Date.UTC(year, 0, 1)),
+    to: new Date(Date.UTC(year + 1, 0, 1) - 1),
+  });
+  const year = now.getUTCFullYear();
+  const [thisYear, lastYear] = await Promise.all([
+    postedSales(orgId, yearOf(year)),
+    postedSales(orgId, yearOf(year - 1)),
+  ]);
 
-  let yearCents = 0;
-  let priorYearCents = 0;
-  for (const row of rows) {
-    const buyer = euCountry(row.buyerCountry);
-    if (!buyer || buyer === seller) continue; // domestic or outside the EU
-    // Registered and unrefuted: B2B, and not distance selling.
-    if (!isConsumerSupply(row.buyerTaxId, row.buyerTaxIdValid)) continue;
-
-    const net = toBaseCents(
-      row.subtotalCents - row.discountCents,
-      row.rateMicro ?? RATE_SCALE,
-    );
-    const signed = row.kind === "credit_note" ? -net : net;
-    if (row.issueDate.getUTCFullYear() === now.getUTCFullYear()) {
-      yearCents += signed;
-    } else {
-      priorYearCents += signed;
+  let unplacedCents = 0;
+  /** Cross-border consumer sales that carried no VAT — see `unratedStates`. */
+  const untaxed: {
+    memberState: string;
+    documentId: string | null;
+    netCents: number;
+  }[] = [];
+  const crossBorderToConsumers = (sales: PostedSale[]): number => {
+    let cents = 0;
+    for (const sale of sales) {
+      if (!sale.place) {
+        unplacedCents += sale.netCents;
+        continue;
+      }
+      const buyer = euCountry(sale.place.country);
+      if (!buyer || buyer === seller) continue; // domestic or outside the EU
+      // Registered and unrefuted: B2B, and not distance selling.
+      if (
+        !isConsumerSupply(
+          sale.place.taxIdentifier,
+          sale.place.taxIdentifierValid,
+        )
+      ) {
+        continue;
+      }
+      if (sale.vatCents === 0) {
+        untaxed.push({
+          memberState: buyer,
+          documentId: sale.place.documentId,
+          netCents: sale.netCents,
+        });
+      }
+      cents += sale.netCents;
     }
-  }
+    return cents;
+  };
+  const yearCents = crossBorderToConsumers(thisYear);
+  const priorYearCents = crossBorderToConsumers(lastYear);
+  const unratedStates = await unrated(orgId, untaxed);
 
   const inEuros = (org?.baseCurrency ?? "USD") === "EUR";
   return {
@@ -200,12 +223,72 @@ export async function distanceSalesPosition(
     currency: org?.baseCurrency ?? "USD",
     yearCents,
     priorYearCents,
+    unplacedCents,
+    unratedStates,
     thresholdCents: inEuros ? DISTANCE_SELLING_THRESHOLD_CENTS : null,
     exceeded: inEuros
       ? yearCents > DISTANCE_SELLING_THRESHOLD_CENTS ||
         priorYearCents > DISTANCE_SELLING_THRESHOLD_CENTS
       : null,
   };
+}
+
+/**
+ * Which member states were sold into with nothing charged and no rate set.
+ *
+ * The distinction this turns on is the whole point of it: a sale with a tax
+ * band saying 0% was charged nothing on purpose — somebody recorded that rate
+ * — and belongs nowhere near a warning. A sale with no band at all had no rate
+ * to apply, and the zero is the shape of a lookup that found nothing.
+ *
+ * States whose sales net to nothing or less drop out. A country whose only
+ * trade was refunded is not a country anybody needs to set a rate for.
+ */
+async function unrated(
+  orgId: string,
+  untaxed: {
+    memberState: string;
+    documentId: string | null;
+    netCents: number;
+  }[],
+): Promise<{ memberState: string; sales: number; netCents: number }[]> {
+  if (untaxed.length === 0) return [];
+  const ids = untaxed
+    .map((sale) => sale.documentId)
+    .filter((id): id is string => Boolean(id));
+  const rated = new Set<string>();
+  if (ids.length > 0) {
+    const bands = await db
+      .select({ documentId: schema.documentTaxes.documentId })
+      .from(schema.documentTaxes)
+      .where(
+        and(
+          eq(schema.documentTaxes.organizationId, orgId),
+          ne(schema.documentTaxes.documentType, "quote"),
+          inArray(schema.documentTaxes.documentId, ids),
+        ),
+      );
+    for (const band of bands) rated.add(band.documentId);
+  }
+
+  const byState = new Map<
+    string,
+    { memberState: string; sales: number; netCents: number }
+  >();
+  for (const sale of untaxed) {
+    if (sale.documentId && rated.has(sale.documentId)) continue;
+    const found = byState.get(sale.memberState) ?? {
+      memberState: sale.memberState,
+      sales: 0,
+      netCents: 0,
+    };
+    found.sales += 1;
+    found.netCents += sale.netCents;
+    byState.set(sale.memberState, found);
+  }
+  return [...byState.values()]
+    .filter((state) => state.netCents > 0)
+    .sort((a, b) => a.memberState.localeCompare(b.memberState));
 }
 
 export function registerDistanceSelling(ctx: ModuleContext) {
@@ -216,8 +299,24 @@ export function registerDistanceSelling(ctx: ModuleContext) {
     async (c) => {
       const orgId = activeOrganizationId(c.get("session"));
       const position = await distanceSalesPosition(orgId);
+      /*
+       * Said first, and said even to a business under the threshold.
+       *
+       * The threshold decides *where* VAT on a cross-border sale is due. It
+       * does not decide whether any is due at all — a digital supply to a
+       * consumer is taxable in their own country from the first one, with no
+       * threshold under it — so a business sitting comfortably under €10,000
+       * can still be keeping VAT it owes. Reading only the reassuring sentence
+       * below is how it would stay that way.
+       */
+      const unrated = position.unratedStates ?? [];
+      const warning =
+        unrated.length === 0
+          ? null
+          : `You have sold to consumers in ${unrated.map((s) => s.memberState).join(", ")} and charged no VAT, with no rate set for ${unrated.length === 1 ? "it" : "them"}. VAT on a cross-border sale to a consumer is due in their country from the first sale — there is no threshold under it for digital supplies. Set a rate for each, then talk to your accountant about the sales already made.`;
       return c.json({
         ...position,
+        warning,
         advice: !position.applies
           ? null
           : position.exceeded

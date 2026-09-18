@@ -2,6 +2,12 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, eq, inArray, schema } from "@sentrello/db";
+import {
+  CORE_ACCOUNTS,
+  ensureAccount,
+  postJournalEntry,
+} from "@sentrello/db/ledger";
+import { recordSalePlace } from "@sentrello/db/sale-place";
 import { dropOrganization, dropUsers } from "@sentrello/db/testing";
 import type { SentrelloEnv } from "@sentrello/module-sdk";
 import { Hono } from "hono";
@@ -83,6 +89,9 @@ afterAll(async () => {
   await db
     .delete(schema.documentTaxes)
     .where(eq(schema.documentTaxes.organizationId, orgId));
+  await db
+    .delete(schema.salePlaces)
+    .where(eq(schema.salePlaces.organizationId, orgId));
   await db
     .delete(schema.invoices)
     .where(eq(schema.invoices.organizationId, orgId));
@@ -240,4 +249,87 @@ test("books kept outside the euro report figures without pretending to compare",
       .set({ baseCurrency: "EUR" })
       .where(eq(schema.organizations.id, orgId));
   }
+});
+
+test("selling into a member state with no rate set is a warning, not silence", async () => {
+  /*
+   * A download sold to a Belgian consumer by a shop that has set no Belgian
+   * rate. The place is established and the evidence is on the sale — the
+   * charge of nothing is the *only* thing that went wrong — and the old
+   * reading of this could not have seen the sale at all, let alone the gap.
+   */
+  const orderId = crypto.randomUUID();
+  await recordSalePlace(orgId, `shop-order:${orderId}`, {
+    country: "BE",
+    basis: "declared",
+    documentId: orderId,
+    evidence: [
+      { kind: "billing-address", country: "BE" },
+      { kind: "ip-address", country: "BE" },
+    ],
+  });
+  const [cash, income] = await Promise.all([
+    ensureAccount(orgId, CORE_ACCOUNTS.cash),
+    ensureAccount(orgId, CORE_ACCOUNTS.salesIncome),
+  ]);
+  await postJournalEntry(
+    orgId,
+    "Download to Belgium",
+    `shop-order:${orderId}`,
+    [
+      { accountId: cash, debitCents: 2_000 },
+      { accountId: income, creditCents: 2_000 },
+    ],
+  );
+
+  const position = await distanceSalesPosition(orgId);
+  expect(position.unratedStates).toEqual([
+    { memberState: "BE", sales: 1, netCents: 2_000 },
+  ]);
+
+  const res = await app.request(
+    "http://localhost/api/invoicing/distance-sales",
+    { headers },
+  );
+  const body = (await res.json()) as { warning: string | null };
+  expect(body.warning).toContain("BE");
+  expect(body.warning).toContain("no threshold under it for digital supplies");
+});
+
+test("a zero somebody chose is not a warning", async () => {
+  const orderId = crypto.randomUUID();
+  await db.insert(schema.documentTaxes).values({
+    organizationId: orgId,
+    documentType: "shop-order",
+    documentId: orderId,
+    name: "Zero-rated",
+    rateBp: 0,
+    ratePpm: 0,
+    categoryCode: "Z",
+    taxableCents: 5_000,
+    taxCents: 0,
+  });
+  await recordSalePlace(orgId, `shop-order:${orderId}`, {
+    country: "PT",
+    basis: "declared",
+    documentId: orderId,
+  });
+  const [cash, income] = await Promise.all([
+    ensureAccount(orgId, CORE_ACCOUNTS.cash),
+    ensureAccount(orgId, CORE_ACCOUNTS.salesIncome),
+  ]);
+  await postJournalEntry(
+    orgId,
+    "Zero-rated supply to Portugal",
+    `shop-order:${orderId}`,
+    [
+      { accountId: cash, debitCents: 5_000 },
+      { accountId: income, creditCents: 5_000 },
+    ],
+  );
+
+  const position = await distanceSalesPosition(orgId);
+  expect(
+    position.unratedStates?.some((state) => state.memberState === "PT"),
+  ).toBe(false);
 });

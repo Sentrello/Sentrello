@@ -2,6 +2,12 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, eq, inArray, schema } from "@sentrello/db";
+import {
+  CORE_ACCOUNTS,
+  ensureAccount,
+  postJournalEntry,
+} from "@sentrello/db/ledger";
+import { recordSalePlace } from "@sentrello/db/sale-place";
 import { dropOrganization, dropUsers } from "@sentrello/db/testing";
 import type { SentrelloEnv } from "@sentrello/module-sdk";
 import { Hono } from "hono";
@@ -113,6 +119,7 @@ async function tidy(id: string) {
   }
   for (const [table, column] of [
     [schema.journalEntries, schema.journalEntries.organizationId],
+    [schema.salePlaces, schema.salePlaces.organizationId],
     [schema.documentTaxes, schema.documentTaxes.organizationId],
     [schema.taxDefinitions, schema.taxDefinitions.organizationId],
     [schema.invoices, schema.invoices.organizationId],
@@ -515,6 +522,7 @@ test("the file says which rate it used, and whether it was the prescribed one", 
     corrections: [],
     totalTaxableCents: 0,
     totalVatCents: 0,
+    omissions: [],
     problem: null,
     filing: "This computes your return; it does not file it.",
     caveats: [],
@@ -522,4 +530,257 @@ test("the file says which rate it used, and whether it was the prescribed one", 
   const csv = ossReturnCsv(report);
   expect(csv).toContain("1 EUR = 11.250000 SEK");
   expect(csv).toContain("NOT the prescribed quarter-end rate");
+});
+
+/**
+ * A storefront sale, recorded the way a shop module records one: the place on
+ * the sale, its bands beside it, and one balanced entry in the ledger.
+ *
+ * No invoice, no contact, no company — which is precisely what a consumer
+ * buying a download leaves behind, and precisely what the return could not
+ * see. It took `invoice:%` and `credit-note:%` only, and it read the member
+ * state through an inner join to a company record a consumer does not have.
+ * Either fault alone was enough to make the one kind of sale the Union scheme
+ * exists for invisible to it.
+ */
+async function shopSale(
+  org: string,
+  order: {
+    country: string;
+    netCents: number;
+    ratePpm: number;
+    taxIdentifier?: string;
+    taxIdentifierValid?: boolean;
+  },
+): Promise<string> {
+  const orderId = crypto.randomUUID();
+  const taxCents = Math.round((order.netCents * order.ratePpm) / 1_000_000);
+  await db.insert(schema.documentTaxes).values({
+    organizationId: org,
+    documentType: "shop-order",
+    documentId: orderId,
+    name: `VAT ${order.country}`,
+    rateBp: Math.round(order.ratePpm / 100),
+    ratePpm: order.ratePpm,
+    taxableCents: order.netCents,
+    taxCents,
+  });
+  await recordSalePlace(org, `shop-order:${orderId}`, {
+    country: order.country,
+    basis: "billing",
+    documentId: orderId,
+    // The two non-contradictory items the EU and the UK both ask for.
+    evidence: [
+      { kind: "billing-address", country: order.country },
+      { kind: "ip-address", country: order.country },
+    ],
+    customerTaxId: order.taxIdentifier ?? null,
+    customerTaxIdValid: order.taxIdentifierValid ?? null,
+  });
+  const [cash, income, vat] = await Promise.all([
+    ensureAccount(org, CORE_ACCOUNTS.cash),
+    ensureAccount(org, CORE_ACCOUNTS.salesIncome),
+    ensureAccount(org, CORE_ACCOUNTS.taxPayable),
+  ]);
+  await postJournalEntry(
+    org,
+    "Shop order",
+    `shop-order:${orderId}`,
+    [
+      { accountId: cash, debitCents: order.netCents + taxCents },
+      { accountId: income, creditCents: order.netCents },
+      ...(taxCents > 0 ? [{ accountId: vat, creditCents: taxCents }] : []),
+    ],
+    new Date(`${MAY}T10:00:00.000Z`),
+  );
+  return orderId;
+}
+
+test("a consumer in Germany buying from a storefront is on the return", async () => {
+  await shopSale(orgId, { country: "DE", netCents: 40_000, ratePpm: 190_000 });
+
+  const report = await ossReturn(orgId, Q2.year, Q2.quarter);
+  const german = report.lines.filter((line) => line.memberState === "DE");
+  expect(german).toEqual([
+    {
+      memberState: "DE",
+      ratePpm: 190_000,
+      supplyType: "unclassified",
+      // €1,000 invoiced earlier in this file plus €400 through the shop.
+      taxableCents: 140_000,
+      vatCents: 26_600,
+    },
+  ]);
+  // €400 at 19% is €76, and it is on the return rather than at nothing.
+  expect(Math.round((40_000 * 190_000) / 1_000_000)).toBe(7_600);
+});
+
+test("a storefront sale to a registered business stays off the return", async () => {
+  const before = await ossReturn(orgId, Q2.year, Q2.quarter);
+  await shopSale(orgId, {
+    country: "FR",
+    netCents: 90_000,
+    ratePpm: 200_000,
+    taxIdentifier: "FR12345678901",
+    taxIdentifierValid: true,
+  });
+  // And one in the seller's own member state, which the Union scheme never
+  // covers however it was sold.
+  await shopSale(orgId, { country: "IE", netCents: 30_000, ratePpm: 230_000 });
+
+  const after = await ossReturn(orgId, Q2.year, Q2.quarter);
+  expect(after.lines).toEqual(before.lines);
+  expect(after.totalVatCents).toBe(before.totalVatCents);
+  expect(after.omissions).toEqual([]);
+});
+
+test("a sale nobody could place is a figure on the screen, not a zero", async () => {
+  // A person with no company — the only customer record a consumer sale to an
+  // individual leaves, and the one the old inner join dropped in silence.
+  const [person] = await db
+    .insert(schema.contacts)
+    .values({ organizationId: orgId, name: "A Person" })
+    .returning();
+  if (!person) throw new Error("could not create the customer");
+  await invoiceTo({ headers, ...euro }, person.id, 60_000, 190_000, MAY);
+
+  const report = await ossReturn(orgId, Q2.year, Q2.quarter);
+  expect(report.omissions).toEqual([
+    { reason: "no-place", sales: 1, netCents: 60_000, vatCents: 11_400 },
+  ]);
+  expect(report.caveats.join(" ")).toContain("could not be placed");
+  expect(report.caveats.join(" ")).toContain("600.00");
+  // Not on the return, and not quietly reported at nothing either.
+  expect(report.lines.some((line) => line.taxableCents === 60_000)).toBe(false);
+});
+
+test("tax posted at a rate nothing records is named, never reported at 0%", async () => {
+  const orderId = crypto.randomUUID();
+  await recordSalePlace(orgId, `shop-order:${orderId}`, {
+    country: "NL",
+    basis: "billing",
+    documentId: orderId,
+  });
+  const [cash, income, vat] = await Promise.all([
+    ensureAccount(orgId, CORE_ACCOUNTS.cash),
+    ensureAccount(orgId, CORE_ACCOUNTS.salesIncome),
+    ensureAccount(orgId, CORE_ACCOUNTS.taxPayable),
+  ]);
+  await postJournalEntry(
+    orgId,
+    "Shop order with no bands",
+    `shop-order:${orderId}`,
+    [
+      { accountId: cash, debitCents: 12_100 },
+      { accountId: income, creditCents: 10_000 },
+      { accountId: vat, creditCents: 2_100 },
+    ],
+    new Date(`${MAY}T11:00:00.000Z`),
+  );
+
+  const report = await ossReturn(orgId, Q2.year, Q2.quarter);
+  expect(
+    report.omissions.find((omission) => omission.reason === "no-rate"),
+  ).toEqual({
+    reason: "no-rate",
+    memberState: "NL",
+    sales: 1,
+    netCents: 10_000,
+    vatCents: 2_100,
+  });
+  // The failure this replaces: the net on the return at 0%, the tax dropped.
+  expect(report.lines.some((line) => line.ratePpm === 0)).toBe(false);
+});
+
+test("a sale into a member state with no rate set is a bill, not a 0% line", async () => {
+  // What the shop records when it can place the customer and has no rate for
+  // their country: the place, the basis and the evidence, and no tax at all.
+  const orderId = crypto.randomUUID();
+  await recordSalePlace(orgId, `shop-order:${orderId}`, {
+    country: "BE",
+    basis: "declared",
+    documentId: orderId,
+    evidence: [
+      { kind: "billing-address", country: "BE" },
+      { kind: "ip-address", country: "BE" },
+    ],
+  });
+  const [cash, income] = await Promise.all([
+    ensureAccount(orgId, CORE_ACCOUNTS.cash),
+    ensureAccount(orgId, CORE_ACCOUNTS.salesIncome),
+  ]);
+  await postJournalEntry(
+    orgId,
+    "Download to Belgium, untaxed",
+    `shop-order:${orderId}`,
+    [
+      { accountId: cash, debitCents: 2_000 },
+      { accountId: income, creditCents: 2_000 },
+    ],
+    new Date(`${MAY}T12:00:00.000Z`),
+  );
+
+  const report = await ossReturn(orgId, Q2.year, Q2.quarter);
+  expect(
+    report.omissions.find((omission) => omission.reason === "no-rate-set"),
+  ).toEqual({
+    reason: "no-rate-set",
+    memberState: "BE",
+    sales: 1,
+    netCents: 2_000,
+    vatCents: 0,
+  });
+  // Not declared to Belgium as a supply on which no tax was due.
+  expect(report.lines.some((line) => line.memberState === "BE")).toBe(false);
+  expect(report.caveats[0]).toContain("no BE rate set");
+  expect(report.caveats[0]).toContain("tax you owe BE and did not collect");
+});
+
+test("a zero chosen on purpose is a 0% line, not an omission", async () => {
+  // The same sale with a band saying 0% — somebody set that rate. It belongs
+  // on the return, at 0%, and this is the whole distinction: a zero has to be
+  // a rate somebody chose, and it has to be told apart from no rate at all.
+  const orderId = crypto.randomUUID();
+  await db.insert(schema.documentTaxes).values({
+    organizationId: orgId,
+    documentType: "shop-order",
+    documentId: orderId,
+    name: "Zero-rated",
+    rateBp: 0,
+    ratePpm: 0,
+    categoryCode: "Z",
+    taxableCents: 3_000,
+    taxCents: 0,
+  });
+  await recordSalePlace(orgId, `shop-order:${orderId}`, {
+    country: "PT",
+    basis: "declared",
+    documentId: orderId,
+  });
+  const [cash, income] = await Promise.all([
+    ensureAccount(orgId, CORE_ACCOUNTS.cash),
+    ensureAccount(orgId, CORE_ACCOUNTS.salesIncome),
+  ]);
+  await postJournalEntry(
+    orgId,
+    "Zero-rated supply to Portugal",
+    `shop-order:${orderId}`,
+    [
+      { accountId: cash, debitCents: 3_000 },
+      { accountId: income, creditCents: 3_000 },
+    ],
+    new Date(`${MAY}T13:00:00.000Z`),
+  );
+
+  const report = await ossReturn(orgId, Q2.year, Q2.quarter);
+  expect(report.lines).toContainEqual({
+    memberState: "PT",
+    ratePpm: 0,
+    supplyType: "unclassified",
+    taxableCents: 3_000,
+    vatCents: 0,
+  });
+  expect(
+    report.omissions.some((omission) => omission.memberState === "PT"),
+  ).toBe(false);
 });

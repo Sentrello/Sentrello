@@ -76,6 +76,12 @@ export function InvoicingDashboard() {
         applies: boolean;
         exceeded: boolean | null;
         advice: string | null;
+        /**
+         * Sold into a member state with no rate set — VAT owed and never
+         * charged. Shown whatever side of the threshold the business is on,
+         * because a digital supply to a consumer has no threshold under it.
+         */
+        warning: string | null;
       }>("/api/invoicing/distance-sales"),
   });
   /**
@@ -112,6 +118,13 @@ export function InvoicingDashboard() {
 
   return (
     <div className="space-y-4">
+      {distance.data?.applies && distance.data.warning && (
+        <Card>
+          <p className="text-sm" style={{ color: "var(--text-danger)" }}>
+            {distance.data.warning}
+          </p>
+        </Card>
+      )}
       {distance.data?.applies &&
         distance.data.exceeded &&
         distance.data.advice && (

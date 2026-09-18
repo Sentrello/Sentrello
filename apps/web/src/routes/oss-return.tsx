@@ -55,6 +55,19 @@ interface OssReturn {
   corrections: OssCorrection[];
   totalTaxableCents: number;
   totalVatCents: number;
+  /**
+   * Sales that are not on the return, and why — never a silent zero.
+   *
+   * `no-rate-set` is the one that costs money: placed in a member state,
+   * charged nothing, and no rate on record to say the nothing was meant.
+   */
+  omissions: {
+    reason: "no-place" | "no-rate-set" | "no-rate";
+    memberState?: string;
+    sales: number;
+    netCents: number;
+    vatCents: number;
+  }[];
   problem: string | null;
   filing: string;
   caveats: string[];
@@ -186,6 +199,63 @@ export function OssReturn() {
                   }`
                 : ""}
             </p>
+            {/*
+             * Above the figures, not under them.
+             *
+             * A sale the return could not take is the reason the figures below
+             * are smaller than the business's own trading, and reading the
+             * total first and the reason last is how somebody files the total.
+             */}
+            {data.omissions.length > 0 ? (
+              <ul
+                className="mb-3 space-y-1 text-sm"
+                style={{ color: "var(--text-danger)" }}
+              >
+                {data.omissions.map((omission) => (
+                  <li key={`${omission.reason}-${omission.memberState ?? ""}`}>
+                    {omission.reason === "no-rate-set" ? (
+                      <>
+                        <strong>
+                          {omission.sales} sale
+                          {omission.sales === 1 ? "" : "s"} into{" "}
+                          {omission.memberState} charged no VAT
+                        </strong>{" "}
+                        — {formatMoney(omission.netCents)} of supplies, and no{" "}
+                        {omission.memberState} rate is set. VAT is due there
+                        from the first sale, with no threshold under it. Not on
+                        this return: declaring it at 0% would say no tax was
+                        due.
+                      </>
+                    ) : omission.reason === "no-place" ? (
+                      <>
+                        <strong>
+                          {omission.sales} sale
+                          {omission.sales === 1 ? "" : "s"} could not be placed
+                        </strong>{" "}
+                        — {formatMoney(omission.netCents)} of supplies with
+                        nothing recording which country they belong to, so none
+                        of them are counted here.
+                      </>
+                    ) : (
+                      <>
+                        <strong>
+                          {omission.sales} sale
+                          {omission.sales === 1 ? "" : "s"}
+                          {omission.memberState
+                            ? ` into ${omission.memberState}`
+                            : ""}{" "}
+                          carry tax at a rate nothing records
+                        </strong>{" "}
+                        — {formatMoney(omission.vatCents)} on{" "}
+                        {formatMoney(omission.netCents)} of supplies. Not on
+                        this return until the rate is recorded.
+                      </>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
             {data.lines.length === 0 ? (
               <p className="text-sm" style={muted}>
                 No sales to consumers in other member states this quarter. A nil

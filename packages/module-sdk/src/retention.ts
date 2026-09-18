@@ -97,6 +97,16 @@ export const STATUTORY_TABLES = [
   "recurring_bills",
   "recurring_periods",
   "recurring_profiles",
+  /*
+   * Where each sale happened, and the evidence it was established from.
+   *
+   * The reason a VAT return puts a supply in one member state rather than
+   * another, and the two non-contradictory items behind it. Records supporting
+   * an OSS return have to be kept for ten years and produced electronically on
+   * request; a return without the evidence under it is a figure nobody can
+   * stand behind.
+   */
+  "sale_places",
   "tax_definitions",
   "transactions",
   "vendor_credit_applications",
