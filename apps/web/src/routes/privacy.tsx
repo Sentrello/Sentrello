@@ -379,10 +379,7 @@ export function Privacy() {
                  * business needs to know which part did not answer before they
                  * send it.
                  */
-                <p
-                  className="text-sm"
-                  style={{ color: "var(--danger, #b91c1c)" }}
-                >
+                <p className="text-sm" style={{ color: "var(--text-danger)" }}>
                   This did not answer: {s.error}. Do not send this export until
                   it does.
                 </p>
