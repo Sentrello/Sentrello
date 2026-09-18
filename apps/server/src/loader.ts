@@ -139,10 +139,15 @@ export function loadModules(
       /*
        * A module that comes free with another is entitled when that one is.
        *
-       * The till is the case: free for anybody who has bought Shop. Without
-       * this it would need its own entry in every licence token, and the day
-       * one was signed without it a paying customer would quietly lose a
-       * feature they were told came with what they bought.
+       * Nothing shipped uses it today — the till was the example this comment
+       * gave for a while and it is not one: it sells on its own entitlement
+       * and only *depends* on Shop, which is `requires`, a load-order fact.
+       * The two are worth keeping apart. `requires` says a module cannot run
+       * without another; `includedWith` says a customer does not pay for it
+       * twice. A bundle sold as part of another one would otherwise need its
+       * own entry in every licence token, and the day one was signed without
+       * it a paying customer would quietly lose a feature they were told came
+       * with what they bought.
        */
       const licensed =
         entitled({ module: m.id }) ||

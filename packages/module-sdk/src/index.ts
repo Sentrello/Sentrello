@@ -293,17 +293,19 @@ export interface SentrelloModule {
   /**
    * A module that comes free with another one.
    *
-   * The till is the case: it is a free add-on for anybody who has bought Shop,
-   * not a separate purchase. Without this it would need its own entry in every
-   * licence token, and the day one was signed without it, a paying customer
-   * would lose a feature they were told came with what they bought.
-   *
+   * A bundle sold as part of another one would otherwise need its own entry in
+   * every licence token, and the day one was signed without it a paying
+   * customer would lose a feature they were told came with what they bought.
    * Saying it here instead means the rule lives in the module, where somebody
    * reading it can see what it costs, and no licence has to carry it.
    *
    * It grants entitlement only. `requires` is still what decides load order and
-   * whether the host is present at all — a module that comes with another one
-   * almost always needs it as well, and must say both.
+   * whether the host is present at all, and the two are not the same claim: a
+   * module that needs another one to run says `requires` and nothing else
+   * unless it is genuinely bought as part of it. Nothing ships with this set
+   * today, so there is no example to point at — which is the reason to be
+   * precise about what it means rather than to name a module that merely
+   * depends on one.
    */
   includedWith?: string;
   migrations?: ModuleMigrations;
