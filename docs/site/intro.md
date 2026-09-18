@@ -63,3 +63,5 @@ can click through a real business rather than an empty screen.
 - [Configure it](/getting-started/configure) — your business details, tax, and
   how it sends email.
 - Read about [the Core modules](/core) that come with every installation.
+- Or start with [the platform itself](/platform): the licence, what leaves
+  your server, and how to extend it.
