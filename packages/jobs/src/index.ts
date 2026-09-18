@@ -180,6 +180,27 @@ export async function startJobs(
   });
   await boss.start();
 
+  /**
+   * Somebody listening when the queue itself goes wrong.
+   *
+   * `PgBoss extends EventEmitter` and emits `error` from four places that
+   * have nothing to do with a job's own handler: the connection pool
+   * (`src/db.js`), the maintenance and monitoring passes (`src/boss.js`), the
+   * cron timekeeper (`src/timekeeper.js`), and a worker whose *fetch* fails
+   * (`src/manager.js`). Node's rule for an `error` event with no listener is
+   * to throw it as an uncaught exception — and the queue runs inside the same
+   * process that serves every screen, so a database blip during a maintenance
+   * pass took the whole instance down. Nothing in this repository was
+   * listening.
+   *
+   * Logged rather than acted on, deliberately. pg-boss recovers from all four
+   * on its own next pass; what was missing was a process that survives them
+   * and a line saying what happened.
+   */
+  boss.on("error", (err) => {
+    console.error("[jobs] the queue reported an error", err);
+  });
+
   const all: ModuleJob[] = [
     {
       name: QUEUES.overdueReminders,
@@ -226,7 +247,23 @@ export async function startJobs(
     // omitting this makes both silently no-op.
     await boss.createQueue(job.name);
     await boss.work(job.name, async () => {
-      await job.handler();
+      /**
+       * A failure says so, then fails.
+       *
+       * pg-boss catches whatever a handler throws, marks the job for retry,
+       * and after `retry_limit` attempts (two, by default) leaves it in the
+       * `failed` state — without emitting anything and without writing a
+       * line anywhere. So the licence refresh, the retention sweep and the
+       * overdue chase could all stop for good and the only evidence would be
+       * a row in a table nobody opens. Re-thrown after the log, because the
+       * retry is the useful half of that behaviour; the silence was not.
+       */
+      try {
+        await job.handler();
+      } catch (err) {
+        console.error(`[jobs] ${job.name} failed`, err);
+        throw err;
+      }
     });
     const cron = job.cron ?? SCHEDULES[job.name];
     if (cron) await boss.schedule(job.name, cron);
