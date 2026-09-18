@@ -179,6 +179,30 @@ export const STATUTORY_TABLES = [
   "seo.usage",
   "links.events",
 
+  /*
+   * Time and cost booked against a job, and the prices it was booked at.
+   *
+   * `time_entries` and `cost_entries` carry the cost and charge, the invoice
+   * line each became and the journal entry that posted it — which is the whole
+   * of the evidence behind a bill for work. `hourly_rates` and `cost_types`
+   * are the dated prices those were struck at, and without them an invoice
+   * raised two years ago cannot be shown to have been right at the time. A
+   * business defending a charge needs the entry and the rate together; either
+   * alone answers nothing.
+   *
+   * Qualified, because `time_entries` and `cost_types` are words another
+   * module could reasonably use for a log of its own.
+   *
+   * `projects.budgets` and `projects.budget_lines` need no entry: `budgets`
+   * and `budget_lines` are on this list unqualified already and the refusal is
+   * by bare name too, so they are refused by collision with the accounting
+   * tables. That is doing real work by accident — renaming either accounting
+   * table would take the projects ones out of the net in silence.
+   */
+  "projects.time_entries",
+  "projects.cost_entries",
+  "projects.hourly_rates",
+  "projects.cost_types",
 ] as const;
 
 export type StatutoryTable = (typeof STATUTORY_TABLES)[number];
