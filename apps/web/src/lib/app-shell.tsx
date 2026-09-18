@@ -31,25 +31,39 @@ export interface NavEntry {
  * job. A section the host has never heard of sorts to the end rather than
  * being dropped — a module may name its own.
  */
-const GROUP_ORDER = [
+export const GROUP_ORDER = [
   "Sales",
   "Money",
   "Work",
+  // Everything that brings somebody in before there is a sale to make. It was
+  // missing from this list entirely, which is not a small thing: an unlisted
+  // group scores 99 and sorts below `Configure`, so Links, Search and
+  // Documentation rendered *under* Settings and Users. Nobody chose that — it
+  // was the absence of two lines, and the order this list exists to state was
+  // not the order anybody saw.
+  "Marketing",
+  // Nothing registers this yet; HR will. Kept so the day it arrives it lands
+  // where it belongs rather than at the end with the unranked.
   "People",
   // Only ever present on sentrello.com's own instance, where it runs the
   // business that sells this. Above Configure because it is where the day's
   // work happens there, and settings are settings wherever you are.
   "Master",
+  // Last, always. Settings are settings wherever you are.
   "Configure",
 ];
 
 /** Whatever the rail should draw for a section that named no icon of its own. */
-const GROUP_ICONS: Record<string, IconName> = {
+export const GROUP_ICONS: Record<string, IconName> = {
   // A handshake, not a contact card: the section is where a deal gets agreed,
   // and the card belongs to Contacts, which is one screen inside it.
   Sales: "handshake",
   Money: "receipt",
   Work: "briefcase",
+  // Growth rather than a megaphone, which this set does not have. Unused by any
+  // module, which matters: a group and a module drawing the same glyph is two
+  // different things wearing one face.
+  Marketing: "trending-up",
   People: "users",
   Master: "boxes",
   Configure: "settings",
