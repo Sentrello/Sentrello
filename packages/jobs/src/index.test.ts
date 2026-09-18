@@ -61,6 +61,77 @@ test("a schedule nothing works any more is stopped", async () => {
   }
 });
 
+/**
+ * The queue reporting a problem must not be the end of the process.
+ *
+ * `PgBoss extends EventEmitter` and emits `error` from the connection pool,
+ * the maintenance pass, the cron timekeeper and a worker whose fetch fails —
+ * none of which is a job's own handler throwing. Node throws an `error` event
+ * with no listener as an uncaught exception, and the queue runs in the same
+ * process that serves every screen, so an unlistened emit is the instance
+ * going down.
+ */
+test("the queue has somebody listening when it reports an error", async () => {
+  boss = boss ?? (await startJobs());
+  expect(boss.listenerCount("error")).toBeGreaterThan(0);
+
+  // And the emit itself is survivable: without a listener this line is an
+  // uncaught exception rather than an assertion.
+  expect(() =>
+    boss?.emit("error", new Error("a maintenance pass failed")),
+  ).not.toThrow();
+});
+
+/**
+ * A job that stops says so.
+ *
+ * pg-boss marks a thrown handler for retry and, once the retries are spent,
+ * leaves it `failed` — emitting nothing and logging nothing. Everything on
+ * these queues charges, emails, posts or expires something, so a run that
+ * dies quietly is the worst shape a failure can take here.
+ */
+test("a job that throws is reported before it is retried", async () => {
+  // The shipped default looks for work every thirty seconds, which is right
+  // for a queue of scheduled work and far longer than a test should wait.
+  const wasPoll = process.env.SENTRELLO_JOBS_POLL_SECONDS;
+  process.env.SENTRELLO_JOBS_POLL_SECONDS = "2";
+  const failing = await startJobs([
+    {
+      name: "test:always-fails",
+      handler: async () => {
+        throw new Error("the handler gave up");
+      },
+    },
+  ]);
+  const said: string[] = [];
+  const wasError = console.error;
+  console.error = (...args: unknown[]) => {
+    said.push(args.map(String).join(" "));
+  };
+  try {
+    await failing.send("test:always-fails", {});
+    const deadline = Date.now() + 20_000;
+    while (
+      !said.some((line) => line.includes("test:always-fails")) &&
+      Date.now() < deadline
+    ) {
+      await Bun.sleep(250);
+    }
+  } finally {
+    console.error = wasError;
+    await failing.stop({ graceful: false });
+    if (wasPoll === undefined) {
+      process.env.SENTRELLO_JOBS_POLL_SECONDS = undefined;
+    } else {
+      process.env.SENTRELLO_JOBS_POLL_SECONDS = wasPoll;
+    }
+  }
+
+  expect(said.some((line) => line.includes("test:always-fails failed"))).toBe(
+    true,
+  );
+}, 30_000);
+
 test("license-refresh no-ops cleanly on a Free instance", async () => {
   // no license key: a Free instance has nothing to refresh and must not call out
   expect(
