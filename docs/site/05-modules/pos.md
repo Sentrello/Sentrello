@@ -7,6 +7,17 @@ tags: [module, pos, shop]
 
 # POS
 
+:::caution In development — not for sale
+
+The POS was withdrawn from the catalogue on 15 September 2026 and cannot be
+bought today. Its cash controls are in place; the rebuild for the screens it is
+actually used on, card readers and receipt printers are not. There is no date,
+deliberately — this page describes how it works, not something you can subscribe
+to yet.
+
+:::
+
+
 A point of sale for a counter. It sells the same products at the same prices as
 your online shop, takes the stock off the same shelf, and posts the money to the
 same books — so a business that sells both ways has one set of figures rather
@@ -246,8 +257,10 @@ list of what it can.
 
 - **Card payment at the counter.** It needs a reader, and a till that pretended
   otherwise would be a button that takes no money. Planned.
+- **Receipt printing.** A printer is driven by the rebuild that is still in
+  progress, so a sale is recorded without one being printed.
 - **Table service, tabs, and kitchen printing.** The till is built for counter
-  service first. The rest is planned through 2027.
+  service first. The rest is planned, and deliberately not dated.
 
 ## How it fits with everything else
 
