@@ -1,7 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { DEFAULT_GROUP_POLICIES, DEFAULT_USER_POLICIES } from "./defaults";
+import { db, eq, schema } from "@sentrello/db";
+import {
+  DEFAULT_GROUP_POLICIES,
+  DEFAULT_USER_POLICIES,
+  seedDefaults,
+} from "./defaults";
 import { BUILT_IN } from "./roles";
 
 const all = [...DEFAULT_USER_POLICIES, ...DEFAULT_GROUP_POLICIES];
@@ -205,5 +210,49 @@ test("no other default role can move money", () => {
       granted.includes("send") || granted.includes("connect"),
       `${role.name} can move money`,
     ).toBe(false);
+  }
+});
+
+/**
+ * Seeded once and permanently — but only if it was actually seeded.
+ *
+ * `createOrgRole` re-authorises the caller against `ac: ["create"]` on their
+ * own role, which only the compiled `admin` carries. Every refusal was
+ * swallowed and the "already seeded" marker went down anyway, so a business
+ * whose first visit to the Policies screen came from somebody without that
+ * statement was left with no policies at all, permanently, and nothing
+ * anywhere said so.
+ */
+test("a seed that could write nothing is not marked as done", async () => {
+  const [org] = await db
+    .insert(schema.organizations)
+    .values({
+      id: crypto.randomUUID(),
+      name: `Unseedable ${crypto.randomUUID().slice(0, 8)}`,
+      slug: `unseedable-${crypto.randomUUID().slice(0, 8)}`,
+      createdAt: new Date(),
+    })
+    .returning();
+  if (!org) throw new Error("no organization");
+
+  try {
+    // No session at all, so every `createOrgRole` is refused.
+    const first = await seedDefaults(org.id, new Headers());
+    expect(first.seeded).toBe(false);
+
+    const [after] = await db
+      .select({ seededAt: schema.organizations.accessSeededAt })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, org.id))
+      .limit(1);
+    // Not stamped: an administrator opening the screen can still seed it.
+    expect(after?.seededAt ?? null).toBeNull();
+  } finally {
+    await db
+      .delete(schema.userGroups)
+      .where(eq(schema.userGroups.organizationId, org.id));
+    await db
+      .delete(schema.organizations)
+      .where(eq(schema.organizations.id, org.id));
   }
 });

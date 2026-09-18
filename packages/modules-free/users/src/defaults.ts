@@ -346,6 +346,35 @@ export async function seedDefaults(
         .catch(() => undefined);
     }
 
+    /**
+     * Nothing was written, so nothing is marked as written.
+     *
+     * `createOrgRole` re-authorises the caller against `ac: ["create"]` on
+     * their *own* role before it will write anything, and only the compiled
+     * `admin` carries that statement — the seeded `admins` policy does not.
+     * Every refusal lands in the `catch` above, which is right for the name
+     * that was already taken and silently wrong for the caller who was not
+     * allowed: the marker went down regardless, and "once and permanently"
+     * meant a business left with no policies at all and no way to ask for
+     * them again.
+     *
+     * Checked by reading rather than by counting the catches, so a partial
+     * failure — some names taken, some refused — still counts as seeded and
+     * is not re-run over a business's own edits. Zero rows is the only state
+     * that can mean nothing happened.
+     */
+    const [any] = await tx
+      .select({ role: schema.organizationRole.role })
+      .from(schema.organizationRole)
+      .where(eq(schema.organizationRole.organizationId, organizationId))
+      .limit(1);
+    if (!any) {
+      console.error(
+        `[users] could not seed the default access policies for ${organizationId} — the caller is not allowed to create roles here`,
+      );
+      return { seeded: false };
+    }
+
     for (const group of DEFAULT_GROUPS) {
       const [exists] = await tx
         .select({ id: schema.userGroups.id })
