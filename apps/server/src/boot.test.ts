@@ -1645,3 +1645,72 @@ test("loading modules starts every registry from empty", () => {
   expect(allCrawlable()).toEqual([]);
   expect(personalDataSources()).toEqual([]);
 });
+
+test("a page hung off another page is reported, not drawn", () => {
+  /*
+   * The sidebar draws two levels. A third renders as nothing: the entry is
+   * served by /api/_meta, passes its permission check, and has nowhere to
+   * appear. The Newsletter shipped six that way — every settings tab hung off
+   * the settings page — and nobody noticed, because that screen has its own
+   * tabs and the URLs still resolved.
+   *
+   * Said at boot rather than asserted per module, because a test can only
+   * cover the modules the repository holding it can load, and the licence
+   * decides what any given instance runs. This sees whatever actually
+   * started, including a bundle somebody else wrote.
+   */
+  const said: string[] = [];
+  const warn = console.warn;
+  console.warn = (...args: unknown[]) => {
+    said.push(args.join(" "));
+  };
+  try {
+    loadModules(new Hono<SentrelloEnv>(), freeGate, [
+      defineModule({
+        id: "deep",
+        tier: "free",
+        register(ctx) {
+          ctx.registerNav({ id: "deep", label: "Deep" });
+          ctx.registerNav({ id: "deep-page", label: "Page", parent: "deep" });
+          ctx.registerNav({
+            id: "deep-tab",
+            label: "Tab",
+            parent: "deep-page",
+          });
+        },
+      }),
+    ]);
+  } finally {
+    console.warn = warn;
+  }
+
+  const complaint = said.find((line) => line.includes("deep-tab"));
+  expect(
+    complaint,
+    `nothing said deep-tab cannot be drawn; what was said: ${said.join(" | ")}`,
+  ).toBeTruthy();
+  expect(complaint).toContain("deep-page");
+});
+
+test("and an ordinary page is not reported", () => {
+  const said: string[] = [];
+  const warn = console.warn;
+  console.warn = (...args: unknown[]) => {
+    said.push(args.join(" "));
+  };
+  try {
+    loadModules(new Hono<SentrelloEnv>(), freeGate, [
+      defineModule({
+        id: "flat",
+        tier: "free",
+        register(ctx) {
+          ctx.registerNav({ id: "flat", label: "Flat" });
+          ctx.registerNav({ id: "flat-page", label: "Page", parent: "flat" });
+        },
+      }),
+    ]);
+  } finally {
+    console.warn = warn;
+  }
+  expect(said.filter((l) => l.includes("hangs off"))).toEqual([]);
+});
