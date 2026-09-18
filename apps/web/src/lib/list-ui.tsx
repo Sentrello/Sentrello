@@ -529,8 +529,8 @@ export function ColumnsMenu({ state }: { state: ColumnState }) {
         ) : null}
       </summary>
       <div
-        className="absolute right-0 z-20 mt-1 w-52 rounded-md border p-2 shadow-lg"
-        style={{ ...border, background: "var(--surface-raised)" }}
+        className="overlay-panel absolute right-0 z-20 mt-1 w-52 rounded-md border p-2"
+        style={border}
       >
         {optional.map((column) => (
           <label

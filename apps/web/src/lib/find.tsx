@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import { useNavigation } from "./navigation";
+import { muted } from "./ui";
 
 /**
  * Find anything, from anywhere.
@@ -123,7 +124,7 @@ function FindDialog({ onClose }: { onClose: () => void }) {
         aria-label="Close"
         onClick={onClose}
         className="absolute inset-0 h-full w-full cursor-default"
-        style={{ background: "rgba(0,0,0,.4)" }}
+        style={{ background: "var(--scrim)" }}
       />
       {/*
         A real dialog element rather than a div wearing the role. It brings the
@@ -133,15 +134,22 @@ function FindDialog({ onClose }: { onClose: () => void }) {
       <dialog
         open
         aria-label="Find anything"
-        className="relative w-full max-w-xl overflow-hidden rounded-lg border p-0 shadow-lg"
-        style={{ background: "var(--surface)", borderColor: "var(--border)" }}
+        className="overlay-panel relative w-full max-w-xl overflow-hidden rounded-lg border p-0"
+        style={{ borderColor: "var(--border)" }}
       >
+        {/*
+          No `outline-none`. It was there to keep the flush top edge clean, and
+          what it actually did was take the focus ring off the only focusable
+          thing in the palette — the browser's own ring is the one indicator
+          that adapts to both themes, and removing it fails WCAG 2.4.7 for the
+          sake of a border.
+        */}
         <input
           ref={box}
           value={q}
           placeholder="A name, a number, anything"
           aria-label="What are you looking for?"
-          className="w-full border-b px-4 py-3 text-base outline-none"
+          className="w-full border-b px-4 py-3 text-base"
           style={{ background: "transparent", borderColor: "var(--border)" }}
           onChange={(e) => {
             setQ(e.target.value);
@@ -162,16 +170,16 @@ function FindDialog({ onClose }: { onClose: () => void }) {
 
         <div className="max-h-80 overflow-y-auto">
           {q.trim().length < 2 ? (
-            <p className="px-4 py-6 text-sm" style={{ opacity: 0.7 }}>
+            <p className="px-4 py-6 text-sm" style={muted}>
               Type at least two letters. Contacts, companies, deals, invoices —
               whatever this instance has.
             </p>
           ) : found.isLoading ? (
-            <p className="px-4 py-6 text-sm" style={{ opacity: 0.7 }}>
+            <p className="px-4 py-6 text-sm" style={muted}>
               Looking…
             </p>
           ) : hits.length === 0 ? (
-            <p className="px-4 py-6 text-sm" style={{ opacity: 0.7 }}>
+            <p className="px-4 py-6 text-sm" style={muted}>
               Nothing matched “{q}”.
             </p>
           ) : (
@@ -183,15 +191,15 @@ function FindDialog({ onClose }: { onClose: () => void }) {
                 onClick={() => open(hit)}
                 className="flex w-full items-baseline gap-3 px-4 py-2 text-left"
                 style={
-                  i === at ? { background: "var(--surface-raised)" } : undefined
+                  i === at ? { background: "var(--surface-sunken)" } : undefined
                 }
               >
-                <span className="text-xs uppercase" style={{ opacity: 0.6 }}>
+                <span className="text-xs uppercase" style={muted}>
                   {hit.kind}
                 </span>
                 <span className="flex-1">{hit.title}</span>
                 {hit.subtitle ? (
-                  <span className="text-sm" style={{ opacity: 0.7 }}>
+                  <span className="text-sm" style={muted}>
                     {hit.subtitle}
                   </span>
                 ) : null}

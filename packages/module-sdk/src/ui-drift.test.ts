@@ -4,6 +4,7 @@ import {
   findFillAsText,
   findHandRolledUi,
   findUnpagedList,
+  findUnthemedElevation,
 } from "./ui-drift";
 
 /**
@@ -273,4 +274,75 @@ test("a doc comment about the notice is not a screen rendering it", () => {
   );
   expect(found).toHaveLength(1);
   expect(found[0]?.line).toBe(2);
+});
+
+/**
+ * Elevation. The defect this catches is one nothing else can: a sheet, a
+ * dialog and a dropdown all lifted by a black shadow over a near-black ground,
+ * which draws three flat rectangles and leaves nobody able to say what is on
+ * top of what. It passes every automated accessibility check there is.
+ */
+test("a shadow with a colour written into it is a finding, CSS and JSX alike", () => {
+  expect(
+    findUnthemedElevation("  box-shadow: 0 -0.5rem 1.5rem rgb(0 0 0 / 0.28);"),
+  ).toHaveLength(1);
+  expect(
+    findUnthemedElevation('style={{ boxShadow: "0 8px 24px #00000022" }}'),
+  ).toHaveLength(1);
+  expect(
+    findUnthemedElevation("form{box-shadow:0 1px 3px rgba(0,0,0,.1)}")[0]?.say,
+  ).toMatch(/--shadow-overlay/);
+});
+
+test("a Tailwind elevation utility is a finding — the colour is compiled in", () => {
+  expect(
+    findUnthemedElevation('className="rounded border p-2 shadow-lg"'),
+  ).toHaveLength(1);
+  expect(findUnthemedElevation('className="text-xs shadow-sm"')).toHaveLength(
+    1,
+  );
+});
+
+test("a modal scrim written as literal black is a finding", () => {
+  expect(
+    findUnthemedElevation('style={{ background: "rgba(0,0,0,0.5)" }}'),
+  ).toHaveLength(1);
+  expect(
+    findUnthemedElevation("  background: rgba(0,0,0,.4); display: none;")[0]
+      ?.say,
+  ).toMatch(/--scrim/);
+});
+
+test("the tokens themselves, and where they are defined, are not findings", () => {
+  expect(
+    findUnthemedElevation(
+      [
+        "  box-shadow: var(--shadow-overlay);",
+        "  --shadow-raised: 0 1px 2px oklch(0 0 0 / 0.45);",
+        "  --doc-navbar-shadow: var(--x);",
+        "  box-shadow: none;",
+        'className="overlay-panel raised-panel drop-shadow-none"',
+        'style={{ background: "#ffffff" }}',
+      ].join("\n"),
+    ),
+  ).toEqual([]);
+});
+
+/**
+ * The escape hatch has to work in CSS too. Half of what this reads is a
+ * stylesheet inside a template literal — a customer-facing page with its own
+ * palette and no theme to inherit — and `//` there is a parse error, not a
+ * comment.
+ */
+test("a page with its own palette says so on the line above, in either comment", () => {
+  expect(
+    findUnthemedElevation(
+      "// ui-drift-ignore: a standalone page, its own palette\nform{box-shadow:0 1px 3px rgba(0,0,0,.1)}",
+    ),
+  ).toEqual([]);
+  expect(
+    findUnthemedElevation(
+      "/* ui-drift-ignore: a standalone page, its own palette */\n  box-shadow: 0 8px 24px rgba(0,0,0,.14);",
+    ),
+  ).toEqual([]);
 });

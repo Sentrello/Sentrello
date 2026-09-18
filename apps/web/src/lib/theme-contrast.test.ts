@@ -64,7 +64,13 @@ function block(header: RegExp): Record<string, string> {
   for (const decl of (match[1] ?? "").split(";")) {
     const [name, ...rest] = decl.split(":");
     if (name === undefined || rest.length === 0) continue;
-    out[name.trim()] = rest.join(":").trim();
+    /*
+     * Whitespace collapsed, because the formatter wraps a long value and
+     * wraps it to a different column in the media query than in the
+     * attribute block — which read as two themes disagreeing when the only
+     * difference was an indent.
+     */
+    out[name.trim()] = rest.join(":").trim().replace(/\s+/g, " ");
   }
   return out;
 }
@@ -102,6 +108,21 @@ const PAIRINGS: [string, string, number][] = [
   ["--text-muted", "--surface", TEXT],
   ["--text-muted", "--surface-raised", TEXT],
   ["--text-muted", "--surface-sunken", TEXT],
+  /*
+   * The overlay surface: the ground under a menu, a dropdown, a dialog, a
+   * bottom sheet, the command palette. It exists because the dark theme lifts
+   * a panel by making it lighter rather than by casting a shadow at it, which
+   * means it is a *third* ground text sits on and has to be measured like the
+   * other two.
+   */
+  ["--text", "--surface-overlay", TEXT],
+  ["--text-muted", "--surface-overlay", TEXT],
+  ["--link", "--surface-overlay", TEXT],
+  ["--text-success", "--surface-overlay", TEXT],
+  ["--text-warning", "--surface-overlay", TEXT],
+  ["--text-danger", "--surface-overlay", TEXT],
+  ["--text-info", "--surface-overlay", TEXT],
+  ["--text-brand", "--surface-overlay", TEXT],
   // Links, both states.
   ["--link", "--surface", TEXT],
   ["--link", "--surface-raised", TEXT],

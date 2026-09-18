@@ -100,6 +100,64 @@ export function findFillAsText(source: string): HandRolledFinding[] {
   return findings.sort((a, b) => a.line - b.line);
 }
 
+/**
+ * A raised surface that chose its own shadow instead of inheriting the rule.
+ *
+ * The platform's elevation rule is stated once, in Core's `index.css`: **light
+ * lifts with a shadow, dark lifts with the surface.** A black shadow is what
+ * every component library ships and it is half a rule — on a near-black ground
+ * it does nothing. Measured in the browser: a bottom sheet lifted by
+ * `rgb(0 0 0 / 28%)` over `oklch(0.189)` reads as a faint dark haze, so the
+ * sheet, the dialog behind it and the dropdown behind that are three flat
+ * rectangles and nobody can tell what is on top of what. That is a usability
+ * defect on a screen somebody uses all day, and no automated accessibility
+ * check catches it — axe does not test whether a thing looks raised.
+ *
+ * So: `var(--shadow-raised)` for something sitting on the page, and the pair
+ * `var(--surface-overlay)` + `var(--shadow-overlay)` for something over it —
+ * a menu, a dropdown, a dialog, a sheet, the command palette. `var(--scrim)`
+ * behind a modal. Each is defined per theme, so a module gets both themes by
+ * writing neither.
+ *
+ * Tailwind's `shadow-sm`/`shadow-lg` are findings for the same reason a
+ * literal is: the utility compiles the colour into the class at build time,
+ * which is a hard-coded black by another name.
+ *
+ * A page that genuinely has no theme to inherit — a standalone customer-facing
+ * document with its own palette — says so on the line above and is left alone.
+ */
+const UNTHEMED_ELEVATION: { pattern: RegExp; say: string }[] = [
+  {
+    pattern:
+      /\bbox-?[Ss]hadow\s*[:=][^;{}]{0,200}(?:#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\s*\(|\b0\s+0\s+0\s*\/)/,
+    say: "a shadow with a colour written into it — a black shadow is invisible on the dark theme's ground, which makes a sheet, a dialog and a dropdown read as three flat panels. Use var(--shadow-raised), or var(--surface-overlay) with var(--shadow-overlay) for something floating over the page",
+  },
+  {
+    pattern: /(?<![\w-])shadow-(?:2xs|xs|sm|md|lg|xl|2xl)(?![\w-])/,
+    say: "a Tailwind elevation utility, which compiles a fixed black into the class — use raised-panel, or overlay-panel for something floating over the page, both of which change with the theme",
+  },
+  {
+    pattern:
+      /\bbackground(?:-color|Color)?\s*[:=][^;{}]{0,80}(?:\brgba?\s*\(\s*0\s*[,\s]\s*0\s*[,\s]\s*0\b|#000(?:000)?\b)/,
+    say: "a modal scrim written as literal black — use var(--scrim), which is tinted with the theme's own ink on light and plain black on dark",
+  },
+];
+
+export function findUnthemedElevation(source: string): HandRolledFinding[] {
+  const rawLines = source.split("\n");
+  const clean = stripComments(source);
+  const findings: HandRolledFinding[] = [];
+  for (const rule of UNTHEMED_ELEVATION) {
+    const global = new RegExp(rule.pattern.source, `${rule.pattern.flags}g`);
+    for (const match of clean.matchAll(global)) {
+      const line = lineOf(clean, match.index);
+      if (exceptedAbove(rawLines, line, "ui-drift")) continue;
+      findings.push({ line, say: rule.say });
+    }
+  }
+  return findings.sort((a, b) => a.line - b.line);
+}
+
 export function findHandRolledUi(source: string): HandRolledFinding[] {
   const rawLines = source.split("\n");
   const clean = stripComments(source);
