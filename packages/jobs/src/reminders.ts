@@ -266,16 +266,38 @@ export async function runReminders(
         : 0;
       if (now.getTime() < throttledUntil) continue;
 
-      await mailer.send({
-        to: contact.email,
-        ...overdueReminderEmail({
-          number: invoice.number,
-          balanceDueCents: balanceDue + (invoice.lateFeeCents ?? 0),
-          currency: invoice.currency,
-          business,
-          sentrelloCredit: options.sentrelloCredit ?? true,
-        }),
-      });
+      /**
+       * One address that will not take mail is one invoice, not the sweep.
+       *
+       * The rule-driven branch below already catches its own send and carries
+       * on; this one did not, so a single rejected recipient — a customer
+       * whose domain has gone, a mailbox over quota — threw out of the whole
+       * run. Every invoice after it in the list went unchased, in every
+       * business on the instance, and pg-boss's retry produced the same
+       * failure at the same invoice the next time.
+       *
+       * Nothing is stamped when the send fails, so the next run tries this
+       * one again — the throttle only starts once a reminder has actually
+       * gone out.
+       */
+      try {
+        await mailer.send({
+          to: contact.email,
+          ...overdueReminderEmail({
+            number: invoice.number,
+            balanceDueCents: balanceDue + (invoice.lateFeeCents ?? 0),
+            currency: invoice.currency,
+            business,
+            sentrelloCredit: options.sentrelloCredit ?? true,
+          }),
+        });
+      } catch (err) {
+        console.error(
+          `[reminders] the weekly chase for ${invoice.number} could not be sent`,
+          err,
+        );
+        continue;
+      }
       await db
         .update(schema.invoices)
         .set({ lastReminderAt: now })

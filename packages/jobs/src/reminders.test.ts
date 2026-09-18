@@ -356,3 +356,83 @@ test("a fee is not charged during the grace period", async () => {
 
   await db.delete(schema.invoices).where(eq(schema.invoices.id, invoice.id));
 });
+
+/**
+ * One address that will not take mail is one invoice, not the sweep.
+ *
+ * The rule-driven branch already caught its own send failure and carried on.
+ * The built-in weekly chase — the branch a business that has configured
+ * nothing actually runs — did not, so a rejected recipient threw out of
+ * `runReminders` entirely: every invoice after it went unchased, in every
+ * business on the instance, and the retry hit the same invoice again.
+ */
+test("a chase that will not send loses one invoice, not the whole run", async () => {
+  const failOrg = `reminders-fail-${crypto.randomUUID().slice(0, 8)}`;
+  const [gone, fine] = await db
+    .insert(schema.contacts)
+    .values([
+      {
+        organizationId: failOrg,
+        name: "Gone Away",
+        email: "bounces@example.test",
+        kind: "customer",
+      },
+      {
+        organizationId: failOrg,
+        name: "Still Here",
+        email: "reachable@example.test",
+        kind: "customer",
+      },
+    ])
+    .returning();
+  if (!gone || !fine) throw new Error("no contacts");
+
+  // No rules for this organization, so both fall to the built-in chase.
+  for (const [number, contact] of [
+    ["INV-BOUNCES", gone],
+    ["INV-REACHABLE", fine],
+  ] as const) {
+    await db.insert(schema.invoices).values({
+      organizationId: failOrg,
+      contactId: contact.id,
+      number,
+      status: "open",
+      currency: "USD",
+      issueDate: new Date(Date.now() - 60 * 86_400_000),
+      dueDate: new Date(Date.now() - 30 * 86_400_000),
+      subtotalCents: 50_000,
+      totalCents: 50_000,
+    });
+  }
+
+  const reached: string[] = [];
+  const halfBroken = {
+    async send(m: { to: string; subject: string; html: string }) {
+      if (m.to === "bounces@example.test") {
+        throw new Error("550 no such mailbox");
+      }
+      reached.push(m.to);
+    },
+  };
+
+  try {
+    const run = await runReminders(new Date(), { mailer: halfBroken });
+    expect(reached).toContain("reachable@example.test");
+    expect(run.sent).toBeGreaterThan(0);
+
+    // And the one that failed was not stamped as chased, so the next run
+    // tries it again rather than waiting a week on a send that never went.
+    const [bounced] = await db
+      .select({ lastReminderAt: schema.invoices.lastReminderAt })
+      .from(schema.invoices)
+      .where(eq(schema.invoices.number, "INV-BOUNCES"));
+    expect(bounced?.lastReminderAt).toBeNull();
+  } finally {
+    await db
+      .delete(schema.invoices)
+      .where(eq(schema.invoices.organizationId, failOrg));
+    await db
+      .delete(schema.contacts)
+      .where(eq(schema.contacts.organizationId, failOrg));
+  }
+});
