@@ -91,9 +91,9 @@ running and your data keeps being readable.
 - **Give everyone their own account,** with the permissions their job needs,
   because it costs nothing to do so. Audit trails only work when people sign in
   as themselves.
-- **Nothing about your customers reaches us.** A paid instance sends one daily
-  licence check — a key and an instance id. A Free instance need never contact
-  us at all.
+- **Nothing about your customers reaches us.** A paid instance sends one
+  licence check an hour — a key and an instance id. A Free instance need never
+  contact us at all.
 - **Start free and stay free if you like.** The free core is not a trial. It
   doesn't expire, doesn't nag, and doesn't need a licence key.
 - **Grow by module, not by seat.** Add a shop, a booking diary or a newsletter
