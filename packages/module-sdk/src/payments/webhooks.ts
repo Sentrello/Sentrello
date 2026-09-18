@@ -71,8 +71,26 @@ export interface RegisteredPaymentWebhook extends PaymentWebhookConsumer {
  */
 const registry: RegisteredPaymentWebhook[] = [];
 
+/**
+ * By module *and* by what it listens to.
+ *
+ * Replacing on the module id alone made a module with more than one ear
+ * impossible: a Stripe consumer followed by a PayPal one left only PayPal, in
+ * silence, which is this facility's own founding failure — an event arriving
+ * somewhere that does not recognise it, money moving and nothing recording
+ * it. The contract invites two, since `providers` belongs to the consumer
+ * rather than to the module.
+ *
+ * The same module and the same providers still replaces, because that is a
+ * second load of one module and a consumer offered the event twice would
+ * confirm a payment twice.
+ */
+const listensTo = (c: RegisteredPaymentWebhook) =>
+  `${c.moduleId} ${[...(c.providers ?? [])].sort().join(",")}`;
+
 export function addPaymentWebhook(consumer: RegisteredPaymentWebhook): void {
-  const at = registry.findIndex((w) => w.moduleId === consumer.moduleId);
+  const key = listensTo(consumer);
+  const at = registry.findIndex((w) => listensTo(w) === key);
   if (at >= 0) registry[at] = consumer;
   else registry.push(consumer);
 }

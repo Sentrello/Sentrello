@@ -15,6 +15,7 @@ import type {
 import {
   addPaymentWebhook,
   clearPaymentWebhooks,
+  paymentWebhookConsumers,
   secrets,
 } from "@sentrello/module-sdk";
 import { eq, inArray } from "drizzle-orm";
@@ -402,4 +403,40 @@ test("a consumer that throws leaves nothing behind for the retry to trip on", as
     .from(schema.paymentWebhookEvents)
     .where(eq(schema.paymentWebhookEvents.eventId, eventId));
   expect(seen.length).toBe(0);
+});
+
+/**
+ * A module that listens to two processors keeps both ears.
+ *
+ * The registry deduplicated by module id alone, so a module registering a
+ * Stripe consumer and a PayPal consumer — the shape the contract invites,
+ * since `providers` is per consumer — silently lost the first. That is the
+ * exact failure this whole facility was built to end: an event arriving
+ * somewhere that does not recognise it, money moving and nothing recording it.
+ *
+ * Registering the same thing twice must still replace, because the host loads
+ * its modules more than once in one process and a consumer offered the event
+ * twice would confirm a payment twice.
+ */
+test("a module listening to two processors keeps both consumers", () => {
+  clearPaymentWebhooks();
+  const heard: string[] = [];
+  const consumer = (provider: string) => ({
+    moduleId: "shop",
+    providers: [provider],
+    handle: () => {
+      heard.push(provider);
+      return true;
+    },
+  });
+
+  addPaymentWebhook(consumer("stripe"));
+  addPaymentWebhook(consumer("paypal"));
+  // And the same one again, as a second load of the same module would.
+  addPaymentWebhook(consumer("stripe"));
+
+  expect(paymentWebhookConsumers("stripe").length).toBe(1);
+  expect(paymentWebhookConsumers("paypal").length).toBe(1);
+  expect(paymentWebhookConsumers().length).toBe(2);
+  clearPaymentWebhooks();
 });
