@@ -4,7 +4,18 @@ import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, schema } from "@sentrello/db";
 import { isEnabled } from "@sentrello/db/modules";
 import { eq, like, sql } from "@sentrello/db/orm";
-import { type SentrelloEnv, defineModule } from "@sentrello/module-sdk";
+import {
+  type SentrelloEnv,
+  type SentrelloModule,
+  addCrawlable,
+  addPersonalData,
+  addSearchProvider,
+  allCrawlable,
+  defineModule,
+  personalDataSources,
+  registerForTest,
+  searchProviders,
+} from "@sentrello/module-sdk";
 import { Hono } from "hono";
 import { resolveLicense } from "./license";
 import { loadModules } from "./loader";
@@ -1367,4 +1378,189 @@ test("no failures means an empty list in the shell's meta", async () => {
   } finally {
     await cleanUp();
   }
+});
+
+// --- a module that misbehaves ----------------------------------------------
+
+/**
+ * A module that throws on the way up must not take the instance with it.
+ *
+ * `register` runs at boot, in module scope, before the server listens. An
+ * exception there is not one module missing — it is no application at all: no
+ * sign-in, no invoicing, nothing, on a box nobody can shell into. The same
+ * file already decided this for migrations ("a module whose schema failed must
+ * not take the whole instance down"); registration is the same argument one
+ * step earlier, and a bundle from another repository is exactly where a
+ * surprise arrives.
+ */
+test("a module that throws while registering does not stop the others", () => {
+  const app = new Hono<SentrelloEnv>();
+  const angry = defineModule({
+    id: "angry",
+    tier: "free",
+    register() {
+      throw new Error("it broke, in a test");
+    },
+  });
+
+  const { loaded, unmet } = loadModules(app, freeGate, [
+    angry,
+    mod("crm", "free"),
+  ]);
+
+  expect(loaded).toEqual(["crm"]);
+  // And reported, because a module that is installed, entitled and absent is
+  // the failure /healthz exists for.
+  expect(unmet.map((f) => f.name)).toContain("angry");
+});
+
+/**
+ * And it is tried once, not once per pass.
+ *
+ * The loop goes round again whenever anything else made progress, and a module
+ * that is neither loaded nor remembered as broken is offered its `register`
+ * every time — so a module that throws half way through would register its
+ * first few routes once per pass.
+ */
+test("a module that throws is not asked again on the next pass", () => {
+  let attempts = 0;
+  const angry = defineModule({
+    id: "angry",
+    tier: "free",
+    register() {
+      attempts += 1;
+      throw new Error("it broke, in a test");
+    },
+  });
+
+  // `late` cannot load until `early` has, so the loop is guaranteed a second
+  // pass after `angry` has already failed in the first.
+  loadModules(new Hono<SentrelloEnv>(), freeGate, [
+    angry,
+    mod("late", "free", ["early"]),
+    mod("early", "free"),
+  ]);
+
+  expect(attempts).toBe(1);
+});
+
+/**
+ * And it leaves no door behind it.
+ *
+ * A module that registered its nav entry and then threw would put a sidebar
+ * item on every screen pointing at a module that is not there — the "door onto
+ * nothing" this repository has shipped twice by other means.
+ */
+test("a module that throws leaves no nav, permission or job behind", () => {
+  const halfway = defineModule({
+    id: "halfway",
+    tier: "free",
+    register(ctx) {
+      ctx.registerNav({ id: "halfway", label: "Halfway" });
+      ctx.registerPermission("halfway:read");
+      ctx.registerJob({ name: "sweep", handler: async () => {} });
+      throw new Error("it broke, in a test");
+    },
+  });
+
+  const { nav, permissions, jobs } = loadModules(
+    new Hono<SentrelloEnv>(),
+    freeGate,
+    [halfway, mod("crm", "free")],
+  );
+
+  expect(nav.map((n) => n.id)).toEqual(["crm"]);
+  expect(permissions).toEqual(["crm:read"]);
+  expect(jobs).toEqual([]);
+});
+
+/**
+ * Two modules claiming one id: the second is refused, and said so.
+ *
+ * It was refused already — the first one wins and the loop skips the rest —
+ * but in silence, which is the half that matters. A renamed bundle left behind
+ * by an installer, or a module that copied another's id, would take a paid
+ * feature dark with nothing anywhere naming it.
+ */
+test("a second module with the same id is refused and reported", () => {
+  const { loaded, unmet } = loadModules(new Hono<SentrelloEnv>(), freeGate, [
+    mod("crm", "free"),
+    defineModule({
+      id: "crm",
+      tier: "free",
+      register: (ctx) => ctx.app.get("/api/imposter", (c) => c.json({})),
+    }),
+  ]);
+
+  expect(loaded).toEqual(["crm"]);
+  expect(unmet.map((f) => f.name)).toContain("crm");
+});
+
+/**
+ * Every registration point the host offers, and the SDK's own harness offers
+ * the same ones.
+ *
+ * Eight of them arrived in one day, each optional on `ModuleContext` so that
+ * test harnesses in four repositories keep compiling. That makes forgetting to
+ * wire one up in the loader invisible: the module calls
+ * `ctx.registerWhatever?.(…)`, nothing happens, and nothing says so. A typo in
+ * the *name* is caught by the compiler, since `ModuleContext` has no such
+ * property; a name that is right and a host that never provides it is not.
+ *
+ * So the two contexts are compared against each other. A ninth registration
+ * point wired into one and not the other fails here.
+ */
+test("the loader and the SDK's harness offer the same registration points", () => {
+  const keysFrom = (register: (m: SentrelloModule) => void): string[] => {
+    let seen: string[] = [];
+    register(
+      defineModule({
+        id: "keys",
+        tier: "free",
+        register(ctx) {
+          seen = Object.keys(ctx).sort();
+        },
+      }),
+    );
+    return seen;
+  };
+
+  const fromHost = keysFrom((m) =>
+    loadModules(new Hono<SentrelloEnv>(), () => true, [m]),
+  );
+  const fromHarness = keysFrom((m) => {
+    registerForTest(m);
+  });
+
+  expect(fromHost).toEqual(fromHarness);
+  // And a rename that emptied both would pass the comparison above.
+  expect(fromHost).toContain("registerRetention");
+  expect(fromHost.length).toBeGreaterThan(12);
+});
+
+/**
+ * The loader starts every registry empty, not most of them.
+ *
+ * It clears eight and left three — search, crawlable surfaces and personal
+ * data — to whichever test file remembered. Each of those outlives a load, so
+ * a module dropped by a licence that lapsed goes on answering the search box,
+ * goes on answering a subject access request, and goes on keeping its prefix
+ * out of the `noindex` header this instance puts on everything unpublished.
+ */
+test("loading modules starts every registry from empty", () => {
+  addSearchProvider({ moduleId: "gone", find: async () => [] });
+  addCrawlable({ moduleId: "gone", prefix: "/gone" });
+  addPersonalData({
+    moduleId: "gone",
+    id: "gone",
+    label: "Gone",
+    retention: "never",
+    export: async () => [],
+  });
+
+  loadModules(new Hono<SentrelloEnv>(), freeGate, [mod("crm", "free")]);
+
+  expect(searchProviders()).toEqual([]);
+  expect(allCrawlable()).toEqual([]);
+  expect(personalDataSources()).toEqual([]);
 });
