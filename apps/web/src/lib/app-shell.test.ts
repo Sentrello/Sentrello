@@ -6,6 +6,7 @@ import {
   childrenOf,
   panelWorthShowing,
   railModules,
+  sectionsOf,
 } from "./app-shell";
 
 /**
@@ -205,4 +206,98 @@ test("no group draws the same icon as another group", () => {
     else seen.set(icon, group);
   }
   expect(clashes, clashes.join("; ")).toEqual([]);
+});
+
+/**
+ * Headings inside a module's panel.
+ *
+ * Money is one module with sixteen screens — invoicing and the books are one
+ * subject to a business and were one undifferentiated list on screen. These
+ * break that list up without adding a third level of navigation, which is the
+ * thing that once made eleven screens unreachable.
+ */
+test("a module that asks for no sections renders exactly as before", () => {
+  const pages: NavEntry[] = [
+    { id: "a", label: "A", parent: "m" },
+    { id: "b", label: "B", parent: "m" },
+  ];
+  const parts = sectionsOf(pages);
+  expect(parts).toHaveLength(1);
+  expect(parts[0]?.heading).toBeUndefined();
+  expect(parts[0]?.items.map((i) => i.id)).toEqual(["a", "b"]);
+});
+
+test("pages with no section lead, under no heading", () => {
+  const parts = sectionsOf([
+    { id: "paid", label: "Invoices", parent: "money", section: "Getting paid" },
+    { id: "home", label: "Dashboard", parent: "money" },
+  ]);
+  expect(parts[0]?.heading).toBeUndefined();
+  expect(parts[0]?.items.map((i) => i.id)).toEqual(["home"]);
+  expect(parts[1]?.heading).toBe("Getting paid");
+});
+
+test("sections keep the order they are first met, and pages theirs", () => {
+  const parts = sectionsOf([
+    { id: "1", label: "1", parent: "m", section: "Second" },
+    { id: "2", label: "2", parent: "m", section: "First" },
+    { id: "3", label: "3", parent: "m", section: "Second" },
+  ]);
+  expect(parts.map((p) => p.heading)).toEqual(["Second", "First"]);
+  expect(parts[0]?.items.map((i) => i.id)).toEqual(["1", "3"]);
+});
+
+test("a heading with nothing under it is never produced", () => {
+  // The Free instance case: a section whose pages are all Pro disappears with
+  // them, rather than leaving a label over empty space.
+  const parts = sectionsOf([{ id: "a", label: "A", parent: "m" }]);
+  expect(parts.every((p) => p.items.length > 0)).toBe(true);
+  expect(parts.map((p) => p.heading)).toEqual([undefined]);
+});
+
+test("nothing is lost: every page comes out exactly once", () => {
+  const pages: NavEntry[] = [
+    { id: "a", label: "A", parent: "m", section: "One" },
+    { id: "b", label: "B", parent: "m" },
+    { id: "c", label: "C", parent: "m", section: "Two" },
+    { id: "d", label: "D", parent: "m", section: "One" },
+  ];
+  const out = sectionsOf(pages).flatMap((p) => p.items.map((i) => i.id));
+  expect(out.sort()).toEqual(["a", "b", "c", "d"]);
+});
+
+/**
+ * The panel does not re-sort what it is given.
+ *
+ * `loader.ts` sorts the whole nav by `order` before serving it, so the pages
+ * arrive in the order each module asked for. This once sorted again, which
+ * looked like belt-and-braces and was the opposite: the loader treats a missing
+ * order as 0 and puts those first, and the second sort put them last. Two
+ * places holding one idea and disagreeing about it.
+ */
+test("panel pages keep the order they arrive in", () => {
+  const nav: NavEntry[] = [
+    { id: "home", label: "Dashboard", parent: "money", order: 18.9 },
+    { id: "quotes", label: "Quotes", parent: "money", order: 19 },
+    { id: "invoices", label: "Invoices", parent: "money", order: 20 },
+  ];
+  expect(childrenOf(nav, "money").map((p) => p.id)).toEqual([
+    "home",
+    "quotes",
+    "invoices",
+  ]);
+});
+
+test("and does not hoist or sink a page that named no order", () => {
+  // The loader's rule, which this must not contradict: no order sorts first.
+  const nav: NavEntry[] = [
+    { id: "unplaced", label: "Unplaced", parent: "m" },
+    { id: "first", label: "First", parent: "m", order: 1 },
+    { id: "second", label: "Second", parent: "m", order: 2 },
+  ];
+  expect(childrenOf(nav, "m").map((p) => p.id)).toEqual([
+    "unplaced",
+    "first",
+    "second",
+  ]);
 });

@@ -59,6 +59,20 @@ export interface ModuleContext {
      */
     group?: string;
     /**
+     * A heading to gather this page under, inside the panel.
+     *
+     * Not a third level of navigation — the sidebar draws two, and a third is
+     * how eleven screens once vanished from the menu. This is a label drawn
+     * above a run of pages, the way a long menu is broken up on paper. Pages
+     * that name none render first, which is what every module did before this
+     * existed and most still do.
+     *
+     * Only meaningful on a page — an entry with a `parent`. A module with a
+     * handful of screens does not need one; a module with sixteen does, and
+     * Money is the reason this is here.
+     */
+    section?: string;
+    /**
      * The entry this one sits under, by id.
      *
      * The sidebar has two levels: a rail of sections, and inside a section a

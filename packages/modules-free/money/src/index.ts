@@ -44,13 +44,93 @@ const HEAD = "money";
  * **Their ids are untouched.** A nav id is the address in the browser, so the
  * pages somebody has bookmarked are the pages they had.
  */
+/**
+ * Money's panel: which heading each page sits under, and in what order.
+ *
+ * Sixteen screens in one list said nothing about what belongs with what. A
+ * business does not look for "the eleventh item" — it looks for the bit where
+ * it chases an invoice, or the bit where it reconciles the bank. These are
+ * those bits, named the way the work is named rather than the way the modules
+ * were once split.
+ *
+ * **The order is stated here rather than inherited.** The numbers begin above
+ * the head's own 18.8 and the dashboard's 18.9, so the module still leads with
+ * itself; below them and Money sorted after its own pages.
+ *
+ * Original note: Each half numbered its
+ * own pages for a world where it had its own menu — invoicing around 20, the
+ * books around 30 — and read as one list that put the tax returns second,
+ * between the invoices and the bank. Two pages even shared 20.5, so their
+ * relative position was whatever the sort did that run. Money is the thing
+ * that arranges these two packages, so the arrangement belongs to Money.
+ *
+ * Keyed by nav id, and deliberately not exhaustive: a page nobody has placed
+ * keeps its own order and gets no heading, so it renders at the top with the
+ * dashboard — visible, and obviously unplaced. The alternative, a default
+ * section, would quietly file new screens somewhere nobody chose.
+ */
+const SECTIONS: Record<string, { section: string; order: number }> = {
+  // What the business is owed, and the paperwork that asks for it.
+  quotes: { section: "Getting paid", order: 19 },
+  invoicing: { section: "Getting paid", order: 19.1 },
+  recurring: { section: "Getting paid", order: 19.2 },
+  "invoicing-settings": { section: "Getting paid", order: 19.3 },
+
+  // What it owes, and what it has spent.
+  "accounting-bills": { section: "Spending", order: 20 },
+  "accounting-money": { section: "Spending", order: 20.1 },
+
+  // Where the money actually is.
+  "accounting-banking": { section: "Banking", order: 21 },
+  "accounting-accounts": { section: "Banking", order: 21.1 },
+
+  // The record underneath all of it.
+  accounting: { section: "The books", order: 22 },
+  "accounting-summary": { section: "The books", order: 22.1 },
+  "accounting-journal": { section: "The books", order: 22.2 },
+  "accounting-reports": { section: "The books", order: 22.3 },
+
+  // What is expected, and what is owned.
+  "accounting-budgets": { section: "Planning", order: 23 },
+  "accounting-assets": { section: "Planning", order: 23.1 },
+
+  /*
+   * What has to be declared, and to whom.
+   *
+   * Last, and its own heading. A return is a deliberate act with a legal
+   * declaration attached, and somebody looking for one on a quarter-end
+   * deadline should find a heading rather than read down a list of sixteen.
+   * They sat second before this, between the invoices and the bank, because
+   * one of them happened to be numbered 20.5.
+   */
+  "invoicing-us-tax": { section: "Tax", order: 24 },
+  "invoicing-oss": { section: "Tax", order: 24.1 },
+  "accounting-vat": { section: "Tax", order: 24.2 },
+  "accounting-ca-tax": { section: "Tax", order: 24.3 },
+  "accounting-tax": { section: "Tax", order: 24.4 },
+};
+
+/**
+ * Where a page sits, or nothing at all if nobody has placed it.
+ *
+ * An entry that named its own section wins: this table arranges two packages it
+ * does not own, and a package that grows a view about its own menu should keep
+ * it rather than be silently overruled from here.
+ */
+function headingFor(entry: NavEntry): { section?: string; order?: number } {
+  if (entry.section) return {};
+  return SECTIONS[entry.id] ?? {};
+}
+
 function asPagesOfMoney(ctx: ModuleContext): ModuleContext {
   return {
     ...ctx,
     registerNav: (entry: NavEntry) => {
       // The head itself, and anything already declared a page of it.
       if (entry.id === HEAD || entry.parent === HEAD) {
-        ctx.registerNav(entry);
+        ctx.registerNav(
+          entry.id === HEAD ? entry : { ...entry, ...headingFor(entry) },
+        );
         return;
       }
 
@@ -71,11 +151,11 @@ function asPagesOfMoney(ctx: ModuleContext): ModuleContext {
        * looks like it does something and does not.
        */
       if (entry.parent && entry.parent !== HEAD) {
-        ctx.registerNav({ ...entry, parent: HEAD });
+        ctx.registerNav({ ...entry, parent: HEAD, ...headingFor(entry) });
         return;
       }
 
-      ctx.registerNav({ ...entry, parent: HEAD });
+      ctx.registerNav({ ...entry, parent: HEAD, ...headingFor(entry) });
     },
   };
 }

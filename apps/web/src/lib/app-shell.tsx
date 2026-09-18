@@ -20,8 +20,23 @@ export interface NavEntry {
   label: string;
   moduleId?: string;
   group?: string;
+  /** Where the module asked for this to sit among its siblings. */
+  order?: number;
   /** Set on a module's own pages: the id of the entry they sit under. */
   parent?: string;
+  /**
+   * A heading to gather this page under, inside the panel.
+   *
+   * Not a third level of navigation — the sidebar draws two, and a third is
+   * how eleven screens once vanished from the menu. This is a label drawn
+   * above a run of pages, the way a long menu is broken up on paper. Pages
+   * without one render first, which is what every module does today.
+   *
+   * It exists because Money is one module with sixteen pages: invoicing and
+   * the books are one subject to a business and one undifferentiated list on
+   * screen. Any module with enough pages can use it — the Shop has ten.
+   */
+  section?: string;
   icon?: string;
 }
 
@@ -137,7 +152,52 @@ export function railModules(nav: NavEntry[]): RailModule[] {
 
 /** A module's own pages, in the order it registered them. */
 export function childrenOf(nav: NavEntry[], parentId: string): NavEntry[] {
+  /*
+   * In the order they arrive, which is the order they asked for.
+   *
+   * `apps/server/src/loader.ts` sorts the whole nav by `order` before it is
+   * served, so filtering preserves it. Sorting again here looked like
+   * belt-and-braces and was the opposite: the loader treats a missing order as
+   * 0 and puts those first, and a second sort written from scratch put them
+   * last. One idea in two places, disagreeing — which is a worse failure than
+   * either rule, because the panel and the menu would answer differently about
+   * the same module.
+   */
   return nav.filter((n) => n.parent === parentId);
+}
+
+/**
+ * A module's pages, broken into the headings it asked for.
+ *
+ * Sections come out in the order they are first met, and pages keep the order
+ * they were registered in. Pages with no section come first, under no heading:
+ * a module that never asked for one renders exactly as it did before, which is
+ * what every module but Money does.
+ *
+ * A heading with nothing under it is not produced, so a section whose only
+ * pages are behind an entitlement disappears with them rather than leaving a
+ * label over empty space on a Free instance.
+ */
+export function sectionsOf(
+  pages: NavEntry[],
+): { heading?: string; items: NavEntry[] }[] {
+  const out: { heading?: string; items: NavEntry[] }[] = [];
+  const index = new Map<string, number>();
+  for (const page of pages) {
+    const key = page.section ?? "";
+    const at = index.get(key);
+    if (at === undefined) {
+      index.set(key, out.length);
+      out.push({
+        ...(page.section ? { heading: page.section } : {}),
+        items: [page],
+      });
+    } else {
+      out[at]?.items.push(page);
+    }
+  }
+  // Unsectioned pages lead, whatever order they were met in.
+  return out.sort((a, b) => Number(!!a.heading) - Number(!!b.heading));
 }
 
 /**
@@ -307,18 +367,33 @@ function Sidebar({ nav }: { nav: NavEntry[] }) {
 
                   {pages.length && open ? (
                     <div className="nav-children">
-                      {pages.map((page) => (
-                        <button
-                          key={page.id}
-                          type="button"
-                          className="nav-link nav-child"
-                          aria-current={
-                            current.moduleId === page.id ? "page" : undefined
-                          }
-                          onClick={() => go(page.id, page.label)}
-                        >
-                          {page.label}
-                        </button>
+                      {sectionsOf(pages).map((part) => (
+                        <div key={part.heading ?? "(none)"}>
+                          {part.heading ? (
+                            /*
+                             * A label, not a control. Nothing opens here and
+                             * nothing collapses: a heading that can be clicked
+                             * is a third level of navigation, and the sidebar
+                             * draws two.
+                             */
+                            <p className="nav-section">{part.heading}</p>
+                          ) : null}
+                          {part.items.map((page) => (
+                            <button
+                              key={page.id}
+                              type="button"
+                              className="nav-link nav-child"
+                              aria-current={
+                                current.moduleId === page.id
+                                  ? "page"
+                                  : undefined
+                              }
+                              onClick={() => go(page.id, page.label)}
+                            >
+                              {page.label}
+                            </button>
+                          ))}
+                        </div>
                       ))}
                     </div>
                   ) : null}
