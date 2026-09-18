@@ -1,3 +1,4 @@
+import { scopedId } from "./scoped";
 import type { SummaryFigure } from "./summaries";
 
 /**
@@ -22,7 +23,10 @@ import type { SummaryFigure } from "./summaries";
  *   panel exists is being told what the business is hiding from you.
  */
 export interface ModuleWidget {
-  /** Unique across modules; the module id is a good prefix. */
+  /**
+   * The module's own word for the panel. Unique within the module; it is
+   * scoped by the module id on registration, so two modules may both use it.
+   */
   id: string;
   /** What to call it when somebody is choosing between panels. */
   label: string;
@@ -51,6 +55,15 @@ export interface ModuleWidget {
 
 export interface RegisteredWidget extends ModuleWidget {
   moduleId: string;
+  /**
+   * How everything outside this file addresses the panel: `moduleId:id`.
+   *
+   * Filled in here rather than by the module, so a module still declares the
+   * word it thinks in and two modules that both think `money` each keep their
+   * panel. The dashboard stores an arrangement by this key, which is why it
+   * has to be something a second module cannot take.
+   */
+  key: string;
 }
 
 /**
@@ -63,10 +76,15 @@ export interface RegisteredWidget extends ModuleWidget {
  */
 const registry: RegisteredWidget[] = [];
 
-export function addWidget(widget: RegisteredWidget): void {
-  const at = registry.findIndex((w) => w.id === widget.id);
-  if (at >= 0) registry[at] = widget;
-  else registry.push(widget);
+export function addWidget(widget: Omit<RegisteredWidget, "key">): void {
+  const keyed = { ...widget, key: scopedId(widget.moduleId, widget.id) };
+  // By module and id together. Replacing on the bare id let the Shop's
+  // `money` panel take the dashboard's, in silence; the same module
+  // registering the same id twice still replaces, which is one author's
+  // intent and what a second load of one module does.
+  const at = registry.findIndex((w) => w.key === keyed.key);
+  if (at >= 0) registry[at] = keyed;
+  else registry.push(keyed);
 }
 
 export function allWidgets(): RegisteredWidget[] {

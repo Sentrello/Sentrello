@@ -57,7 +57,13 @@ export interface RegisteredSummary extends ModuleSummary {
 const registry: RegisteredSummary[] = [];
 
 export function addSummary(summary: RegisteredSummary): void {
-  const at = registry.findIndex((s) => s.id === summary.id);
+  // By module and id together, not by the bare id: two modules both calling
+  // their card `money` used to leave one of them, in silence. The same module
+  // registering twice still replaces — that is a second load of one module,
+  // and a card drawn twice would double every figure on it.
+  const at = registry.findIndex(
+    (s) => s.moduleId === summary.moduleId && s.id === summary.id,
+  );
   if (at >= 0) registry[at] = summary;
   else registry.push(summary);
 }

@@ -1,6 +1,6 @@
 import { db, schema } from "@sentrello/db";
 import type { ModuleWidget, RegisteredWidget } from "@sentrello/module-sdk";
-import { allSummaries, allWidgets } from "@sentrello/module-sdk";
+import { allSummaries, allWidgets, scopedId } from "@sentrello/module-sdk";
 import { and, eq } from "drizzle-orm";
 
 /**
@@ -127,10 +127,11 @@ export const CORE_WIDGETS: ModuleWidget[] = [
  */
 export function declaredWidgets(): RegisteredWidget[] {
   const declared = allWidgets();
-  const ids = new Set(declared.map((w) => w.id));
+  const keys = new Set(declared.map((w) => w.key));
   const bridged = allSummaries()
     .map((s) => ({
       id: `summary:${s.id}`,
+      key: scopedId(s.moduleId, `summary:${s.id}`),
       label: s.label,
       icon: s.icon,
       opens: s.opens,
@@ -138,7 +139,7 @@ export function declaredWidgets(): RegisteredWidget[] {
       load: s.load,
       moduleId: s.moduleId,
     }))
-    .filter((w) => !ids.has(w.id));
+    .filter((w) => !keys.has(w.key));
   return [...declared, ...bridged];
 }
 
@@ -159,7 +160,7 @@ const MAX_KNOWN = 200;
  * deep (`summary:shop`). A shape rather than a list, because ids are
  * module-chosen and the modules live in other repositories.
  */
-const WIDGET_ID = /^[a-z0-9][a-z0-9-]{0,63}(:[a-z0-9][a-z0-9-]{0,63})?$/;
+const WIDGET_ID = /^[a-z0-9][a-z0-9-]{0,63}(:[a-z0-9][a-z0-9-]{0,63}){0,2}$/;
 
 /**
  * What somebody sees before they have arranged anything — which must be good
@@ -173,37 +174,52 @@ const WIDGET_ID = /^[a-z0-9][a-z0-9-]{0,63}(:[a-z0-9][a-z0-9-]{0,63})?$/;
  * has no ledger charts on it and a bookkeeperless reader has no Reports tab
  * — a tab of panels that all refuse is worse than no tab.
  */
+const core = (id: string) => scopedId("dashboard", id);
 export const CORE_TABS: Tab[] = [
   {
     name: "Overview",
-    widgets: ["money", "attention", "pipeline", "invoice-aging"],
+    widgets: [
+      core("money"),
+      core("attention"),
+      core("pipeline"),
+      core("invoice-aging"),
+    ],
   },
   {
     name: "Performance",
-    widgets: ["revenue-trend", "cash-position", "top-customers"],
+    widgets: [
+      core("revenue-trend"),
+      core("cash-position"),
+      core("top-customers"),
+    ],
   },
-  { name: "Sales", widgets: ["deals-by-stage", "pipeline"] },
+  { name: "Sales", widgets: [core("deals-by-stage"), core("pipeline")] },
   {
     name: "Reports",
-    widgets: ["who-owes", "balance-sheet", "cash-flow", "trial-balance"],
+    widgets: [
+      core("who-owes"),
+      core("balance-sheet"),
+      core("cash-flow"),
+      core("trial-balance"),
+    ],
   },
 ];
 
 export function defaultLayout(visible: RegisteredWidget[]): Tab[] {
-  const ids = new Set(visible.map((w) => w.id));
-  const core = CORE_TABS.map((tab) => ({
+  const keys = new Set(visible.map((w) => w.key));
+  const coreTabs = CORE_TABS.map((tab) => ({
     name: tab.name,
-    widgets: tab.widgets.filter((w) => ids.has(w)),
+    widgets: tab.widgets.filter((w) => keys.has(w)),
   })).filter((tab) => tab.widgets.length > 0);
   const modules = moduleTabs(visible.filter((w) => w.moduleId !== "dashboard"));
-  const system = ids.has("health")
-    ? [{ name: "System", widgets: ["health"] }]
+  const system = keys.has(core("health"))
+    ? [{ name: "System", widgets: [core("health")] }]
     : [];
   return [
-    ...core,
+    ...coreTabs,
     // Trimmed here so it is a module that is dropped when there are too
     // many, never System.
-    ...modules.slice(0, MAX_TABS - core.length - system.length),
+    ...modules.slice(0, MAX_TABS - coreTabs.length - system.length),
     ...system,
   ];
 }
@@ -221,7 +237,7 @@ function moduleTabs(widgets: RegisteredWidget[]): Tab[] {
   }
   return [...groups.values()].map((group) => ({
     name: group[0]?.label ?? "Module",
-    widgets: group.map((w) => w.id),
+    widgets: group.map((w) => w.key),
   }));
 }
 
@@ -291,12 +307,47 @@ export function withArrivals(
 ): Tab[] {
   const placed = new Set(tabs.flatMap((t) => t.widgets));
   const seen = new Set(known);
-  const arrivals = visible.filter((w) => !placed.has(w.id) && !seen.has(w.id));
+  const arrivals = visible.filter(
+    (w) => !placed.has(w.key) && !seen.has(w.key),
+  );
   if (arrivals.length === 0) return tabs;
   // ponytail: a Pro licence arriving after a save lands all its dashboard
   // widgets in one appended tab named after the first; arranging fixes it in
   // one visit, and anything cleverer needs to know tabs it cannot see.
   return [...tabs, ...moduleTabs(arrivals)].slice(0, MAX_TABS);
+}
+
+/**
+ * An arrangement saved before widget keys were scoped by module.
+ *
+ * Widgets used to be addressed by the module's own bare word — `money`,
+ * `health`, `summary:shop` — which is exactly what two modules could both
+ * choose. They are addressed as `moduleId:id` now, and every dashboard
+ * arranged before today is stored in the old spelling: read literally, every
+ * tab would filter down to nothing and a business that spent an afternoon
+ * arranging its screen would find it blank.
+ *
+ * So a stored entry that is not a key is looked up as a bare id and rewritten
+ * to the key of the widget that answers to it. The first match wins, which is
+ * the honest reading of the old data: under the old registry a duplicate
+ * silently replaced, so a stored bare id only ever referred to one panel
+ * anyway. Anything that matches nothing is left exactly as it was — a module
+ * switched off or whose licence lapsed keeps its place, which is the rule the
+ * rest of this file already follows.
+ *
+ * Upgraded on read and written back in the new spelling by the next save, so
+ * there is no migration to run and no moment where a layout is half converted.
+ */
+export function upgradeWidgetIds(
+  entries: string[],
+  declared: RegisteredWidget[],
+): string[] {
+  const keys = new Set(declared.map((w) => w.key));
+  const byBareId = new Map<string, string>();
+  for (const w of declared) if (!byBareId.has(w.id)) byBareId.set(w.id, w.key);
+  return entries.map((entry) =>
+    keys.has(entry) ? entry : (byBareId.get(entry) ?? entry),
+  );
 }
 
 interface Stored {
@@ -325,7 +376,15 @@ export async function readStored(
   const known = Array.isArray(stored?.known)
     ? stored.known.filter((k): k is string => typeof k === "string")
     : [];
-  return { tabs, known };
+  // Anything saved before widgets were keyed by module, brought forward.
+  const declared = declaredWidgets();
+  return {
+    tabs: tabs.map((tab) => ({
+      name: tab.name,
+      widgets: upgradeWidgetIds(tab.widgets, declared),
+    })),
+    known: upgradeWidgetIds(known, declared),
+  };
 }
 
 export async function writeStored(

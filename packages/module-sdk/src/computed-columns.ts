@@ -87,9 +87,13 @@ export interface RegisteredComputedColumns extends ComputedColumns {
 const registry: RegisteredComputedColumns[] = [];
 
 export function addComputedColumns(provider: RegisteredComputedColumns): void {
-  const at = registry.findIndex((p) => p.id === provider.id);
-  // Replaced rather than appended, like every other registry here: a module
-  // registered twice — which the boot tests do — must not answer twice.
+  // By module and id together, like every other registry here: a module
+  // registered twice — which the boot tests do — must not answer twice, and a
+  // second module with the same word must not take the first one's columns off
+  // somebody else's list.
+  const at = registry.findIndex(
+    (p) => p.moduleId === provider.moduleId && p.id === provider.id,
+  );
   if (at >= 0) registry[at] = provider;
   else registry.push(provider);
 }

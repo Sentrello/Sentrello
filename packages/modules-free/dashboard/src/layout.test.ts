@@ -1,11 +1,13 @@
 import { expect, test } from "bun:test";
 import type { RegisteredWidget } from "@sentrello/module-sdk";
+import { scopedId } from "@sentrello/module-sdk";
 import {
   CORE_TABS,
   CORE_WIDGETS,
   defaultLayout,
   normalizeLayout,
   shownTabs,
+  upgradeWidgetIds,
   withArrivals,
   withTimeout,
 } from "./layout";
@@ -23,7 +25,16 @@ const widget = (
   id: string,
   moduleId = "dashboard",
   label = id,
-): RegisteredWidget => ({ id, label, moduleId });
+): RegisteredWidget => ({ id, label, moduleId, key: scopedId(moduleId, id) });
+
+/**
+ * A panel as everything outside the module addresses it: `moduleId:id`.
+ *
+ * A module declares the word it thinks in — `money` — and the platform scopes
+ * it, so a second module that also thinks `money` does not silently take the
+ * first one's place. Layouts are stored in this spelling.
+ */
+const k = (id: string, moduleId = "dashboard") => scopedId(moduleId, id);
 
 /** The dashboard's own Free four, as the loader would have declared them. */
 const FREE_CORE = [
@@ -54,7 +65,7 @@ test("the default layout gives each module's widgets a tab of their own", () => 
   // somebody looks when the instance itself is what is wrong.
   expect(names.at(-1)).toBe("System");
   expect(tabs.find((t) => t.name === "Shop")?.widgets).toEqual([
-    "summary:shop",
+    k("summary:shop", "shop"),
   ]);
 });
 
@@ -103,7 +114,7 @@ test("the default layout has no tab for widgets the reader cannot have", () => {
  * this is the half of the check that has to run without a database.
  */
 test("every widget the default layout places is a widget the module declared", () => {
-  const declaredIds = new Set(CORE_WIDGETS.map((w) => w.id));
+  const declaredIds = new Set(CORE_WIDGETS.map((w) => k(w.id)));
   const placedIds = new Set(CORE_TABS.flatMap((tab) => tab.widgets));
   const dangling = [...placedIds].filter((id) => !declaredIds.has(id));
   expect(dangling).toEqual([]);
@@ -119,9 +130,9 @@ test("every widget the default layout places is a widget the module declared", (
  */
 test("a stored id keeps its place while its module is away", () => {
   const tabs = normalizeLayout([
-    { name: "Anything", widgets: ["summary:not-installed-today"] },
+    { name: "Anything", widgets: [k("summary:not-installed-today", "shop")] },
   ]);
-  expect(tabs[0]?.widgets).toEqual(["summary:not-installed-today"]);
+  expect(tabs[0]?.widgets).toEqual([k("summary:not-installed-today", "shop")]);
 });
 
 /** An id is module-chosen, so its shape is checked rather than a list of them. */
@@ -129,10 +140,16 @@ test("a widget id that is not shaped like one is dropped", () => {
   const tabs = normalizeLayout([
     {
       name: "Mixed",
-      widgets: ["money", "summary:SHOUTING", "summary:", 7, "health"],
+      widgets: [
+        k("money"),
+        "shop:summary:SHOUTING",
+        "shop:summary:",
+        7,
+        k("health"),
+      ],
     },
   ]);
-  expect(tabs[0]?.widgets).toEqual(["money", "health"]);
+  expect(tabs[0]?.widgets).toEqual([k("money"), k("health")]);
 });
 
 /** An empty or unreadable save means reset, and the caller treats it so. */
@@ -149,13 +166,13 @@ test("an empty layout normalizes to nothing rather than to a blank screen", () =
 test("a response never names a widget the reader cannot have", () => {
   const cut = shownTabs(
     [
-      { name: "Mine", widgets: ["money", "revenue-trend"] },
-      { name: "Ledger", widgets: ["balance-sheet"] },
+      { name: "Mine", widgets: [k("money"), k("revenue-trend")] },
+      { name: "Ledger", widgets: [k("balance-sheet")] },
     ],
-    new Set(["money"]),
+    new Set([k("money")]),
   );
   expect(cut).toEqual([
-    { name: "Mine", widgets: ["money"] },
+    { name: "Mine", widgets: [k("money")] },
     { name: "Ledger", widgets: [] },
   ]);
 });
@@ -165,16 +182,16 @@ test("a response never names a widget the reader cannot have", () => {
  * removed on purpose — known, and on no tab — stays removed.
  */
 test("a new arrival gets a tab, a deliberate removal stays removed", () => {
-  const tabs = [{ name: "Ours", widgets: ["money"] }];
-  const known = ["money", "attention"];
+  const tabs = [{ name: "Ours", widgets: [k("money")] }];
+  const known = [k("money"), k("attention")];
 
   const grown = withArrivals(tabs, known, [
     ...[widget("money"), widget("attention")],
     widget("summary:shop", "shop", "Shop"),
   ]);
   expect(grown).toEqual([
-    { name: "Ours", widgets: ["money"] },
-    { name: "Shop", widgets: ["summary:shop"] },
+    { name: "Ours", widgets: [k("money")] },
+    { name: "Shop", widgets: [k("summary:shop", "shop")] },
   ]);
 
   // Nothing new: the arrangement is exactly what was stored.
@@ -207,4 +224,32 @@ test("a widget load that rejects on its own keeps its own reason", async () => {
   await expect(
     withTimeout(Promise.reject(new Error("boom")), 1000),
   ).rejects.toThrow("boom");
+});
+
+/**
+ * The same, without a database: a stored bare id is a key's worth of meaning
+ * that has to survive the scoping. Anything nothing answers to is left alone,
+ * which is the rule the rest of this file already keeps — a module switched
+ * off or whose licence lapsed finds its panel where it was left.
+ */
+test("a layout stored before panels were keyed by module comes forward", () => {
+  const declared = [
+    widget("money"),
+    widget("health"),
+    widget("summary:shop", "shop", "Shop"),
+  ];
+
+  expect(
+    upgradeWidgetIds(
+      ["money", "summary:shop", "away-today", k("health")],
+      declared,
+    ),
+  ).toEqual([
+    k("money"),
+    k("summary:shop", "shop"),
+    // Nothing declares it right now; kept exactly as stored.
+    "away-today",
+    // Already a key, and left alone rather than scoped twice.
+    k("health"),
+  ]);
 });

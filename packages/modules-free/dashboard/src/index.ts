@@ -479,7 +479,9 @@ export default defineModule({
             if (!widget.load) return null;
             try {
               return {
-                id: widget.id,
+                // Addressed by `moduleId:id`, which is what a layout stores
+                // and what the shell matches a card against.
+                id: widget.key,
                 moduleId: widget.moduleId,
                 label: widget.label,
                 icon: widget.icon ?? null,
@@ -573,6 +575,20 @@ export default defineModule({
       return new Set(rows.map((r) => r.guideId));
     };
 
+    /**
+     * Whether this guide was put away.
+     *
+     * A dismissal is stored against `moduleId:id` now — two modules that both
+     * call their checklist `setup` have to be hidden separately, or putting
+     * one away takes the other's first-run instructions with it. Rows written
+     * before that are the bare id, and are still honoured: a business that
+     * dismissed a checklist last week must not find it back on Monday.
+     */
+    const wasDismissed = (
+      dismissed: Set<string>,
+      guide: { id: string; key: string },
+    ) => dismissed.has(guide.key) || dismissed.has(guide.id);
+
     ctx.app.get(
       "/api/dashboard/onboarding",
       requireSession(),
@@ -592,13 +608,13 @@ export default defineModule({
         const unfinished = guides.filter((g) => g.remaining > 0);
 
         return c.json({
-          guides: unfinished.filter((g) => !dismissed.has(g.id)),
+          guides: unfinished.filter((g) => !wasDismissed(dismissed, g)),
           /**
            * How many unfinished guides are put away — what Settings offers
            * to bring back. A count rather than the guides themselves,
            * because the offer is "show these again", not a second checklist.
            */
-          hidden: unfinished.filter((g) => dismissed.has(g.id)).length,
+          hidden: unfinished.filter((g) => wasDismissed(dismissed, g)).length,
         });
       },
     );
@@ -630,7 +646,7 @@ export default defineModule({
           await db
             .insert(schema.onboardingDismissals)
             .values(
-              showing.map((g) => ({ organizationId: orgId, guideId: g.id })),
+              showing.map((g) => ({ organizationId: orgId, guideId: g.key })),
             )
             // Hiding what a colleague already hid is one decision, not an
             // error.
@@ -650,7 +666,13 @@ export default defineModule({
       requirePermission({ dashboard: ["read"] }),
       async (c) => {
         const orgId = activeOrganizationId(c.get("session"));
-        const mine = (await readableGuides(c.req.raw.headers)).map((g) => g.id);
+        // Both spellings: the key rows written since guides were scoped by
+        // module, and the bare-id rows written before. Restore that leaves
+        // half of them behind is a button that does not work.
+        const mine = (await readableGuides(c.req.raw.headers)).flatMap((g) => [
+          g.key,
+          g.id,
+        ]);
         if (mine.length > 0) {
           await db
             .delete(schema.onboardingDismissals)
@@ -698,7 +720,7 @@ export default defineModule({
       async (c) => {
         const orgId = activeOrganizationId(c.get("session"));
         const visible = await visibleWidgets(c.req.raw.headers);
-        const ids = new Set(visible.map((w) => w.id));
+        const ids = new Set(visible.map((w) => w.key));
         const stored = await readStored(orgId);
         return c.json({
           tabs: stored
@@ -707,7 +729,7 @@ export default defineModule({
           // Offered by name, so the arranging screen has words rather than
           // ids somebody has to decode.
           widgets: visible.map((w) => ({
-            id: w.id,
+            id: w.key,
             label: w.label,
             icon: w.icon ?? null,
           })),
@@ -745,7 +767,7 @@ export default defineModule({
           const known = [
             ...new Set([
               ...(stored?.known ?? []),
-              ...visible.map((w) => w.id),
+              ...visible.map((w) => w.key),
               ...tabs.flatMap((t) => t.widgets),
             ]),
           ];
@@ -754,7 +776,7 @@ export default defineModule({
 
         // Answer with what this reader now sees, which is also the rule that
         // a save naming a widget the writer cannot have never echoes it.
-        const ids = new Set(visible.map((w) => w.id));
+        const ids = new Set(visible.map((w) => w.key));
         const now = await readStored(orgId);
         return c.json({
           tabs: now

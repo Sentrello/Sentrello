@@ -190,6 +190,27 @@ export function loadModules(
           app,
           entitled,
           registerNav: ({ visibleTo, requires, ...i }) => {
+            /*
+             * The one id here that cannot be scoped by module: it is the URL
+             * a person bookmarks and the key the browser matches a screen
+             * against. So a second claimant is refused rather than quietly
+             * allowed to replace — and replace is what it did: `visibleTo`
+             * and `requires` are keyed by this id, so a module choosing a
+             * word another had taken did not merely add a second door, it
+             * took the first one's permission gate off and offered its screen
+             * to everybody.
+             *
+             * Said out loud, with both modules named, because a nav entry
+             * that is simply missing is the kind of failure nobody can trace
+             * back to a name two authors happened to agree on.
+             */
+            const taken = nav.find((entry) => entry.id === i.id);
+            if (taken) {
+              console.error(
+                `[modules] ${m.id} registered the nav entry "${i.id}", which ${taken.moduleId} already has. It is a URL, so it cannot be shared: one of the two modules has to rename its entry. ${m.id}'s is not being offered.`,
+              );
+              return;
+            }
             nav.push({ ...i, moduleId: m.id });
             if (visibleTo) navVisibility.set(i.id, visibleTo);
             if (requires) navPermissions.set(i.id, requires);

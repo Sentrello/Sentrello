@@ -84,7 +84,12 @@ export interface RegisteredAccountSection extends AccountSection {
 const registry: RegisteredAccountSection[] = [];
 
 export function addAccountSection(section: RegisteredAccountSection): void {
-  const at = registry.findIndex((s) => s.id === section.id);
+  // By module and id together, like every registry here. Replacing on the bare
+  // id meant a second module choosing the same word took the first one's
+  // section off the customer's page with nothing said anywhere.
+  const at = registry.findIndex(
+    (s) => s.moduleId === section.moduleId && s.id === section.id,
+  );
   if (at >= 0) registry[at] = section;
   else registry.push(section);
 }

@@ -395,6 +395,7 @@ export * from "./unregistered";
 export * as banking from "./banking";
 export * as secrets from "./secrets";
 export * from "./stripe-signature";
+export * from "./scoped";
 export * from "./summaries";
 export * from "./widgets";
 export * from "./personal-data";
