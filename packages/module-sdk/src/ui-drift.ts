@@ -332,3 +332,126 @@ export function findDroppedNotice(source: string): HandRolledFinding[] {
   }
   return findings.sort((a, b) => a.line - b.line);
 }
+
+/**
+ * What kind of source a scanner is about.
+ *
+ * Three populations, because three rulebooks. `react` is a component the host
+ * renders, where Core's stylesheet is on the page and every primitive is an
+ * import away. `page` is what a module writes for somebody else's browser — a
+ * published docs site, a storefront, a booking embed — server-side source
+ * emitting HTML and CSS as strings, which cannot import React and never will.
+ * `styles` is a stylesheet on disk.
+ *
+ * A `.tsx` file is `react`; a `.css` file is `styles`; server-side `.ts` that
+ * emits markup is `page`. A repository classifies its own files, which is the
+ * half it can actually answer.
+ */
+export type SourceKind = "react" | "page" | "styles";
+
+export const SOURCE_KINDS: readonly SourceKind[] = ["react", "page", "styles"];
+
+/**
+ * Declares what a scanner's advice is addressed to.
+ *
+ * The property goes on the exported function, not in a map beside it, because
+ * `Object.entries(uiDrift)` is already how three repositories discover these —
+ * the scope arrives by the same route the scanner does, and there is no second
+ * list to keep. A map would be the very thing this replaces: a hand-kept fact
+ * about a scanner, sitting somewhere other than the scanner.
+ *
+ * `declareScope(fn)` with no kinds means all of them, so the shortest thing an
+ * author can write is still the one that runs everywhere. Forgetting the call
+ * entirely does not quietly narrow anything either — `scopeOf` throws and
+ * names the scanner, in every repository that reads it. Loud, not skipped.
+ *
+ * The exception this replaces was real and correct: the modules repository
+ * ran every scanner over its server-rendered pages except `findHandRolledUi`,
+ * which was asking a string of HTML to import React. Twelve findings, all of
+ * them bare `<h2>` in documents that style `h2` themselves. Right answer,
+ * written down in the wrong repository — a fact about a scanner defined here,
+ * maintained there, going stale the first time this file changes.
+ */
+function declareScope(
+  scan: (source: string) => HandRolledFinding[],
+  ...kinds: SourceKind[]
+): void {
+  Object.defineProperty(scan, "scope", {
+    value: Object.freeze(kinds.length ? kinds : [...SOURCE_KINDS]),
+    enumerable: false,
+  });
+}
+
+/**
+ * The scopes, stated once.
+ *
+ * `findHandRolledUi` is the only one that genuinely needs React: every finding
+ * it makes ends in "use `SectionHeading`", "use `ui.Tabs`", "use
+ * `listUi.useListState`" — imports, which a server-rendered string has no way
+ * to take.
+ *
+ * `findFillAsText` and `findUnthemedElevation` are about markup and CSS
+ * wherever they are written, including inside a template literal, and both
+ * belong on stylesheets most of all — nine module stylesheets went unread
+ * because the walk took `.tsx` alone, and the bottom-sheet shadow the
+ * elevation rule exists for was in one of them. A standalone page having its
+ * own palette is a reason to define both themes locally, not to be exempt.
+ *
+ * `findUnpagedList` and `findDroppedNotice` are about a `fetch` of a capped
+ * route, so they read any TypeScript that makes one and have nothing to say
+ * to a stylesheet.
+ */
+declareScope(findHandRolledUi, "react");
+declareScope(findFillAsText);
+declareScope(findUnthemedElevation);
+declareScope(findUnpagedList, "react", "page");
+declareScope(findDroppedNotice, "react", "page");
+
+/** What a scanner reads: one file's source, findings out. */
+export type Scanner = (source: string) => HandRolledFinding[];
+
+/**
+ * A scanner's declared scope, or a failure naming it.
+ *
+ * Undeclared is an error rather than a default, because the alternative is the
+ * shape that keeps costing days: a guard that is fine and a scope that is
+ * wrong, with nothing saying so. A scanner that should run everywhere says so
+ * in one word.
+ */
+export function scopeOf(name: string, scan: unknown): readonly SourceKind[] {
+  if (typeof scan !== "function" || scan.length !== 1) {
+    throw new Error(
+      `${name} is exported from ui-drift but is not a scanner of one source — either give it that shape or rename it so it is not discovered as one`,
+    );
+  }
+  const scope = (scan as { scope?: unknown }).scope;
+  if (!Array.isArray(scope) || scope.length === 0) {
+    throw new Error(
+      `${name} does not declare what source it applies to — add declareScope(${name}, …) in ui-drift.ts, or declareScope(${name}) if it applies to all of ${SOURCE_KINDS.join(", ")}`,
+    );
+  }
+  return scope as readonly SourceKind[];
+}
+
+/**
+ * Every scanner in this module that applies to one kind of source.
+ *
+ * Discovery stays where it was — every export named `find…` — so a scanner
+ * added here still runs in every repository tomorrow without anyone editing a
+ * test. What changes is that a repository asks which of them its pages are
+ * under instead of keeping the answer itself.
+ *
+ *   for (const [name, scan] of scannersFor(uiDrift, "page")) …
+ */
+export function scannersFor(
+  module: Record<string, unknown>,
+  kind: SourceKind,
+): [string, Scanner][] {
+  const found: [string, Scanner][] = [];
+  for (const [name, value] of Object.entries(module)) {
+    if (!name.startsWith("find")) continue;
+    if (scopeOf(name, value).includes(kind))
+      found.push([name, value as Scanner]);
+  }
+  return found;
+}

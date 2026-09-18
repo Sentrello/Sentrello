@@ -6,6 +6,7 @@ import {
   findUnpagedList,
   findUnthemedElevation,
 } from "./ui-drift";
+import * as uiDrift from "./ui-drift";
 
 /**
  * What a screen must not build for itself once a primitive exists for it.
@@ -345,4 +346,65 @@ test("a page with its own palette says so on the line above, in either comment",
       "/* ui-drift-ignore: a standalone page, its own palette */\n  box-shadow: 0 8px 24px rgba(0,0,0,.14);",
     ),
   ).toEqual([]);
+});
+
+/**
+ * What each scanner is addressed to, asserted exactly.
+ *
+ * Written down here so that changing one is a visible edit in a diff rather
+ * than a quiet widening. The modules repository kept this fact itself — every
+ * scanner over its server-rendered pages except `findHandRolledUi` — which was
+ * the right answer maintained in the wrong repository, one that could not
+ * follow a change made here.
+ */
+test("every scanner says what kind of source it is for", () => {
+  const scopes = Object.fromEntries(
+    Object.entries(uiDrift)
+      .filter(([name]) => name.startsWith("find"))
+      .map(([name, scan]) => [name, [...uiDrift.scopeOf(name, scan)]]),
+  );
+  expect(scopes).toEqual({
+    // Advice a string of HTML cannot take: import SectionHeading, ui.Tabs,
+    // listUi.useListState.
+    findHandRolledUi: ["react"],
+    // Markup and CSS wherever they are written — a stylesheet most of all.
+    findFillAsText: ["react", "page", "styles"],
+    findUnthemedElevation: ["react", "page", "styles"],
+    // A fetch of a capped route: any TypeScript that makes one, no stylesheet.
+    findUnpagedList: ["react", "page"],
+    findDroppedNotice: ["react", "page"],
+  });
+});
+
+test("a repository asks which scanners its server-rendered pages are under", () => {
+  const forPages = uiDrift.scannersFor(uiDrift, "page").map(([name]) => name);
+  expect(forPages).not.toContain("findHandRolledUi");
+  expect(forPages).toContain("findUnthemedElevation");
+
+  const forStyles = uiDrift
+    .scannersFor(uiDrift, "styles")
+    .map(([name]) => name);
+  expect(forStyles).toEqual(["findFillAsText", "findUnthemedElevation"]);
+
+  // Nothing is narrowed by accident: React source is under all of them.
+  expect(uiDrift.scannersFor(uiDrift, "react")).toHaveLength(
+    Object.keys(uiDrift).filter((name) => name.startsWith("find")).length,
+  );
+});
+
+test("a scanner that never said what it is for is loud, not skipped", () => {
+  const findSomethingNew = (source: string) => (source ? [] : []);
+  expect(() => uiDrift.scopeOf("findSomethingNew", findSomethingNew)).toThrow(
+    /does not declare what source it applies to/,
+  );
+  expect(() =>
+    uiDrift.scannersFor({ ...uiDrift, findSomethingNew }, "page"),
+  ).toThrow(/findSomethingNew/);
+  // And one of the wrong shape names itself rather than returning nothing.
+  expect(() =>
+    uiDrift.scannersFor(
+      { ...uiDrift, findTwoThings: (_a: string, _b: string) => [] },
+      "react",
+    ),
+  ).toThrow(/not a scanner of one source/);
 });
