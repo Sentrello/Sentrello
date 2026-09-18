@@ -463,10 +463,19 @@ test("/api/_meta exposes only the nav the loaded modules registered", async () =
     "deals",
     "user-sessions",
     "forms",
-    "crm-settings",
     "user-auth",
     "user-providers",
     "user-events",
+    /*
+     * The CRM's settings moved from 5 to 9, which is why they sit here now
+     * rather than three lines up.
+     *
+     * At 5 they sat between the deals and the Pro half's notes, mailbox and
+     * automations — in the middle of the module, above things somebody uses
+     * every day. Settings are settings: they go at the bottom, under their own
+     * heading in the panel.
+     */
+    "crm-settings",
     "crm",
     /*
      * Money, and then its pages.
