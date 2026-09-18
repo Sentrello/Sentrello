@@ -242,37 +242,68 @@ export async function startJobs(
     ...moduleJobs,
   ];
 
+  /** Jobs that could not be set up at all, so nothing tries to tidy them. */
+  const unusable = new Set<string>();
   for (const job of all) {
-    // pg-boss 10 requires the queue to exist before work()/schedule() —
-    // omitting this makes both silently no-op.
-    await boss.createQueue(job.name);
-    await boss.work(job.name, async () => {
-      /**
-       * A failure says so, then fails.
-       *
-       * pg-boss catches whatever a handler throws, marks the job for retry,
-       * and after `retry_limit` attempts (two, by default) leaves it in the
-       * `failed` state — without emitting anything and without writing a
-       * line anywhere. So the licence refresh, the retention sweep and the
-       * overdue chase could all stop for good and the only evidence would be
-       * a row in a table nobody opens. Re-thrown after the log, because the
-       * retry is the useful half of that behaviour; the silence was not.
-       */
-      try {
-        await job.handler();
-      } catch (err) {
-        console.error(`[jobs] ${job.name} failed`, err);
-        throw err;
-      }
-    });
-    const cron = job.cron ?? SCHEDULES[job.name];
-    if (cron) await boss.schedule(job.name, cron);
-    if (job.runAtBoot) await boss.send(job.name, {});
+    /*
+     * One module's bad job costs only that job.
+     *
+     * A cron is free text a module hands over — `registerJob({ cron })` — and
+     * a module in another repository writing something cron-parser will not
+     * have threw straight out of this loop. `startJobs` is awaited at module
+     * scope in the server's boot and nothing catches it, so that was not one
+     * job missing: it was every job registered after it, the licence refresh
+     * and the retention sweep among them, and no instance at all.
+     *
+     * The same argument the loader settles for `register` and the migrations,
+     * one process further on: a module that cannot start must not stop the
+     * business invoicing today.
+     */
+    try {
+      await setUpJob(boss, job);
+    } catch (err) {
+      unusable.add(job.name);
+      console.error(
+        `[jobs] ${job.name} could not be set up and will not run: ${(err as Error).message}`,
+      );
+    }
   }
 
-  await forgetOrphanedSchedules(boss, new Set(all.map((job) => job.name)));
+  await forgetOrphanedSchedules(
+    boss,
+    new Set(all.filter((job) => !unusable.has(job.name)).map((j) => j.name)),
+  );
 
   return boss;
+}
+
+/** One job's queue, worker and schedule. Throws if pg-boss will not have it. */
+async function setUpJob(boss: PgBoss, job: ModuleJob): Promise<void> {
+  // pg-boss 10 requires the queue to exist before work()/schedule() —
+  // omitting this makes both silently no-op.
+  await boss.createQueue(job.name);
+  await boss.work(job.name, async () => {
+    /**
+     * A failure says so, then fails.
+     *
+     * pg-boss catches whatever a handler throws, marks the job for retry,
+     * and after `retry_limit` attempts (two, by default) leaves it in the
+     * `failed` state — without emitting anything and without writing a
+     * line anywhere. So the licence refresh, the retention sweep and the
+     * overdue chase could all stop for good and the only evidence would be
+     * a row in a table nobody opens. Re-thrown after the log, because the
+     * retry is the useful half of that behaviour; the silence was not.
+     */
+    try {
+      await job.handler();
+    } catch (err) {
+      console.error(`[jobs] ${job.name} failed`, err);
+      throw err;
+    }
+  });
+  const cron = job.cron ?? SCHEDULES[job.name];
+  if (cron) await boss.schedule(job.name, cron);
+  if (job.runAtBoot) await boss.send(job.name, {});
 }
 
 /**
