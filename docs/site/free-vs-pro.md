@@ -33,12 +33,13 @@ Pro is **per instance, not per person**. Hiring somebody costs nothing.
 | Bills, vendors and vendor credits — the purchase side of the books | — | ● |
 | Live bank feeds, CSV import and reconciliation | — | ● |
 | Budgets, fixed assets and depreciation | — | ● |
+| **Tax returns** — UK VAT in the Making Tax Digital boxes, Canadian GST/HST, US sales tax with state nexus thresholds, EU One Stop Shop | ● | ● |
+| **Structured e-invoices** — EN 16931, in the Peppol BIS and XRechnung profiles | ● | ● |
 | Tax summary, cash flow and multi-currency | — | ● |
 | **Accounts and access** — five policies, four groups, all editable; sessions, sign-in providers, two-factor, event log | ● | ● |
 | **Settings** — business details on every document, third-party connections, one-click update and rollback | ● | ● |
 | Your own credit on public pages — replace or remove "Powered by Sentrello" on the sign-in screen and thank-you pages | — | ● |
-| **Projects** — tasks, boards, milestones and time against work | — | ● |
-| **Optional modules** — Booking, Shop, POS, Subscriptions, Links, Newsletter, Documentation, Storage, SEO | — | available to subscribe |
+| **Optional modules** — Booking, Shop, Subscriptions, Projects, Links, Newsletter, Documentation, Storage, SEO | — | available to subscribe |
 | Self-hosted, your database, no per-seat pricing | ● | ● |
 
 ## What Pro does not change
@@ -54,9 +55,10 @@ Each is a whole application rather than a feature, sold separately on top of
 Pro. They are not available against the free core. See
 [Modules](/modules) for what each one does.
 
-One of them is a **plugin** rather than a module: the POS extends the Shop and
-does nothing without it, so it is half a module's price and needs the Shop
-alongside it.
+The **POS is not among them.** It is in development and is not for sale, on no
+date — see [POS](/modules/pos). When it returns it is a **plugin** rather than
+a module: it extends the Shop and does nothing without it, so it is half a
+module's price and needs the Shop alongside it.
 
 ## How money is handled
 

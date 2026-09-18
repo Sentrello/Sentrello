@@ -23,7 +23,7 @@
 </ul>
 </div>
 <p align="center">
-  Sentrello is a Unified Business Management Platform (UBM) for small businesses: CRM, Accounting, Booking, Shop, POS, Subscriptions, Links, Newsletter, Documentation, Storage, SEO and Project Management.<br>
+  Sentrello is a Unified Business Management Platform (UBM) for small businesses: CRM, Accounting, Booking, Shop, Subscriptions, Projects, Links, Newsletter, Documentation, Storage and SEO.<br>
   Start with the free core. If you need more upgrade to Pro, and add only the modules you need.<br>
 </p>
 <div align="center">
@@ -105,9 +105,10 @@ One command puts it on a $6 VPS. Go and take it for a walk.
 
 ## What it looks like
 
-Every screenshot in the documentation is a real instance running the free core,
-captured by an automated run against a live server. Nothing is a mock-up and
-nothing needs a licence key.
+Every screenshot in the documentation is a real instance, captured by an
+automated run against a live server. Nothing is a mock-up. The screens below
+are the free core and need no licence key; the ones in the module and Pro pages
+are the same run against an instance that has one.
 
 ![Money owed, overdue invoices, pipeline value and the server's own health](docs/images/dashboard.png)
 
@@ -126,6 +127,12 @@ the core — the same screens, opened up — and gives you access to buy the
 optional modules, which are not sold on their own. It is **per instance, not per
 person**: hiring somebody costs nothing.
 
+**The tax work is free, all of it.** The UK VAT return in the nine boxes
+Making Tax Digital expects, the Canadian GST/HST return, US sales tax with the
+state nexus thresholds, the EU One Stop Shop return, and a structured EN 16931
+e-invoice — every one of those is in this repository, computed from the ledger,
+and runs on an instance with no licence key at all.
+
 Dropping back to free leaves every record you created in place, still readable
 and still exportable. The Pro screens simply stop.
 
@@ -143,31 +150,37 @@ sold against the free core.
 |---|---|---|
 | **[Booking](https://docs.sentrello.com/docs/modules/booking)** | Diary, availability, resources, and a page customers book themselves on | Available |
 | **[Shop](https://docs.sentrello.com/docs/modules/shop)** | Products, stock by location, storefront, checkout and payments | Available |
-| **[POS](https://docs.sentrello.com/docs/modules/pos)** | Sell face to face: works offline, drives a receipt printer and a cash drawer. A plugin for Shop | Available |
 | **[Subscriptions](https://docs.sentrello.com/docs/modules/subscriptions)** | Plans, subscribers, trials, pauses, and a customer who can change or cancel their own | Available |
+| **Projects** | Projects, tasks, boards, milestones, and the hours that become invoice lines | Available |
 | **[Links](https://docs.sentrello.com/docs/modules/links)** | Short links on your own domain, and the click → signup → sale chain | Available |
 | **[Newsletter](https://docs.sentrello.com/docs/modules/newsletter)** | Lists, segments, templates, campaigns and delivery | Available |
 | **[Documentation](https://docs.sentrello.com/docs/modules/docs)** | Publishes your own documentation site | Available |
 | **[Storage](https://docs.sentrello.com/docs/modules/documents)** | Folders, versions, sharing and retention, with warnings before a certificate lapses | Available |
 | **[SEO](https://docs.sentrello.com/docs/modules/seo)** | Keyword research, rank tracking, audits, backlinks, competitors — see below | Available |
-| **Project Management** | Projects, tasks, boards, milestones and time against work | **Included with Pro from v1** |
-| **HR** | People records, leave, onboarding and reviews | **Q1 2027** |
-| **Helpdesk** | Tickets, queues, SLAs and a customer-facing portal | **Q1 2027** |
+| **POS** | Ring up a sale in person, take the money, and the books are written without anybody typing it again. Needs the Shop | **In development — not for sale** |
+| **HR** | Records for the people who work for you, and the time off they take | **Being built** |
+| **Helpdesk** | Customer questions arriving as tickets in a queue, rather than into one person's inbox | **Being built** |
 
-POS is a **plugin**: a module that plugs into another module. It needs Shop, it
-is bought separately at half a module's price, and it shares Shop's catalogue
-rather than keeping a menu of its own — one price to change, one stock figure,
-one line in the books whether something sold at a counter or on a website.
+**POS is not for sale, and has no date.** It was withdrawn from the catalogue
+on 15 September 2026 on its own review: a cash-handling product has to be able
+to void, refund, comp and discount a sale, count a drawer blind rather than
+open, print a receipt and keep the closure it printed. Those controls exist
+now; the rebuild for the screens it is actually used on, the card readers and
+the receipt printers do not. Nobody has lost anything — no licence is sold
+before 1 October 2026 — and nothing here says when it returns, because we do
+not know. When it does it is a **plugin**: it needs Shop, it is bought
+separately at half a module's price, and it shares Shop's catalogue rather than
+keeping a menu of its own.
 
-It arrives for **counter service** first: a queue, an order, cash or card. Table
-service, bars and retail follow, and they are deliberately not given dates here.
-They are each a substantial piece of work and a date we are not certain of is
-worth less to you than no date at all.
+**HR and Helpdesk are being built, and are not dated either.** Neither has
+code yet, so anything said about them here beyond what they are for would be a
+guess with a quarter attached. They are separate modules, split apart on
+purpose: a business that wants a ticket queue rarely wants a leave calendar in
+the same week.
 
-Project Management is not sold separately — it arrives **with the v1 release of
-Pro**, for everyone who has Pro. HR and Helpdesk are separate modules, split
-apart on purpose: a business that wants a ticket queue rarely wants a leave
-calendar in the same week.
+Projects is a module like the others, bought on its own. It shipped inside Pro
+until 15 September 2026, which meant every Pro subscriber got it whether they
+wanted it or not and nobody could buy it deliberately.
 
 ---
 
@@ -193,9 +206,9 @@ to its clients' keywords transiting somebody else's server.
 subscriptions bought during that window keep their price for as long as they
 stay active. Locked — not an introductory rate that steps up next year.
 
-Modules not finished by launch are sold in that window too, at the founder
-price, and released as they are completed — so buying early never means waiting
-at a worse rate than somebody who waited.
+Nothing is sold before it exists: a module that is not finished is not on the
+price list, at any price. One that is finished inside the window goes on sale
+at the founder price like everything else, so waiting for it costs you nothing.
 
 **Watch this repository** to be told the day it does, and **star it** if
 you want to see a business platform exist that nobody has to rent seats on.
@@ -287,12 +300,21 @@ Live bank feeds arrived in Pro: a business connects its bank through a data
 provider and transactions arrive on their own, alongside the CSV import that is
 still there for anyone who would rather not connect anything.
 
-Not yet available, and not promised on any date: QuickBooks or Xero sync, and
-mobile apps.
+E-invoices are **compliant, not connected**. The documents this produces pass
+the network's own validator against EN 16931, Peppol BIS 3.15 and XRechnung
+3.0.2 — but sending one over the Peppol network needs an access point, and that
+is not live here and will not be on 1 October. You get a valid document to hand
+over; we do not hand it over for you.
+
+Not yet available, and not promised on any date: QuickBooks or Xero sync,
+mobile apps, and the POS.
 
 **Markets:** the United States first, then Canada, the United Kingdom and the
 EU. That is a scoping decision, not a shipping restriction — it decides which
-tax regimes and statutory features exist at all.
+tax regimes and statutory features exist at all. **Italy and Poland are
+deliberately outside it**: both require every business to file through a
+national e-invoicing system, and half-supporting one of those would be worse
+than saying plainly that we do not.
 
 ---
 
