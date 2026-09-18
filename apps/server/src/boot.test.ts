@@ -1004,6 +1004,94 @@ test("a caller with settings:read alone is offered none of the Users console", a
 });
 
 /**
+ * The same caller, once they are in a group.
+ *
+ * `member.role` is comma separated the moment somebody is in one —
+ * `applyRoles` in the Users module writes it that way — so the role this
+ * person holds is `"read-only,sales"`, not `"read-only"`. Nothing about what
+ * they may do has changed: neither role grants `settings:update`, and every
+ * Users console route still answers 403.
+ *
+ * The nav used to stop agreeing at exactly that point. It read `member.role`
+ * as one role name, found neither a compiled role nor a stored row under the
+ * whole comma-separated string, and fell through to "nothing to check
+ * against, so the entry stays" — offering the entire sidebar to the people
+ * most likely to have a tailored role, which is the same failure the custom
+ * role lookup was added to fix.
+ */
+test("a caller in a group is still offered only what their roles allow", async () => {
+  process.env.SENTRELLO_LICENSE_TOKEN_PATH = "secrets/does-not-exist.jwt";
+  const server = (await import("./index")).default;
+
+  const owner = await signedIn();
+
+  for (const [role, permission] of [
+    ["read-only", { settings: ["read"] }],
+    ["sales", { crm: ["read", "create", "update"] }],
+  ] as const) {
+    await db.insert(schema.organizationRole).values({
+      id: crypto.randomUUID(),
+      organizationId: owner.organizationId,
+      role,
+      permission: JSON.stringify(permission),
+    });
+  }
+
+  const readerEmail = `boot-grouped-${crypto.randomUUID().slice(0, 8)}@x.test`;
+  const reader = await signUpAsOwner({
+    email: readerEmail,
+    password: "correct-horse-battery-staple",
+    name: "In A Group",
+  });
+  const readerCookie = reader.headers.get("set-cookie");
+  if (!readerCookie) throw new Error("sign-up returned no session cookie");
+  const readerHeaders = new Headers({ cookie: readerCookie });
+  await db.insert(schema.member).values({
+    id: crypto.randomUUID(),
+    organizationId: owner.organizationId,
+    userId: reader.response.user.id,
+    // What `applyRoles` writes: their own role, then the group's.
+    role: "read-only,sales",
+    baseRole: "read-only",
+    createdAt: new Date(),
+  });
+  await auth.api.setActiveOrganization({
+    body: { organizationId: owner.organizationId },
+    headers: readerHeaders,
+  });
+
+  const body = (await (
+    await server.fetch(
+      new Request("http://localhost/api/_meta", { headers: readerHeaders }),
+    )
+  ).json()) as { nav: { id: string; parent?: string }[] };
+
+  // The group's own role really did arrive: the CRM is offered, which
+  // `read-only` alone would not have been.
+  expect(body.nav.find((n) => n.id === "crm")).toBeDefined();
+  // And nothing either role withholds is.
+  expect(body.nav.find((n) => n.id === "users-console")).toBeUndefined();
+  expect(body.nav.filter((n) => n.parent === "users-console")).toEqual([]);
+
+  await db
+    .delete(schema.organizationRole)
+    .where(eq(schema.organizationRole.organizationId, owner.organizationId));
+  await db
+    .delete(schema.member)
+    .where(eq(schema.member.userId, reader.response.user.id));
+  await db
+    .delete(schema.session)
+    .where(eq(schema.session.userId, reader.response.user.id));
+  await db
+    .delete(schema.account)
+    .where(eq(schema.account.userId, reader.response.user.id));
+  await db
+    .delete(schema.user)
+    .where(eq(schema.user.id, reader.response.user.id));
+  await owner.cleanUp();
+});
+
+/**
  * A researcher can find where to report something.
  *
  * RFC 9116. A scanner checks this path, procurement questionnaires ask whether

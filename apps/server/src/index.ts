@@ -1,4 +1,3 @@
-import { roles } from "@sentrello/auth";
 import { registerBootstrapRoutes } from "@sentrello/auth/bootstrap";
 import {
   activeOrganizationId,
@@ -479,9 +478,10 @@ app.get("/api/_meta", requireSession(), async (c) => {
   const taxRegimes = orgId ? await taxRegimesFor(orgId) : [];
 
   /**
-   * The role this person holds here, for filtering the nav by what they may
-   * actually open. The routes are guarded either way; this only decides what
-   * somebody is offered.
+   * Whether this person is a member of the organization this session is
+   * pointed at. What they may *do* here is asked of `may` below, not worked
+   * out from this row — see that comment for why reading `member.role` as a
+   * single role name was wrong.
    */
   const [membership] = orgId
     ? await db
@@ -495,43 +495,52 @@ app.get("/api/_meta", requireSession(), async (c) => {
         )
         .limit(1)
     : [];
-  const compiled = (
-    roles as Record<
-      string,
-      { authorize: (r: unknown) => { success: boolean } } | undefined
-    >
-  )[membership?.role ?? ""];
-
   /**
-   * A role the business wrote for itself.
+   * Whether this person may open a given screen, asked of the platform's own
+   * permission check rather than worked out here.
    *
-   * Better Auth keeps these as JSON in a column rather than compiling them, so
-   * they are read and checked here. Without this, the people most likely to
-   * have a tailored role — the whole reason custom roles exist — were the ones
-   * offered every screen in the product, including the ones their role was
-   * written specifically to keep them out of.
+   * It used to be worked out here: `roles[member.role]` for a compiled role,
+   * and one `organization_role` row looked up by that same string for a
+   * business's own. Both read `member.role` as *one* role name, and it is not
+   * one — `applyRoles` (`packages/modules-free/users/src/roles.ts`) writes it
+   * comma separated the moment somebody is in a group, which on a seeded
+   * instance is most people. `"staff,sales"` matches no compiled role and no
+   * stored row, so both lookups came back empty and the filter fell through
+   * to its "nothing to check against, so the entry stays" branch — which
+   * offered the *whole* sidebar to exactly the people whose roles were
+   * written to keep them out of half of it.
+   *
+   * `hasPermission` splits on the comma and allows a permission any one of
+   * the roles grants (`better-auth/dist/plugins/organization/permission.mjs`),
+   * which is also what `requirePermission` enforces at the route — so the
+   * menu and the route now answer the same question the same way, instead of
+   * two implementations of it drifting apart.
+   *
+   * Asked once per distinct requirement rather than once per entry, the same
+   * memoisation `/api/search` above uses: the nav has a couple of dozen
+   * entries and a handful of distinct requirements between them.
    */
-  let custom: Record<string, string[]> | null = null;
-  if (!compiled && membership?.role && orgId) {
-    const [row] = await db
-      .select({ permission: schema.organizationRole.permission })
-      .from(schema.organizationRole)
-      .where(
-        and(
-          eq(schema.organizationRole.organizationId, orgId),
-          eq(schema.organizationRole.role, membership.role),
-        ),
-      )
-      .limit(1);
-    if (row) {
-      try {
-        custom = JSON.parse(row.permission) as Record<string, string[]>;
-      } catch {
-        // Unreadable permissions are treated as unknown rather than as none:
-        // the routes still decide, and blanking somebody's menu on a parse
-        // error would look exactly like their access had been revoked.
-        custom = null;
-      }
+  const answers = new Map<string, Promise<boolean>>();
+  const may = (needs: Record<string, string[]>): Promise<boolean> => {
+    const key = JSON.stringify(needs);
+    const already = answers.get(key);
+    if (already) return already;
+    const asked = mayAccess(c.req.raw.headers, needs);
+    answers.set(key, asked);
+    return asked;
+  };
+  /*
+   * With no active organization there is nothing to check a permission
+   * against — `hasPermission` answers false for every question, which would
+   * hand an empty application to the person who has just claimed the
+   * instance. Same rule as the fallback it replaces: hiding a screen from
+   * somebody entitled to it is the worse mistake of the two.
+   */
+  const navAllowed = new Map<string, boolean>();
+  for (const needs of navPermissions.values()) {
+    const key = JSON.stringify(needs);
+    if (!navAllowed.has(key)) {
+      navAllowed.set(key, orgId ? await may(needs) : true);
     }
   }
 
@@ -574,10 +583,7 @@ app.get("/api/_meta", requireSession(), async (c) => {
    * mistake of the two.
    */
   const seesFaults =
-    belongsHere &&
-    (compiled
-      ? compiled.authorize({ settings: ["read"] }).success
-      : !custom || (custom.settings?.includes("read") ?? false));
+    belongsHere && (!orgId || (await may({ settings: ["read"] })));
 
   const visible = (belongsHere ? nav : []).filter((item) => {
     const allowed = navVisibility.get(item.id);
@@ -604,16 +610,7 @@ app.get("/api/_meta", requireSession(), async (c) => {
     // job: once by the error, and once by the menu that suggested otherwise.
     const needs = navPermissions.get(item.id);
     if (!needs) return true;
-    if (compiled) return compiled.authorize(needs).success;
-    if (custom) {
-      return Object.entries(needs).every(([resource, actions]) =>
-        actions.every((action) => custom?.[resource]?.includes(action)),
-      );
-    }
-    // Neither: nothing to check it against, so the entry stays and the route
-    // decides. Hiding a screen from somebody entitled to it is the worse
-    // mistake of the two.
-    return true;
+    return navAllowed.get(JSON.stringify(needs)) === true;
   });
 
   return c.json({
