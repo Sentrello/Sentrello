@@ -19,12 +19,22 @@ import { join } from "node:path";
  * against `window.__sentrello` and cannot be imported into a test.
  */
 
-/** Files under `dir` with one of these extensions, tests excluded. */
+/**
+ * Files under `dir` with one of these extensions, tests excluded.
+ *
+ * `node_modules` and build output are not source and are skipped. Pointed at a
+ * package directory rather than a `ui/src`, the walk otherwise descends into
+ * the workspace's installed tree: 49,653 files where fifty were meant, which a
+ * caller reads as "nothing found" only after waiting for it.
+ */
+const NOT_SOURCE = new Set(["node_modules", "dist", ".git", "dist-types"]);
+
 export function sourceFiles(dir: string, extensions: string[]): string[] {
   const found: string[] = [];
   const walk = (at: string) => {
     for (const entry of readdirSync(at)) {
       const path = join(at, entry);
+      if (NOT_SOURCE.has(entry)) continue;
       if (statSync(path).isDirectory()) {
         walk(path);
         continue;

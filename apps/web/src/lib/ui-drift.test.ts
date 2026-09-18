@@ -1,10 +1,11 @@
 import { expect, test } from "bun:test";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { sourceFiles } from "@sentrello/module-sdk";
 import * as uiDrift from "@sentrello/module-sdk/ui-drift";
 
 /**
- * Every drift scanner the SDK exports, run over Core's own screens.
+ * Every drift scanner the SDK exports, run over everything Core draws.
  *
  * Read off the module rather than listed here, and that is the whole point.
  * The modules repository had nine hand-written copies of this idea and they
@@ -31,51 +32,104 @@ import * as uiDrift from "@sentrello/module-sdk/ui-drift";
  * first thousand rows and the invoice form failed to find a company and
  * charged no tax. `findDroppedNotice` catches the half that looks correct: a
  * screen that paged properly, was handed a finished sentence saying what had
- * been cut, and rendered the rows without it.
+ * been cut, and rendered the rows without it. `findUnthemedElevation` catches
+ * a surface that chose its own black shadow, which the dark theme cannot show.
  */
-const ROUTES = join(import.meta.dir, "..", "routes");
 const LIB = import.meta.dir;
+const WEB = join(LIB, "..");
+const ROOT = join(WEB, "..", "..", "..");
 
 /**
- * Scanners that cannot be pointed at `lib/`, because `lib/` is where the
- * primitive they recommend is *defined*. `findHandRolledUi` recognises a tab
- * strip; `ui.tsx` contains the only one that should exist.
+ * The three populations, and which scanners each is under.
+ *
+ * Which is which is the SDK's answer, not this file's: `scannersFor` reads the
+ * scope each scanner declares. A repository asking "which of your scanners
+ * apply to server-rendered output?" is the arrangement that survives; a
+ * repository keeping a list of exceptions to scanners defined elsewhere is
+ * the one that goes stale, and did.
+ *
+ * `react` is the SPA: screens the host renders, every primitive an import
+ * away. `styles` is Core's stylesheet, where the elevation and colour rules
+ * are stated — scanned because nine module stylesheets went unread for
+ * exactly as long as nobody pointed a walk at `.css`, and the defect the
+ * elevation rule exists for was in one of them. `page` is what Core's free
+ * modules write for somebody else's browser: the invoice portal, the shared
+ * quote, the form reply, the claim page — server-side source emitting HTML
+ * and CSS as strings, which no drift scan had ever read.
  */
-const ROUTES_ONLY = new Set(["findHandRolledUi"]);
+const POPULATIONS: [uiDrift.SourceKind, string[]][] = [
+  ["react", sourceFiles(join(WEB, "routes"), [".tsx"])],
+  ["styles", sourceFiles(WEB, [".css"])],
+  ["page", sourceFiles(join(ROOT, "packages", "modules-free"), [".ts"])],
+];
 
-function screens(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(dir, entry.name);
-    if (entry.isDirectory()) return screens(path);
-    return entry.name.endsWith(".tsx") && !entry.name.includes(".test.")
-      ? [path]
-      : [];
-  });
-}
+/**
+ * `lib/` is where the primitives `findHandRolledUi` recommends are *defined* —
+ * `ui.tsx` holds the only tab strip that should exist — so it is scanned by
+ * everything else and not by that one. A definition site, not a scope.
+ */
+const LIB_FILES = sourceFiles(LIB, [".tsx"]);
 
-const scanners = Object.entries(uiDrift).filter(([name]) =>
-  name.startsWith("find"),
-);
-
-test("no Core screen drifts from what the SDK asks of a module", () => {
+test("there are screens, stylesheets, pages and scanners to check", () => {
+  // Any of these matching nothing would pass every assertion below it.
+  for (const [kind, files] of POPULATIONS) {
+    expect([kind, files.length > 0]).toEqual([kind, true]);
+    expect([kind, uiDrift.scannersFor(uiDrift, kind).length > 0]).toEqual([
+      kind,
+      true,
+    ]);
+  }
+  expect(LIB_FILES.length).toBeGreaterThan(0);
   // A rename that left nothing matching would pass this file silently.
-  expect(scanners.length).toBeGreaterThan(3);
+  expect(
+    Object.keys(uiDrift).filter((name) => name.startsWith("find")).length,
+  ).toBeGreaterThan(3);
+});
 
+test("no Core screen, stylesheet or page drifts from what the SDK asks of a module", () => {
   const found: string[] = [];
-  for (const [name, scan] of scanners) {
-    if (typeof scan !== "function" || scan.length !== 1) {
-      throw new Error(
-        `${name} is exported from ui-drift but is not a scanner of one source — either give it that shape or rename it so it is not picked up here`,
-      );
-    }
-    const tree = ROUTES_ONLY.has(name)
-      ? screens(ROUTES)
-      : [...screens(ROUTES), ...screens(LIB)];
-    for (const path of tree) {
-      for (const { line, say } of scan(readFileSync(path, "utf8"))) {
-        found.push(`${name} — ${path.split("/apps/web/")[1]}:${line}: ${say}`);
+  for (const [kind, files] of POPULATIONS) {
+    for (const [name, scan] of uiDrift.scannersFor(uiDrift, kind)) {
+      const tree =
+        kind === "react" && name !== "findHandRolledUi"
+          ? [...files, ...LIB_FILES]
+          : files;
+      for (const path of tree) {
+        for (const { line, say } of scan(readFileSync(path, "utf8"))) {
+          found.push(
+            `${kind} ${name} — ${path.slice(ROOT.length + 1)}:${line}: ${say}`,
+          );
+        }
       }
     }
   }
   expect(found).toEqual([]);
+});
+
+/**
+ * The scope is load-bearing here, not decoration.
+ *
+ * Core's own server-rendered pages are the same shape the modules repository
+ * described: `account/src/index.ts` styles `h2` in its own stylesheet and
+ * writes `<h2>` bare, which is how a standalone document is written and is
+ * impossible in the app, where every element is reached by class. Run
+ * `findHandRolledUi` over that population and it says "use SectionHeading" —
+ * an import a string of HTML has no way to take.
+ *
+ * Asserted both ways round so that widening the scanner's scope fails here
+ * with the reason attached, rather than quietly adding non-defects to
+ * somebody's ledger until the ledger stops being read.
+ */
+test("a scanner that needs React is not run over server-rendered pages", () => {
+  const pages = POPULATIONS.find(([kind]) => kind === "page")?.[1] ?? [];
+  const wouldSay = pages.flatMap((path) =>
+    uiDrift.findHandRolledUi(readFileSync(path, "utf8")),
+  );
+  expect(wouldSay.length).toBeGreaterThan(0);
+  expect(uiDrift.scopeOf("findHandRolledUi", uiDrift.findHandRolledUi)).toEqual(
+    ["react"],
+  );
+  expect(
+    uiDrift.scannersFor(uiDrift, "page").map(([name]) => name),
+  ).not.toContain("findHandRolledUi");
 });
