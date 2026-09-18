@@ -364,3 +364,44 @@ test("sslmode is stripped so an explicit CA is not overridden by the URL", () =>
   );
   expect(withoutSslMode("not a url")).toBe("not a url");
 });
+
+/**
+ * One module's bad job costs only that job.
+ *
+ * `registerJob` takes a cron expression as free text from a module, and a
+ * module in another repository writing six fields where five belong — or a
+ * queue name pg-boss will not have — threw out of this loop. `startJobs` is
+ * awaited at module scope in the server's boot, uncaught, so that was not one
+ * job missing: it was every job registered after it, the licence refresh and
+ * the retention sweep among them, and no instance at all.
+ *
+ * The same argument the loader settled for `register` and the migrations, one
+ * process further on.
+ */
+test("a module's unusable job does not take the other jobs with it", async () => {
+  await boss?.stop({ graceful: false });
+
+  boss = await startJobs([
+    {
+      name: "broken:nightly",
+      // Not a cron expression at all, and it arrived as free text from
+      // a module nobody here can edit.
+      cron: "every other tuesday",
+      handler: async () => {},
+    },
+    { name: "good:nightly", cron: "0 4 * * *", handler: async () => {} },
+  ]);
+
+  const byName = new Map(
+    (await boss.getSchedules()).map((s) => [s.name, s.cron]),
+  );
+  // The module after the bad one is scheduled, and so is the platform's own.
+  expect(byName.get("good:nightly")).toBe("0 4 * * *");
+  expect(byName.get(QUEUES.licenseRefresh)).toBe(
+    SCHEDULES[QUEUES.licenseRefresh],
+  );
+  expect(byName.has("broken:nightly")).toBe(false);
+  // And the queue exists and is worked, which is what makes a job the loop
+  // never reached different from one it reached and could not schedule.
+  expect(await boss.getQueue("good:nightly")).not.toBeNull();
+});
