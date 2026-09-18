@@ -127,7 +127,18 @@ export function RecordPicker<T extends PickableRecord>({
     <div className="relative" ref={box}>
       <input
         type="search"
-        aria-controls={listId}
+        /*
+         * Only while there is something to control.
+         *
+         * `aria-controls` pointed at the results list whether or not the
+         * results list existed, and it exists only while the picker is open —
+         * so on a screen at rest this was a reference to an id that is in no
+         * document. Axe calls that `aria-valid-attr-value` and rates it
+         * critical, because a screen reader following the reference lands
+         * nowhere; it failed every screen carrying a picker, not just the one
+         * the report named.
+         */
+        aria-controls={open ? listId : undefined}
         value={open ? term : (value?.name ?? "")}
         placeholder={value ? value.name : placeholder}
         onFocus={() => setOpen(true)}

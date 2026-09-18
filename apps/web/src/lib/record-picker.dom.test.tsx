@@ -9,6 +9,7 @@ import { afterAll, afterEach, expect, test } from "bun:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
+import { danglingAriaRefs } from "./accessible-dom";
 import { RecordPicker, useRecordSearch } from "./record-picker";
 
 afterAll(() => GlobalRegistrator.unregister());
@@ -151,4 +152,42 @@ test("the picker offers what it found and says how much it did not", async () =>
     option.dispatchEvent(new MouseEvent("click", { bubbles: true }));
   });
   expect(picked).toEqual([first]);
+});
+
+/**
+ * The picker points at its results only while it has results.
+ *
+ * `aria-controls` named the results list whether or not the results list was
+ * in the document, and it is rendered only while the picker is open. Every
+ * screen carrying a picker therefore sat at rest with an ARIA reference to an
+ * id nothing had — `aria-valid-attr-value`, which axe rates critical, and
+ * which the browser suite caught on the one screen of several that it happened
+ * to open.
+ */
+test("the picker's aria-controls points at something that exists", async () => {
+  const host = mount(
+    <RecordPicker
+      path="/api/contacts"
+      resource="contacts"
+      value={null}
+      onChange={() => {}}
+      noun="customer"
+    />,
+  );
+
+  const input = host.querySelector("input");
+  if (!input) throw new Error("the picker drew no input");
+
+  // Closed: no list, and so nothing claiming to control one.
+  expect(danglingAriaRefs(host)).toEqual([]);
+  expect(input.hasAttribute("aria-controls")).toBe(false);
+
+  act(() => {
+    input.dispatchEvent(new Event("focusin", { bubbles: true }));
+  });
+  await settle();
+
+  // Open: the reference is back, and it resolves.
+  expect(input.getAttribute("aria-controls")).toBeTruthy();
+  expect(danglingAriaRefs(host)).toEqual([]);
 });
