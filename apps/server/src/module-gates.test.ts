@@ -2,12 +2,16 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, eq, inArray, schema } from "@sentrello/db";
+import account from "@sentrello/module-account";
 import accounting from "@sentrello/module-accounting";
+import archive from "@sentrello/module-archive";
 import crm from "@sentrello/module-crm";
 import dashboard from "@sentrello/module-dashboard";
 import invoicing from "@sentrello/module-invoicing";
+import profile from "@sentrello/module-profile";
 import { registerForTest } from "@sentrello/module-sdk";
 import settings from "@sentrello/module-settings";
+import users from "@sentrello/module-users";
 
 /**
  * No route in any Free module answers somebody who may not use it.
@@ -39,6 +43,10 @@ const MODULES = {
   accounting,
   settings,
   dashboard,
+  users,
+  archive,
+  profile,
+  account,
 };
 
 /**
@@ -87,6 +95,48 @@ const PUBLIC_BY_DESIGN = new Set([
   // body, checked against this business's own stored secret, is the whole
   // credential. Nothing is written or dispatched until it verifies.
   "POST /api/payments/webhook/:provider",
+]);
+
+/**
+ * Routes that answer any signed-in person, because what they answer about is
+ * that person.
+ *
+ * A permission is a statement about what somebody may do with the *business's*
+ * records. None of these touches one: they are somebody's own devices, their
+ * own password, their own email address, the invitation they were sent. There
+ * is no role a business could grant or withhold that should decide whether an
+ * employee may end a session on their own lost phone — needing an
+ * administrator for that is how a business ends up with a stolen phone signed
+ * in for a year.
+ *
+ * Each was read before it was written down here, and each is scoped to the
+ * asker by the query rather than by the path: every one of them names
+ * `session.user.id` in its `where`, so a fictional id in the URL deletes
+ * nothing and reads nothing. The two that answer before there is a session at
+ * all say one word — whether an address belongs to a domain that uses single
+ * sign-on, and whether an invitation token exists — and neither names a
+ * business or a provider.
+ */
+const YOURS_BY_DESIGN = new Set([
+  // Somebody's own devices, and ending a session on one of them.
+  "GET /api/users/me/sessions",
+  "DELETE /api/users/me/sessions/:id",
+  "GET /api/users/me/security",
+  "GET /api/profile",
+  "PATCH /api/profile",
+  "DELETE /api/profile/sessions/:id",
+  "POST /api/profile/password",
+  "POST /api/profile/email",
+  // Asked by the sign-in page before anybody has signed in. Answers yes or no
+  // and never which provider or which business.
+  "POST /api/users/sso/check",
+  // An invitation somebody was emailed. The token is the whole credential —
+  // the person accepting it is by definition not yet a member of anything.
+  "GET /api/invitations/:token",
+  "POST /api/invitations/:token/accept",
+  // The unified customer account page. A customer of the business, with no
+  // platform account at all; the token is the credential. See `account.ts`.
+  "GET /account/:token",
 ]);
 
 const suffix = crypto.randomUUID().slice(0, 8);
@@ -186,6 +236,7 @@ test("no Free module answers a member who holds no permissions", async () => {
       if (route.method === "ALL") continue;
       const key = `${route.method} ${route.path}`;
       if (seen.has(key) || PUBLIC_BY_DESIGN.has(key)) continue;
+      if (YOURS_BY_DESIGN.has(key)) continue;
       seen.add(key);
       checked += 1;
 
@@ -207,7 +258,7 @@ test("no Free module answers a member who holds no permissions", async () => {
 
   // The count is asserted so an enumeration that quietly returns nothing
   // cannot pass as "every route refused".
-  expect(checked).toBeGreaterThan(100);
+  expect(checked).toBeGreaterThan(240);
   // Named rather than counted, so a regression says which door opened.
   expect(answered).toEqual([]);
 }, 120_000);
@@ -271,6 +322,6 @@ test("no Free module refuses the owner of the business", async () => {
     }
   }
 
-  expect(checked).toBeGreaterThan(50);
+  expect(checked).toBeGreaterThan(90);
   expect(refused).toEqual([]);
 }, 120_000);
