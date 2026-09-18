@@ -103,11 +103,29 @@ export function registerAuthentication(ctx: ModuleContext) {
           ? body.requireEmailVerified
           : current.requireEmailVerified;
 
-      const requireTwoFactorFor = Array.isArray(body.requireTwoFactorFor)
-        ? [...new Set(body.requireTwoFactorFor.map(String))].filter((r) =>
-            allowed.includes(r),
-          )
-        : current.requireTwoFactorFor;
+      /*
+       * A role nobody defined is refused, not dropped.
+       *
+       * This filtered, and answered 200 with the setting saved as something
+       * narrower than what was asked for: a business demanding a second
+       * factor of a role whose name had since changed got no second factor
+       * from anybody and nothing anywhere saying so. Every other field on
+       * this route refuses rather than clamps, and `PATCH
+       * /api/users/groups/:id` refuses an undefined role in the same words.
+       */
+      const wantedTwoFactor = Array.isArray(body.requireTwoFactorFor)
+        ? [...new Set(body.requireTwoFactorFor.map(String))]
+        : null;
+      const undefinedRole = wantedTwoFactor?.find((r) => !allowed.includes(r));
+      if (undefinedRole) {
+        return refuse(
+          c,
+          "requireTwoFactorFor",
+          `names a role that does not exist here: ${undefinedRole}`,
+        );
+      }
+      const requireTwoFactorFor =
+        wantedTwoFactor ?? current.requireTwoFactorFor;
 
       const minPasswordLength = Number.isInteger(body.minPasswordLength)
         ? Math.min(Math.max(body.minPasswordLength as number, 8), 72)
