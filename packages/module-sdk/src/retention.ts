@@ -348,6 +348,17 @@ export interface ClassificationGaps {
   both: string[];
   /** Named as ordinary but no longer in the schema — a guard over nothing. */
   stale: string[];
+  /**
+   * How many tables were actually looked at.
+   *
+   * Three empty lists is what a pass looks like, and it is also what handing
+   * this half a schema looks like — a barrel that stopped re-exporting a file,
+   * a repository whose newest tables live somewhere nobody passed in. The
+   * ratchet's claim is that a table cannot slip through unclassified, and a
+   * run that examined fewer tables than the schema holds satisfies it by
+   * absence. The count is what lets a caller say otherwise.
+   */
+  checked: number;
 }
 
 /**
@@ -378,10 +389,28 @@ export function classifySchema(
 ): ClassificationGaps {
   const statutory: readonly string[] = STATUTORY_TABLES;
   const known = new Set(ordinary);
-  const gaps: ClassificationGaps = { unclassified: [], both: [], stale: [] };
+  const tables = schemaTableNames(exported);
+  /*
+   * Nothing to classify is not a clean schema, it is a caller pointed at the
+   * wrong thing — and the answer it would otherwise get is three empty lists,
+   * which reads exactly like a pass. This is the one way the ratchet can be
+   * satisfied by absence in a repository whose suite nobody here can see, so
+   * it is refused at the source rather than left to each caller to remember.
+   */
+  if (tables.length === 0) {
+    throw new Error(
+      "classifySchema found no tables in what it was given — pass the module that exports this repository's schema, not a subset of it",
+    );
+  }
+  const gaps: ClassificationGaps = {
+    unclassified: [],
+    both: [],
+    stale: [],
+    checked: tables.length,
+  };
   const present = new Set<string>();
 
-  for (const { name, qualified } of schemaTableNames(exported)) {
+  for (const { name, qualified } of tables) {
     present.add(name);
     const isStatutory =
       statutory.includes(name) || statutory.includes(qualified);

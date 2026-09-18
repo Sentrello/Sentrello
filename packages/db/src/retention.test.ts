@@ -6,6 +6,7 @@ import {
   clearRetention,
   isStatutoryTable,
   retentionPolicies,
+  schemaTableNames,
 } from "@sentrello/module-sdk";
 import type { RegisteredRetention } from "@sentrello/module-sdk";
 import { eq, getTableColumns, getTableName, isTable, like } from "drizzle-orm";
@@ -440,6 +441,35 @@ test("every table in the schema has been classified, one way or the other", () =
   // And the other way: a name left behind by a table that has been removed or
   // renamed, which would quietly stop guarding anything.
   expect(gaps.stale).toEqual([]);
+
+  /*
+   * And that it actually looked at this schema.
+   *
+   * Three empty lists is what a pass looks like and it is also what pointing
+   * this at the wrong object looks like — a schema module that moved, a
+   * barrel that stopped re-exporting, a repository whose tables live in a file
+   * nobody passed in. The ratchet's whole claim is that a table cannot slip
+   * through unclassified, and a run that classified nothing satisfies it by
+   * absence. So the count comes back and is asserted against the schema.
+   */
+  expect(gaps.checked).toBe(schemaTableNames(schema).length);
+  expect(gaps.checked).toBeGreaterThan(50);
+});
+
+/**
+ * And a schema with nothing in it is refused rather than passed.
+ *
+ * The assertion above is Core's. This is the half that travels: `Pro` and
+ * `Modules` each run the same function over their own schema, and neither of
+ * their suites can be edited from here. A caller that hands this an empty
+ * object — or anything that is not a schema — gets an exception naming the
+ * problem, instead of three empty lists that read exactly like a pass.
+ */
+test("a classification that examined no tables is not a pass", () => {
+  expect(() => classifySchema({}, [])).toThrow(/no tables/);
+  expect(() => classifySchema({ notATable: 1, alsoNot: "x" }, [])).toThrow(
+    /no tables/,
+  );
 });
 
 /**
