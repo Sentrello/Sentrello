@@ -211,3 +211,58 @@ test("Free gaining nothing (no licence at all) reports nothing", () => {
   const free = { valid: false, claims: null };
   expect(newlyMissingEntitledBundles(free, free, allPresent)).toEqual([]);
 });
+
+/**
+ * And a module bought without Pro, which is a whole tier of customer.
+ *
+ * Modules are sold on their own — the redirect module has been since
+ * 2026-09-12 — so a business on Free can be entitled to one, and the loader
+ * agrees: `tier === "module"` asks only whether the licence names it, never
+ * what tier the licence is. This did not: it answered nothing at all unless
+ * the tier read `pro`, so a Free customer whose paid module never reached the
+ * image got silence from /healthz, silence on the settings screen and silence
+ * in the banner — the exact failure the function exists to end, on the exact
+ * shape of licence it was never asked about.
+ */
+test("a module bought without Pro is expected too", () => {
+  const free = {
+    valid: true,
+    claims: { tier: "free", modules: ["mod-links"] },
+  };
+  expect(
+    missingEntitledBundles(free, ["dashboard", "crm"]).map((m) => m.name),
+  ).toEqual(["mod-links"]);
+  // And present, it is not a fault.
+  expect(missingEntitledBundles(free, ["dashboard", "mod-links"])).toEqual([]);
+  // What comes with a tier is still only claimed by the tier that has one: a
+  // Free token carrying `with_tier` is a shape this core should not act on.
+  expect(
+    missingEntitledBundles(
+      { valid: true, claims: { tier: "free", with_tier: ["pro-core"] } },
+      [],
+    ),
+  ).toEqual([]);
+});
+
+/**
+ * And a `modules` claim of a shape this core never imagined does not take the
+ * boot with it.
+ *
+ * `with_tier` is already shape-checked; its sibling was spread straight into a
+ * set. A string there would alarm about bundles named "s" and "h", and a
+ * number throws — at module scope, during boot, which is not a licence failing
+ * safe to Free but an instance that does not start.
+ */
+test("a modules claim of a shape this core never imagined expects nothing", () => {
+  for (const junk of ["mod-links", 7, { bundles: ["mod-links"] }, null]) {
+    expect(
+      missingEntitledBundles(
+        {
+          valid: true,
+          claims: { tier: "pro", modules: junk as unknown as string[] },
+        },
+        [],
+      ),
+    ).toEqual([]);
+  }
+});
