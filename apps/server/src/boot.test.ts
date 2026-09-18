@@ -481,19 +481,42 @@ test("/api/_meta exposes only the nav the loaded modules registered", async () =
     "invoicing",
     // Where the business stands against each state's economic-nexus line,
     // its exemption certificates, and a period's filing figures.
-    "invoicing-us-tax",
     // No "recurring" and no "subscriptions": this instance has no licence, and
     // both are the Pro half of Invoicing. The routes behind them answer 404
     // here, so the sidebar must not offer either door.
     "invoicing-settings",
-    "accounting",
-    // Accounting's own pages. The Pro four — bills, banking, budgets, tax —
-    // are absent because this instance has no licence, and a door onto an
-    // endpoint that answers nothing is worse than no door.
-    "accounting-summary",
+    /*
+     * From here the sequence is Money's, not each half's.
+     *
+     * Invoicing numbered its pages around 20 and Accounting around 30, for a
+     * world where each had its own menu. Read as one list that put the tax
+     * returns second, between the invoices and the bank, and left two pages
+     * sharing 20.5 so their relative position was whatever the sort did that
+     * run. Money arranges both halves now, so the numbers are Money's: getting
+     * paid, spending, banking, the books, then tax.
+     *
+     * Money's own head (18.8) and dashboard (18.9) still lead, which is why the
+     * sections begin at 19 rather than 10 — below them and the module sorted
+     * after its own pages.
+     */
+    // Spending, and the Pro bills page absent with no licence.
     "accounting-money",
+    // Banking, and the Pro banking page likewise absent.
     "accounting-accounts",
+    // The books. The Pro reports page is absent for the same reason: a door
+    // onto an endpoint that answers nothing is worse than no door.
+    "accounting",
+    "accounting-summary",
     "accounting-journal",
+    /*
+     * Tax last, which is the point of the rearrangement.
+     *
+     * `invoicing-us-tax` was 20.5 and sat between the invoices and the invoice
+     * settings. A return is a deliberate act with a legal declaration attached,
+     * and somebody looking for one on a quarter-end deadline should find a
+     * heading rather than read down a list of sixteen.
+     */
+    "invoicing-us-tax",
     // No "accounting-vat" and no "accounting-ca-tax" here: a fresh
     // organization has chosen no tax regimes explicitly and defaults to US
     // sales tax alone (see `@sentrello/db/tax-regimes`), so the UK VAT and
