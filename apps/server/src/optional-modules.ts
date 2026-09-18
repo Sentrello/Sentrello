@@ -108,16 +108,32 @@ export function missingEntitledBundles(
   present: string[],
 ): { name: string; reason: string }[] {
   const claims = state.valid ? state.claims : null;
-  if (claims?.tier !== "pro") return [];
+  if (!claims) return [];
 
   // Shape-checked rather than trusted: a token from a newer control plane
   // than this core may carry a shape it never imagined, and a surprise here
-  // must degrade to expecting less, never to an alarm or a crash.
-  const withTier = Array.isArray(claims.with_tier)
-    ? claims.with_tier.filter((id) => typeof id === "string")
-    : [];
+  // must degrade to expecting less, never to an alarm or a crash. `modules`
+  // was spread straight in — a string there would have alarmed about bundles
+  // named "s" and "h", and a number throws at module scope during boot, which
+  // is not a licence failing safe to Free but an instance that does not start.
+  const named = (value: unknown) =>
+    Array.isArray(value) ? value.filter((id) => typeof id === "string") : [];
+
+  /*
+   * What comes with the tier is claimed only by a tier that has one; what was
+   * bought is claimed whatever the tier says.
+   *
+   * That second half is the part this got wrong. Modules are sold on their
+   * own — the redirect module has been since 2026-09-12 — so a business on
+   * Free can be entitled to one, and the loader agrees: a `module` tier asks
+   * only whether the licence names it. This asked the tier first and answered
+   * nothing at all unless it read `pro`, so a Free customer whose paid module
+   * never reached the image got silence from /healthz, silence on the settings
+   * screen and silence in the banner.
+   */
+  const withTier = claims.tier === "pro" ? named(claims.with_tier) : [];
   const here = new Set(present);
-  const entitled = new Set([...withTier, ...(claims.modules ?? [])]);
+  const entitled = new Set([...withTier, ...named(claims.modules)]);
   return [...entitled]
     .filter((id) => !here.has(id))
     .map((name) => ({
