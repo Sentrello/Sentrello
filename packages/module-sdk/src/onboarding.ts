@@ -1,3 +1,5 @@
+import { scopedId } from "./scoped";
+
 /**
  * What a module needs somebody to do before it is any use.
  *
@@ -67,6 +69,15 @@ export interface OnboardingGuide {
 
 export interface RegisteredGuide extends OnboardingGuide {
   moduleId: string;
+  /**
+   * How the dashboard addresses the guide: `moduleId:id`.
+   *
+   * Filled in here, not by the module. A dismissal is stored against it, so
+   * two modules that both call their checklist `setup` are put away
+   * separately — on the bare id, hiding one hid the other, and the second
+   * module's first-run instructions were never seen again.
+   */
+  key: string;
 }
 
 /**
@@ -79,10 +90,13 @@ export interface RegisteredGuide extends OnboardingGuide {
  */
 const registry: RegisteredGuide[] = [];
 
-export function addOnboarding(guide: RegisteredGuide): void {
-  const at = registry.findIndex((g) => g.id === guide.id);
-  if (at >= 0) registry[at] = guide;
-  else registry.push(guide);
+export function addOnboarding(guide: Omit<RegisteredGuide, "key">): void {
+  const keyed = { ...guide, key: scopedId(guide.moduleId, guide.id) };
+  // By module and id together; the same module registering twice replaces,
+  // which is what a second load of one module is.
+  const at = registry.findIndex((g) => g.key === keyed.key);
+  if (at >= 0) registry[at] = keyed;
+  else registry.push(keyed);
 }
 
 export function allOnboarding(): RegisteredGuide[] {
@@ -107,6 +121,8 @@ export async function resolveGuide(
   organizationId: string,
 ): Promise<{
   id: string;
+  /** `moduleId:id` — what a dismissal is stored against. */
+  key: string;
   moduleId: string;
   label: string;
   icon: string | null;
@@ -133,6 +149,7 @@ export async function resolveGuide(
 
   return {
     id: guide.id,
+    key: guide.key,
     moduleId: guide.moduleId,
     label: guide.label,
     icon: guide.icon ?? null,

@@ -92,10 +92,15 @@ export interface RegisteredPersonalData extends PersonalDataSource {
 const sources: RegisteredPersonalData[] = [];
 
 export function addPersonalData(source: RegisteredPersonalData): void {
-  const at = sources.findIndex((s) => s.id === source.id);
-  // Replaced rather than appended, so a module registered twice — which happens
-  // in tests that boot the app more than once — does not answer twice and make
-  // an export list every record double.
+  // By module and id together. Replaced rather than appended, so a module
+  // registered twice — which happens in tests that boot the app more than once
+  // — does not answer twice and make an export list every record double; keyed
+  // by the module too, so a *second* module with the same word is not quietly
+  // left out of a subject access request, which is the one place a missing
+  // answer is also a legal one.
+  const at = sources.findIndex(
+    (s) => s.moduleId === source.moduleId && s.id === source.id,
+  );
   if (at >= 0) sources[at] = source;
   else sources.push(source);
 }

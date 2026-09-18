@@ -188,6 +188,9 @@ interface AgedReceivables {
  * the one that knows what this reader may be offered at all. This map only
  * titles a loading card before its data arrives.
  */
+/** How the server addresses the dashboard's own panels: `moduleId:id`. */
+const CORE_PREFIX = "dashboard:";
+
 const WIDGET_LABELS: Record<string, string> = {
   money: "Money owed",
   attention: "Needs attention",
@@ -349,7 +352,15 @@ function Widget({
   data: Dashboard;
   insights: Insights | undefined;
 }) {
-  switch (id) {
+  /*
+   * Panels are addressed as `moduleId:id`, so that a module which calls its
+   * own panel `money` cannot take this one's place. Only the dashboard's own
+   * panels have a renderer in here — the shell and the module are built
+   * together — so only its prefix is stripped; anything else, including
+   * another module's `money`, falls through to the generic card below.
+   */
+  const own = id.startsWith(CORE_PREFIX) ? id.slice(CORE_PREFIX.length) : null;
+  switch (own) {
     case "money":
       return <MoneyPanel data={data} />;
     case "attention":
@@ -387,7 +398,7 @@ function Widget({
     case "deals-by-stage":
     case "top-customers":
     case "invoice-aging":
-      return <InsightWidget id={id} insights={insights} />;
+      return <InsightWidget id={own} insights={insights} />;
     default:
       /*
        * A panel a module brought with it. The dashboard knows nothing about
@@ -877,7 +888,7 @@ function Arrange({
 
   const labelOf = (widget: string) =>
     widgets.find((m) => m.id === widget)?.label ??
-    WIDGET_LABELS[widget] ??
+    WIDGET_LABELS[widget.replace(CORE_PREFIX, "")] ??
     widget;
 
   const toggle = (index: number, widget: string) =>

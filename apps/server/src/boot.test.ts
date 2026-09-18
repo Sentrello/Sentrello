@@ -150,6 +150,62 @@ test("free modules load without any license", () => {
   expect(permissions).toEqual(["crm:read"]);
 });
 
+/**
+ * A nav id is a URL, so two modules cannot share one.
+ *
+ * Every other registry the SDK offers is keyed by module and id together now,
+ * which is what makes two modules choosing the same obvious word harmless.
+ * This one cannot be: the id is the path a person bookmarks and the key the
+ * browser matches a module's screens against. And it was not merely appending
+ * a second entry — `visibleTo` and `requires` are held against this id, so the
+ * later module silently took the earlier one's permission gate off its screen.
+ *
+ * Refused, and said out loud with both modules named.
+ */
+test("a nav id another module already has is refused rather than replacing it", () => {
+  const first = defineModule({
+    id: "invoicing",
+    tier: "free" as const,
+    register(ctx) {
+      ctx.registerNav({
+        id: "money",
+        label: "Invoices",
+        requires: {
+          invoices: ["read"],
+        },
+      });
+    },
+  });
+  const second = defineModule({
+    id: "shop",
+    tier: "free" as const,
+    register(ctx) {
+      ctx.registerNav({ id: "money", label: "Takings" });
+    },
+  });
+
+  const said: string[] = [];
+  const wasError = console.error;
+  console.error = (...args: unknown[]) => said.push(args.join(" "));
+  let loaded: ReturnType<typeof loadModules>;
+  try {
+    loaded = loadModules(new Hono<SentrelloEnv>(), freeGate, [first, second]);
+  } finally {
+    console.error = wasError;
+  }
+
+  // One entry, and it is the one that claimed the word first.
+  expect(loaded.nav.filter((n) => n.id === "money")).toEqual([
+    { id: "money", label: "Invoices", moduleId: "invoicing" },
+  ]);
+  // And the permission the first module's screen needs is still the one held
+  // against it — the whole reason a silent replacement was worse than a
+  // duplicate.
+  expect(loaded.navPermissions.get("money")).toEqual({ invoices: ["read"] });
+  expect(said.join(" ")).toContain("shop");
+  expect(said.join(" ")).toContain("invoicing");
+});
+
 test("pro + entitled optional modules load only when the gate allows", () => {
   const modules = [
     mod("crm", "free"),
@@ -479,7 +535,7 @@ test("/api/_meta exposes only the nav the loaded modules registered", async () =
   );
   expect(layoutRes.status).toBe(200);
   const layout = JSON.stringify(await layoutRes.json());
-  expect(layout).toContain('"money"');
+  expect(layout).toContain('"dashboard:money"');
   expect(layout).not.toContain("revenue-trend");
   expect(layout).not.toContain("who-owes");
 
@@ -541,10 +597,12 @@ test("a report widget is disclosed to a reader if and only if its own route can 
     const res = await server.fetch(
       new Request(`http://localhost${path}`, { headers }),
     );
+    // Panels are offered as `moduleId:id`; these are the dashboard's own.
+    const key = `dashboard:${id}`;
     // 404 is "does not exist on this instance", the same answer a module
     // that never loaded gives for any of its routes. Disclosed must mean
     // answers, withheld must mean does not — never a mismatch either way.
-    expect([id, offered.has(id)]).toEqual([id, res.status !== 404]);
+    expect([id, offered.has(key)]).toEqual([id, res.status !== 404]);
   }
 
   await cleanUp();

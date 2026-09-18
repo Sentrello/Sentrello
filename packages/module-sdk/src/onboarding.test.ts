@@ -18,6 +18,9 @@ import {
 const guide = (steps: Parameters<typeof addOnboarding>[0]["steps"]) => ({
   id: "shop",
   moduleId: "shop",
+  // What `addOnboarding` fills in; spelled out here because these tests
+  // resolve a guide without registering one first.
+  key: "shop:shop",
   label: "Selling online",
   steps,
 });

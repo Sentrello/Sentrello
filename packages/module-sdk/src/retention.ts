@@ -178,6 +178,7 @@ export const STATUTORY_TABLES = [
   "subscriptions.discounts",
   "seo.usage",
   "links.events",
+
 ] as const;
 
 export type StatutoryTable = (typeof STATUTORY_TABLES)[number];
@@ -461,10 +462,14 @@ export function addRetention(policy: RegisteredRetention): void {
       `retention policy "${policy.id}" points at "${table}", which is a statutory record and is never swept`,
     );
   }
-  const at = policies.findIndex((p) => p.id === policy.id);
-  // Replaced rather than appended, so a module registered twice — which the
-  // tests that boot the app more than once do — does not sweep twice and
-  // report its work double.
+  // By module and id together. Replaced rather than appended, so a module
+  // registered twice — which the tests that boot the app more than once do —
+  // does not sweep twice and report its work double; keyed by the module too,
+  // so a second module's policy cannot silently stand in for the first's and
+  // leave a log growing for ever with nothing sweeping it.
+  const at = policies.findIndex(
+    (p) => p.moduleId === policy.moduleId && p.id === policy.id,
+  );
   if (at >= 0) policies[at] = policy;
   else policies.push(policy);
 }

@@ -261,11 +261,13 @@ test("a free instance can arrange its own dashboard", async () => {
   const saved = await freeApp.request("http://localhost/api/dashboard/layout", {
     method: "PUT",
     headers,
-    body: JSON.stringify({ tabs: [{ name: "Mine", widgets: ["money"] }] }),
+    body: JSON.stringify({
+      tabs: [{ name: "Mine", widgets: ["dashboard:money"] }],
+    }),
   });
   expect(saved.status).toBe(200);
   expect((await saved.json()).tabs).toEqual([
-    { name: "Mine", widgets: ["money"] },
+    { name: "Mine", widgets: ["dashboard:money"] },
   ]);
 });
 
@@ -314,7 +316,7 @@ test("a layout survives a save, and cannot grow past the limit", async () => {
   expect(saved.tabs).toHaveLength(12);
   // Unknown panels are dropped rather than refused: a layout saved by a newer
   // version should lose what it cannot draw and keep the rest.
-  expect(saved.tabs[0]?.widgets).toEqual(["money"]);
+  expect(saved.tabs[0]?.widgets).toEqual(["dashboard:money"]);
 
   const read = (await (
     await app.request("http://localhost/api/dashboard/layout", { headers })
@@ -323,7 +325,7 @@ test("a layout survives a save, and cannot grow past the limit", async () => {
   expect(read.tabs[0]?.name).toBe("Tab 0");
   // Offered to this fully entitled reader; the Free reader's test below
   // asserts the same id is never named to somebody it is not for.
-  expect(read.widgets.map((w) => w.id)).toContain("revenue-trend");
+  expect(read.widgets.map((w) => w.id)).toContain("dashboard:revenue-trend");
 
   // Saving twice is the normal case — every rearrange is a save — and must not
   // leave two answers to a question that has one.
@@ -566,7 +568,7 @@ test("a module's own figures reach the dashboard", async () => {
   };
 
   // A summary is a widget with no further declaration, under `summary:<id>`.
-  const hire = widgets.find((s) => s.id === "summary:hire");
+  const hire = widgets.find((s) => s.id === "hire:summary:hire");
   expect(hire?.label).toBe("Widget hire");
   expect(hire?.opens).toBe("hire");
   // Money stays in cents all the way to the browser, which formats it in the
@@ -602,7 +604,7 @@ test("a module that cannot count itself does not take the screen with it", async
   });
   expect(res.status).toBe(200);
   const { widgets } = (await res.json()) as { widgets: { id: string }[] };
-  expect(widgets.map((s) => s.id)).toEqual(["summary:fine"]);
+  expect(widgets.map((s) => s.id)).toEqual(["fine:summary:fine"]);
 
   clearSummaries();
 });
@@ -881,13 +883,13 @@ test("a module's declared widget appears on the dashboard", async () => {
 
   try {
     const layout = await readLayoutAs(app);
-    expect(layout.widgets.map((w) => w.id)).toContain("hire-fleet");
+    expect(layout.widgets.map((w) => w.id)).toContain("hire:hire-fleet");
     // Offered by name, so the arranging screen has words rather than ids.
-    expect(layout.widgets.find((w) => w.id === "hire-fleet")?.label).toBe(
+    expect(layout.widgets.find((w) => w.id === "hire:hire-fleet")?.label).toBe(
       "The fleet",
     );
     // And on the screen itself: a tab of its own, without anybody arranging.
-    expect(layout.tabs.some((t) => t.widgets.includes("hire-fleet"))).toBe(
+    expect(layout.tabs.some((t) => t.widgets.includes("hire:hire-fleet"))).toBe(
       true,
     );
 
@@ -897,7 +899,7 @@ test("a module's declared widget appears on the dashboard", async () => {
       widgets: { id: string; figures: { label: string; value: number }[] }[];
     };
     expect(
-      feed.widgets.find((w) => w.id === "hire-fleet")?.figures,
+      feed.widgets.find((w) => w.id === "hire:hire-fleet")?.figures,
     ).toContainEqual({ label: "Out on hire", value: 7, kind: "count" });
   } finally {
     restoreWidgets(before);
@@ -915,15 +917,17 @@ test("a module's declared widget appears on the dashboard", async () => {
 test("a widget whose entitlement is absent is not disclosed anywhere", async () => {
   const layout = await readLayoutAs(freeApp);
   const offered = layout.widgets.map((w) => w.id);
-  expect(offered).toContain("money");
-  expect(offered).not.toContain("revenue-trend");
-  expect(offered).not.toContain("who-owes");
+  expect(offered).toContain("dashboard:money");
+  expect(offered).not.toContain("dashboard:revenue-trend");
+  expect(offered).not.toContain("dashboard:who-owes");
   // Answered by Pro's accounting bundle, absent on a Free instance the same
   // way who-owes is: offering either here would put a 404 on the Reports tab
   // everybody sees by default.
-  expect(offered).not.toContain("cash-flow");
-  expect(offered).not.toContain("trial-balance");
-  expect(layout.tabs.flatMap((t) => t.widgets)).not.toContain("revenue-trend");
+  expect(offered).not.toContain("dashboard:cash-flow");
+  expect(offered).not.toContain("dashboard:trial-balance");
+  expect(layout.tabs.flatMap((t) => t.widgets)).not.toContain(
+    "dashboard:revenue-trend",
+  );
 
   // A save that names the Pro panel anyway gets nothing back for it.
   const saved = (await (
@@ -1060,7 +1064,9 @@ test("a newly entitled module's widget appears without the business doing anythi
   await app.request("http://localhost/api/dashboard/layout", {
     method: "PUT",
     headers,
-    body: JSON.stringify({ tabs: [{ name: "Ours", widgets: ["money"] }] }),
+    body: JSON.stringify({
+      tabs: [{ name: "Ours", widgets: ["dashboard:money"] }],
+    }),
   });
 
   const before = allWidgets();
@@ -1074,8 +1080,13 @@ test("a newly entitled module's widget appears without the business doing anythi
   try {
     const layout = await readLayoutAs(app);
     // The arranged tab is untouched, and the new module has a tab of its own.
-    expect(layout.tabs[0]).toEqual({ name: "Ours", widgets: ["money"] });
-    const shopTab = layout.tabs.find((t) => t.widgets.includes("shop-takings"));
+    expect(layout.tabs[0]).toEqual({
+      name: "Ours",
+      widgets: ["dashboard:money"],
+    });
+    const shopTab = layout.tabs.find((t) =>
+      t.widgets.includes("shop:shop-takings"),
+    );
     expect(shopTab?.name).toBe("Shop");
   } finally {
     restoreWidgets(before);
@@ -1402,5 +1413,78 @@ test("a settlement belonging to another business does not pay this one's invoice
     await db
       .delete(schema.organizations)
       .where(eq(schema.organizations.id, theirs));
+  }
+});
+
+/**
+ * An afternoon spent arranging the dashboard survives the panels being keyed
+ * by module.
+ *
+ * Every layout stored before today names its panels the way the old registry
+ * did — `money`, `health`, `summary:invoicing` — the very words two modules
+ * could both choose. Read literally against keys, every tab would filter down
+ * to nothing and a business would open Monday morning to a blank screen with
+ * its tab names still on it, which is the worst of both: it looks arranged
+ * and it shows nothing.
+ *
+ * So a stored row is brought forward on read, and written back in the new
+ * spelling by the next save. No migration, and no moment where a layout is
+ * half converted.
+ */
+test("a dashboard arranged before panels were keyed by module still resolves", async () => {
+  await db
+    .insert(schema.organizationPreferences)
+    .values({
+      organizationId: orgId,
+      key: "dashboard",
+      value: {
+        tabs: [
+          { name: "Ours", widgets: ["money", "attention"] },
+          { name: "Books", widgets: ["balance-sheet"] },
+        ],
+        known: ["money", "attention", "balance-sheet", "health"],
+      },
+    })
+    .onConflictDoUpdate({
+      target: [
+        schema.organizationPreferences.organizationId,
+        schema.organizationPreferences.key,
+      ],
+      set: {
+        value: {
+          tabs: [
+            { name: "Ours", widgets: ["money", "attention"] },
+            { name: "Books", widgets: ["balance-sheet"] },
+          ],
+          known: ["money", "attention", "balance-sheet", "health"],
+        },
+      },
+    });
+
+  try {
+    const layout = await readLayoutAs(app);
+    // The arrangement is the one the business made: same tabs, same order,
+    // same panels — addressed the new way. Anything this instance declares
+    // and the stored `known` had never heard of still arrives after them,
+    // which is the day-200 rule and is unrelated to the spelling.
+    expect(layout.tabs.slice(0, 2).map((t) => t.name)).toEqual([
+      "Ours",
+      "Books",
+    ]);
+    expect(layout.tabs[0]?.widgets).toEqual([
+      "dashboard:money",
+      "dashboard:attention",
+    ]);
+    expect(layout.tabs[1]?.widgets).toEqual(["dashboard:balance-sheet"]);
+
+    // And `known` came forward with it, or every panel the business had
+    // deliberately taken off a tab would arrive again as a new module's.
+    expect(layout.tabs.flatMap((t) => t.widgets)).not.toContain(
+      "dashboard:health",
+    );
+  } finally {
+    await db
+      .delete(schema.organizationPreferences)
+      .where(eq(schema.organizationPreferences.organizationId, orgId));
   }
 });
