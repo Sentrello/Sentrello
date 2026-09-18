@@ -140,10 +140,16 @@ export function registerGroups(ctx: ModuleContext) {
 
       const allowed = await knownRoles(orgId);
       const roles = Array.isArray(body.roles)
-        ? [...new Set(body.roles.map(String))].filter((r) =>
-            allowed.includes(r),
-          )
+        ? [...new Set(body.roles.map(String))]
         : [];
+      // Refused, not quietly dropped — the same answer `PATCH` below gives.
+      // Filtering here created the group and left it carrying nothing, which
+      // reads on the screen as a group that grants what was asked for and
+      // grants nothing at all.
+      const unknown = roles.filter((r) => !allowed.includes(r));
+      if (unknown[0]) {
+        return c.json({ error: `there is no role called ${unknown[0]}` }, 400);
+      }
 
       try {
         const [group] = await db

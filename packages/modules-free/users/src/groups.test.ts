@@ -238,10 +238,27 @@ test("a group cannot carry a role nobody defined", async () => {
     name: `Wishful ${suffix}`,
     roles: ["auditor"],
   });
-  const { group } = (await res.json()) as { group: { roles: string[] } };
-  // Dropped on the way in rather than stored: a group naming a role that does
-  // not exist grants nothing and looks like it grants something.
-  expect(group.roles).toEqual([]);
+  /*
+   * Refused, in the same words `PATCH` answers with below.
+   *
+   * This used to drop the unknown name and answer 201, on the reasoning that
+   * a group naming a role nobody defined grants nothing and looks like it
+   * grants something — which is the argument for refusing it. Dropping left
+   * exactly the group that comment describes: created, listed, carrying
+   * nothing, and no line anywhere saying the role it was asked for does not
+   * exist.
+   */
+  expect(res.status).toBe(400);
+  expect((await res.json()) as { error: string }).toMatchObject({
+    error: "there is no role called auditor",
+  });
+
+  // And nothing was created under that name.
+  const list = await app.request("http://localhost/api/users/groups", {
+    headers,
+  });
+  const { groups } = (await list.json()) as { groups: { name: string }[] };
+  expect(groups.some((g) => g.name === `Wishful ${suffix}`)).toBe(false);
 
   const patched = await app.request(
     `http://localhost/api/users/groups/${await makeGroup(`Real ${suffix}`, [])}`,

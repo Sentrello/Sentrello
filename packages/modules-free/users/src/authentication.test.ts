@@ -493,3 +493,33 @@ test("switching it off is allowed with no mail, because that is the way back", a
   const res = await putPolicy({ requireEmailVerified: false });
   expect(res.status).toBe(200);
 });
+
+/**
+ * Requiring a second factor of a role that does not exist is refused.
+ *
+ * It was filtered out and saved without it: the business asked for a
+ * safeguard, was answered 200, and got no safeguard from anybody. Every other
+ * field on this route refuses rather than clamps, for the same reason.
+ */
+test("a two-factor rule naming an undefined role is refused, not quietly dropped", async () => {
+  const res = await app.request("http://localhost/api/users/policy", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ requireTwoFactorFor: ["admins", "bookkeepers"] }),
+  });
+  expect(res.status).toBe(400);
+  const body = (await res.json()) as { error: string; field: string };
+  expect(body.field).toBe("requireTwoFactorFor");
+  expect(body.error).toContain("bookkeepers");
+
+  // And nothing was saved: not the invented role, and not the real one
+  // sitting beside it in the same request.
+  const after = await app.request("http://localhost/api/users/policy", {
+    headers,
+  });
+  const { policy } = (await after.json()) as {
+    policy: { requireTwoFactorFor: string[] };
+  };
+  expect(policy.requireTwoFactorFor).not.toContain("bookkeepers");
+  expect(policy.requireTwoFactorFor).not.toContain("admins");
+});
