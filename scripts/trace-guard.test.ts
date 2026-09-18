@@ -54,6 +54,51 @@ describe("refuses tool and vendor traces", () => {
     expect(scanCommitMessages([msg]).length).toBeGreaterThan(0);
   });
 
+  // Both trailer rules anchored to the start of a line, so anything at all in
+  // front of the keyword walked straight past them. Every shape below is one
+  // a person actually writes: a trailer pasted into a markdown file, a commit
+  // message quoted in a release note, a trailer surviving inside a block
+  // comment. A guard that refuses `Co-Authored-By:` and waves through
+  // `<!-- Co-Authored-By: -->` is not enforcing the rule it claims to.
+  test("a co-author trailer hidden behind a markdown comment marker", () => {
+    const diff = added(
+      "docs/site/releases/v0-9-0.md",
+      "<!-- Co-Authored-By: Jane Human <jane@example.com> -->",
+    );
+    expect(scanAddedLines(diff).length).toBeGreaterThan(0);
+  });
+
+  test("a co-author trailer inside a block comment", () => {
+    const diff = added(
+      "apps/server/src/index.ts",
+      " * Co-Authored-By: Jane Human <jane@example.com>",
+    );
+    expect(scanAddedLines(diff).length).toBeGreaterThan(0);
+  });
+
+  test("a co-author trailer in a quoted commit message", () => {
+    const diff = added(
+      "docs/site/releases/v0-9-0.md",
+      "> Co-Authored-By: Jane Human <jane@example.com>",
+    );
+    expect(scanAddedLines(diff).length).toBeGreaterThan(0);
+  });
+
+  test("a session trailer behind a line comment", () => {
+    const diff = added(
+      "scripts/release.sh",
+      "# Build-Session: https://example.invalid/s/018HSM8URURJoVoEWQk9RJVM",
+    );
+    expect(scanAddedLines(diff).length).toBeGreaterThan(0);
+  });
+
+  test("a trailer behind two stacked markers", () => {
+    expect(
+      findViolations("<!-- > Co-Authored-By: Jane <jane@example.com> -->")
+        .length,
+    ).toBeGreaterThan(0);
+  });
+
   test("a bare session id with no trailer keyword", () => {
     expect(
       findViolations("started from session_018HSM8URURJoVoEWQk9RJVM").length,

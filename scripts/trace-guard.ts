@@ -44,6 +44,16 @@ const VENDOR_3 = "cop" + "ilot";
 const VENDOR_SESSION_HOST = `${VENDOR_1}.ai/code`;
 const AGENT_MODEL_WORDS = "code|opus|sonnet|haiku";
 
+// A trailer does not stop being a trailer because something sits in front of
+// it on the line. Both trailer rules below anchor to the start of a line, and
+// a comment or quote marker was enough to walk past them: `<!-- Co-Authored-By:
+// x -->` in a markdown file, ` * Co-Authored-By: x` inside a block comment and
+// `> Co-Authored-By: x` in a quoted commit message all passed a guard whose
+// entire job is to refuse that trailer. This allows any run of ordinary
+// comment and quote openers before the keyword, so the anchor still rules out
+// mid-sentence prose without also ruling out the lines people actually write.
+const LINE_LEAD = String.raw`^[ \t]*(?:(?://+|#+|\*|<!--|>+|--|;+)[ \t]*)*`;
+
 // Every pattern here was matched against real leaks found in this project's
 // history (see the audit) before being kept. Keywords that read as ordinary
 // English on their own (model, agent, assistant, review, cursor, sonnet,
@@ -53,11 +63,11 @@ const RULES: Rule[] = [
   // --- 1. Tool and vendor traces ---
   {
     name: "co-author trailer",
-    pattern: /^[ \t]*co-authored-by[ \t]*:/im,
+    pattern: new RegExp(`${LINE_LEAD}co-authored-by[ \\t]*:`, "im"),
   },
   {
     name: "session trailer",
-    pattern: /^[ \t]*[a-z][a-z-]*-session[ \t]*:/im,
+    pattern: new RegExp(`${LINE_LEAD}[a-z][a-z-]*-session[ \\t]*:`, "im"),
   },
   {
     name: "vendor session link or id",
