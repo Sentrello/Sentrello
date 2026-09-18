@@ -90,7 +90,7 @@ function Readout({
   return (
     <div
       aria-hidden="true"
-      className="pointer-events-none absolute z-10 whitespace-nowrap rounded border px-2 py-1 text-xs shadow-sm"
+      className="raised-panel pointer-events-none absolute z-10 whitespace-nowrap rounded border px-2 py-1 text-xs"
       style={{
         left: `${at}%`,
         top: 0,
@@ -491,7 +491,14 @@ export function PairedBars({
             type="button"
             className="flex items-center gap-1.5"
             aria-pressed={hidden !== s.key}
-            style={hidden === s.key ? { opacity: 0.45 } : undefined}
+            /*
+             * Dimmed, not faded out. At 0.45 the label of a hidden series
+             * measured 3.3:1 on light and 3.6:1 on dark, under the 4.5:1 AA
+             * line — and this is a button somebody has to read to switch the
+             * series back on, not a disabled control that WCAG excuses. 0.6
+             * measures 5.65:1 and 5.74:1 and still reads as switched off.
+             */
+            style={hidden === s.key ? { opacity: 0.6 } : undefined}
             onClick={() => setHidden(hidden === s.key ? null : s.key)}
           >
             <span

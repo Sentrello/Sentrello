@@ -151,6 +151,44 @@
   --text-danger: var(--color-danger);
   --text-info: var(--color-info);
   --text-brand: var(--color-brand-600);
+
+  /*
+   * Elevation — how the product says one surface is on top of another.
+   *
+   * **Light lifts with a shadow. Dark lifts with the surface.** That is the
+   * whole rule, and every raised thing inherits it rather than choosing.
+   *
+   * A black shadow is the only kind most component libraries ship, and on a
+   * near-black ground it does nothing: measured in the browser at 390px, a
+   * sheet lifted by `rgb(0 0 0 / 28%)` over `oklch(0.189)` reads as a faint
+   * dark haze, and all the separation a person actually perceives comes from
+   * the panel being lighter than the page and from its top border. So dark
+   * stops pretending: `--surface-overlay` steps up in lightness above
+   * `--surface-raised`, which is itself above `--surface`, and the shadow
+   * becomes a deeper, more opaque well under the panel whose job is to darken
+   * the ground rather than to lift the panel. Light keeps the soft, low-alpha
+   * shadow it has always had, because on paper that is what lifting looks
+   * like.
+   *
+   * Two steps, not five. `--shadow-raised` is a thing sitting on the page —
+   * a tooltip, a chart readout. `--shadow-overlay` is a thing over the whole
+   * page — a menu, a dropdown, a dialog, a bottom sheet, the command
+   * palette — and it goes with `--surface-overlay`; the pair is what a
+   * floating panel wears, and neither works alone. `--scrim` is what goes
+   * behind a modal, tinted with the theme's own ink on light so it does not
+   * go grey-on-grey, and plain black on dark where there is nothing to tint.
+   *
+   * The shadow colours are not tokens themselves on purpose: a shadow is
+   * ink-on-ground, not a surface anything is read against, so there is
+   * nothing for `theme-contrast.test.ts` to measure. What it does measure is
+   * `--surface-overlay`, because text sits on it.
+   */
+  --surface-overlay: white;
+  --scrim: oklch(0.189 0.01 248 / 0.45);
+  --shadow-raised: 0 1px 2px oklch(0.189 0.01 248 / 0.1), 0 2px 6px
+    oklch(0.189 0.01 248 / 0.07);
+  --shadow-overlay: 0 4px 10px oklch(0.189 0.01 248 / 0.1), 0 14px 34px
+    oklch(0.189 0.01 248 / 0.14);
 }
 
 /*
@@ -176,6 +214,12 @@
     --text-danger: oklch(0.72 0.16 20);
     --text-info: oklch(0.72 0.1 250);
     --text-brand: var(--color-brand-300);
+    --surface-overlay: oklch(0.285 0.018 252);
+    --scrim: oklch(0 0 0 / 0.66);
+    --shadow-raised: 0 1px 2px oklch(0 0 0 / 0.45), 0 2px 6px
+      oklch(0 0 0 / 0.35);
+    --shadow-overlay: 0 4px 10px oklch(0 0 0 / 0.55), 0 14px 34px
+      oklch(0 0 0 / 0.45);
   }
 }
 
@@ -193,6 +237,11 @@
   --text-danger: oklch(0.72 0.16 20);
   --text-info: oklch(0.72 0.1 250);
   --text-brand: var(--color-brand-300);
+  --surface-overlay: oklch(0.285 0.018 252);
+  --scrim: oklch(0 0 0 / 0.66);
+  --shadow-raised: 0 1px 2px oklch(0 0 0 / 0.45), 0 2px 6px oklch(0 0 0 / 0.35);
+  --shadow-overlay: 0 4px 10px oklch(0 0 0 / 0.55), 0 14px 34px
+    oklch(0 0 0 / 0.45);
 }
 
 :root[data-theme="light"] {
@@ -209,6 +258,12 @@
   --text-danger: var(--color-danger);
   --text-info: var(--color-info);
   --text-brand: var(--color-brand-600);
+  --surface-overlay: white;
+  --scrim: oklch(0.189 0.01 248 / 0.45);
+  --shadow-raised: 0 1px 2px oklch(0.189 0.01 248 / 0.1), 0 2px 6px
+    oklch(0.189 0.01 248 / 0.07);
+  --shadow-overlay: 0 4px 10px oklch(0.189 0.01 248 / 0.1), 0 14px 34px
+    oklch(0.189 0.01 248 / 0.14);
 }
 
 /*
@@ -469,15 +524,35 @@ a {
   font-size: 0.8125rem;
 }
 
+/*
+ * The two classes anything floating wears, so a raised thing inherits the
+ * elevation rule above rather than picking a shadow.
+ *
+ * Written here rather than as Tailwind `shadow-*` utilities because those
+ * compile the colour into the class — a literal black, fixed at build time,
+ * which is exactly the defect this replaces. `.overlay-panel` carries the
+ * surface as well as the shadow: on dark the surface *is* the lift, and a
+ * panel that took the shadow without the surface would be the same flat
+ * rectangle as before.
+ */
+.raised-panel {
+  box-shadow: var(--shadow-raised);
+}
+
+.overlay-panel {
+  background: var(--surface-overlay);
+  box-shadow: var(--shadow-overlay);
+}
+
 .menu-panel {
   position: absolute;
   right: 0;
   top: calc(100% + 0.4rem);
   min-width: 13rem;
-  background: var(--surface-raised);
+  background: var(--surface-overlay);
   border: 1px solid var(--border);
   border-radius: 0.6rem;
-  box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
+  box-shadow: var(--shadow-overlay);
   overflow: hidden;
 }
 .menu-item {

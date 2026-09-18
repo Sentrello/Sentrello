@@ -46,12 +46,19 @@ export function lineOf(text: string, index: number): number {
  *
  *   // ui-drift-ignore: page resets elsewhere, a plain counter is safe here
  *   const [page, setPage] = useState(1);
+ *
+ * A CSS block comment opening the line is accepted as well, because some of
+ * what these scanners read is CSS inside a template literal — a standalone
+ * customer-facing page with its own palette, say — and `//` there is not a
+ * comment at all. It is a parse error that swallows the declaration after it,
+ * so a scanner that only took `//` would be offering an escape hatch that
+ * breaks the page using it.
  */
 export function exceptedAbove(
   rawLines: string[],
   line: number,
   marker: string,
 ): boolean {
-  const pattern = new RegExp(`^\\s*//\\s*${marker}-ignore\\b`);
+  const pattern = new RegExp(`^\\s*(?://|/\\*)\\s*${marker}-ignore\\b`);
   return pattern.test(rawLines[line - 2] ?? "");
 }
