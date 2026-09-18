@@ -329,6 +329,33 @@ export function loadModules(
   }
 
   nav.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+  /*
+   * A menu item the menu cannot draw.
+   *
+   * The sidebar has two levels: a rail of modules and a panel of that module's
+   * pages. A page hung off another page is three, and three renders as nothing
+   * — the entry is served here, passes its permission check, and has nowhere to
+   * appear. The Newsletter had six that way, every settings tab hung off the
+   * settings page, and nobody noticed because the screen has its own tabs and
+   * the URLs still resolved.
+   *
+   * Said at boot rather than asserted in a test, because a test can only cover
+   * the modules the repository that holds it can load, and the licence decides
+   * what a given instance runs. This sees whatever actually started, including
+   * a bundle written by somebody else.
+   *
+   * A warning, not a refusal: the entry is invisible either way, and taking a
+   * whole module down over a misplaced menu item would be a worse trade than
+   * the one it fixes.
+   */
+  const pages = new Set(nav.filter((n) => n.parent).map((n) => n.id));
+  for (const entry of nav) {
+    if (!entry.parent || !pages.has(entry.parent)) continue;
+    console.warn(
+      `[modules] ${entry.id} hangs off ${entry.parent}, which is itself a page. The sidebar draws two levels, so this entry will not appear anywhere. Give it the module as its parent, and a section if it needs grouping.`,
+    );
+  }
   return {
     nav,
     navVisibility,
