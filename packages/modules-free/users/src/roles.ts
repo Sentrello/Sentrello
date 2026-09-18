@@ -426,12 +426,29 @@ export function registerRolePolicy(ctx: ModuleContext) {
 
       const members = memberRows
         .filter((m) => {
+          // Everything `member.role` names, which is what Better Auth splits
+          // and checks — not only the one this module can attribute. A role
+          // written straight onto the membership by
+          // `/api/auth/organization/update-member-role` is held exactly as
+          // much as one this module granted, and `effectiveRoles` reports it
+          // as `unattributed` for that reason; a screen answering "who holds
+          // this role" by reading `baseRole` alone left those people off the
+          // list, which is the one question this route exists to answer.
+          //
+          // Trimmed, like `effectiveRoles` does: that endpoint stores what it
+          // is given, and a role list written by hand arrives with spaces
+          // after the commas.
+          const held = m.role
+            .split(",")
+            .map((r) => r.trim())
+            .filter(Boolean);
           // Same fallback `effectiveRoles` uses above: an instance that has
           // never had groups has no `baseRole` written down, and its
           // members' first (and only) role token is their own.
-          const held = m.role.split(",").filter(Boolean);
           const base = m.baseRole ?? held[0] ?? null;
-          return base === role || throughGroup.has(m.userId);
+          return (
+            base === role || held.includes(role) || throughGroup.has(m.userId)
+          );
         })
         .map((m) => ({ userId: m.userId, name: m.name, email: m.email }));
 
