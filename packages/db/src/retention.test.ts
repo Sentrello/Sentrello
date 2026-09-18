@@ -4,6 +4,7 @@ import {
   addRetention,
   classifySchema,
   clearRetention,
+  declareClassification,
   isStatutoryTable,
   retentionPolicies,
   schemaTableNames,
@@ -576,6 +577,18 @@ test("what a customer bought and was billed for is statutory too", () => {
     ...policy({ id: "a-crm-call-log" }),
     table: table("calls", "crm"),
   } as unknown as RegisteredRetention;
+
+  /*
+   * And first: the other half of the ratchet, which is a table nobody has
+   * looked at rather than one somebody has refused. `crm.calls` is not on
+   * either list here — it stands in for a table in a repository this suite
+   * cannot see — so the policy is refused until its repository declares its
+   * classification, naming what it would cost to lose it.
+   */
+  expect(() => addRetention(ownCalls)).toThrow(/no repository has classified/);
+  expect(retentionPolicies()).toHaveLength(0);
+
+  declareClassification({ calls: table("calls", "crm") }, ["crm.calls"]);
   addRetention(ownCalls);
   expect(retentionPolicies()).toHaveLength(1);
   clearRetention();

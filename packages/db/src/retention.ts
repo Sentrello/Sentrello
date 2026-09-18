@@ -3,7 +3,11 @@ import type {
   RetentionPayload,
   RetentionWindow,
 } from "@sentrello/module-sdk";
-import { retentionPolicies, retentionTableName } from "@sentrello/module-sdk";
+import {
+  declareClassification,
+  retentionPolicies,
+  retentionTableName,
+} from "@sentrello/module-sdk";
 import { type SQL, inArray, sql } from "drizzle-orm";
 import type { PgColumn, PgTable } from "drizzle-orm/pg-core";
 import { db } from "./client";
@@ -108,6 +112,22 @@ export const NON_STATUTORY_TABLES = [
   "user_preferences",
   "verification",
 ] as const;
+
+/**
+ * Core's half of the ratchet, declared when the schema loads rather than when
+ * a test runs.
+ *
+ * `classifySchema` only ever held where somebody remembered to call it, which
+ * made the guarantee "protected where we remembered". Declaring it here makes
+ * it a property of the running instance: every table in this schema is placed
+ * before any module registers a retention policy, and `addRetention` refuses a
+ * policy pointed at a table nobody has placed. Core's suite still asserts the
+ * gaps are empty — the declaration returns them — but a repository that skips
+ * the declaration entirely no longer looks the same as one that passed it.
+ *
+ * `Pro` and `Modules` each need one line like this beside their own schema.
+ */
+declareClassification(schema, NON_STATUTORY_TABLES);
 
 /**
  * Rows touched by one statement.
