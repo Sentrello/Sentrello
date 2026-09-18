@@ -221,3 +221,48 @@ test("a stored row under a compiled name adds to it on the single-policy route t
       ),
     );
 });
+
+/**
+ * A role written straight onto the membership is still held.
+ *
+ * `/api/auth/organization/update-member-role` is exposed through `mountAuth`
+ * and sets `member.role` directly, touching neither `baseRole` nor any group
+ * — which is exactly the case `EffectiveRoles.unattributed` exists to report
+ * honestly. Better Auth splits `member.role` on the comma and allows anything
+ * any of those roles grants, so this person really can do what `staff` does.
+ *
+ * This route answers "who holds this role", and it used to answer it from
+ * `baseRole` and group membership alone: somebody granted a role this way was
+ * missing from the one screen an administrator opens to find out who has it.
+ */
+test("somebody holding a role only on member.role is listed as holding it", async () => {
+  const strayEmail = `roles-stray-${suffix}@example.test`;
+  const stray = await signUpAsOwner({
+    email: strayEmail,
+    password: "correct-horse-battery-staple",
+    name: "Granted Directly",
+  });
+  const strayId = stray.response.user.id;
+  await db.insert(schema.member).values({
+    id: crypto.randomUUID(),
+    organizationId: orgId,
+    userId: strayId,
+    // What `updateMemberRole` writes: the role list, and nothing else.
+    role: "customer,staff",
+    baseRole: "customer",
+    createdAt: new Date(),
+  });
+
+  try {
+    const res = await app.request("http://localhost/api/users/roles/staff", {
+      headers,
+    });
+    const body = (await res.json()) as { members: { userId: string }[] };
+    expect(body.members.map((m) => m.userId)).toContain(strayId);
+  } finally {
+    await db.delete(schema.member).where(eq(schema.member.userId, strayId));
+    await db.delete(schema.session).where(eq(schema.session.userId, strayId));
+    await db.delete(schema.account).where(eq(schema.account.userId, strayId));
+    await db.delete(schema.user).where(eq(schema.user.id, strayId));
+  }
+});
