@@ -365,7 +365,15 @@ function Restore() {
       <SectionHeading hint="Restored records go back exactly where they were; anything still here is left alone.">
         Put one back
       </SectionHeading>
-      <input type="file" accept=".zip" ref={file} />
+      {/*
+        Labelled, like every other control on the platform. A bare file input
+        is announced as "button" and nothing else, so somebody using a screen
+        reader meets an unnamed button on a page whose other two buttons write
+        to the live tables. Axe rates an unlabelled form control critical.
+      */}
+      <Field label="Archive file">
+        <input type="file" accept=".zip" ref={file} className="text-sm" />
+      </Field>
       <div className="mt-3 flex flex-wrap gap-2">
         <Button
           onClick={() => send.mutate("inspect")}
@@ -499,7 +507,7 @@ function Where() {
         </Button>
       </div>
       {tested ? (
-        <p style={tested.ok ? undefined : { color: "var(--danger)" }}>
+        <p style={tested.ok ? undefined : { color: "var(--text-danger)" }}>
           {tested.detail}
         </p>
       ) : null}
