@@ -427,6 +427,68 @@ export function classifySchema(
   return gaps;
 }
 
+/**
+ * Every table some repository has actually looked at and placed.
+ *
+ * Both spellings of each — `orders` and `shop.orders` — because a policy may
+ * be written against either and `addRetention` matches on both.
+ */
+const classified = new Set<string>();
+
+/**
+ * The ratchet, made a fact of the running system rather than of a test suite.
+ *
+ * `classifySchema` was the whole mechanism and it only ever ran where somebody
+ * remembered to call it. Core asserts its own coverage in its own suite;
+ * nothing in Core could prove that `Pro` or `Modules` did the same, and a
+ * repository that simply never called it was indistinguishable from one that
+ * called it and passed. "Protected where we remembered" is not a guarantee.
+ *
+ * So a repository declares its classification here, once, when its schema is
+ * loaded — and `addRetention` refuses a policy pointed at a table no
+ * declaration has placed. A repository that has not classified its schema does
+ * not quietly sweep with an unratcheted list; its policies do not register at
+ * all, loudly, naming the table and what to do about it. That is worth more
+ * than a test in each repository because it cannot be skipped, cannot be
+ * commented out, and holds on a customer's instance rather than on a build
+ * machine.
+ *
+ * It does not throw on gaps: an unclassified table refuses only the policy
+ * that points *at* it, so one table nobody has placed yet does not take a
+ * whole instance down at boot. The gaps come back for the caller's suite to
+ * assert, exactly as before.
+ */
+export function declareClassification(
+  exported: Record<string, unknown>,
+  ordinary: readonly string[],
+): ClassificationGaps {
+  const gaps = classifySchema(exported, ordinary);
+  const statutory: readonly string[] = STATUTORY_TABLES;
+  const unplaced = new Set(gaps.unclassified);
+  for (const { name, qualified } of schemaTableNames(exported)) {
+    if (unplaced.has(qualified)) continue;
+    classified.add(name);
+    classified.add(qualified);
+  }
+  // Names the repository placed that are not its own tables — a module's table
+  // referred to across the boundary — count as placed too.
+  for (const name of [...ordinary, ...statutory]) classified.add(name);
+  return gaps;
+}
+
+/** Whether any repository has said what losing this table would cost. */
+export function isClassifiedTable(table: RetentionTable): boolean {
+  return (
+    classified.has(retentionTableName(table)) ||
+    classified.has(retentionQualifiedName(table))
+  );
+}
+
+/** For tests that need to prove what an undeclared repository is refused. */
+export function forgetClassifications(): void {
+  classified.clear();
+}
+
 /** Whether a table is one the books depend on and nothing may sweep. */
 export function isStatutoryTable(table: RetentionTable): boolean {
   const names: readonly string[] = STATUTORY_TABLES;
@@ -467,6 +529,19 @@ export function addRetention(policy: RegisteredRetention): void {
   // does not sweep twice and report its work double; keyed by the module too,
   // so a second module's policy cannot silently stand in for the first's and
   // leave a log growing for ever with nothing sweeping it.
+  /*
+   * And the half no list in this file can answer: has anybody actually looked
+   * at this table? `STATUTORY_TABLES` refuses the tables we know are evidence
+   * of money, which only protects names Core has heard of. A repository that
+   * never ran the ratchet over its own schema has tables nobody has placed,
+   * and a policy against one of those is exactly the sweep that deletes what
+   * an auditor would have asked for.
+   */
+  if (!isClassifiedTable(policy.table)) {
+    throw new Error(
+      `retention policy "${policy.id}" points at "${table}", which no repository has classified — call declareClassification(schema, ORDINARY_TABLES) where this repository's schema is defined, and name "${table}" as statutory or ordinary`,
+    );
+  }
   const at = policies.findIndex(
     (p) => p.moduleId === policy.moduleId && p.id === policy.id,
   );
