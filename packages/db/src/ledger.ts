@@ -40,6 +40,16 @@ type Posting = {
 /** Chart-of-accounts codes the invoicing flow posts against. */
 export const CORE_ACCOUNTS = {
   cash: { code: "1000", name: "Cash", type: "asset" },
+  /**
+   * The current account, which is where a small business's money actually is.
+   *
+   * Beside `cash` rather than instead of it: petty cash and the bank are two
+   * balances a business counts separately, and a cash-flow statement wants
+   * both. It was in the starter chart from the beginning and named nowhere
+   * else, so every module that needed to know what counts as cash wrote
+   * "1010" down from memory — see `CASH_ACCOUNT_CODES`.
+   */
+  bank: { code: "1010", name: "Bank Account", type: "asset" },
   accountsReceivable: {
     code: "1100",
     name: "Accounts Receivable",
@@ -146,6 +156,58 @@ export const CORE_ACCOUNTS = {
     type: "liability",
   },
 } as const;
+
+/**
+ * What a cash-flow statement counts as cash.
+ *
+ * A report that has to know this had no way to ask, so it wrote the codes down
+ * — `["1000", "1010"]`, in a module that cannot import the chart they came
+ * from. The starter chart is Core's and a business may edit it; either moving
+ * changes what "cash in and out" means, and the symptom is not an error but a
+ * wrong figure on a statement somebody makes decisions from.
+ *
+ * So the codes are named here, beside the accounts they belong to, and
+ * `cashAccounts` resolves them against the chart a business actually has.
+ */
+export const CASH_ACCOUNT_CODES: readonly string[] = [
+  CORE_ACCOUNTS.cash.code,
+  CORE_ACCOUNTS.bank.code,
+];
+
+/**
+ * The cash accounts one business actually holds, and the codes it does not.
+ *
+ * Read, never created: a report must not write to the books it is reporting
+ * on, which is why this is not `ensureAccount`. A business is free to delete
+ * an account it never used, so `missing` is an answer rather than an error —
+ * but it is an answer the caller has to look at. A statement drawn over no
+ * cash accounts at all reports zeroes, and zero movement on a trading business
+ * is the wrong number rather than the absence of one; say so on the report
+ * instead of drawing it.
+ *
+ * `codes` so a module with a wider idea of cash — a savings account a business
+ * added itself — can pass its own list and still resolve it the same way.
+ */
+export async function cashAccounts(
+  orgId: string,
+  codes: readonly string[] = CASH_ACCOUNT_CODES,
+): Promise<{ ids: string[]; missing: string[] }> {
+  if (codes.length === 0) return { ids: [], missing: [] };
+  const rows = await db
+    .select({ id: schema.accounts.id, code: schema.accounts.code })
+    .from(schema.accounts)
+    .where(
+      and(
+        eq(schema.accounts.organizationId, orgId),
+        inArray(schema.accounts.code, [...codes]),
+      ),
+    );
+  const found = new Set(rows.map((r) => r.code));
+  return {
+    ids: rows.map((r) => r.id),
+    missing: codes.filter((code) => !found.has(code)),
+  };
+}
 
 /** The account currency movement lands in. */
 export async function exchangeAccount(orgId: string): Promise<string> {

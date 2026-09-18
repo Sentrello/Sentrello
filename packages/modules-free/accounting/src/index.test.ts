@@ -2,7 +2,12 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, schema } from "@sentrello/db";
-import { CORE_ACCOUNTS, postJournalEntry } from "@sentrello/db/ledger";
+import {
+  CASH_ACCOUNT_CODES,
+  CORE_ACCOUNTS,
+  cashAccounts,
+  postJournalEntry,
+} from "@sentrello/db/ledger";
 import type { SentrelloEnv } from "@sentrello/module-sdk";
 import { storeAttachment } from "@sentrello/module-sdk";
 import { and, eq, inArray } from "drizzle-orm";
@@ -981,6 +986,51 @@ test("every core account matches the starter chart it shares a code with", () =>
   }
 
   expect(disagreements).toEqual([]);
+});
+
+/**
+ * And the cash accounts have to be in the starter chart, not merely agree
+ * with it.
+ *
+ * The check above skips a core account the chart does not carry, because most
+ * are created on demand. These two cannot be: a cash-flow statement is drawn
+ * over whatever `CASH_ACCOUNT_CODES` names, so a code dropped from the chart
+ * does not fail anything — it quietly stops counting a business's bank
+ * account, and the statement reports a smaller number with no error anywhere.
+ * A report somebody makes decisions from is the wrong place to find that out.
+ */
+test("every cash code is an account the starter chart actually opens", () => {
+  const codes = new Set(STANDARD_CHART.map((a) => a.code));
+  expect(CASH_ACCOUNT_CODES.filter((code) => !codes.has(code))).toEqual([]);
+  // Both of them, so removing one from the list is a decision rather than a
+  // typo that still passes.
+  expect([...CASH_ACCOUNT_CODES]).toEqual(["1000", "1010"]);
+});
+
+/**
+ * And they are resolved against the chart a business actually has.
+ *
+ * A business may delete an account it never used, so the codes are a question
+ * rather than an assumption. What comes back is the ids it does hold and the
+ * codes it does not — the second half being the part a report has to say out
+ * loud, since a cash-flow statement over no cash accounts reports zero
+ * movement, which on a trading business is a wrong number rather than an
+ * empty one.
+ */
+test("cash accounts are read from the business's own chart, and gaps are named", async () => {
+  const held = await cashAccounts(orgId);
+  expect(held.ids.length).toBe(2);
+  expect(held.missing).toEqual([]);
+
+  // A code nobody opened comes back as missing rather than as silence.
+  const withGhost = await cashAccounts(orgId, ["1000", "9999"]);
+  expect(withGhost.ids).toHaveLength(1);
+  expect(withGhost.missing).toEqual(["9999"]);
+
+  // And never another business's rows, whatever the codes say.
+  const elsewhere = await cashAccounts(crypto.randomUUID());
+  expect(elsewhere.ids).toEqual([]);
+  expect(elsewhere.missing).toEqual(["1000", "1010"]);
 });
 
 /**
