@@ -2358,6 +2358,77 @@ export default defineModule({
      * — five equal items saying nothing about which belong together. The
      * parent is not a screen: opening it opens its dashboard.
      */
+    /**
+     * What has to exist before the CRM is doing anything for you.
+     *
+     * A CRM arrives empty and every screen in it works perfectly on nothing,
+     * which is the worst possible first impression: a pipeline board with no
+     * cards looks like a product that does not do much. These are the three
+     * things that turn it into the book of customers, in the order somebody
+     * would do them.
+     *
+     * Contacts are deliberately not a step. The invoicing guide already asks
+     * for one — its second step is "add somebody to invoice" — and two
+     * checklists on the same dashboard asking for the same row is a list
+     * people stop reading.
+     *
+     * Each step asks the data, so a business importing a spreadsheet on day
+     * one sees all three done before it has read them.
+     */
+    ctx.registerOnboarding({
+      id: "crm",
+      label: "Your customers",
+      icon: "contact-round",
+      requires: { crm: ["read"] },
+      steps: [
+        {
+          id: "first-company",
+          label: "Add the business you sell to",
+          detail:
+            "People move between companies and the work stays with the company. Putting one in first is what keeps a history when somebody leaves.",
+          opens: "companies",
+          done: async (orgId) => {
+            const [row] = await db
+              .select({ id: schema.companies.id })
+              .from(schema.companies)
+              .where(eq(schema.companies.organizationId, orgId))
+              .limit(1);
+            return Boolean(row);
+          },
+        },
+        {
+          id: "first-deal",
+          label: "Put a deal on the board",
+          detail:
+            "What you are hoping to win, and what stage it is at. A quote raised against it carries straight through to an invoice.",
+          opens: "deals",
+          done: async (orgId) => {
+            const [row] = await db
+              .select({ id: schema.deals.id })
+              .from(schema.deals)
+              .where(eq(schema.deals.organizationId, orgId))
+              .limit(1);
+            return Boolean(row);
+          },
+        },
+        {
+          id: "first-form",
+          label: "Let a form fill it in for you",
+          detail:
+            "One tag on your own website, and an enquiry arrives as a contact rather than as an email somebody has to retype.",
+          opens: "forms",
+          done: async (orgId) => {
+            const [row] = await db
+              .select({ id: schema.forms.id })
+              .from(schema.forms)
+              .where(eq(schema.forms.organizationId, orgId))
+              .limit(1);
+            return Boolean(row);
+          },
+        },
+      ],
+    });
+
     ctx.registerNav({
       id: "crm",
       label: "CRM",
