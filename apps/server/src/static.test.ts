@@ -79,3 +79,31 @@ test("the service worker is served, and told not to be cached", async () => {
   expect(res.status).toBe(200);
   expect(res.headers.get("cache-control")).toBe("no-cache");
 });
+
+test("the shell is revalidated every time, and hashed assets are kept for ever", async () => {
+  /*
+   * index.html carries no hash of its own and names which hashed assets to
+   * load, so a browser holding an old copy loads an old application and keeps
+   * doing it — nothing in that copy knows a newer one exists. It went out with
+   * no `cache-control` at all, which leaves the decision to whatever each
+   * browser does with a document that has no directive and no validator.
+   *
+   * The two rules are opposites and both are right: the shell must always be
+   * asked about, and a file whose name changes with its contents never needs
+   * to be.
+   */
+  const app = createModuleApp();
+  serveWeb(app, dist);
+
+  const shell = await app.request("http://localhost/");
+  expect(shell.status).toBe(200);
+  expect(shell.headers.get("cache-control")).toBe("no-cache");
+
+  // A deep link is the same document, and must carry the same rule.
+  const deep = await app.request("http://localhost/money");
+  expect(deep.headers.get("cache-control")).toBe("no-cache");
+
+  const asset = await app.request("http://localhost/assets/app.js");
+  expect(asset.status).toBe(200);
+  expect(asset.headers.get("cache-control")).toContain("immutable");
+});
