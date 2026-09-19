@@ -4,8 +4,25 @@ import {
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
-import { and, db, desc, eq, inArray, schema } from "@sentrello/db";
-import { countExpression, listParams } from "@sentrello/db/list-query";
+import {
+  and,
+  asc,
+  db,
+  desc,
+  eq,
+  gte,
+  inArray,
+  lte,
+  schema,
+  sql,
+} from "@sentrello/db";
+import {
+  allConditions,
+  countExpression,
+  listParams,
+  searchCondition,
+} from "@sentrello/db/list-query";
+import type { ListSpec } from "@sentrello/db/list-query";
 import { defineModule } from "@sentrello/module-sdk";
 import { registerCaReturns } from "./ca-returns";
 import { registerChart } from "./chart";
@@ -37,6 +54,94 @@ import { registerVatScheme } from "./vat-scheme";
  * has already saved, and renaming it would lock people out of the module it
  * was meant to describe better.
  */
+/**
+ * What the journal can be asked for.
+ *
+ * The ledger is the one list where a business arrives knowing what it is
+ * looking for — a figure it has to explain, on a date, against an account —
+ * and until now the screen offered a page number and nothing else. Every
+ * other list screen has had search, filters and a sort for months; this one
+ * was skipped because it pages over entries and renders lines, and that made
+ * it look like a different kind of list. It is not.
+ *
+ * Only `postedAt` is sortable, deliberately. An entry has no other column a
+ * reader would order books by — a ledger sorted by memo is not a ledger — and
+ * the page is taken over entries, so a sort on anything belonging to a line
+ * would not be a stable order at all.
+ */
+const JOURNAL: ListSpec = {
+  search: [schema.journalEntries.memo, schema.journalEntries.source],
+  sortable: { postedAt: schema.journalEntries.postedAt },
+  defaultSort: { field: "postedAt", order: "desc" },
+};
+
+/** A day, as the browser sends it, or nothing if it sent something else. */
+function day(raw: string | undefined): Date | undefined {
+  if (!raw || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return undefined;
+  const parsed = new Date(`${raw}T00:00:00.000Z`);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+}
+
+/** Everything the request asked to narrow the ledger by. */
+function journalWhere(
+  orgId: string,
+  params: ReturnType<typeof listParams>,
+  query: Record<string, string | undefined>,
+) {
+  const from = day(query.from);
+  const to = day(query.to);
+  const accountId = query.accountId?.trim();
+
+  return allConditions([
+    eq(schema.journalEntries.organizationId, orgId),
+    searchCondition(JOURNAL, params.q),
+    from ? gte(schema.journalEntries.postedAt, from) : undefined,
+    /*
+     * To the end of the day named, not to its first instant.
+     *
+     * `postedAt` is a timestamp and the filter is a date, so `lte(postedAt,
+     * 2026-03-31)` excludes everything posted on the 31st — which is every
+     * entry a quarter-end actually turns on.
+     */
+    to
+      ? lte(
+          schema.journalEntries.postedAt,
+          new Date(to.getTime() + 24 * 60 * 60 * 1000 - 1),
+        )
+      : undefined,
+    /*
+     * Entries touching one account, without joining to its lines.
+     *
+     * A join here would return one row per matching line and break both the
+     * page window and the count — an entry with two lines on the account
+     * would take two of the twenty-five places and be counted twice.
+     *
+     * `journal_lines` carries no `organizationId` of its own: a line is
+     * scoped through the entry it belongs to, and the entry is filtered by
+     * organization in the same condition list. An account id from another
+     * organization matches nothing rather than leaking, because no line of
+     * this organization's entries can reference it.
+     */
+    accountId
+      ? sql`exists (select 1 from ${schema.journalLines} where ${schema.journalLines.entryId} = ${schema.journalEntries.id} and ${schema.journalLines.accountId} = ${accountId})`
+      : undefined,
+  ]);
+}
+
+/**
+ * The order, with the tiebreaker kept.
+ *
+ * Two entries posted in the same instant must not swap places between page
+ * one and page two — that hides a row from whoever is reading — so the id
+ * follows the date in whichever direction the date is going.
+ */
+function journalOrder(params: ReturnType<typeof listParams>) {
+  const ascending = params.sort === "postedAt" ? params.order === "asc" : false;
+  return ascending
+    ? [asc(schema.journalEntries.postedAt), asc(schema.journalEntries.id)]
+    : [desc(schema.journalEntries.postedAt), desc(schema.journalEntries.id)];
+}
+
 export default defineModule({
   id: "accounting",
   tier: "free",
@@ -147,16 +252,13 @@ export default defineModule({
          */
         const params = listParams(c.req.query());
         const page = params.page ?? 1;
-        const where = eq(schema.journalEntries.organizationId, orgId);
+        const where = journalWhere(orgId, params, c.req.query());
         const [entries, [counted]] = await Promise.all([
           db
             .select({ id: schema.journalEntries.id })
             .from(schema.journalEntries)
             .where(where)
-            .orderBy(
-              desc(schema.journalEntries.postedAt),
-              desc(schema.journalEntries.id),
-            )
+            .orderBy(...journalOrder(params))
             .limit(params.perPage)
             .offset((page - 1) * params.perPage),
           db
@@ -207,10 +309,9 @@ export default defineModule({
                   eq(schema.user.id, schema.journalEntries.createdBy),
                 )
                 .where(and(where, inArray(schema.journalEntries.id, ids)))
-                .orderBy(
-                  desc(schema.journalEntries.postedAt),
-                  desc(schema.journalEntries.id),
-                );
+                // The same order as the page above it, so an ascending page
+                // is not rendered descending inside itself.
+                .orderBy(...journalOrder(params));
 
         /**
          * Whether this person can post one by hand, answered here.

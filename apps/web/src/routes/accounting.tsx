@@ -3,8 +3,16 @@ import { useState } from "react";
 import { type Account, type Meta, type ProfitAndLoss, api } from "../lib/api";
 import type { CustomField } from "../lib/crm-settings";
 import { CustomFields } from "../lib/custom-fields";
-import { PAGINATION_THRESHOLD, Pagination, useListState } from "../lib/list-ui";
+import { Icon } from "../lib/icons";
+import {
+  PAGINATION_THRESHOLD,
+  Pagination,
+  SortMenu,
+  listQueryString,
+  useListState,
+} from "../lib/list-ui";
 import { toCents } from "../lib/money";
+import { SavedViews } from "../lib/saved-views";
 import {
   Button,
   Card,
@@ -19,6 +27,7 @@ import {
   Select,
   Table,
   Tabs,
+  border,
   formatDate,
   formatMoney,
   muted,
@@ -1377,14 +1386,29 @@ export function Journal() {
    * cannot render and the server cannot build without taking the box with it.
    */
   const state = useListState({ sort: "postedAt", order: "desc" });
+  /**
+   * The chart, for the account filter.
+   *
+   * The whole list rather than a search: a chart of accounts is dozens of
+   * rows, not thousands, and a select somebody can read down beats a box they
+   * have to know the name to type into.
+   */
+  const accounts = useQuery({
+    queryKey: ["accounts"],
+    queryFn: () => api<{ accounts: Account[] }>("/api/accounts"),
+  });
+  const query = listQueryString(state, true);
   const journal = useQuery({
-    queryKey: ["journal", state.page, state.perPage],
+    queryKey: ["journal", query],
     queryFn: () =>
       api<{
         lines: JournalLine[];
         mayPost?: boolean;
         total: number;
-      }>(`/api/journal?page=${state.page}&perPage=${state.perPage}`),
+      }>(`/api/journal?${query}`),
+    // The page on screen stays while the next one loads, so a keystroke in
+    // the search box does not blank the ledger to a spinner.
+    placeholderData: (previous) => previous,
   });
 
   if (journal.isLoading) return <Loading />;
@@ -1408,8 +1432,100 @@ export function Journal() {
         )
       ) : null}
 
+      {/*
+       * What the ledger can be asked.
+       *
+       * A business arrives here knowing what it wants — a figure it has to
+       * explain, on a date, against an account. It had a page number and
+       * nothing else while every other list had all of this.
+       */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative">
+          <span
+            className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-2"
+            style={muted}
+          >
+            <Icon name="search" size={15} />
+          </span>
+          <input
+            value={state.q}
+            onChange={(e) => state.setQ(e.target.value)}
+            placeholder="Search notes"
+            aria-label="Search the journal"
+            className="w-56 rounded-md border py-1.5 pr-2 pl-7 text-sm"
+            style={{ ...border, background: "var(--surface-raised)" }}
+          />
+        </div>
+
+        <Input
+          type="date"
+          aria-label="Posted from"
+          className="w-40"
+          value={state.filters.from ?? ""}
+          onChange={(e) =>
+            state.setFilter({ from: e.target.value || undefined })
+          }
+        />
+        <Input
+          type="date"
+          aria-label="Posted to"
+          className="w-40"
+          value={state.filters.to ?? ""}
+          onChange={(e) => state.setFilter({ to: e.target.value || undefined })}
+        />
+
+        <Select
+          aria-label="Filter by account"
+          className="w-56"
+          value={state.filters.accountId ?? ""}
+          onChange={(e) =>
+            state.setFilter({ accountId: e.target.value || undefined })
+          }
+        >
+          <option value="">Any account</option>
+          {(accounts.data?.accounts ?? []).map((account) => (
+            <option key={account.id} value={account.id}>
+              {account.code} {account.name}
+            </option>
+          ))}
+        </Select>
+
+        <SortMenu
+          state={state}
+          fields={[{ field: "postedAt", label: "Date posted", order: "desc" }]}
+        />
+
+        <SavedViews
+          resource="journal"
+          state={state}
+          defaults={{ sort: "postedAt", order: "desc" }}
+        />
+
+        {state.hasFilters || state.q ? (
+          <Button
+            variant="secondary"
+            onClick={() => {
+              state.clearFilters();
+              state.setQ("");
+            }}
+          >
+            Clear
+          </Button>
+        ) : null}
+
+        <span className="ml-auto text-sm" style={muted}>
+          {total} {total === 1 ? "entry" : "entries"}
+        </span>
+      </div>
+
       {entries.length === 0 ? (
-        <Empty title="Nothing posted yet" />
+        <Empty
+          title={
+            state.hasFilters || state.q
+              ? "Nothing matches that"
+              : "Nothing posted yet"
+          }
+        />
       ) : (
         <>
           {entries.map((entry) => (
