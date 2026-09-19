@@ -749,3 +749,14 @@ export function useLastSeenRanges() {
  */
 export { RecordPicker } from "./record-picker";
 export type { PickableRecord } from "./record-picker";
+
+/**
+ * Saved views, re-exported so a module can mount them.
+ *
+ * They live in their own file because they are a screen's worth of state and
+ * three mutations, not a list primitive — but a module reaches the list
+ * machinery through this namespace and nothing else, so a module's list could
+ * not offer them at all. Type-only in the other direction, so the two files
+ * do not form a runtime cycle.
+ */
+export { SavedViews } from "./saved-views";
