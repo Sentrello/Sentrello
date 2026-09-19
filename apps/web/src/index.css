@@ -525,36 +525,6 @@ a {
 }
 
 /*
- * A heading over a run of pages inside one module.
- *
- * Money is one module with sixteen screens, and a business does not read
- * sixteen equal rows — it looks for "the bit where I chase an invoice" or
- * "the bit where I reconcile the bank". This is that label.
- *
- * Quiet by construction: smaller than a page, uppercase and tracked so it
- * reads as a divider rather than competing with the things under it, and in
- * the muted foreground token so it follows the theme instead of pinning a
- * colour. It is not a control — nothing here opens, so it takes no hover, no
- * cursor and no focus ring.
- *
- * The first one gets no top margin: a gap above the first heading in a panel
- * is a gap against the panel's own title, which already has padding.
- */
-.app-sidebar .nav-section {
-  margin: 0.75rem 0 0.25rem;
-  padding-left: 0.7rem;
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-
-.app-sidebar .nav-children > div:first-child .nav-section {
-  margin-top: 0.25rem;
-}
-
-/*
  * The two classes anything floating wears, so a raised thing inherits the
  * elevation rule above rather than picking a shadow.
  *

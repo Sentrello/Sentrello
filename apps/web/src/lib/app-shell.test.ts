@@ -4,7 +4,10 @@ import {
   GROUP_ORDER,
   type NavEntry,
   childrenOf,
+  moduleNodes,
+  panelNodes,
   panelWorthShowing,
+  railGroups,
   railModules,
   sectionsOf,
 } from "./app-shell";
@@ -18,7 +21,7 @@ import {
  * same thing twice.
  */
 
-test("every module gets its own icon on the rail", () => {
+test("every module is gathered once, whatever shape it registered", () => {
   const out = railModules([
     { id: "dashboard", label: "Dashboard", moduleId: "dashboard" },
     {
@@ -47,7 +50,7 @@ test("the rail keeps the order work happens in", () => {
       id: "settings",
       label: "Settings",
       moduleId: "settings",
-      group: "Configure",
+      group: "Configuration",
     },
     {
       id: "invoicing",
@@ -128,21 +131,39 @@ test("a module's pages belong to it, not beside it on the rail", () => {
  * somebody is trying to work in. The Dashboard is the case: one entry, no
  * pages, and always will be.
  */
-test("a module with one screen and no pages shows no panel", () => {
+test("a section with one screen and no pages shows no panel", () => {
   const nav: NavEntry[] = [
     { id: "dashboard", label: "Dashboard", moduleId: "dashboard" },
   ];
-  const [dashboard] = railModules(nav);
-  expect(panelWorthShowing(nav, dashboard)).toBe(false);
+  const dashboard = first(railGroups(nav), "rail group");
+  expect(panelWorthShowing(panelNodes(nav, dashboard))).toBe(false);
+});
+
+/**
+ * One screen behind one icon is not a panel either.
+ *
+ * The rule that drops a level with one occupant keeps going all the way down:
+ * a module whose whole contents is a single screen is reached by the rail
+ * click that would have opened the panel, so the panel would be fifteen rem
+ * restating a destination you have already arrived at.
+ */
+test("a module with a single screen shows no panel", () => {
+  const nav: NavEntry[] = [
+    { id: "crm", label: "CRM", moduleId: "crm", group: "Sales" },
+    { id: "contacts", label: "Contacts", moduleId: "crm", parent: "crm" },
+  ];
+  const crm = first(railGroups(nav), "rail group");
+  expect(panelWorthShowing(panelNodes(nav, crm))).toBe(false);
 });
 
 test("a module with pages shows a panel of its own", () => {
   const nav: NavEntry[] = [
     { id: "crm", label: "CRM", moduleId: "crm", group: "Sales" },
     { id: "contacts", label: "Contacts", moduleId: "crm", parent: "crm" },
+    { id: "companies", label: "Companies", moduleId: "crm", parent: "crm" },
   ];
-  const [crm] = railModules(nav);
-  expect(panelWorthShowing(nav, crm)).toBe(true);
+  const crm = first(railGroups(nav), "rail group");
+  expect(panelWorthShowing(panelNodes(nav, crm))).toBe(true);
 });
 
 test("a module with several screens shows a panel even without nesting", () => {
@@ -155,14 +176,14 @@ test("a module with several screens shows a panel even without nesting", () => {
     },
     { id: "quotes", label: "Quotes", moduleId: "invoicing", group: "Money" },
   ];
-  const [invoicing] = railModules(nav);
-  expect(panelWorthShowing(nav, invoicing)).toBe(true);
+  const money = first(railGroups(nav), "rail group");
+  expect(panelWorthShowing(panelNodes(nav, money))).toBe(true);
 });
 
 /**
  * Every group a module can name is ranked.
  *
- * `position()` scores an unlisted group 99, which sorts it below `Configure`.
+ * `position()` scores an unlisted group 99, which sorts it below `Configuration`.
  * Two groups were unlisted — Marketing and Business — so Links, Search and
  * Documentation rendered *under* Settings and Users. Nobody chose that; it was
  * the absence of two lines from a list whose entire job is stating the order.
@@ -174,21 +195,21 @@ test("a module with several screens shows a panel even without nesting", () => {
 test("every group the modules use is ranked, so the order is chosen", () => {
   // What the shipped modules actually register, gathered by reading the rail
   // rather than by trusting this list to be kept up to date by hand.
-  const groups = ["Sales", "Money", "Work", "Marketing", "Configure"];
+  const groups = ["Sales", "Money", "Work", "Marketing", "Configuration"];
   const unranked = groups.filter((g) => !GROUP_ORDER.includes(g));
   expect(
     unranked,
-    `these are named by a module and missing from GROUP_ORDER, so they score 99 and sort below Configure: ${unranked.join(", ")}`,
+    `these are named by a module and missing from GROUP_ORDER, so they score 99 and sort below Configuration: ${unranked.join(", ")}`,
   ).toEqual([]);
 });
 
-test("Configure sorts last, because settings are settings wherever you are", () => {
-  const others = GROUP_ORDER.filter((g) => g !== "Configure");
+test("Configuration sorts last, because settings are settings wherever you are", () => {
+  const others = GROUP_ORDER.filter((g) => g !== "Configuration");
   for (const group of others) {
     expect(
       GROUP_ORDER.indexOf(group),
-      `${group} must come before Configure`,
-    ).toBeLessThan(GROUP_ORDER.indexOf("Configure"));
+      `${group} must come before Configuration`,
+    ).toBeLessThan(GROUP_ORDER.indexOf("Configuration"));
   }
 });
 
@@ -213,8 +234,8 @@ test("no group draws the same icon as another group", () => {
  *
  * Money is one module with sixteen screens — invoicing and the books are one
  * subject to a business and were one undifferentiated list on screen. These
- * break that list up without adding a third level of navigation, which is the
- * thing that once made eleven screens unreachable.
+ * break that list up. They are rows that open, not labels: the panel draws as
+ * many levels as the data has, and a heading is one of them.
  */
 test("a module that asks for no sections renders exactly as before", () => {
   const pages: NavEntry[] = [
@@ -299,5 +320,248 @@ test("and does not hoist or sink a page that named no order", () => {
     "unplaced",
     "first",
     "second",
+  ]);
+});
+
+/** The first of a list, or a failure that says so rather than a `!`. */
+function first<T>(items: T[], what: string): T {
+  const item = items[0];
+  if (!item) throw new Error(`no ${what}`);
+  return item;
+}
+
+/**
+ * The rail, and the panel's depth.
+ *
+ * One icon per section of the business, not per module — thirteen equal glyphs
+ * said nothing about what belongs with what, and grew by one with every module
+ * bought. The panel carries the difference, and carries it by recursion: a
+ * level with one occupant is never drawn, so the same code renders a flat list
+ * of six, a set of headings, and three levels, without being told which.
+ */
+const CONFIGURATION: NavEntry[] = [
+  {
+    id: "settings",
+    label: "Settings",
+    moduleId: "settings",
+    group: "Configuration",
+    icon: "settings",
+  },
+  {
+    id: "settings-business",
+    label: "Your business",
+    moduleId: "settings",
+    parent: "settings",
+  },
+  {
+    id: "settings-modules",
+    label: "Modules",
+    moduleId: "settings",
+    parent: "settings",
+  },
+  {
+    id: "users",
+    label: "Users",
+    moduleId: "users",
+    group: "Configuration",
+    icon: "users",
+  },
+  { id: "people", label: "People", moduleId: "users", parent: "users" },
+  { id: "groups", label: "Groups", moduleId: "users", parent: "users" },
+];
+
+/** Booking: alone in Work, no headings. Six screens and nothing to open. */
+const BOOKING: NavEntry[] = [
+  {
+    id: "scheduling",
+    label: "Booking",
+    moduleId: "scheduling",
+    group: "Work",
+    icon: "calendar",
+  },
+  {
+    id: "bookings",
+    label: "Bookings",
+    moduleId: "scheduling",
+    parent: "scheduling",
+  },
+  {
+    id: "services",
+    label: "Services",
+    moduleId: "scheduling",
+    parent: "scheduling",
+  },
+  {
+    id: "availability",
+    label: "Availability",
+    moduleId: "scheduling",
+    parent: "scheduling",
+  },
+];
+
+/** Money: one module whose pages name headings, plus one unplaced page. */
+const MONEY: NavEntry[] = [
+  {
+    id: "money",
+    label: "Money",
+    moduleId: "money",
+    group: "Money",
+    icon: "wallet",
+  },
+  {
+    id: "money-dashboard",
+    label: "Dashboard",
+    moduleId: "money",
+    parent: "money",
+  },
+  {
+    id: "quotes",
+    label: "Quotes",
+    moduleId: "money",
+    parent: "money",
+    section: "Getting paid",
+  },
+  {
+    id: "invoicing",
+    label: "Invoices",
+    moduleId: "money",
+    parent: "money",
+    section: "Getting paid",
+  },
+  {
+    id: "accounting",
+    label: "Accounting",
+    moduleId: "money",
+    parent: "money",
+    section: "The books",
+  },
+];
+
+const POS: NavEntry[] = [
+  {
+    id: "pos",
+    label: "POS",
+    moduleId: "pos",
+    group: "Money",
+    icon: "credit-card",
+  },
+  { id: "pos-till", label: "Till", moduleId: "pos", parent: "pos" },
+  {
+    id: "pos-settings",
+    label: "Settings",
+    moduleId: "pos",
+    parent: "pos",
+    section: "Setup",
+  },
+];
+
+test("the rail draws one icon per section, in the order work happens", () => {
+  const out = railGroups([
+    ...CONFIGURATION,
+    ...MONEY,
+    { id: "dashboard", label: "Dashboard", moduleId: "dashboard" },
+    {
+      id: "crm",
+      label: "CRM",
+      moduleId: "crm",
+      group: "Sales",
+      icon: "contact",
+    },
+  ]);
+  expect(out.map((g) => g.label)).toEqual([
+    "Dashboard",
+    "CRM",
+    "Money",
+    "Configuration",
+  ]);
+});
+
+test("a section holding one module wears that module's name and icon", () => {
+  const work = first(railGroups(BOOKING), "rail group");
+  expect(work.label).toBe("Booking");
+  expect(work.icon).toBe("calendar");
+});
+
+test("a section holding several modules wears its own name and icon", () => {
+  const configure = first(railGroups(CONFIGURATION), "rail group");
+  expect(configure.label).toBe("Configuration");
+  expect(configure.icon).toBe("settings");
+});
+
+test("one module, no headings: a flat list with nothing to open", () => {
+  const work = first(railGroups(BOOKING), "rail group");
+  const nodes = panelNodes(BOOKING, work);
+  expect(nodes.map((n) => n.label)).toEqual([
+    "Bookings",
+    "Services",
+    "Availability",
+  ]);
+  expect(nodes.every((n) => n.children.length === 0)).toBe(true);
+});
+
+test("one module with headings: the headings are the rows, unplaced pages lead", () => {
+  const money = first(railGroups(MONEY), "rail group");
+  const nodes = panelNodes(MONEY, money);
+  expect(nodes.map((n) => n.label)).toEqual([
+    "Dashboard",
+    "Getting paid",
+    "The books",
+  ]);
+  expect(nodes[1]?.children.map((c) => c.label)).toEqual([
+    "Quotes",
+    "Invoices",
+  ]);
+});
+
+/**
+ * Three levels, and the only place they appear.
+ *
+ * Money and the POS share the Money section. Neither module's name can be
+ * dropped now — the panel title is the section's — so the headings inside each
+ * become a third level. This is what "a level with one occupant is not drawn"
+ * costs when there are two occupants, and it is the whole reason the panel
+ * recurses rather than drawing two hand-written levels.
+ */
+test("two modules in one section: module, heading, page", () => {
+  const nav = [...MONEY, ...POS];
+  const money = first(railGroups(nav), "rail group");
+  const nodes = panelNodes(nav, money);
+  expect(nodes.map((n) => n.label)).toEqual(["Money", "POS"]);
+  expect(nodes[0]?.children.map((n) => n.label)).toEqual([
+    "Dashboard",
+    "Getting paid",
+    "The books",
+  ]);
+  expect(nodes[0]?.children[1]?.children.map((n) => n.label)).toEqual([
+    "Quotes",
+    "Invoices",
+  ]);
+});
+
+/**
+ * Two modules can name the same heading — "Settings" is the obvious one — and
+ * a panel remembers which rows are open by id. Sharing one would fold two
+ * unrelated sections in and out together.
+ */
+test("no two rows in a panel share an id", () => {
+  const nav = [...MONEY, ...POS];
+  const money = first(railGroups(nav), "rail group");
+  const ids: string[] = [];
+  const walk = (nodes: ReturnType<typeof panelNodes>) => {
+    for (const node of nodes) {
+      ids.push(node.id);
+      walk(node.children);
+    }
+  };
+  walk(panelNodes(nav, money));
+  expect(new Set(ids).size, `duplicated: ${ids.join(", ")}`).toBe(ids.length);
+});
+
+test("a module alone in a panel does not draw a row of its own", () => {
+  const configure = first(railGroups(CONFIGURATION), "rail group");
+  const settings = first(configure.modules, "module");
+  expect(moduleNodes(CONFIGURATION, settings).map((n) => n.label)).toEqual([
+    "Your business",
+    "Modules",
   ]);
 });

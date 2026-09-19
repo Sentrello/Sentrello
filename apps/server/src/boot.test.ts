@@ -1002,7 +1002,7 @@ test("Users opens out into the screens of a console, not one page", async () => 
 
   const parent = body.nav.find((n) => n.id === "users-console");
   expect(parent?.parent).toBeUndefined();
-  expect(parent?.group).toBe("Configure");
+  expect(parent?.group).toBe("Configuration");
   // The rail is icons alone, so a section entry without one is a blank square.
   expect(parent?.icon).toBeTruthy();
 

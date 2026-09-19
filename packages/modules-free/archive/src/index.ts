@@ -108,7 +108,7 @@ export default defineModule({
       icon: "boxes",
       order: 90.09,
       parent: "settings",
-      group: "Configure",
+      group: "Configuration",
       requires: { archive: ["read"] },
     });
     for (const action of ["read", "create", "delete", "connect"]) {
