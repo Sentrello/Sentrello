@@ -54,6 +54,7 @@ export {
   ilike,
   inArray,
   isNotNull,
+  notInArray,
   isNull,
   like,
   lt,

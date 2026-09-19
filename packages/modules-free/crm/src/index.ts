@@ -66,6 +66,7 @@ import {
   DEFAULT_WON_STAGES,
   registerCrmSettings,
 } from "./settings";
+import { registerCrmSummary } from "./summary";
 import { registerTaskActions } from "./tasks";
 import { registerVies } from "./vies";
 import { registerSavedViews } from "./views";
@@ -2428,6 +2429,8 @@ export default defineModule({
         },
       ],
     });
+
+    registerCrmSummary(ctx);
 
     ctx.registerNav({
       id: "crm",
