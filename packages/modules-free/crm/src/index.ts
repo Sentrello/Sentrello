@@ -14,7 +14,7 @@ import {
   countExpression,
   inChunks,
   listParams,
-  orderBy,
+  orderByWith,
   pageWindow,
   searchCondition,
 } from "@sentrello/db/list-query";
@@ -344,7 +344,7 @@ function crud<T extends keyof typeof tables>(
           .select()
           .from(table)
           .where(where)
-          .orderBy(orderBy(list, params))
+          .orderBy(...orderByWith(list, params, table.id))
           .limit(UNPAGED_MAX + 1);
         const { rows, truncated } = capUnpaged(all);
         return c.json({
@@ -364,7 +364,7 @@ function crud<T extends keyof typeof tables>(
           .select()
           .from(table)
           .where(where)
-          .orderBy(orderBy(list, params))
+          .orderBy(...orderByWith(list, params, table.id))
           .limit(window.limit)
           .offset(window.offset),
         db.select({ total: countExpression }).from(table).where(where),

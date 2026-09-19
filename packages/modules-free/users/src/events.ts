@@ -11,7 +11,7 @@ import {
   capUnpaged,
   countExpression,
   listParams,
-  orderBy,
+  orderByWith,
   pageWindow,
 } from "@sentrello/db/list-query";
 import { and, eq, gte, lte, or, sql } from "@sentrello/db/orm";
@@ -114,7 +114,7 @@ export function registerEvents(ctx: ModuleContext) {
         to ? lte(schema.securityEvents.at, to) : undefined,
       ]);
 
-      const order = orderBy(EVENTS_LIST, params);
+      const order = orderByWith(EVENTS_LIST, params, schema.securityEvents.id);
       const toRow = (e: typeof schema.securityEvents.$inferSelect) => ({
         id: e.id,
         at: e.at,
@@ -136,7 +136,7 @@ export function registerEvents(ctx: ModuleContext) {
           .select()
           .from(schema.securityEvents)
           .where(where)
-          .orderBy(order)
+          .orderBy(...order)
           .limit(UNPAGED_MAX + 1);
         const { rows, truncated } = capUnpaged(found);
         return c.json({
@@ -155,7 +155,7 @@ export function registerEvents(ctx: ModuleContext) {
           .select()
           .from(schema.securityEvents)
           .where(where)
-          .orderBy(order)
+          .orderBy(...order)
           .limit(window.limit)
           .offset(window.offset),
         db

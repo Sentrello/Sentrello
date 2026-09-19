@@ -25,7 +25,7 @@ import {
   capUnpaged,
   countExpression,
   listParams,
-  orderBy,
+  orderByWith,
   pageWindow,
   searchCondition,
 } from "@sentrello/db/list-query";
@@ -240,9 +240,10 @@ export function registerLists(ctx: ModuleContext) {
             .from(table)
             .where(where)
             .orderBy(
-              orderBy(
+              ...orderByWith(
                 kind === "invoices" ? invoiceList : quoteList,
                 listParams(query),
+                table.id,
               ),
             ),
           db
@@ -335,7 +336,7 @@ export function registerLists(ctx: ModuleContext) {
         .select()
         .from(schema.invoices)
         .where(where)
-        .orderBy(orderBy(invoiceList, params))
+        .orderBy(...orderByWith(invoiceList, params, schema.invoices.id))
         .limit(window ? window.limit : UNPAGED_MAX + 1)
         .offset(window ? window.offset : 0);
       const { rows, truncated } = window
@@ -466,7 +467,7 @@ export function registerLists(ctx: ModuleContext) {
         .select()
         .from(schema.quotes)
         .where(where)
-        .orderBy(orderBy(quoteList, params))
+        .orderBy(...orderByWith(quoteList, params, schema.quotes.id))
         .limit(window ? window.limit : UNPAGED_MAX + 1)
         .offset(window ? window.offset : 0);
       const { rows, truncated } = window

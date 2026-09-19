@@ -93,6 +93,31 @@ export function searchCondition(
   return parts.length === 1 ? parts[0] : or(...parts);
 }
 
+/**
+ * Which way a list is actually being ordered.
+ *
+ * Separate from `orderBy` because a paged list needs a second column to break
+ * ties on — two rows sharing a date must not swap places between page one and
+ * page two, which hides one of them from whoever is reading — and that
+ * tiebreaker has to run the same way as the column in front of it. A
+ * tiebreaker pinned to `desc` while the list is ascending is the same bug in
+ * a quieter form: the ties come out in the wrong order and page boundaries
+ * still move.
+ *
+ * Asked here rather than worked out again at each call site, because the rule
+ * includes the part that is easy to forget: a sort field the browser named
+ * that is not on the allow-list falls back to the spec's *default direction*,
+ * not to the direction that arrived with the unknown field.
+ */
+export function orderDirection(
+  spec: ListSpec,
+  params: ListParams,
+): "asc" | "desc" {
+  return params.sort && spec.sortable[params.sort]
+    ? params.order
+    : spec.defaultSort.order;
+}
+
 /** The ordering, from the allow-list, falling back to the spec's default. */
 export function orderBy(spec: ListSpec, params: ListParams): SQL {
   const column =
@@ -103,11 +128,26 @@ export function orderBy(spec: ListSpec, params: ListParams): SQL {
       `list spec's default sort "${spec.defaultSort.field}" is not sortable`,
     );
   }
-  const direction =
-    params.sort && spec.sortable[params.sort]
-      ? params.order
-      : spec.defaultSort.order;
-  return direction === "asc" ? asc(column) : desc(column);
+  return orderDirection(spec, params) === "asc" ? asc(column) : desc(column);
+}
+
+/**
+ * The same ordering, with a column to break ties on.
+ *
+ * Every paged list needs one. Without it the database is free to return two
+ * rows sharing a sort value in either order, and it does — so a row can sit
+ * on page one, then on page two after the next request, and never be read.
+ */
+export function orderByWith(
+  spec: ListSpec,
+  params: ListParams,
+  tiebreaker: PgColumn,
+): SQL[] {
+  const direction = orderDirection(spec, params);
+  return [
+    orderBy(spec, params),
+    direction === "asc" ? asc(tiebreaker) : desc(tiebreaker),
+  ];
 }
 
 /** Everything a request asked to narrow by, as one condition. */
