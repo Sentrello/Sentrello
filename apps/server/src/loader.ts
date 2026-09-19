@@ -48,6 +48,17 @@ export function loadModules(
     group?: string;
     /** The entry it nests under, for modules with several screens. */
     parent?: string;
+    /**
+     * The heading it sits under inside that module's panel.
+     *
+     * Missing from this type until the boot line below tried to read it, even
+     * though the value has always flowed: entries are pushed with a spread, so
+     * the field arrived at the browser while nothing here knew it existed.
+     * That is the dangerous shape — the day somebody builds a nav entry field
+     * by field instead of spreading one, the headings disappear and the types
+     * agree that nothing is wrong.
+     */
+    section?: string;
     /** Icon name for the rail and the panel. */
     icon?: string;
   }[] = [];
@@ -349,6 +360,26 @@ export function loadModules(
    * whole module down over a misplaced menu item would be a worse trade than
    * the one it fixes.
    */
+  /*
+   * What the menu came out as, in one line.
+   *
+   * Nothing said this, and the absence cost an hour: a sidebar change was
+   * deployed, reported as "no change" from a clean browser, and settling
+   * whether the fault was the data or the rendering meant reading the served
+   * JavaScript, computing the nav inside the running container, and copying a
+   * probe onto a production machine. All of it to answer a question this
+   * sentence answers at boot.
+   *
+   * It is the shape of the menu, not its contents: how many entries, how many
+   * are pages of something, how many sit under a heading. Enough to tell an
+   * instance that is missing an update from one that is drawing what it was
+   * given, which is the question somebody actually has.
+   */
+  const underHeading = nav.filter((n) => n.section).length;
+  console.log(
+    `[modules] menu: ${nav.length} entries, ${nav.filter((n) => n.parent).length} pages, ${underHeading} under a heading`,
+  );
+
   const pages = new Set(nav.filter((n) => n.parent).map((n) => n.id));
   for (const entry of nav) {
     if (!entry.parent || !pages.has(entry.parent)) continue;
