@@ -52,7 +52,7 @@ export const GROUP_ORDER = [
   "Work",
   // Everything that brings somebody in before there is a sale to make. It was
   // missing from this list entirely, which is not a small thing: an unlisted
-  // group scores 99 and sorts below `Configure`, so Links, Search and
+  // group scores 99 and sorts below `Configuration`, so Links, Search and
   // Documentation rendered *under* Settings and Users. Nobody chose that — it
   // was the absence of two lines, and the order this list exists to state was
   // not the order anybody saw.
@@ -61,11 +61,11 @@ export const GROUP_ORDER = [
   // where it belongs rather than at the end with the unranked.
   "People",
   // Only ever present on sentrello.com's own instance, where it runs the
-  // business that sells this. Above Configure because it is where the day's
+  // business that sells this. Above Configuration because it is where the day's
   // work happens there, and settings are settings wherever you are.
   "Master",
   // Last, always. Settings are settings wherever you are.
-  "Configure",
+  "Configuration",
 ];
 
 /** Whatever the rail should draw for a section that named no icon of its own. */
@@ -81,7 +81,7 @@ export const GROUP_ICONS: Record<string, IconName> = {
   Marketing: "trending-up",
   People: "users",
   Master: "boxes",
-  Configure: "settings",
+  Configuration: "settings",
 };
 
 /** One module, as the rail draws it and the panel opens it. */
@@ -92,19 +92,23 @@ export interface RailModule {
   items: NavEntry[];
 }
 
-/**
- * The rail, one icon per module.
- *
- * It used to be one icon per *section* — Sales, Money, Work — with the modules
- * inside. That answered "what part of the business is this" and left the
- * question people actually arrive with, which is "where is Invoicing",
- * needing two clicks and knowing which section somebody had filed it under.
- *
- * So the rail is the modules themselves and the panel beside it is that
- * module's own pages. The sections survive as the *order*: find the customer,
- * agree the price, take the money, do the job. A module the host has never
- * heard of sorts to the end rather than being dropped.
- */
+/** One rail icon: a section of the business, and the modules inside it. */
+export interface RailGroup {
+  /** The group's name, or the module id when a module named no group. */
+  id: string;
+  label: string;
+  icon: IconName;
+  modules: RailModule[];
+}
+
+/** Where a group sorts. Unranked goes to the end rather than being dropped. */
+function position(name: string | undefined): number {
+  if (!name) return -1;
+  const known = GROUP_ORDER.indexOf(name);
+  return known === -1 ? 99 : known;
+}
+
+/** Every module, keyed by id, with the entries it registered. */
 export function railModules(nav: NavEntry[]): RailModule[] {
   const byModule = new Map<string, NavEntry[]>();
   for (const item of nav) {
@@ -116,12 +120,6 @@ export function railModules(nav: NavEntry[]): RailModule[] {
     if (list) list.push(item);
     else byModule.set(key, [item]);
   }
-
-  const position = (name: string | undefined) => {
-    if (!name) return -1;
-    const known = GROUP_ORDER.indexOf(name);
-    return known === -1 ? 99 : known;
-  };
 
   return [...byModule.entries()]
     .map(([moduleId, items]) => {
@@ -146,6 +144,62 @@ export function railModules(nav: NavEntry[]): RailModule[] {
     })
     .sort((a, b) => {
       const byGroup = position(a.items[0]?.group) - position(b.items[0]?.group);
+      return byGroup !== 0 ? byGroup : a.label.localeCompare(b.label);
+    });
+}
+
+/**
+ * The rail: one icon per section of the business, not per module.
+ *
+ * It was one icon per module for a while, on the argument that somebody
+ * arriving with "where is Invoicing" should not have to know which section it
+ * was filed under. That answered the question by asking a different one:
+ * thirteen equal glyphs, growing by one with every module bought, saying
+ * nothing about what belongs with what. Settings and Users are one idea and
+ * were two icons; Money and the POS are one part of the business and were two.
+ *
+ * So the rail is the sections again — and the panel beside it is allowed the
+ * depth that makes that work, which is what it was missing the first time.
+ *
+ * A module that named no section is not filed under a blank one: it keeps an
+ * icon of its own, which is what the Dashboard has always had.
+ */
+export function railGroups(nav: NavEntry[]): RailGroup[] {
+  const groups = new Map<string, RailModule[]>();
+  for (const module of railModules(nav)) {
+    const name = module.items[0]?.group;
+    const key = name || `module:${module.moduleId}`;
+    const list = groups.get(key);
+    if (list) list.push(module);
+    else groups.set(key, [module]);
+  }
+
+  return [...groups.entries()]
+    .map(([key, modules]) => {
+      const name = modules[0]?.items[0]?.group;
+      /**
+       * One occupant is never drawn as a level of its own.
+       *
+       * A section holding a single module is that module — showing its name
+       * on the icon and again on the panel title is a level of navigation
+       * that never branches. The rule runs all the way down: a module alone
+       * in a panel does not draw a row either.
+       */
+      const alone = modules.length === 1 ? modules[0] : undefined;
+      return {
+        id: key,
+        label: alone ? alone.label : (name ?? key),
+        icon:
+          alone?.icon ??
+          (name ? GROUP_ICONS[name] : undefined) ??
+          ("layout" as IconName),
+        modules,
+      };
+    })
+    .sort((a, b) => {
+      const byGroup =
+        position(a.modules[0]?.items[0]?.group) -
+        position(b.modules[0]?.items[0]?.group);
       return byGroup !== 0 ? byGroup : a.label.localeCompare(b.label);
     });
 }
@@ -201,34 +255,190 @@ export function sectionsOf(
 }
 
 /**
- * Whether the second level of the sidebar has anything to say.
+ * A row in the panel: a screen, or something that opens onto screens.
  *
- * A module with one entry and no pages of its own only repeats the icon the
- * rail already showed. The Dashboard is exactly that, and always will be.
- * Fifteen rem of panel to restate one word is fifteen rem taken off the screen
- * somebody is trying to work in.
+ * The panel used to draw exactly two kinds of row and so had exactly two
+ * levels. That was enough while one icon meant one module, and stopped being
+ * enough the moment an icon meant a section: Money and the POS share one, and
+ * each has headings of its own inside it.
+ *
+ * So the panel draws a tree and the tree decides its own depth, which is what
+ * keeps it from turning into ceremony — a level with one occupant is not
+ * drawn at all. Booking, alone in Work with no headings, is a flat list of six
+ * screens. Money alone is its headings. Money beside the POS is both, and that
+ * is the only place three levels appear.
  */
-export function panelWorthShowing(
-  nav: NavEntry[],
-  module: RailModule | undefined,
-): boolean {
-  if (!module) return false;
-  const only = module.items.length === 1 ? module.items[0] : undefined;
-  return !(only && childrenOf(nav, only.id).length === 0);
+export interface NavNode {
+  /** Unique within the panel: what remembers whether this row is open. */
+  id: string;
+  label: string;
+  icon?: IconName;
+  /** Set when the row is a screen. A row with children is not. */
+  entry?: NavEntry;
+  children: NavNode[];
+}
+
+const leafNode = (entry: NavEntry): NavNode => ({
+  id: entry.id,
+  label: entry.label,
+  entry,
+  children: [],
+});
+
+/** Pages, with each heading the module asked for as a row that opens. */
+function pageNodes(prefix: string, pages: NavEntry[]): NavNode[] {
+  return sectionsOf(pages).flatMap((part) =>
+    part.heading
+      ? [
+          {
+            id: `${prefix}/${part.heading}`,
+            label: part.heading,
+            children: part.items.map(leafNode),
+          },
+        ]
+      : part.items.map(leafNode),
+  );
+}
+
+/** What one module contributes to the panel, with its own name left off. */
+export function moduleNodes(nav: NavEntry[], module: RailModule): NavNode[] {
+  const items = module.items;
+  const head = items.length === 1 ? items[0] : undefined;
+  if (head) {
+    const pages = childrenOf(nav, head.id);
+    return pages.length ? pageNodes(module.moduleId, pages) : [leafNode(head)];
+  }
+  return items.map((item) => {
+    const pages = childrenOf(nav, item.id);
+    return pages.length
+      ? {
+          id: item.id,
+          label: item.label,
+          ...(item.icon ? { icon: item.icon as IconName } : {}),
+          children: pageNodes(item.id, pages),
+        }
+      : leafNode(item);
+  });
+}
+
+/** The whole panel for one rail icon. */
+export function panelNodes(nav: NavEntry[], group: RailGroup): NavNode[] {
+  const alone = group.modules.length === 1 ? group.modules[0] : undefined;
+  if (alone) return moduleNodes(nav, alone);
+  return group.modules.map((module) => ({
+    id: `module:${module.moduleId}`,
+    label: module.label,
+    icon: module.icon,
+    children: moduleNodes(nav, module),
+  }));
 }
 
 /**
- * The sidebar, in two levels.
+ * Whether the second level of the sidebar has anything to say.
  *
- * A rail of sections on the left, and the section you are in opened beside it.
- * One flat list of every screen said nothing about what belongs with what —
- * fifteen equal items, with the CRM's five pages burying the Shop. The rail
- * says "these are the parts of the business"; the panel says "this is what is
- * in this part"; and a module with several screens opens into them.
+ * A single row that opens onto nothing only repeats the icon the rail already
+ * showed. The Dashboard is exactly that, and always will be. Fifteen rem of
+ * panel to restate one word is fifteen rem taken off the screen somebody is
+ * trying to work in.
+ */
+export function panelWorthShowing(nodes: NavNode[]): boolean {
+  if (nodes.length > 1) return true;
+  return (nodes[0]?.children.length ?? 0) > 0;
+}
+
+/** Every screen somewhere under a row, so a row knows when it holds you. */
+function holds(node: NavNode, pageId: string): boolean {
+  if (node.entry?.id === pageId) return true;
+  return node.children.some((child) => holds(child, pageId));
+}
+
+/** The first screen under a row — where opening it lands you. */
+function firstLeaf(node: NavNode): NavEntry | undefined {
+  if (node.entry) return node.entry;
+  for (const child of node.children) {
+    const found = firstLeaf(child);
+    if (found) return found;
+  }
+  return undefined;
+}
+
+/**
+ * One level of the panel, and every level below it.
+ *
+ * Drawn by recursion rather than by two hand-written levels, because the depth
+ * is the data's to decide: whoever adds a module with headings beside another
+ * module should not also have to add a third `map` to this file.
+ */
+function NavRows({
+  nodes,
+  depth,
+  currentId,
+  isOpen,
+  onToggle,
+  onGo,
+}: {
+  nodes: NavNode[];
+  depth: number;
+  currentId: string;
+  isOpen: (node: NavNode) => boolean;
+  onToggle: (node: NavNode) => void;
+  onGo: (entry: NavEntry) => void;
+}) {
+  return (
+    <>
+      {nodes.map((node) => {
+        const open = node.children.length > 0 && isOpen(node);
+        return (
+          <div key={node.id}>
+            <button
+              type="button"
+              className={`nav-link nav-parent${depth > 0 ? " nav-child" : ""}`}
+              aria-current={node.entry?.id === currentId ? "page" : undefined}
+              aria-expanded={node.children.length ? open : undefined}
+              onClick={() => {
+                if (node.children.length) onToggle(node);
+                else if (node.entry) onGo(node.entry);
+              }}
+            >
+              {node.icon ? <Icon name={node.icon} size={16} /> : null}
+              <span className="flex-1 text-left">{node.label}</span>
+              {node.children.length ? (
+                // A drawn chevron, not "▸" at 0.6rem. The glyph renders at
+                // whatever weight the font has for it, which on the stack this
+                // app uses is barely a mark on the screen.
+                <span className="nav-caret" data-open={open}>
+                  <Icon name="chevron-right" size={16} />
+                </span>
+              ) : null}
+            </button>
+            {open ? (
+              <div className="nav-children">
+                <NavRows
+                  nodes={node.children}
+                  depth={depth + 1}
+                  currentId={currentId}
+                  isOpen={isOpen}
+                  onToggle={onToggle}
+                  onGo={onGo}
+                />
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+/**
+ * The sidebar: a rail of sections, and the one you are in opened beside it.
+ *
+ * The rail says "these are the parts of the business"; the panel says "this is
+ * what is in this part", to whatever depth that part actually has.
  */
 function Sidebar({ nav }: { nav: NavEntry[] }) {
   const { current, go } = useNavigation();
-  const modules = railModules(nav);
+  const groups = railGroups(nav);
 
   /** Which entry is on screen, so the rail and the panel can both mark it. */
   const activeEntry = nav.find((n) => n.id === current.moduleId);
@@ -239,66 +449,69 @@ function Sidebar({ nav }: { nav: NavEntry[] }) {
     (parentEntry ?? activeEntry)?.moduleId ??
     (parentEntry ?? activeEntry)?.id ??
     "";
+  const activeGroup = groups.find((g) =>
+    g.modules.some((m) => m.moduleId === activeModule),
+  );
 
   /**
-   * The module the panel is showing.
+   * The section the panel is showing.
    *
    * It follows wherever you are by default, so arriving on a screen opens the
-   * module it belongs to. Clicking the rail pins a different one — somebody
+   * section it belongs to. Clicking the rail pins a different one — somebody
    * looking for the next thing to do should be able to browse without leaving
    * the screen they are on.
    */
   const [pinned, setPinned] = useState<string | null>(null);
-  const shown = pinned ?? activeModule;
-  const section = modules.find((m) => m.moduleId === shown) ?? modules[0];
+  const group = groups.find((g) => g.id === pinned) ?? activeGroup ?? groups[0];
+  const nodes = group ? panelNodes(nav, group) : [];
 
-  /** Modules opened out into their pages. Expanded where you are working. */
+  /** Rows opened out. Whatever holds the screen you are on starts open. */
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const isOpen = (entry: NavEntry) =>
-    expanded[entry.id] ??
-    (current.moduleId === entry.id || activeEntry?.parent === entry.id);
+  const isOpen = (node: NavNode) =>
+    expanded[node.id] ?? holds(node, current.moduleId);
 
-  const showPanel = panelWorthShowing(nav, section);
+  const showPanel = panelWorthShowing(nodes);
 
-  /** A parent is not a screen: opening one opens the first page under it. */
-  const openEntry = (entry: NavEntry) => {
-    const pages = childrenOf(nav, entry.id);
-    const first = pages[0];
-    if (first) {
-      setExpanded((e) => ({ ...e, [entry.id]: true }));
-      go(first.id, first.label);
+  /** A row that opens is not a screen: opening one lands on its first. */
+  const openNode = (node: NavNode) => {
+    if (isOpen(node)) {
+      setExpanded((e) => ({ ...e, [node.id]: false }));
       return;
     }
-    go(entry.id, entry.label);
+    setExpanded((e) => ({ ...e, [node.id]: true }));
+    const first = firstLeaf(node);
+    if (first) go(first.id, first.label);
   };
 
   return (
     <div className="flex items-stretch">
       <nav className="app-rail" aria-label="Modules">
-        {modules.map((module) => {
-          const here = shown === module.moduleId;
+        {groups.map((item) => {
+          const here = group?.id === item.id;
           return (
             <button
-              key={module.moduleId}
+              key={item.id}
               type="button"
               className="rail-button"
-              aria-label={module.label}
-              title={module.label}
+              aria-label={item.label}
+              title={item.label}
               aria-current={here ? "true" : undefined}
               onClick={() => {
-                setPinned(module.moduleId);
+                setPinned(item.id);
                 /**
                  * A rail click goes somewhere.
                  *
-                 * An icon that only ever highlights is a dead end — and with
-                 * one icon per module rather than per section, every click has
-                 * an obvious destination: the module's first page.
+                 * An icon that only ever highlights is a dead end, and the
+                 * destination is never in doubt: the first screen of the first
+                 * module in the section.
                  */
-                const first = module.items[0];
-                if (first) openEntry(first);
+                const first = panelNodes(nav, item)
+                  .map(firstLeaf)
+                  .find(Boolean);
+                if (first) go(first.id, first.label);
               }}
             >
-              <Icon name={module.icon} size={20} />
+              <Icon name={item.icon} size={20} />
             </button>
           );
         })}
@@ -318,88 +531,19 @@ function Sidebar({ nav }: { nav: NavEntry[] }) {
         ) : null}
       </nav>
 
-      {showPanel && section ? (
+      {showPanel && group ? (
         <>
           <input id="sidebar-collapse" type="checkbox" className="sr-only" />
           <aside className="app-sidebar p-2" aria-label="Screens">
-            <p className="panel-title">{section.label}</p>
-            {section.items.map((entry) => {
-              const pages = childrenOf(nav, entry.id);
-              const open = isOpen(entry);
-              const activeHere =
-                current.moduleId === entry.id ||
-                pages.some((p) => p.id === current.moduleId);
-
-              return (
-                <div key={entry.id}>
-                  <button
-                    type="button"
-                    className="nav-link nav-parent"
-                    aria-current={
-                      activeHere && pages.length === 0 ? "page" : undefined
-                    }
-                    aria-expanded={pages.length ? open : undefined}
-                    onClick={() => {
-                      if (pages.length) {
-                        // Already looking at one of its pages: fold it away
-                        // rather than reopening what is already open.
-                        setExpanded((e) => ({ ...e, [entry.id]: !open }));
-                        if (!open) openEntry(entry);
-                      } else {
-                        openEntry(entry);
-                      }
-                    }}
-                  >
-                    <Icon
-                      name={(entry.icon ?? "layout") as IconName}
-                      size={16}
-                    />
-                    <span className="flex-1 text-left">{entry.label}</span>
-                    {pages.length ? (
-                      // A drawn chevron, not "▸" at 0.6rem. The glyph renders
-                      // at whatever weight the font has for it, which on the
-                      // stack this app uses is barely a mark on the screen.
-                      <span className="nav-caret" data-open={open}>
-                        <Icon name="chevron-right" size={16} />
-                      </span>
-                    ) : null}
-                  </button>
-
-                  {pages.length && open ? (
-                    <div className="nav-children">
-                      {sectionsOf(pages).map((part) => (
-                        <div key={part.heading ?? "(none)"}>
-                          {part.heading ? (
-                            /*
-                             * A label, not a control. Nothing opens here and
-                             * nothing collapses: a heading that can be clicked
-                             * is a third level of navigation, and the sidebar
-                             * draws two.
-                             */
-                            <p className="nav-section">{part.heading}</p>
-                          ) : null}
-                          {part.items.map((page) => (
-                            <button
-                              key={page.id}
-                              type="button"
-                              className="nav-link nav-child"
-                              aria-current={
-                                current.moduleId === page.id
-                                  ? "page"
-                                  : undefined
-                              }
-                              onClick={() => go(page.id, page.label)}
-                            >
-                              {page.label}
-                            </button>
-                          ))}
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })}
+            <p className="panel-title">{group.label}</p>
+            <NavRows
+              nodes={nodes}
+              depth={0}
+              currentId={current.moduleId}
+              isOpen={isOpen}
+              onToggle={openNode}
+              onGo={(entry) => go(entry.id, entry.label)}
+            />
           </aside>
         </>
       ) : null}
@@ -574,7 +718,7 @@ export function AppShell({
 }) {
   const { go } = useNavigation();
 
-  // Settings reaches the sidebar under Configure and the profile menu both.
+  // Settings reaches the sidebar under Configuration and the profile menu both.
   // Two ways to the same screen is not duplication here: one is where you look
   // when configuring the platform, the other where you look when it is your
   // own account you are thinking about.

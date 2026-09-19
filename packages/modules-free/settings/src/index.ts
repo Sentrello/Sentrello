@@ -87,7 +87,7 @@ export default defineModule({
       icon: "settings",
       label: "Settings",
       order: 90,
-      group: "Configure",
+      group: "Configuration",
       requires: { settings: ["read"] },
     });
     /**
@@ -116,7 +116,7 @@ export default defineModule({
         // Beside its parent: `order` sorts the whole nav, not each module.
         order: 90 + (page[0] + 1) / 100,
         parent: "settings",
-        group: "Configure",
+        group: "Configuration",
         requires: { settings: ["read"] },
       });
     }

@@ -53,7 +53,7 @@ export default defineModule({
       icon: "users",
       label: "Users",
       order: 91,
-      group: "Configure",
+      group: "Configuration",
       // Adding and removing people is an owner's job, and somebody who cannot
       // do it learns nothing useful from being shown the screen.
       requires: { settings: ["update"] },
