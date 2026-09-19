@@ -948,7 +948,7 @@ test("nav entries declare what they need, and the roles agree", () => {
 });
 
 /**
- * The sidebar draws itself from this, in two levels: a section holds modules,
+ * The sidebar draws itself from this: a section holds modules,
  * and a module holds its own pages. If the relationship is not in the payload
  * the browser has to guess it from naming, which is how the CRM's five screens
  * ended up as five siblings of the Shop.
@@ -1657,7 +1657,7 @@ test("loading modules starts every registry from empty", () => {
 
 test("a page hung off another page is reported, not drawn", () => {
   /*
-   * The sidebar draws two levels. A third renders as nothing: the entry is
+   * The panel draws no level below a page. One renders as nothing: the entry is
    * served by /api/_meta, passes its permission check, and has nowhere to
    * appear. The Newsletter shipped six that way — every settings tab hung off
    * the settings page — and nobody noticed, because that screen has its own

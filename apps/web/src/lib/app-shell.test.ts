@@ -13,7 +13,7 @@ import {
 } from "./app-shell";
 
 /**
- * The sidebar's two levels — the real functions, not a copy of them.
+ * The sidebar's own functions, not a copy of them.
  *
  * This file used to restate the sorting rules rather than import them, and the
  * copy stayed green while the sidebar put the Dashboard underneath every other

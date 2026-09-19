@@ -61,11 +61,14 @@ export interface ModuleContext {
     /**
      * A heading to gather this page under, inside the panel.
      *
-     * Not a third level of navigation — the sidebar draws two, and a third is
-     * how eleven screens once vanished from the menu. This is a label drawn
-     * above a run of pages, the way a long menu is broken up on paper. Pages
-     * that name none render first, which is what every module did before this
-     * existed and most still do.
+     * A row that opens, not a label. Pages that name no section render above
+     * the headings, which is what every module did before this existed and
+     * most still do.
+     *
+     * It is not a place to hang a page off a page. The panel draws a module,
+     * its headings and its pages; a page whose parent is another page is one
+     * level further down than that and renders nowhere, which is how eleven
+     * screens once vanished from the menu.
      *
      * Only meaningful on a page — an entry with a `parent`. A module with a
      * handful of screens does not need one; a module with sixteen does, and
@@ -75,10 +78,11 @@ export interface ModuleContext {
     /**
      * The entry this one sits under, by id.
      *
-     * The sidebar has two levels: a rail of sections, and inside a section a
-     * list of modules, each of which may expand into its own pages. A module
-     * with several screens — the CRM has five — registers one parent entry and
-     * its pages against it, rather than spilling five siblings into the
+     * The rail is one icon per section of the business, and the panel beside
+     * it draws whatever that section holds: its modules, their headings, and
+     * their pages — leaving out any level with only one occupant. A module
+     * with several screens — the CRM has ten — registers one parent entry and
+     * its pages against it, rather than spilling ten siblings into the
      * section and burying every other module.
      *
      * A parent is not a screen. Opening one opens its first child, because a
