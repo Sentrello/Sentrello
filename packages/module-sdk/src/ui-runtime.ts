@@ -362,6 +362,25 @@ export interface SentrelloListUi {
       >;
     };
   }>;
+  /**
+   * A list's state, saved under a name and replayed.
+   *
+   * `resource` has to be one the platform knows: views are stored against it
+   * and each one is gated on the permission its own list is gated on, so a
+   * name nobody has registered is refused rather than stored.
+   */
+  SavedViews: React.ComponentType<{
+    resource:
+      | "contacts"
+      | "companies"
+      | "deals"
+      | "invoices"
+      | "quotes"
+      | "journal"
+      | "bills";
+    state: ListState;
+    defaults: { sort: string; order: "asc" | "desc" };
+  }>;
 }
 
 /**
@@ -388,6 +407,7 @@ export const LIST_UI_MEMBERS = [
   "useLastSeenRanges",
   "RecordPicker",
   "ComputedCells",
+  "SavedViews",
 ] as const satisfies readonly (keyof SentrelloListUi)[];
 
 export interface Runtime {
