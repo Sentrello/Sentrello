@@ -368,6 +368,22 @@ SMTP_PASS=...
 EMAIL_FROM="Your Business <billing@yourbusiness.com>"
 ```
 
+`EMAIL_FROM` is who your business writes as — it is on your invoices, and a
+customer replying to one has to reach you.
+
+Two optional settings separate that from the platform's own mail, which is
+password resets, address confirmations and invitations. Nobody should reply
+to those, and if somebody does, a reply should land somewhere that is read:
+
+```sh
+EMAIL_SYSTEM_FROM="Your Business <no-reply@yourbusiness.com>"
+EMAIL_REPLY_TO="support@yourbusiness.com"
+```
+
+Set neither and every message comes from `EMAIL_FROM`, which is how it
+behaved before these existed. Do not put a no-reply address in `EMAIL_FROM`
+itself: that is the address on your invoices.
+
 If mail is not configured and you are locked out, use the terminal instead:
 
 ```bash

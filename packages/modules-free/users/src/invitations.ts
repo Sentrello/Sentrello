@@ -7,7 +7,12 @@ import {
 } from "@sentrello/auth/hono";
 import { db, schema } from "@sentrello/db";
 import { record } from "@sentrello/db/security-events";
-import { emailAdapter, mailConfigured } from "@sentrello/email";
+import {
+  emailAdapter,
+  mailConfigured,
+  systemFrom,
+  systemReplyTo,
+} from "@sentrello/email";
 import { invitationEmail } from "@sentrello/email/templates";
 import { type ModuleContext, rateLimit } from "@sentrello/module-sdk";
 import { and, eq } from "drizzle-orm";
@@ -182,9 +187,11 @@ export function registerInvitations(ctx: ModuleContext) {
         });
         try {
           await emailAdapter().send({
+            from: systemFrom(),
             to: email,
             subject: mail.subject,
             html: mail.html,
+            headers: systemReplyTo(),
           });
           emailSent = true;
         } catch {

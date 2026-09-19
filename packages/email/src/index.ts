@@ -143,6 +143,39 @@ export function mailConfigured(): boolean {
   return Boolean(process.env.RESEND_API_KEY || process.env.SMTP_HOST);
 }
 
+/**
+ * Who the platform itself writes as, which is not who the business writes as.
+ *
+ * Two kinds of mail leave an instance and they want opposite things.
+ *
+ * A business's own mail — an invoice, a quote, a booking confirmation — comes
+ * from that business, and a customer replying to it must reach a person. A
+ * no-reply invoice is a customer holding a question about money with nowhere
+ * to put it, and it is the one message where a reply is the point.
+ *
+ * The platform's own mail is the other case. A password reset, an address
+ * confirmation, an invitation: nobody should reply to these, and on a hosted
+ * instance a reply lands in whichever inbox happens to own the sending
+ * address rather than with support. So they are sent from `EMAIL_SYSTEM_FROM`
+ * where one is set, and `EMAIL_REPLY_TO` points anybody who replies anyway at
+ * an address that is read.
+ *
+ * Both are optional and both fall back to `EMAIL_FROM`, so an instance that
+ * sets neither behaves exactly as it did — which is every self-hosted
+ * instance until its owner decides otherwise.
+ */
+export function systemFrom(): string | undefined {
+  // Empty is unset. `EMAIL_SYSTEM_FROM=` in an env file is a blank string,
+  // and a blank From is a message every mail server refuses.
+  return process.env.EMAIL_SYSTEM_FROM?.trim() || process.env.EMAIL_FROM;
+}
+
+/** Where a reply to the platform's own mail should go, if anywhere. */
+export function systemReplyTo(): Record<string, string> {
+  const to = process.env.EMAIL_REPLY_TO?.trim();
+  return to ? { "reply-to": to } : {};
+}
+
 export function emailAdapter(): EmailAdapter {
   if (process.env.RESEND_API_KEY) {
     return new ResendAdapter(
