@@ -22,7 +22,9 @@ import { Button, ConfirmButton, Input, Select, muted } from "./ui";
  * Every list, not only the CRM's three. The machinery was built for contacts,
  * companies and deals and the invoice and quote lists were left without it —
  * which is to say the two lists a business looks at most on a Monday morning
- * were the two it could not save a question against.
+ * were the two it could not save a question against. The journal joined them
+ * when it learned to be searched: a view of it is "what hit the fuel account
+ * last quarter", which is the question an accountant asks every quarter.
  */
 
 export interface SavedView {
@@ -42,7 +44,13 @@ export function SavedViews({
   state,
   defaults,
 }: {
-  resource: "contacts" | "companies" | "deals" | "invoices" | "quotes";
+  resource:
+    | "contacts"
+    | "companies"
+    | "deals"
+    | "invoices"
+    | "quotes"
+    | "journal";
   state: ListState;
   /** What "no view" means for this screen, so applying nothing restores it. */
   defaults: { sort: string; order: "asc" | "desc" };

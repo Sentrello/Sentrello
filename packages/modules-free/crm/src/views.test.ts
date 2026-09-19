@@ -322,6 +322,48 @@ test("an invoice list's view is saved and comes back with its filters", async ()
   });
 });
 
+/**
+ * The ledger, which is where an accountant's saved question actually lives.
+ *
+ * "What hit the fuel account last quarter" is asked every quarter, and until
+ * the journal could be searched at all there was nothing to save. Gated on
+ * `bookkeeping: read` rather than the CRM's permission, like the invoice and
+ * quote lists before it — a bookkeeper who never opens the CRM has to be able
+ * to save a view of the books.
+ */
+test("a journal view is saved with its dates and its account", async () => {
+  const saved = await app.request("http://localhost/api/views", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      resource: "journal",
+      name: "Fuel, last quarter",
+      view: {
+        sort: "postedAt",
+        order: "desc",
+        filters: {
+          from: "2026-01-01",
+          to: "2026-03-31",
+          accountId: "00000000-0000-0000-0000-000000000000",
+        },
+      },
+    }),
+  });
+  expect(saved.status).toBe(201);
+
+  const mine = await app.request(
+    "http://localhost/api/views?resource=journal",
+    {
+      headers,
+    },
+  );
+  const { views } = (await mine.json()) as {
+    views: { name: string; view: { filters?: Record<string, string> } }[];
+  };
+  expect(views.map((v) => v.name)).toContain("Fuel, last quarter");
+  expect(views[0]?.view.filters?.to).toBe("2026-03-31");
+});
+
 test("a list views do not exist for is refused rather than stored", async () => {
   const res = await app.request("http://localhost/api/views", {
     method: "POST",

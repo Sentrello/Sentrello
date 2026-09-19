@@ -43,6 +43,7 @@ const RESOURCES = [
   "deals",
   "invoices",
   "quotes",
+  "journal",
 ] as const;
 
 /**
@@ -58,6 +59,7 @@ const NEEDS: Record<string, Record<string, string[]>> = {
   deals: { crm: ["read"] },
   invoices: { invoicing: ["read"] },
   quotes: { invoicing: ["read"] },
+  journal: { bookkeeping: ["read"] },
 };
 
 /**
