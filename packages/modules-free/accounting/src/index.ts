@@ -31,6 +31,7 @@ import { registerMtd } from "./mtd-routes";
 import { registerPeriodLock } from "./period";
 import { registerReceipts } from "./receipts";
 import { registerReports } from "./reports";
+import { registerAccountingSummary } from "./summary";
 import { registerTransactions } from "./transactions";
 import { registerVatScheme } from "./vat-scheme";
 
@@ -215,6 +216,7 @@ export default defineModule({
     registerChart(ctx);
     registerTransactions(ctx);
     registerReports(ctx);
+    registerAccountingSummary(ctx);
     registerReceipts(ctx);
     registerPeriodLock(ctx);
     registerFxRevaluation(ctx);
