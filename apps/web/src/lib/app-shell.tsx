@@ -27,10 +27,13 @@ export interface NavEntry {
   /**
    * A heading to gather this page under, inside the panel.
    *
-   * Not a third level of navigation — the sidebar draws two, and a third is
-   * how eleven screens once vanished from the menu. This is a label drawn
-   * above a run of pages, the way a long menu is broken up on paper. Pages
-   * without one render first, which is what every module does today.
+   * A row that opens, not a label — the panel draws as many levels as the
+   * data has. Pages without a section render above the headings, which is
+   * what every module does today.
+   *
+   * It is not a place to hang a page off a page. That is one level further
+   * down than the panel draws, and it is how eleven screens once vanished
+   * from the menu.
    *
    * It exists because Money is one module with sixteen pages: invoicing and
    * the books are one subject to a business and one undifferentiated list on

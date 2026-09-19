@@ -32,9 +32,9 @@ const HEAD = "money";
 /**
  * Everything else becomes a page of it.
  *
- * The rail shows one icon per module and finds it by the entry whose id *is* the
- * module id. Without a head, the icon and the label would be whichever page
- * happened to sort first — Quotes, as it happens, at order 19.
+ * The panel finds a module by the entry whose id *is* the module id. Without
+ * a head, the icon and the label would be whichever page happened to sort
+ * first — Quotes, as it happens, at order 19.
  *
  * So each half's own entries are given `parent: "money"` as they are registered,
  * which is why this wraps the context rather than editing either package: their
@@ -138,12 +138,12 @@ function asPagesOfMoney(ctx: ModuleContext): ModuleContext {
        * Accounting's own pages come up a level with it.
        *
        * They were the pages of a module and are now the pages of half of one,
-       * which would put them three deep — and the sidebar draws two. Eleven
-       * screens vanished from the menu that way: the routes answered, the
-       * pages rendered, and there was no longer anything to click. Found by
-       * opening it rather than by any test, because every test here asks
-       * whether a nav entry has a screen and none asks whether a person can
-       * reach it.
+       * which would have hung a page off a page — one level below anything
+       * the panel draws. Eleven screens vanished from the menu that way: the
+       * routes answered, the pages rendered, and there was no longer
+       * anything to click. Found by opening it rather than by any test,
+       * because every test here asks whether a nav entry has a screen and
+       * none asks whether a person can reach it.
        *
        * They keep their order, so they still arrive together and after the
        * Accounting entry they used to hang from. No `group` — the sidebar draws
