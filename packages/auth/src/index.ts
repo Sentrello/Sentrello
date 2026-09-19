@@ -1,7 +1,7 @@
 import { sso } from "@better-auth/sso";
 import { db, schema } from "@sentrello/db";
 import { asc, eq } from "@sentrello/db/orm";
-import { emailAdapter } from "@sentrello/email";
+import { emailAdapter, systemFrom, systemReplyTo } from "@sentrello/email";
 import {
   confirmEmailChangeEmail,
   passwordResetEmail,
@@ -201,9 +201,11 @@ export const auth = betterAuth({
     sendResetPassword: async ({ user, url }) => {
       const mail = passwordResetEmail({ url, expiresInMinutes: 60 });
       await emailAdapter().send({
+        from: systemFrom(),
         to: user.email,
         subject: mail.subject,
         html: mail.html,
+        headers: systemReplyTo(),
       });
     },
   },
@@ -223,9 +225,11 @@ export const auth = betterAuth({
     sendVerificationEmail: async ({ user, url }) => {
       const mail = verifyEmailEmail({ url });
       await emailAdapter().send({
+        from: systemFrom(),
         to: user.email,
         subject: mail.subject,
         html: mail.html,
+        headers: systemReplyTo(),
       });
     },
   },
@@ -253,9 +257,11 @@ export const auth = betterAuth({
       sendChangeEmailConfirmation: async ({ user, newEmail, url }) => {
         const mail = confirmEmailChangeEmail({ newEmail, url });
         await emailAdapter().send({
+          from: systemFrom(),
           to: user.email,
           subject: mail.subject,
           html: mail.html,
+          headers: systemReplyTo(),
         });
       },
     },
