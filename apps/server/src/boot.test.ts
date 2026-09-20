@@ -556,19 +556,24 @@ test("/api/_meta exposes only the nav the loaded modules registered", async () =
    * unlicensed instance a Pro panel's id must appear nowhere at all.
    */
   const meta = JSON.stringify(body);
-  expect(meta).not.toContain("revenue-trend");
+  /*
+   * The ledger charts are Free as of 2026-09-20 — Core computes every figure
+   * in them. `who-owes` is the one to assert on now: its route lives in the
+   * Pro bundle, so on a Free instance there is nothing to answer and naming
+   * it would put a 404 on a tab.
+   */
   expect(meta).not.toContain("who-owes");
 
   // The same discipline on the layout endpoint itself, through the real
-  // loader: the Free reader is offered the Free panels by name and never
-  // told the Pro ones exist.
+  // loader: the Free reader is offered the panels this instance can draw and
+  // never told about the ones it cannot.
   const layoutRes = await server.fetch(
     new Request("http://localhost/api/dashboard/layout", { headers }),
   );
   expect(layoutRes.status).toBe(200);
   const layout = JSON.stringify(await layoutRes.json());
   expect(layout).toContain('"dashboard:money"');
-  expect(layout).not.toContain("revenue-trend");
+  expect(layout).toContain("revenue-trend");
   expect(layout).not.toContain("who-owes");
 
   await cleanUp();

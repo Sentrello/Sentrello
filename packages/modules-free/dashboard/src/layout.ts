@@ -74,23 +74,36 @@ export function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
  * their renderers live in this module's half of the shell; they move when
  * those modules take their screens over.
  */
-const needsPro = { tier: "pro" as const };
+/**
+ * Pro, because the route that answers is in the Pro bundle — never because
+ * the panel is worth money.
+ *
+ * James, 2026-09-20: **the Free dashboard is the Pro dashboard.** The ledger
+ * charts below used to be what a licence bought; they are Core's own figures,
+ * computed in `pro.ts` from tables every instance has, so they are now
+ * answered on every instance. What is still gated is the three panels whose
+ * data comes from `pro-accounting` — on a Free instance there is no route to
+ * ask, and a panel that 404s is worse than one that is not offered. That is a
+ * fact about where the code lives, and it stops being true when those reports
+ * move into Core.
+ *
+ * The only thing Free has that Pro does not is the promo block at the top,
+ * which appears once onboarding is done.
+ */
+const answeredByPro = { tier: "pro" as const };
 const needsReports = { reports: ["read"] };
 export const CORE_WIDGETS: ModuleWidget[] = [
   { id: "money", label: "Money owed" },
   { id: "attention", label: "Needs attention" },
   { id: "pipeline", label: "Pipeline" },
   { id: "health", label: "This server", icon: "gauge" },
-  // The twelve-month ledger charts: what a Pro licence buys.
-  { id: "revenue-trend", label: "Income and expenses", entitlement: needsPro },
-  { id: "cash-position", label: "Profit trend", entitlement: needsPro },
-  { id: "deals-by-stage", label: "Deals by stage", entitlement: needsPro },
-  { id: "top-customers", label: "Top customers", entitlement: needsPro },
-  {
-    id: "invoice-aging",
-    label: "How late the money is",
-    entitlement: needsPro,
-  },
+  // The twelve-month ledger charts. Free, as of 2026-09-20: every figure in
+  // them is computed by Core from tables every instance has.
+  { id: "revenue-trend", label: "Income and expenses" },
+  { id: "cash-position", label: "Profit trend" },
+  { id: "deals-by-stage", label: "Deals by stage" },
+  { id: "top-customers", label: "Top customers" },
+  { id: "invoice-aging", label: "How late the money is" },
   // The reports, drawn from the ledger; a reader needs the books.
   { id: "balance-sheet", label: "Balance sheet", requires: needsReports },
   // Cash flow and the trial balance are answered by Pro's accounting bundle,
@@ -102,19 +115,19 @@ export const CORE_WIDGETS: ModuleWidget[] = [
     id: "cash-flow",
     label: "Cash in and out",
     requires: needsReports,
-    entitlement: needsPro,
+    entitlement: answeredByPro,
   },
   {
     id: "trial-balance",
     label: "Trial balance",
     requires: needsReports,
-    entitlement: needsPro,
+    entitlement: answeredByPro,
   },
   {
     id: "who-owes",
     label: "Who owes you",
     requires: needsReports,
-    entitlement: needsPro,
+    entitlement: answeredByPro,
   },
 ];
 

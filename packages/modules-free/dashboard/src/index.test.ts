@@ -234,12 +234,24 @@ test("the server reports on itself", async () => {
  * and deciding which of your own panels you look at first was never the thing
  * being sold. What Pro sells is the panels there are to arrange.
  */
-test("the Pro endpoints do not exist without a Pro licence", async () => {
+/**
+ * The Free dashboard is the Pro dashboard.
+ *
+ * James, 2026-09-20. The twelve-month ledger charts were the paid half of
+ * this module; every figure in them is computed by Core from tables every
+ * instance has, so there was never anything to install, only something to
+ * allow. The only thing Free carries that Pro does not is the promo block.
+ *
+ * What a licence still decides is which *modules* load, and the three report
+ * panels whose routes live in `pro-accounting` — that is where the code is,
+ * not a price.
+ */
+test("the ledger charts are answered on a Free instance too", async () => {
   const insights = await freeApp.request(
     "http://localhost/api/dashboard/insights",
     { headers },
   );
-  expect(insights.status).toBe(404);
+  expect(insights.status).toBe(200);
 
   expect((await get()).status).toBe(200);
   expect(
@@ -918,28 +930,30 @@ test("a widget whose entitlement is absent is not disclosed anywhere", async () 
   const layout = await readLayoutAs(freeApp);
   const offered = layout.widgets.map((w) => w.id);
   expect(offered).toContain("dashboard:money");
-  expect(offered).not.toContain("dashboard:revenue-trend");
+  // The ledger charts are Free as of 2026-09-20 — Core computes them.
+  expect(offered).toContain("dashboard:revenue-trend");
+  // These three are answered by Pro's accounting bundle. Absent on a Free
+  // instance because there is no route to ask, not because of a price:
+  // offering them would put a 404 on the Reports tab everybody sees by
+  // default.
   expect(offered).not.toContain("dashboard:who-owes");
-  // Answered by Pro's accounting bundle, absent on a Free instance the same
-  // way who-owes is: offering either here would put a 404 on the Reports tab
-  // everybody sees by default.
   expect(offered).not.toContain("dashboard:cash-flow");
   expect(offered).not.toContain("dashboard:trial-balance");
   expect(layout.tabs.flatMap((t) => t.widgets)).not.toContain(
-    "dashboard:revenue-trend",
+    "dashboard:who-owes",
   );
 
-  // A save that names the Pro panel anyway gets nothing back for it.
+  // A save that names one of them anyway gets nothing back for it.
   const saved = (await (
     await freeApp.request("http://localhost/api/dashboard/layout", {
       method: "PUT",
       headers,
       body: JSON.stringify({
-        tabs: [{ name: "Mine", widgets: ["money", "revenue-trend"] }],
+        tabs: [{ name: "Mine", widgets: ["money", "who-owes"] }],
       }),
     })
   ).json()) as Layout;
-  expect(saved.tabs.flatMap((t) => t.widgets)).not.toContain("revenue-trend");
+  expect(saved.tabs.flatMap((t) => t.widgets)).not.toContain("who-owes");
 
   // And a module-entitlement widget behaves exactly like the tier one.
   const before = allWidgets();

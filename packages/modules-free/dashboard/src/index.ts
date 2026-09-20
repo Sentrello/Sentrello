@@ -687,11 +687,20 @@ export default defineModule({
       },
     );
 
+    /*
+     * Answered on every instance, Free included.
+     *
+     * It was the paid half of this module — twelve months of ledger against
+     * Free's "what needs doing today" — and James settled it on 2026-09-20:
+     * the Free dashboard is the Pro dashboard, and the only difference is the
+     * promo block Free carries at the top once onboarding is done. Every
+     * figure here is computed by Core from tables every instance already has,
+     * so there was never anything to install, only something to allow.
+     */
     ctx.app.get(
       "/api/dashboard/insights",
       requireSession(),
       requirePermission({ dashboard: ["read"] }),
-      proOnly,
       async (c) =>
         c.json(await readInsights(activeOrganizationId(c.get("session")))),
     );
