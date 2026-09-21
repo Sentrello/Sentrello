@@ -364,6 +364,42 @@ test("a journal view is saved with its dates and its account", async () => {
   expect(views[0]?.view.filters?.to).toBe("2026-03-31");
 });
 
+test("a bank feed view remembers what was still waiting", async () => {
+  /*
+   * The one Money list somebody sits in front of with a statement: which
+   * account, and whether to show only what is still unmatched. Saving that is
+   * the difference between reconciling and re-typing the same two choices
+   * every morning.
+   */
+  const saved = await app.request("http://localhost/api/views", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      resource: "banking",
+      name: "Current account, still waiting",
+      view: {
+        sort: "date",
+        order: "desc",
+        filters: {
+          state: "unmatched",
+          bankAccountId: "00000000-0000-0000-0000-000000000000",
+        },
+      },
+    }),
+  });
+  expect(saved.status).toBe(201);
+
+  const mine = await app.request(
+    "http://localhost/api/views?resource=banking",
+    { headers },
+  );
+  const { views } = (await mine.json()) as {
+    views: { name: string; view: { filters?: Record<string, string> } }[];
+  };
+  expect(views.map((v) => v.name)).toContain("Current account, still waiting");
+  expect(views[0]?.view.filters?.state).toBe("unmatched");
+});
+
 test("a list views do not exist for is refused rather than stored", async () => {
   const res = await app.request("http://localhost/api/views", {
     method: "POST",

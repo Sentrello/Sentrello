@@ -51,7 +51,8 @@ export function SavedViews({
     | "invoices"
     | "quotes"
     | "journal"
-    | "bills";
+    | "bills"
+    | "banking";
   state: ListState;
   /** What "no view" means for this screen, so applying nothing restores it. */
   defaults: { sort: string; order: "asc" | "desc" };

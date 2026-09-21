@@ -45,6 +45,7 @@ const RESOURCES = [
   "quotes",
   "journal",
   "bills",
+  "banking",
 ] as const;
 
 /**
@@ -62,6 +63,7 @@ const NEEDS: Record<string, Record<string, string[]>> = {
   quotes: { invoicing: ["read"] },
   journal: { bookkeeping: ["read"] },
   bills: { bookkeeping: ["read"] },
+  banking: { bookkeeping: ["read"] },
 };
 
 /**
