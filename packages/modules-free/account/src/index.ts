@@ -9,6 +9,7 @@ import type {
 } from "@sentrello/module-sdk";
 import {
   allAccountSections,
+  customerThemeFor,
   defineModule,
   rateLimit,
 } from "@sentrello/module-sdk";
@@ -402,25 +403,18 @@ export default defineModule({
       if (only && sections.length === 0) return c.notFound();
 
       /*
-       * Their choice of colours, kept in a cookie for a year.
+       * Their choice of colours — one cookie for every page they meet.
        *
-       * Set by a link rather than a script, so it works with JavaScript off,
-       * and applied on the server so the page never arrives in the wrong
-       * colours and then corrects itself. `SameSite=Lax` and `HttpOnly` —
-       * nothing reads this but the server drawing the page.
+       * It was this module's own, on `Path=/account`, which meant a customer
+       * who chose dark here met a white invoice one click later. The helper
+       * in the SDK is shared with the pages this one links to, so the choice
+       * survives the walk between them.
        */
-      const asked = c.req.query("theme");
-      const chosen =
-        asked === "dark" || asked === "light"
-          ? asked
-          : readTheme(c.req.header("cookie"));
-      if (asked === "dark" || asked === "light") {
-        c.header(
-          "set-cookie",
-          `sentrello_account_theme=${asked}; Path=/account; Max-Age=31536000; HttpOnly; SameSite=Lax`,
-          { append: true },
-        );
-      }
+      const { theme: chosen, setCookie } = customerThemeFor({
+        query: (name) => c.req.query(name),
+        header: (name) => c.req.header(name),
+      });
+      if (setCookie) c.header("set-cookie", setCookie, { append: true });
 
       return c.html(
         accountPage({
@@ -444,9 +438,3 @@ export default defineModule({
     );
   },
 });
-
-/** The colours this customer chose last time, if they chose. */
-function readTheme(cookie: string | undefined): "light" | "dark" | undefined {
-  const found = /sentrello_account_theme=(light|dark)/.exec(cookie ?? "");
-  return (found?.[1] as "light" | "dark" | undefined) ?? undefined;
-}

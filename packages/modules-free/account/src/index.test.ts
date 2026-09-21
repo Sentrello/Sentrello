@@ -280,7 +280,9 @@ test("the colours a customer chose are the colours they get back", async () => {
   );
   expect(asked.status).toBe(200);
   const cookie = asked.headers.get("set-cookie") ?? "";
-  expect(cookie).toContain("sentrello_account_theme=dark");
+  // One cookie for every customer-facing page, not one per module.
+  expect(cookie).toContain("sentrello_theme=dark");
+  expect(cookie).toContain("Path=/;");
   // HttpOnly, because nothing but the server drawing the page reads it.
   expect(cookie).toContain("HttpOnly");
   expect(await asked.text()).toContain('data-theme="dark"');
@@ -288,7 +290,7 @@ test("the colours a customer chose are the colours they get back", async () => {
   // And the choice survives without the query, which is the whole point.
   const again = await app.request(
     `http://localhost/account/${contact.portalToken}`,
-    { headers: { cookie: "sentrello_account_theme=dark" } },
+    { headers: { cookie: "sentrello_theme=dark" } },
   );
   expect(await again.text()).toContain('data-theme="dark"');
 
