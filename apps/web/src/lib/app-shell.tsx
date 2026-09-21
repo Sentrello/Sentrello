@@ -76,7 +76,11 @@ export const GROUP_ICONS: Record<string, IconName> = {
   // A handshake, not a contact card: the section is where a deal gets agreed,
   // and the card belongs to Contacts, which is one screen inside it.
   Sales: "handshake",
-  Money: "receipt",
+  /*
+   * The purse, not a receipt: a receipt is one document and Invoices draws
+   * that. This icon stands for everything the business does with money.
+   */
+  Money: "wallet",
   Work: "briefcase",
   // Growth rather than a megaphone, which this set does not have. Unused by any
   // module, which matters: a group and a module drawing the same glyph is two

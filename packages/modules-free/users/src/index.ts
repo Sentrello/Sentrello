@@ -50,7 +50,7 @@ export default defineModule({
      */
     ctx.registerNav({
       id: "users-console",
-      icon: "users",
+      icon: "id-badge",
       label: "Users",
       order: 91,
       group: "Configuration",

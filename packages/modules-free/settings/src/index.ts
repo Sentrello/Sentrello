@@ -84,7 +84,7 @@ export default defineModule({
     registerTaxRegimes(ctx);
     ctx.registerNav({
       id: "settings",
-      icon: "settings",
+      icon: "sliders",
       label: "Settings",
       order: 90,
       group: "Configuration",
