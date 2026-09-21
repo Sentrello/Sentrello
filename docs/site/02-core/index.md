@@ -17,5 +17,6 @@ AGPL. It is not a trial and it does not expire.
 | [Accounting](/core/accounting) | Double-entry books, expenses, reports |
 | [Dashboard](/core/dashboard) | The first screen, and what each module puts on it |
 | [Finding things](/core/finding-things) | One box that searches everything, from anywhere |
+| [Working a list](/core/lists) | Search, filters, sorting, columns and saved views — the same on every list |
 
 Pro deepens several of these rather than replacing them — see [Pro](/pro).
