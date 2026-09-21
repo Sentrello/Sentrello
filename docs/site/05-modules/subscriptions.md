@@ -37,6 +37,12 @@ its price, and a plan can carry a tax like any other line.
 Withdrawing a plan does not disturb anybody on it. Subscribers keep the price
 and the dates they agreed to.
 
+**A plan can cost nothing.** That is how you give somebody the thing you sell —
+a free tier, a charity, a partner, a long trial you do not want to end on a
+date. They are a subscriber like everybody else, in the same list and on the
+same screen, and they are billed nothing: a subscription whose agreed price is
+zero raises no invoice, sends no email and posts nothing to your books.
+
 ## Subscribers
 
 A subscriber is a contact, a plan, and the price they agreed to. The price is
