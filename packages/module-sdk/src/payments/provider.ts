@@ -167,6 +167,16 @@ export interface PaymentProvider {
    * the secret by hand.
    */
   ensureWebhook?(url: string): Promise<{ secret: string; id: string } | null>;
+  /**
+   * Where this account's events are actually being sent.
+   *
+   * Asked when a signing secret is already stored, because a stored secret
+   * only proves somebody once set an endpoint up — not that the endpoint
+   * still exists or still points here. A URL that has moved between releases
+   * leaves the old one enabled at the processor, and every payment is then
+   * taken and never confirmed, with nothing on either side saying so.
+   */
+  webhookTargets?(): Promise<{ url: string; status: string }[]>;
 
   /** Sends money back. Returns what was actually refunded. */
   refund?(

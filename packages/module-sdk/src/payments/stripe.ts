@@ -236,6 +236,19 @@ export function stripeProvider(credentials: Credentials): PaymentProvider {
      * to everything works and is worse: it doubles a busy shop's webhook
      * traffic and buries the events that matter among ones nothing reads.
      */
+    /**
+     * Every endpoint this account sends to, so a caller can check its own is
+     * among them. Failure is an empty list rather than a throw: not being
+     * able to ask is not evidence of absence, and the caller says so.
+     */
+    async webhookTargets() {
+      const res = await call("/webhook_endpoints?limit=100");
+      if (!res.ok) return [];
+      return ((res.body.data ?? []) as { url: string; status: string }[]).map(
+        (endpoint) => ({ url: endpoint.url, status: endpoint.status }),
+      );
+    },
+
     async ensureWebhook(url: string) {
       /*
        * A processor cannot reach a private address, and a development instance

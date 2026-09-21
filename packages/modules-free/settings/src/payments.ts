@@ -170,6 +170,40 @@ async function accountFor(
   return row ?? null;
 }
 
+/**
+ * Whether the processor is sending this instance's events to this instance.
+ *
+ * Separate from the route because the sentence a business reads here is the
+ * whole value of the check: "connected" while every payment goes to an
+ * address that no longer exists is the failure this exists to name, and it
+ * has to say *where* they are going or the fix is a guess.
+ */
+export function webhookVerdict(
+  ourUrl: string,
+  targets: { url: string; status: string }[],
+): { step: string; ok: boolean; detail?: string } {
+  const step = "checked where events are sent";
+  if (targets.some((t) => t.url === ourUrl && t.status === "enabled")) {
+    return { step, ok: true };
+  }
+  if (targets.length === 0) {
+    return {
+      step,
+      ok: false,
+      detail: `nothing at the processor sends events to ${ourUrl} — payments would be taken and never confirmed`,
+    };
+  }
+  return {
+    step,
+    ok: false,
+    detail: `events go to ${targets
+      .map((t) => t.url)
+      .join(
+        ", ",
+      )}, not to ${ourUrl} — clear the stored signing secret and connect again to fix it`,
+  };
+}
+
 export function registerPaymentAccounts(ctx: ModuleContext) {
   ctx.app.get(
     "/api/payments/accounts",
@@ -384,11 +418,37 @@ export function registerPaymentAccounts(ctx: ModuleContext) {
        * instance the processor cannot reach, or an endpoint they manage
        * themselves. Replacing it would break their setup to save a step they
        * had already taken.
+       *
+       * But a stored secret proves only that an endpoint was set up once. It
+       * does not prove the endpoint still exists, or still points here: this
+       * product's webhook address moved from one module's path to the
+       * platform's, and the endpoint registered under the old one stayed
+       * enabled at Stripe, answering 404 to every delivery. Money taken,
+       * orders never confirmed, and nothing on either side saying so — found
+       * on the demo on 21 September, where a sandbox purchase succeeded at
+       * Stripe and the order sat unpaid.
+       *
+       * So a stored secret is kept and checked: if the processor is not
+       * sending events to this instance's address, the step says so and names
+       * where they are going instead.
        */
       let webhookSecret = account.webhookSecret;
+      const ourWebhook = `${
+        process.env.SENTRELLO_BASE_URL ?? new URL(c.req.url).origin
+      }/api/payments/webhook/${provider}`;
+      if (webhookSecret && live.webhookTargets) {
+        try {
+          steps.push(webhookVerdict(ourWebhook, await live.webhookTargets()));
+        } catch {
+          // Asking failed, which is not the same as the answer being no.
+          steps.push({
+            step: "checked where events are sent",
+            ok: true,
+            detail: "could not ask the processor; left as it is",
+          });
+        }
+      }
       if (!webhookSecret && live.ensureWebhook) {
-        const base =
-          process.env.SENTRELLO_BASE_URL ?? new URL(c.req.url).origin;
         try {
           /*
            * The platform's endpoint, not one module's.
@@ -398,9 +458,7 @@ export function registerPaymentAccounts(ctx: ModuleContext) {
            * did not recognise it. The address now belongs to the platform and
            * every module that declared itself hears from it.
            */
-          const made = await live.ensureWebhook(
-            `${base}/api/payments/webhook/${provider}`,
-          );
+          const made = await live.ensureWebhook(ourWebhook);
           if (made) {
             webhookSecret = secrets.seal(made.secret);
             await db
