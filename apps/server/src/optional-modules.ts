@@ -36,10 +36,11 @@ export const OPTIONAL_MODULE_PACKAGES = [
    * service is deployed on its own with nothing else changing.
    */
   "@sentrello/seo-cloud",
-  // bmp.sentrello.com only: Sentrello's own console, gated again by
-  // SENTRELLO_MASTER=true. It is never built into any customer bundle, so on
-  // every other host this name simply does not resolve.
-  "@sentrello/master",
+  // bmp.sentrello.com only: the three screens that administer the platform —
+  // licences, the audit of what was done to them, and the billing check —
+  // gated again by SENTRELLO_PLATFORM_ADMIN=true. Never built into any
+  // customer bundle, so on every other host this name does not resolve.
+  "@sentrello/platform-admin",
   "@sentrello/mod-documents",
   "@sentrello/mod-newsletter",
   "@sentrello/mod-docs",

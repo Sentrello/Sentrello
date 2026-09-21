@@ -59,7 +59,9 @@ function bundleIds(): string[] {
   );
   return [...list.matchAll(/"@sentrello\/(?:mod-)?([a-z0-9-]+)"/g)]
     .map((m) => m[1] as string)
-    .filter((id) => !["control-plane", "master", "seo-cloud"].includes(id));
+    .filter(
+      (id) => !["control-plane", "platform-admin", "seo-cloud"].includes(id),
+    );
 }
 
 interface Declared {

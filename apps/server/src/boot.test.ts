@@ -304,8 +304,8 @@ test("a job from an unentitled module is never scheduled", () => {
 });
 
 /**
- * Some modules are ours and belong on one machine — Master, and the control
- * plane that issues licences. They say so themselves, and the loader takes
+ * Some modules are ours and belong on one machine — the platform's own admin
+ * screens, and the control plane that issues licences. They say so themselves, and the loader takes
  * their word for it before anything is registered: a module that only refused
  * inside `register` would still have its tables migrated and its screens
  * served.
@@ -313,7 +313,7 @@ test("a job from an unentitled module is never scheduled", () => {
 test("a module that declines this host is not loaded at all", async () => {
   const app = new Hono<SentrelloEnv>();
   const ours = defineModule({
-    ...mod("master", "free"),
+    ...mod("platform-admin", "free"),
     available: () => false,
   });
 
@@ -324,7 +324,9 @@ test("a module that declines this host is not loaded at all", async () => {
 
   expect(loaded).toEqual(["crm"]);
   expect(nav.map((n) => n.id)).toEqual(["crm"]);
-  expect((await app.request("http://localhost/api/master")).status).toBe(404);
+  expect(
+    (await app.request("http://localhost/api/platform-admin")).status,
+  ).toBe(404);
 });
 
 test("a skipped module registers no routes", async () => {
