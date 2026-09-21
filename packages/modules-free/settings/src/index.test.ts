@@ -731,3 +731,42 @@ test("a timezone is saved, and one the server does not know is refused", async (
       .timezone,
   ).toBe("America/New_York");
 });
+
+/**
+ * Clearing a signing secret, which is the advice the connect step gives.
+ *
+ * A secret belonging to an endpoint somebody replaced refuses every event
+ * that arrives, and the only cure is a fresh endpoint with a fresh secret.
+ * The screen said to clear it; nothing could.
+ */
+test("a blank field leaves the signing secret alone, and null clears it", async () => {
+  await app.request("http://localhost/api/payments/accounts/stripe/test", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ webhookSecret: "whsec_from_an_old_endpoint" }),
+  });
+  const stored = async () => {
+    const [row] = await db
+      .select({ secret: schema.paymentAccounts.webhookSecret })
+      .from(schema.paymentAccounts)
+      .where(eq(schema.paymentAccounts.organizationId, orgId));
+    return row?.secret ?? null;
+  };
+  expect(await stored()).not.toBeNull();
+
+  // A form posts an empty field for "I did not touch this".
+  await app.request("http://localhost/api/payments/accounts/stripe/test", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ webhookSecret: "" }),
+  });
+  expect(await stored()).not.toBeNull();
+
+  // Saying null is saying it deliberately.
+  await app.request("http://localhost/api/payments/accounts/stripe/test", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ webhookSecret: null }),
+  });
+  expect(await stored()).toBeNull();
+});

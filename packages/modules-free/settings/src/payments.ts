@@ -278,6 +278,17 @@ export function registerPaymentAccounts(ctx: ModuleContext) {
         typeof body.webhookSecret === "string" && body.webhookSecret.trim()
           ? body.webhookSecret.trim()
           : null;
+      /*
+       * `null` clears it; blank leaves it alone.
+       *
+       * A form posts an empty field for "I did not touch this", so blank must
+       * never wipe a working secret. But there was then no way to clear one
+       * at all — and "clear the stored signing secret and connect again" is
+       * exactly the advice the connect step gives when events are being
+       * refused by a secret that belongs to an endpoint somebody replaced.
+       * Advice nobody can act on is worse than none.
+       */
+      const clearWebhookSecret = body.webhookSecret === null;
 
       const values = {
         organizationId: orgId,
@@ -293,9 +304,11 @@ export function registerPaymentAccounts(ctx: ModuleContext) {
         secretHint: secretKey
           ? secrets.hint(secretKey)
           : (existing?.secretHint ?? null),
-        webhookSecret: webhookSecret
-          ? secrets.seal(webhookSecret)
-          : (existing?.webhookSecret ?? null),
+        webhookSecret: clearWebhookSecret
+          ? null
+          : webhookSecret
+            ? secrets.seal(webhookSecret)
+            : (existing?.webhookSecret ?? null),
         // Changed keys are unproven keys: whatever the last test said, it was
         // about something else.
         lastTestOk: secretKey ? null : (existing?.lastTestOk ?? null),
