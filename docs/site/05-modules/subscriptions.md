@@ -49,19 +49,38 @@ Wednesday.
 |---|---|
 | **Trialling** | On a plan, not yet billed |
 | **Active** | Billed on schedule |
-| **Paused** | Not billed, not cancelled, keeps its place |
+| **Paused** | Not billed, not cancelled, keeps its place — if you allow pausing |
 | **Cancelled** | Ends on a date; it is not a switch thrown today |
 
 Cancelling sets the date it takes effect rather than stopping the billing that
 instant. Somebody who cancels on the 3rd of a month they have already paid for
 keeps the rest of it — which is what they expect, and what avoids a refund.
 
+## Settings
+
+The module has its own settings screen, and the first thing people ask is what
+is there rather than at your payment processor. Cards, payment methods and
+receipts belong to the processor and are managed there. What belongs to your
+business is how you want it to behave:
+
+| Setting | What it decides |
+|---|---|
+| **Allow pausing** | Whether a subscription can be paused at all. **Off until you turn it on.** |
+| **Proration** | What a mid-cycle change to a plan does to the next bill |
+| **Chasing a failed payment** | How long, and how often, a failed card is chased before the subscription is parked |
+
+**Pausing is off by default deliberately.** A paused subscriber pays nothing
+and keeps everything the subscription carries — including any discount for
+staying subscribed — so it suits a gym or a grooming club and not a software
+plan. Turn it on and the control appears in both places a pause can happen:
+your own screen, and the subscriber's.
+
 ## The customer's own screen
 
-If you also run the Shop, a subscriber can sign in to your storefront and pause
-or cancel their own subscription without emailing you about it. This works
-whether or not the Shop is installed — the Shop reads the subscription rows, not
-the other way round.
+If you also run the Shop, a subscriber can sign in to your storefront and
+cancel their own subscription without emailing you about it — and pause it, if
+you allow pausing. This works whether or not the Shop is installed: the Shop
+reads the subscription rows, not the other way round.
 
 ## Permissions
 
