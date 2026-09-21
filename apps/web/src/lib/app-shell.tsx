@@ -491,7 +491,7 @@ function Sidebar({ nav }: { nav: NavEntry[] }) {
   };
 
   return (
-    <div className="flex items-stretch">
+    <div className="flex items-stretch" data-shell>
       <nav className="app-rail" aria-label="Modules">
         {groups.map((item) => {
           const here = group?.id === item.id;
@@ -524,24 +524,48 @@ function Sidebar({ nav }: { nav: NavEntry[] }) {
         })}
         {showPanel ? (
           /**
-           * Hide and show the panel with no JavaScript at all.
+           * Hide and show the panel without re-rendering what it frames.
            *
-           * A checkbox and a sibling selector, rather than React state: the
-           * panel is a frame around whatever screen is open, and collapsing a
-           * frame should not re-render the thing inside it. It also survives
-           * a module screen throwing, which state in this component does not.
+           * One attribute on the shell, flipped in the DOM: the panel is a
+           * frame around whatever screen is open, and collapsing a frame
+           * should not re-render the thing inside it, nor stop working when
+           * a module screen throws — both of which React state here would.
+           *
+           * This was a visually-hidden checkbox driven by a label, which is
+           * the same trick with no JavaScript. It was also a control a
+           * keyboard user could tab to and see nothing at all: focus sat on
+           * an element clipped to a pixel, with the icon on a label that
+           * cannot take focus. A button is focusable, says whether the panel
+           * is open, and shows where the focus is.
            */
-          <label className="rail-button mt-auto" htmlFor="sidebar-collapse">
+          <button
+            type="button"
+            className="rail-button mt-auto"
+            aria-expanded="true"
+            aria-controls="section-panel"
+            aria-label="Hide or show the section panel"
+            title="Hide or show the section panel"
+            onClick={(e) => {
+              const shell = e.currentTarget.closest("[data-shell]");
+              const hidden = shell?.toggleAttribute("data-panel-hidden");
+              e.currentTarget.setAttribute(
+                "aria-expanded",
+                hidden ? "false" : "true",
+              );
+            }}
+          >
             <Icon name="panel-left" size={20} />
-            <span className="sr-only">Hide or show the section panel</span>
-          </label>
+          </button>
         ) : null}
       </nav>
 
       {showPanel && group ? (
         <>
-          <input id="sidebar-collapse" type="checkbox" className="sr-only" />
-          <aside className="app-sidebar p-2" aria-label="Screens">
+          <aside
+            id="section-panel"
+            className="app-sidebar p-2"
+            aria-label="Screens"
+          >
             <p className="panel-title">{group.label}</p>
             <NavRows
               nodes={nodes}
