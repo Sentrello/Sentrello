@@ -11,7 +11,6 @@ import { centsFromDriver, sumCents } from "@sentrello/db/money";
 import {
   type RegisteredWidget,
   allOnboarding,
-  defineMiddleware,
   defineModule,
   resolveGuide,
 } from "@sentrello/module-sdk";
@@ -410,21 +409,6 @@ export default defineModule({
         });
       },
     );
-
-    /**
-     * The Pro half: twelve months of ledger, and the layout it is drawn in.
-     *
-     * Registered on every instance and answered only on entitled ones. The
-     * loader gates whole modules; this module is Free and grows a second half,
-     * so the gate has to be here — and it has to be checked per request,
-     * because a licence can arrive or lapse while the process is running.
-     */
-    const proOnly = defineMiddleware(async (c, next) => {
-      // 404 rather than 403: on a Free instance this endpoint does not exist,
-      // which is also what the module boot tests assert for anything gated.
-      if (!ctx.entitled({ tier: "pro" })) return c.notFound();
-      await next();
-    });
 
     /**
      * The widgets this reader may see at all.
