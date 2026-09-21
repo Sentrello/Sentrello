@@ -11,7 +11,7 @@ import { and, eq } from "drizzle-orm";
  * good enough that most businesses never touch it, and the discipline that
  * nothing is ever named to a reader whose licence or permission does not
  * cover it. Arranging is not a paid feature (James, 2026-09-13): Free and
- * Pro get the same screen, and Free additionally carries the promo block.
+ * Pro get the same screen, and Free additionally carries the upgrade block.
  *
  * The arrangement belongs to the organization, not to whoever saved it —
  * "look at the Shop tab" has to mean the same thing to everyone in a twelve
@@ -87,7 +87,7 @@ export function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
  * fact about where the code lives, and it stops being true when those reports
  * move into Core.
  *
- * The only thing Free has that Pro does not is the promo block at the top,
+ * The only thing Free has that Pro does not is the upgrade block at the top,
  * which appears once onboarding is done.
  */
 const answeredByPro = { tier: "pro" as const };

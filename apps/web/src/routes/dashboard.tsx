@@ -57,16 +57,15 @@ interface Dashboard {
    * moment somebody adds a contact or raises an invoice.
    */
   startHere: { url: string } | null;
-  ad:
-    | {
-        kind: "text";
-        headline: string;
-        body: string;
-        cta: string;
-        url: string;
-      }
-    | { kind: "image"; imageUrl: string; alt: string; url: string }
-    | null;
+  /**
+   * What Free says about Pro, once setting up is finished.
+   *
+   * Sent only on Free, and only when every onboarding guide is done. The copy
+   * ships in the release: a document fetched hourly from sentrello.com used to
+   * fill this, with a banner-image variant beside the text, and both were
+   * removed on 21 September so that a free instance fetches nothing at all.
+   */
+  ad: { headline: string; body: string; cta: string; url: string } | null;
   health: Health;
   money: {
     owedCents: number;
@@ -240,8 +239,8 @@ export function Dashboard() {
       {/* Before anything else, and only while there is nothing else. */}
       <StartHere startHere={data.startHere} />
       {/*
-       * The checklist while there is setting up left to do, and the promo in
-       * its place once there is not: the server only sends `ad` when every
+       * The checklist while there is setting up left to do, and the upgrade
+       * block in its place once there is not: the server only sends `ad` when every
        * guide is finished, and the card only draws while one is not, so the
        * two never show together. On Pro `ad` is always null and the card
        * simply leaves.
@@ -1192,7 +1191,7 @@ export function HealthPanel({ health }: { health: Health }) {
   );
 }
 
-/** The leaderboard, agreed with the control plane that fills it. */
+/** The block's size, fixed so the dashboard does not move as it appears. */
 const AD_WIDTH = 728;
 const AD_HEIGHT = 90;
 
@@ -1374,22 +1373,18 @@ function StartHere({ startHere }: { startHere: Dashboard["startHere"] }) {
 }
 
 /**
- * The one advertisement, centred at the top of a Free dashboard.
+ * What Free says about Pro, centred at the top of the dashboard.
  *
- * A 728x90 leaderboard, and always that height whether it holds a banner or
- * written copy, so the page does not move under somebody depending on what was
- * saved in Master.
- *
+ * 728x90, and always that height, so the page does not move as it appears.
  * Narrower than 728 and the box narrows with the window rather than scaling.
  * Scaling was the first attempt and it was wrong: flexbox lays the full 728 out
  * before a transform is applied, so the slot overflowed its container and was
- * clipped unevenly on both sides. A banner letterboxes inside the smaller box
- * via object-contain; the text simply has less room. Neither makes the
- * dashboard scroll sideways, which is the thing to avoid.
+ * clipped unevenly on both sides. The text simply has less room, which makes
+ * the dashboard no wider — the thing to avoid.
  *
- * The content is a document fetched by the server, so everything here is
- * escaped by React and every link is one the server already checked was https.
- * Nothing in this box is markup somebody else wrote.
+ * Every string here ships in the release and is escaped by React. Nothing in
+ * this box was fetched from anywhere, which is what the image variant that
+ * used to sit beside the text needed.
  */
 function AdSlot({ ad }: { ad: Dashboard["ad"] }) {
   if (!ad) return null;
@@ -1399,8 +1394,8 @@ function AdSlot({ ad }: { ad: Dashboard["ad"] }) {
       <a
         href={ad.url}
         target="_blank"
-        rel="noreferrer sponsored"
-        aria-label={ad.kind === "image" ? ad.alt : ad.headline}
+        rel="noreferrer"
+        aria-label={ad.headline}
         className="block rounded border"
         style={{
           width: AD_WIDTH,
@@ -1410,35 +1405,25 @@ function AdSlot({ ad }: { ad: Dashboard["ad"] }) {
           borderColor: "var(--border)",
         }}
       >
-        {ad.kind === "image" ? (
-          <img
-            src={ad.imageUrl}
-            alt={ad.alt}
-            width={AD_WIDTH}
-            height={AD_HEIGHT}
-            className="h-full w-full rounded object-contain"
-          />
-        ) : (
-          <span className="flex h-full items-center justify-between gap-4 px-4">
-            <span className="min-w-0">
-              <span className="block truncate font-medium">{ad.headline}</span>
-              {ad.body ? (
-                <span className="block truncate text-sm" style={muted}>
-                  {ad.body}
-                </span>
-              ) : null}
-            </span>
-            <span
-              className="shrink-0 rounded px-3 py-1.5 text-sm font-medium"
-              style={{
-                background: "var(--brand-on-white-text)",
-                color: "var(--color-neutral-50)",
-              }}
-            >
-              {ad.cta}
-            </span>
+        <span className="flex h-full items-center justify-between gap-4 px-4">
+          <span className="min-w-0">
+            <span className="block truncate font-medium">{ad.headline}</span>
+            {ad.body ? (
+              <span className="block truncate text-sm" style={muted}>
+                {ad.body}
+              </span>
+            ) : null}
           </span>
-        )}
+          <span
+            className="shrink-0 rounded px-3 py-1.5 text-sm font-medium"
+            style={{
+              background: "var(--brand-on-white-text)",
+              color: "var(--color-neutral-50)",
+            }}
+          >
+            {ad.cta}
+          </span>
+        </span>
       </a>
     </div>
   );

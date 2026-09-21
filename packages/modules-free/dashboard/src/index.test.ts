@@ -201,10 +201,9 @@ test("Pro is not sold to, Free is", async () => {
     await freeApp.request("http://localhost/api/dashboard", { headers })
   ).json()) as {
     tier: string;
-    ad: { kind: string; url: string; headline: string } | null;
+    ad: { url: string; headline: string } | null;
   };
   expect(free.tier).toBe("free");
-  expect(free.ad?.kind).toBe("text");
   expect(free.ad?.headline).toBeTruthy();
   expect(free.ad?.url.startsWith("https://")).toBe(true);
 });
@@ -426,122 +425,40 @@ test("a part payment comes off what is owed", async () => {
   ).toBe(60_000);
 });
 
-test("the promo copy Foothills publishes is what a Free dashboard shows", async () => {
-  // The wording changes far more often than the product does, so it is a
-  // document instances fetch rather than a string in a release. What matters
-  // here is that the fetched document actually reaches the panel — and that a
-  // Pro instance still sees none of it.
-  const { refreshPromos } = await import("./promos");
-  const dir = `/tmp/sentrello-promos-${crypto.randomUUID().slice(0, 8)}`;
-  const previousDir = process.env.SENTRELLO_DATA_DIR;
-  process.env.SENTRELLO_DATA_DIR = dir;
-  process.env.SENTRELLO_PROMOS = "on";
-
-  await refreshPromos(
-    async () =>
-      new Response(
-        JSON.stringify({
-          ad: {
-            kind: "text",
-            headline: "Sentrello Pro, this month",
-            body: "Ledger-backed reports",
-            url: "https://sentrello.com/pro",
-            cta: "Have a look",
-          },
-        }),
-        { status: 200 },
-      ),
-  );
-
+test("free says something about pro, and pro is never sold to", async () => {
+  // The copy ships in the release now: there is no document to fetch and no
+  // cache to go stale, and the only thing worth pinning is that a Free
+  // instance carries the block and a paid one carries nothing.
   const free = (await (
     await freeApp.request("http://localhost/api/dashboard", { headers })
   ).json()) as {
-    ad: { kind: string; headline: string; body: string; cta: string } | null;
+    ad: { headline: string; body: string; cta: string; url: string } | null;
   };
-  expect(free.ad?.headline).toBe("Sentrello Pro, this month");
-  expect(free.ad?.cta).toBe("Have a look");
-  expect(free.ad?.body).toBe("Ledger-backed reports");
+  expect(free.ad?.headline).toContain("Pro");
+  expect(free.ad?.cta).toBeTruthy();
+  expect(free.ad?.url.startsWith("https://")).toBe(true);
 
   const pro = (await (await get()).json()) as { ad: unknown };
   expect(pro.ad).toBeNull();
-
-  process.env.SENTRELLO_DATA_DIR = previousDir;
 });
 
 /**
- * The first day, which is the one that matters.
+ * Where "see what Pro adds" goes, for somebody who sells this on.
  *
- * The document is fetched nightly, so without this a new install shows the
- * built-in copy until 04:17 tomorrow — a full day of the wrong words on the
- * first screen a new Free user looks at.
+ * A partner running instances for their own customers points it at their own
+ * page; it is the one thing about the block that is configurable, and an
+ * unset variable must not leave a link to nowhere.
  */
-test("an instance that has never fetched the promo document fetches once", async () => {
-  const { refreshPromosIfStale, readPromos } = await import("./promos");
-  const dir = `/tmp/sentrello-promos-${crypto.randomUUID().slice(0, 8)}`;
-  const previousDir = process.env.SENTRELLO_DATA_DIR;
-  process.env.SENTRELLO_DATA_DIR = dir;
-  process.env.SENTRELLO_PROMOS = "on";
+test("the upgrade link can be pointed elsewhere", async () => {
+  const { upgradeBlock } = await import("./upgrade");
+  const previous = process.env.SENTRELLO_UPGRADE_URL;
+  process.env.SENTRELLO_UPGRADE_URL = "https://partner.example/pro";
+  expect(upgradeBlock().url).toBe("https://partner.example/pro");
 
-  let calls = 0;
-  const answer = async () => {
-    calls += 1;
-    return new Response(
-      JSON.stringify({
-        ad: {
-          kind: "text",
-          headline: "Fetched on the first boot",
-          body: "A line",
-          url: "https://sentrello.com/pro",
-          cta: "Look",
-        },
-      }),
-      { status: 200 },
-    );
-  };
-
-  await refreshPromosIfStale(answer);
-  expect(calls).toBe(1);
-  const first = (await readPromos()).ad;
-  if (first.kind !== "text") throw new Error("expected a text advertisement");
-  expect(first.headline).toBe("Fetched on the first boot");
-
-  // And not again on the next restart: a fresh cache is left alone, or an
-  // instance that reboots all afternoon asks us every time.
-  await refreshPromosIfStale(answer);
-  expect(calls).toBe(1);
-
-  /**
-   * But a cache older than the window is refreshed, however it got old.
-   *
-   * This is the case that made the whole thing look broken: copy saved at
-   * half past five was invisible until the next morning, because the only
-   * fetch had happened an hour before it was written.
-   */
-  const { utimes } = await import("node:fs/promises");
-  const stale = new Date(Date.now() - 3 * 60 * 60 * 1000);
-  await utimes(`${dir}/promos.json`, stale, stale);
-  await refreshPromosIfStale(answer);
-  expect(calls).toBe(2);
-
-  /**
-   * And an hour is stale, because the job that calls this runs hourly.
-   *
-   * With a window wider than the schedule, every other run returned without
-   * asking and a change saved in Master took two hours to reach a dashboard.
-   */
-  const anHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-  await utimes(`${dir}/promos.json`, anHourAgo, anHourAgo);
-  await refreshPromosIfStale(answer);
-  expect(calls).toBe(3);
-
-  // Off means off, however stale the cache is.
-  process.env.SENTRELLO_PROMOS = "off";
-  await utimes(`${dir}/promos.json`, stale, stale);
-  await refreshPromosIfStale(answer);
-  expect(calls).toBe(3);
-
-  process.env.SENTRELLO_PROMOS = "on";
-  process.env.SENTRELLO_DATA_DIR = previousDir;
+  // Declared and left blank, which is what a compose file usually produces.
+  process.env.SENTRELLO_UPGRADE_URL = "";
+  expect(upgradeBlock().url).toBe("https://sentrello.com/pricing/");
+  process.env.SENTRELLO_UPGRADE_URL = previous ?? "";
 });
 
 /**
@@ -676,8 +593,8 @@ test("a business still setting up is not sold to", async () => {
   // because it is not a campaign with an end.
   const offered = (await (
     await freeApp.request("http://localhost/api/dashboard", { headers })
-  ).json()) as { ad: { kind: string } | null };
-  expect(offered.ad?.kind).toBe("text");
+  ).json()) as { ad: { headline: string } | null };
+  expect(offered.ad?.headline).toBeTruthy();
 });
 
 /**

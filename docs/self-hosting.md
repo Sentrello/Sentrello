@@ -512,27 +512,17 @@ you were doing.
 **Security problems: do not open a public issue.** Email
 `security@sentrello.com` with what you found and how to reproduce it.
 
-## The dashboard's promo and sponsor blocks
+## What the Free dashboard says about Pro
 
-A Free instance shows two advertising blocks on its dashboard: what Pro adds,
-and a sponsor slot. The copy is a small JSON document this instance fetches
-from `https://sentrello.com/api/promos` once a day, so it can change without
-waiting for a release.
+A Free instance shows one block at the top of its dashboard, once there is
+nothing left on the setting-up checklist: a line about what Pro adds, and a
+link to the pricing page. It is the only advertising anywhere in the product,
+and the copy ships in the release.
 
-What that does and does not mean:
+**Nothing is fetched to fill it.** Until 21 September 2026 it was a document
+pulled from `sentrello.com` every hour, which made a free instance call home
+for a sentence. It does not any more: no request, no cache file, and no
+setting to turn off.
 
-- **The instance fetches, never the browser.** No page in the product makes a
-  request to another host, so nothing about who is reading the dashboard leaves
-  the building.
-- **Nothing is sent.** It is a plain GET of a public document — no instance id,
-  no tier, no counts. Telemetry is a separate thing, off unless it was turned
-  on deliberately.
-- **It is only decoration.** A failed fetch or an unreadable document leaves
-  whatever was cached, or the copy that shipped in the release.
-- **Every link in it must be `https`**, and the document is validated before it
-  is stored. Anything else is dropped.
-
-To turn it off entirely, set `SENTRELLO_PROMOS=off`; the built-in copy is used.
-To point it somewhere else — an air-gapped mirror, say — set
-`SENTRELLO_PROMOS_URL`. Pro instances never fetch it: there is no promo block
-on Pro.
+If you run instances for other people and want that link pointing at your own
+page, set `SENTRELLO_UPGRADE_URL`. Pro instances show no block at all.

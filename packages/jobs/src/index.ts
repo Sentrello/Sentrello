@@ -77,8 +77,9 @@ export interface ModuleJob {
    * Run it once at startup as well as on its schedule.
    *
    * For work whose result is stale on a brand-new instance and whose schedule
-   * is a whole day away — the promo document is the case: without this, a new
-   * install shows the built-in copy until the small hours of tomorrow.
+   * is a whole day away — an instance installed at ten in the morning should
+   * not wait until four tomorrow for the first run of something a new install
+   * needs today.
    *
    * Sent to the queue rather than called, so it runs where every other job
    * runs: off the boot path, with pg-boss's retries, and with a failure that
@@ -153,8 +154,8 @@ export async function startJobs(
      *
      * Two seconds is the default, and it is the right one for a queue that
      * takes work as it arrives. Nothing here does. Every job in this product
-     * is on a schedule — invoices at eight, reminders on the quarter hour, the
-     * promo document hourly — and the longest any of them waits under this
+     * is on a schedule — invoices at eight, reminders on the quarter hour,
+     * licence checks hourly — and the longest any of them waits under this
      * setting is thirty seconds.
      *
      * Measured on sentrello.com before changing it: pg-boss had run 92,654

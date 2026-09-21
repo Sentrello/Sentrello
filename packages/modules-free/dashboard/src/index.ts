@@ -42,7 +42,7 @@ import {
   writeStored,
 } from "./layout";
 import { readInsights } from "./pro";
-import { readPromos, refreshPromosIfStale } from "./promos";
+import { upgradeBlock } from "./upgrade";
 
 /**
  * The first screen after signing in.
@@ -80,16 +80,16 @@ interface Attention {
  * Whether there is anything left to set up, anywhere in the business.
  *
  * The same guides the Setting up card draws, resolved the same way, so the
- * promo appears exactly when the checklist leaves — and reappears as the
- * checklist does if a module bought later brings new steps, or undoing
+ * upgrade block appears exactly when the checklist leaves — and reappears as
+ * the checklist does if a module bought later brings new steps, or undoing
  * something brings one back. Done is derived, never stored, so there is no
  * second flag here to drift from the card.
  *
  * Deliberately blind to dismissals: hiding the checklist part-way is not
  * finishing it, and a business that just asked for the block to go away
- * should not find an advertisement standing in its place. The promo waits
- * for the steps to actually be done, which they become anyway as the
- * business uses the product.
+ * should not find the upgrade block standing in its place. It waits for the
+ * steps to actually be done, which they become anyway as the business uses
+ * the product.
  */
 async function onboardingComplete(organizationId: string): Promise<boolean> {
   const guides = await Promise.all(
@@ -118,43 +118,6 @@ export default defineModule({
     for (const widget of CORE_WIDGETS) {
       ctx.registerWidget(widget);
     }
-
-    /**
-     * The promo document, hourly.
-     *
-     * On a schedule rather than on a page load: the dashboard must not wait on
-     * another host to paint, and a business opening it forty times a day
-     * should not make forty requests to us.
-     *
-     * Hourly rather than nightly, which is what it was. A campaign ends on a
-     * Friday afternoon and a module ships on a Tuesday morning, and
-     * neither can wait until four the next morning to appear — the first time
-     * the copy was changed in anger, the change was invisible for twenty-two
-     * hours and looked broken. The public document is served with
-     * `cache-control: max-age=3600`, so asking once an hour is exactly as
-     * often as the answer can change.
-     */
-    ctx.registerJob({
-      name: "promos",
-      cron: "17 * * * *",
-      /**
-       * And once at startup, because the next hourly run can still be most of
-       * an hour away from a brand-new install — the built-in copy on the
-       * first screen a new Free user looks at.
-       *
-       * The handler only fetches when the cached document is missing or
-       * stale, so an instance restarted all afternoon still asks us once.
-       *
-       * Checked per run rather than at registration, because a licence can
-       * arrive or lapse while the process runs: a Pro instance shows no promo
-       * and has no business fetching one either.
-       */
-      runAtBoot: true,
-      handler: async () => {
-        if (ctx.entitled({ tier: "pro" })) return;
-        await refreshPromosIfStale();
-      },
-    });
 
     ctx.app.get(
       "/api/dashboard",
@@ -357,41 +320,27 @@ export default defineModule({
               }
             : null,
           /**
-           * The one advertisement, at the top of the screen.
+           * What Free says about Pro, at the top of the screen.
            *
            * Free only. A business that has paid should not be advertised to on
            * the first screen it opens every morning — that is a large part of
            * what paying is for, and showing it anyway would make the purchase
            * feel unfinished.
-           */
-          /**
-           * And nothing while the business is still setting up.
            *
-           * Set by James: the promo takes the onboarding checklist's place
-           * once there is nothing left on it — not before. A business still
-           * putting its address in and raising its first invoice should not
-           * find an advertisement as the only other call to action on the
-           * screen. Once setting up is done the offer stands until they take
-           * it: this is not a campaign with an end, it is what Free says
-           * about Pro.
+           * And nothing while the business is still setting up. Set by James:
+           * it takes the onboarding checklist's place once there is nothing
+           * left on it — not before. A business still putting its address in
+           * and raising its first invoice should not find an advertisement as
+           * the only other call to action on the screen. Once setting up is
+           * done the offer stands until they take it: not a campaign with an
+           * end, but what Free says about Pro.
            *
            * Asked of the whole organization rather than of this reader: the
            * checklist a reader sees is filtered by what they may act on, but
            * a block that appears for one colleague and not another would look
            * broken rather than polite.
            */
-          ad:
-            pro || !(await onboardingComplete(orgId))
-              ? null
-              : await (async () => {
-                  // The copy is a document Foothills edits centrally; the
-                  // built-in wording is what shows until one has been fetched.
-                  const { ad } = await readPromos();
-                  return {
-                    ...ad,
-                    url: process.env.SENTRELLO_UPGRADE_URL ?? ad.url,
-                  };
-                })(),
+          ad: pro || !(await onboardingComplete(orgId)) ? null : upgradeBlock(),
           health: await readHealth(),
           money,
           pipeline: {
@@ -547,7 +496,7 @@ export default defineModule({
      * it appears on its own, however long ago the others were finished or
      * put away.
      *
-     * Per organization, like the promo gate above and for the same reason: a
+     * Per organization, like the upgrade gate above and for the same reason: a
      * checklist that is hidden for one colleague and showing for another
      * looks broken rather than polite.
      */
@@ -677,7 +626,7 @@ export default defineModule({
      * It was the paid half of this module — twelve months of ledger against
      * Free's "what needs doing today" — and James settled it on 2026-09-20:
      * the Free dashboard is the Pro dashboard, and the only difference is the
-     * promo block Free carries at the top once onboarding is done. Every
+     * upgrade block Free carries at the top once onboarding is done. Every
      * figure here is computed by Core from tables every instance already has,
      * so there was never anything to install, only something to allow.
      */
@@ -691,7 +640,7 @@ export default defineModule({
 
     /*
      * Arranging is not a paid feature. James, 2026-09-13: the Free and the Pro
-     * dashboard are the same screen, and Free additionally carries the promo
+     * dashboard are the same screen, and Free additionally carries the upgrade
      * block. Deciding which of your own panels you look at first is not
      * something to charge for — what Pro sells is the panels there are to
      * arrange.
