@@ -63,10 +63,6 @@ export const GROUP_ORDER = [
   // Nothing registers this yet; HR will. Kept so the day it arrives it lands
   // where it belongs rather than at the end with the unranked.
   "People",
-  // Only ever present on sentrello.com's own instance, where it runs the
-  // business that sells this. Above Configuration because it is where the day's
-  // work happens there, and settings are settings wherever you are.
-  "Master",
   // Last, always. Settings are settings wherever you are.
   "Configuration",
 ];
@@ -87,7 +83,6 @@ export const GROUP_ICONS: Record<string, IconName> = {
   // different things wearing one face.
   Marketing: "trending-up",
   People: "users",
-  Master: "boxes",
   Configuration: "settings",
 };
 
