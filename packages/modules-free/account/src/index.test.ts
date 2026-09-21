@@ -254,3 +254,90 @@ test("visibleSections: gate order — entitlement, then presence, then load", as
   // "a" was refused on entitlement alone; "b" was asked and said no.
   expect(calls).toEqual(["hasAny:b"]);
 });
+
+/**
+ * The two things a customer can do to their own page.
+ *
+ * Asked for by James on 21 September: switch it light or dark, and keep a
+ * copy of any section for their own records. Both are links rather than
+ * scripts — a good many people read these pages in a mail client's browser.
+ */
+test("the colours a customer chose are the colours they get back", async () => {
+  const orgId = await makeOrg(`Colours ${suffix}`);
+  orgIds.push(orgId);
+  const contact = await makeContact(orgId, "Ida Nightmode");
+  addAccountSection({
+    id: "shop",
+    moduleId: "shop",
+    label: "Shop orders",
+    hasAny: async () => true,
+    load: async () => [{ label: "Orders", value: 1, kind: "count" }],
+  });
+  const app = registerForTest(account);
+
+  const asked = await app.request(
+    `http://localhost/account/${contact.portalToken}?theme=dark`,
+  );
+  expect(asked.status).toBe(200);
+  const cookie = asked.headers.get("set-cookie") ?? "";
+  expect(cookie).toContain("sentrello_account_theme=dark");
+  // HttpOnly, because nothing but the server drawing the page reads it.
+  expect(cookie).toContain("HttpOnly");
+  expect(await asked.text()).toContain('data-theme="dark"');
+
+  // And the choice survives without the query, which is the whole point.
+  const again = await app.request(
+    `http://localhost/account/${contact.portalToken}`,
+    { headers: { cookie: "sentrello_account_theme=dark" } },
+  );
+  expect(await again.text()).toContain('data-theme="dark"');
+
+  /*
+   * Nothing chosen is nothing imposed: the root element carries no choice and
+   * the stylesheet falls through to the machine's own preference. Asserted on
+   * the html tag rather than on the page, because the stylesheet names
+   * `data-theme` in its own rules whatever the customer picked.
+   */
+  const fresh = await app.request(
+    `http://localhost/account/${contact.portalToken}`,
+  );
+  expect(await fresh.text()).toContain('<html lang="en"><head>');
+});
+
+test("a section can be kept, and one they have nothing in cannot", async () => {
+  const orgId = await makeOrg(`Keeping ${suffix}`);
+  orgIds.push(orgId);
+  const contact = await makeContact(orgId, "Pat Printer");
+  addAccountSection({
+    id: "shop",
+    moduleId: "shop",
+    label: "Shop orders",
+    hasAny: async () => true,
+    load: async () => [{ label: "Orders", value: 2, kind: "count" }],
+  });
+  const app = registerForTest(account);
+
+  const whole = await app.request(
+    `http://localhost/account/${contact.portalToken}/print`,
+  );
+  expect(whole.status).toBe(200);
+  const html = await whole.text();
+  // It prints itself, and the navigation is not on the paper.
+  expect(html).toContain("window.print()");
+  expect(html).toContain("@media print");
+
+  const one = await app.request(
+    `http://localhost/account/${contact.portalToken}/shop/print`,
+  );
+  expect(one.status).toBe(200);
+  expect(await one.text()).toContain("Shop orders");
+
+  /*
+   * A section this customer has nothing in is a 404, not an empty page:
+   * naming one must not confirm that the business runs it.
+   */
+  const absent = await app.request(
+    `http://localhost/account/${contact.portalToken}/booking/print`,
+  );
+  expect(absent.status).toBe(404);
+});

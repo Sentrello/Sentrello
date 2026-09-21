@@ -136,7 +136,15 @@ const YOURS_BY_DESIGN = new Set([
   "POST /api/invitations/:token/accept",
   // The unified customer account page. A customer of the business, with no
   // platform account at all; the token is the credential. See `account.ts`.
+  //
+  // The two print variants are the same page and the same credential: one
+  // section or all of them, written for paper so a customer can keep a copy.
+  // Guarded exactly as the page is — a wrong token is a 404, and a section
+  // this customer has nothing in is a 404 as well, so naming one cannot
+  // confirm the business runs it.
   "GET /account/:token",
+  "GET /account/:token/print",
+  "GET /account/:token/:section/print",
 ]);
 
 const suffix = crypto.randomUUID().slice(0, 8);
