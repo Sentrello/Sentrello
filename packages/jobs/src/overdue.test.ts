@@ -120,3 +120,38 @@ test("it says how many were waiting, so the silence is explainable", async () =>
   });
   expect(result.skipped ?? 0).toBeGreaterThan(0);
 });
+
+test("one address that will not take mail does not stop the rest", async () => {
+  /*
+   * This sweep runs across every business on the instance, so an uncaught
+   * throw from the mailer ended the whole run: every invoice after the bad
+   * address went unchased, and the next run started at the same invoice and
+   * threw again. Nothing is marked when a send fails, so that one is tried
+   * again next time — which is what a transient outage deserves.
+   */
+  process.env.SMTP_HOST = "localhost";
+
+  const tried: string[] = [];
+  const refusing = {
+    send: async ({ to }: { to: string }) => {
+      tried.push(to);
+      if (to === "ade@balogun.test") throw new Error("mailbox unavailable");
+    },
+  } as unknown as NonNullable<
+    Parameters<typeof sendOverdueReminders>[1]
+  >["mailer"];
+
+  const result = await sendOverdueReminders(new Date(), {
+    mailer: refusing,
+  });
+
+  expect(tried).toContain("ade@balogun.test");
+  // The run finished rather than throwing, and the refused invoice is not
+  // marked, so it will be chased again.
+  const [after] = await db
+    .select({ lastReminderAt: schema.invoices.lastReminderAt })
+    .from(schema.invoices)
+    .where(inArray(schema.invoices.id, [invoiceId]));
+  expect(after?.lastReminderAt).toBeNull();
+  expect(result.sent).toBe(0);
+});
