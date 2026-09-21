@@ -51,7 +51,11 @@ import {
   quoteEmail,
   receiptEmail,
 } from "@sentrello/email/templates";
-import { defineModule, rateLimit } from "@sentrello/module-sdk";
+import {
+  customerThemeFor,
+  defineModule,
+  rateLimit,
+} from "@sentrello/module-sdk";
 import { and, eq, isNotNull, isNull, notInArray } from "drizzle-orm";
 import {
   customerBalance,
@@ -2006,6 +2010,13 @@ export default defineModule({
           ),
         );
 
+      // Light or dark, chosen here or on any other page they have been sent.
+      const { theme, setCookie } = customerThemeFor({
+        query: (name) => c.req.query(name),
+        header: (name) => c.req.header(name),
+      });
+      if (setCookie) c.header("set-cookie", setCookie, { append: true });
+
       return c.html(
         portalPage({
           businessName: org?.name ?? "Invoices",
@@ -2022,6 +2033,8 @@ export default defineModule({
           // The unified account page across every module — same token,
           // already valid, since it is the one that got them onto this page.
           accountPath: `/account/${supplied}`,
+          path: `/portal/${supplied}`,
+          theme,
           quotes,
           quotePath: `/portal/${supplied}/quotes`,
           // Paying online is a Pro feature; a Free instance shows the bill and

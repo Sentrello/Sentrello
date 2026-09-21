@@ -15,6 +15,12 @@ import {
   creditFooter,
 } from "@sentrello/db/credit";
 import { invoiceState } from "@sentrello/db/money";
+import {
+  CUSTOMER_THEME_CSS,
+  type CustomerTheme,
+  customerThemeSwitch,
+  themeAttribute,
+} from "@sentrello/module-sdk";
 
 const html = (s: string) =>
   s.replace(
@@ -44,15 +50,18 @@ function day(value: Date | string | null): string {
 }
 
 const STYLE = `
-:root { color-scheme: light dark; --ink:#1a1a1a; --muted:#666; --line:#e4e4e7; --bg:#fff;
-  --paid:#1f7a4d; --due:#a16207; --over:#b91c1c; }
+/* Ink, paper and the switch are the platform's, so this page looks like the
+   account page it hangs off. */
+${CUSTOMER_THEME_CSS}
+:root { --paid:#1f7a4d; --due:#a16207; --over:#b91c1c; }
 /* The status colours change with the ground they sit on. The light values
    measured 2.9–3.8:1 on the dark background against WCAG's 4.5:1 — "overdue"
    was hardest to read exactly where it mattered. Dark values measure 6:1+. */
 @media (prefers-color-scheme: dark) {
-  :root { --ink:#f4f4f5; --muted:#a1a1aa; --line:#333; --bg:#131313;
-    --paid:#3faf74; --due:#cf9436; --over:#ef6a6a; }
+  :root:not([data-theme="light"]) { --paid:#3faf74; --due:#cf9436; --over:#ef6a6a; }
 }
+:root[data-theme="dark"] { --paid:#3faf74; --due:#cf9436; --over:#ef6a6a; }
+.page-tools { display:flex; justify-content:flex-end; margin-bottom:1rem; }
 * { box-sizing: border-box; }
 body { font:16px/1.6 system-ui,-apple-system,sans-serif; color:var(--ink);
   background:var(--bg); margin:0; padding:3rem 1.5rem; }
@@ -230,6 +239,9 @@ export function portalPage(args: {
    * built from a token that never existed.
    */
   accountPath?: string;
+  /** This page's own address and the reader's colours, for the switch. */
+  path?: string;
+  theme?: CustomerTheme;
   now?: Date;
 }): string {
   const {
@@ -242,6 +254,8 @@ export function portalPage(args: {
     payPath,
     credit = SENTRELLO_CREDIT,
     accountPath,
+    path,
+    theme,
     now = new Date(),
   } = args;
 
@@ -283,13 +297,14 @@ export function portalPage(args: {
           .join("\n");
 
   return `<!doctype html>
-<html lang="en"><head>
+<html lang="en"${themeAttribute(theme)}><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex">
 <title>${html(businessName)} — your account</title>
 <style>${STYLE}</style>
 </head><body><main>
+${path ? `<div class="page-tools">${customerThemeSwitch(path, theme)}</div>` : ""}
 <h1>${html(businessName)}</h1>
 <p class="sub">For ${html(customerName)}</p>
 ${accountPath ? `<p class="muted"><a href="${html(accountPath)}">See everything you have with us</a></p>` : ""}
