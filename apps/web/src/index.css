@@ -632,3 +632,25 @@ th.money {
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
+
+/*
+ * A focus ring on the date and time fields, which the browser does not draw.
+ *
+ * Chromium tabs between the segments of `<input type="date">` — month, day,
+ * year — and highlights the segment rather than outlining the control, so the
+ * field itself shows nothing on the stop that lands in it. Every other control
+ * gets the browser's own ring for free; these are the exception, and the
+ * keyboard walk found one sitting in the middle of the subscribers screen with
+ * no indication at all.
+ *
+ * `:focus-within` rather than `:focus-visible`: focus is on a segment inside
+ * the control, and only the control can be outlined.
+ */
+input[type="date"]:focus-within,
+input[type="datetime-local"]:focus-within,
+input[type="month"]:focus-within,
+input[type="time"]:focus-within,
+input[type="week"]:focus-within {
+  outline: 2px solid var(--brand-on-white-text);
+  outline-offset: 2px;
+}
