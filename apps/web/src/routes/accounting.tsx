@@ -1006,6 +1006,40 @@ export function Money() {
 type ChartAccount = Account & { archivedAt: string | null };
 
 /**
+ * What the find box leaves, with every ancestor of a match kept.
+ *
+ * A tree filtered by matching alone loses the branch a match hangs from, and
+ * `inTreeOrder` drops a child whose parent is not present — so searching for
+ * "6100" would have shown nothing at all when its parent did not match the
+ * same text. Keeping the ancestors is what makes the result still a chart
+ * rather than a list of orphans.
+ */
+export function matchingAccounts<
+  T extends {
+    id: string;
+    code: string;
+    name: string;
+    parentId?: string | null;
+  },
+>(rows: T[], term: string): T[] {
+  const needle = term.trim().toLowerCase();
+  if (!needle) return rows;
+  const byId = new Map(rows.map((a) => [a.id, a]));
+  const keep = new Set<string>();
+  for (const account of rows) {
+    if (!`${account.code} ${account.name}`.toLowerCase().includes(needle)) {
+      continue;
+    }
+    let at: T | undefined = account;
+    while (at && !keep.has(at.id)) {
+      keep.add(at.id);
+      at = at.parentId ? byId.get(at.parentId) : undefined;
+    }
+  }
+  return rows.filter((a) => keep.has(a.id));
+}
+
+/**
  * The chart in the order an accountant reads it: parents by code, children
  * under their parent.
  *
@@ -1046,6 +1080,21 @@ export function Accounts() {
   const [name, setName] = useState("");
   const [type, setType] = useState("expense");
   const [showArchived, setShowArchived] = useState(false);
+  /**
+   * Narrowing the chart, in the browser.
+   *
+   * **Deliberately not the list machinery the other Money lists use.** A
+   * chart of accounts is dozens of rows, not thousands; ten places across
+   * three screens read `/api/accounts` to fill a picker, and paging it would
+   * quietly offer them the first twenty-five accounts; and this screen draws
+   * a tree, where a parent falling off a page orphans its children. All three
+   * are silent failures — a dropdown missing an account and a tree missing a
+   * branch both look like working screens.
+   *
+   * So the search stays here, over rows already fetched, and the server keeps
+   * answering with the whole chart.
+   */
+  const [find, setFind] = useState("");
 
   const accounts = useQuery({
     queryKey: ["accounts", showArchived],
@@ -1146,6 +1195,7 @@ export function Accounts() {
   if (accounts.isLoading) return <Loading />;
   if (accounts.error) return <ErrorNote error={accounts.error} />;
   const rows = accounts.data?.accounts ?? [];
+  const shown = matchingAccounts(rows, find);
 
   return (
     <div className="space-y-4">
@@ -1205,8 +1255,26 @@ export function Accounts() {
         {add.error ? <ErrorNote error={add.error} /> : null}
       </Card>
 
-      {rows.length === 0 ? (
-        <Empty title="No accounts yet" />
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          value={find}
+          aria-label="Find an account"
+          placeholder="Find a code or a name"
+          className="w-56"
+          onChange={(e) => setFind(e.target.value)}
+        />
+        {find ? (
+          <Button variant="secondary" onClick={() => setFind("")}>
+            Clear
+          </Button>
+        ) : null}
+        <span className="ml-auto text-sm" style={muted}>
+          {shown.length} of {rows.length}
+        </span>
+      </div>
+
+      {shown.length === 0 ? (
+        <Empty title={find ? "No account matches that" : "No accounts yet"} />
       ) : (
         <Table
           headers={[
@@ -1218,7 +1286,7 @@ export function Accounts() {
             "",
           ]}
         >
-          {inTreeOrder(rows).map(({ account: a, depth }) => (
+          {inTreeOrder(shown).map(({ account: a, depth }) => (
             <Row key={a.id}>
               <td className="py-2 font-medium">{a.code}</td>
               <td style={a.archivedAt ? muted : undefined}>
