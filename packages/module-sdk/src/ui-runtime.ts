@@ -377,7 +377,8 @@ export interface SentrelloListUi {
       | "invoices"
       | "quotes"
       | "journal"
-      | "bills";
+      | "bills"
+      | "banking";
     state: ListState;
     defaults: { sort: string; order: "asc" | "desc" };
   }>;
