@@ -5,7 +5,7 @@
  * 2026-09-20: an icon should look like the thing it opens. A general-purpose
  * set cannot do that — it has one glyph for "users" and this platform has
  * two different screens that deserve one each, one glyph for "boxes" where
- * the rail needs Master and Projects to be told apart at 20 pixels, and
+ * the rail needs Licences and Projects to be told apart at 20 pixels, and
  * nothing at all for a VAT return.
  *
  * **Twelve names were being asked for and not drawn.** `landmark`,

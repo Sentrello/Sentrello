@@ -345,7 +345,8 @@ export interface SentrelloModule {
    *
    * The licence decides what a business has bought. This decides something the
    * licence cannot express: that a module is Sentrello's own and runs on one
-   * machine — Master, and the SubShop we sell our own subscriptions from.
+   * machine — the platform's own admin screens, and the control plane we sell
+   * our own subscriptions from.
    *
    * Refusing inside `register` is not enough. A module that loads and
    * registers nothing still has its tables migrated and its screens served,
