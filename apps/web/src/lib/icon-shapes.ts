@@ -222,10 +222,14 @@ export const GLYPHS: Record<string, Glyph> = {
   /** A purse with a clasp: the Money section, not one document inside it. */
   wallet: {
     d: [
-      "M4 8.5h14.5a1.5 1.5 0 0 1 1.5 1.5v7.5a1.5 1.5 0 0 1-1.5 1.5H5.5A1.5 1.5 0 0 1 4 17.5z",
-      "M4 8.5V7a1.5 1.5 0 0 1 1.5-1.5h10.2a1.3 1.3 0 0 1 1.3 1.3v1.7",
+      "M9 9.5C11 8.3 15.5 8.2 18 9.5C20.6 10.9 20.6 15.2 18.5 16.6C16 18 10 18 8 16.6C7 15.9 6.6 14.9 6.6 14H3.8V11H6.8C7.2 10.2 8 9.7 9 9.5Z",
+      "M15.8 8.7L16.8 6L19 8.9",
+      "M9 17.6V20",
+      "M16.5 17.6V20",
+      "M10.5 3.4A2 2 0 1 0 10.5 7.4A2 2 0 0 0 10.5 3.4Z",
     ],
-    dots: [[16.5, 13.5, 1.2]],
+    faint: ["M8.8 10.4H12.2", "M11.2 4.5A1.4 1.4 0 0 0 11.2 6.3"],
+    dots: [[9.3, 12.2, 1]],
   },
   /** A document with a torn foot — what a customer is handed. */
   receipt: {
