@@ -1,4 +1,4 @@
-import { and, db, desc, eq, isNull, schema } from "@sentrello/db";
+import { and, db, desc, eq, isNull, schema, sql } from "@sentrello/db";
 import {
   activePaymentAccount,
   organizationTakingCards,
@@ -89,8 +89,32 @@ export function registerPaymentWebhookEndpoint(ctx: ModuleContext) {
     const provider = providerFrom(account);
     const raw = await c.req.text();
     if (!(await provider.verifyWebhook(raw, c.req.raw.headers))) {
+      /*
+       * Counted, because this is the failure nobody can see from either side.
+       *
+       * A signing secret that does not belong to the live endpoint — pasted
+       * from an older one, or left in an environment file after the endpoint
+       * was replaced — means the processor delivers, this answers 401, and
+       * every payment is taken and never confirmed. The processor's dashboard
+       * says "failing"; the instance says nothing at all. So it says something
+       * now, where the business is shown it: events are arriving, and being
+       * turned away.
+       */
+      await db
+        .update(schema.paymentAccounts)
+        .set({
+          webhookRejectedAt: new Date(),
+          webhookRejectedCount: sql`${schema.paymentAccounts.webhookRejectedCount} + 1`,
+        })
+        .where(eq(schema.paymentAccounts.id, account.id));
       return c.json({ error: "invalid signature" }, 401);
     }
+
+    // And the reassuring half, so "when did one last land" is answerable.
+    await db
+      .update(schema.paymentAccounts)
+      .set({ webhookAcceptedAt: new Date() })
+      .where(eq(schema.paymentAccounts.id, account.id));
 
     const { eventId, eventType } = identifyPaymentEvent(raw);
 

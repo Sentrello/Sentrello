@@ -3128,6 +3128,22 @@ export const paymentAccounts = pgTable(
     lastTestMessage: text("last_test_message"),
     /** Who the processor says we are, from the test call. */
     accountLabel: text("account_label"),
+    /**
+     * The last time an event arrived and was refused, and how many.
+     *
+     * A signing secret that does not belong to the live endpoint is the one
+     * failure nothing could report: the processor says it delivered, the
+     * instance answers 401, and every payment is taken and never confirmed.
+     * Neither side is wrong from where it stands, so the fact that events are
+     * arriving *and being turned away* has to be written down where the
+     * business can be shown it.
+     */
+    webhookRejectedAt: timestamp("webhook_rejected_at"),
+    webhookRejectedCount: integer("webhook_rejected_count")
+      .notNull()
+      .default(0),
+    /** And the last time one was accepted, which is the reassuring half. */
+    webhookAcceptedAt: timestamp("webhook_accepted_at"),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (t) => [

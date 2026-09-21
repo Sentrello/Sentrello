@@ -436,6 +436,28 @@ export function registerPaymentAccounts(ctx: ModuleContext) {
       const ourWebhook = `${
         process.env.SENTRELLO_BASE_URL ?? new URL(c.req.url).origin
       }/api/payments/webhook/${provider}`;
+      /*
+       * And whether the events that do arrive are being accepted.
+       *
+       * The URL being right is half the question. A signing secret that
+       * belongs to an endpoint somebody replaced is the other half, and it
+       * looks identical from here: the processor delivers, this instance
+       * answers 401, every payment is taken and never confirmed. The webhook
+       * route counts those refusals; this is where somebody is told.
+       */
+      if (account.webhookRejectedCount > 0) {
+        const since = account.webhookAcceptedAt;
+        steps.push({
+          step: "checked the events that arrived",
+          ok: false,
+          detail: `${account.webhookRejectedCount} event(s) were refused as unsigned or wrongly signed${
+            since
+              ? `, the last one accepted ${since.toDateString()}`
+              : " and none has ever been accepted"
+          } — the stored signing secret does not belong to the endpoint sending them. Clear it and connect again.`,
+        });
+      }
+
       if (webhookSecret && live.webhookTargets) {
         try {
           steps.push(webhookVerdict(ourWebhook, await live.webhookTargets()));

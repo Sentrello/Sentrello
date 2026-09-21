@@ -440,3 +440,45 @@ test("a module listening to two processors keeps both consumers", () => {
   expect(paymentWebhookConsumers().length).toBe(2);
   clearPaymentWebhooks();
 });
+
+/**
+ * An event that arrives and is turned away.
+ *
+ * The failure neither side can see: a signing secret that belongs to an
+ * endpoint somebody replaced. The processor's dashboard says "failing"; the
+ * instance used to say nothing at all, while every payment was taken and no
+ * order was ever confirmed. Found on the demo, 21 September.
+ */
+test("a refused event is counted, so somebody can be told", async () => {
+  const countNow = async () => {
+    const [row] = await db
+      .select({
+        refused: schema.paymentAccounts.webhookRejectedCount,
+        at: schema.paymentAccounts.webhookRejectedAt,
+      })
+      .from(schema.paymentAccounts)
+      .where(eq(schema.paymentAccounts.organizationId, orgId));
+    return row;
+  };
+  const before = await countNow();
+
+  const refused = await app.request(
+    "http://localhost/api/payments/webhook/stripe",
+    {
+      method: "POST",
+      headers: new Headers({
+        "content-type": "application/json",
+        "stripe-signature": "t=1,v1=wronglysigned",
+      }),
+      body: JSON.stringify({
+        id: `evt_wrong_${suffix}`,
+        type: "payment_intent.succeeded",
+      }),
+    },
+  );
+  expect(refused.status).toBe(401);
+
+  const after = await countNow();
+  expect(after?.refused).toBe((before?.refused ?? 0) + 1);
+  expect(after?.at).not.toBeNull();
+});

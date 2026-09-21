@@ -673,6 +673,13 @@
       "when": 1789747519637,
       "tag": "0095_where_a_sale_happened",
       "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1790008319261,
+      "tag": "0096_a_webhook_arriving_and_being_refused",
+      "breakpoints": true
     }
   ]
 }
