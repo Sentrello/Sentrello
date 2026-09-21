@@ -84,3 +84,41 @@ export async function businessIdentity(orgId: string) {
     paymentInstructions: org?.paymentInstructions,
   };
 }
+
+/**
+ * Where a customer sees everything they have with one business.
+ *
+ * The page is `account/:token`, and the token is the contact's own — minted
+ * for an invoice, a subscription or a booking, whichever came first. Null
+ * when this contact has never been given one, or when the instance does not
+ * know its own address: a link to nowhere is worse on a customer's page than
+ * no link, because they will click it.
+ *
+ * Here rather than in a module because four modules wanted it and three of
+ * them wrote it — the same twenty lines, three times, in three repositories.
+ * A copy is a thing that drifts; this one had already started to, with one
+ * copy minting a token and the others refusing to.
+ */
+export async function accountUrlFor(
+  organizationId: string,
+  contactId: string | null,
+): Promise<string | null> {
+  if (!contactId) return null;
+  const base = process.env.SENTRELLO_BASE_URL;
+  if (!base) return null;
+
+  const [contact] = await db
+    .select({ portalToken: schema.contacts.portalToken })
+    .from(schema.contacts)
+    .where(
+      and(
+        eq(schema.contacts.id, contactId),
+        eq(schema.contacts.organizationId, organizationId),
+      ),
+    )
+    .limit(1);
+
+  return contact?.portalToken
+    ? `${base.replace(/\/$/, "")}/account/${contact.portalToken}`
+    : null;
+}

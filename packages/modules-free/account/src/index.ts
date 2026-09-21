@@ -132,6 +132,43 @@ export async function visibleSections(
   return views.filter((v): v is SectionView => v !== null);
 }
 
+/**
+ * The glyphs this page draws, as paths.
+ *
+ * Inline rather than imported: this is a standalone HTML page served to
+ * somebody with no account and no bundle, and a customer on a train should
+ * not wait on a script to find out what a button does. Stroked, 24×24,
+ * matching the platform's own set so a business's staff recognise them.
+ */
+const GLYPHS: Record<string, string> = {
+  receipt:
+    '<path d="M5 3v18l2-1.5L9 21l2-1.5L13 21l2-1.5L17 21l2-1.5V3l-2 1.5L15 3l-2 1.5L11 3 9 4.5 7 3 5 4.5Z"/><path d="M8 8h8M8 12h8M8 16h5"/>',
+  mail: '<path d="M3 6h18v12H3z"/><path d="m3 7 9 6 9-6"/>',
+  "shopping-bag":
+    '<path d="M4 7h16l-1.2 13H5.2L4 7Z"/><path d="M8.5 7V5.5a3.5 3.5 0 0 1 7 0V7"/>',
+  "refresh-cw":
+    '<path d="M3 12a9 9 0 0 1 15.3-6.4L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.3 6.4L3 16"/><path d="M3 21v-5h5"/>',
+  clipboard:
+    '<path d="M9 4h6v3H9z"/><path d="M15 5.5h2A1.5 1.5 0 0 1 18.5 7v12A1.5 1.5 0 0 1 17 20.5H7A1.5 1.5 0 0 1 5.5 19V7A1.5 1.5 0 0 1 7 5.5h2"/><path d="M8.5 11h7M8.5 15h4"/>',
+  calendar:
+    '<path d="M4 6.5h16v14H4z"/><path d="M4 10.5h16M8.5 4v4M15.5 4v4"/>',
+  /** The default, for a module whose icon this page does not know. */
+  dot: '<circle cx="12" cy="12" r="7"/>',
+  view: '<path d="M4 12h14"/><path d="m13 7 5 5-5 5"/>',
+  pdf: '<path d="M12 4v11"/><path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M5 19h14"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  moon: '<path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/>',
+  back: '<path d="M20 12H6"/><path d="m11 7-5 5 5 5"/>',
+};
+
+/** One glyph, with the words a screen reader and a tooltip both need. */
+function glyph(name: string, label?: string): string {
+  const paths = GLYPHS[name] ?? GLYPHS.dot;
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>${
+    label ? `<span class="sr-only">${esc(label)}</span>` : ""
+  }`;
+}
+
 const STYLE = `
 /*
  * Three states, not two: the customer's own choice, and the machine's when
@@ -140,32 +177,66 @@ const STYLE = `
  * rather than flashing the wrong ones first — and it works with JavaScript
  * off, which a link can and a script cannot.
  */
-:root{color-scheme:light dark;--ink:#1a1a1a;--muted:#666;--line:#e4e4e7;--bg:#fff}
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--ink:#f4f4f5;--muted:#a1a1aa;--line:#333;--bg:#131313}}
-:root[data-theme="dark"]{color-scheme:dark;--ink:#f4f4f5;--muted:#a1a1aa;--line:#333;--bg:#131313}
+:root{
+  color-scheme:light dark;
+  --ink:#18181b;--muted:#71717a;--line:#e4e4e7;--bg:#fafafa;--card:#fff;
+  --accent:#2563eb;--shadow:0 1px 2px rgb(0 0 0 / .05), 0 8px 24px -16px rgb(0 0 0 / .25);
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --ink:#f4f4f5;--muted:#a1a1aa;--line:#27272a;--bg:#0c0c0d;--card:#161618;
+  --accent:#7aa2ff;--shadow:0 1px 2px rgb(0 0 0 / .4), 0 8px 24px -16px rgb(0 0 0 / .8);
+}}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --ink:#f4f4f5;--muted:#a1a1aa;--line:#27272a;--bg:#0c0c0d;--card:#161618;
+  --accent:#7aa2ff;--shadow:0 1px 2px rgb(0 0 0 / .4), 0 8px 24px -16px rgb(0 0 0 / .8);
+}
 :root[data-theme="light"]{color-scheme:light}
 *{box-sizing:border-box}
-body{font:16px/1.6 system-ui,-apple-system,sans-serif;color:var(--ink);background:var(--bg);margin:0;padding:3rem 1.5rem}
-main{max-width:36rem;margin:0 auto}
-h1{font-size:1.5rem;margin:0 0 .25rem}
-.sub{color:var(--muted);margin:0 0 2rem}
-section{border:1px solid var(--line);border-radius:.5rem;padding:1.25rem 1.5rem;margin-bottom:1rem}
-h2{font-size:1.05rem;margin:0 0 .75rem}
-.figures{display:flex;flex-wrap:wrap;gap:1.5rem}
-.figure .label{color:var(--muted);font-size:.8125rem}
-.figure .value{font-size:1.1rem;font-weight:600}
-a.view{display:inline-block;margin-top:.75rem;font-size:.875rem}
-.actions{display:flex;gap:1rem;align-items:center;margin-top:.75rem;font-size:.875rem}
-.tools{display:flex;justify-content:flex-end;gap:1rem;font-size:.8125rem;margin:-1.5rem 0 1.5rem}
-.tools a{color:var(--muted)}
+body{
+  font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif;
+  color:var(--ink);background:var(--bg);margin:0;padding:2.5rem 1.25rem 4rem;
+  -webkit-font-smoothing:antialiased;
+}
+main{max-width:44rem;margin:0 auto}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+svg{width:1.125rem;height:1.125rem;flex:none}
+
+/* The top: who this is, and the two things that act on the whole page. */
+.top{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:2rem}
+h1{font-size:1.5rem;line-height:1.2;margin:0 0 .2rem;letter-spacing:-.02em}
+.sub{color:var(--muted);margin:0}
+.tools{display:flex;gap:.5rem;flex:none}
+.icon-button{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:2.25rem;height:2.25rem;border:1px solid var(--line);border-radius:.6rem;
+  color:var(--muted);background:var(--card);text-decoration:none;
+}
+.icon-button:hover{color:var(--ink);border-color:var(--muted)}
+
+section{
+  background:var(--card);border:1px solid var(--line);border-radius:.85rem;
+  padding:1.25rem 1.4rem;margin-bottom:.9rem;box-shadow:var(--shadow);
+}
+.head{display:flex;align-items:center;gap:.6rem;margin-bottom:1rem}
+.head svg{color:var(--accent)}
+h2{font-size:1rem;font-weight:650;margin:0;letter-spacing:-.01em}
+.figures{display:flex;flex-wrap:wrap;gap:1.25rem 2rem}
+.figure .label{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.04em}
+.figure .value{font-size:1.25rem;font-weight:650;letter-spacing:-.01em;line-height:1.3}
+.figure .value.bad{color:#dc2626}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .figure .value.bad{color:#f87171}}
+:root[data-theme="dark"] .figure .value.bad{color:#f87171}
+.actions{display:flex;gap:.5rem;margin-top:1.1rem;padding-top:.9rem;border-top:1px solid var(--line)}
+.foot{color:var(--muted);font-size:.8125rem;margin-top:2rem}
 
 /* On paper, and in a PDF: no navigation, no links to things that are not
    there, and the ink in black where a printer will not waste colour on it. */
 @media print{
-  :root{--ink:#000;--muted:#333;--line:#bbb;--bg:#fff}
+  :root{--ink:#000;--muted:#3f3f46;--line:#bbb;--bg:#fff;--card:#fff;--accent:#000;--shadow:none}
   body{padding:0}
-  .tools,.actions,a.view{display:none}
-  section{break-inside:avoid;border-color:#bbb}
+  .tools,.actions{display:none}
+  section{break-inside:avoid;box-shadow:none}
 }
 `;
 
@@ -179,29 +250,50 @@ function accountPage(args: {
   theme?: "light" | "dark";
   /** A page opened to be printed prints itself. */
   printing?: boolean;
+  /** One section on its own, which needs a way back. */
+  single?: boolean;
 }): string {
-  const { businessName, customerName, sections, token, theme, printing } = args;
+  const {
+    businessName,
+    customerName,
+    sections,
+    token,
+    theme,
+    printing,
+    single,
+  } = args;
+
   const body =
     sections.length === 0
       ? `<p class="sub">Nothing here yet.</p>`
       : sections
           .map(
             (s) => `<section>
-  <h2>${esc(s.label)}</h2>
+  <div class="head">${glyph(s.icon ?? "dot")}<h2>${esc(s.label)}</h2></div>
   <div class="figures">${s.figures
     .map(
       (f) =>
-        `<div class="figure"><div class="label">${esc(f.label)}</div><div class="value">${esc(figureText(f))}</div></div>`,
+        `<div class="figure"><div class="label">${esc(f.label)}</div><div class="value${
+          f.tone === "bad" ? " bad" : ""
+        }">${esc(figureText(f))}</div></div>`,
     )
     .join("")}</div>
-  <div class="actions">
-    ${s.href ? `<a class="view" href="${esc(s.href)}">View</a>` : ""}
+  ${
+    s.href || token
+      ? `<div class="actions">
     ${
-      token
-        ? `<a href="/account/${esc(token)}/${esc(s.id)}/print">Save as PDF</a>`
+      s.href
+        ? `<a class="icon-button" href="${esc(s.href)}" title="Open ${esc(s.label)}">${glyph("view", `Open ${s.label}`)}</a>`
         : ""
     }
-  </div>
+    ${
+      token
+        ? `<a class="icon-button" href="/account/${esc(token)}/${esc(s.id)}/print" title="Save ${esc(s.label)} as a PDF">${glyph("pdf", `Save ${s.label} as a PDF`)}</a>`
+        : ""
+    }
+  </div>`
+      : ""
+  }
 </section>`,
           )
           .join("\n");
@@ -216,10 +308,18 @@ function accountPage(args: {
    */
   const wanted = theme === "dark" ? "light" : "dark";
   const tools = token
-    ? `<p class="tools">
-  <a href="/account/${esc(token)}?theme=${wanted}">${wanted === "dark" ? "Dark" : "Light"}</a>
-  <a href="/account/${esc(token)}/print">Save it all as PDF</a>
-</p>`
+    ? `<div class="tools">
+  ${
+    single
+      ? `<a class="icon-button" href="/account/${esc(token)}" title="Back to everything you have with us">${glyph("back", "Back to everything you have with us")}</a>`
+      : ""
+  }
+  <a class="icon-button" href="/account/${esc(token)}?theme=${wanted}" title="${wanted === "dark" ? "Switch to dark" : "Switch to light"}">${glyph(
+    wanted === "dark" ? "moon" : "sun",
+    wanted === "dark" ? "Switch to dark" : "Switch to light",
+  )}</a>
+  <a class="icon-button" href="/account/${esc(token)}${single ? `/${esc(sections[0]?.id ?? "")}` : ""}/print" title="Save as a PDF">${glyph("pdf", "Save as a PDF")}</a>
+</div>`
     : "";
 
   return `<!doctype html>
@@ -230,12 +330,16 @@ function accountPage(args: {
 <title>${esc(businessName)} — your account</title>
 <style>${STYLE}</style>
 </head><body><main>
-<h1>${esc(businessName)}</h1>
-<p class="sub">For ${esc(customerName)}</p>
-${tools}
+<div class="top">
+  <div>
+    <h1>${esc(businessName)}</h1>
+    <p class="sub">For ${esc(customerName)}</p>
+  </div>
+  ${tools}
+</div>
 ${body}
-<p class="sub" style="margin-top:2rem">This page is private to you. Anyone
-with the link can see it, so treat it like a bill in the post.</p>
+<p class="foot">This page is private to you. Anyone with the link can see it,
+so treat it like a bill in the post.</p>
 </main>
 ${
   printing
@@ -326,6 +430,7 @@ export default defineModule({
           token,
           theme: chosen,
           printing,
+          single: Boolean(only),
         }),
       );
     };

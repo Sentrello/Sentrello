@@ -341,3 +341,43 @@ test("a section can be kept, and one they have nothing in cannot", async () => {
   );
   expect(absent.status).toBe(404);
 });
+
+test("the tools are icons with words, and one section knows its way home", async () => {
+  /*
+   * Icons because the row is three small actions beside each other and three
+   * words read as a sentence; words inside them because an icon alone is a
+   * guess for anybody using a screen reader, and a tooltip is not a label.
+   */
+  const orgId = await makeOrg(`Icons ${suffix}`);
+  orgIds.push(orgId);
+  const contact = await makeContact(orgId, "Sam Symbol");
+  addAccountSection({
+    id: "shop",
+    moduleId: "shop",
+    label: "Shop orders",
+    icon: "shopping-bag",
+    hasAny: async () => true,
+    load: async () => [{ label: "Orders", value: 2, kind: "count" }],
+    href: async () => "/shop/orders/abc",
+  });
+  const app = registerForTest(account);
+
+  const html = await (
+    await app.request(`http://localhost/account/${contact.portalToken}`)
+  ).text();
+  expect(html).toContain("<svg");
+  // Every icon says what it is, for a reader that cannot see it.
+  expect(html).toContain("Save Shop orders as a PDF");
+  expect(html).toContain("Open Shop orders");
+  expect(html).toContain('title="Switch to dark"');
+  // The whole page has no way back to itself.
+  expect(html).not.toContain("Back to everything you have with us");
+
+  const one = await (
+    await app.request(
+      `http://localhost/account/${contact.portalToken}/shop/print`,
+    )
+  ).text();
+  // A section on its own does: it is the page somebody lands on from a link.
+  expect(one).toContain("Back to everything you have with us");
+});
