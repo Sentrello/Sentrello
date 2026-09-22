@@ -200,23 +200,41 @@ export const GLYPHS: Record<string, Glyph> = {
     ],
     faint: ["M14.5 10.5h3.5", "M14.5 13.5h3.5"],
   },
-  /** The book of customers: a person, and the relationship drawn round them. */
+  /**
+   * A customer card with its clip: the sample's mark, not a person in a circle.
+   *
+   * The old drawing was a head inside a hexagon, which is what a general-purpose
+   * set offers for "contacts". What a CRM opens is the card index — one card per
+   * customer, clipped, with what you know about them written down the side.
+   */
   "contact-round": {
     d: [
-      "M12 4.5a7.5 7.5 0 1 0 0 15 7.5 7.5 0 0 0 0-15z",
-      "M12 8.75a2.4 2.4 0 1 0 0 4.8 2.4 2.4 0 0 0 0-4.8z",
-      "M7.6 17.8c.5-2 2.2-3 4.4-3s3.9 1 4.4 3",
+      "M4.5 7h15a1 1 0 0 1 1 1v9.5a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1z",
+      "M7.6 7V5.4a1.7 1.7 0 0 1 3.4 0v3a1 1 0 0 1-2 0V6.4",
     ],
+    faint: ["M12.5 11h6", "M12.5 13.5h6", "M12.5 16h3.5"],
   },
   /**
-   * A line signed, and the pen still on it: a deal agreed.
+   * A line signed, and the pen still on it: the moment a deal stops being a
+   * conversation.
    *
-   * The sixth and seventh drawings of two clasped hands went the way of the
-   * first five — at sixteen pixels a handshake is mass, and this set is
-   * strokes, so every version came out as a bird, a bone or a bridge. A
-   * signature is the same event drawn in a medium that survives: the moment
-   * the deal stops being a conversation. Kept under the name `handshake`
-   * because that is what every module asks for.
+   * Eleven attempts at two clasped hands, and this is still the drawing that
+   * ships. The record, because it is worth not repeating: strokes produced a
+   * bird, a bone, a bowtie, an arrow, a bridge, a boat and three things with no
+   * name, and a filled silhouette produced a shoe.
+   *
+   * The fault is not the hand drawing it. What identifies clasped hands is
+   * overlapping mass with gaps between the fingers, and at eighteen pixels those
+   * gaps are smaller than the line that would have to describe them. The
+   * reference drawing solves it with two filled paths and about three and a half
+   * thousand characters of curve, which is a different craft from this set and
+   * probably a different person.
+   *
+   * So this draws the same event in a medium that survives the rail. It keeps
+   * the name `handshake` because that is what every module asks for. If hands
+   * are wanted, the honest route is a commissioned vector and a `filled` layer
+   * on the Glyph type to carry it — about ten lines, and deliberately not left
+   * in the tree unused.
    */
   handshake: {
     d: [
@@ -258,10 +276,21 @@ export const GLYPHS: Record<string, Glyph> = {
     faint: ["M8.8 10.4H12.2", "M11.2 4.5A1.4 1.4 0 0 0 11.2 6.3"],
     dots: [[9.3, 12.2, 1]],
   },
-  /** A document with a torn foot — what a customer is handed. */
+  /**
+   * A receipt with a torn foot and a currency mark on it.
+   *
+   * The tear is the identification — it is the one thing a till roll has that a
+   * letter does not — so it is drawn big enough to survive the rail rather than
+   * as a polite ripple. The printed lines sit left of the figure and stop short
+   * of it: run underneath and they read as a smudge behind the mark.
+   */
   receipt: {
-    d: ["M6 3.5h12v17l-2-1.4-2 1.4-2-1.4-2 1.4-2-1.4-2 1.4z"],
-    faint: ["M9 8h6", "M9 11.5h6", "M9 15h3.5"],
+    d: [
+      "M5.5 4.5h13v15l-2.2-1.7-2.1 1.7-2.2-1.7-2.1 1.7-2.2-1.7-2.2 1.7z",
+      "M15 9.1a2 2 0 0 0-1.7-.9c-1 0-1.8.6-1.8 1.3 0 1.8 3.5.9 3.5 2.7 0 .8-.8 1.4-1.8 1.4a2.1 2.1 0 0 1-1.8-1",
+      "M13.3 7v8.4",
+    ],
+    faint: ["M7.6 8.4h2.2", "M7.6 11h2.2", "M7.6 13.6h2.2"],
   },
   /** A card with its magnetic stripe. Taking money in person. */
   "credit-card": {
@@ -438,10 +467,27 @@ export const GLYPHS: Record<string, Glyph> = {
     d: ["M6 3.5h8l4.5 4.5v12.5H6z", "M14 3.5V8h4.5"],
     faint: ["M9 12h6", "M9 15h6", "M9 18h3.5"],
   },
-  /** One page in front of another: a place things are kept. */
+  /**
+   * A filing cabinet with three drawers.
+   *
+   * Flat, after a version that hinted at a third dimension with a faint side
+   * panel. Half opacity plus the wobble reads as a grey smear standing behind
+   * the cabinet rather than as depth, which is a general lesson about this set:
+   * the faint layer can carry detail *inside* a shape and cannot carry structure
+   * outside one.
+   *
+   * The handles are full weight. Without them the drawers read as shelves, and a
+   * shelf is not where a business keeps its insurance certificate.
+   */
   files: {
-    d: ["M8 6.5h6.5L18.5 10v9.5H8z", "M14.5 6.5V10h4"],
-    faint: ["M5.5 17V4.5h6.5"],
+    d: [
+      "M4.5 5.5h15a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1v-12a1 1 0 0 1 1-1z",
+      "M3.5 9.9h17",
+      "M3.5 14.3h17",
+      "M10.1 7.7h3.8",
+      "M10.1 12.1h3.8",
+      "M10.1 16.5h3.8",
+    ],
   },
   /** An open book: the documentation, and the books. */
   "book-open": {
@@ -518,20 +564,21 @@ export const GLYPHS: Record<string, Glyph> = {
     ],
   },
   /**
-   * A coin, and the year turning round it: billing that comes round again.
+   * A currency mark inside two chasing arrows: the same sale, every month.
    *
-   * A plain refresh arrow is what a page does, not what a subscription does,
-   * and a coin inside a closed ring turned into an eye the moment the wobble
-   * touched it. Two arcs with a gap at either side read as motion without
-   * closing round the coin.
+   * Drawn at a generous radius on purpose. The first version used tight arcs and
+   * the wobble that makes these look hand-drawn closed them up into a knot — at
+   * 18px it read as a scribble with something trapped in it. A rough line needs
+   * room to be rough in.
    */
   "refresh-cw": {
     d: [
-      "M12 8.4a3.6 3.6 0 1 0 0 7.2 3.6 3.6 0 0 0 0-7.2z",
-      "M5.2 9.4A7.6 7.6 0 0 1 18.4 6.6",
-      "M18.8 14.6A7.6 7.6 0 0 1 5.6 17.4",
-      "M14.6 6.2h4v-3.4",
-      "M9.4 17.8h-4v3.4",
+      "M4.6 12A7.4 7.4 0 0 1 17 6.5",
+      "M19.4 12A7.4 7.4 0 0 1 7 17.5",
+      "M17.4 3.2v3.6h-3.6",
+      "M6.6 20.8v-3.6h3.6",
+      "M13.8 10.2a2.1 2.1 0 0 0-1.9-1c-1.1 0-2 .7-2 1.5 0 2 3.9 1.1 3.9 3.1 0 .8-.9 1.5-2 1.5a2.3 2.3 0 0 1-2-1",
+      "M11.9 7.9v8.2",
     ],
   },
   /** Two arrows chasing: something repeated on a schedule. */
