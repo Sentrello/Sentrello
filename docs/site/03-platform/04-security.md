@@ -23,6 +23,9 @@ nothing leaving the instance.
 
 ## The licence check
 
+
+![The licence check: an hourly request carrying only a key and an instance id, verified offline against a public key in the repository, valid for 72 hours, falling back to the free tier rather than locking](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/licence-check.png)
+
 | | |
 |---|---|
 | How often | Once an hour, on a paid instance only |

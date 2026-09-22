@@ -15,6 +15,17 @@ Every feature implements the same contract, free and paid alike. The CRM in the
 free core and a commercial module bought years later are the same kind of
 object to the host.
 
+![The module contract: what a module declares, what it registers, and the entitlement gate the host applies before any of it happens](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/module-contract.png)
+
+Read the two columns as two different promises. What a module **declares** is
+about itself, and the host uses it to decide whether to load the module at all.
+What a module **registers** is everything it adds to somebody's instance — nav,
+permissions, a dashboard panel, what the search box finds.
+
+The gate underneath applies to both. A module nobody has paid for is not loaded,
+so nothing it would have registered exists — and its screens are never served,
+rather than served and hidden.
+
 ## The module contract
 
 ```ts
