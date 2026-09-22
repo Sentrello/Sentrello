@@ -105,7 +105,7 @@ export default defineModule({
     // First in the sidebar and first in the nav order, because it is where
     // signing in lands — the shell takes whatever the server puts first.
     ctx.registerNav({
-      icon: "gauge",
+      icon: "home",
       id: "dashboard",
       label: "Dashboard",
       order: 1,

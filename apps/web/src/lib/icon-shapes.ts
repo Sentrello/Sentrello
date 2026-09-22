@@ -108,6 +108,22 @@ export const GLYPHS: Record<string, Glyph> = {
     faint: ["M13.5 13.5h6v6h-6z"],
   },
   asterisk: { d: ["M12 5v14", "M6 8.5l12 7", "M18 8.5l-12 7"] },
+  /**
+   * The house, with the morning's figures standing inside it.
+   *
+   * The Dashboard used to borrow the dial, which every module's own overview
+   * screen also borrows, so the one entry that means "the whole business"
+   * looked like the nine that mean "this module". A roof says home; the bars
+   * say what you came to look at.
+   */
+  home: {
+    d: [
+      "M3.9 10.9 12 4.8l8.1 6.1v8.1a1.1 1.1 0 0 1-1.1 1.1H5a1.1 1.1 0 0 1-1.1-1.1z",
+      "M8.9 16.8v-2.6",
+      "M12 16.8v-5",
+      "M15.1 16.8v-3.7",
+    ],
+  },
 
   // --- Time ----------------------------------------------------------------
   clock: {
@@ -148,13 +164,23 @@ export const GLYPHS: Record<string, Glyph> = {
       "M5 19.5c0-3.6 3.1-5.5 7-5.5s7 1.9 7 5.5",
     ],
   },
-  /** A team: one in front, two behind. The People section of the business. */
+  /**
+   * Two people, one standing behind the other. The People section.
+   *
+   * It was three heads for a day, copied from the sample, and three heads
+   * inside eighteen pixels is a hedge. Two read as two; the one behind is
+   * drawn whole rather than as the two arcs it used to be, because half a
+   * person at this size reads as a smudge beside the first one's shoulder.
+   */
   users: {
     d: [
-      "M10 5.25a3.25 3.25 0 1 0 0 6.5 3.25 3.25 0 0 0 0-6.5z",
-      "M3.5 19.5c0-3.3 2.9-5 6.5-5s6.5 1.7 6.5 5",
+      "M9.4 5.6a3.3 3.3 0 1 0 0 6.6 3.3 3.4 0 0 0 0-6.6z",
+      "M3 19.6c0-3.4 2.9-5.2 6.4-5.2s6.4 1.8 6.4 5.2",
     ],
-    faint: ["M16.5 6.2a2.8 2.8 0 0 1 0 5.6", "M18 14.9c1.6.7 2.5 2.1 2.5 4.6"],
+    faint: [
+      "M16.2 5.9a2.7 2.7 0 1 0 0 5.4 2.7 2.7 0 0 0 0-5.4z",
+      "M13.9 13.9c2.8-.3 7.1.9 7.1 5",
+    ],
   },
   /** A pass on a lanyard: who somebody is here, and what it lets them do. */
   "id-badge": {
@@ -183,19 +209,20 @@ export const GLYPHS: Record<string, Glyph> = {
     ],
   },
   /**
-   * A page with a tick: a deal agreed.
+   * A line signed, and the pen still on it: a deal agreed.
    *
-   * It was two clasping hands, four times, and none of them survived being
-   * drawn in line alone — at sixteen pixels every version read as a squiggle,
-   * because a handshake is a shape made of mass and this set is made of
-   * strokes. The section is where a deal gets agreed; the agreement says that
-   * and stays legible on the rail, which is the only place it has to work.
+   * The sixth and seventh drawings of two clasped hands went the way of the
+   * first five — at sixteen pixels a handshake is mass, and this set is
+   * strokes, so every version came out as a bird, a bone or a bridge. A
+   * signature is the same event drawn in a medium that survives: the moment
+   * the deal stops being a conversation. Kept under the name `handshake`
+   * because that is what every module asks for.
    */
   handshake: {
     d: [
-      "M6 3.5h8l4.5 4.5v12.5H6z",
-      "M14 3.5V8h4.5",
-      "M8.75 14.2l2.1 2.1 4.2-4.2",
+      "M4.6 18.6h14.8",
+      "M6 15.1c1.4-3.2 2.9-3.2 3.5-1.2.6 1.7 1.7 1.9 2.7.4",
+      "M13.6 15.9 18.4 11a1.3 1.3 0 0 0-1.8-1.8l-4.9 4.9-.5 2.3z",
     ],
   },
   /** A building with floors — a company rather than a person. */
@@ -291,10 +318,21 @@ export const GLYPHS: Record<string, Glyph> = {
     faint: ["M3.5 12.5h14"],
     dots: [[10.5, 12.5, 1.1]],
   },
-  /** Crates stacked two on one: everything the business itself runs on. */
+  /**
+   * Crates stacked two on one: everything the business itself runs on.
+   *
+   * The tape now runs the full width of each crate rather than sitting in
+   * the middle of it as a stub. Three stubs at eighteen pixels read as
+   * three dashes floating inside three squares; a line that meets both
+   * edges reads as a lid.
+   */
   boxes: {
-    d: ["M4 13.5h6.5v6H4z", "M13.5 13.5H20v6h-6.5z", "M8.75 5.5h6.5v6h-6.5z"],
-    faint: ["M6 16.5h2.5", "M15.5 16.5H18", "M10.75 8.5h2.5"],
+    d: [
+      "M3.6 12.8h7.3v6.8H3.6z",
+      "M13.1 12.8h7.3v6.8h-7.3z",
+      "M8.35 4.6h7.3v6.8h-7.3z",
+    ],
+    faint: ["M3.6 15.2h7.3", "M13.1 15.2h7.3", "M8.35 7h7.3"],
   },
   /** A board with columns: work moving from one to the next. */
   kanban: {
@@ -331,12 +369,19 @@ export const GLYPHS: Record<string, Glyph> = {
   bolt: { d: ["M13.5 3.5 6 13.5h5l-.5 7 7.5-10h-5z"] },
 
   // --- Selling -------------------------------------------------------------
-  /** A trolley: the shop, from the customer's side. */
+  /**
+   * A trolley: the shop, from the customer's side.
+   *
+   * The basket is its own closed shape now. It used to be one stroke that
+   * ran from the handle round the basket and stopped, so at small sizes the
+   * thing that read was a tick with two wheels under it.
+   */
   "shopping-cart": {
-    d: ["M3.5 4.5h2.2l2.4 10.5h9.2l2.2-7.5H7"],
+    d: ["M3.4 4.8h2.2l1.1 3.7", "M6.7 8.5h13.9l-1.9 7.1H8.8z"],
+    faint: ["M9.6 10.9h8.7"],
     dots: [
-      [9.5, 19, 1.5],
-      [17, 19, 1.5],
+      [10.2, 18.8, 1.45],
+      [17.2, 18.8, 1.45],
     ],
   },
   /** A carrier bag: one order rather than the whole shop. */
@@ -351,6 +396,26 @@ export const GLYPHS: Record<string, Glyph> = {
       "M4 9.5a2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0",
     ],
     faint: ["M10 19.5v-5h4v5"],
+  },
+  /**
+   * The till: a screen on a drawer, and the keys under your thumb.
+   *
+   * The POS borrowed the calculator, which is the same rectangle with the
+   * same grid of dots and no drawer — so the one screen that takes money
+   * over a counter looked like a tool for adding up.
+   */
+  till: {
+    d: [
+      "M3.7 12.4h16.6v7.3H3.7z",
+      "M6.6 12.4V8.9a1.3 1.3 0 0 1 1.3-1.3h6.3a1.3 1.3 0 0 1 1.3 1.3v3.5",
+    ],
+    faint: ["M5.6 16.2h5.4", "M8.1 10.1h5.9"],
+    dots: [
+      [15.4, 15.3, 0.9],
+      [17.6, 15.3, 0.9],
+      [15.4, 17.6, 0.9],
+      [17.6, 17.6, 0.9],
+    ],
   },
   /** A label with its hole: what a thing is called and what it costs. */
   tag: {
@@ -452,9 +517,22 @@ export const GLYPHS: Record<string, Glyph> = {
       "M9 11.8l2.3 2.4L15.2 10",
     ],
   },
-  /** A cycle that closes: billing that comes round again. */
+  /**
+   * A coin, and the year turning round it: billing that comes round again.
+   *
+   * A plain refresh arrow is what a page does, not what a subscription does,
+   * and a coin inside a closed ring turned into an eye the moment the wobble
+   * touched it. Two arcs with a gap at either side read as motion without
+   * closing round the coin.
+   */
   "refresh-cw": {
-    d: ["M19.5 12a7.5 7.5 0 1 1-2.2-5.3", "M19.5 4.5V9h-4.5"],
+    d: [
+      "M12 8.4a3.6 3.6 0 1 0 0 7.2 3.6 3.6 0 0 0 0-7.2z",
+      "M5.2 9.4A7.6 7.6 0 0 1 18.4 6.6",
+      "M18.8 14.6A7.6 7.6 0 0 1 5.6 17.4",
+      "M14.6 6.2h4v-3.4",
+      "M9.4 17.8h-4v3.4",
+    ],
   },
   /** Two arrows chasing: something repeated on a schedule. */
   repeat: {
