@@ -10,6 +10,12 @@ tags: [core]
 The screen you land on. It answers what needs attention today, without opening
 anything.
 
+![The dashboard: what is owed, what is overdue, what is quoted, the invoices waiting on payment, and how the server itself slept](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/dashboard.png)
+
+Every module adds its own panel here. A free instance shows the four above; a
+module you have not bought contributes nothing, rather than an advertisement
+for itself.
+
 ## What is on it
 
 - **Money**: what is owed to you, what is overdue, what came in this month.

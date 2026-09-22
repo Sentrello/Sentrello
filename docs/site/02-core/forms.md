@@ -13,6 +13,8 @@ or an enquiry rather than as an email you have to retype.
 Forms live inside the CRM, at **CRM → Forms**. What they collect ends up there,
 so that is where they are set up.
 
+![The forms list, with where each one is embedded, how many submissions it has taken, and how much spam was blocked](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/forms.png)
+
 ## Building one
 
 Add fields (text, email, phone, number, web address, choice, date and longer

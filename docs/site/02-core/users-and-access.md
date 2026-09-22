@@ -22,6 +22,12 @@ straight away, with the access they already have.
 **Users** is its own section in the sidebar, with seven screens: People,
 Groups, Policies, Sessions, Authentication, Providers and Events.
 
+![Users → Policies: four roles against what each may open, with the Customer role able to see its own invoices and nothing else](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/roles.png)
+
+The **Customer** row is the one worth looking at twice. It is how you hand
+somebody outside the business a login without handing them the business: it
+sees its own invoices, and there is no setting that widens it.
+
 ## People
 
 **Users → People** lists everybody with access. Invite somebody by email; they

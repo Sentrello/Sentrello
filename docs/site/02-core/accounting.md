@@ -12,6 +12,8 @@ a bill: each posts a journal entry whose debits equal its credits, or it does
 not post at all.
 
 That is not bookkeeping theatre. Reports are read from the ledger rather than
+
+![The journal: three entries, each posting to two or more accounts, with debits and credits summing to the same figure and a difference of zero](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/journal.png)
 recalculated from invoices, which is why they cannot drift away from what
 actually happened.
 

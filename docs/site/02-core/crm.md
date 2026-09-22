@@ -9,6 +9,12 @@ tags: [core, crm]
 
 Who your customers are, and what is currently happening with each of them.
 
+![The contacts list, with each customer’s company, town, tags and the date they became a customer](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/contacts.png)
+
+Tags are yours to invent. The two above — a support plan, and who has come
+back — are the kind that earn their place: both answer a question somebody
+asks on the phone.
+
 ## Contacts and companies
 
 A **contact** is a person. A **company** is an organisation, and contacts

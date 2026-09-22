@@ -13,6 +13,8 @@ A quote is a priced offer with an expiry date. Send it as a PDF, or as a link
 the customer can accept online. An accepted quote converts to an invoice with
 its lines, tax and customer intact.
 
+![The quotes list, showing what is out for decision, until when, and what each is worth](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/quotes.png)
+
 A quote can also be split into **instalments**, a deposit and two stages, say.
 That produces several invoices scheduled across the work rather than one large
 one at the end.
