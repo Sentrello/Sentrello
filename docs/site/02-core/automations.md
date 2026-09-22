@@ -1,15 +1,15 @@
 ---
 title: Automations
 sidebar_position: 6
-description: Rules your business writes about its own records — when this happens, do that.
+description: Rules your business writes about its own records: when this happens, do that.
 tags: [pro, crm, automations]
 ---
 
 # Automations
 
 **When a deal's stage becomes won: wait two days, put a task on somebody's list,
-email the customer.** That is an automation, and it is the difference between a
-business that remembers to follow up and one that means to.
+email the customer.** That is an automation. It is also the difference between
+a business that remembers to follow up and one that means to.
 
 Automations are part of **Pro**, under CRM → Automations.
 
@@ -19,38 +19,38 @@ Automations are part of **Pro**, under CRM → Automations.
 
 Every automation is two halves.
 
-**When this happens** — a record, what happens to it, and optionally which field
+**When this happens.** A record, what happens to it, and optionally which field
 has to change and what has to be true.
 
-**Do this** — steps, in order. Each one runs only if the one before it did.
+**Do this.** Steps, in order. Each one runs only if the one before it did.
 
 ## Two kinds of rule
 
-**Something changes** — a deal is won, a contact is created, a field moves.
+**Something changes.** A deal is won, a contact is created, a field moves.
 
-**A time comes round** — every day, every week on a day, every month on a date.
+**A time comes round.** Every day, every week on a day, every month on a date.
 
 The second is the one people forget they need, and it covers the other half of
 the work: a quote nobody answered, a deal gone quiet, a renewal three weeks out.
-**Nothing changes when something fails to happen**, so no event fires, and the
-follow-up that matters most is the one nothing can trigger.
+**Nothing changes when something fails to happen.** No event fires, so the
+follow-up that matters most is precisely the one nothing can trigger.
 
 ![A rule that runs every Monday at nine](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/crm-automation-schedule.png)
 
-A scheduled rule runs **once for each record that matches its conditions** —
-"for each deal still sitting in proposal, chase it" — so the steps are the same
+A scheduled rule runs **once for each record that matches its conditions**:
+"for each deal still sitting in proposal, chase it". The steps are the same
 steps.
 
-Three things worth knowing about schedules:
+Four things worth knowing about schedules:
 
 - **A missed one is not made up.** If the server was off all weekend, Monday
   morning runs Monday's chase, not Saturday's and Sunday's as well.
 - **A month too short runs on its last day.** Setting the 31st means month-end,
   including February.
 - **The time is your business's own**, set under Settings → Business. An instance
-  that has not set one uses the server's clock, which is right for a computer in
-  your office and wrong for one rented in another country — that is how a Monday
-  chase goes out on Sunday evening.
+  with no timezone set falls back to the server's clock, and a server rented in
+  another country keeps that country's hours. Monday's chase then goes out on
+  Sunday evening.
 - **At most 200 records a firing.** If more matched, the run list says so rather
   than quietly doing fewer.
 
@@ -64,9 +64,10 @@ Three things worth knowing about schedules:
 | **Conditions** | What must be true of the record |
 
 **"Only when this field changes" is the setting that matters most**, and the one
-people miss. Without it, a rule that says "a deal whose stage is won" fires again
-every time anybody edits that deal afterwards — the description, a note, a phone
-number. The customer gets the congratulations email once a week for ever.
+people miss. Leave it empty and a rule saying "a deal whose stage is won" fires
+again every time anybody edits that deal afterwards: the description, a note, a
+phone number. Your customer gets the congratulations email once a week, for
+ever.
 
 With `stage` in that box, the rule only fires on a save that actually moved the
 stage.
@@ -76,10 +77,10 @@ stage.
 A condition is a field, a test, and a value. Two of the tests are about the
 **change** rather than the state, and they are usually what you want:
 
-- **changes to** — true once, on the save that made it so
-- **changes from** — true once, on the save that moved it away
+- **changes to**: true once, on the save that made it so
+- **changes from**: true once, on the save that moved it away
 
-The rest — *is*, *is not*, *contains*, *is empty*, *is more than* — ask about the
+The rest (*is*, *is not*, *contains*, *is empty*, *is more than*) ask about the
 record as it now stands.
 
 You can reach into a record's shape with a dot: `address.city`.
@@ -98,8 +99,8 @@ You can reach into a record's shape with a dot: `address.city`.
 ### One rule that does two things
 
 Each step has **Only do this step for some records**. Put a condition on it and
-the step runs for the records that match and is skipped for the rest — while the
-rule carries on.
+the step runs for the records that match and is skipped for the rest, while the
+rule itself carries on.
 
 That is how one rule handles both sides of something:
 
@@ -115,7 +116,7 @@ missing.
 ### Putting the record into what you write
 
 Anywhere you type text, `{{record.name}}` becomes that record's name.
-`{{record.value}}`, `{{record.contact.firstName}}` — anything the record holds.
+`{{record.value}}`, `{{record.contact.firstName}}`, anything the record holds.
 A later step can read an earlier one: `{{steps.chase.id}}`.
 
 A value that is not there leaves a blank rather than the word "undefined".
@@ -123,21 +124,21 @@ A value that is not there leaves a blank rather than the word "undefined".
 ### Email and consent
 
 **Marketing email is only sent to people who have agreed to it.** Sentrello
-already records that agreement — the newsletter signup writes it, the contact
-screen shows it — and an automation is checked against the same record.
+already records that agreement: the newsletter signup writes it, and the
+contact screen shows it. An automation is checked against the same record.
 
 If a contact has not agreed, the rule **stops and says so**: *that contact has
 not agreed to marketing email*. It is recorded as the automation working
 correctly, not as a failure, because it is.
 
 Set **What kind of message** to *About something they bought* for messages that
-are not marketing — "your invoice is attached", "your order has shipped". Those
-do not need consent and are not held back.
+are not marketing: "your invoice is attached", "your order has shipped". Those
+need no consent and are never held back.
 
 ### Telling another system
 
 Post to a chat channel, nudge a warehouse, call an app somebody wrote. Give it an
-address, a method, and what to send — with the record in it:
+address, a method, and what to send, with the record in it:
 
 ```json
 {"deal": "{{record.name}}", "worth": "{{record.value}}"}
@@ -159,10 +160,10 @@ had informed the warehouse every time the warehouse said no.
 
 ## Running one by hand
 
-Open an automation and use **Run it on one record**. Useful twice over: while you
-are deciding whether to trust a new rule, and afterwards for the cases a rule
-cannot describe — *chase this one*, where the judgement is yours and only the
-doing is automatic.
+Open an automation and use **Run it on one record**. It earns its place twice
+over: while you are deciding whether to trust a new rule, and long afterwards
+for the cases a rule cannot describe. *Chase this one*, where the judgement is
+yours and only the doing is automatic.
 
 **It is not a preview.** It does everything the rule does: sends the emails,
 writes the tasks. A rehearsal for a different performance would be worth nothing.
@@ -179,14 +180,15 @@ elsewhere: a half-finished rule firing on real customers, sending real email, is
 the worst thing this feature can do. The screen tells you which version is
 running and that what you are looking at is not it.
 
-**Pause it** stops it without deleting anything, and remembers which version was
-running — usually the thing you want to look at next.
+**Pause it** stops it without deleting anything, and it remembers which version
+was running, which is usually the thing you want to look at next.
 
 **Every version is kept, and any of them can be made live again.** The Versions
 list shows when each was published and which is running; press *Go back to this*
-on an older one. That is the thing you want at the worst moment this feature can
-give you — a rule you just published doing something wrong to real customers.
-Rewriting it from memory under that pressure is how the second mistake happens.
+on an older one. That is what you want at the worst moment this feature can
+give you: a rule you published ten minutes ago doing something wrong to real
+customers. Rewriting it from memory under that pressure is how the second
+mistake happens.
 
 ## Seeing what it did
 
@@ -233,9 +235,9 @@ means nine where you are rather than where your server is.
 ## What is not here yet
 
 - **Branches within branches.** One rule handling two cases is covered by a
-  condition on each step (above). What is not there is nesting — a choice inside
+  condition on each step (above). What is not there is nesting: a choice inside
   a choice. Say if you need one.
-- **Choosing your own times** beyond daily, weekly and monthly — the fourth
+- **Choosing your own times** beyond daily, weekly and monthly: the fourth
   Tuesday, or twice a day. Ask if you need one.
 
 There is deliberately **no step that runs code**. Some tools offer one; inside a

@@ -33,8 +33,8 @@ sentrello backup
 
 ## Proving it is real
 
-An error page compresses beautifully, and a backup that fails silently looks
-exactly like one that worked. Check:
+An error page compresses beautifully. A backup that failed silently looks
+exactly like one that worked, right down to a plausible file size. So check:
 
 ```bash
 gzip -dc backups/sentrello-*.sql.gz | grep -c 'CREATE TABLE'
@@ -53,26 +53,34 @@ This clears the database and puts the backup in its place. It is deliberately
 loud about that.
 
 :::warning[Restore onto a spare server first]
-At least once, before you need to. It tells you how long it takes, that the
-file works, and that you know the steps — none of which you want to be learning
-on the day something has gone wrong.
+At least once, before you need to. It tells you how long a restore takes, that
+the file works, and that you know the steps. None of the three is something you
+want to be learning on the day.
 :::
 
 ## What is not in the database
 
-**Uploaded files** — documents, product images, receipts — live on disk in the
-data directory, not in the dump. If you use Documents or Shop, back that
-directory up as well. Your provider's snapshots cover it; so does any ordinary
-file backup.
+**Uploaded files** live on disk in the data directory, not in the dump.
+Documents, product images, receipts. If you use Documents or Shop, back that
+directory up as well. Your provider's snapshots cover it, and so does any
+ordinary file backup.
 
 ## Moving to another server
 
-A backup and a restore is the whole move:
+A backup and a restore is the whole move. The order matters, and step 1 is the
+one people skip:
 
-1. Install Sentrello on the new machine.
-2. Copy the data directory and `secrets/backup.key` across.
-3. Restore the most recent dump.
-4. Point your domain at the new address.
+1. **Stop the old instance, then take a fresh backup of it.** `sentrello stop`,
+   then `sentrello backup`. Restoring last night's dump instead will lose every
+   order, invoice and payment taken since it ran, and nothing in the restore
+   will tell you they are gone.
+2. Install Sentrello on the new machine.
+3. Copy the data directory and `secrets/backup.key` across. The install in
+   step 2 generated a `backup.key` of its own and you are overwriting it
+   deliberately: without the old key, every backup you already hold is
+   permanently undecryptable.
+4. Restore the dump you took in step 1.
+5. Point your domain at the new address.
 
-Keep the old instance stopped rather than deleted until you are satisfied. Two
+Leave the old instance stopped rather than deleted until you are satisfied. Two
 instances writing to one database is the one arrangement to avoid.

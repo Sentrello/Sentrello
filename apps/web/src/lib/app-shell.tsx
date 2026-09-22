@@ -513,7 +513,7 @@ function Sidebar({ nav }: { nav: NavEntry[] }) {
                 if (first) go(first.id, first.label);
               }}
             >
-              <Icon name={item.icon} size={20} />
+              <Icon name={item.icon} size={24} />
             </button>
           );
         })}
@@ -549,7 +549,7 @@ function Sidebar({ nav }: { nav: NavEntry[] }) {
               );
             }}
           >
-            <Icon name="panel-left" size={20} />
+            <Icon name="panel-left" size={24} />
           </button>
         ) : null}
       </nav>

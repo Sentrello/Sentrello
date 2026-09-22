@@ -7,23 +7,23 @@ tags: [module, docs]
 
 # Docs
 
-Publish documentation — a product manual, a staff handbook, an internal wiki —
-from markdown files in **your own GitHub repository**, public or private.
+Publish documentation from markdown files in **your own GitHub repository**,
+public or private. A product manual. A staff handbook. An internal wiki.
 
 You write in the repository. Sentrello publishes it.
 
 ## Why a repository
 
-Documentation belongs under version control. You get history, review, branches
-and the ability to say exactly what the docs said in March, and your writers use
-the tools they already use.
+Because documentation belongs under version control. History, review,
+branches, and the ability to say exactly what the docs said in March. Your
+writers also keep the tools they already use.
 
 ## Connecting one
 
 **Docs → Settings**:
 
 1. Enter the repository as `owner/name`, or paste its GitHub URL.
-2. Choose the branch and the folder your pages are in — usually `docs`.
+2. Choose the branch and the folder your pages are in, usually `docs`.
 3. For a private repository, add an access token with read access to contents.
 4. **Test connection.** It reports whether the repository is public or private,
    which branch is the default, and how many documentation files it found.
@@ -46,7 +46,7 @@ open it.
 | `guides/_category_.json` | Names that section and orders it |
 | `guides/index.md` | That section's own page |
 | `01-first.md` | Ordered first; the number is not in the address |
-| `_partial.md` | Not published — a leading underscore means a fragment |
+| `_partial.md` | Not published; a leading underscore means a fragment |
 
 The header block at the top of a file sets the title, its position in the
 sidebar, tags, a description, and whether it is a draft.
@@ -55,20 +55,21 @@ sidebar, tags, a description, and whether it is a draft.
 
 Markdown, plus:
 
-- **Admonitions** — note, tip, info, warning, danger — with your own titles.
+- **Admonitions** in five severities (note, tip, info, warning, danger), with
+  your own titles.
 - **Tabs**, which remember the reader's choice across pages.
 - **Code blocks** with syntax highlighting, a title, highlighted lines and a
   copy button.
 - **Diagrams** and **mathematics**.
 
-Everything is rendered on the server, so a page is readable before any script
-runs — and it still reads correctly with JavaScript turned off entirely.
+Everything is rendered on the server. A page is readable before any script
+runs, and it still reads correctly with JavaScript turned off entirely.
 
 ## Drafts and unlisted pages
 
 A page marked `draft` is not published at all. A page marked `unlisted` is
 reachable by its address but absent from the sidebar, from search and from the
-sitemap — which is how you share something before announcing it.
+sitemap. That is how you share something before announcing it.
 
 ## What the published site gives readers
 
@@ -76,6 +77,6 @@ Search, a sidebar, versions with banners for old ones, more than one language,
 dark mode, a contents panel, previous and next, breadcrumbs, tags, and a
 sitemap.
 
-Nothing on a published page is fetched from anybody else's server. The
-mathematics and diagram libraries are served by your own instance, so your
-readers are not logged by a third party and the site works behind a firewall.
+Nothing on a published page is fetched from anybody else's server. Your own
+instance serves the mathematics and diagram libraries, which keeps your readers
+out of a third party's logs and keeps the site working behind a firewall.

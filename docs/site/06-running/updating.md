@@ -12,8 +12,8 @@ sentrello update
 ```
 
 That takes a backup, pulls the new version, fetches any modules your licence
-entitles, runs the migrations, and restarts. It takes a few minutes on a small
-server.
+entitles, runs the migrations, and restarts. On a small server it takes a few
+minutes.
 
 ## What it does, in order
 
@@ -21,8 +21,8 @@ server.
    update that cannot be undone is not one worth starting.
 2. **Pulls the image** for the release your licence is offered.
 3. **Fetches your modules** at that same version. Modules and Core move
-   together — a module several versions behind its Core is a screen missing
-   whatever changed.
+   together, because a module several versions behind its Core is a screen
+   missing whatever changed.
 4. **Runs migrations** *before* restarting. They are additive, so the version
    still serving is unaffected while they run.
 5. **Restarts** and waits for the instance to answer.
@@ -34,7 +34,7 @@ sentrello status
 ```
 
 The version it reports must be the one you expected. Ask the instance rather
-than looking inside the container — an updater that pulled a new image and
+than looking inside the container. An updater that pulled a new image and
 started the old one reports success either way, and that is exactly the failure
 this catches.
 
@@ -45,9 +45,10 @@ sentrello rollback
 ```
 
 Back to the previous version, with the bundles that shipped with it. **Your
-data is not changed** — a rollback undoes the code, not the records. If the new
-version migrated something you need undone as well, restore the backup the
-update took:
+data is not changed.** A rollback undoes the code, not the records.
+
+If the new version migrated something you need undone as well, restore the
+backup the update took:
 
 ```bash
 sentrello restore backups/sentrello-pre-update-<stamp>.sql.gz
@@ -62,10 +63,10 @@ plan, not a capability.
 ## Updating from the application
 
 **Settings → Updates** offers the same thing from a screen, for people who
-would rather not open a terminal. It is the same code path.
+would rather not open a terminal. Same code path.
 
 ## If an update fails
 
 Nothing is lost. Migrations run before the restart, so a failure leaves the
-previous version serving. Read `sentrello logs`, fix what it names, and run it
-again — updates are safe to repeat.
+previous version serving. Read `sentrello logs`, fix what it names, and run the
+update again. Updates are safe to repeat.

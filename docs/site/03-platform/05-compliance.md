@@ -10,8 +10,8 @@ tags: [platform, compliance, gdpr]
 ## What this page is not
 
 Sentrello holds no compliance certification, and this page claims none. What
-follows is the posture self-hosting gives the business running the instance:
-the controls that matter end up in your hands, which is where an assessor
+follows is the posture self-hosting gives the business running the instance.
+The controls that matter end up in your hands, which is where an assessor
 expects to find them.
 
 Compliance is a property of the business being audited, not of its software.
@@ -21,8 +21,8 @@ What software can do is give you the tools and the evidence.
 
 The database runs on a server you choose: your own building, or any host, in
 whatever jurisdiction your obligations require. Business data stays on that
-server. A free instance contacts nobody, and a paid instance sends one licence
-check an hour carrying a key and an instance id — see
+server. A free instance contacts nobody. A paid instance sends one licence
+check an hour, carrying a key and an instance id; see
 [Security](/platform/security).
 
 There is one exception, and it is worth stating before anybody else finds it.
@@ -42,7 +42,7 @@ events.
 
 **GDPR and CCPA.** A subject access request is answered from one screen, across
 every installed module at once: export what is held, erase what may lawfully be
-erased, and get a written record of both — including what was kept and why.
+erased, and get a written record of both, including what was kept and why.
 Modules contribute to that answer through the SDK rather than being chased
 individually, so a module installed next year is included without anybody
 remembering to add it. The CCPA "do not sell or share" opt-out is recorded with
@@ -57,8 +57,8 @@ risk assessment, training, and business associate agreements.
 processor, which keeps you on the shortest self-assessment there is, SAQ A.
 
 **SOC 2.** An exportable evidence pack: the access list, every change to it,
-second-factor coverage, and the personal-data inventory — with the things it
-cannot evidence named rather than implied.
+second-factor coverage, and the personal-data inventory. Whatever it cannot
+evidence is named rather than implied.
 
 ## The source is auditable
 

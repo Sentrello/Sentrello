@@ -8,11 +8,11 @@ tags: [operations]
 # Archiving old data
 
 After a few years your disk fills up. Change history, webhook logs, old
-invoices and old journal entries all keep growing and none of them is doing
+invoices and old journal entries all keep growing, and not one of them is doing
 anything for you today.
 
 **Settings → Archive and storage** writes those records to a file you can keep
-somewhere else, and then removes them from this server. The file is an ordinary
+somewhere else, then removes them from this server. The file is an ordinary
 zip. It needs nothing from us to read, now or in ten years.
 
 :::warning This is not a backup
@@ -28,9 +28,9 @@ to use:
 
 1. Sentrello works out what the period holds and whether it may be removed.
 2. It writes the archive to wherever you have said archives go.
-3. **It reads the archive back from there** — not from memory — and checks
-   every file inside against its own checksum, and every record count against
-   the database.
+3. **It reads the archive back from there**, not from memory, and checks every
+   file inside against its own checksum and every record count against the
+   database.
 4. Only then does it remove the local records, and only exactly the records the
    archive was proved to hold.
 
@@ -42,34 +42,46 @@ archive you still have the originals for.
 
 Invoices, payments and journal entries have to be kept, by law, for years:
 
-| Where you trade | How long |
-| --- | --- |
-| United Kingdom | 6 years |
-| Canada | 6 years |
-| United States | 7 years |
-| European Union | 10 years |
-| Anywhere else, or not set | 10 years |
+| Where you trade | How long | Where the number comes from |
+| --- | --- | --- |
+| United Kingdom | 6 years | HMRC: six years from the end of the accounting period |
+| Canada | 6 years | CRA: six years from the end of the last tax year the records relate to |
+| United States | 7 years | The IRS's general period is three, and runs to seven in the cases a small business actually meets. Several states are longer again |
+| European Union | 10 years | A deliberate ceiling. See below |
+| Anywhere else, or not set | 10 years | The longest floor we know of |
 
-Sentrello reads this from the country on your business's details
-(**Settings → Business**). If you ask to archive-and-delete something inside
-that window, it refuses and says why.
+**The EU figure is a chosen maximum, not a statement about your member
+state.** Member states run from about seven years to ten, and Germany, Austria
+and the Netherlands sit at the long end. Rather than track twenty-seven rules
+that each move on their own schedule, Sentrello holds every EU country to ten.
+
+That is safe in the direction that matters, because this is a floor on
+**deletion** and nothing else. Being a year over costs you a year of disk.
+Being a month under costs you a business that cannot answer an audit. If your
+own accountant says your country is seven and you want the disk back, the
+export is always available and you can keep the copy yourself — Sentrello
+simply will not be the thing that destroys your only copy early.
+
+The country comes from your business's details (**Settings → Business**). Ask
+to archive-and-delete something inside the window and it refuses, and says
+why.
 
 **It never refuses the export.** You can take a checksummed copy of any period
-at any time and keep every local record — which is often exactly what you want,
-for an accountant or for off-site safekeeping.
+at any time and keep every local record, which is often exactly what you want,
+whether for an accountant or for off-site safekeeping.
 
 ## What can and cannot be archived
 
 Three kinds of record, chosen in the **Records** box:
 
-- **Change history and webhook deliveries** — every field that changed on every
+- **Change history and webhook deliveries.** Every field that changed on every
   record, and every webhook sent about it. Usually the largest thing on your
-  disk, and not a statutory record, so no retention window applies.
-- **Invoices, credit notes, quotes and payments** — the documents, their lines,
+  disk. Not a statutory record, so no retention window applies.
+- **Invoices, credit notes, quotes and payments.** The documents, their lines,
   their tax and the payments against them. Statutory.
-- **A closed period's journal** — the ledger entries of a period you have
-  closed in **Accounting → Summary**. Statutory, and the books must be closed
-  through the whole period before it can be removed.
+- **A closed period's journal.** The ledger entries of a period you have closed
+  in **Accounting → Summary**. Statutory, and the books must be closed through
+  the whole period before it can be removed.
 
 **Anything a live record still points at is refused.** If a credit note from
 last year refers to an invoice from the period you are archiving, or a webhook
@@ -87,8 +99,8 @@ loss, or your balance sheet.** When the detail goes, Sentrello posts one
 balanced summary entry per account per month in its place, so every report over
 that period reads exactly as it did before.
 
-Nothing is unposted or reversed — the summaries are ordinary journal entries,
-and they balance. This is why a period has to be **whole calendar months**: a
+Nothing is unposted or reversed. The summaries are ordinary journal entries and
+they balance. This is also why a period has to be **whole calendar months**: a
 report boundary in the middle of an archived month would have no detail left to
 answer with.
 
@@ -100,9 +112,10 @@ from the Archives written list. That frees nothing until you clear the file, so
 the usual sequence is: archive, download, check you have it, then **Clear
 file**.
 
-If you have storage mounted on the server — a NAS, an external disk, a network
-share — put its path in and press **Test connection**. Sentrello writes a test
-file there and reads it back before it will trust the folder with anything.
+If you have storage mounted on the server, a NAS or an external disk or a
+network share, put its path in and press **Test connection**. Sentrello writes
+a test file there and reads it back before it will trust the folder with
+anything.
 
 Other destinations appear in the same list as they become available, are
 configured on this same screen, and are proved with the same button. You never
@@ -129,11 +142,12 @@ An archive can only be restored into the business that wrote it.
 
 Open the zip and you will find:
 
-- `manifest.json` — which business, which period, which version of Sentrello
-  wrote it, how many records, and a SHA-256 of every other file.
-- `data/*.jsonl` — the records. One JSON object per line, one file per table.
-  Any text editor opens them; any programming language reads them.
-- `README.txt` — the same, in short, for whoever opens it without this page.
+- `manifest.json`, which says which business, which period, which version of
+  Sentrello wrote it, how many records, and a SHA-256 of every other file.
+- `data/*.jsonl`, the records themselves. One JSON object per line, one file
+  per table. Any text editor opens them; any programming language reads them.
+- `README.txt`, the same thing in short, for whoever opens it without this
+  page.
 
 Money is whole cents as an integer: `1234` means 12.34. Dates are UTC.
 
@@ -149,5 +163,5 @@ Four separate permissions, because they are four different decisions:
 | `archive:connect` | Choose where archives are sent |
 
 Only the owner's role holds `delete` and `connect` by default. Give a
-bookkeeper `read` and `create` if you want them taking copies off-site; think
-carefully before giving anybody `delete`.
+bookkeeper `read` and `create` if you want them taking copies off-site. Think
+hard before giving anybody `delete`.

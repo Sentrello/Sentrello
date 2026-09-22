@@ -13,25 +13,27 @@ that stays honest about what is free.
 ## Services
 
 A **service** is something bookable: a consultation, a site visit, a treatment.
-Each has a duration, a price if you charge for it, and its own availability.
+Each one has a duration and its own availability, plus a price if you charge
+for it.
 
-Services can be duplicated — useful when you offer the same thing at three
-lengths — and retired without deleting the bookings already made against them.
+Duplicate a service when you offer the same thing at three lengths. Retire one
+and the bookings already made against it stay where they are.
 
 ## Availability
 
-Set your working hours per day, add breaks, and block out holidays. The booking
-page offers only what is genuinely free: it reads your existing bookings, so
-two people cannot take the same slot.
+Set your working hours per day, add breaks, block out holidays. The booking
+page then offers only what is genuinely free, because it reads your existing
+bookings before it draws the grid. Two people cannot take the same slot.
 
 ## The booking page
 
-A public page, one per service or one for everything, that works on a phone
-with no account and no app. It shows a month at a time, the times available on
-the day chosen, and asks only for what you need.
+A public page that works on a phone, with no account and no app. One per
+service, or one for everything. It shows a month at a time, then the times
+available on the day somebody picks, and it asks for nothing you did not say
+you needed.
 
-You can also **embed** it in your own website, either inline in a page or
-behind a button.
+You can also **embed** it in your own website, inline in a page or behind a
+button.
 
 ## Service areas
 
@@ -40,16 +42,18 @@ is told so before they book, rather than after you have driven there.
 
 ## What happens after a booking
 
-- The customer gets a confirmation, and a reminder before the appointment.
-- A **contact is created or matched** in the CRM — a repeat customer is one
-  person, not a new record each time.
-- If the service has a price, an invoice is raised automatically — one invoice
-  for the whole course when somebody books six weekly sessions in one go, not
-  six. If a card processor is connected, that invoice carries a payment link
-  like any other. Raising it is never allowed to fail the booking: an invoice
-  that did not go out is something you can see and fix, while a booking that
-  vanished is a customer who turns up to nothing.
+- The customer gets a confirmation, then a reminder before the appointment.
+- A **contact is created or matched** in the CRM. A repeat customer stays one
+  person instead of becoming a new record each time.
+- If the service has a price, an invoice is raised automatically. Book six
+  weekly sessions in one go and that is one invoice for the course, not six.
+  Where a card processor is connected, the invoice carries a payment link like
+  any other.
 - The appointment appears on your dashboard.
+
+Raising that invoice is never allowed to fail the booking. An invoice that did
+not go out is something you can see and fix; a booking that vanished is a
+customer standing outside a locked door.
 
 ## Cancellations
 

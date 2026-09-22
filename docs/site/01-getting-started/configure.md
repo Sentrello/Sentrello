@@ -7,9 +7,9 @@ tags: [setup]
 
 # Configure
 
-Everything about how Sentrello behaves is set from **Settings** inside the
-application. You do not edit files on the server to change how the product
-works — if something is configurable, there is a screen for it.
+**Settings**, inside the application, is where Sentrello's behaviour is set.
+Nothing about how the product works is changed by editing a file on the server.
+If it is configurable, it has a screen.
 
 ## Your business
 
@@ -18,55 +18,55 @@ registration numbers that appear on invoices, quotes and emails. Fill this in
 first: an invoice sent before it is set carries a blank letterhead.
 
 **Set your timezone while you are there.** It decides what "nine o'clock" means
-for everything that acts at a time of day — an automation that chases quiet
-deals every Monday morning, a report of yesterday. Leave it blank and the
-server's own clock is used, which is right for a computer in your office and
-wrong for one rented in another country: that is how a Monday chase goes out on
-Sunday evening. The **Use mine** button fills in whatever your browser says,
-which is usually the answer.
+for everything that acts at a time of day, whether that is an automation
+chasing quiet deals on Monday morning or a report of yesterday. Leave it blank
+and the server's own clock is used. For a computer sitting in your office that
+is the right answer; for one rented in another country it is how a Monday chase
+goes out on Sunday evening. The **Use mine** button fills in whatever your
+browser says, which is usually what you wanted.
 
 ## Money
 
 **Settings → Money** sets your currency, your financial year end, and your tax
 rates.
 
-Tax rates are stored in millionths — 99750 means 9.975%, Quebec's QST — so a
-rate is exact rather than a rounded decimal, even when it carries three decimal
-places. Money itself is held in whole cents and never as a fraction, which is
-why totals always agree with the sum of their lines.
+Tax rates are stored in millionths. 99750 means 9.975%, which is Quebec's QST,
+and storing it that way keeps it exact rather than rounded, three decimal
+places and all. Money itself is held in whole cents and never as a fraction.
+That is why a total always agrees with the sum of its lines.
 
 :::info[Every financial event is double-entry]
 An invoice, a payment, a bill, an expense: each posts a balanced journal entry.
-The ledger is the source of truth, and reports are read from it rather than
-recalculated. It is what makes the books stand up to an accountant.
+The ledger is the source of truth. Reports are read from it rather than
+recalculated, and that is what makes the books stand up to an accountant.
 :::
 
 ## Email
 
 **Settings → Email** connects the server that sends your invoices and
 notifications. Enter the host, port, username and password your mail provider
-gave you, then send a test message from the same screen before relying on it.
+gave you, then send a test message from the same screen before you rely on it.
 
-Sentrello sends email as your business, from your own domain, using your own
+Sentrello sends email as your business, from your own domain, through your own
 provider. Nothing routes through us.
 
 ## Taking payments
 
 **Settings → Payments** connects a card processor. Authorise it, test the
-connection, work in sandbox mode until you are happy, then switch it to live —
-all from the screen. Once connected, invoices can carry a payment link and
-customers can pay them online.
+connection, work in sandbox mode until you are happy, then switch it to live,
+all from the screen. Once it is connected, an invoice can carry a payment link
+and the customer can pay it online.
 
 ## People
 
-**Users → People** is where colleagues are invited and what they can see is
-decided. Every module uses the same accounts and the same permissions; nothing
+**Users → People** is where you invite colleagues and decide what each of them
+can see. Every module uses the same accounts and the same permissions; nothing
 keeps a separate list of logins. See [Users and access](/core/users-and-access).
 
 ## Licence
 
 **Settings → Licence** shows which tier this instance is running and which
-modules it is entitled to. Paste a key here to unlock Pro or a module — the
+modules it is entitled to. Paste a key here to turn on Pro or a module. The
 features appear in the application you already have, with no second install and
 nothing to migrate.
 

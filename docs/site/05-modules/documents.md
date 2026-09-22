@@ -12,17 +12,18 @@ knowing when something is about to expire.
 
 ## Folders and files
 
-A normal folder tree. Upload anything; preview what can be previewed in the
-browser without downloading it. Files can be attached to a contact or a
-company, so a customer's paperwork sits with the customer.
+A normal folder tree. Upload anything. Whatever the browser can preview, it
+previews, so you are not downloading a file to find out what it is. Attach a
+file to a contact or a company and a customer's paperwork sits with the
+customer.
 
 ## Expiry
 
 This is the point of the module.
 
-Give a file an **expiry date** and a category — insurance, certificate,
-licence, contract. Anything approaching its date appears on the dashboard, and
-anything past it appears in red.
+Give a file an **expiry date** and a category: insurance, certificate, licence,
+contract. Anything approaching its date appears on the dashboard. Anything past
+it appears in red.
 
 :::warning[This is the failure that costs real money]
 A lapsed insurance certificate or trade licence can mean a business is not
@@ -32,16 +33,16 @@ opened. Putting it on the first screen is the whole feature.
 
 ## Sharing
 
-Any file can be shared by link — optionally password-protected, optionally
-expiring. The recipient needs no account. Useful for sending a customer
-something too large to email.
+Any file can be shared by link, password-protected or not, expiring or not. The
+recipient needs no account. Useful for sending a customer something too large
+to email.
 
 ## Downloading in bulk
 
 Select several files, or a whole folder, and download them as one archive.
 
-## Storage
+## Where the files actually live
 
-Files are stored on your own server, under your own control. There is no
-third-party storage account, and nothing leaves the machine unless you share it
+On your own server, under your own control. There is no third-party storage
+account behind this, and nothing leaves the machine unless you share it
 deliberately.

@@ -6,9 +6,10 @@ description: Optional applications, each a working product on its own.
 
 # Modules
 
-Each of these is a complete application in its own right, and each one knows
-about the rest of Sentrello. Buy one, or several, and they appear inside the
-instance you already run.
+Each of these is a complete application in its own right. What separates them
+from ten separate products is that every one of them knows about the rest of
+Sentrello. Buy one, buy several; they turn up inside the instance you already
+run.
 
 | Module | What it does |
 |---|---|
@@ -23,6 +24,6 @@ instance you already run.
 | [Links](/modules/links) | Short links on your own domain, and what became of the people who followed them |
 | [SEO](/modules/seo) | Be found, and know whether you are |
 
-They are designed to combine. A booking creates a contact; a shop order posts
-to the ledger; a document attaches to a customer. Nothing needs re-entering
-because two modules share the same records.
+They are built to combine. A booking creates a contact. A shop order posts to
+the ledger, and a document attaches to the customer it belongs to. Two modules
+sharing one set of records is what stops you typing anything twice.

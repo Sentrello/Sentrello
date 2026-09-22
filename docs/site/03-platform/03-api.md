@@ -10,16 +10,16 @@ tags: [platform, api]
 ## The stack
 
 One Hono application on Bun, over PostgreSQL 17 through Drizzle ORM, serves
-every route — free and paid, core and module. Sessions come from Better Auth:
-email and password, optionally Google, with roles scoped to an organisation.
-Background jobs run in pg-boss, inside Postgres itself, so there is no Redis to
-operate.
+every route: free and paid, core and module alike. Sessions come from Better
+Auth, with email and password, optionally Google, and roles scoped to an
+organisation. Background jobs run in pg-boss, inside Postgres itself, so there
+is no Redis to operate.
 
 ## How a route is guarded
 
-A request passes a session check and a permission check before a handler runs,
-and every query is scoped to an organisation at the data layer rather than left
-to each page to remember.
+A request passes a session check and a permission check before any handler
+runs. Every query is scoped to an organisation at the data layer, rather than
+left to each page to remember.
 
 Paid features are gated twice more, and the two gates answer differently on
 purpose:
@@ -37,8 +37,8 @@ bought.
 ## Where the reference stands
 
 There is no published API reference yet. The platform is still moving ahead of
-v1, and publishing endpoints that then change would be worse than publishing
-none — so this page describes what exists and does not list routes.
+v1, and endpoints published today would change under anybody who relied on
+them. So this page describes what exists without listing routes.
 
 Until the reference lands, the source is the reference. Every endpoint in the
 free core is readable in

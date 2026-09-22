@@ -23,8 +23,9 @@ The fuller list, with what each failure actually means, is on
 [When something is wrong](/running/troubleshooting).
 
 **A module is missing from the sidebar.** Check `modules_failed` in `/healthz`,
-then Settings → Licence. A module that is not entitled does not load, and a
-module that failed to load says so in the log.
+then Settings → Licence. Two different things look identical from the sidebar:
+a module the licence does not cover never loads at all, while one that tried
+and failed writes its reason to the log.
 
 **Sign-in is refused with a message about the origin.** `SENTRELLO_BASE_URL`
 does not match the address in the browser. That check is deliberate; correct
@@ -40,9 +41,9 @@ its last good token through a grace period. Check the server can reach
 
 ## When you write to us
 
-Include the output of `sentrello status`, the relevant lines from
-`sentrello logs`, and what you expected to happen instead. That is almost
-always enough to answer without a second exchange.
+Send the output of `sentrello status`, the relevant lines from
+`sentrello logs`, and what you expected to happen instead. With those three we
+can usually answer without a second exchange.
 
 Nothing in those outputs contains your customers' data. If you are asked for
 anything that does, ask us why.

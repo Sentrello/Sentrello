@@ -6,9 +6,9 @@ description: What Sentrello is built on, what it sends, and what you are allowed
 
 # Platform
 
-The questions that are about Sentrello itself rather than about a module:
-what licence it carries, how to extend it, what the API is built on, what
-leaves your server, and what it gives you towards a compliance framework.
+Questions about Sentrello itself rather than about any one module. What
+licence it carries, how to extend it, what the API is built on, what leaves
+your server, and what it hands you towards a compliance framework.
 
 | Page | What it answers |
 |---|---|

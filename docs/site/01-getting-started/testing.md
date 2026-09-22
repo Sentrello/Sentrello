@@ -29,8 +29,8 @@ curl -s https://example.com/healthz
 ```
 
 The field to read is **`modules_failed`**. An instance can be perfectly healthy
-and still have a module that did not load — the application answers, the screen
-is simply missing. If that list is not empty, `sentrello logs` says why.
+and still be missing a module: the application answers, the screen is not
+there. When that list is not empty, `sentrello logs` says why.
 
 ## Walk one job through
 
@@ -47,8 +47,8 @@ If step five shows what you expect, the parts that matter are working.
 ## Check email actually leaves
 
 Settings → Email → **Send a test message**. Send it to an address at a
-different provider from your own — a message that reaches your own domain
-proves less than one that survives somebody else's spam filter.
+different provider from your own. A message that reaches your own domain proves
+much less than one that gets past somebody else's spam filter.
 
 ## Check the backup
 
@@ -62,8 +62,8 @@ Then confirm the file is a real dump rather than an error page in a gzip:
 gzip -dc backups/sentrello-*.sql.gz | grep -c 'CREATE TABLE'
 ```
 
-A number in the dozens is right. Zero means the backup is worthless, and the
-time to find that out is now rather than the day you need it.
+A number in the dozens is right. Zero means the backup is worthless, and now is
+when you want to know that, not on the day you need it.
 
 :::warning[A backup you have never restored is a hope, not a backup]
 Restore one onto a spare server at least once. It is the only way to know how

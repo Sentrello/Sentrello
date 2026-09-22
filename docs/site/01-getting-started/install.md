@@ -13,7 +13,7 @@ installs it.
 ## What you need
 
 - A Linux server with **2GB of memory** and 20GB of disk. A small cloud
-  instance is plenty for a business of twenty people.
+  instance carries a twenty-person business without complaining.
 - **Docker** or **Podman**. Either works; the installer detects which you have.
 - A **domain name** pointing at the server, if you want it reachable from
   outside your network.
@@ -31,17 +31,18 @@ curl -fsSL https://get.sentrello.com | bash
 
 The installer asks four things: your licence key (leave it blank for the free
 tier), the domain this instance will answer on, an administrator email address,
-and whether to send usage reports. It then pulls the images, sizes the database
-for your machine, runs the migrations and starts everything.
+and whether to send usage reports. Then it does the rest by itself. Images come
+down, the database is sized for the machine it is on, migrations run, and the
+whole thing starts.
 
-When it finishes it prints a **setup token**. You need it once, on the first
-screen, to prove you are the person who installed it — so that nobody who finds
-the address before you can claim the instance.
+When it finishes it prints a **setup token**. You need that token once, on the
+first screen. It proves you are the person who installed this, which is what
+stops whoever finds the address before you from claiming the instance.
 
 ## Put TLS in front of it
 
-Sentrello listens on `127.0.0.1:3000` and expects a reverse proxy to terminate
-TLS. It never binds a public port itself.
+Sentrello listens on `127.0.0.1:3000`. It never binds a public port itself, so
+something in front of it has to terminate TLS.
 
 ```nginx title="/etc/nginx/conf.d/sentrello.conf"
 server {
@@ -67,9 +68,9 @@ sudo certbot --nginx -d example.com
 ```
 
 :::warning[The address has to match]
-`SENTRELLO_BASE_URL` must be exactly the address a browser uses. If it says
-`http://localhost` while people reach `https://example.com`, every sign-in is
-refused — correctly, because that check is what stops another site posting your
+`SENTRELLO_BASE_URL` must be exactly the address a browser uses. Say it reads
+`http://localhost` while everyone reaches `https://example.com`: every sign-in
+is refused. Correctly so. That check is what stops another site posting your
 login form.
 :::
 

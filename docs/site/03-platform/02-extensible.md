@@ -8,8 +8,8 @@ tags: [platform, modules, sdk]
 # Extending Sentrello
 
 Sentrello is one deployable service that discovers its feature modules at
-startup. One container to run and one database to back up, which is the right
-trade for a business with no operations team.
+startup. One container to run, one database to back up. For a business with no
+operations team, that is the right trade.
 
 Every feature implements the same contract, free and paid alike. The CRM in the
 free core and a commercial module bought years later are the same kind of
@@ -40,20 +40,19 @@ export default defineModule({
 Three things are worth reading off that:
 
 - **`id` and `tier` are what the host loads against.** A module whose tier the
-  licence does not cover is never registered — its routes do not exist and its
-  screens are never served, rather than being served and hidden.
+  licence does not cover is never registered. Its routes do not exist and its
+  screens are never served, as opposed to being served and then hidden.
 - **`register` receives the application**, so a module owns its own routes
   instead of asking the host to add them.
 - **The route still checks its own permissions.** Entitlement says the business
   bought the module; permission says this account may use it. Both are
-  required, and they answer differently: an unentitled request gets a 404,
-  because the feature genuinely is not there, and an unpermitted one gets a
-  403.
+  required, and they answer differently. An unentitled request gets a 404,
+  because the feature genuinely is not there. An unpermitted one gets a 403.
 
 Beyond routes and navigation, a module can register dashboard widgets, account
 sections, summary figures, computed columns, payment webhooks, background jobs,
 retention rules and a personal-data reader. That last one is why a subject
-access request can answer across every installed module at once — see
+access request can answer across every installed module at once. See
 [Compliance](/platform/compliance).
 
 ## Modules combine
