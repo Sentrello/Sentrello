@@ -7,9 +7,16 @@ tags: [tour, core]
 
 # What it looks like
 
-Everything below is **one install, one server, one login**. The screenshots
-come from a real instance running the free core, captured automatically against
-a live server. No mock-ups, and nothing on this page needs a licence key.
+Everything below is **one install, one server, one login**, and nothing on this
+page needs a licence key.
+
+The screens are rendered from the application's own stylesheet and components,
+with a demo business in them — so the chrome, the type, the status colours and
+the way money is set are the product's, because they are the product's code.
+Every one is drawn as a free instance draws it: no Bills, no bank feeds, no
+recurring invoices, because those are not yours until you pay for them, and a
+tour of the free tier showing paid features would be a tour of something you
+cannot have.
 
 ## Dashboard
 
