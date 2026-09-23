@@ -1,6 +1,7 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { authClient } from "../lib/auth";
 import { PageCredit } from "../lib/credit";
+import { muted } from "../lib/ui";
 import { ForgotPassword } from "./forgot-password";
 
 export function SignIn() {
@@ -173,8 +174,15 @@ function SourceOffer() {
 
   if (!source) return null;
   return (
-    <p className="mt-6 text-center text-xs link-muted">
-      <a href={source} target="_blank" rel="noreferrer noopener">
+    // The class belongs on the link; on the paragraph it turns the whole line
+    // inline. See the note in credit.tsx.
+    <p className="mt-2 text-center text-xs" style={muted}>
+      <a
+        className="link-muted"
+        href={source}
+        target="_blank"
+        rel="noreferrer noopener"
+      >
         Source code
       </a>{" "}
       — AGPL-3.0

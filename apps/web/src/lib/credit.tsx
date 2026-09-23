@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { muted } from "./ui";
 
 /**
  * The "Powered by Sentrello" line on pages a visitor sees before signing in.
@@ -25,10 +26,24 @@ export const SENTRELLO_CREDIT: Credit = {
 /** The line itself. Null renders nothing — a Pro business that removed it. */
 export function CreditLine({ credit }: { credit: Credit | null }) {
   if (!credit || !credit.text.trim()) return null;
+  /*
+   * The class goes on the link, not on the paragraph.
+   *
+   * `.link-muted` carries `display: inline-flex` and a 24px minimum, because
+   * it exists for the Edit and Remove links at the end of a table row. On a
+   * `<p>` it makes the paragraph inline too — so this line and the source-code
+   * line below it sat flush against each other on the sign-in page, reading
+   * "Powered by SentrelloSource code". Two lines, one word.
+   */
   return (
-    <p className="mt-6 text-center text-xs link-muted">
+    <p className="mt-6 text-center text-xs" style={muted}>
       {credit.url ? (
-        <a href={credit.url} target="_blank" rel="noopener noreferrer">
+        <a
+          className="link-muted"
+          href={credit.url}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           {credit.text}
         </a>
       ) : (

@@ -14,6 +14,21 @@ import { exceptedAbove, lineOf, stripComments } from "./scan-text";
 
 const RULES: { pattern: RegExp; say: string }[] = [
   {
+    /*
+     * A link class on a block of text.
+     *
+     * `.link-muted` and `.link-danger` carry `display: inline-flex` and a 24px
+     * minimum height, because they exist for the Edit and Remove links at the
+     * end of a table row where a tap target has to be hittable. Put one on a
+     * `<p>` and the paragraph goes inline with it — two of them then sit flush
+     * against each other with no space between, which is how the sign-in page
+     * came to read "Powered by SentrelloSource code" under every form a
+     * customer sees before they have an account.
+     */
+    pattern: /<p(?=[\s>])[^>]*className="[^"]*\blink-(?:muted|danger)\b/,
+    say: "a link class on a paragraph — it carries display:inline-flex for a tap target, so the paragraph goes inline and runs into the next one. Put the class on the <a> and colour the paragraph with `muted`",
+  },
+  {
     pattern: /<h[23](?=[\s>])[^>]*(?:className|style)=/,
     say: "a section heading styled by hand — use SectionHeading, which also gets the level right",
   },

@@ -408,3 +408,29 @@ test("a scanner that never said what it is for is loud, not skipped", () => {
     ),
   ).toThrow(/not a scanner of one source/);
 });
+
+/**
+ * The sign-in page read "Powered by SentrelloSource code" for a while.
+ *
+ * Two paragraphs, each wearing a class built for a link in a table row, each
+ * therefore inline, and no space between them. It is the first thing anybody
+ * sees on an instance they do not yet have an account on.
+ */
+test("a link class on a paragraph is a finding", () => {
+  const found = findHandRolledUi(
+    '<p className="mt-6 text-center text-xs link-muted">Powered by</p>',
+  );
+  expect(found).toHaveLength(1);
+  expect(found[0]?.say).toContain("inline-flex");
+});
+
+test("the same class on the link it was written for is fine", () => {
+  expect(
+    findHandRolledUi('<a className="link-muted" href="/x">Source code</a>'),
+  ).toHaveLength(0);
+  expect(
+    findHandRolledUi(
+      '<p className="text-xs"><a className="link-danger" /></p>',
+    ),
+  ).toHaveLength(0);
+});
