@@ -214,31 +214,42 @@ export const GLYPHS: Record<string, Glyph> = {
     ],
   },
   /**
-   * Sales: a line signed, and the pen still on it.
+   * Sales: two people, and the number they are talking about.
    *
-   * **Not a handshake, and this is the sixteenth attempt at one.** Drawn on a
-   * diagonal, two clasped hands gave a bird, a bone, a bowtie, an arrow, a
-   * boat, a butterfly and a monogram. Drawn level they gave two rounded boxes.
-   * Filled, a shoe. With knuckles as circles they fused into a moustache; as
-   * open scallops, into a moth.
+   * James's second reference, and it works where sixteen attempts at a
+   * handshake did not — for a reason worth recording. A handshake is
+   * overlapping mass, read entirely from the gaps between the fingers, and at
+   * eighteen pixels those gaps are narrower than the line that would have to
+   * describe them. This is two circles and a box: nothing overlaps, nothing is
+   * inferred from a gap, and it survives being shrunk.
    *
-   * The fault is not the drawing. A handshake is identified by overlapping mass
-   * with gaps between the fingers, and at eighteen pixels those gaps are
-   * narrower than the line that would have to describe them. The reference does
-   * it, and the reference is a licensed set drawn by somebody who could spend a
-   * day on one mark.
+   * Three things were wrong on the first cut, and they are the whole
+   * difference. The tail is its own stroke rather than a notch cut into the
+   * bubble's outline — drawn as one path it self-intersected and the bubble
+   * rendered with a bite out of its side. The faces are wider than the bubble
+   * is tall, because a face has three features inside it and the bubble has
+   * one: at a stroke of 1.75 a four-unit circle has about two units of clear
+   * interior, which is not enough room for eyes and a mouth that stay separate.
+   * And they sit two units apart; closer, they merge into a single peanut —
+   * the same fault that turned four knuckles into a moustache.
    *
-   * So this draws the same event in a medium that survives the rail: the moment
-   * a deal stops being a conversation. It keeps the name `handshake` because
-   * that is what every module asks for. If hands are wanted, the honest routes
-   * are a commissioned vector or licensing that one glyph — which is CC-BY, so
-   * it would carry an attribution obligation for the whole product.
+   * Still called `handshake`, because that is the name every module already
+   * asks for and a better picture is not worth breaking somebody's nav over.
    */
   handshake: {
     d: [
-      "M4.6 18.6h14.8",
-      "M6 15.1c1.4-3.2 2.9-3.2 3.5-1.2.6 1.7 1.7 1.9 2.7.4",
-      "M13.6 15.9 18.4 11a1.3 1.3 0 0 0-1.8-1.8l-4.9 4.9-.5 2.3z",
+      "M6.3 0.6h11.4a1.4 1.4 0 0 1 1.4 1.4v7.6a1.4 1.4 0 0 1-1.4 1.4H6.3a1.4 1.4 0 0 1-1.4-1.4V2a1.4 1.4 0 0 1 1.4-1.4z",
+      "M8.9 11 8.2 13.8l3.6-2.8",
+      "M12 1.9v7.8",
+      "M14 3.9a2.2 2.2 0 0 0-1.9-.9c-1.2 0-2.1.7-2.1 1.5 0 2.2 4 1 4 3.1 0 1-.9 1.6-2.1 1.6a2.3 2.3 0 0 1-1.9-.9",
+      "M5.6 14.0a4.6 4.6 0 1 0 0 9.2 4.6 4.6 0 0 0 0 -9.2z",
+      "M3.1 17.4c.4-.75 1.2-.75 1.6 0",
+      "M6.5 17.4c.4-.75 1.2-.75 1.6 0",
+      "M3.9 19.7c.95 1.05 2.45 1.05 3.4 0",
+      "M18.4 14.0a4.6 4.6 0 1 0 0 9.2 4.6 4.6 0 0 0 0 -9.2z",
+      "M15.9 17.4c.4-.75 1.2-.75 1.6 0",
+      "M19.3 17.4c.4-.75 1.2-.75 1.6 0",
+      "M16.7 19.7c.95 1.05 2.45 1.05 3.4 0",
     ],
   },
   /** A building with floors — a company rather than a person. */

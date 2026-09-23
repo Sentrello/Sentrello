@@ -259,31 +259,42 @@ export const DRAWN_GLYPHS: Record<string, Glyph> = {
     ],
   },
   /**
-   * Sales: a line signed, and the pen still on it.
+   * Sales: two people, and the number they are talking about.
    *
-   * **Not a handshake, and this is the sixteenth attempt at one.** Drawn on a
-   * diagonal, two clasped hands gave a bird, a bone, a bowtie, an arrow, a
-   * boat, a butterfly and a monogram. Drawn level they gave two rounded boxes.
-   * Filled, a shoe. With knuckles as circles they fused into a moustache; as
-   * open scallops, into a moth.
+   * James's second reference, and it works where sixteen attempts at a
+   * handshake did not — for a reason worth recording. A handshake is
+   * overlapping mass, read entirely from the gaps between the fingers, and at
+   * eighteen pixels those gaps are narrower than the line that would have to
+   * describe them. This is two circles and a box: nothing overlaps, nothing is
+   * inferred from a gap, and it survives being shrunk.
    *
-   * The fault is not the drawing. A handshake is identified by overlapping mass
-   * with gaps between the fingers, and at eighteen pixels those gaps are
-   * narrower than the line that would have to describe them. The reference does
-   * it, and the reference is a licensed set drawn by somebody who could spend a
-   * day on one mark.
+   * Three things were wrong on the first cut, and they are the whole
+   * difference. The tail is its own stroke rather than a notch cut into the
+   * bubble's outline — drawn as one path it self-intersected and the bubble
+   * rendered with a bite out of its side. The faces are wider than the bubble
+   * is tall, because a face has three features inside it and the bubble has
+   * one: at a stroke of 1.75 a four-unit circle has about two units of clear
+   * interior, which is not enough room for eyes and a mouth that stay separate.
+   * And they sit two units apart; closer, they merge into a single peanut —
+   * the same fault that turned four knuckles into a moustache.
    *
-   * So this draws the same event in a medium that survives the rail: the moment
-   * a deal stops being a conversation. It keeps the name `handshake` because
-   * that is what every module asks for. If hands are wanted, the honest routes
-   * are a commissioned vector or licensing that one glyph — which is CC-BY, so
-   * it would carry an attribution obligation for the whole product.
+   * Still called `handshake`, because that is the name every module already
+   * asks for and a better picture is not worth breaking somebody's nav over.
    */
   handshake: {
     d: [
-      "M4.16 18.61C4.43 18.66 5.23 18.91 5.76 18.95C6.29 18.99 6.83 18.91 7.36 18.84C7.89 18.77 8.43 18.62 8.96 18.54C9.49 18.46 10.03 18.33 10.56 18.35C11.09 18.38 11.63 18.64 12.16 18.69C12.69 18.75 13.23 18.74 13.76 18.70C14.29 18.65 14.83 18.47 15.36 18.40C15.89 18.34 16.43 18.28 16.96 18.31C17.49 18.33 18.29 18.51 18.56 18.55",
-      "M5.69 15.46C5.78 15.20 5.95 14.37 6.23 13.90C6.52 13.43 6.98 12.81 7.40 12.65C7.83 12.49 8.44 12.65 8.78 12.94C9.12 13.23 9.11 14.00 9.43 14.38C9.75 14.75 10.29 15.18 10.73 15.20C11.16 15.22 11.82 14.60 12.03 14.48",
-      "M13.67 15.96C13.87 15.79 14.53 15.31 14.91 14.94C15.29 14.57 15.63 14.15 15.95 13.72C16.27 13.29 16.48 12.75 16.84 12.35C17.20 11.96 17.79 11.79 18.11 11.36C18.44 10.93 18.91 10.18 18.78 9.78C18.66 9.38 17.79 8.93 17.36 8.96C16.94 8.99 16.60 9.59 16.23 9.95C15.86 10.31 15.58 10.80 15.16 11.14C14.74 11.47 14.14 11.63 13.70 11.95C13.27 12.26 12.85 12.62 12.52 13.02C12.18 13.43 11.88 13.88 11.69 14.36C11.51 14.85 11.30 15.60 11.40 15.92C11.50 16.24 12.15 16.22 12.30 16.28Z",
+      "M6.30 0.53C6.57 0.53 7.37 0.52 7.90 0.56C8.43 0.60 8.97 0.73 9.50 0.79C10.03 0.84 10.57 0.95 11.10 0.88C11.63 0.82 12.17 0.50 12.70 0.40C13.23 0.30 13.77 0.25 14.30 0.27C14.83 0.28 15.37 0.42 15.90 0.50C16.43 0.58 17.00 0.62 17.49 0.75C17.97 0.88 18.50 0.93 18.81 1.27C19.11 1.61 19.29 2.28 19.33 2.80C19.37 3.32 19.14 3.87 19.05 4.40C18.96 4.93 18.83 5.47 18.79 6.00C18.76 6.53 18.78 7.07 18.85 7.60C18.92 8.13 19.24 8.65 19.23 9.20C19.21 9.76 19.12 10.64 18.77 10.94C18.41 11.23 17.64 10.96 17.10 10.96C16.55 10.95 16.03 10.90 15.50 10.93C14.97 10.95 14.43 11.05 13.90 11.11C13.37 11.16 12.83 11.29 12.30 11.27C11.77 11.25 11.23 11.10 10.70 10.99C10.17 10.88 9.63 10.62 9.10 10.60C8.57 10.57 8.04 10.77 7.50 10.84C6.96 10.91 6.32 11.20 5.86 11.02C5.40 10.85 4.90 10.27 4.76 9.80C4.62 9.33 4.98 8.73 5.02 8.20C5.06 7.66 5.08 7.13 5.01 6.60C4.94 6.06 4.67 5.53 4.60 5.00C4.54 4.46 4.58 3.93 4.63 3.40C4.68 2.87 4.70 2.20 4.92 1.80C5.14 1.40 5.78 1.12 5.95 0.98Z",
+      "M9.21 10.80C9.13 11.06 8.92 11.83 8.77 12.34C8.63 12.86 8.22 13.82 8.33 13.90C8.45 13.97 9.11 13.15 9.49 12.77C9.87 12.39 10.43 11.81 10.62 11.62",
+      "M11.76 1.55C11.80 1.82 11.94 2.62 12.02 3.15C12.09 3.69 12.23 4.22 12.21 4.75C12.20 5.29 11.99 5.82 11.93 6.35C11.87 6.89 11.80 7.42 11.85 7.95C11.89 8.49 12.15 9.29 12.21 9.55",
+      "M14.13 4.18C13.94 4.01 13.43 3.44 12.95 3.20C12.47 2.97 11.78 2.67 11.28 2.79C10.77 2.92 10.06 3.52 9.92 3.95C9.78 4.37 10.12 5.07 10.46 5.37C10.79 5.66 11.45 5.53 11.95 5.72C12.45 5.90 13.15 6.12 13.45 6.47C13.76 6.82 13.89 7.40 13.80 7.84C13.72 8.27 13.36 8.85 12.94 9.10C12.52 9.34 11.78 9.43 11.29 9.31C10.80 9.18 10.21 8.50 9.99 8.34",
+      "M5.60 13.93C5.33 13.96 4.46 13.95 3.98 14.15C3.49 14.35 3.03 14.73 2.70 15.11C2.37 15.50 2.25 16.02 2.00 16.47C1.75 16.92 1.38 17.30 1.19 17.79C1.00 18.28 0.81 18.89 0.85 19.42C0.89 19.95 1.14 20.53 1.44 20.97C1.74 21.42 2.20 21.77 2.63 22.07C3.06 22.37 3.53 22.56 4.02 22.80C4.50 23.03 5.03 23.41 5.56 23.46C6.09 23.52 6.72 23.36 7.19 23.13C7.67 22.89 8.07 22.45 8.41 22.06C8.75 21.67 8.98 21.24 9.24 20.80C9.50 20.37 9.78 19.95 9.97 19.46C10.16 18.96 10.42 18.35 10.36 17.83C10.31 17.32 9.93 16.81 9.63 16.38C9.33 15.95 8.94 15.59 8.54 15.25C8.15 14.90 7.74 14.57 7.27 14.31C6.79 14.06 5.97 13.80 5.71 13.69Z",
+      "M2.60 17.58C2.84 17.46 3.76 16.99 3.99 16.87",
+      "M6.41 17.66C6.57 17.57 7.22 17.23 7.39 17.15",
+      "M3.48 19.35C3.71 19.45 4.37 19.83 4.84 19.99C5.30 20.15 5.87 20.35 6.28 20.30C6.69 20.25 7.13 19.80 7.30 19.70",
+      "M18.40 14.05C18.17 14.14 17.46 14.44 16.98 14.62C16.50 14.80 15.97 14.87 15.51 15.13C15.05 15.39 14.55 15.75 14.23 16.19C13.91 16.62 13.63 17.21 13.57 17.74C13.52 18.27 13.74 18.85 13.90 19.36C14.05 19.87 14.29 20.31 14.52 20.79C14.76 21.27 14.94 21.86 15.31 22.24C15.68 22.61 16.24 22.90 16.74 23.04C17.25 23.18 17.84 23.17 18.34 23.09C18.84 23.01 19.28 22.75 19.76 22.58C20.24 22.41 20.75 22.32 21.22 22.07C21.69 21.82 22.27 21.51 22.57 21.07C22.87 20.64 22.96 20.02 23.01 19.49C23.06 18.96 22.99 18.41 22.88 17.90C22.78 17.38 22.59 16.91 22.37 16.41C22.16 15.91 21.98 15.29 21.61 14.91C21.24 14.52 20.66 14.20 20.14 14.08C19.62 13.97 18.78 14.18 18.50 14.20Z",
+      "M15.62 17.86C15.79 17.74 16.44 17.26 16.60 17.14",
+      "M19.03 17.52C19.25 17.43 20.11 17.06 20.33 16.97",
+      "M16.24 19.44C16.46 19.61 17.05 20.33 17.53 20.49C18.01 20.64 18.71 20.49 19.14 20.36C19.57 20.23 19.94 19.81 20.10 19.70",
     ],
   },
   /** A building with floors — a company rather than a person. */
