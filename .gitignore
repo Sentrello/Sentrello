@@ -10,10 +10,13 @@ secrets/
 !scripts/*.example
 .DS_Store
 
-# Local-only working notes and design plans. They carry commercial and
-# control-plane strategy, and this repository is public.
-The design notes
-00-START-HERE.md
+# Local-only working notes and planning documents. They carry commercial and
+# control-plane strategy, and this repository is public. They are not listed
+# here by name: a file whose job is to keep those names out of a public
+# repository cannot do it by writing them down. They live in
+# .git/info/exclude, which is per-clone and never travels, and
+# scripts/trace-guard.ts refuses them by pattern, which also catches
+# `git add -f`.
 MANIFEST.txt
 
 dist-types/
