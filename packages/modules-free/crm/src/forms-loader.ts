@@ -63,11 +63,42 @@ const SCRIPT = String.raw`(function () {
 
       var css = document.createElement("style");
       css.textContent =
+        /*
+         * A grid, so a field can take half a row.
+         *
+         * Name beside email is the single most requested shape and it was not
+         * possible: every field was a block in one column. A form is two
+         * columns now and a field spans both unless it says otherwise, which
+         * keeps every form that already exists looking exactly as it did.
+         *
+         * It collapses to one column under 26rem — narrower than a phone, and
+         * about the width somebody drops a form into a sidebar at, where two
+         * columns of inputs is worse than none.
+         */
+        /*
+         * The grid goes on the form, not on the host.
+         *
+         * The .sentrello-form class is on the div this script inserts; the
+         * form element is inside it, next to the stylesheet. Putting the grid
+         * on the host laid out two children — a style tag and a form — so
+         * every field stayed in one column, which looked exactly like the
+         * half-width option not working.
+         */
         ".sentrello-form{font:inherit;max-width:32rem}" +
+        ".sentrello-form form{display:grid;grid-template-columns:1fr 1fr;gap:0 .75rem}" +
+        ".sentrello-form form > *{grid-column:1 / -1}" +
+        ".sentrello-form form > .sentrello-half{grid-column:span 1}" +
+        "@media (max-width:26rem){.sentrello-form form > .sentrello-half{grid-column:1 / -1}}" +
+        /* An optional field says so, rather than every other one shouting. */
+        ".sentrello-form .sentrello-optional{float:right;font-weight:400;opacity:.6}" +
         ".sentrello-form label,.sentrello-form .sentrello-group{display:block;margin:.6rem 0 .2rem;font-size:.875rem}" +
+        ".sentrello-form .sentrello-field{min-width:0}" +
         ".sentrello-form input,.sentrello-form textarea,.sentrello-form select{width:100%;padding:.5rem;" +
         "border:1px solid #cbd5e1;border-radius:" + radius + ";font:inherit;box-sizing:border-box}" +
-        ".sentrello-form button{margin-top:.8rem;padding:.55rem 1.1rem;border:0;cursor:pointer;" +
+        /* justify-self, so the button is its own width. A grid child fills
+           its track by default, and a Send button as wide as the form reads
+           as a banner rather than as a thing to press. */
+        ".sentrello-form button{margin-top:.8rem;padding:.55rem 1.1rem;border:0;cursor:pointer;justify-self:start;" +
         "border-radius:" + radius + ";background:" + accent + ";color:#fff;font:inherit}" +
         ".sentrello-form .sentrello-msg{margin-top:.6rem;font-size:.9rem}" +
         /*
@@ -147,13 +178,25 @@ const SCRIPT = String.raw`(function () {
          * Talk to us" as one answer. So the group gets a plain element with
          * an id, and aria-labelledby on the radiogroup points back at it.
          */
-        html +=
+        /*
+         * Label and control travel together.
+         *
+         * They are two siblings in a grid, so a half-width field has to wrap
+         * them or the label takes one cell and its input takes the next —
+         * which puts "Work email" above the name box. Wrapping is also what
+         * makes the pair move as one when a form is rearranged.
+         */
+        var half = f.half === true ? " sentrello-half" : "";
+        var heading =
           (type === "radio"
             ? '<span class="sentrello-group" id="' + id + '">'
             : '<label for="' + id + '">') +
-          esc(f.label || f.name) + (f.required ? " *" : "") +
-          (type === "radio" ? "</span>" : "</label>") +
-          control;
+          esc(f.label || f.name) +
+          (f.required
+            ? " *"
+            : '<span class="sentrello-optional">Optional</span>') +
+          (type === "radio" ? "</span>" : "</label>");
+        html += '<div class="sentrello-field' + half + '">' + heading + control + "</div>";
       });
       // The honeypot the server already checks. Hidden off-screen rather than
       // display:none, which some bots know to skip.

@@ -122,3 +122,36 @@ test("the option box is the click target, not just the dot", () => {
   // browser's own focus ring on a 13px dot is easy to miss.
   expect(js).toContain(":has(input:focus-visible)");
 });
+
+/**
+ * Two fields on one row, asked for so a contact form can put the name beside
+ * the email — the shape every good one has and this could not draw.
+ */
+test("a field can take half a row, and the rest span the form", () => {
+  expect(js).toContain("sentrello-half");
+  // The grid is on the form element and not on the host div. The host is what
+  // this script inserts, and the form sits inside it next to the stylesheet —
+  // so a grid on the host lays out a style tag and a form, every field stays
+  // in one column, and it looks precisely like the option not working.
+  expect(js).toContain(".sentrello-form form{display:grid");
+  expect(js).not.toContain(
+    ".sentrello-form{font:inherit;max-width:32rem;display:grid",
+  );
+});
+
+test("label and control are wrapped together", () => {
+  // Two siblings in a grid would be laid out separately, which puts the
+  // second field's label above the first field's input.
+  expect(js).toContain('class="sentrello-field');
+});
+
+test("an optional field says so, rather than every other one shouting", () => {
+  expect(js).toContain("sentrello-optional");
+  expect(js).toContain("Optional");
+});
+
+test("the submit button is its own width", () => {
+  // A grid child fills its track. A Send button as wide as the form reads as
+  // a banner rather than as a thing to press.
+  expect(js).toContain("justify-self:start");
+});

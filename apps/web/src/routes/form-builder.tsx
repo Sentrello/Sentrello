@@ -31,6 +31,14 @@ export interface FormField {
   required?: boolean;
   /** The answers a choice field offers — dropdown or radio. Ignored by the rest. */
   options?: string[];
+  /**
+   * Half a row, so two fields sit side by side.
+   *
+   * Name beside email, town beside postcode. Off by default, because a form
+   * of full-width fields is the thing that always works and pairing is a
+   * decision about this particular form.
+   */
+  half?: boolean;
 }
 
 const TYPES = [
@@ -212,6 +220,21 @@ export function FormBuilder({
               <span className="text-xs" style={muted}>
                 {TYPES.find((t) => t.id === f.type)?.label ?? f.type}
               </span>
+              {/* Side by side, for the pairs that read as one answer. */}
+              <label className="flex items-center gap-1 text-xs">
+                <input
+                  type="checkbox"
+                  checked={f.half ?? false}
+                  onChange={(e) =>
+                    setRows((r) =>
+                      r.map((x, j) =>
+                        i === j ? { ...x, half: e.target.checked } : x,
+                      ),
+                    )
+                  }
+                />
+                Half width
+              </label>
               <label className="flex items-center gap-1 text-xs">
                 <input
                   type="checkbox"
