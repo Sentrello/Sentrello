@@ -68,6 +68,10 @@ const BELONGS_AT_ROOT = new Set([
   "CODE_OF_CONDUCT.md",
   "CONTRIBUTING.md",
   "LICENSE",
+  // Attribution for third-party work we redistribute — the icons, under
+  // CC BY 4.0. The root is where anybody looks for it, and the licence asks
+  // for it to be somewhere they will.
+  "NOTICE",
   "README.md",
   "SECURITY.md",
   "biome.json",

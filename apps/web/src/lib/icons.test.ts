@@ -1,53 +1,80 @@
 import { expect, test } from "bun:test";
-import { DRAWN_GLYPHS } from "./icon-paths";
-import { GLYPHS as SHAPES } from "./icon-shapes";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
+import { GROUP_ICONS } from "./app-shell";
+import { FREEHAND } from "./icon-freehand";
 
 /**
- * The drawn set is what the application renders, and it is generated.
- *
- * `scripts/draw-icons.mjs` turns `icon-shapes.ts` into `icon-paths.ts`. Both
- * are committed, which means they can fall out of step: somebody draws a new
- * icon, does not run the script, and the application goes on drawing the old
- * set — or drawing nothing, because the name it was given is only in the file
- * nobody renders. Neither errors, and neither shows up in a review of the
- * diff, which is the whole family of bug this project keeps finding.
+ * `icon-freehand.ts` is generated, and the map behind it lives in a script
+ * nobody runs by accident. So the way this set goes wrong is not a bad path —
+ * it is a name: somebody adds a nav entry asking for an icon that was never
+ * fetched, and the rail quietly draws the fallback. Nothing errors, nothing
+ * shows in the diff, and the first person to notice is looking at a sidebar.
+ * The last test here is the one that catches it.
  */
-test("every shape has been drawn, and nothing has been drawn twice", () => {
-  const shaped = Object.keys(SHAPES).sort();
-  const drawn = Object.keys(DRAWN_GLYPHS).sort();
-  expect(drawn).toEqual(shaped);
+test("every group the rail draws has a drawing", () => {
+  const missing = Object.entries(GROUP_ICONS)
+    .filter(([, icon]) => !FREEHAND[icon])
+    .map(([group]) => group);
+  expect(missing).toEqual([]);
 });
 
-test("each drawn glyph has the same number of strokes as its shape", () => {
-  const off: string[] = [];
-  for (const [name, shape] of Object.entries(SHAPES)) {
-    const drawn = DRAWN_GLYPHS[name];
-    if (!drawn) continue;
-    if (
-      drawn.d.length !== shape.d.length ||
-      (drawn.faint?.length ?? 0) !== (shape.faint?.length ?? 0) ||
-      (drawn.dots?.length ?? 0) !== (shape.dots?.length ?? 0)
-    ) {
-      off.push(name);
-    }
+test("every drawing is markup, and only markup", () => {
+  const bad: string[] = [];
+  for (const [name, body] of Object.entries(FREEHAND)) {
+    if (typeof body !== "string" || !body.trim()) bad.push(`${name}: empty`);
+    else if (!body.includes("<path")) bad.push(`${name}: no path`);
+    else if (/<script|http/i.test(body)) bad.push(`${name}: reaches outside`);
   }
-  expect(off).toEqual([]);
+  expect(bad).toEqual([]);
 });
 
 /**
- * A path that wandered outside the box crops against the viewport, and the
- * first place anybody sees it is a sidebar. The hand is allowed to run past
- * the drawing's own 3–21 guide; it is not allowed to leave 24.
+ * The aliases exist so a module built against an older name still draws. One
+ * pointing at a name we no longer fetch draws nothing, which is worse than
+ * the name it was meant to rescue.
  */
-test("nothing drawn falls outside the grid", () => {
-  const outside: string[] = [];
-  for (const [name, glyph] of Object.entries(DRAWN_GLYPHS)) {
-    for (const d of [...glyph.d, ...(glyph.faint ?? [])]) {
-      for (const [, n] of d.matchAll(/(-?\d+\.?\d*)/g)) {
-        const v = Number(n);
-        if (v < -0.6 || v > 24.6) outside.push(`${name}: ${v}`);
+test("every alias points at a drawing", () => {
+  const source = readFileSync(join(import.meta.dir, "icons.tsx"), "utf8");
+  const block = source.match(/const ALIASES[^{]*\{([^}]*)\}/)?.[1] ?? "";
+  const targets = [...block.matchAll(/:\s*"([a-z0-9-]+)"/g)].map(
+    (m) => m[1] ?? "",
+  );
+  expect(targets.length).toBeGreaterThan(0);
+  expect(targets.filter((t) => !FREEHAND[t])).toEqual([]);
+});
+
+/**
+ * Every name anybody asks for, anywhere in the repository — a route rendering
+ * `<Icon name="…" />`, a module registering nav with `icon: "…"`. This is the
+ * test that fails when a nav entry names an icon we never fetched.
+ */
+test("every icon the repository asks for has been fetched", () => {
+  const root = join(import.meta.dir, "../../../..");
+  const skip = new Set(["node_modules", "dist", ".git", "build", "coverage"]);
+  const asked = new Set<string>();
+
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir)) {
+      if (skip.has(entry)) continue;
+      const path = join(dir, entry);
+      if (statSync(path).isDirectory()) {
+        walk(path);
+        continue;
+      }
+      if (!/\.tsx?$/.test(entry) || entry.endsWith(".d.ts")) continue;
+      const source = readFileSync(path, "utf8");
+      for (const m of source.matchAll(/<Icon\s+name="([a-z0-9-]+)"/g)) {
+        if (m[1]) asked.add(m[1]);
+      }
+      for (const m of source.matchAll(/\bicon:\s*"([a-z0-9-]+)"/g)) {
+        if (m[1]) asked.add(m[1]);
       }
     }
-  }
-  expect(outside).toEqual([]);
+  };
+  walk(join(root, "apps"));
+  walk(join(root, "packages"));
+
+  expect(asked.size).toBeGreaterThan(20);
+  expect([...asked].filter((name) => !FREEHAND[name]).sort()).toEqual([]);
 });
