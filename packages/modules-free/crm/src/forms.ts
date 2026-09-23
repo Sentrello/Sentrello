@@ -4,14 +4,25 @@ import {
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
-import { and, asc, db, eq, schema, sql } from "@sentrello/db";
+import { and, asc, db, eq, lt, schema, sql } from "@sentrello/db";
 import { creditFor } from "@sentrello/db/credit";
 import { contactHasEmail } from "@sentrello/db/crm";
 import { lineTotals } from "@sentrello/db/money";
 import { nextDocumentNumber } from "@sentrello/db/numbering";
 import { emailAdapter } from "@sentrello/email";
 import type { ModuleContext } from "@sentrello/module-sdk";
-import { csvDownload, toCsv } from "@sentrello/module-sdk";
+import {
+  MAX_ATTACHMENT_BYTES,
+  attachmentFile,
+  attachmentHeaders,
+  checkUpload,
+  csvDownload,
+  displayFilename,
+  removeAttachment,
+  scannerAddress,
+  storeAttachment,
+  toCsv,
+} from "@sentrello/module-sdk";
 import {
   HONEYPOT_FIELD,
   corsHeaders,
@@ -75,7 +86,73 @@ function cleanOrigins(value: unknown): string[] {
  * of its own, and nothing it produces means anything outside the CRM. A module
  * that cannot be switched off independently is a feature, so it is one now.
  */
+/**
+ * How long a file sent through a public form is kept.
+ *
+ * A year, then it goes. These are other people's documents — a CV, a scanned
+ * invoice, a photograph of somebody's meter — sent to a business by a
+ * stranger, and keeping them forever is a decision nobody made. The
+ * submission stays: it is the record of the enquiry, and it is what the
+ * business answered. Only the file leaves.
+ *
+ * Set `SENTRELLO_FORM_UPLOAD_DAYS` to something else where the law or the
+ * business says something else. Zero turns the sweep off, which is a choice
+ * an instance is allowed to make and must make deliberately.
+ */
+export function uploadRetentionDays(): number {
+  const set = Number(process.env.SENTRELLO_FORM_UPLOAD_DAYS ?? 365);
+  return Number.isFinite(set) && set >= 0 ? set : 365;
+}
+
+/**
+ * Throws away the files that have aged out, and says how many.
+ *
+ * The row keeps its shape — `attachments` becomes an empty list rather than
+ * disappearing — so a submission that once had a file still reads as one that
+ * had a file, and nobody goes looking for a bug.
+ */
+export async function sweepExpiredUploads(now = new Date()): Promise<number> {
+  const days = uploadRetentionDays();
+  if (days === 0) return 0;
+
+  const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+  const rows = await db
+    .select({
+      id: schema.formSubmissions.id,
+      attachments: schema.formSubmissions.attachments,
+    })
+    .from(schema.formSubmissions)
+    .where(
+      and(
+        lt(schema.formSubmissions.createdAt, cutoff),
+        sql`jsonb_array_length(${schema.formSubmissions.attachments}) > 0`,
+      ),
+    )
+    .limit(500);
+
+  let gone = 0;
+  for (const row of rows) {
+    for (const held of row.attachments ?? []) {
+      await removeAttachment(held.path, UPLOAD_FOLDER);
+      gone += 1;
+    }
+    await db
+      .update(schema.formSubmissions)
+      .set({ attachments: [] })
+      .where(eq(schema.formSubmissions.id, row.id));
+  }
+  return gone;
+}
+
 export function registerForms(ctx: ModuleContext) {
+  // Once a night. Nothing here is urgent, and a sweep that runs while
+  // somebody is filling in a form is a sweep competing for the same disk.
+  ctx.registerJob({
+    name: "form-uploads-retention",
+    cron: "17 3 * * *",
+    handler: () => sweepExpiredUploads(),
+  });
+
   ctx.registerNav({
     id: "forms",
     icon: "clipboard",
@@ -279,6 +356,46 @@ export function registerForms(ctx: ModuleContext) {
           ),
         );
       return c.json({ submissions: rows });
+    },
+  );
+
+  /**
+   * The file somebody attached, handed back to whoever may read the form.
+   *
+   * The path is read off the row rather than taken from the request, so
+   * there is nothing here to point at another organization's folder — and the
+   * SDK checks it against the uploads directory anyway, because a row is data
+   * and data that was edited once can be edited again. It comes back as a
+   * download with a neutral content type: a file that arrived from the open
+   * internet must never be served as something this origin will run.
+   */
+  ctx.app.get(
+    "/api/forms/submissions/:submissionId/files/:index",
+    requireSession(),
+    requirePermission({ crm: ["read"] }),
+    async (c) => {
+      const orgId = activeOrganizationId(c.get("session"));
+      const [row] = await db
+        .select()
+        .from(schema.formSubmissions)
+        .where(
+          and(
+            eq(schema.formSubmissions.id, c.req.param("submissionId")),
+            eq(schema.formSubmissions.organizationId, orgId),
+          ),
+        )
+        .limit(1);
+      const at = Number(c.req.param("index"));
+      const held = row?.attachments?.[Number.isFinite(at) ? at : -1];
+      if (!held) return c.json({ error: "not found" }, 404);
+
+      const file = attachmentFile(held.path, UPLOAD_FOLDER);
+      if (!file || !(await file.exists())) {
+        return c.json({ error: "not found" }, 404);
+      }
+      return new Response(file.stream(), {
+        headers: attachmentHeaders(held.name),
+      });
     },
   );
 
@@ -626,7 +743,30 @@ export function registerForms(ctx: ModuleContext) {
           });
     }
 
-    const payload = await readSubmission(c.req.raw);
+    /*
+     * Two ways in, decided by what the form asks for.
+     *
+     * A form with no file field keeps the 64KB text leash it has always had.
+     * One that asks for a file reads the multipart body whole, because the
+     * text path decodes before it parses and a PDF does not survive that.
+     */
+    const accepts = fileFieldNames(form.fields);
+    const multipart = (c.req.header("content-type") ?? "").includes(
+      "multipart/form-data",
+    );
+    let uploads: [string, File][] = [];
+    let payload: Record<string, string> | null;
+    if (accepts.length > 0 && multipart) {
+      const read = await readSubmissionWithFiles(c.req.raw);
+      payload = read?.payload ?? null;
+      // Anything sent under a name the form never asked for is dropped: a
+      // public endpoint should not write a file nobody requested.
+      uploads = (read?.files ?? []).filter(([field]) =>
+        accepts.includes(field),
+      );
+    } else {
+      payload = await readSubmission(c.req.raw);
+    }
     if (payload === null) {
       return wantsHtml(c)
         ? c.html(
@@ -674,6 +814,45 @@ export function registerForms(ctx: ModuleContext) {
     }
 
     const orgId = form.organizationId;
+
+    /*
+     * Checked before it is written, and refused rather than quarantined.
+     *
+     * The bytes are in memory at this point and nowhere else, so a file that
+     * fails never becomes a file at all. The reason is given back: somebody
+     * sending a CV deserves to know it was the document and not the form.
+     */
+    const kept: (typeof schema.formSubmissions.$inferInsert)["attachments"] =
+      [];
+    for (const [field, file] of uploads) {
+      if (file.size > MAX_ATTACHMENT_BYTES) {
+        return wantsHtml(c)
+          ? c.html(
+              problemPage("That file is too large. 10MB is the limit."),
+              413,
+            )
+          : c.json({ error: "too_large" }, 413, corsHeaders(decision.echo));
+      }
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const verdict = await checkUpload(bytes);
+      if (!verdict.ok) {
+        const reason = `That file was not accepted: ${verdict.reason}. Send it as a PDF.`;
+        return wantsHtml(c)
+          ? c.html(problemPage(reason), 400)
+          : c.json(
+              { error: "file_rejected", message: reason },
+              400,
+              corsHeaders(decision.echo),
+            );
+      }
+      const stored = await storeAttachment(orgId, file, UPLOAD_FOLDER);
+      kept.push({
+        field,
+        ...stored,
+        checkedBy: scannerAddress() ? "shape+scanner" : "shape",
+      });
+    }
+
     const contactId = await upsertContact(orgId, name, email, payload);
 
     let quoteId: string | undefined;
@@ -689,6 +868,7 @@ export function registerForms(ctx: ModuleContext) {
         contactId,
         quoteId,
         payload,
+        attachments: kept,
         origin,
         userAgent: c.req.header("user-agent"),
       })
@@ -782,6 +962,73 @@ async function formByKey(key: string) {
  * about how much they may post at once.
  */
 export const MAX_SUBMISSION_BYTES = 64 * 1024;
+
+/**
+ * The folder uploads land in, under the instance's data directory.
+ *
+ * Its own, not the CRM's general attachments folder. These arrived from the
+ * open internet rather than from somebody signed in, they age out on a
+ * schedule nothing else has, and keeping them apart means a retention sweep
+ * can never reach a file a person attached to a contact by hand.
+ */
+export const UPLOAD_FOLDER = "form-uploads";
+
+/**
+ * The largest body this endpoint will read when the form asks for a file.
+ *
+ * The file's own ceiling is the SDK's, which nginx is already configured
+ * around; this is that plus room for the answers travelling beside it.
+ */
+export const MAX_UPLOAD_BODY_BYTES = MAX_ATTACHMENT_BYTES + 256 * 1024;
+
+/** The fields on this form that expect a file rather than an answer. */
+export function fileFieldNames(
+  fields: { name: string; type: string }[] | null | undefined,
+): string[] {
+  return (fields ?? []).filter((f) => f.type === "file").map((f) => f.name);
+}
+
+/**
+ * A submission that brought files with it.
+ *
+ * Read straight from the request rather than through `readSubmission`, which
+ * decodes the body as text first: a PDF put through a text decoder comes out
+ * the other side as replacement characters and is no longer a PDF. Two paths,
+ * because the text one is the leash every other form is on and moving all of
+ * them onto this would raise the ceiling for forms that ask for nothing.
+ */
+async function readSubmissionWithFiles(req: Request): Promise<{
+  payload: Record<string, string>;
+  files: [string, File][];
+} | null> {
+  const declared = Number(req.headers.get("content-length") ?? "");
+  if (Number.isFinite(declared) && declared > MAX_UPLOAD_BODY_BYTES) {
+    return null;
+  }
+
+  const body = await req.formData().catch(() => null);
+  if (!body) return { payload: {}, files: [] };
+
+  const payload: Record<string, string> = {};
+  const files: [string, File][] = [];
+  let seen = 0;
+  for (const [key, entry] of body.entries()) {
+    if (seen >= MAX_SUBMISSION_FIELDS) break;
+    seen += 1;
+    // The ambient type of a form entry is a string; a multipart body also
+    // yields files, and the runtime is the authority on which this is.
+    const value = entry as unknown as string | File;
+    if (typeof value === "string") {
+      payload[key] = value;
+      continue;
+    }
+    // The name is shown; it is never a path, and never what the file is
+    // stored as.
+    payload[key] = displayFilename(value.name);
+    if (value.size > 0) files.push([key, value]);
+  }
+  return { payload, files };
+}
 
 /** Too many boxes to be a form somebody filled in. */
 const MAX_SUBMISSION_FIELDS = 100;

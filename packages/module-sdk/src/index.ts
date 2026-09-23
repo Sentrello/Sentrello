@@ -381,6 +381,7 @@ import { type ModuleSummary, addSummary } from "./summaries";
 import { type ModuleWidget, addWidget } from "./widgets";
 
 export * from "./attachments";
+export * from "./file-safety";
 export * from "./account";
 // Light or dark on every customer-facing page, one cookie across all of them.
 export * from "./customer-theme";

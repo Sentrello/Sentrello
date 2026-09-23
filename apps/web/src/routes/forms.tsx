@@ -466,6 +466,7 @@ function Submissions({
         submissions: {
           id: string;
           payload: Record<string, string>;
+          attachments?: { field: string; name: string; size: number }[];
           createdAt: string;
           contactId: string | null;
         }[];
@@ -525,6 +526,23 @@ function Submissions({
                       {v}
                     </div>
                   ))}
+                  {/* A plain link, like the export above it: the browser
+                      saves the file itself and a large one is never held in
+                      memory here. The file is handed back as a download with
+                      a neutral content type, whatever it claims to be. */}
+                  {sub.attachments?.length ? (
+                    <div className="mt-1 flex flex-wrap gap-2">
+                      {sub.attachments.map((file, at) => (
+                        <a
+                          key={`${file.field}-${file.name}`}
+                          className="link text-sm"
+                          href={`/api/forms/submissions/${sub.id}/files/${at}`}
+                        >
+                          {file.name} ({Math.ceil(file.size / 1024)}KB)
+                        </a>
+                      ))}
+                    </div>
+                  ) : null}
                   <div className="mt-0.5 text-xs" style={muted}>
                     {new Date(sub.createdAt).toLocaleString()}
                   </div>

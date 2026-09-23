@@ -2727,9 +2727,24 @@ export const forms = pgTable(
       .$type<string[]>()
       .notNull()
       .default([]),
+    // The whole field, not the half of it the first version shipped with:
+    // choices, half-width and the panel an answer opens have all been stored
+    // here for a while, and a type that omits them is a type that misleads
+    // whoever reads a form back.
     fields: jsonb("fields")
       .$type<
-        { name: string; label: string; type: string; required?: boolean }[]
+        {
+          name: string;
+          label: string;
+          type: string;
+          required?: boolean;
+          options?: string[];
+          half?: boolean;
+          info?: Record<
+            string,
+            { title?: string; body?: string; href?: string; hrefLabel?: string }
+          >;
+        }[]
       >()
       .notNull()
       .default([]),
@@ -2750,6 +2765,28 @@ export const formSubmissions = pgTable(
     contactId: uuid("contact_id"),
     quoteId: uuid("quote_id"),
     payload: jsonb("payload").$type<Record<string, string>>().notNull(),
+    /**
+     * What came with the message, when the form asked for a file.
+     *
+     * Beside the row rather than in a table of its own: a file on a
+     * submission has no life apart from it, is read through it, and is thrown
+     * away with it. `path` is where the module SDK put the bytes, relative to
+     * the uploads folder, and is never shown to anybody.
+     */
+    attachments: jsonb("attachments")
+      .$type<
+        {
+          field: string;
+          name: string;
+          path: string;
+          size: number;
+          type: string;
+          /** What checked it, so a file kept before a scanner existed says so. */
+          checkedBy: "shape" | "shape+scanner";
+        }[]
+      >()
+      .notNull()
+      .default([]),
     origin: text("origin"),
     userAgent: text("user_agent"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -2757,6 +2794,8 @@ export const formSubmissions = pgTable(
   (t) => [
     index("form_submissions_org_idx").on(t.organizationId),
     index("form_submissions_form_idx").on(t.formId),
+    // Retention sweeps read by age across every organization on the instance.
+    index("form_submissions_created_idx").on(t.createdAt),
   ],
 );
 

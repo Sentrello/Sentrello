@@ -1,0 +1,2 @@
+ALTER TABLE "form_submissions" ADD COLUMN "attachments" jsonb DEFAULT '[]'::jsonb NOT NULL;--> statement-breakpoint
+CREATE INDEX "form_submissions_created_idx" ON "form_submissions" USING btree ("created_at");
