@@ -1,3 +1,4 @@
+import { ChoiceOptionsInput } from "./choice-options";
 import type { CustomField } from "./crm-settings";
 import {
   Button,
@@ -234,18 +235,11 @@ export function CustomFieldEditor({
 
               {field.type === "select" ? (
                 <div className="sm:col-span-4">
-                  <Input
-                    value={(field.options ?? []).join(", ")}
-                    aria-label={`Choices for ${field.label}`}
+                  <ChoiceOptionsInput
+                    options={field.options ?? []}
+                    label={field.label}
                     placeholder="Key safe, Tenant lets us in"
-                    onChange={(e) =>
-                      set(index, {
-                        options: e.target.value
-                          .split(",")
-                          .map((o) => o.trim())
-                          .filter(Boolean),
-                      })
-                    }
+                    onChange={(options) => set(index, { options })}
                   />
                 </div>
               ) : null}

@@ -30,6 +30,26 @@ const SCRIPT = String.raw`(function () {
   if (!tag) return;
   var key = tag.getAttribute("data-sentrello-form");
   if (!key) return;
+
+  /*
+   * An answer the page already knows.
+   *
+   *   <script src=".../embed.js" data-sentrello-form="frm_x"
+   *           data-sentrello-role="Account Executive"></script>
+   *
+   * One form can then serve four job pages, or a quote form can sit on a
+   * product page knowing which product it is on, without a copy of the form
+   * per page for somebody to forget to update. The field is filled and made
+   * read-only: the visitor sees what they are answering for, and cannot
+   * quietly change it to something the page was not about.
+   *
+   * It is a convenience, never a control. Anything a page can set, anybody
+   * can post — so nothing downstream may treat these as trustworthy.
+   */
+  function given(name) {
+    if (!name || name === "form") return null;
+    return tag.getAttribute("data-sentrello-" + name);
+  }
   var base = new URL(tag.src, window.location.href).origin;
 
   function esc(s) {
@@ -121,6 +141,11 @@ const SCRIPT = String.raw`(function () {
         ".sentrello-form .sentrello-opt:has(input:checked){border-color:" + accent + ";box-shadow:inset 0 0 0 1px " + accent + "}" +
         ".sentrello-form .sentrello-opt:has(input:focus-visible){outline:2px solid " + accent + ";outline-offset:2px}" +
         ".sentrello-form .sentrello-opt input{width:auto;margin:0;padding:0;flex:none}" +
+        /* The panel an answer opens: a quiet block, not a second question. */
+        ".sentrello-form .sentrello-info{display:grid;gap:.35rem;margin:.55rem 0 .1rem;padding:.7rem .85rem;" +
+        "border:1px solid #e2e8f0;border-radius:" + radius + ";background:#f8fafc;font-size:.9375rem}" +
+        ".sentrello-form .sentrello-info[hidden]{display:none}" +
+        ".sentrello-form .sentrello-info a{color:" + accent + "}" +
         ".sentrello-credit{margin-top:1.25rem;font-size:.8125rem;opacity:.7}" +
         ".sentrello-hp{position:absolute!important;left:-9999px!important}";
       host.appendChild(css);
@@ -131,7 +156,7 @@ const SCRIPT = String.raw`(function () {
         // "date" is a native input type, so the visitor gets their own phone's
         // date picker rather than a script we would have to ship and keep
         // accessible. "select" is the one field that is not an input at all.
-        var type = ["email", "tel", "number", "url", "date", "textarea", "select", "radio"].indexOf(f.type) >= 0 ? f.type : "text";
+        var type = ["email", "tel", "number", "url", "date", "textarea", "select", "radio", "file"].indexOf(f.type) >= 0 ? f.type : "text";
         var control;
         if (type === "radio") {
           /*
@@ -154,20 +179,81 @@ const SCRIPT = String.raw`(function () {
               (f.required ? " required" : "") + ">" +
               "<span>" + esc(o) + "</span></label>";
           });
-          control = '<div class="sentrello-opts" role="radiogroup" aria-labelledby="' + id + '">' + opts + "</div>";
+          /*
+           * What the answer opens.
+           *
+           * The panel sits under the whole group rather than inside the
+           * option, because it is an answer to the choice and not part of
+           * it — and because two columns of options would otherwise reflow
+           * the moment somebody picked one. Only the chosen panel is shown,
+           * and the region is polite, so a screen reader hears the extra
+           * without being interrupted mid-question.
+           */
+          var panels = "";
+          var info = f.info || {};
+          (f.options || []).forEach(function (o) {
+            var d = info[o];
+            if (!d) return;
+            var link = "";
+            // The link is typed by the business, not the visitor, but a
+            // "javascript:" href would still run on somebody else's page.
+            if (d.href && /^https?:\/\//i.test(d.href)) {
+              link =
+                '<a href="' + esc(d.href) + '" rel="noopener noreferrer" target="_blank">' +
+                esc(d.hrefLabel || d.href) + "</a>";
+            }
+            panels +=
+              '<div class="sentrello-info" data-for="' + esc(o) + '" hidden>' +
+              (d.title ? "<strong>" + esc(d.title) + "</strong>" : "") +
+              (d.body ? "<span>" + esc(d.body) + "</span>" : "") +
+              (link ? "<span>" + link + "</span>" : "") +
+              "</div>";
+          });
+          control =
+            '<div class="sentrello-opts" role="radiogroup" aria-labelledby="' + id + '">' + opts + "</div>" +
+            (panels ? '<div class="sentrello-infos" aria-live="polite">' + panels + "</div>" : "");
         } else if (type === "textarea") {
           control = '<textarea id="' + id + '" name="' + esc(f.name) + '" rows="4"' + (f.required ? " required" : "") + "></textarea>";
         } else if (type === "select") {
           // A blank first option, and it carries the "required" refusal: a
           // dropdown that starts on a real answer is one the visitor submits
           // without reading, and the first option is never the honest default.
-          var options = '<option value="">' + (f.required ? "Choose one" : "\u2014") + "</option>";
+          var chosen = given(f.name);
+          var options = chosen
+            ? ""
+            : '<option value="">' + (f.required ? "Choose one" : "\u2014") + "</option>";
           (f.options || []).forEach(function (o) {
-            options += "<option>" + esc(o) + "</option>";
+            /*
+             * The value is written out, not left to the text.
+             *
+             * An <option> with no value submits its text content with
+             * whitespace collapsed, so "Key safe " and "Key  safe" both
+             * arrive as something the form does not offer \u2014 and the answer
+             * stops matching the choice it was picked from. The radios have
+             * always carried a value; this is the dropdown catching up.
+             */
+            options +=
+              '<option value="' + esc(o) + '"' +
+              (chosen === o ? " selected" : "") + ">" + esc(o) + "</option>";
           });
           control = '<select id="' + id + '" name="' + esc(f.name) + '"' + (f.required ? " required" : "") + ">" + options + "</select>";
+        } else if (type === "file") {
+          /*
+           * PDF only, said twice.
+           *
+           * The accept attribute is a convenience — it filters the picker and
+           * nothing more, and a determined visitor can still choose anything.
+           * The instance checks the bytes on arrival, which is the check that
+           * counts; this one is here so somebody is told before they wait for
+           * an upload rather than after.
+           */
+          control = '<input id="' + id + '" type="file" accept="application/pdf,.pdf" name="' + esc(f.name) + '"' + (f.required ? " required" : "") + ">";
         } else {
-          control = '<input id="' + id + '" type="' + type + '" name="' + esc(f.name) + '"' + (f.required ? " required" : "") + ">";
+          var told = given(f.name);
+          control =
+            '<input id="' + id + '" type="' + type + '" name="' + esc(f.name) + '"' +
+            (told ? ' value="' + esc(told) + '" readonly' : "") +
+            (f.required ? " required" : "") + ">";
         }
         /*
          * A radio group is labelled, not pointed at.
@@ -209,24 +295,56 @@ const SCRIPT = String.raw`(function () {
 
       var el = host.querySelector("form");
       var msg = host.querySelector(".sentrello-msg");
+      /*
+       * One listener for every choice panel on the form.
+       *
+       * Delegated rather than bound per option, so a form with thirty answers
+       * costs the same as one with two. The highlight on the chosen card is
+       * still pure CSS; only the panel needs to know which answer won.
+       */
+      el.addEventListener("change", function (e) {
+        var hit = e.target;
+        if (!hit || hit.type !== "radio") return;
+        var field = hit.closest(".sentrello-field");
+        if (!field) return;
+        var panels = field.querySelectorAll(".sentrello-info");
+        for (var i = 0; i < panels.length; i++) {
+          panels[i].hidden = panels[i].getAttribute("data-for") !== hit.value;
+        }
+      });
       el.addEventListener("submit", function (e) {
         e.preventDefault();
         var button = el.querySelector("button");
         button.disabled = true;
         msg.textContent = "Sending…";
 
-        fetch(base + "/api/embed/forms/" + encodeURIComponent(key), {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          credentials: "omit",
-          body: JSON.stringify(
+        /*
+         * JSON unless something is being carried.
+         *
+         * A file cannot be a string, so a form that has one goes up as the
+         * multipart body the browser already built \u2014 and the content-type
+         * header is left alone deliberately, because setting it by hand drops
+         * the boundary and the instance receives a body it cannot parse.
+         */
+        var data = new FormData(el);
+        var carrying = false;
+        data.forEach(function (v) {
+          if (typeof v !== "string" && v && v.size > 0) carrying = true;
+        });
+
+        var sending = { method: "POST", credentials: "omit", body: data };
+        if (!carrying) {
+          sending.headers = { "content-type": "application/json" };
+          sending.body = JSON.stringify(
             Array.prototype.reduce.call(
-              new FormData(el).entries(),
+              data.entries(),
               function (acc, pair) { acc[pair[0]] = pair[1]; return acc; },
               {},
             ),
-          ),
-        })
+          );
+        }
+
+        fetch(base + "/api/embed/forms/" + encodeURIComponent(key), sending)
           .then(function (r) {
             if (!r.ok) throw new Error("failed");
             return r.json().catch(function () { return {}; });

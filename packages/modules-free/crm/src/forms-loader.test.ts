@@ -46,7 +46,15 @@ test("field types are an allow-list, and anything else renders as text", () => {
 
   expect(allowed).toContain("date");
   expect(allowed).toContain("select");
-  for (const dangerous of ["password", "file", "hidden", "image", "button"]) {
+  /*
+   * "file" used to be on this line with the rest of them, and it was right to
+   * be: an upload from a public form is a stranger writing to the instance's
+   * disk. It is allowed now because it is checked now — one format, the bytes
+   * read on arrival, and a scanner when the instance has one. The others have
+   * no such story and stay out.
+   */
+  expect(allowed).toContain("file");
+  for (const dangerous of ["password", "hidden", "image", "button"]) {
     expect(allowed).not.toContain(dangerous);
   }
   // Everything not on the list becomes a plain text box rather than being
@@ -57,7 +65,7 @@ test("field types are an allow-list, and anything else renders as text", () => {
 test("a choice field renders a select whose options are escaped", () => {
   // The options are written by the business and rendered on somebody else's
   // page, exactly like a label, so they go through the same escaping.
-  expect(js).toContain('"<option>" + esc(o) + "</option>"');
+  expect(js).toContain("'<option value=\"' + esc(o) +");
   // A blank first option: a dropdown that starts on a real answer is one the
   // visitor submits without reading it.
   expect(js).toContain('<option value="">');
@@ -154,4 +162,28 @@ test("the submit button is its own width", () => {
   // A grid child fills its track. A Send button as wide as the form reads as
   // a banner rather than as a thing to press.
   expect(js).toContain("justify-self:start");
+});
+
+/**
+ * A file field asks for one format, and says so to the picker.
+ *
+ * The attribute filters nothing a determined visitor cannot get around — the
+ * instance reads the bytes on arrival and that is the check that counts. This
+ * is so somebody is told before they wait for an upload rather than after.
+ */
+test("an upload asks for a PDF", () => {
+  expect(js).toContain('type="file" accept="application/pdf,.pdf"');
+});
+
+/**
+ * A file cannot travel as JSON, and a multipart body cannot travel with a
+ * content-type set by hand: writing the header drops the boundary the browser
+ * generated, and the instance receives something it cannot parse.
+ */
+test("a form carrying a file posts the body the browser built", () => {
+  expect(js).toContain("var data = new FormData(el)");
+  expect(js).toContain("if (!carrying) {");
+  expect(js).toContain(
+    'sending.headers = { "content-type": "application/json" }',
+  );
 });

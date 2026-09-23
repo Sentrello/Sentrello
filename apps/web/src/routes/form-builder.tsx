@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "../lib/api";
+import { ChoiceOptionsInput } from "../lib/choice-options";
 import {
   Button,
   Card,
@@ -24,6 +25,13 @@ import {
  * would be more to build, more to break, and no easier to use for six fields.
  */
 
+export interface ChoiceInfo {
+  title?: string;
+  body?: string;
+  href?: string;
+  hrefLabel?: string;
+}
+
 export interface FormField {
   name: string;
   label: string;
@@ -31,6 +39,16 @@ export interface FormField {
   required?: boolean;
   /** The answers a choice field offers — dropdown or radio. Ignored by the rest. */
   options?: string[];
+  /**
+   * What a visitor is told once they have chosen, keyed by the answer.
+   *
+   * Only drawn for the all-shown kind, where the answers are on the page and
+   * the panel can sit under them. A visitor who picks "Get support" can be
+   * pointed at the documentation before they type a word, and the enquiry that
+   * never arrives is the cheapest one to answer. Every part is optional, so a
+   * form that wants plain radios keeps plain radios.
+   */
+  info?: Record<string, ChoiceInfo>;
   /**
    * Half a row, so two fields sit side by side.
    *
@@ -63,7 +81,52 @@ const TYPES = [
   // A native date input, so the visitor gets their own device's picker rather
   // than a script we would have to ship, style and keep accessible.
   { id: "date", label: "Date" },
+  /*
+   * A file, and only ever a PDF.
+   *
+   * One format because the checks are per-format: a PDF can be read for the
+   * things a document has no business doing, and "any file" cannot. A CV, a
+   * signed quote, a photograph somebody exported — all of them arrive as a
+   * PDF, and the ones that do not are better asked for by email than written
+   * unchecked to the instance's disk.
+   */
+  { id: "file", label: "File (PDF)" },
 ];
+
+/**
+ * The panels that still belong to an answer.
+ *
+ * Rename a choice and its panel has nothing to open under, so it goes. Keeping
+ * it would leave a form carrying text nobody can see and nobody can delete.
+ */
+export function kept(
+  info: Record<string, ChoiceInfo> | undefined,
+  options: string[],
+): Record<string, ChoiceInfo> | undefined {
+  if (!info) return undefined;
+  const next: Record<string, ChoiceInfo> = {};
+  for (const option of options) if (info[option]) next[option] = info[option];
+  return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/** One answer's panel, edited a part at a time, emptied back to nothing. */
+export function withInfo(
+  field: FormField,
+  option: string,
+  patch: ChoiceInfo,
+): FormField {
+  const merged: ChoiceInfo = { ...field.info?.[option], ...patch };
+  for (const key of Object.keys(merged) as (keyof ChoiceInfo)[]) {
+    if (!merged[key]?.trim()) delete merged[key];
+  }
+  const info = { ...field.info };
+  if (Object.keys(merged).length > 0) info[option] = merged;
+  else delete info[option];
+  return {
+    ...field,
+    info: Object.keys(info).length > 0 ? info : undefined,
+  };
+}
 
 /**
  * The name a submission is stored under, derived from the label.
@@ -194,28 +257,106 @@ export function FormBuilder({
                     is drawn, so the options are edited here rather than on a
                     second screen somebody has to know to open. */}
                 {f.type === "select" || f.type === "radio" ? (
-                  <Input
+                  <ChoiceOptionsInput
                     className="mt-1 text-xs"
-                    value={(f.options ?? []).join(", ")}
-                    placeholder="Sales, Support, Accounts"
-                    aria-label={`Choices for ${f.label}`}
-                    onChange={(e) =>
+                    options={f.options ?? []}
+                    label={f.label}
+                    onChange={(options) =>
                       setRows((r) =>
                         r.map((x, j) =>
                           i === j
-                            ? {
-                                ...x,
-                                options: e.target.value
-                                  .split(",")
-                                  .map((o) => o.trim())
-                                  .filter(Boolean),
-                              }
+                            ? { ...x, options, info: kept(x.info, options) }
                             : x,
                         ),
                       )
                     }
                   />
                 ) : null}
+                {/* The panel each answer opens, edited beside the answer it
+                    belongs to. Folded away by default: most forms want none
+                    of this, and a form that wants it wants it on one choice. */}
+                {f.type === "radio" && (f.options ?? []).length > 0
+                  ? (f.options ?? []).map((option) => (
+                      <details key={option} className="mt-1">
+                        <summary
+                          className="cursor-pointer text-xs"
+                          style={muted}
+                        >
+                          What “{option}” shows
+                        </summary>
+                        <div className="mt-1 grid gap-1 sm:grid-cols-2">
+                          <Input
+                            className="text-xs"
+                            value={f.info?.[option]?.title ?? ""}
+                            placeholder="What you get"
+                            aria-label={`Heading shown for ${option}`}
+                            onChange={(e) =>
+                              setRows((r) =>
+                                r.map((x, j) =>
+                                  i === j
+                                    ? withInfo(x, option, {
+                                        title: e.target.value,
+                                      })
+                                    : x,
+                                ),
+                              )
+                            }
+                          />
+                          <Input
+                            className="text-xs"
+                            value={f.info?.[option]?.body ?? ""}
+                            placeholder="A sentence the visitor reads before typing"
+                            aria-label={`Detail shown for ${option}`}
+                            onChange={(e) =>
+                              setRows((r) =>
+                                r.map((x, j) =>
+                                  i === j
+                                    ? withInfo(x, option, {
+                                        body: e.target.value,
+                                      })
+                                    : x,
+                                ),
+                              )
+                            }
+                          />
+                          <Input
+                            className="text-xs"
+                            value={f.info?.[option]?.href ?? ""}
+                            placeholder="https://… (optional link)"
+                            aria-label={`Link shown for ${option}`}
+                            onChange={(e) =>
+                              setRows((r) =>
+                                r.map((x, j) =>
+                                  i === j
+                                    ? withInfo(x, option, {
+                                        href: e.target.value,
+                                      })
+                                    : x,
+                                ),
+                              )
+                            }
+                          />
+                          <Input
+                            className="text-xs"
+                            value={f.info?.[option]?.hrefLabel ?? ""}
+                            placeholder="What the link says"
+                            aria-label={`Link text shown for ${option}`}
+                            onChange={(e) =>
+                              setRows((r) =>
+                                r.map((x, j) =>
+                                  i === j
+                                    ? withInfo(x, option, {
+                                        hrefLabel: e.target.value,
+                                      })
+                                    : x,
+                                ),
+                              )
+                            }
+                          />
+                        </div>
+                      </details>
+                    ))
+                  : null}
               </span>
               <span className="text-xs" style={muted}>
                 {TYPES.find((t) => t.id === f.type)?.label ?? f.type}
