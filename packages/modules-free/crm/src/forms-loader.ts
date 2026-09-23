@@ -64,12 +64,32 @@ const SCRIPT = String.raw`(function () {
       var css = document.createElement("style");
       css.textContent =
         ".sentrello-form{font:inherit;max-width:32rem}" +
-        ".sentrello-form label{display:block;margin:.6rem 0 .2rem;font-size:.875rem}" +
+        ".sentrello-form label,.sentrello-form .sentrello-group{display:block;margin:.6rem 0 .2rem;font-size:.875rem}" +
         ".sentrello-form input,.sentrello-form textarea,.sentrello-form select{width:100%;padding:.5rem;" +
         "border:1px solid #cbd5e1;border-radius:" + radius + ";font:inherit;box-sizing:border-box}" +
         ".sentrello-form button{margin-top:.8rem;padding:.55rem 1.1rem;border:0;cursor:pointer;" +
         "border-radius:" + radius + ";background:" + accent + ";color:#fff;font:inherit}" +
         ".sentrello-form .sentrello-msg{margin-top:.6rem;font-size:.9rem}" +
+        /*
+         * Radio options as cards, not as a bare column of dots.
+         *
+         * A radio group is the one control a visitor reads before choosing
+         * rather than after, so the whole option is the target: the label
+         * wraps the input, the box has a border, and it lights up when
+         * checked. The :has() selector does the highlight with no script,
+         * which is why this is a stylesheet rather than a listener.
+         *
+         * The grid collapses to one column under 24rem, which is narrower
+         * than most phones but exactly the width somebody embeds a form into
+         * a sidebar at.
+         */
+        ".sentrello-form .sentrello-opts{display:grid;gap:.5rem;grid-template-columns:1fr 1fr;margin:.2rem 0 .1rem}" +
+        "@media (max-width:24rem){.sentrello-form .sentrello-opts{grid-template-columns:1fr}}" +
+        ".sentrello-form .sentrello-opt{display:flex;align-items:center;gap:.5rem;margin:0;padding:.55rem .7rem;" +
+        "border:1px solid #cbd5e1;border-radius:" + radius + ";cursor:pointer;font-size:.9375rem}" +
+        ".sentrello-form .sentrello-opt:has(input:checked){border-color:" + accent + ";box-shadow:inset 0 0 0 1px " + accent + "}" +
+        ".sentrello-form .sentrello-opt:has(input:focus-visible){outline:2px solid " + accent + ";outline-offset:2px}" +
+        ".sentrello-form .sentrello-opt input{width:auto;margin:0;padding:0;flex:none}" +
         ".sentrello-credit{margin-top:1.25rem;font-size:.8125rem;opacity:.7}" +
         ".sentrello-hp{position:absolute!important;left:-9999px!important}";
       host.appendChild(css);
@@ -80,9 +100,31 @@ const SCRIPT = String.raw`(function () {
         // "date" is a native input type, so the visitor gets their own phone's
         // date picker rather than a script we would have to ship and keep
         // accessible. "select" is the one field that is not an input at all.
-        var type = ["email", "tel", "number", "url", "date", "textarea", "select"].indexOf(f.type) >= 0 ? f.type : "text";
+        var type = ["email", "tel", "number", "url", "date", "textarea", "select", "radio"].indexOf(f.type) >= 0 ? f.type : "text";
         var control;
-        if (type === "textarea") {
+        if (type === "radio") {
+          /*
+           * Every option visible at once, which is the whole reason to pick
+           * this over a dropdown: a visitor who can see the four answers
+           * picks the right one, and a visitor who has to open a menu picks
+           * the first.
+           *
+           * Nothing is checked to begin with. A radio group with a default
+           * is a question the visitor never answers — they submit whatever
+           * was already selected — and on a form that routes an enquiry,
+           * that is the answer being wrong quietly.
+           */
+          var opts = "";
+          (f.options || []).forEach(function (o, i) {
+            var oid = id + "-" + i;
+            opts +=
+              '<label class="sentrello-opt" for="' + oid + '">' +
+              '<input type="radio" id="' + oid + '" name="' + esc(f.name) + '" value="' + esc(o) + '"' +
+              (f.required ? " required" : "") + ">" +
+              "<span>" + esc(o) + "</span></label>";
+          });
+          control = '<div class="sentrello-opts" role="radiogroup" aria-labelledby="' + id + '">' + opts + "</div>";
+        } else if (type === "textarea") {
           control = '<textarea id="' + id + '" name="' + esc(f.name) + '" rows="4"' + (f.required ? " required" : "") + "></textarea>";
         } else if (type === "select") {
           // A blank first option, and it carries the "required" refusal: a
@@ -96,9 +138,22 @@ const SCRIPT = String.raw`(function () {
         } else {
           control = '<input id="' + id + '" type="' + type + '" name="' + esc(f.name) + '"' + (f.required ? " required" : "") + ">";
         }
+        /*
+         * A radio group is labelled, not pointed at.
+         *
+         * A "label for" names one control, and a group of four radios has
+         * no single one to name — the browser would tie the question to the
+         * first option, and a screen reader would read "What brings you here?
+         * Talk to us" as one answer. So the group gets a plain element with
+         * an id, and aria-labelledby on the radiogroup points back at it.
+         */
         html +=
-          '<label for="' + id + '">' + esc(f.label || f.name) +
-          (f.required ? " *" : "") + "</label>" + control;
+          (type === "radio"
+            ? '<span class="sentrello-group" id="' + id + '">'
+            : '<label for="' + id + '">') +
+          esc(f.label || f.name) + (f.required ? " *" : "") +
+          (type === "radio" ? "</span>" : "</label>") +
+          control;
       });
       // The honeypot the server already checks. Hidden off-screen rather than
       // display:none, which some bots know to skip.

@@ -29,7 +29,7 @@ export interface FormField {
   label: string;
   type: string;
   required?: boolean;
-  /** The answers a "choice" field offers. Ignored by every other type. */
+  /** The answers a choice field offers — dropdown or radio. Ignored by the rest. */
   options?: string[];
 }
 
@@ -40,7 +40,18 @@ const TYPES = [
   { id: "textarea", label: "Long text" },
   { id: "number", label: "Number" },
   { id: "url", label: "Web address" },
-  { id: "select", label: "Choice" },
+  { id: "select", label: "Choice (dropdown)" },
+  /*
+   * The same data as a dropdown, shown all at once.
+   *
+   * Worth being a separate type rather than a display flag, because the
+   * choice between them is a real one and it belongs to whoever builds the
+   * form. Four options a visitor should read before answering want radios; a
+   * list of thirty countries wants a dropdown. Asked for by James on
+   * 22 September for the contact form, where the answer routes the enquiry
+   * and picking the first one by accident sends it to the wrong place.
+   */
+  { id: "radio", label: "Choice (all shown)" },
   // A native date input, so the visitor gets their own device's picker rather
   // than a script we would have to ship, style and keep accessible.
   { id: "date", label: "Date" },
@@ -171,10 +182,10 @@ export function FormBuilder({
             >
               <span className="flex-1">
                 {f.label}
-                {/* A choice with no answers is a dropdown offering nothing, so
-                    the options are edited here rather than on a second screen
-                    somebody has to know to open. */}
-                {f.type === "select" ? (
+                {/* A choice with no answers offers nothing, whichever way it
+                    is drawn, so the options are edited here rather than on a
+                    second screen somebody has to know to open. */}
+                {f.type === "select" || f.type === "radio" ? (
                   <Input
                     className="mt-1 text-xs"
                     value={(f.options ?? []).join(", ")}
