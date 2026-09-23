@@ -11,6 +11,7 @@ import {
   Input,
   Loading,
   Row,
+  RowMenu,
   Select,
   Table,
   muted,
@@ -218,55 +219,65 @@ function FormActions({
   onEmbed: () => void;
   onDeleted: () => void;
 }) {
-  const [open, setOpen] = useState(false);
   /** Asked twice: the submissions go with it. */
   const [confirming, setConfirming] = useState(false);
 
   const remove = useMutation({
     mutationFn: () => api(`/api/forms/${form.id}`, { method: "DELETE" }),
-    onSuccess: () => {
-      setOpen(false);
-      onDeleted();
-    },
+    onSuccess: () => onDeleted(),
   });
 
   return (
-    <span className="relative inline-block">
-      <button
-        type="button"
-        className="link-muted px-1"
-        aria-label={`More for ${form.name}`}
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-      >
-        <Icon name="more-horizontal" size={16} />
-      </button>
-      {open ? (
-        <span className="menu-panel z-10" onMouseLeave={() => setOpen(false)}>
-          <button type="button" className="menu-item" onClick={onEdit}>
-            Edit questions
-          </button>
-          <button type="button" className="menu-item" onClick={onSites}>
-            Allowed sites
-          </button>
-          <button type="button" className="menu-item" onClick={onEmbed}>
-            Embed code
-          </button>
-          <button
-            type="button"
-            className="menu-item"
-            style={{ color: "var(--text-danger)" }}
-            onClick={() => {
-              if (confirming) remove.mutate();
-              else setConfirming(true);
-            }}
-          >
-            {confirming ? "Really delete it?" : "Delete"}
-          </button>
-        </span>
-      ) : null}
+    <>
+      <RowMenu label={form.name}>
+        {(close) => (
+          <>
+            <button
+              type="button"
+              className="menu-item"
+              onClick={() => {
+                close();
+                onEdit();
+              }}
+            >
+              Edit questions
+            </button>
+            <button
+              type="button"
+              className="menu-item"
+              onClick={() => {
+                close();
+                onSites();
+              }}
+            >
+              Allowed sites
+            </button>
+            <button
+              type="button"
+              className="menu-item"
+              onClick={() => {
+                close();
+                onEmbed();
+              }}
+            >
+              Embed code
+            </button>
+            <button
+              type="button"
+              className="menu-item"
+              style={{ color: "var(--text-danger)" }}
+              onClick={() => {
+                if (confirming) remove.mutate();
+                else setConfirming(true);
+              }}
+            >
+              {confirming ? "Really delete it?" : "Delete"}
+            </button>
+          </>
+        )}
+      </RowMenu>
       {remove.error ? <ErrorNote error={remove.error} /> : null}
-    </span>
+    </>
   );
 }
 

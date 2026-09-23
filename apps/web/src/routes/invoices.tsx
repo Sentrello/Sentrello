@@ -20,6 +20,7 @@ import {
   ErrorNote,
   Loading,
   Row,
+  RowMenu,
   Select,
   Table,
   Tabs,
@@ -585,92 +586,85 @@ function InvoiceActions({
   const credited = invoice.creditedCents > 0;
 
   return (
-    <span className="relative inline-block">
-      <button
-        type="button"
-        className="link-muted px-1"
-        aria-label={`More for ${invoice.number}`}
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-      >
-        <Icon name="more-horizontal" size={16} />
-      </button>
-      {open ? (
-        <span className="menu-panel z-10" onMouseLeave={() => setOpen(false)}>
-          {/* Out of the bin. Deleting is soft, and a list that can show the
+    <>
+      <RowMenu label={invoice.number} open={open} onOpenChange={setOpen}>
+        {() => (
+          <>
+            {/* Out of the bin. Deleting is soft, and a list that can show the
               deleted ones but not bring one back is a bin with no lid off. */}
-          {invoice.deletedAt ? (
-            <button
-              type="button"
-              className="menu-item"
-              onClick={() => act.mutate("restore")}
-              disabled={act.isPending}
-            >
-              Restore
-            </button>
-          ) : null}
-
-          {isDraft && !invoice.deletedAt ? (
-            <>
-              <button type="button" className="menu-item" onClick={onEdit}>
-                Edit
-              </button>
+            {invoice.deletedAt ? (
               <button
                 type="button"
                 className="menu-item"
-                onClick={() => act.mutate("issue")}
+                onClick={() => act.mutate("restore")}
                 disabled={act.isPending}
               >
-                Issue it
+                Restore
               </button>
-            </>
-          ) : null}
+            ) : null}
 
-          <button
-            type="button"
-            className="menu-item"
-            onClick={() => share.mutate()}
-            disabled={share.isPending}
-          >
-            {copied ? "Link copied" : "Copy a link to send"}
-          </button>
+            {isDraft && !invoice.deletedAt ? (
+              <>
+                <button type="button" className="menu-item" onClick={onEdit}>
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  className="menu-item"
+                  onClick={() => act.mutate("issue")}
+                  disabled={act.isPending}
+                >
+                  Issue it
+                </button>
+              </>
+            ) : null}
 
-          <button
-            type="button"
-            className="menu-item"
-            onClick={() => act.mutate("duplicate")}
-            disabled={act.isPending}
-          >
-            Duplicate
-          </button>
-
-          {!isVoid && !paid && !credited ? (
             <button
               type="button"
               className="menu-item"
-              style={{ color: "var(--text-danger)" }}
-              onClick={() => act.mutate("void")}
+              onClick={() => share.mutate()}
+              disabled={share.isPending}
+            >
+              {copied ? "Link copied" : "Copy a link to send"}
+            </button>
+
+            <button
+              type="button"
+              className="menu-item"
+              onClick={() => act.mutate("duplicate")}
               disabled={act.isPending}
             >
-              Void it
+              Duplicate
             </button>
-          ) : null}
 
-          {/* Money has moved, so voiding would lose it. This is what a
+            {!isVoid && !paid && !credited ? (
+              <button
+                type="button"
+                className="menu-item"
+                style={{ color: "var(--text-danger)" }}
+                onClick={() => act.mutate("void")}
+                disabled={act.isPending}
+              >
+                Void it
+              </button>
+            ) : null}
+
+            {/* Money has moved, so voiding would lose it. This is what a
               business does instead. */}
-          {paid && invoice.kind !== "credit_note" ? (
-            <button
-              type="button"
-              className="menu-item"
-              onClick={() => act.mutate("credit")}
-              disabled={act.isPending}
-            >
-              Raise a credit note
-            </button>
-          ) : null}
-        </span>
-      ) : null}
+            {paid && invoice.kind !== "credit_note" ? (
+              <button
+                type="button"
+                className="menu-item"
+                onClick={() => act.mutate("credit")}
+                disabled={act.isPending}
+              >
+                Raise a credit note
+              </button>
+            ) : null}
+          </>
+        )}
+      </RowMenu>
       {act.error ? <ErrorNote error={act.error} /> : null}
-    </span>
+    </>
   );
 }

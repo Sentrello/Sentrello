@@ -21,6 +21,7 @@ import {
   Input,
   Loading,
   Row,
+  RowMenu,
   Table,
   Tabs,
   border,
@@ -648,126 +649,119 @@ function QuoteActions({
   const converted = Boolean(quote.convertedInvoiceId);
 
   return (
-    <span className="relative inline-block">
-      <button
-        type="button"
-        className="link-muted px-1"
-        aria-label={`More for ${quote.number}`}
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-      >
-        <Icon name="more-horizontal" size={16} />
-      </button>
-      {open ? (
-        <span className="menu-panel z-10" onMouseLeave={() => setOpen(false)}>
-          {/* Editable until it has become an invoice — the server refuses
+    <>
+      <RowMenu label={quote.number} open={open} onOpenChange={setOpen}>
+        {() => (
+          <>
+            {/* Editable until it has become an invoice — the server refuses
               after that, because the invoice's lines came from these and it is
               the one that posted to the ledger. A sent quote is still
               editable: revising and re-sending is what negotiation is. */}
-          {!quote.convertedInvoiceId ? (
-            <button
-              type="button"
-              className="menu-item"
-              onClick={() => {
-                setOpen(false);
-                onEdit();
-              }}
-            >
-              Edit
-            </button>
-          ) : null}
-
-          {quote.status === "draft" ? (
-            <button
-              type="button"
-              className="menu-item"
-              onClick={() => send.mutate()}
-              disabled={send.isPending}
-            >
-              Send it
-            </button>
-          ) : null}
-
-          <button
-            type="button"
-            className="menu-item"
-            onClick={() => share.mutate()}
-            disabled={share.isPending}
-          >
-            {copied ? "Link copied" : "Copy a link to send"}
-          </button>
-
-          {/*
-            Taking it back offline. A quote could be published to a link
-            anybody holding it can open, and never withdrawn — which matters
-            more here than on an invoice: a price offered and thought better of
-            stays readable for as long as somebody keeps the link.
-          */}
-          {quote.published ? (
-            <button
-              type="button"
-              className="menu-item"
-              onClick={() => unshare.mutate()}
-              disabled={unshare.isPending}
-            >
-              Stop sharing
-            </button>
-          ) : null}
-
-          {/* Once, and only once. A second conversion is a second bill for
-              the same work. */}
-          {converted ? (
-            <span className="menu-item" style={muted}>
-              Already invoiced
-            </span>
-          ) : (
-            <>
-              <button
-                type="button"
-                className="menu-item"
-                onClick={() => convert.mutate()}
-                disabled={convert.isPending}
-              >
-                Turn into an invoice
-              </button>
-              {/* Or into the schedule that was agreed with it. */}
+            {!quote.convertedInvoiceId ? (
               <button
                 type="button"
                 className="menu-item"
                 onClick={() => {
                   setOpen(false);
-                  onSplit();
+                  onEdit();
                 }}
               >
-                Split into instalments
+                Edit
               </button>
-            </>
-          )}
+            ) : null}
 
-          {quote.deletedAt ? (
+            {quote.status === "draft" ? (
+              <button
+                type="button"
+                className="menu-item"
+                onClick={() => send.mutate()}
+                disabled={send.isPending}
+              >
+                Send it
+              </button>
+            ) : null}
+
             <button
               type="button"
               className="menu-item"
-              onClick={() => restore.mutate()}
-              disabled={restore.isPending}
+              onClick={() => share.mutate()}
+              disabled={share.isPending}
             >
-              Restore
+              {copied ? "Link copied" : "Copy a link to send"}
             </button>
-          ) : (
-            <button
-              type="button"
-              className="menu-item"
-              style={{ color: "var(--text-danger)" }}
-              onClick={() => remove.mutate()}
-              disabled={remove.isPending}
-            >
-              Delete
-            </button>
-          )}
-        </span>
-      ) : null}
+
+            {/*
+            Taking it back offline. A quote could be published to a link
+            anybody holding it can open, and never withdrawn — which matters
+            more here than on an invoice: a price offered and thought better of
+            stays readable for as long as somebody keeps the link.
+          */}
+            {quote.published ? (
+              <button
+                type="button"
+                className="menu-item"
+                onClick={() => unshare.mutate()}
+                disabled={unshare.isPending}
+              >
+                Stop sharing
+              </button>
+            ) : null}
+
+            {/* Once, and only once. A second conversion is a second bill for
+              the same work. */}
+            {converted ? (
+              <span className="menu-item" style={muted}>
+                Already invoiced
+              </span>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="menu-item"
+                  onClick={() => convert.mutate()}
+                  disabled={convert.isPending}
+                >
+                  Turn into an invoice
+                </button>
+                {/* Or into the schedule that was agreed with it. */}
+                <button
+                  type="button"
+                  className="menu-item"
+                  onClick={() => {
+                    setOpen(false);
+                    onSplit();
+                  }}
+                >
+                  Split into instalments
+                </button>
+              </>
+            )}
+
+            {quote.deletedAt ? (
+              <button
+                type="button"
+                className="menu-item"
+                onClick={() => restore.mutate()}
+                disabled={restore.isPending}
+              >
+                Restore
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="menu-item"
+                style={{ color: "var(--text-danger)" }}
+                onClick={() => remove.mutate()}
+                disabled={remove.isPending}
+              >
+                Delete
+              </button>
+            )}
+          </>
+        )}
+      </RowMenu>
       {convert.error ? <ErrorNote error={convert.error} /> : null}
       {send.error ? <ErrorNote error={send.error} /> : null}
-    </span>
+    </>
   );
 }

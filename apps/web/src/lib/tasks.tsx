@@ -11,7 +11,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 import { api } from "./api";
 import { Icon } from "./icons";
-import { Button, Dialog, Field, Input, Select, muted } from "./ui";
+import { Button, Dialog, Field, Input, RowMenu, Select, muted } from "./ui";
 
 export interface Task {
   id: string;
@@ -129,58 +129,32 @@ function TaskMenu({
   onEdit: () => void;
   onDelete: () => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const act = (fn: () => void) => () => {
-    setOpen(false);
-    fn();
-  };
-
   return (
-    <span className="relative shrink-0">
-      <button
-        type="button"
-        className="link-muted px-1"
-        aria-label="Task actions"
-        aria-expanded={open}
-        onClick={() => setOpen((was) => !was)}
-      >
-        <Icon name="more-horizontal" size={16} />
-      </button>
-      {open ? (
+    <RowMenu label="this task">
+      {(close) => (
         <>
-          {/*
-            Catches the click that dismisses the menu. Without it the menu
-            stays open behind whatever gets clicked next, which on a list of
-            eight tasks means eight menus open at once.
-          */}
-          <button
-            type="button"
-            aria-hidden="true"
-            tabIndex={-1}
-            className="fixed inset-0 z-10 cursor-default"
-            onClick={() => setOpen(false)}
-          />
-          <span className="menu-panel z-20">
-            {[
-              ["Postpone to tomorrow", act(() => onPostpone("day")), false],
-              ["Postpone to next week", act(() => onPostpone("week")), false],
-              ["Edit", act(onEdit), false],
-              ["Delete", act(onDelete), true],
-            ].map(([label, onClick, danger]) => (
-              <button
-                key={label as string}
-                type="button"
-                className="menu-item"
-                style={danger ? { color: "var(--text-danger)" } : undefined}
-                onClick={onClick as () => void}
-              >
-                {label as string}
-              </button>
-            ))}
-          </span>
+          {[
+            ["Postpone to tomorrow", () => onPostpone("day"), false],
+            ["Postpone to next week", () => onPostpone("week"), false],
+            ["Edit", onEdit, false],
+            ["Delete", onDelete, true],
+          ].map(([label, onClick, danger]) => (
+            <button
+              key={label as string}
+              type="button"
+              className="menu-item"
+              style={danger ? { color: "var(--text-danger)" } : undefined}
+              onClick={() => {
+                close();
+                (onClick as () => void)();
+              }}
+            >
+              {label as string}
+            </button>
+          ))}
         </>
-      ) : null}
-    </span>
+      )}
+    </RowMenu>
   );
 }
 

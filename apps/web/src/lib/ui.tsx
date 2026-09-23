@@ -6,7 +6,16 @@
  * the design tokens in index.css, so light and dark come free and the app can
  * be rethemed from one file.
  */
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
+import { createPortal } from "react-dom";
+import { Icon } from "./icons";
 
 export const border = { borderColor: "var(--border)" };
 export const muted = { color: "var(--text-muted)" };
@@ -841,3 +850,156 @@ export {
   CustomFields,
   CustomValues,
 } from "./custom-fields";
+
+/**
+ * A row's "…" menu, drawn where nothing can clip it.
+ *
+ * ## The bug this exists to kill
+ *
+ * James, 22 September: *"There is a UI issue when clicking the 3 dots to add
+ * questions and other options."* On the CRM's forms list, and on three other
+ * screens with the same control, for one reason that has nothing to do with
+ * any of them.
+ *
+ * `Table` above wraps every table in `<div className="overflow-x-auto">`, so
+ * a narrow screen scrolls sideways instead of bursting the layout. That is
+ * right, and it is also a clipping context — and CSS says a box that is not
+ * `visible` on one axis cannot stay `visible` on the other, so `overflow-x:
+ * auto` quietly makes the vertical axis `auto` too. An absolutely-positioned
+ * panel hanging off the last row is therefore cut off at the table's bottom
+ * edge, and a menu on the right-hand column is cut off sideways as well.
+ *
+ * Every fix that stays inside the table is worse than the bug. Turning
+ * overflow off loses the horizontal scroll that narrow screens need; raising
+ * the z-index does nothing, because clipping is not a stacking question and
+ * no z-index has ever escaped an `overflow: hidden`.
+ *
+ * So the panel is not in the table. It is portalled to `document.body` and
+ * positioned `fixed` against the trigger's own rectangle, which puts it
+ * outside every ancestor that could clip it, on any screen, for good.
+ *
+ * ## Why it closes on scroll
+ *
+ * A fixed panel measured once does not follow the thing it belongs to. It
+ * could be re-measured on every scroll frame; closing is less code and is
+ * what the platform's own menus do. Somebody who scrolls has moved on.
+ *
+ * ## Flipping
+ *
+ * A menu on the last row of a long table has no room beneath it, which is
+ * exactly where this was first noticed. If the space below is too small it
+ * opens upward instead, and the measurement is against the viewport rather
+ * than the table, because the viewport is now what constrains it.
+ */
+export function RowMenu({
+  label,
+  children,
+  open: controlled,
+  onOpenChange,
+}: {
+  /** For the trigger's accessible name: "More for Contact us". */
+  label: string;
+  /** Given a `close` to call, so an item can act and dismiss in one handler. */
+  children: (close: () => void) => ReactNode;
+  /**
+   * Optional, for a menu whose owner also closes it from somewhere the render
+   * prop cannot reach — a mutation's `onSuccess`, which is where invoices and
+   * quotes dismiss theirs after the server has agreed. Pass both or neither.
+   */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
+  const [uncontrolled, setUncontrolled] = useState(false);
+  const open = controlled ?? uncontrolled;
+  const setOpen = useCallback(
+    (next: boolean) => {
+      setUncontrolled(next);
+      onOpenChange?.(next);
+    },
+    [onOpenChange],
+  );
+  const [at, setAt] = useState<{ top: number; right: number } | null>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+
+  const close = useCallback(() => setOpen(false), [setOpen]);
+
+  // Measure after paint, so the panel's own height is known and the decision
+  // to flip is made against a real number rather than an estimate.
+  useLayoutEffect(() => {
+    if (!open || !trigger.current) return;
+    const button = trigger.current.getBoundingClientRect();
+    const height = panel.current?.offsetHeight ?? 0;
+    const below = window.innerHeight - button.bottom;
+    const flip = height > 0 && below < height + 8 && button.top > below;
+    setAt({
+      top: flip ? button.top - height - 6 : button.bottom + 6,
+      right: window.innerWidth - button.right,
+    });
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        close();
+        trigger.current?.focus();
+      }
+    };
+    const onDown = (e: PointerEvent) => {
+      const target = e.target as Node;
+      if (panel.current?.contains(target)) return;
+      if (trigger.current?.contains(target)) return;
+      close();
+    };
+    // Capture, because a scroller between here and the window may stop the
+    // event bubbling — and the table this sits in is one.
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onDown, true);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onDown, true);
+    };
+  }, [open, close]);
+
+  return (
+    <>
+      <button
+        ref={trigger}
+        type="button"
+        className="link-muted px-1"
+        aria-label={`More for ${label}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        <Icon name="more-horizontal" size={16} />
+      </button>
+      {open && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              ref={panel}
+              className="menu-panel"
+              role="menu"
+              style={{
+                position: "fixed",
+                // Until the first measurement lands the panel is placed off
+                // screen rather than at 0,0 — one frame in the top-left
+                // corner is a flicker somebody notices every single time.
+                top: at ? at.top : -9999,
+                right: at ? at.right : 0,
+                zIndex: 60,
+              }}
+            >
+              {children(close)}
+            </div>,
+            document.body,
+          )
+        : null}
+    </>
+  );
+}

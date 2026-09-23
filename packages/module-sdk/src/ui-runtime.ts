@@ -68,6 +68,21 @@ export interface SentrelloUi {
     children: React.ReactNode;
   }>;
   Row: React.ComponentType<{ children: React.ReactNode }>;
+  /**
+   * A row's "…" menu, drawn outside every ancestor that could clip it.
+   *
+   * Promised to modules because every module with a list needs one, and a
+   * module that rolls its own gets the bug this one exists to fix: `Table`
+   * scrolls sideways on narrow screens, which makes it a clipping context on
+   * both axes, and an absolutely-positioned panel on the last row is cut off
+   * at the table's edge.
+   */
+  RowMenu: React.ComponentType<{
+    label: string;
+    children: (close: () => void) => React.ReactNode;
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
+  }>;
   Tabs: React.ComponentType<{
     tabs: { id: string; label: string; badge?: React.ReactNode }[];
     active: string;
@@ -152,6 +167,7 @@ export const UI_MEMBERS = [
   "ConfirmButton",
   "Table",
   "Row",
+  "RowMenu",
   "Tabs",
   "Empty",
   "Loading",
