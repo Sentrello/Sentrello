@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { afterEach, expect, test } from "bun:test";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,6 +7,25 @@ import {
   discoverOptionalModules,
   failedBundles,
 } from "./optional-modules";
+
+/**
+ * Put `failedBundles` back the way it was found.
+ *
+ * It is a module-level array — one per process, shared by everything in it —
+ * and these tests deliberately push to it. `boot.test.ts` then asks /healthz
+ * for `modules_failed` and expects nothing, so whether that passes depended
+ * on which file bun happened to run first.
+ *
+ * It failed in CI the day a new test file was added elsewhere in this
+ * directory and changed the ordering. Nothing about either test was wrong;
+ * the leak had been there the whole time, waiting for an alphabet.
+ *
+ * Truncated rather than reassigned, because the export is a `const` binding
+ * and every other module in the process is holding the same array.
+ */
+afterEach(() => {
+  failedBundles.length = 0;
+});
 
 /**
  * A module a customer just bought turns up without anybody editing this repo.
