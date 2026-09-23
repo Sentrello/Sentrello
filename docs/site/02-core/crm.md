@@ -15,6 +15,32 @@ Tags are yours to invent. The two above — a support plan, and who has come
 back — are the kind that earn their place: both answer a question somebody
 asks on the phone.
 
+The records, and the two things every other module reaches for.
+
+```mermaid
+flowchart LR
+  classDef screen fill:#eef4ff,stroke:#3b6fd4,color:#16305e
+  classDef own fill:#eefaf1,stroke:#219653,color:#10442a
+  classDef out fill:#f4f0fb,stroke:#6b47c4,color:#31205e
+  classDef pub fill:#fff4ec,stroke:#c4470f,color:#5a2207
+  subgraph OWN[" CRM "]
+    CO["Companies<br/><small>the account</small>"]:::own
+    CT["Contacts<br/><small>the person</small>"]:::own
+    DL["Deals"]:::own
+    TK["Tasks and activities"]:::own
+  end
+  FORM(["Forms on your website"]):::pub
+  Q["Quotes and invoices<br/><small>Invoicing</small>"]:::out
+  MOD["Booking · Shop · Links · Subscriptions"]:::out
+
+  FORM --> CT
+  CO --- CT
+  CT --> DL --> Q
+  DL --> TK
+  MOD -->|"every one of them wants a contact"| CT
+  style OWN fill:#fbfdfc,stroke:#cfe4d8,color:#10442a
+```
+
 ## Contacts and companies
 
 A **contact** is a person. A **company** is an organisation, and contacts

@@ -24,7 +24,25 @@ nothing leaving the instance.
 ## The licence check
 
 
-![The licence check: an hourly request carrying only a key and an instance id, verified offline against a public key in the repository, valid for 72 hours, falling back to the free tier rather than locking](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/licence-check.png)
+```mermaid
+flowchart LR
+  classDef screen fill:#eef4ff,stroke:#3b6fd4,color:#16305e
+  classDef own fill:#eefaf1,stroke:#219653,color:#10442a
+  classDef out fill:#f4f0fb,stroke:#6b47c4,color:#31205e
+  classDef gate fill:#fdeaea,stroke:#c0392b,color:#6b1a12
+  classDef aside fill:#f7f7f8,stroke:#9aa3ad,color:#444c55
+  INST["Your instance"]:::screen
+  REQ["Once an hour<br/><small>two fields: a licence key and an instance id</small>"]:::aside
+  CP["sentrello.com"]:::out
+  TOK["A signed token<br/><small>Ed25519</small>"]:::out
+  VER["Verified here<br/><small>against a public key in the repository</small>"]:::own
+  OK["Runs, for 72 hours<br/><small>no network needed in between</small>"]:::own
+  FREE["Falls back to Free<br/><small>never locks, never crashes</small>"]:::gate
+
+  INST --> REQ --> CP --> TOK --> VER
+  VER -->|"valid"| OK
+  VER -->|"missing, expired or wrong"| FREE
+```
 
 | | |
 |---|---|

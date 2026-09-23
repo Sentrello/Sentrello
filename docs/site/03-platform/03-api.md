@@ -17,6 +17,43 @@ is no Redis to operate.
 
 ## How a route is guarded
 
+Every path under `/api/` meets the same two gates, in the same order. The
+module decides what the route does; the host decides whether it exists and
+whether you may call it.
+
+```mermaid
+flowchart LR
+  classDef url fill:#eef4ff,stroke:#3b6fd4,color:#16305e
+  classDef gate fill:#fdeaea,stroke:#c0392b,color:#6b1a12
+  classDef leaf fill:#eefaf1,stroke:#219653,color:#10442a
+
+  ROOT(["https://yours.example/"]):::url
+  API(["/api/"]):::url
+  META(["/api/_meta"]):::url
+  AUTHP(["/api/auth/*"]):::url
+  MOD(["/api/&lt;module&gt;/*"]):::url
+  EMBED(["/api/embed/*"]):::url
+
+  ENT{{"entitled?"}}:::gate
+  PERM{{"requirePermission?"}}:::gate
+
+  NAV["What this person may see"]:::leaf
+  SESSION["Sign in, sessions, two-factor"]:::leaf
+  WORK["The module's own routes"]:::leaf
+  PUBLIC["Public, and deliberately so<br/>forms and storefronts, no session"]:::leaf
+
+  ROOT --> API
+  API --> META --> NAV
+  API --> AUTHP --> SESSION
+  API --> MOD --> ENT --> PERM --> WORK
+  API --> EMBED --> PUBLIC
+```
+
+`/api/embed/` is the one branch that skips both gates, and it is meant to: an
+embedded form on somebody's public website has no session to check and no
+permission to hold. It is scoped by the form's own key and its allow-list
+instead.
+
 A request passes a session check and a permission check before any handler
 runs. Every query is scoped to an organisation at the data layer, rather than
 left to each page to remember.

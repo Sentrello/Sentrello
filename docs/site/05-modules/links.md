@@ -11,6 +11,30 @@ A shortener counts clicks. This one follows a person from the click through to
 signing up and buying, so when you ask whether that campaign was worth running,
 the answer comes back in money rather than traffic.
 
+One short link, and everything it is joined to.
+
+```mermaid
+flowchart LR
+  classDef screen fill:#eef4ff,stroke:#3b6fd4,color:#16305e
+  classDef own fill:#eefaf1,stroke:#219653,color:#10442a
+  classDef out fill:#f4f0fb,stroke:#6b47c4,color:#31205e
+  classDef pub fill:#fff4ec,stroke:#c4470f,color:#5a2207
+  subgraph OWN[" Links "]
+    LK["Links"]:::own
+    QR["QR codes"]:::own
+    WH["Webhooks"]:::own
+  end
+  DOM(["Your own short domain"]):::pub
+  CLICK["Clicks<br/><small>and what is kept about them</small>"]:::own
+  CRM["Contacts and invoices"]:::out
+
+  LK --> DOM --> CLICK
+  QR --> DOM
+  CLICK --> WH
+  CLICK --> CRM
+  style OWN fill:#fbfdfc,stroke:#cfe4d8,color:#10442a
+```
+
 ## Your own domain
 
 Two things make a short link worth having: it is short, and it carries your own
@@ -57,6 +81,25 @@ report does not change underneath you.
   redirect, and the screen says that too
 
 ## Following people past the click
+
+```mermaid
+flowchart LR
+  classDef url fill:#eef4ff,stroke:#3b6fd4,color:#16305e
+  classDef step fill:#fff4ec,stroke:#c4470f,color:#5a2207
+  classDef end2 fill:#eefaf1,stroke:#219653,color:#10442a
+
+  S(["go.yours.example/spring"]):::url
+  R["Redirect<br/><small>and the click is recorded</small>"]:::step
+  D(["yours.example/offer"]):::url
+  F["A form is filled in"]:::step
+  C["A contact in the CRM<br/><small>carrying the link that made it</small>"]:::end2
+  I["An invoice<br/><small>joined back to the same link</small>"]:::end2
+
+  S --> R --> D --> F --> C --> I
+```
+
+That last join is the part other link shorteners cannot do. They stop at the
+click, because the click is all they have.
 
 This is the part a shortener does not do.
 

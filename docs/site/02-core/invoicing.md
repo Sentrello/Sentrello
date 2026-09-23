@@ -7,6 +7,33 @@ tags: [core, money]
 
 # Invoicing
 
+A quote becomes an invoice, an invoice becomes a journal entry, and nothing
+is retyped on the way.
+
+```mermaid
+flowchart LR
+  classDef screen fill:#eef4ff,stroke:#3b6fd4,color:#16305e
+  classDef own fill:#eefaf1,stroke:#219653,color:#10442a
+  classDef out fill:#f4f0fb,stroke:#6b47c4,color:#31205e
+  classDef pub fill:#fff4ec,stroke:#c4470f,color:#5a2207
+  subgraph OWN[" Invoicing "]
+    QU["Quotes"]:::own
+    IN["Invoices"]:::own
+    CN["Credit notes"]:::own
+    PM["Payments"]:::own
+  end
+  C["A contact or company<br/><small>CRM</small>"]:::out
+  PAY(["Stripe or PayPal<br/><small>their page, not your server</small>"]):::pub
+  LED["postJournalEntry<br/><small>Accounting</small>"]:::out
+
+  C --> QU -->|"accepted"| IN
+  IN --> PAY --> PM
+  IN --> LED
+  PM --> LED
+  CN --> LED
+  style OWN fill:#fbfdfc,stroke:#cfe4d8,color:#10442a
+```
+
 ## Quotes
 
 A quote is a priced offer with an expiry date. Send it as a PDF, or as a link

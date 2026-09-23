@@ -12,6 +12,27 @@ public or private. A product manual. A staff handbook. An internal wiki.
 
 You write in the repository. Sentrello publishes it.
 
+A repository on one side, a published site on the other, and nothing to
+deploy in between.
+
+```mermaid
+flowchart LR
+  classDef screen fill:#eef4ff,stroke:#3b6fd4,color:#16305e
+  classDef own fill:#eefaf1,stroke:#219653,color:#10442a
+  classDef out fill:#f4f0fb,stroke:#6b47c4,color:#31205e
+  classDef pub fill:#fff4ec,stroke:#c4470f,color:#5a2207
+  REPO["Your repository<br/><small>markdown, in folders</small>"]:::out
+  SYNC["Sync<br/><small>on a push, or on a schedule</small>"]:::own
+  subgraph OWN[" Docs "]
+    PAGES["Pages<br/><small>drafts, unlisted, published</small>"]:::own
+    NAV["Sidebar and search"]:::own
+  end
+  SITE(["docs.yours.example"]):::pub
+
+  REPO --> SYNC --> PAGES --> NAV --> SITE
+  style OWN fill:#fbfdfc,stroke:#cfe4d8,color:#10442a
+```
+
 ## Why a repository
 
 Because documentation belongs under version control. History, review,
@@ -38,6 +59,21 @@ open it.
 :::
 
 ## How your files become a site
+
+A path in the repository becomes a path on the site. Numeric prefixes order
+the sidebar and then drop out of the URL, so renaming a file to move it does
+not break a link.
+
+```mermaid
+flowchart LR
+  classDef file fill:#f7f7f8,stroke:#9aa3ad,color:#444c55
+  classDef url fill:#eef4ff,stroke:#3b6fd4,color:#16305e
+
+  A["docs/intro.md"]:::file --> A2(["/intro"]):::url
+  B["docs/01-getting-started/index.md"]:::file --> B2(["/getting-started"]):::url
+  C["docs/01-getting-started/install.md"]:::file --> C2(["/getting-started/install"]):::url
+  D["docs/02-core/crm.md"]:::file --> D2(["/core/crm"]):::url
+```
 
 | In your repository | On the site |
 |---|---|

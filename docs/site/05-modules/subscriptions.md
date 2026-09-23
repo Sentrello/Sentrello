@@ -16,6 +16,33 @@ plan, whose trial ends this week, who is paused, and who has given notice.
 which you already have. A gym, an agency on a retainer, an MSP and a window
 cleaner can all run on it without ever selling anything online.
 
+One plan, many subscribers, and an invoice every cycle that posts like any
+other invoice.
+
+```mermaid
+flowchart LR
+  classDef screen fill:#eef4ff,stroke:#3b6fd4,color:#16305e
+  classDef own fill:#eefaf1,stroke:#219653,color:#10442a
+  classDef out fill:#f4f0fb,stroke:#6b47c4,color:#31205e
+  classDef pub fill:#fff4ec,stroke:#c4470f,color:#5a2207
+  subgraph OWN[" Subscriptions "]
+    PLAN["Plans<br/><small>price, cycle, what is included</small>"]:::own
+    SUB["Subscribers"]:::own
+    DUN["Dunning<br/><small>what happens to a failed card</small>"]:::own
+  end
+  C["A contact<br/><small>CRM</small>"]:::out
+  INV["An invoice, every cycle<br/><small>Invoicing</small>"]:::out
+  LED["The journal"]:::out
+  PORTAL(["The customer's own screen"]):::pub
+
+  C --> SUB
+  PLAN --> SUB
+  SUB --> INV --> LED
+  INV -->|"card declined"| DUN --> INV
+  SUB --> PORTAL
+  style OWN fill:#fbfdfc,stroke:#cfe4d8,color:#10442a
+```
+
 ## What it is built on
 
 Nothing new. A subscription raises an invoice on the schedule Invoicing already

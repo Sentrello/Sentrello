@@ -15,6 +15,30 @@ so that is where they are set up.
 
 ![The forms list, with where each one is embedded, how many submissions it has taken, and how much spam was blocked](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/forms.png)
 
+A form on somebody else's website, and the one gate that decides whether it
+is allowed to be there.
+
+```mermaid
+flowchart LR
+  classDef screen fill:#eef4ff,stroke:#3b6fd4,color:#16305e
+  classDef own fill:#eefaf1,stroke:#219653,color:#10442a
+  classDef out fill:#f4f0fb,stroke:#6b47c4,color:#31205e
+  classDef pub fill:#fff4ec,stroke:#c4470f,color:#5a2207
+  SITE(["Your website"]):::pub
+  EMB["embed.js<br/><small>one script tag</small>"]:::screen
+  ALLOW{{"On the allow-list?"}}:::screen
+  subgraph OWN[" Forms "]
+    DEF["The form's questions"]:::own
+    SUBM["Submissions"]:::own
+  end
+  CT["A contact<br/><small>CRM, tagged by form</small>"]:::out
+
+  SITE --> EMB --> ALLOW
+  ALLOW -->|"no"| X["Refused<br/><small>the form renders; nothing sends</small>"]:::pub
+  ALLOW -->|"yes"| DEF --> SUBM --> CT
+  style OWN fill:#fbfdfc,stroke:#cfe4d8,color:#10442a
+```
+
 ## Building one
 
 Add fields (text, email, phone, number, web address, choice, date and longer

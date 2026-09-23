@@ -28,6 +28,33 @@ The **Customer** row is the one worth looking at twice. It is how you hand
 somebody outside the business a login without handing them the business: it
 sees its own invoices, and there is no setting that widens it.
 
+One set of accounts, and two questions asked about every request.
+
+```mermaid
+flowchart LR
+  classDef screen fill:#eef4ff,stroke:#3b6fd4,color:#16305e
+  classDef own fill:#eefaf1,stroke:#219653,color:#10442a
+  classDef out fill:#f4f0fb,stroke:#6b47c4,color:#31205e
+  classDef pub fill:#fff4ec,stroke:#c4470f,color:#5a2207
+  subgraph OWN[" Users "]
+    PE["People"]:::own
+    GR["Groups<br/><small>a department</small>"]:::own
+    PO["Policies<br/><small>what may be done, to what</small>"]:::own
+    SE["Sessions"]:::own
+    EV["Events<br/><small>the audit log</small>"]:::own
+  end
+  MOD["Every module<br/><small>free, Pro and bought</small>"]:::out
+  REQ["requirePermission<br/><small>on the route, not just the screen</small>"]:::screen
+
+  PE --> PO
+  PE --> GR --> PO
+  PO --> REQ --> MOD
+  PE --> SE
+  PE --> EV
+  MOD -.->|"no module invents its own accounts"| PE
+  style OWN fill:#fbfdfc,stroke:#cfe4d8,color:#10442a
+```
+
 ## People
 
 **Users → People** lists everybody with access. Invite somebody by email; they

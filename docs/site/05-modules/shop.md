@@ -10,6 +10,35 @@ tags: [module, shop]
 An online shop whose orders arrive as records in the business you already run,
 instead of in a separate system you reconcile at the end of the month.
 
+What the module owns, and where each part of a sale ends up. The right-hand
+column is the half a standalone shop cannot do for you.
+
+```mermaid
+flowchart LR
+  classDef screen fill:#eef4ff,stroke:#3b6fd4,color:#16305e
+  classDef own fill:#eefaf1,stroke:#219653,color:#10442a
+  classDef out fill:#f4f0fb,stroke:#6b47c4,color:#31205e
+  classDef pub fill:#fff4ec,stroke:#c4470f,color:#5a2207
+  subgraph OWN[" Shop "]
+    P["Products<br/><small>price, stock, attributes</small>"]:::own
+    O["Orders"]:::own
+    D["Discounts"]:::own
+  end
+  SF(["Your storefront"]):::pub
+  CUST["Customer"]:::screen
+  INV["An invoice<br/><small>Invoicing</small>"]:::out
+  LED["The journal<br/><small>stock, income and tax</small>"]:::out
+  CRM["A contact<br/><small>CRM</small>"]:::out
+
+  CUST --> SF --> O
+  P --> SF
+  D --> SF
+  O --> INV --> LED
+  O --> CRM
+  O -->|"stock comes down"| P
+  style OWN fill:#fbfdfc,stroke:#cfe4d8,color:#10442a
+```
+
 ## Products
 
 Products with descriptions, images, prices and stock levels. Sizes and colours

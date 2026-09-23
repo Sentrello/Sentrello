@@ -10,6 +10,29 @@ tags: [module, seo]
 Keyword research, rank tracking, site audits, backlinks and competitors, with
 client reports you can hand over.
 
+The module's whole argument is the arrow on the right: a position, joined to
+the money it actually brought in.
+
+```mermaid
+flowchart LR
+  classDef screen fill:#eef4ff,stroke:#3b6fd4,color:#16305e
+  classDef own fill:#eefaf1,stroke:#219653,color:#10442a
+  classDef out fill:#f4f0fb,stroke:#6b47c4,color:#31205e
+  classDef pub fill:#fff4ec,stroke:#c4470f,color:#5a2207
+  subgraph OWN[" SEO "]
+    K["Keywords"]:::own
+    A["Site audit"]:::own
+    R["Reports"]:::own
+  end
+  PROV["A search data provider<br/><small>ours, or your own account</small>"]:::out
+  DEAL["Deals and invoices<br/><small>CRM and Invoicing</small>"]:::out
+
+  PROV --> K --> R
+  A --> R
+  DEAL -->|"which phrase brought them"| R
+  style OWN fill:#fbfdfc,stroke:#cfe4d8,color:#10442a
+```
+
 ## The one thing it does differently
 
 Every other module runs entirely on your server. **SEO cannot.** Keyword

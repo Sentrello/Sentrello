@@ -12,9 +12,9 @@ your server, and what it hands you towards a compliance framework.
 
 ## What a request passes through
 
-![One request, from the browser to the database: the API, both entitlement gates, the module route, the journal posting, and PostgreSQL](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/architecture.png)
-
-Read it top to bottom; that is the order a request meets things.
+The whole of it is drawn on one page: **[Architecture](/platform/architecture)**.
+Read that diagram top to bottom, because that is the order a request meets
+things.
 
 Two of those rows are the ones people get wrong, and they are next to each
 other on purpose. `entitled()` asks whether this instance has paid for the tier

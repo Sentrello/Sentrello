@@ -17,6 +17,39 @@ That is not bookkeeping theatre. Reports are read from the ledger rather than
 recalculated from invoices, which is why they cannot drift away from what
 actually happened.
 
+Everything that moves money arrives here the same way, and every report is
+read back off the same place.
+
+```mermaid
+flowchart LR
+  classDef screen fill:#eef4ff,stroke:#3b6fd4,color:#16305e
+  classDef own fill:#eefaf1,stroke:#219653,color:#10442a
+  classDef out fill:#f4f0fb,stroke:#6b47c4,color:#31205e
+  classDef pub fill:#fff4ec,stroke:#c4470f,color:#5a2207
+  INV["Invoices and payments"]:::out
+  EXP["Expenses and bills"]:::out
+  SHOP["Shop orders"]:::out
+  SUB["Subscriptions"]:::out
+
+  POST["postJournalEntry<br/><small>debits equal credits, or it throws</small>"]:::screen
+  subgraph OWN[" Accounting "]
+    JR["The journal"]:::own
+    COA["Chart of accounts"]:::own
+    RPT["Profit and loss · Balance sheet · Trial balance"]:::own
+    TAX["Tax returns"]:::own
+  end
+
+  INV --> POST
+  EXP --> POST
+  SHOP --> POST
+  SUB --> POST
+  POST --> JR
+  COA --- JR
+  JR --> RPT
+  JR --> TAX
+  style OWN fill:#fbfdfc,stroke:#cfe4d8,color:#10442a
+```
+
 ## Accounts
 
 The chart of accounts is the list of buckets money moves between: bank

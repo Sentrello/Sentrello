@@ -10,6 +10,34 @@ tags: [module, booking]
 A booking page your customers can use to take a slot themselves, and a diary
 that stays honest about what is free.
 
+What a booking touches, from the service you defined to the invoice it
+becomes.
+
+```mermaid
+flowchart LR
+  classDef screen fill:#eef4ff,stroke:#3b6fd4,color:#16305e
+  classDef own fill:#eefaf1,stroke:#219653,color:#10442a
+  classDef out fill:#f4f0fb,stroke:#6b47c4,color:#31205e
+  classDef pub fill:#fff4ec,stroke:#c4470f,color:#5a2207
+  subgraph OWN[" Booking "]
+    SVC["Services<br/><small>length, price, who can do it</small>"]:::own
+    AV["Availability<br/><small>hours, and who is away</small>"]:::own
+    BK["Bookings"]:::own
+    AREA["Service areas"]:::own
+  end
+  PUB(["Your booking page"]):::pub
+  CRM["A contact<br/><small>CRM</small>"]:::out
+  INV["An invoice<br/><small>Invoicing</small>"]:::out
+
+  SVC --> PUB
+  AV --> PUB
+  AREA --> PUB
+  PUB --> BK
+  BK --> CRM
+  BK --> INV
+  style OWN fill:#fbfdfc,stroke:#cfe4d8,color:#10442a
+```
+
 ## Services
 
 A **service** is something bookable: a consultation, a site visit, a treatment.
@@ -26,6 +54,28 @@ page then offers only what is genuinely free, because it reads your existing
 bookings before it draws the grid. Two people cannot take the same slot.
 
 ## The booking page
+
+```mermaid
+flowchart LR
+  classDef url fill:#eef4ff,stroke:#3b6fd4,color:#16305e
+  classDef leaf fill:#eefaf1,stroke:#219653,color:#10442a
+
+  ROOT(["yours.example/"]):::url
+  BOOK(["/book"]):::url
+  SVC(["/book/&lt;service&gt;"]):::url
+  CONF(["/book/confirm"]):::url
+  MAN(["/book/manage/&lt;token&gt;"]):::url
+
+  L1["Every service you publish"]:::leaf
+  L2["The slots availability leaves open"]:::leaf
+  L3["Details, and the booking is made"]:::leaf
+  L4["Their own link, to move or cancel<br/><small>no account, no password</small>"]:::leaf
+
+  ROOT --> BOOK --> L1
+  BOOK --> SVC --> L2
+  SVC --> CONF --> L3
+  CONF --> MAN --> L4
+```
 
 A public page that works on a phone, with no account and no app. One per
 service, or one for everything. It shows a month at a time, then the times

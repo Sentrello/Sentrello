@@ -10,6 +10,33 @@ tags: [module, newsletter]
 Run a mailing list properly: lists, subscribers, campaigns, and honest numbers
 about what happened to each message.
 
+A list is not your customer list, and the arrow below only goes one way on
+purpose.
+
+```mermaid
+flowchart LR
+  classDef screen fill:#eef4ff,stroke:#3b6fd4,color:#16305e
+  classDef own fill:#eefaf1,stroke:#219653,color:#10442a
+  classDef out fill:#f4f0fb,stroke:#6b47c4,color:#31205e
+  classDef pub fill:#fff4ec,stroke:#c4470f,color:#5a2207
+  subgraph OWN[" Newsletter "]
+    L["Lists"]:::own
+    S["Subscribers<br/><small>with their consent, and when</small>"]:::own
+    T["Templates"]:::own
+    C["Campaigns"]:::own
+  end
+  FORM(["A signup form on your site"]):::pub
+  MAIL["Your own mail setup"]:::out
+  CRM["CRM contacts"]:::out
+
+  FORM --> S --> L
+  T --> C
+  L --> C --> MAIL
+  MAIL -->|"opens and clicks"| C
+  CRM -.->|"only if they agreed"| S
+  style OWN fill:#fbfdfc,stroke:#cfe4d8,color:#10442a
+```
+
 ## Lists and subscribers
 
 A **list** is a group of people who agreed to hear from you. Public or private.
