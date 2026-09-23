@@ -78,10 +78,9 @@ export const GROUP_ICONS: Record<string, IconName> = {
    */
   Money: "wallet",
   Work: "briefcase",
-  // Growth rather than a megaphone, which this set does not have. Unused by any
-  // module, which matters: a group and a module drawing the same glyph is two
-  // different things wearing one face.
-  Marketing: "trending-up",
+  // An advert, not a rising line: the line belongs to Deals, and a group and a
+  // module drawing the same glyph is two different things wearing one face.
+  Marketing: "marketing",
   People: "users",
   Configuration: "settings",
 };
@@ -485,9 +484,53 @@ function Sidebar({ nav }: { nav: NavEntry[] }) {
     if (first) go(first.id, first.label);
   };
 
+  /**
+   * Hide and show the panel without re-rendering what it frames.
+   *
+   * One attribute on the shell, flipped in the DOM: the panel is a frame
+   * around whatever screen is open, and collapsing a frame should not
+   * re-render the thing inside it, nor stop working when a module screen
+   * throws — both of which React state here would.
+   *
+   * Two buttons share it. The one inside the panel goes with the panel, so
+   * the one that brings it back has to live on the rail, which is the only
+   * thing still on screen. Whichever is showing takes the focus, or a
+   * keyboard user presses a control and lands on the document body.
+   */
+  const togglePanel = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const shell = e.currentTarget.closest("[data-shell]");
+    if (!shell) return;
+    const hidden = shell.toggleAttribute("data-panel-hidden");
+    for (const button of shell.querySelectorAll(
+      "[aria-controls='section-panel']",
+    )) {
+      button.setAttribute("aria-expanded", hidden ? "false" : "true");
+    }
+    shell
+      .querySelector<HTMLElement>(hidden ? ".panel-tab" : ".panel-collapse")
+      ?.focus();
+  };
+
   return (
     <div className="flex items-stretch" data-shell>
       <nav className="app-rail" aria-label="Modules">
+        {/* The tab that brings the panel back, at the top of the rail where
+            the panel's own control used to be — the two swap places rather
+            than one control moving, because only one of them can ever be on
+            screen at a time. */}
+        {showPanel ? (
+          <button
+            type="button"
+            className="panel-tab"
+            aria-expanded="false"
+            aria-controls="section-panel"
+            aria-label="Show the section panel"
+            title="Show the section panel"
+            onClick={togglePanel}
+          >
+            <Icon name="chevron-right" size={16} />
+          </button>
+        ) : null}
         {groups.map((item) => {
           const here = group?.id === item.id;
           return (
@@ -513,45 +556,10 @@ function Sidebar({ nav }: { nav: NavEntry[] }) {
                 if (first) go(first.id, first.label);
               }}
             >
-              <Icon name={item.icon} size={30} />
+              <Icon name={item.icon} size={26} />
             </button>
           );
         })}
-        {showPanel ? (
-          /**
-           * Hide and show the panel without re-rendering what it frames.
-           *
-           * One attribute on the shell, flipped in the DOM: the panel is a
-           * frame around whatever screen is open, and collapsing a frame
-           * should not re-render the thing inside it, nor stop working when
-           * a module screen throws — both of which React state here would.
-           *
-           * This was a visually-hidden checkbox driven by a label, which is
-           * the same trick with no JavaScript. It was also a control a
-           * keyboard user could tab to and see nothing at all: focus sat on
-           * an element clipped to a pixel, with the icon on a label that
-           * cannot take focus. A button is focusable, says whether the panel
-           * is open, and shows where the focus is.
-           */
-          <button
-            type="button"
-            className="rail-button mt-auto"
-            aria-expanded="true"
-            aria-controls="section-panel"
-            aria-label="Hide or show the section panel"
-            title="Hide or show the section panel"
-            onClick={(e) => {
-              const shell = e.currentTarget.closest("[data-shell]");
-              const hidden = shell?.toggleAttribute("data-panel-hidden");
-              e.currentTarget.setAttribute(
-                "aria-expanded",
-                hidden ? "false" : "true",
-              );
-            }}
-          >
-            <Icon name="panel-left" size={30} />
-          </button>
-        ) : null}
       </nav>
 
       {showPanel && group ? (
@@ -561,7 +569,23 @@ function Sidebar({ nav }: { nav: NavEntry[] }) {
             className="app-sidebar p-2"
             aria-label="Screens"
           >
-            <p className="panel-title">{group.label}</p>
+            {/* The section's name and the control that puts it away, on one
+                line at the top — where somebody looks for it, and where the
+                tab reappears when it is gone. */}
+            <div className="panel-head">
+              <p className="panel-title">{group.label}</p>
+              <button
+                type="button"
+                className="panel-collapse"
+                aria-expanded="true"
+                aria-controls="section-panel"
+                aria-label="Hide the section panel"
+                title="Hide the section panel"
+                onClick={togglePanel}
+              >
+                <Icon name="panel-left" size={16} />
+              </button>
+            </div>
             <NavRows
               nodes={nodes}
               depth={0}

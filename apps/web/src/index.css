@@ -372,16 +372,15 @@ a {
 /* The rail: sections as icons, always visible, so switching part of the
    business is one click from anywhere rather than a scroll.
 
-   Widened on 22 September 2026. It was 4rem with 24px icons and James could
-   not read them, which is a fair complaint about a control whose entire job
-   is to be recognised at a glance: an icon you have to squint at costs more
-   than the sidebar it saves. */
+   Widened on 22 September 2026 from 4rem and 24px icons, which could not be
+   read. Brought back to 4.25rem on 23 September: legible was the point, and
+   the version that fixed it overshot into taking a slice of every screen. */
 .app-rail {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.25rem;
-  width: 4.75rem;
+  width: 4.25rem;
   flex-shrink: 0;
   padding: 0.5rem 0;
   border-right: 1px solid var(--border);
@@ -396,10 +395,61 @@ a {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 3.25rem;
-  height: 3.25rem;
-  border-radius: 0.8rem;
+  width: 2.875rem;
+  height: 2.875rem;
+  border-radius: 0.7rem;
   color: var(--text-muted);
+}
+
+/*
+ * The tab that pulls the panel back out.
+ *
+ * It only exists while the panel is away, which is the whole idea: the
+ * control that puts the panel away travels with the panel, and something has
+ * to be left on screen to bring it back. A short wide tab at the top of the
+ * rail, rather than another full icon button, so it reads as an edge to pull
+ * and not as a sixth section.
+ */
+.panel-tab {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.875rem;
+  height: 1.375rem;
+  margin-bottom: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  color: var(--text-muted);
+  background: var(--surface-raised);
+}
+.panel-tab:hover {
+  color: var(--text);
+  background: var(--surface);
+}
+[data-panel-hidden] .panel-tab {
+  display: flex;
+}
+
+/* The section's name and the control that puts it away, on one line. */
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.panel-collapse {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  flex: none;
+  border-radius: 0.4rem;
+  color: var(--text-muted);
+}
+.panel-collapse:hover {
+  color: var(--text);
+  background: var(--surface);
 }
 .rail-button:hover {
   background: var(--surface);
@@ -451,11 +501,12 @@ a {
 /*
  * Collapsing the section panel.
  *
- * One attribute on the shell, set by the rail's button, which stays on screen
- * once the panel is gone. It was a visually-hidden checkbox and a sibling
- * selector — no JavaScript, and no way for a keyboard user to see where focus
- * was, since the focusable element was clipped to a pixel and the icon sat on
- * a label that cannot take focus.
+ * One attribute on the shell, set by either of the two controls that flip it:
+ * the button at the top of the panel, and the tab at the top of the rail that
+ * takes its place once the panel is gone. It was a visually-hidden checkbox
+ * and a sibling selector — no JavaScript, and no way for a keyboard user to
+ * see where focus was, since the focusable element was clipped to a pixel and
+ * the icon sat on a label that cannot take focus.
  *
  * Width and padding animate; `visibility` is what actually takes the panel's
  * contents out of the tab order, which `width: 0` alone does not do.
