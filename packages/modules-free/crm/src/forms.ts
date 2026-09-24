@@ -883,7 +883,7 @@ export function registerForms(ctx: ModuleContext) {
       body: `${form.name}: ${summarise(payload)}`,
     });
 
-    await tellSomebody(form, payload, submission?.id);
+    await tellSomebody(form, payload, submission?.id, kept);
 
     /**
      * A browser is sent somewhere; a script is told what happened.
@@ -1234,12 +1234,49 @@ async function draftQuote(
  * same reason — the visitor has already been told it went through, and
  * failing their request now would be a lie in the other direction.
  */
+/**
+ * The files on a submission, as links somebody can actually open.
+ *
+ * Its own function so it can be tested: the mail adapter is chosen from the
+ * environment at the moment of sending, so there is no seam to assert through,
+ * and the thing worth asserting is this — that a notification about a CV
+ * carries a way to reach the CV. It did not, for its first day.
+ */
+export function attachmentLinks(
+  submissionId: string | undefined,
+  attachments: (typeof schema.formSubmissions.$inferInsert)["attachments"],
+): string[] {
+  const base = process.env.SENTRELLO_BASE_URL?.replace(/\/+$/, "");
+  // No address that works from an inbox means no link worth writing: a bare
+  // path in an email is a line somebody tries to click and cannot.
+  if (!base || !submissionId) return [];
+  return (attachments ?? []).map(
+    (file, at) =>
+      `<p><a href="${base}/api/forms/submissions/${submissionId}/files/${at}">${html(file.name)}</a> (${Math.ceil(file.size / 1024)}KB)</p>`,
+  );
+}
+
 async function tellSomebody(
   form: { name: string; notifyEmail: string | null },
   payload: Record<string, string>,
   submissionId: string | undefined,
+  attachments: (typeof schema.formSubmissions.$inferInsert)["attachments"] = [],
 ): Promise<void> {
   if (!form.notifyEmail) return;
+
+  /*
+   * A link to the file, not just its name.
+   *
+   * The payload carries what the file was called, which tells the reader a CV
+   * arrived and gives them no way to open it — so the notification about an
+   * application was a notification you had to go and find the application
+   * from. The link needs a session, which is correct: the file is somebody
+   * else's document and reading it is a thing staff do signed in.
+   *
+   * Without SENTRELLO_BASE_URL there is no address that works from an inbox,
+   * so the line is left out rather than written as a path nobody can click.
+   */
+  const files = attachmentLinks(submissionId, attachments);
 
   try {
     await emailAdapter().send({
@@ -1257,6 +1294,7 @@ async function tellSomebody(
               `<dt><strong>${html(key)}</strong></dt><dd>${html(value)}</dd>`,
           ),
         "</dl>",
+        ...files,
         submissionId ? `<p>Reference ${html(submissionId)}</p>` : "",
       ]
         .filter(Boolean)
