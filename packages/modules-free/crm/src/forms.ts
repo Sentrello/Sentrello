@@ -9,7 +9,7 @@ import { creditFor } from "@sentrello/db/credit";
 import { contactHasEmail } from "@sentrello/db/crm";
 import { lineTotals } from "@sentrello/db/money";
 import { nextDocumentNumber } from "@sentrello/db/numbering";
-import { emailAdapter } from "@sentrello/email";
+import { emailAdapter, systemFrom } from "@sentrello/email";
 import type { ModuleContext } from "@sentrello/module-sdk";
 import {
   MAX_ATTACHMENT_BYTES,
@@ -371,6 +371,32 @@ export function registerForms(ctx: ModuleContext) {
    */
   ctx.app.get(
     "/api/forms/submissions/:submissionId/files/:index",
+    /*
+     * A refusal a person can act on.
+     *
+     * This link is in an email. Somebody reads "a new enquiry", clicks the
+     * CV, and — if they are not signed in on that device, which is most
+     * devices — the guard behind it answers `{"error":"unauthorized"}` in the
+     * browser window. That is a dead end: it does not say whether to sign in,
+     * whether the file is gone, or whether the thing is broken.
+     *
+     * The guard is right and stays exactly as it is. This only rewrites what
+     * a browser is shown, and only when the answer was a refusal.
+     */
+    async (c, next) => {
+      await next();
+      if ((c.res.status === 401 || c.res.status === 403) && wantsHtml(c)) {
+        c.res = new Response(
+          problemPage(
+            "You need to be signed in to open this file. Sign in, then follow the link again.",
+          ),
+          {
+            status: c.res.status,
+            headers: { "content-type": "text/html; charset=utf-8" },
+          },
+        );
+      }
+    },
     requireSession(),
     requirePermission({ crm: ["read"] }),
     async (c) => {
@@ -1242,6 +1268,34 @@ async function draftQuote(
  * and the thing worth asserting is this — that a notification about a CV
  * carries a way to reach the CV. It did not, for its first day.
  */
+/**
+ * Who a form's notification comes from, and who a reply reaches.
+ *
+ * It came from the instance's system sender, which on this business is
+ * `billing@`. A job application arriving from the billing address is wrong in
+ * a way anybody would notice: the address on a message is a claim about what
+ * the message is.
+ *
+ * So a form sends from the address it is going to, when that address is on the
+ * domain the instance already sends as. Only then — sending as some other
+ * domain is a claim we have no right to make, and a mail server would be right
+ * to refuse it.
+ */
+export function notificationSender(
+  notifyEmail: string | null,
+  systemSender: string | undefined,
+): string | undefined {
+  const at = notifyEmail?.split("@")[1]?.toLowerCase();
+  // The system sender may be "Name <addr@domain>", so take the last @.
+  const ours = systemSender
+    ?.split("@")
+    .pop()
+    ?.replace(/>.*$/, "")
+    .toLowerCase();
+  if (!at || !ours || at !== ours) return undefined;
+  return notifyEmail ?? undefined;
+}
+
 export function attachmentLinks(
   submissionId: string | undefined,
   attachments: (typeof schema.formSubmissions.$inferInsert)["attachments"],
@@ -1279,8 +1333,18 @@ async function tellSomebody(
   const files = attachmentLinks(submissionId, attachments);
 
   try {
+    /*
+     * A reply goes to whoever filled the form in.
+     *
+     * Without it, hitting reply on an application writes back to the address
+     * that sent the notification — which is the business itself. Every reply
+     * would go nowhere, and the person who applied would hear nothing.
+     */
+    const replyTo = (payload.email ?? "").trim();
     await emailAdapter().send({
       to: form.notifyEmail,
+      from: notificationSender(form.notifyEmail, systemFrom()),
+      ...(replyTo.includes("@") ? { headers: { "Reply-To": replyTo } } : {}),
       subject: `${form.name}: a new enquiry`,
       // Everything here was typed by a stranger on the internet, so every
       // part of it is escaped before it becomes markup in somebody's inbox.
