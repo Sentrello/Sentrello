@@ -73,6 +73,20 @@ export function inspectPdf(bytes: Uint8Array): FileVerdict {
   if (!tail.includes("%%EOF")) {
     return { ok: false, reason: "the PDF is incomplete" };
   }
+  /*
+   * `startxref` as well as `%%EOF`, because a file can have both an opening
+   * and an ending and still be unopenable.
+   *
+   * Every conforming PDF has one — linearised, incremental, cross-reference
+   * stream, all of them — and it is what a reader follows to find anything at
+   * all. A file without it passed this check, reached somebody's inbox, and
+   * was refused by their computer as a bad file, which is the worst place to
+   * discover a truncated upload: after the applicant believes they have
+   * applied.
+   */
+  if (!tail.includes("startxref")) {
+    return { ok: false, reason: "the PDF is damaged and will not open" };
+  }
 
   /*
    * Read as latin1, so every byte is one character and nothing is lost to a
