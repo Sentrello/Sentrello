@@ -1273,27 +1273,35 @@ async function draftQuote(
  *
  * It came from the instance's system sender, which on this business is
  * `billing@`. A job application arriving from the billing address is wrong in
- * a way anybody would notice: the address on a message is a claim about what
- * the message is.
+ * a way anybody notices: the address on a message is a claim about what the
+ * message is.
  *
- * So a form sends from the address it is going to, when that address is on the
- * domain the instance already sends as. Only then — sending as some other
- * domain is a claim we have no right to make, and a mail server would be right
- * to refuse it.
+ * **Not the address it is going to, though.** That was the first attempt and
+ * it is a trap: a form notification is sent *to* the notify address, so using
+ * it as the sender makes a message from an address to itself. A mailbox does
+ * not mind. A Google Group treats mail appearing to come from the group as a
+ * loop and drops it — silently, which is the failure mode we were already
+ * chasing when this was written.
+ *
+ * So: `no-reply` on the domain the instance already sends as, carrying the
+ * form's name. It reads as what it is, it is authenticated, and it cannot be
+ * mistaken for the recipient talking to itself. The reply address is the
+ * person who filled the form in, which is where a reply should have gone all
+ * along.
  */
 export function notificationSender(
-  notifyEmail: string | null,
+  formName: string,
   systemSender: string | undefined,
 ): string | undefined {
-  const at = notifyEmail?.split("@")[1]?.toLowerCase();
-  // The system sender may be "Name <addr@domain>", so take the last @.
-  const ours = systemSender
-    ?.split("@")
-    .pop()
-    ?.replace(/>.*$/, "")
-    .toLowerCase();
-  if (!at || !ours || at !== ours) return undefined;
-  return notifyEmail ?? undefined;
+  // The system sender may be "Name <addr@domain>"; the domain is what matters.
+  const domain = systemSender?.split("@").pop()?.replace(/>.*$/, "").trim();
+  if (!domain || !domain.includes(".")) return undefined;
+  // A display name carrying a quote or an angle bracket would break the header.
+  const name = formName
+    .replace(/["<>\r\n]/g, "")
+    .trim()
+    .slice(0, 60);
+  return name ? `${name} <no-reply@${domain}>` : `no-reply@${domain}`;
 }
 
 export function attachmentLinks(
@@ -1343,7 +1351,7 @@ async function tellSomebody(
     const replyTo = (payload.email ?? "").trim();
     await emailAdapter().send({
       to: form.notifyEmail,
-      from: notificationSender(form.notifyEmail, systemFrom()),
+      from: notificationSender(form.name, systemFrom()),
       ...(replyTo.includes("@") ? { headers: { "Reply-To": replyTo } } : {}),
       subject: `${form.name}: a new enquiry`,
       // Everything here was typed by a stranger on the internet, so every
