@@ -124,7 +124,13 @@ export function controlsFiringMutations(source: string): Control[] {
       tagStart -= 1;
     }
     const tag = lines.slice(tagStart, i + 1).join("\n");
-    const gated = tag.includes("needs=");
+    /*
+     * `needs=` is the usual way and `may(` is the other one: a checkbox has
+     * no kit primitive to hang a prop on, so the compliance screen disables
+     * itself by asking directly. Both are the control being gated, and a
+     * guard that only knew the prop would report the honest one as a gap.
+     */
+    const gated = tag.includes("needs=") || /\bmay[A-Z(]/.test(tag);
 
     out.push({ line: i + 1, mutation: name, gated, method, path });
   }

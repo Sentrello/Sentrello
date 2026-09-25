@@ -126,3 +126,23 @@ test("a route with no requirePermission is not offered as an answer", () => {
   );
   expect(routes).toEqual([]);
 });
+
+/**
+ * A checkbox has no kit primitive to hang a prop on, so the one screen with
+ * one that writes disables itself by asking the permission directly. That is
+ * the control being gated, and a guard that only knew the prop would report
+ * the honest answer as a gap.
+ */
+test("a control gated by asking directly is not reported as bare", () => {
+  const source = [
+    "const save = useMutation({",
+    '  mutationFn: () => api("/api/compliance", { method: "PUT" }),',
+    "});",
+    "<input",
+    '  type="checkbox"',
+    "  disabled={!maySave}",
+    "  onChange={(e) => save.mutate({ logReads: e.target.checked })}",
+    "/>",
+  ].join("\n");
+  expect(controlsFiringMutations(source)[0]?.gated).toBe(true);
+});
