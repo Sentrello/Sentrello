@@ -193,6 +193,19 @@ fi
 step "tests" bun test
 step_leftovers
 
+# The claim tests, on their own, once nothing else is running.
+#
+# They need the organizations table empty — `needsBootstrap()` asks the whole
+# table, because one instance holds one organization — and Bun runs the 247
+# files at the same time against one database. So the precondition was true
+# only by luck, and the file failed about one run in four with a 409 that had
+# nothing to do with what it was testing.
+#
+# The leftovers check above is what makes this safe rather than hopeful: it
+# has just proved the table empty. `.alone.ts` keeps the file out of the glob;
+# named here, it runs by itself.
+step "claim" bun test ./packages/auth/src/bootstrap-claim.alone.ts
+
 if [ "$failed" -ne 0 ]; then
   printf '\n  not ready to commit\n'
   exit 1

@@ -12,6 +12,31 @@ import { registerBootstrapRoutes } from "./bootstrap";
  *
  * The token closes that window, and the limit stops it being guessed. Better
  * Auth rate-limits its own sign-in routes; this one is ours.
+ *
+ * ## Why this is `.alone.ts` and not `.test.ts`
+ *
+ * Every test here needs the instance to be *unclaimed*, and `needsBootstrap()`
+ * answers that by asking whether the organizations table is empty — the whole
+ * table, because one instance holds one organization. The suite has 247 files
+ * sharing one database and Bun runs them at the same time, so "no organization
+ * exists anywhere" was true only when nothing else happened to be mid-test.
+ *
+ * It failed about one run in four, and always on the claimed check swallowing
+ * the one being made: somebody else's organization made the route answer 409,
+ * so the test asking whether a stranger is refused never reached the token at
+ * all. Measured at five failures out of five when run beside a single file
+ * that makes an organization, and zero out of five when run on its own.
+ *
+ * That is not flakiness worth retrying past. These five tests cover the most
+ * valuable operation on an instance — whoever claims it owns it — and a gate
+ * that is random is a gate that gets ignored, then removed.
+ *
+ * So the name keeps it out of `bun test`'s glob — Bun looks for `.test` or
+ * `.spec` in a filename — and `verify.sh` runs it by path, once the rest of
+ * the suite has finished and the leftovers check has proved the table empty.
+ * The `./` matters: without it Bun reads the argument as a name filter, finds
+ * nothing, and says so rather than passing quietly. Nothing else needs this: `boot.test.ts` is the only
+ * other file that touches bootstrap, and it passes beside an organization.
  */
 
 const app = new Hono();

@@ -58,3 +58,5 @@ EOF
 
 info "running the tests"
 bun test --env-file="$work/ci.env"
+# On its own, the way CI and verify.sh run it — see the file for why.
+bun test --env-file="$work/ci.env" ./packages/auth/src/bootstrap-claim.alone.ts
