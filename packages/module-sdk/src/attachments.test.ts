@@ -6,6 +6,7 @@ import {
   AttachmentError,
   attachmentFile,
   attachmentHeaders,
+  contentDisposition,
   displayFilename,
   packAttachmentKey,
   safeExtension,
@@ -96,9 +97,10 @@ test("what comes back cannot execute against this origin", () => {
   expect(headers["content-type"]).toBe("application/octet-stream");
   expect(headers["content-disposition"]).toContain("attachment;");
   // The quote in the name does not end the header's own quoting.
-  expect(headers["content-disposition"]).toBe(
-    'attachment; filename="trouble.html"',
-  );
+  expect(headers["content-disposition"]).toContain('filename="trouble.html"');
+  // And the runtime accepts it, which is the only check that cannot be
+  // fooled by a header that merely looks right.
+  expect(() => new Response("x", { headers })).not.toThrow();
   expect(headers["x-content-type-options"]).toBe("nosniff");
 });
 
@@ -132,6 +134,21 @@ test("a name nobody was attacking is untouched", () => {
     "Quote for the Hendersons.pdf",
   );
   expect(attachmentHeaders("Quote.pdf")["content-disposition"]).toBe(
-    'attachment; filename="Quote.pdf"',
+    "attachment; filename=\"Quote.pdf\"; filename*=UTF-8''Quote.pdf",
   );
+});
+
+/**
+ * A name in a language this product sells into.
+ *
+ * The quoted `filename` can only carry printable ASCII, so on its own it
+ * turns `Lebenslauf_Müller.pdf` into something with a hole in it. `filename*`
+ * carries the real one, percent-encoded, for the clients that read it — and
+ * the markets here are the US, Canada, the UK and the EU.
+ */
+test("a name with an accent in it survives", () => {
+  const line = contentDisposition("attachment", "Lebenslauf_Müller.pdf");
+  expect(line).toContain("filename*=UTF-8''Lebenslauf_M%C3%BCller.pdf");
+  // And something readable for a client that only understands the first.
+  expect(line).toContain('filename="Lebenslauf_M ller.pdf"');
 });

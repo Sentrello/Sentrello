@@ -128,16 +128,46 @@ export function attachmentFile(
 }
 
 /** The headers that make a stored file harmless to hand back. */
+/**
+ * A `Content-Disposition` line for a name somebody else chose.
+ *
+ * Lifted out of the documents module, which had worked this out properly and
+ * was the only place that had it — a paid module, so Core and the free ones
+ * could not use the good version and had a weaker one of their own.
+ *
+ * Two names, because one cannot serve both ends. The quoted `filename` keeps
+ * printable ASCII, which every client can read; `filename*` carries the real
+ * one percent-encoded per RFC 5987, for the clients that read that. Without
+ * the second, a CV called `Lebenslauf_Müller.pdf` arrives with its own name
+ * mangled — in a product whose markets are the US, Canada, the UK and the EU.
+ *
+ * Control characters go from both. A header value carrying a line break is
+ * refused by the runtime, so a file called `report\n.pdf` was not an
+ * injection but a download that answered 500 for ever.
+ */
+export function contentDisposition(
+  kind: "attachment" | "inline",
+  name: string,
+): string {
+  const ascii =
+    name
+      .replace(/[^\x20-\x7e]+/g, " ")
+      .replace(/["\\]/g, "")
+      .replace(/\s+/g, " ")
+      .trim() || "file";
+  const utf8 = encodeURIComponent(name.replace(/[\r\n]/g, " ")).replace(
+    /['()*]/g,
+    (ch) => `%${ch.charCodeAt(0).toString(16)}`,
+  );
+  return `${kind}; filename="${ascii}"; filename*=UTF-8''${utf8}`;
+}
+
 export function attachmentHeaders(name: string): Record<string, string> {
   return {
     // Neutral, always: an uploaded .html served as text/html runs as this
     // origin, with the reader's session.
     "content-type": "application/octet-stream",
-    // `displayFilename` has already taken the control characters out of
-    // anything stored through this module; this is for a caller that hands
-    // over a name from somewhere else, because a header the runtime refuses
-    // is a download that answers 500 for ever.
-    "content-disposition": `attachment; filename="${displayFilename(name).replace(/["\\]/g, "")}"`,
+    "content-disposition": contentDisposition("attachment", name),
     "content-security-policy": "default-src 'none'",
     "x-content-type-options": "nosniff",
   };
