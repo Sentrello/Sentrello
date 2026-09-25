@@ -383,3 +383,63 @@ test("the tools are icons with words, and one section knows its way home", async
   // A section on its own does: it is the page somebody lands on from a link.
   expect(one).toContain("Back to everything you have with us");
 });
+
+/**
+ * What a customer owes, written the way the business that is owed it writes.
+ *
+ * `en-US` for every page showed a German customer `€1,279.97` — the American
+ * way of writing a European figure — on a page summing up what they have with
+ * a German business. The seller's convention rather than the reader's, the
+ * same call made for the invoice, the receipt and the booking page: two
+ * customers in two countries must not read one balance two ways.
+ */
+test("the figures are in the business's own convention, not America's", async () => {
+  const orgId = await makeOrg(`Berlin ${suffix}`);
+  orgIds.push(orgId);
+  await db
+    .update(schema.organizations)
+    .set({ countryCode: "DE" })
+    .where(eq(schema.organizations.id, orgId));
+  const contact = await makeContact(orgId, "Ein Kunde");
+
+  addAccountSection({
+    id: "invoicing",
+    moduleId: "invoicing",
+    label: "Invoices",
+    hasAny: async () => true,
+    load: async () => [
+      { label: "Outstanding", value: 127997, kind: "money", currency: "EUR" },
+    ],
+  });
+
+  const app = registerForTest(account);
+  const res = await app.request(
+    `http://localhost/account/${contact.portalToken}`,
+  );
+  const html = (await res.text()).replace(/\p{Zs}/gu, " ");
+  expect(html).toContain("1.279,97 €");
+  expect(html).not.toContain("€1,279.97");
+});
+
+/** A business that has not said where it is keeps exactly what it had. */
+test("no country on the business is not a reason to change a figure", async () => {
+  const orgId = await makeOrg(`Quiet ${suffix}`);
+  orgIds.push(orgId);
+  const contact = await makeContact(orgId, "Someone");
+
+  addAccountSection({
+    id: "invoicing",
+    moduleId: "invoicing",
+    label: "Invoices",
+    hasAny: async () => true,
+    load: async () => [
+      { label: "Outstanding", value: 127997, kind: "money", currency: "USD" },
+    ],
+  });
+
+  const app = registerForTest(account);
+  const res = await app.request(
+    `http://localhost/account/${contact.portalToken}`,
+  );
+  expect(await res.text()).toContain("$1,279.97");
+});

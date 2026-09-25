@@ -1,6 +1,10 @@
 import { clientIp } from "@sentrello/auth";
 import { db, schema } from "@sentrello/db";
-import { contactByPortalToken, deadLinkPage } from "@sentrello/db/portal";
+import {
+  contactByPortalToken,
+  deadLinkPage,
+  moneyLocale,
+} from "@sentrello/db/portal";
 import type {
   EntitlementNeed,
   ModuleContext,
@@ -55,9 +59,15 @@ const esc = (s: string) =>
       })[ch] ?? ch,
   );
 
-function figureText(f: SummaryFigure): string {
+/*
+ * A figure in the convention the business that owes or is owed it writes
+ * numbers in. `en-US` for everybody showed a German customer `€1,279.97`,
+ * which is the American way of writing a European figure, on a page summing
+ * up what they have with a German business.
+ */
+function figureText(f: SummaryFigure, locale: string): string {
   if (f.kind === "money" && typeof f.value === "number") {
-    return new Intl.NumberFormat("en-US", {
+    return new Intl.NumberFormat(locale, {
       style: "currency",
       currency: f.currency ?? "USD",
     }).format(f.value / 100);
@@ -253,6 +263,8 @@ function accountPage(args: {
   printing?: boolean;
   /** One section on its own, which needs a way back. */
   single?: boolean;
+  /** How the business writes money — `moneyLocale(countryCode)`. */
+  locale?: string;
 }): string {
   const {
     businessName,
@@ -262,6 +274,7 @@ function accountPage(args: {
     theme,
     printing,
     single,
+    locale = "en-US",
   } = args;
 
   const body =
@@ -276,7 +289,7 @@ function accountPage(args: {
       (f) =>
         `<div class="figure"><div class="label">${esc(f.label)}</div><div class="value${
           f.tone === "bad" ? " bad" : ""
-        }">${esc(figureText(f))}</div></div>`,
+        }">${esc(figureText(f, locale))}</div></div>`,
     )
     .join("")}</div>
   ${
@@ -385,7 +398,10 @@ export default defineModule({
 
       const [org, all] = await Promise.all([
         db
-          .select({ name: schema.organizations.name })
+          .select({
+            name: schema.organizations.name,
+            countryCode: schema.organizations.countryCode,
+          })
           .from(schema.organizations)
           .where(eq(schema.organizations.id, contact.organizationId))
           .limit(1)
@@ -427,6 +443,7 @@ export default defineModule({
           theme: chosen,
           printing,
           single: Boolean(only),
+          locale: moneyLocale(org?.countryCode),
         }),
       );
     };
