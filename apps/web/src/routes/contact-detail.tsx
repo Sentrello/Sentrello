@@ -249,12 +249,22 @@ function Notes({
   return (
     <Card>
       <SectionHeading>Notes</SectionHeading>
-      <Textarea
-        rows={2}
-        value={text}
-        placeholder="What was said?"
-        onChange={(e) => setText(e.target.value)}
-      />
+      {/*
+       * Labelled, like the activity box further down this page.
+       *
+       * It had a placeholder and nothing else — and a placeholder disappears
+       * the moment somebody types, so a screen reader announced an unnamed
+       * box and a returning reader had nothing to say what the text they were
+       * mid-way through writing was for.
+       */}
+      <Field label="Add a note">
+        <Textarea
+          rows={2}
+          value={text}
+          placeholder="What was said?"
+          onChange={(e) => setText(e.target.value)}
+        />
+      </Field>
       <div className="mt-(--gap-toolbar)">
         <Button
           onClick={() => add.mutate()}

@@ -2,7 +2,7 @@ import { type Query, useQuery } from "@tanstack/react-query";
 import { type ReactNode, useMemo, useState } from "react";
 import { api } from "./api";
 import { Icon, type IconName } from "./icons";
-import { Button, Select, border, formatMoney, muted } from "./ui";
+import { Button, Input, Select, border, formatMoney, muted } from "./ui";
 
 /**
  * The furniture every list screen needs: search, filters, sort, pages.
@@ -253,16 +253,27 @@ export function FilterPanel({
 }) {
   return (
     <aside className="w-52 shrink-0 flex flex-col gap-(--gap-stack)">
-      <div className="relative">
-        <input
-          value={state.q}
-          onChange={(e) => state.setQ(e.target.value)}
-          placeholder={placeholder}
-          aria-label={placeholder}
-          className="w-full rounded-md border px-2 py-1.5 text-sm"
-          style={{ ...border, background: "var(--surface-raised)" }}
-        />
-      </div>
+      {/*
+       * `Input`, not a hand-copied one.
+       *
+       * This wrote out the primitive's own look — the radius, the padding, the
+       * text size, the border token and the raised surface — in a file that
+       * sits beside it. Every list screen in the product inherits this rail,
+       * so one search box drawn by hand is one search box on every list that
+       * drifts the moment `Input` changes.
+       *
+       * `findHandRolledUi` would have caught it and does not scan `lib/`,
+       * deliberately: this is where the primitives it recommends are defined,
+       * so it would flag every one of them as a copy of itself. The cost of
+       * that exemption is exactly this — the one file it cannot watch is the
+       * one whose mistakes reach every screen.
+       */}
+      <Input
+        value={state.q}
+        onChange={(e) => state.setQ(e.target.value)}
+        placeholder={placeholder}
+        aria-label={placeholder}
+      />
 
       {state.hasFilters ? (
         <button

@@ -103,13 +103,23 @@ export function GroupDetail() {
 function Members({ group }: { group: GroupRow }) {
   const qc = useQueryClient();
 
-  // Everybody, for the "add somebody" list. Its own request rather than the
-  // paged one the People list uses — a picker that cannot find the
-  // two-hundredth person is a picker that cannot put them in a group. Two
-  // hundred at a time is the server's own ceiling.
+  /*
+   * Everybody, for the "add somebody" list.
+   *
+   * Its own request rather than the paged one the People list uses: a picker
+   * that cannot find the two-hundredth person is a picker that cannot put
+   * them in a group. Two hundred is the server's own ceiling, so past it the
+   * comment above was describing a problem this request still had — the
+   * two-hundred-and-first person was absent, with nothing saying so.
+   *
+   * The count comes back too, so the list can at least admit it is short.
+   * `RecordPicker` searching the server is the fuller answer and changes the
+   * control, which is its own change.
+   */
   const people = useQuery({
     queryKey: ["users", "for-groups"],
-    queryFn: () => api<{ people: PersonRow[] }>("/api/users?perPage=200"),
+    queryFn: () =>
+      api<{ people: PersonRow[]; total: number }>("/api/users?perPage=200"),
   });
 
   const settle = () => qc.invalidateQueries({ queryKey: ["user-groups"] });
@@ -137,6 +147,8 @@ function Members({ group }: { group: GroupRow }) {
   const everybody = people.data?.people ?? [];
   const inGroup = new Set(group.members.map((m) => m.userId));
   const others = everybody.filter((p) => !inGroup.has(p.userId));
+  /** More people exist than were fetched, so "not listed" is not "not here". */
+  const someoneMissing = (people.data?.total ?? 0) > everybody.length;
 
   return (
     <div className="flex flex-col gap-(--gap-stack)">
@@ -167,7 +179,15 @@ function Members({ group }: { group: GroupRow }) {
 
       {others.length > 0 ? (
         <Card>
-          <SectionHeading>Add somebody</SectionHeading>
+          <SectionHeading
+            hint={
+              someoneMissing
+                ? `${everybody.length} of ${people.data?.total} shown — somebody further down will not be here yet`
+                : undefined
+            }
+          >
+            Add somebody
+          </SectionHeading>
           <ul className="flex flex-col gap-(--gap-tight) text-sm">
             {others.map((p) => (
               <li key={p.userId} className="flex items-center justify-between">

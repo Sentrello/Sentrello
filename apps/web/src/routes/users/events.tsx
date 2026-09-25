@@ -128,9 +128,23 @@ export function Events() {
   const setField = (field: keyof EventsFilter, value: string) =>
     setFilter((f) => ({ ...f, [field]: value, page: 1 }));
 
+  /*
+   * Everybody, up to the endpoint's own ceiling.
+   *
+   * `/api/users` caps `perPage` at 200 and says how many there really are.
+   * This asked for 200 and read only the rows, so at a business with more
+   * staff than that the person somebody wanted was simply not in the list —
+   * no error, no message, just an absence that reads as "they are not here".
+   *
+   * The honest fix is `RecordPicker`, which searches the server as somebody
+   * types and is what the exemption-certificate screen moved to for exactly
+   * this reason. That changes the control, so it is its own change; this one
+   * stops the list lying about being complete.
+   */
   const people = useQuery({
     queryKey: ["users", "for-events"],
-    queryFn: () => api<{ people: PersonRow[] }>("/api/users?perPage=200"),
+    queryFn: () =>
+      api<{ people: PersonRow[]; total: number }>("/api/users?perPage=200"),
   });
   const groups = useQuery({
     queryKey: ["user-groups"],
@@ -174,6 +188,8 @@ export function Events() {
   if (groups.error) return <ErrorNote error={groups.error} />;
 
   const everybody = people.data?.people ?? [];
+  /** More people exist than this list holds, so it cannot be trusted as one. */
+  const someoneMissing = (people.data?.total ?? 0) > everybody.length;
   const everyGroup = groups.data?.groups ?? [];
   const rows = events.data?.events ?? [];
   const total = events.data?.total ?? 0;
@@ -255,7 +271,14 @@ export function Events() {
       </Card>
 
       <div className="grid gap-(--gap-toolbar) sm:grid-cols-2 lg:grid-cols-5">
-        <Field label="Actor">
+        <Field
+          label="Actor"
+          hint={
+            someoneMissing
+              ? `Showing ${everybody.length} of ${people.data?.total}. Somebody further down the list will not be here.`
+              : undefined
+          }
+        >
           <Select
             value={filter.actor}
             onChange={(e) => setField("actor", e.target.value)}
@@ -268,7 +291,14 @@ export function Events() {
             ))}
           </Select>
         </Field>
-        <Field label="Subject">
+        <Field
+          label="Subject"
+          hint={
+            someoneMissing
+              ? `Showing ${everybody.length} of ${people.data?.total} people.`
+              : undefined
+          }
+        >
           <Select
             value={filter.subject}
             onChange={(e) => setField("subject", e.target.value)}
