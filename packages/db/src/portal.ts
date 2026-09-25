@@ -89,11 +89,10 @@ export async function businessIdentity(orgId: string) {
      * invoicing in dollars was shown `CA$1,279.97` — the form you use when
      * you are *not* in Canada.
      *
-     * The country is enough on its own, which is why this is a field rather
-     * than a table of locales: `en-DE`, `en-FR`, `en-CA` all group and
-     * punctuate the way those countries do. It is asked for on the business
-     * settings screen, under the postcode, and is the second thing the
-     * onboarding checklist sends somebody to fill in.
+     * The country is enough on its own, and `moneyLocale` turns it into the
+     * locale that market's own invoices are written in. It is asked for on
+     * the business settings screen, under the postcode, and is the second
+     * thing the onboarding checklist sends somebody to fill in.
      */
     countryCode: org?.countryCode,
   };
@@ -104,25 +103,11 @@ export async function businessIdentity(orgId: string) {
  *
  * The seller's convention, not the reader's: this is the seller's document,
  * and a German business's invoice is written the German way wherever it is
- * opened. `en-` rather than the country's own language because the language
- * decides the words and the region decides the numbers, and the words here
- * are already the business's own.
- *
- * Falls back to `en-US`, which is what everything did before this existed.
- * A country nobody filled in, or one typed as nonsense, is not a reason to
- * throw while drawing an invoice.
+ * opened. Re-exported here because every caller in Core, Pro and the modules
+ * already reaches for `@sentrello/db/portal` beside `businessIdentity`, and
+ * the country it reads comes off the same row.
  */
-export function moneyLocale(countryCode?: string | null): string {
-  const region = (countryCode ?? "").trim().toUpperCase();
-  if (!/^[A-Z]{2}$/.test(region)) return "en-US";
-  try {
-    const locale = `en-${region}`;
-    new Intl.NumberFormat(locale, { style: "currency", currency: "USD" });
-    return locale;
-  } catch {
-    return "en-US";
-  }
-}
+export { moneyLocale } from "@sentrello/module-sdk/money-locale";
 
 /**
  * Where a customer sees everything they have with one business.

@@ -11,7 +11,8 @@
     "./theme.css": "./src/theme.css",
     "./nav-screens": "./src/nav-screens.ts",
     "./control-permissions": "./src/control-permissions.ts",
-    "./copied-helpers": "./src/copied-helpers.ts"
+    "./copied-helpers": "./src/copied-helpers.ts",
+    "./money-locale": "./src/money-locale.ts"
   },
   "dependencies": {
     "hono": "^4.13.5"

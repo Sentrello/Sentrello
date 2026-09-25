@@ -46,6 +46,7 @@
       "dependencies": {
         "@better-auth/sso": "1.6.26",
         "@sentrello/auth": "*",
+        "@sentrello/module-sdk": "*",
         "@tanstack/react-query": "^5.62.0",
         "better-auth": "^1.6.0",
         "qrcode-generator": "2.0.4",
@@ -99,6 +100,7 @@
       "name": "@sentrello/email",
       "version": "0.0.0",
       "dependencies": {
+        "@sentrello/module-sdk": "*",
         "nodemailer": "^9.1.1",
       },
       "devDependencies": {

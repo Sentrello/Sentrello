@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { MONEY_MARKETS } from "@sentrello/module-sdk/money-locale";
 import { deadLinkPage, moneyLocale } from "./portal";
 
 /**
@@ -98,5 +99,51 @@ test("a business that has not said keeps what it had", () => {
 test("rubbish in the field is not an exception", () => {
   expect(moneyLocale("Germany")).toBe("en-US");
   expect(moneyLocale("!!")).toBe("en-US");
-  expect(moneyLocale("de")).toBe("en-DE");
+  expect(moneyLocale("de")).toBe("de-DE");
+});
+
+/**
+ * The tag itself, because the string above hid a bug for a day.
+ *
+ * It was `en-${country}` — `en-DE`, `en-FR` — which on macOS gives Germany's
+ * separators and on Linux gives America's, silently, because number symbols
+ * are inherited from the language and only a recent CLDR adds the European
+ * branch under `en`. Nothing threw; `supportedLocalesOf` even said `en-DE`
+ * was supported. Every assertion above passed on the machine it was written
+ * on and failed in the container this product ships in.
+ *
+ * So: no market outside the English-speaking ones may resolve to an `en` tag.
+ */
+test("a market that does not speak English is not given an English locale", () => {
+  for (const country of ["DE", "FR", "IT", "ES", "NL", "SE", "PL"]) {
+    expect([country, moneyLocale(country).startsWith("en")]).toEqual([
+      country,
+      false,
+    ]);
+  }
+  // And the four that do keep theirs.
+  expect(moneyLocale("US")).toBe("en-US");
+  expect(moneyLocale("CA")).toBe("en-CA");
+  expect(moneyLocale("GB")).toBe("en-GB");
+  expect(moneyLocale("IE")).toBe("en-IE");
+});
+
+/**
+ * Every market this product sells into resolves to the locale it was given.
+ *
+ * This is the failure mode itself. `en-DE` is a structurally valid tag that
+ * `Intl` accepts, reports as supported, and then quietly resolves to plain
+ * `en` on any build whose CLDR predates the European `en-150` branch — which
+ * is the build in the container. A locale that resolves to something other
+ * than what was asked for is a market reading somebody else's numbers.
+ */
+test("no market falls back to a locale nobody chose", () => {
+  for (const country of MONEY_MARKETS) {
+    const asked = moneyLocale(country);
+    const got = new Intl.NumberFormat(asked, {
+      style: "currency",
+      currency: "EUR",
+    }).resolvedOptions().locale;
+    expect([country, got]).toEqual([country, asked]);
+  }
 });

@@ -1,3 +1,5 @@
+import { moneyLocale } from "@sentrello/module-sdk/money-locale";
+
 /**
  * Plain template functions rather than React Email — three transactional mails
  * do not need a renderer dependency. Swap the bodies for React Email components
@@ -66,29 +68,21 @@ export function formatMoney(
  * because a business paid by transfer otherwise fields "where do I send this?"
  * on every invoice it raises.
  */
-/**
+/*
  * How the seller writes numbers, from the country on their settings screen.
  *
- * `db/portal.ts` has the same ten lines, and that is deliberate rather than
- * an oversight. This package depends on `nodemailer` and nothing else: it
- * formats messages and sends them, and pulling the database in so that two
- * regular expressions could be shared would be the larger mistake. A copy
- * that is small, tested and explained is cheaper than a dependency that is
- * none of those.
+ * This was a deliberate copy of `db/portal.ts` — ten lines, documented, on
+ * the grounds that this package depends on `nodemailer` and nothing else and
+ * that a database dependency would be the larger mistake. The note said a
+ * third copy was the signal to find a home both could reach. A third turned
+ * up in the web app the same week, and then all three were wrong in the same
+ * way, which is what a copy is for.
  *
- * If a third one appears, that is the signal to find a home both can reach.
+ * The SDK's `money-locale` is a leaf file importing nothing, reached by its
+ * own subpath export, so this costs the package nothing at runtime.
  */
-function sellerLocale(business?: BusinessIdentity): string {
-  const region = (business?.countryCode ?? "").trim().toUpperCase();
-  if (!/^[A-Z]{2}$/.test(region)) return "en-US";
-  try {
-    const locale = `en-${region}`;
-    new Intl.NumberFormat(locale, { style: "currency", currency: "USD" });
-    return locale;
-  } catch {
-    return "en-US";
-  }
-}
+const sellerLocale = (business?: BusinessIdentity) =>
+  moneyLocale(business?.countryCode);
 
 export interface BusinessIdentity {
   name: string;

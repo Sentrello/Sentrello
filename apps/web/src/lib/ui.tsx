@@ -1,3 +1,4 @@
+import { moneyLocale } from "@sentrello/module-sdk/money-locale";
 /**
  * The small set of primitives every screen is built from.
  *
@@ -97,8 +98,8 @@ let formats = {
    * `en-US` for everybody wrote a European figure the American way — Germany
    * reads `1.279,97 €`, France `1 279,97 €` — and showed a Canadian business
    * `CA$1,279.97`, the form you use when you are *not* in Canada. The country
-   * is enough on its own: `en-DE`, `en-FR` and `en-CA` group and punctuate
-   * the way those places do.
+   * is enough on its own — `moneyLocale` turns it into the locale that
+   * market's own documents are written in.
    *
    * Empty until the business says, and empty means what everything did
    * before the field was read.
@@ -106,18 +107,8 @@ let formats = {
   countryCode: "",
 };
 
-/** `en-DE`, `en-CA`, `en-US` — or `en-US` for a country nobody has given. */
-function numberLocale(): string {
-  const region = formats.countryCode.trim().toUpperCase();
-  if (!/^[A-Z]{2}$/.test(region)) return "en-US";
-  try {
-    const locale = `en-${region}`;
-    new Intl.NumberFormat(locale, { style: "currency", currency: "USD" });
-    return locale;
-  } catch {
-    return "en-US";
-  }
-}
+/** `de-DE`, `en-CA`, `en-US` — and `en-US` for a country nobody has given. */
+const numberLocale = () => moneyLocale(formats.countryCode);
 
 export function setFormats(next: Partial<typeof formats>) {
   formats = { ...formats, ...next };

@@ -264,7 +264,7 @@ function documentPage(args: {
   dueDate: Date | string | null;
   currency: string;
   /**
-   * How this business writes a number — `en-DE`, `en-CA`, `en-US`.
+   * How this business writes a number — `de-DE`, `en-CA`, `en-US`.
    *
    * Optional, and absent means the American way, which is what every
    * document did before the business's own country was asked for.

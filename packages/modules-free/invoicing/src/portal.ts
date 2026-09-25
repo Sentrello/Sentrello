@@ -231,7 +231,7 @@ export function portalPage(args: {
   business?: BusinessIdentity;
   customerName: string;
   /**
-   * How this business writes a number — `en-DE`, `en-CA`, `en-US`.
+   * How this business writes a number — `de-DE`, `en-CA`, `en-US`.
    *
    * Absent means the American way, which is what every page did before the
    * business's own country was asked for.
