@@ -1,8 +1,10 @@
 import { expect, test } from "bun:test";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { renderToStaticMarkup } from "react-dom/server";
 import { GROUP_ICONS } from "./app-shell";
-import { GLYPHS } from "./icons";
+import { FLEX_GRID } from "./icon-flex";
+import { GLYPHS, Icon } from "./icons";
 
 /**
  * Asserted against `GLYPHS`, not the fetched set. `GLYPHS` is what the
@@ -84,4 +86,47 @@ test("every icon the repository asks for is one the app can draw", () => {
 
   expect(asked.size).toBeGreaterThan(20);
   expect([...asked].filter((name) => !GLYPHS[name]).sort()).toEqual([]);
+});
+
+/**
+ * The grid the drawings are on, and the box they are framed in.
+ *
+ * `Icon` rendered `viewBox="0 0 24 24"` and this file's header said the
+ * artwork was 24x24. It is 14x14 — streamline-flex's own grid, which the
+ * generator read from the API and threw away. So every icon in the product
+ * was drawn at 58% of its size, anchored to the top-left of its own box,
+ * with the rest of the box belonging to nothing.
+ *
+ * On a label that reads as a slightly small picture and you look past it. On
+ * the navigation rail, where the icon is the only thing naming a section, it
+ * put four drawings at four apparent sizes — which is what it took for
+ * somebody to say the icons were off.
+ *
+ * Nothing threw and no test could see it: every check here read the markup,
+ * and the markup was fine. What was wrong was the frame around it. So the
+ * grid is recorded by the generator now, and this holds the two things that
+ * can still drift apart.
+ */
+test("the frame is the grid the artwork says it is on", () => {
+  expect(FLEX_GRID).toBe(14);
+  const drawn = renderToStaticMarkup(<Icon name="wallet" />);
+  expect(drawn).toContain(`viewBox="0 0 ${FLEX_GRID} ${FLEX_GRID}"`);
+});
+
+/**
+ * And our own marks are on that same grid. They were drawn for 24, which is
+ * the other half of the same mistake: one coordinate system, or a plus sign
+ * lands off the edge of the box the pictures sit in.
+ */
+test("the marks we drew ourselves are on the set's grid", () => {
+  for (const name of ["plus", "close", "tick", "panel", "more-horizontal"]) {
+    const body = GLYPHS[name] ?? "";
+    // Every coordinate our own markup carries, which — unlike the set's
+    // compressed path data — is written out plainly enough to read back.
+    const coords = [...body.matchAll(/(?:^|[ ,ML])(-?\d+(?:\.\d+)?)/g)].map(
+      (m) => Number(m[1]),
+    );
+    const reach = Math.max(...coords.map(Math.abs), 0);
+    expect([name, reach <= FLEX_GRID]).toEqual([name, true]);
+  }
 });

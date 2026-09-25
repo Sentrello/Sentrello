@@ -62,31 +62,44 @@ export function FindButton() {
         nobody can find. Opacity also hides from the contrast test, which
         measures declared token pairs and cannot see a multiplier.
 
-        So: a sunken surface, a real border, and `--text-muted` for the
-        prompt — a pair `theme-contrast.test.ts` already measures in both
-        themes. Nothing here is transparent and nothing is dimmed.
+        So: a sunken surface and a real border. Nothing here is transparent
+        and nothing is dimmed.
+
+        The words are `--text`, not `--text-muted`. A muted prompt is the
+        convention for a field somebody is about to type into, and it was
+        still too quiet to read against the dark panel — this is a label on
+        a control, not placeholder text waiting to be replaced. The magnifier
+        and the shortcut stay muted, because those are hints beside the words
+        rather than the words themselves.
       */}
       <button
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Find anything"
-        className="flex h-9 w-9 flex-none items-center gap-2 rounded-md border px-2 text-sm sm:w-full sm:max-w-xs sm:flex-1 sm:px-3"
+        className="flex h-9 w-9 flex-none items-center gap-2.5 rounded-md border px-2 text-sm sm:w-full sm:max-w-sm sm:flex-1 sm:px-3"
         style={{
           borderColor: "var(--border)",
           background: "var(--surface-sunken)",
-          color: "var(--text-muted)",
+          color: "var(--text)",
         }}
       >
-        <Icon name="search" size={16} />
+        <span style={{ color: "var(--text-muted)" }} className="flex">
+          <Icon name="search" size={16} />
+        </span>
         <span className="hidden flex-1 text-left sm:inline">Find anything</span>
         {/*
           The shortcut shown rather than only bound, because a shortcut nobody
           is told about is a shortcut for the people who did not need it. It
-          takes the same muted colour as the prompt rather than a dimming of
-          it — nested opacity multiplies, and that is how this hint reached
-          3.49:1 against white on every screen in the product.
+          takes the muted token rather than a dimming of the words above it —
+          nested opacity multiplies, and that is how this hint reached 3.49:1
+          against white on every screen in the product.
         */}
-        <kbd className="hidden text-xs sm:inline">⌘K</kbd>
+        <kbd
+          className="hidden text-xs sm:inline"
+          style={{ color: "var(--text-muted)" }}
+        >
+          ⌘K
+        </kbd>
       </button>
       {open ? <FindDialog onClose={() => setOpen(false)} /> : null}
     </>

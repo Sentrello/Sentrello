@@ -11,8 +11,18 @@
  * `NOTICE` at the root of this repository, which is where the licence wants
  * it — attribution travels with the distribution, not with the file.
  *
- * Each value is the inner markup of a 24x24 SVG, filled with `currentColor`.
+ * Each value is the inner markup of an SVG on the `FLEX_GRID` square below,
+ * filled with `currentColor`.
  */
+
+/**
+ * The grid the artwork is drawn on, from the set itself.
+ *
+ * `icons.tsx` frames every drawing with it. It was assumed to be 24 and is
+ * 14, which put every icon in the product at 58% of its size in the corner
+ * of its own box.
+ */
+export const FLEX_GRID = 14;
 
 export const FLEX: Record<string, string> = {
   "at-sign":

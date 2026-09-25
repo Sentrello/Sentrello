@@ -428,6 +428,14 @@ a {
   overflow-y: auto;
 }
 
+/*
+ * The icon is the only thing naming a section, so it is drawn at full
+ * strength rather than muted. Muted is right for a hint beside a label and
+ * wrong for the label itself — and an icon reads weaker than text at the
+ * same contrast, because a 1px stroke covers a fraction of the area a
+ * letterform does. In the dark these were four grey outlines on near-black
+ * with nothing to say which was which.
+ */
 .rail-button {
   display: flex;
   align-items: center;
@@ -435,7 +443,7 @@ a {
   width: 2.875rem;
   height: 2.875rem;
   border-radius: var(--radius-md);
-  color: var(--text-muted);
+  color: var(--text);
 }
 
 /*

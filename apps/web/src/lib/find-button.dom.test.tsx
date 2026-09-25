@@ -50,7 +50,7 @@ test("it is drawn on a surface of its own, not dimmed onto the header", () => {
   const { button, stop } = draw();
   const style = button.getAttribute("style") ?? "";
   expect(style).toContain("--surface-sunken");
-  expect(style).toContain("--text-muted");
+  expect(style).toContain("--text");
   // The failure mode itself. Nothing here may be faded, because a faded
   // control is invisible in the dark and invisible to the contrast test.
   expect(style).not.toContain("opacity");

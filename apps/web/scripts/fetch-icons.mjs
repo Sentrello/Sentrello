@@ -111,6 +111,7 @@ const outFile = join(here, "../src/lib/icon-flex.ts");
 
 const wanted = [...new Set(Object.values(ICONS))].sort();
 const bodies = new Map();
+let grid = null;
 
 for (let i = 0; i < wanted.length; i += 40) {
   const batch = wanted.slice(i, i + 40);
@@ -121,6 +122,21 @@ for (let i = 0; i < wanted.length; i += 40) {
   for (const [name, icon] of Object.entries(json.icons ?? {})) {
     bodies.set(name, icon.body);
   }
+  /*
+   * The grid the drawings are on, recorded rather than assumed.
+   *
+   * This script took the bodies and left the set's own `width` on the floor,
+   * and the file it wrote said the markup was 24x24. It is 14x14, so every
+   * icon in the product was rendered at 58% of its size in the top-left
+   * corner of its own box — for weeks, with nothing failing, because the
+   * markup was never wrong. Only the frame was.
+   */
+  const w = json.width ?? json.height;
+  if (!w) throw new Error("the set did not say what grid it is drawn on");
+  if (grid !== null && grid !== w) {
+    throw new Error(`two grids in one set: ${grid} and ${w}`);
+  }
+  grid = w;
 }
 
 const missing = wanted.filter((n) => !bodies.get(n)?.trim());
@@ -153,8 +169,18 @@ writeFileSync(
  * \`NOTICE\` at the root of this repository, which is where the licence wants
  * it — attribution travels with the distribution, not with the file.
  *
- * Each value is the inner markup of a 24x24 SVG, filled with \`currentColor\`.
+ * Each value is the inner markup of an SVG on the \`FLEX_GRID\` square below,
+ * filled with \`currentColor\`.
  */
+
+/**
+ * The grid the artwork is drawn on, from the set itself.
+ *
+ * \`icons.tsx\` frames every drawing with it. It was assumed to be 24 and is
+ * 14, which put every icon in the product at 58% of its size in the corner
+ * of its own box.
+ */
+export const FLEX_GRID = ${grid};
 
 export const FLEX: Record<string, string> = {
 ${entries}
