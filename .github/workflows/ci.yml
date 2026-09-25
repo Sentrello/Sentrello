@@ -1,8 +1,18 @@
 name: ci
 on: { push: {}, pull_request: {} }
+# One run per branch. A second push supersedes the first rather than
+# paying for both — a 66-minute job left running for a commit nobody
+# will ever look at again is the shape of an Actions bill.
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    # A hung job is billed like a working one.
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:17
