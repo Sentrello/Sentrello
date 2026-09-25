@@ -47,6 +47,42 @@ test("there are routes and screens to check", () => {
   expect(sourceFiles(WEB, [".tsx"]).length).toBeGreaterThan(20);
 });
 
+/**
+ * How much of its own subject this guard can actually see.
+ *
+ * Not a theoretical worry. On 25 September the resolver matched one line at a
+ * time, and a handler is rarely one line — `onClick={() =>` sits above
+ * `save.mutate({` wherever the arguments are an object. It reported zero
+ * ungated writes in three repositories while blind to a fifth of the
+ * controls, and the gaps it was hiding included who a group's policies are
+ * and the two-factor rules. Every assertion in this file was green throughout.
+ *
+ * So the coverage is pinned as well as the result. Every `.mutate(` in a
+ * screen is either a control's own handler or a call from somewhere else —
+ * an effect, a callback handed to a child — and the second kind is the
+ * minority. Today the resolver accounts for 172 of 198; the version this
+ * replaced managed 142. A drop means the matching narrowed again, which is a
+ * fact worth a morning even when nothing else has changed.
+ */
+test("the resolver still sees most of the writes in the tree", () => {
+  let controls = 0;
+  let callSites = 0;
+  for (const path of sourceFiles(WEB, [".tsx"])) {
+    if (path.includes(".test.")) continue;
+    const source = readFileSync(path, "utf8");
+    controls += controlsFiringMutations(source).length;
+    callSites += (source.match(/\.mutate\(/g) ?? []).length;
+  }
+  expect(callSites).toBeGreaterThan(100);
+  // 0.87 today, 0.72 the day this was written. The floor sits between them
+  // with room, so a real refactor does not trip it and a regression does.
+  expect([controls, callSites, controls / callSites > 0.8]).toEqual([
+    controls,
+    callSites,
+    true,
+  ]);
+});
+
 test("every control that writes says which permission it needs", () => {
   const bare: string[] = [];
   for (const path of sourceFiles(WEB, [".tsx"])) {
