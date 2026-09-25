@@ -54,7 +54,7 @@ test("a version that is not numbers claims nothing", () => {
 /**
  * How a real instance actually stamps itself.
  *
- * bmp.sentrello.com reported `v0.26.7+e4e88f1` and was told it was up to date
+ * An instance reported `v0.26.7+e4e88f1` and was told it was up to date
  * while 0.27.9 was out. Neither the `v` nor the build metadata says anything
  * about which release is newer — semver requires build metadata to be ignored
  * when comparing — but the guard that exists to refuse pre-releases was

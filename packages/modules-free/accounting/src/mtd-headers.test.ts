@@ -25,7 +25,7 @@ const client = {
 const server = {
   clientIp: "203.0.113.42",
   clientPort: "51423",
-  vendorIp: "143.244.185.149",
+  vendorIp: "203.0.113.7",
   userId: "user-1",
   productVersion: "0.26.7",
   licenceId: "LIC-TEST",

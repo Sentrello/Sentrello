@@ -221,7 +221,7 @@ test("versions compare as numbers, not as strings", () => {
 /**
  * How a real instance stamps itself.
  *
- * `SENTRELLO_VERSION` on bmp.sentrello.com is `v0.26.7+e4e88f1` — the image
+ * `SENTRELLO_VERSION` on a real instance is `v0.26.7+e4e88f1` — the image
  * tag, with the commit on the end. Parsed digit by digit that produced NaN,
  * which this function reads as "cannot tell" and answers `false` to.
  *

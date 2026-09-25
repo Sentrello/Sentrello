@@ -12,14 +12,14 @@ import {
  * of its domain must not decide it shares `com` with everybody.
  */
 test("the shared domain is one somebody already controls", () => {
-  expect(sessionDomain("sentrello.barkerpawski.com")).toBe("barkerpawski.com");
+  expect(sessionDomain("sentrello.mybusiness.com")).toBe("mybusiness.com");
   expect(sessionDomain("shop.acme.co.uk")).toBe("acme.co.uk");
   expect(sessionDomain("a.b.c.example.com")).toBe("b.c.example.com");
 
   // At the apex, it keeps the apex. Stripping a label here gives "com", and a
   // shared domain of "com" makes every website on earth same-site with this
   // instance — the one mistake worth writing a test for.
-  expect(sessionDomain("barkerpawski.com")).toBe("barkerpawski.com");
+  expect(sessionDomain("mybusiness.com")).toBe("mybusiness.com");
   expect(sessionDomain("example.org")).toBe("example.org");
   expect(sessionDomain("co.uk")).toBe("co.uk");
 
@@ -28,37 +28,31 @@ test("the shared domain is one somebody already controls", () => {
   expect(sessionDomain("")).toBeNull();
 
   // A port is not part of a domain.
-  expect(sessionDomain("sentrello.barkerpawski.com:3000")).toBe(
-    "barkerpawski.com",
-  );
+  expect(sessionDomain("sentrello.mybusiness.com:3000")).toBe("mybusiness.com");
 });
 
 test("a host is within a domain only when it really is", () => {
-  expect(withinSessionDomain("barkerpawski.com", "barkerpawski.com")).toBe(
-    true,
-  );
-  expect(withinSessionDomain("www.barkerpawski.com", "barkerpawski.com")).toBe(
+  expect(withinSessionDomain("mybusiness.com", "mybusiness.com")).toBe(true);
+  expect(withinSessionDomain("www.mybusiness.com", "mybusiness.com")).toBe(
     true,
   );
   expect(
-    withinSessionDomain("sentrello.barkerpawski.com", "barkerpawski.com"),
+    withinSessionDomain("sentrello.mybusiness.com", "mybusiness.com"),
   ).toBe(true);
 
   /*
    * The attack this shape invites: a domain somebody else registered that ends
-   * with the same letters. `notbarkerpawski.com` is not within
-   * `barkerpawski.com`, and a check written with `endsWith` and no dot would
+   * with the same letters. `notmybusiness.com` is not within
+   * `mybusiness.com`, and a check written with `endsWith` and no dot would
    * say it was.
    */
-  expect(withinSessionDomain("notbarkerpawski.com", "barkerpawski.com")).toBe(
+  expect(withinSessionDomain("notmybusiness.com", "mybusiness.com")).toBe(
     false,
   );
   expect(
-    withinSessionDomain("barkerpawski.com.evil.test", "barkerpawski.com"),
+    withinSessionDomain("mybusiness.com.evil.test", "mybusiness.com"),
   ).toBe(false);
-  expect(withinSessionDomain("barkerpawski.co", "barkerpawski.com")).toBe(
-    false,
-  );
+  expect(withinSessionDomain("mybusiness.co", "mybusiness.com")).toBe(false);
   expect(withinSessionDomain("anything.test", null)).toBe(false);
 });
 
@@ -70,22 +64,20 @@ test("a host is within a domain only when it really is", () => {
  * to list the site or put the site on the wrong domain.
  */
 test("a customer signs in only from a listed site on the same domain", () => {
-  const instance = "https://sentrello.barkerpawski.com";
+  const instance = "https://sentrello.mybusiness.com";
 
   // The shop's own website, listed: yes.
-  expect(maySignIn("https://barkerpawski.com", instance, true).ok).toBe(true);
-  expect(maySignIn("https://www.barkerpawski.com", instance, true).ok).toBe(
-    true,
-  );
+  expect(maySignIn("https://mybusiness.com", instance, true).ok).toBe(true);
+  expect(maySignIn("https://www.mybusiness.com", instance, true).ok).toBe(true);
 
   // Listed, but a different domain entirely. Browsers will not carry a session
   // there, so offering one would be offering something that does not work.
-  const elsewhere = maySignIn("https://barkerpawski-shop.com", instance, true);
+  const elsewhere = maySignIn("https://mybusiness-shop.com", instance, true);
   expect(elsewhere.ok).toBe(false);
-  expect(elsewhere.reason).toContain("barkerpawski.com");
+  expect(elsewhere.reason).toContain("mybusiness.com");
 
   // Same domain, but the shop never listed it.
-  const unlisted = maySignIn("https://blog.barkerpawski.com", instance, false);
+  const unlisted = maySignIn("https://blog.mybusiness.com", instance, false);
   expect(unlisted.ok).toBe(false);
   expect(unlisted.reason).toContain("list");
 
@@ -102,9 +94,9 @@ test("a customer signs in only from a listed site on the same domain", () => {
 
 /** An instance at the apex of its own domain still works, and stays narrow. */
 test("an instance at the apex shares only itself and its subdomains", () => {
-  const instance = "https://barkerpawski.com";
-  expect(maySignIn("https://barkerpawski.com", instance, true).ok).toBe(true);
-  expect(maySignIn("https://shop.barkerpawski.com", instance, true).ok).toBe(
+  const instance = "https://mybusiness.com";
+  expect(maySignIn("https://mybusiness.com", instance, true).ok).toBe(true);
+  expect(maySignIn("https://shop.mybusiness.com", instance, true).ok).toBe(
     true,
   );
   // And emphatically not everybody else on .com.

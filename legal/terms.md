@@ -1,7 +1,7 @@
 <!--
   The terms that govern using Sentrello, the website and the paid tiers.
 
-  Copied from the marketing site's source — websentrello,
+  Copied from the marketing site's own source —
   src/pages/terms.md — which is what sentrello.com serves and what
   governs. Kept here so the repository carries it too: an AGPL project
   whose licence talk lives only on a marketing site is asking to be

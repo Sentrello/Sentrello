@@ -12,8 +12,8 @@
  * which starts empty and therefore allows nobody.
  *
  * **And it has to be the same site as the instance**, in the sense a browser
- * means: the same registrable domain. `barkerpawski.com` and
- * `sentrello.barkerpawski.com` are the same site and a cookie passes between
+ * means: the same registrable domain. `mybusiness.com` and
+ * `sentrello.mybusiness.com` are the same site and a cookie passes between
  * them with no relaxation at all — the ordinary `SameSite=Lax` session works,
  * and none of the third-party-cookie blocking Safari does today and Chrome is
  * phasing in applies to it.
@@ -48,7 +48,7 @@ export function sessionDomain(instanceHost: string): string | null {
 
   /*
    * An instance at the apex keeps the apex. Stripping a label off
-   * `barkerpawski.com` gives `com`, which would make every website on earth
+   * `mybusiness.com` gives `com`, which would make every website on earth
    * same-site with it — the one mistake this function exists to not make.
    */
   if (labels.length === 2) return host;

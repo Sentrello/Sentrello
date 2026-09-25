@@ -1377,7 +1377,7 @@ test("/robots.txt refuses crawlers rather than serving the app", async () => {
  * robots.txt can be overruled. A CDN may prepend its own — Cloudflare's does,
  * with `Allow: /` for every agent — and a crawler resolving that against our
  * `Disallow: /` takes the permissive one, because the specificity is equal and
- * Allow wins. bmp.sentrello.com was crawlable for exactly that reason on the
+ * Allow wins. Our own instance was crawlable for exactly that reason on the
  * day `/robots.txt` was written. A header travels with the response and
  * nothing prepends to it.
  */

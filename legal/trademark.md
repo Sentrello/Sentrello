@@ -1,7 +1,7 @@
 <!--
   What you may and may not call something you built on Sentrello.
 
-  Copied from the marketing site's source — websentrello,
+  Copied from the marketing site's own source —
   src/pages/trademark.md — which is what sentrello.com serves and what
   governs. Kept here so the repository carries it too: an AGPL project
   whose licence talk lives only on a marketing site is asking to be

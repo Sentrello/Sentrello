@@ -55,7 +55,7 @@ async function run(form: unknown = FORM) {
   // the DOM try to go and fetch it, and the script only ever reads the tag's
   // src, its attribute, and where it sits.
   const tag = document.createElement("div") as HTMLDivElement & { src: string };
-  tag.src = "https://bmp.sentrello.com/embed.js";
+  tag.src = "https://forms.example.test/embed.js";
   tag.setAttribute("data-sentrello-form", "frm_test");
   document.body.appendChild(tag);
   // The script reads document.currentScript to find its own tag, which only
@@ -161,7 +161,7 @@ test("plain radios stay plain", async () => {
 test("an answer the page already knows is filled in and locked", async () => {
   document.body.innerHTML = "";
   const tag = document.createElement("div") as HTMLDivElement & { src: string };
-  tag.src = "https://bmp.sentrello.com/embed.js";
+  tag.src = "https://forms.example.test/embed.js";
   tag.setAttribute("data-sentrello-form", "frm_test");
   tag.setAttribute("data-sentrello-role", "Account Executive");
   tag.setAttribute("data-sentrello-where", "Somebody told me");

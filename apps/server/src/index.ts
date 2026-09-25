@@ -139,7 +139,7 @@ app.use("*", async (c, next) => {
    * A CDN in front of an instance may prepend its own robots.txt to ours.
    * Cloudflare's does, with `Allow: /` for every agent, and a crawler
    * resolving that against our `Disallow: /` takes the permissive one: equal
-   * specificity, and Allow wins. bmp.sentrello.com was crawlable for exactly
+   * specificity, and Allow wins. our own instance was crawlable for exactly
    * that reason on the day the file was written.
    *
    * A header travels with the response and nothing prepends to it. So the same

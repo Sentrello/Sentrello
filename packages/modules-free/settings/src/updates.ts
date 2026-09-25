@@ -165,7 +165,7 @@ export function isNewer(candidate: string, current: string): boolean {
  * - a leading `v`, which is how the image is tagged;
  * - `+` build metadata, which semver requires to be ignored when comparing.
  *
- * Both are present on a real instance — bmp reported `v0.26.7+e4e88f1` — and
+ * Both are present on a real instance — one reported `v0.26.7+e4e88f1` — and
  * without stripping them the plain-release test below rejected the version it
  * was running. A rejection here is indistinguishable on the screen from "you
  * are up to date", so an instance sat a release behind being told it was
