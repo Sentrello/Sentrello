@@ -596,6 +596,7 @@ function BulkActions({
         {confirming ? (
           <Button
             variant="danger"
+            needs={{ crm: ["delete"] }}
             onClick={() => remove.mutate()}
             disabled={remove.isPending}
           >

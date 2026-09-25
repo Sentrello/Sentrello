@@ -168,6 +168,7 @@ export function TagChips({
             onChange={(e) => setNewName(e.target.value)}
           />
           <Button
+            needs={{ crm: ["create"] }}
             onClick={() => create.mutate()}
             disabled={!newName.trim() || create.isPending}
           >

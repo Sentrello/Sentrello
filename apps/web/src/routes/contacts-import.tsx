@@ -198,6 +198,7 @@ export function ContactsImport({ onDone }: { onDone: () => void }) {
 
           <div className="mt-3 flex items-center gap-2">
             <Button
+              needs={{ crm: ["create"] }}
               onClick={() => run.mutate()}
               // A name is the one thing a contact cannot be created without.
               disabled={

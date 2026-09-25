@@ -117,6 +117,7 @@ export function ContactDuplicates({ onChanged }: { onChanged: () => void }) {
                 message={`"${fold.name ?? "the other record"}" will be folded into "${keep.name ?? "this record"}" and deleted. Its notes, tasks, deals, quotes and invoices will follow the kept record. This cannot be undone from a screen.`}
                 confirmLabel={`Merge into ${keep.name ?? "kept record"}`}
                 variant="secondary"
+                needs={{ crm: ["update", "delete"] }}
                 disabled={merge.isPending}
                 onConfirm={() => merge.mutate({ keep, fold })}
               >

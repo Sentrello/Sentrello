@@ -114,7 +114,11 @@ export function Forms() {
           </Field>
           {create.error ? <ErrorNote error={create.error} /> : null}
           <Toolbar>
-            <Button onClick={() => create.mutate()} disabled={create.isPending}>
+            <Button
+              needs={{ crm: ["create"] }}
+              onClick={() => create.mutate()}
+              disabled={create.isPending}
+            >
               {create.isPending ? "Creating…" : "Create form"}
             </Button>
           </Toolbar>
@@ -130,6 +134,7 @@ export function Forms() {
             arrive as contacts, and the ones worth chasing become deals.
           </p>
           <Button
+            needs={{ settings: ["update"] }}
             onClick={() => makeDefaults.mutate()}
             disabled={makeDefaults.isPending}
           >
@@ -580,6 +585,7 @@ function Submissions({ form }: { form: FormRow }) {
                 </div>
                 <Button
                   variant="secondary"
+                  needs={{ crm: ["create"] }}
                   onClick={() => promote.mutate(sub.id)}
                   disabled={promote.isPending}
                 >

@@ -467,6 +467,7 @@ export function CrmSettings() {
         <Card>
           <Toolbar>
             <Button
+              needs={{ crm: ["update"] }}
               onClick={() => save.mutate(pending)}
               disabled={save.isPending}
             >
@@ -565,6 +566,7 @@ export function CrmSettings() {
                   confirmLabel="Delete it"
                   danger
                   className="text-sm link-muted"
+                  needs={{ crm: ["delete"] }}
                   onConfirm={() => removeTag.mutate(tag.id)}
                 >
                   Delete
@@ -592,6 +594,7 @@ export function CrmSettings() {
               }}
             />
             <Button
+              needs={{ crm: ["create"] }}
               onClick={() => addTag.mutate(newTag.trim())}
               disabled={!newTag.trim() || addTag.isPending}
             >
@@ -729,6 +732,7 @@ function Webhooks() {
               message="Nothing more will be sent to it, and its delivery log goes with it."
               confirmLabel="Remove it"
               danger
+              needs={{ crm: ["update"] }}
               onConfirm={() => remove.mutate(hook.id)}
             >
               Remove
@@ -958,12 +962,17 @@ function EmailCapture() {
       ) : null}
 
       <Toolbar className="mt-4">
-        <Button onClick={() => turnOn.mutate()} disabled={turnOn.isPending}>
+        <Button
+          needs={{ crm: ["update"] }}
+          onClick={() => turnOn.mutate()}
+          disabled={turnOn.isPending}
+        >
           {data?.enabled ? "Rotate the URL" : "Turn it on"}
         </Button>
         {data?.enabled ? (
           <Button
             variant="secondary"
+            needs={{ crm: ["update"] }}
             onClick={() => turnOff.mutate()}
             disabled={turnOff.isPending}
           >

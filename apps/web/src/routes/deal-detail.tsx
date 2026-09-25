@@ -245,6 +245,7 @@ function EditDeal({
 
       <div className="mt-3 flex gap-2">
         <Button
+          needs={{ crm: ["update"] }}
           onClick={() => save.mutate()}
           disabled={!form.name.trim() || save.isPending}
         >
@@ -262,6 +263,7 @@ function EditDeal({
           confirmLabel="Delete it"
           danger
           variant="danger"
+          needs={{ crm: ["delete"] }}
           disabled={remove.isPending}
           onConfirm={() => remove.mutate()}
         >
@@ -465,6 +467,7 @@ export function DealDetail() {
           />
           <div className="mt-2">
             <Button
+              needs={{ crm: ["create"] }}
               onClick={() => addNote.mutate()}
               disabled={!text.trim() || addNote.isPending}
             >

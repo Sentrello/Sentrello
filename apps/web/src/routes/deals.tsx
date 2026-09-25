@@ -505,6 +505,7 @@ export function Deals() {
           </div>
           <Toolbar className="mt-(--gap-stack)">
             <Button
+              needs={{ crm: ["create"] }}
               onClick={() => create.mutate()}
               disabled={!name.trim() || create.isPending}
             >

@@ -668,7 +668,11 @@ export function FormBuilder({
        * that teaches people to dismiss dialogs.
        */}
       <Toolbar>
-        <Button onClick={() => save.mutate()} disabled={save.isPending}>
+        <Button
+          needs={{ crm: ["update"] }}
+          onClick={() => save.mutate()}
+          disabled={save.isPending}
+        >
           {save.isPending ? "Saving…" : "Save form"}
         </Button>
         {dirty ? (

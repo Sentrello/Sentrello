@@ -268,6 +268,7 @@ function Notes({
       </Field>
       <div className="mt-(--gap-toolbar)">
         <Button
+          needs={{ crm: ["create"] }}
           onClick={() => add.mutate()}
           disabled={!text.trim() || add.isPending}
         >
@@ -296,6 +297,7 @@ function Notes({
                   />
                   <Toolbar className="mt-(--gap-tight)">
                     <Button
+                      needs={{ crm: ["update"] }}
                       disabled={!draft.trim() || amend.isPending}
                       onClick={() => amend.mutate({ id: n.id, text: draft })}
                     >
@@ -353,6 +355,7 @@ function Notes({
                   confirmLabel="Delete it"
                   danger
                   className="link-muted"
+                  needs={{ crm: ["delete"] }}
                   onConfirm={() => remove.mutate(n.id)}
                 >
                   Delete
@@ -773,6 +776,7 @@ export function HistoryPanel({
             />
           </Field>
           <Button
+            needs={{ crm: ["create"] }}
             disabled={!said.trim() || log.isPending}
             onClick={() => log.mutate()}
           >
