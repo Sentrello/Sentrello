@@ -911,8 +911,7 @@ function Arrange({
         {draft.map((tab, i) => (
           <div
             key={`tab-${i}-${tab.name}`}
-            className="border-t pt-3"
-            style={{ borderColor: "var(--border)" }}
+            className="border-t pt-3 border-line"
           >
             <div className="flex items-center gap-2">
               <Input
@@ -1034,8 +1033,7 @@ function AttentionPanel({ data }: { data: Dashboard }) {
             return (
               <li
                 key={`${item.kind}-${item.id}`}
-                className="flex flex-wrap items-baseline justify-between gap-2 border-t pt-2 text-sm"
-                style={{ borderColor: "var(--border)" }}
+                className="flex flex-wrap items-baseline justify-between gap-2 border-t pt-2 text-sm border-line"
               >
                 <div>
                   {/* Goes to the screen that can do something about it —

@@ -32,6 +32,11 @@ const UI_HOST_ONLY = [
   // choosing that for every other module would be a module setting policy for
   // the host, not a screen using a primitive.
   "setFormats",
+  // The raised-surface style object, exported for `AuthShell` — the card on
+  // the four screens that draw before anybody is signed in, and therefore
+  // before any module exists to want it. A module wanting a raised surface
+  // wants `Card`, which is the same thing with the padding decided.
+  "raised",
 ];
 
 /**

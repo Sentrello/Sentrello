@@ -276,11 +276,7 @@ function Notes({
           </p>
         ) : (
           notes.map((n) => (
-            <div
-              key={n.id}
-              className="border-t pt-2 text-sm"
-              style={{ borderColor: "var(--border)" }}
-            >
+            <div key={n.id} className="border-t pt-2 text-sm border-line">
               {editing === n.id ? (
                 <>
                   <textarea

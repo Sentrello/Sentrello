@@ -418,8 +418,7 @@ function Sessions({
         {sessions.map((s) => (
           <li
             key={s.id}
-            className="flex flex-wrap items-baseline justify-between gap-2 border-t pt-2 text-sm"
-            style={{ borderColor: "var(--border)" }}
+            className="flex flex-wrap items-baseline justify-between gap-2 border-t pt-2 text-sm border-line"
           >
             <div>
               <div>

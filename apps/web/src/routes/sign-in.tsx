@@ -1,7 +1,8 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { authClient } from "../lib/auth";
+import { AuthShell } from "../lib/auth-shell";
 import { PageCredit } from "../lib/credit";
-import { muted } from "../lib/ui";
+import { Button, Field, Input, muted } from "../lib/ui";
 import { ForgotPassword } from "./forgot-password";
 
 export function SignIn() {
@@ -73,75 +74,61 @@ export function SignIn() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-6">
-      <div className="w-full max-w-sm">
-        <form
-          onSubmit={onSubmit}
-          className="space-y-4 rounded border p-6"
-          style={{
-            borderColor: "var(--border)",
-            background: "var(--surface-raised)",
-          }}
+    <AuthShell
+      title="Sign in to Sentrello"
+      footer={
+        <>
+          <PageCredit />
+          <SourceOffer />
+        </>
+      }
+    >
+      <form onSubmit={onSubmit} className="flex flex-col gap-(--gap-stack)">
+        <Field label="Email">
+          <Input
+            type="email"
+            required
+            autoComplete="username"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </Field>
+
+        {/*
+          `Input`, not `SecretInput`. The secret variant carries opt-outs that
+          keep a password manager away from a field, which is right for an API
+          key somebody is reading off a screen and exactly wrong here: this is
+          the field a password manager exists to fill.
+        */}
+        <Field label="Password">
+          <Input
+            type="password"
+            required
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+        </Field>
+
+        {error ? (
+          <p className="text-sm" style={{ color: "var(--text-danger)" }}>
+            {error}
+          </p>
+        ) : null}
+
+        <Button type="submit" disabled={busy} className="w-full">
+          {busy ? "Signing in…" : "Sign in"}
+        </Button>
+
+        <button
+          type="button"
+          onClick={() => setForgot(true)}
+          className="w-full text-sm link-muted"
         >
-          <h1 className="text-lg font-semibold">Sign in to Sentrello</h1>
-
-          <label className="block space-y-1 text-sm">
-            <span>Email</span>
-            <input
-              type="email"
-              required
-              autoComplete="username"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded border px-2 py-1"
-              style={{ borderColor: "var(--border)" }}
-            />
-          </label>
-
-          <label className="block space-y-1 text-sm">
-            <span>Password</span>
-            <input
-              type="password"
-              required
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded border px-2 py-1"
-              style={{ borderColor: "var(--border)" }}
-            />
-          </label>
-
-          {error ? (
-            <p className="text-sm" style={{ color: "var(--text-danger)" }}>
-              {error}
-            </p>
-          ) : null}
-
-          <button
-            type="submit"
-            disabled={busy}
-            className="w-full rounded px-3 py-2 text-sm font-medium"
-            style={{
-              background: "var(--brand-on-white-text)",
-              color: "var(--color-neutral-50)",
-              opacity: busy ? 0.6 : 1,
-            }}
-          >
-            {busy ? "Signing in…" : "Sign in"}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setForgot(true)}
-            className="w-full text-sm link-muted"
-          >
-            Forgot your password?
-          </button>
-        </form>
-        <PageCredit />
-        <SourceOffer />
-      </div>
-    </div>
+          Forgot your password?
+        </button>
+      </form>
+    </AuthShell>
   );
 }
 
@@ -220,72 +207,49 @@ function TwoFactorPrompt({ onCancel }: { onCancel: () => void }) {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-6">
-      <div className="w-full max-w-sm">
-        <form
-          onSubmit={onSubmit}
-          className="space-y-4 rounded border p-6"
-          style={{
-            borderColor: "var(--border)",
-            background: "var(--surface-raised)",
-          }}
-        >
-          <h1 className="text-lg font-semibold">Enter your code</h1>
-          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-            From your authenticator app, or one of your backup codes.
+    <AuthShell title="Enter your code" footer={<PageCredit />}>
+      <form onSubmit={onSubmit} className="flex flex-col gap-(--gap-stack)">
+        <p className="text-sm" style={muted}>
+          From your authenticator app, or one of your backup codes.
+        </p>
+
+        <Field label="Code">
+          <Input
+            required
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+          />
+        </Field>
+
+        <label className="flex items-center gap-(--gap-toolbar) text-sm">
+          <input
+            type="checkbox"
+            checked={trust}
+            onChange={(e) => setTrust(e.target.checked)}
+          />
+          Do not ask on this device for 30 days
+        </label>
+
+        {error ? (
+          <p className="text-sm" style={{ color: "var(--text-danger)" }}>
+            {error}
           </p>
+        ) : null}
 
-          <label className="block space-y-1 text-sm">
-            <span>Code</span>
-            <input
-              required
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              className="w-full rounded border px-2 py-1"
-              style={{ borderColor: "var(--border)" }}
-            />
-          </label>
+        <Button type="submit" disabled={busy} className="w-full">
+          {busy ? "Checking…" : "Continue"}
+        </Button>
 
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={trust}
-              onChange={(e) => setTrust(e.target.checked)}
-            />
-            Do not ask on this device for 30 days
-          </label>
-
-          {error ? (
-            <p className="text-sm" style={{ color: "var(--text-danger)" }}>
-              {error}
-            </p>
-          ) : null}
-
-          <button
-            type="submit"
-            disabled={busy}
-            className="w-full rounded px-3 py-2 text-sm font-medium"
-            style={{
-              background: "var(--brand-on-white-text)",
-              color: "var(--color-neutral-50)",
-              opacity: busy ? 0.6 : 1,
-            }}
-          >
-            {busy ? "Checking…" : "Continue"}
-          </button>
-
-          <button
-            type="button"
-            onClick={onCancel}
-            className="w-full text-sm link-muted"
-          >
-            Start again
-          </button>
-        </form>
-        <PageCredit />
-      </div>
-    </div>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="w-full text-sm link-muted"
+        >
+          Start again
+        </button>
+      </form>
+    </AuthShell>
   );
 }

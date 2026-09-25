@@ -633,10 +633,7 @@ function ThemeChoice({
   onChange: (t: Theme) => void;
 }) {
   return (
-    <div
-      className="flex gap-1 border-t px-3 py-2"
-      style={{ borderColor: "var(--border)" }}
-    >
+    <div className="flex gap-1 border-t px-3 py-2 border-line">
       {(["light", "dark", "system"] as const).map((t) => (
         <button
           key={t}
@@ -711,10 +708,7 @@ function ProfileMenu({
 
       {open ? (
         <div className="menu-panel" role="menu">
-          <div
-            className="border-b px-3 py-2"
-            style={{ borderColor: "var(--border)" }}
-          >
+          <div className="border-b px-3 py-2 border-line">
             <div className="truncate text-sm font-medium">{name || email}</div>
             {name ? (
               <div

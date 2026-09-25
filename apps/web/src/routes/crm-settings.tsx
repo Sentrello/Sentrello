@@ -499,8 +499,7 @@ export function CrmSettings() {
             {tags.data.tags.map((tag) => (
               <li
                 key={tag.id}
-                className="flex items-center gap-3 border-t py-2 first:border-0"
-                style={{ borderColor: "var(--border)" }}
+                className="flex items-center gap-3 border-t py-2 first:border-0 border-line"
               >
                 <span
                   aria-hidden="true"

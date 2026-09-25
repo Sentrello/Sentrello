@@ -306,8 +306,7 @@ export function People() {
                 {invitations.map((i) => (
                   <li
                     key={i.id}
-                    className="flex flex-wrap items-baseline justify-between gap-2 border-t pt-1"
-                    style={{ borderColor: "var(--border)" }}
+                    className="flex flex-wrap items-baseline justify-between gap-2 border-t pt-1 border-line"
                   >
                     <span>
                       {i.email}{" "}

@@ -1,4 +1,5 @@
 import { type FormEvent, useEffect, useState } from "react";
+import { AuthShell } from "../lib/auth-shell";
 import { PageCredit } from "../lib/credit";
 import { policyLabel } from "./users/policy-ui";
 
@@ -92,11 +93,6 @@ export function AcceptInvitation() {
     }
   }
 
-  const box = {
-    borderColor: "var(--border)",
-    background: "var(--surface-raised)",
-  };
-
   const body = loading ? (
     <p className="text-sm" style={{ color: "var(--text-muted)" }}>
       Checking the invitation…
@@ -129,8 +125,7 @@ export function AcceptInvitation() {
             autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded border px-2 py-1"
-            style={{ borderColor: "var(--border)" }}
+            className="w-full rounded border px-2 py-1 border-line"
           />
           <span
             className="block text-xs"
@@ -149,8 +144,7 @@ export function AcceptInvitation() {
               autoComplete="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full rounded border px-2 py-1"
-              style={{ borderColor: "var(--border)" }}
+              className="w-full rounded border px-2 py-1 border-line"
             />
           </label>
           <label className="block space-y-1 text-sm">
@@ -162,8 +156,7 @@ export function AcceptInvitation() {
               autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded border px-2 py-1"
-              style={{ borderColor: "var(--border)" }}
+              className="w-full rounded border px-2 py-1 border-line"
             />
             <span
               className="block text-xs"
@@ -196,14 +189,5 @@ export function AcceptInvitation() {
     </form>
   ) : null;
 
-  return (
-    <div className="flex min-h-screen items-center justify-center p-6">
-      <div className="w-full max-w-sm">
-        <div className="space-y-4 rounded border p-6" style={box}>
-          {body}
-        </div>
-        <PageCredit />
-      </div>
-    </div>
-  );
+  return <AuthShell footer={<PageCredit />}>{body}</AuthShell>;
 }

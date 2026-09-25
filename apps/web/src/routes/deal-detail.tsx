@@ -473,11 +473,7 @@ export function DealDetail() {
               </p>
             ) : (
               notes.map((n) => (
-                <div
-                  key={n.id}
-                  className="border-t pt-2 text-sm"
-                  style={{ borderColor: "var(--border)" }}
-                >
+                <div key={n.id} className="border-t pt-2 text-sm border-line">
                   <p className="whitespace-pre-wrap">{n.text}</p>
                   <p className="mt-0.5 text-xs" style={muted}>
                     {formatDate(n.createdAt)}

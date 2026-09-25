@@ -271,8 +271,7 @@ export function CrmDashboard() {
               <li key={contact.id}>
                 <button
                   type="button"
-                  className="flex w-full items-center gap-3 border-t py-2 text-left text-sm first:border-0"
-                  style={{ borderColor: "var(--border)" }}
+                  className="flex w-full items-center gap-3 border-t py-2 text-left text-sm first:border-0 border-line"
                   onClick={() =>
                     open({
                       moduleId: "contacts",
@@ -314,8 +313,7 @@ export function CrmDashboard() {
             {data.latestActivity.map((activity) => (
               <li
                 key={activity.id}
-                className="border-t py-1.5 text-sm first:border-0"
-                style={{ borderColor: "var(--border)" }}
+                className="border-t py-1.5 text-sm first:border-0 border-line"
               >
                 <div className="flex items-baseline justify-between gap-3">
                   <span

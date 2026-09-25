@@ -63,7 +63,11 @@ export function textOn(background: string): string {
     ? "#000000"
     : "#ffffff";
 }
-const raised = { background: "var(--surface-raised)", ...border };
+/** A raised surface. Exported for `AuthShell`, which is a card before the kit's `Card` exists in the tree. */
+export const raised = {
+  background: "var(--surface-raised)",
+  ...border,
+};
 
 /**
  * How this person wants dates and money written.

@@ -1,6 +1,8 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { authClient } from "../lib/auth";
+import { AuthShell } from "../lib/auth-shell";
 import { PageCredit } from "../lib/credit";
+import { Button, Field, Input } from "../lib/ui";
 
 /**
  * Getting back in without a password.
@@ -47,103 +49,68 @@ export function ForgotPassword({ onBack }: { onBack: () => void }) {
     setSent(true);
   }
 
-  const box = {
-    borderColor: "var(--border)",
-    background: "var(--surface-raised)",
-  };
-
   if (mailConfigured === false) {
     return (
-      <div className="flex min-h-screen items-center justify-center p-6">
-        <div className="w-full max-w-sm">
-          <div className="space-y-4 rounded border p-6" style={box}>
-            <h1 className="text-lg font-semibold">No email on this instance</h1>
-            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              This Sentrello has no mail configured, so it cannot send you a
-              reset link. On the machine running it:
-            </p>
-            <pre
-              className="overflow-x-auto rounded border p-2 text-xs"
-              style={{ borderColor: "var(--border)" }}
-            >
-              <code>sentrello reset-password {email || "you@example.com"}</code>
-            </pre>
-            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              Configure email in Settings afterwards and this page will send a
-              link instead.
-            </p>
-            <button type="button" onClick={onBack} className="text-sm link">
-              Back to sign in
-            </button>
-          </div>
-          <PageCredit />
-        </div>
-      </div>
+      <AuthShell title="No email on this instance" footer={<PageCredit />}>
+        <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+          This Sentrello has no mail configured, so it cannot send you a reset
+          link. On the machine running it:
+        </p>
+        <pre className="overflow-x-auto rounded border p-2 text-xs border-line">
+          <code>sentrello reset-password {email || "you@example.com"}</code>
+        </pre>
+        <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+          Configure email in Settings afterwards and this page will send a link
+          instead.
+        </p>
+        <button type="button" onClick={onBack} className="text-sm link">
+          Back to sign in
+        </button>
+      </AuthShell>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-6">
-      <div className="w-full max-w-sm">
-        <form
-          onSubmit={onSubmit}
-          className="space-y-4 rounded border p-6"
-          style={box}
-        >
-          <h1 className="text-lg font-semibold">Reset your password</h1>
+    <AuthShell title="Reset your password" footer={<PageCredit />}>
+      <form onSubmit={onSubmit} className="flex flex-col gap-(--gap-stack)">
+        {sent ? (
+          <>
+            <p className="text-sm">
+              If an account exists for <strong>{email}</strong>, a link is on
+              its way. It works once and expires in an hour.
+            </p>
+            <button type="button" onClick={onBack} className="text-sm link">
+              Back to sign in
+            </button>
+          </>
+        ) : (
+          <>
+            <Field label="Email">
+              <Input
+                type="email"
+                required
+                autoComplete="username"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </Field>
 
-          {sent ? (
-            <>
-              <p className="text-sm">
-                If an account exists for <strong>{email}</strong>, a link is on
-                its way. It works once and expires in an hour.
+            {error ? (
+              <p className="text-sm" style={{ color: "var(--text-danger)" }}>
+                {error}
               </p>
-              <button type="button" onClick={onBack} className="text-sm link">
-                Back to sign in
-              </button>
-            </>
-          ) : (
-            <>
-              <label className="block space-y-1 text-sm">
-                <span>Email</span>
-                <input
-                  type="email"
-                  required
-                  autoComplete="username"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full rounded border px-2 py-1"
-                  style={{ borderColor: "var(--border)" }}
-                />
-              </label>
+            ) : null}
 
-              {error ? (
-                <p className="text-sm" style={{ color: "var(--text-danger)" }}>
-                  {error}
-                </p>
-              ) : null}
-
-              <button
-                type="submit"
-                disabled={busy}
-                className="w-full rounded px-3 py-2 text-sm font-medium"
-                style={{
-                  background: "var(--brand-on-white-text)",
-                  color: "var(--color-neutral-50)",
-                  opacity: busy ? 0.6 : 1,
-                }}
-              >
-                {busy ? "Sending…" : "Send a reset link"}
-              </button>
-              <button type="button" onClick={onBack} className="text-sm link">
-                Back to sign in
-              </button>
-            </>
-          )}
-        </form>
-        <PageCredit />
-      </div>
-    </div>
+            <Button type="submit" disabled={busy} className="w-full">
+              {busy ? "Sending…" : "Send a reset link"}
+            </Button>
+            <button type="button" onClick={onBack} className="text-sm link">
+              Back to sign in
+            </button>
+          </>
+        )}
+      </form>
+    </AuthShell>
   );
 }
 
@@ -178,11 +145,6 @@ export function ResetPassword() {
     setDone(true);
   }
 
-  const box = {
-    borderColor: "var(--border)",
-    background: "var(--surface-raised)",
-  };
-
   // However they got here empty-handed, this is the same screen the "forgot
   // your password" link on sign-in shows — request the link is the only
   // recovery there is for a dead one, so both funnel into it.
@@ -191,125 +153,94 @@ export function ResetPassword() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-6">
-      <div className="w-full max-w-sm">
-        <form
-          onSubmit={onSubmit}
-          className="space-y-4 rounded border p-6"
-          style={box}
-        >
-          <h1 className="text-lg font-semibold">Choose a new password</h1>
+    <AuthShell title="Choose a new password" footer={<PageCredit />}>
+      <form onSubmit={onSubmit} className="flex flex-col gap-(--gap-stack)">
+        {done ? (
+          <>
+            <p className="text-sm">
+              Done. Sign in with it and you will land in the right place — the
+              app itself, or your account if this login only manages a
+              subscription.
+            </p>
+            {/*
+             * Always "/", never a guess at "/account": this screen has no
+             * session, so it cannot itself tell a billing-only account
+             * (sentrello.com, no organization here) from an ordinary one
+             * apart. Sending everyone to "/account" would be a dead link on
+             * every self-hosted instance, which has no such route at all.
+             * "/" re-enters the shell (`App.tsx`), and the shell already
+             * knows how to tell them apart — `belongsHere`/`accountPath`
+             * from `/api/_meta` — once they sign in there, so it sends a
+             * billing-only account on to its account page rather than the
+             * empty application a member of nothing would otherwise see.
+             */}
+            <a
+              href="/"
+              className="inline-block rounded px-3 py-2 text-center font-medium text-sm no-underline"
+              style={{
+                background: "var(--brand-on-white-text)",
+                color: "var(--color-neutral-50)",
+              }}
+            >
+              Sign in
+            </a>
+          </>
+        ) : !token ? (
+          <>
+            <p className="text-sm" style={{ color: "var(--text-danger)" }}>
+              This link is missing its token. Ask for another.
+            </p>
+            <Button
+              type="button"
+              onClick={() => setRequestNew(true)}
+              className="w-full"
+            >
+              Get a new link
+            </Button>
+            <a href="/" className="block text-center text-sm link">
+              Back to sign in
+            </a>
+          </>
+        ) : (
+          <>
+            <Field
+              label="New password"
+              hint="At least 12 characters. A few unrelated words work well."
+            >
+              <Input
+                type="password"
+                required
+                minLength={12}
+                autoComplete="new-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </Field>
 
-          {done ? (
-            <>
-              <p className="text-sm">
-                Done. Sign in with it and you will land in the right place — the
-                app itself, or your account if this login only manages a
-                subscription.
-              </p>
-              {/*
-               * Always "/", never a guess at "/account": this screen has no
-               * session, so it cannot itself tell a billing-only account
-               * (sentrello.com, no organization here) from an ordinary one
-               * apart. Sending everyone to "/account" would be a dead link on
-               * every self-hosted instance, which has no such route at all.
-               * "/" re-enters the shell (`App.tsx`), and the shell already
-               * knows how to tell them apart — `belongsHere`/`accountPath`
-               * from `/api/_meta` — once they sign in there, so it sends a
-               * billing-only account on to its account page rather than the
-               * empty application a member of nothing would otherwise see.
-               */}
-              <a
-                href="/"
-                className="inline-block rounded px-3 py-2 text-sm font-medium"
-                style={{
-                  background: "var(--brand-on-white-text)",
-                  color: "var(--color-neutral-50)",
-                }}
-              >
-                Sign in
-              </a>
-            </>
-          ) : !token ? (
-            <>
-              <p className="text-sm" style={{ color: "var(--text-danger)" }}>
-                This link is missing its token. Ask for another.
-              </p>
-              <button
-                type="button"
-                onClick={() => setRequestNew(true)}
-                className="w-full rounded px-3 py-2 text-sm font-medium"
-                style={{
-                  background: "var(--brand-on-white-text)",
-                  color: "var(--color-neutral-50)",
-                }}
-              >
-                Get a new link
-              </button>
-              <a href="/" className="block text-center text-sm link">
-                Back to sign in
-              </a>
-            </>
-          ) : (
-            <>
-              <label className="block space-y-1 text-sm">
-                <span>New password</span>
-                <input
-                  type="password"
-                  required
-                  minLength={12}
-                  autoComplete="new-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full rounded border px-2 py-1"
-                  style={{ borderColor: "var(--border)" }}
-                />
-                <span
-                  className="block text-xs"
-                  style={{ color: "var(--text-muted)" }}
+            {error ? (
+              <>
+                <p className="text-sm" style={{ color: "var(--text-danger)" }}>
+                  {error}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setRequestNew(true)}
+                  className="text-sm link"
                 >
-                  At least 12 characters. A few unrelated words work well.
-                </span>
-              </label>
+                  Get a new link
+                </button>
+              </>
+            ) : null}
 
-              {error ? (
-                <>
-                  <p
-                    className="text-sm"
-                    style={{ color: "var(--text-danger)" }}
-                  >
-                    {error}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setRequestNew(true)}
-                    className="text-sm link"
-                  >
-                    Get a new link
-                  </button>
-                </>
-              ) : null}
-
-              <button
-                type="submit"
-                disabled={busy}
-                className="w-full rounded px-3 py-2 text-sm font-medium"
-                style={{
-                  background: "var(--brand-on-white-text)",
-                  color: "var(--color-neutral-50)",
-                  opacity: busy ? 0.6 : 1,
-                }}
-              >
-                {busy ? "Saving…" : "Save and sign in"}
-              </button>
-              <a href="/" className="block text-center text-sm link">
-                Back to sign in
-              </a>
-            </>
-          )}
-        </form>
-        <PageCredit />
-      </div>
-    </div>
+            <Button type="submit" disabled={busy} className="w-full">
+              {busy ? "Saving…" : "Save and sign in"}
+            </Button>
+            <a href="/" className="block text-center text-sm link">
+              Back to sign in
+            </a>
+          </>
+        )}
+      </form>
+    </AuthShell>
   );
 }

@@ -1,5 +1,6 @@
 import { type FormEvent, useState } from "react";
 import { api } from "../lib/api";
+import { AuthShell } from "../lib/auth-shell";
 
 /**
  * First run: claim the instance. Shown only while no organization exists, and
@@ -119,84 +120,67 @@ export function Setup({
 
   if (placed) {
     return (
-      <div className="flex min-h-screen items-center justify-center p-6">
-        <div
-          className="w-full max-w-md space-y-4 rounded border p-6"
-          style={{
-            borderColor: "var(--border)",
-            background: "var(--surface-raised)",
-          }}
-        >
-          <div>
-            <h1 className="text-lg font-semibold">What applies to you</h1>
-            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              Compliance works like modules here — switch on what applies to
-              your business. We have ticked what your answers suggest. Change
-              any of it now or later; none of it is a one-way door.
-            </p>
-          </div>
+      <AuthShell title="What applies to you" width="md">
+        <div>
+          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+            Compliance works like modules here — switch on what applies to your
+            business. We have ticked what your answers suggest. Change any of it
+            now or later; none of it is a one-way door.
+          </p>
+        </div>
 
-          {offered.map((r) => (
-            <label key={r.id} className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                className="mt-1"
-                checked={picked.includes(r.id)}
-                onChange={(e) =>
-                  tick(picked, setPicked, r.id, e.currentTarget.checked)
-                }
-              />
-              <span>
-                {r.label}
-                {r.suggested ? null : (
-                  <span
-                    className="ml-1 text-xs"
-                    style={{ color: "var(--text-muted)" }}
-                  >
-                    (not suggested)
-                  </span>
-                )}
-                <span className="block" style={{ color: "var(--text-muted)" }}>
-                  {r.when}
+        {offered.map((r) => (
+          <label key={r.id} className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={picked.includes(r.id)}
+              onChange={(e) =>
+                tick(picked, setPicked, r.id, e.currentTarget.checked)
+              }
+            />
+            <span>
+              {r.label}
+              {r.suggested ? null : (
+                <span
+                  className="ml-1 text-xs"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  (not suggested)
                 </span>
+              )}
+              <span className="block" style={{ color: "var(--text-muted)" }}>
+                {r.when}
               </span>
-            </label>
-          ))}
+            </span>
+          </label>
+        ))}
 
-          <button
-            type="button"
-            disabled={busy}
-            onClick={saveRegimes}
-            className="w-full rounded px-3 py-2 text-sm font-medium"
-            style={{
-              /*
+        <button
+          type="button"
+          disabled={busy}
+          onClick={saveRegimes}
+          className="w-full rounded px-3 py-2 text-sm font-medium"
+          style={{
+            /*
                 `--accent` was nothing — the token does not exist in this app,
                 so this was white text on no background at all. The same
                 pairing as every other primary button on this screen.
               */
-              background: "var(--brand-on-white-text)",
-              color: "var(--color-neutral-50)",
-            }}
-          >
-            {busy ? "Saving…" : "Finish"}
-          </button>
-        </div>
-      </div>
+            background: "var(--brand-on-white-text)",
+            color: "var(--color-neutral-50)",
+          }}
+        >
+          {busy ? "Saving…" : "Finish"}
+        </button>
+      </AuthShell>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-6">
-      <form
-        onSubmit={onSubmit}
-        className="w-full max-w-sm space-y-4 rounded border p-6"
-        style={{
-          borderColor: "var(--border)",
-          background: "var(--surface-raised)",
-        }}
-      >
+    <AuthShell title="Set up Sentrello">
+      <form onSubmit={onSubmit} className="flex flex-col gap-(--gap-stack)">
         <div>
-          <h1 className="text-lg font-semibold">Set up Sentrello</h1>
           <p className="text-sm" style={{ color: "var(--text-muted)" }}>
             Create the owner account for this instance. Do this now — until it
             is done, anyone who can reach this page could claim it.
@@ -315,7 +299,7 @@ export function Setup({
           {busy ? "Setting up…" : "Create owner account"}
         </button>
       </form>
-    </div>
+    </AuthShell>
   );
 }
 
@@ -345,8 +329,7 @@ function Field({
         autoComplete={autoComplete}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded border px-2 py-1"
-        style={{ borderColor: "var(--border)" }}
+        className="w-full rounded border px-2 py-1 border-line"
       />
       {hint ? (
         <span className="text-xs" style={{ color: "var(--text-muted)" }}>

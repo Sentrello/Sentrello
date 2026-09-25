@@ -134,8 +134,7 @@ function FindDialog({ onClose }: { onClose: () => void }) {
       <dialog
         open
         aria-label="Find anything"
-        className="overlay-panel relative w-full max-w-xl overflow-hidden rounded-lg border p-0"
-        style={{ borderColor: "var(--border)" }}
+        className="overlay-panel relative w-full max-w-xl overflow-hidden rounded-lg border p-0 border-line"
       >
         {/*
           No `outline-none`. It was there to keep the flush top edge clean, and

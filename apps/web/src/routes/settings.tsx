@@ -144,8 +144,7 @@ function Copyable({ label, value }: { label: string; value: string }) {
       </p>
       <button
         type="button"
-        className="w-full break-all rounded border px-2 py-1 text-left text-xs"
-        style={{ borderColor: "var(--border)" }}
+        className="w-full break-all rounded border px-2 py-1 text-left text-xs border-line"
         onClick={() => {
           navigator.clipboard?.writeText(value).then(
             () => {
@@ -1254,10 +1253,7 @@ export function SettingsLicence() {
               working instance.
             */}
             {!licence.data.valid || licence.data.tier !== "pro" ? (
-              <div
-                className="mt-3 border-t pt-3"
-                style={{ borderColor: "var(--border)" }}
-              >
+              <div className="mt-3 border-t pt-3 border-line">
                 <Field
                   label="Licence key"
                   hint="From the email you were sent after buying. Paid features appear once it is checked."
@@ -1433,10 +1429,7 @@ export function SettingsLicence() {
           update, not something to invite on an ordinary Tuesday.
         */}
         {updates.data?.rollbackTo && updates.data.canApply ? (
-          <div
-            className="mt-3 border-t pt-3"
-            style={{ borderColor: "var(--border)" }}
-          >
+          <div className="mt-3 border-t pt-3 border-line">
             {confirmRollback ? (
               <>
                 <p className="text-sm">
@@ -1624,8 +1617,7 @@ function Modules() {
         {available.map((m) => (
           <li
             key={m.id}
-            className="flex flex-wrap items-center justify-between gap-2 border-t pt-2 text-sm"
-            style={{ borderColor: "var(--border)" }}
+            className="flex flex-wrap items-center justify-between gap-2 border-t pt-2 text-sm border-line"
           >
             <div>
               <div>{m.label}</div>
@@ -1646,8 +1638,7 @@ function Modules() {
         {switchable.map((n) => (
           <li
             key={n.id}
-            className="flex flex-wrap items-center justify-between gap-2 border-t pt-2 text-sm"
-            style={{ borderColor: "var(--border)" }}
+            className="flex flex-wrap items-center justify-between gap-2 border-t pt-2 text-sm border-line"
           >
             <div>
               <div>{n.label}</div>

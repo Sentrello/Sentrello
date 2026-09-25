@@ -181,10 +181,7 @@ export function TaskRow({
   const overdue = isOverdue(task.dueAt);
 
   return (
-    <li
-      className="flex items-start gap-2 border-t py-1.5 text-sm first:border-0"
-      style={{ borderColor: "var(--border)" }}
-    >
+    <li className="flex items-start gap-2 border-t py-1.5 text-sm first:border-0 border-line">
       <input
         type="checkbox"
         checked={task.done ?? false}
