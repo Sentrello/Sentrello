@@ -300,10 +300,10 @@ export function Settings() {
                 onChange={(e) => patch({ postcode: e.target.value })}
               />
             </Field>
-            <Field label="Country" hint='Two letters — "DE", "GB".'>
+            <Field label="Country" hint='Two letters — "US", "CA", "GB".'>
               <Input
                 value={form.countryCode}
-                placeholder="DE"
+                placeholder="US"
                 onChange={(e) => patch({ countryCode: e.target.value })}
               />
             </Field>
@@ -312,7 +312,7 @@ export function Settings() {
           <div className="grid gap-(--gap-toolbar) sm:grid-cols-2">
             <Field
               label="Email"
-              hint="A contact point for invoices. Germany requires one."
+              hint="A contact point for invoices. Some EU countries require one."
             >
               <Input
                 value={form.email}
@@ -354,10 +354,13 @@ export function Settings() {
           </div>
 
           {/* The machine-readable half of "how to pay": an e-invoice carries
-              the account itself, and Germany refuses one without it. */}
+              the account itself, and Germany refuses one without it. Kept as
+              an IBAN example because an IBAN is a European thing — a US
+              business leaves this empty, which is why the hint says who it
+              is for rather than that it is required. */}
           <Field
             label="IBAN"
-            hint="Where bank transfers go. Required on German e-invoices."
+            hint="Where bank transfers go, if you are paid in Europe. Some EU countries need it on an e-invoice."
           >
             <Input
               value={form.iban}
