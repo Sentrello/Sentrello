@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import type React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { type Meta, may, setGrants } from "./api";
-import { Button, MenuItem, Select } from "./ui";
+import { Button, MenuItem, Select, formatMoney, setFormats } from "./ui";
 
 /**
  * What a screen is told about what this person may do.
@@ -219,4 +219,29 @@ test("a select with no needs is never disabled by permissions", () => {
     </Select>,
   );
   expect(html).not.toContain('disabled=""');
+});
+
+/**
+ * How the business writes a number, on its own screens as on its invoices.
+ *
+ * `en-US` for everybody wrote a European figure the American way — Germany
+ * reads `1.279,97 €` — and showed a Canadian business `CA$1,279.97`, the
+ * form you use when you are *not* in Canada.
+ *
+ * A module-level value like the grants above and for the same reason: money
+ * is drawn in dozens of tables, and threading a preference through each one
+ * is how a comma becomes a week's work.
+ */
+test("money is punctuated the way the business punctuates it", () => {
+  const spaces = (text: string) => text.replace(/\p{Zs}/gu, " ");
+
+  setFormats({ countryCode: "DE", currency: "EUR" });
+  expect(spaces(formatMoney(127997, "EUR"))).toBe("1.279,97 €");
+
+  setFormats({ countryCode: "CA", currency: "CAD" });
+  expect(formatMoney(127997, "CAD")).toBe("$1,279.97");
+
+  // And back to what it always was for a business that has not said.
+  setFormats({ countryCode: "", currency: "USD" });
+  expect(formatMoney(127997, "USD")).toBe("$1,279.97");
 });

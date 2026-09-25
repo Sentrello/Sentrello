@@ -424,6 +424,13 @@ export default function App() {
    * `setFormats`, a few lines below.
    */
   setGrants(data?.can);
+  /*
+   * And how this business punctuates a figure, for the same reason and in
+   * the same breath: it is a fact about the instance, the same on every
+   * screen, and reading it during the render is what stops money being
+   * drawn the American way for a moment and then corrected.
+   */
+  setFormats({ countryCode: data?.countryCode ?? "" });
   const bootstrap = useBootstrap();
   const profile = useProfile(signedIn);
   const nav = data?.nav ?? [];

@@ -35,8 +35,15 @@ const html = (s: string) =>
       })[ch] ?? ch,
   );
 
-function money(cents: number, currency = "USD"): string {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(
+/**
+ * A figure written the way the business that sent it writes figures.
+ *
+ * The seller's convention, not the reader's, the same as the document this
+ * page links to: `en-US` for everybody wrote a European number the American
+ * way, and showed a Canadian business's own customers `CA$`.
+ */
+function money(cents: number, currency = "USD", locale = "en-US"): string {
+  return new Intl.NumberFormat(locale, { style: "currency", currency }).format(
     cents / 100,
   );
 }
@@ -117,7 +124,11 @@ export interface PortalInvoice {
  * out loud, and a customer seeing it would be reading over their shoulder.
  * Accepting is a real form post, so it works with scripts blocked.
  */
-function quoteSection(quotes: PortalQuote[], quotePath?: string): string {
+function quoteSection(
+  quotes: PortalQuote[],
+  quotePath?: string,
+  locale?: string,
+): string {
   const open = quotes.filter((q) => q.status === "sent");
   if (open.length === 0) return "";
 
@@ -125,7 +136,7 @@ function quoteSection(quotes: PortalQuote[], quotePath?: string): string {
     .map(
       (q) => `<tr>
   <td>${html(q.number)}</td>
-  <td class="num">${html(money(q.totalCents, q.currency))}</td>
+  <td class="num">${html(money(q.totalCents, q.currency, locale))}</td>
   <td class="num">${
     quotePath
       ? `<form method="post" action="${html(quotePath)}/${html(q.id)}/accept">
@@ -219,6 +230,13 @@ export function portalPage(args: {
   /** the seller's own details, for the foot of the page */
   business?: BusinessIdentity;
   customerName: string;
+  /**
+   * How this business writes a number — `en-DE`, `en-CA`, `en-US`.
+   *
+   * Absent means the American way, which is what every page did before the
+   * business's own country was asked for.
+   */
+  locale?: string;
   invoices: PortalInvoice[];
   /** quotes waiting on this customer's answer */
   quotes?: PortalQuote[];
@@ -248,6 +266,7 @@ export function portalPage(args: {
     businessName,
     business,
     customerName,
+    locale,
     invoices,
     quotes = [],
     quotePath,
@@ -290,7 +309,7 @@ export function portalPage(args: {
   <td>${html(i.number)}</td>
   <td>${html(day(i.dueDate))}</td>
   <td class="${cls}">${html(badge)}</td>
-  <td class="num">${html(money(balance || i.totalCents, i.currency))}</td>
+  <td class="num">${html(money(balance || i.totalCents, i.currency, locale))}</td>
   <td class="num">${pay}</td>
 </tr>`;
           })
@@ -308,7 +327,7 @@ ${path ? `<div class="page-tools">${customerThemeSwitch(path, theme)}</div>` : "
 <h1>${html(businessName)}</h1>
 <p class="sub">For ${html(customerName)}</p>
 ${accountPath ? `<p class="muted"><a href="${html(accountPath)}">See everything you have with us</a></p>` : ""}
-${quoteSection(quotes, quotePath)}
+${quoteSection(quotes, quotePath, locale)}
 ${
   invoices.length === 0
     ? // An empty table with headers, under a quote awaiting approval, reads as
@@ -321,7 +340,7 @@ ${
   <thead><tr><th>Invoice</th><th>Due</th><th>Status</th><th class="num">Amount</th><th></th></tr></thead>
   <tbody>${rows}</tbody>
 </table>
-${owed > 0 ? `<p class="owed">${html(money(owed, currency))} outstanding</p>` : `<p class="owed paid">Nothing outstanding</p>`}`
+${owed > 0 ? `<p class="owed">${html(money(owed, currency, locale))} outstanding</p>` : `<p class="owed paid">Nothing outstanding</p>`}`
 }
 <p class="muted" style="margin-top:2rem">This page is private to you. Anyone
 with the link can see it, so treat it like a bill in the post.</p>

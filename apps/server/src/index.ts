@@ -471,6 +471,20 @@ app.get("/api/_meta", requireSession(), async (c) => {
    * out from this row — see that comment for why reading `member.role` as a
    * single role name was wrong.
    */
+  /*
+   * The business's country, for how its figures are punctuated.
+   *
+   * One column, on a route the shell already waits for, rather than a query
+   * of its own on every screen that draws money.
+   */
+  const [business] = orgId
+    ? await db
+        .select({ countryCode: schema.organizations.countryCode })
+        .from(schema.organizations)
+        .where(eq(schema.organizations.id, orgId))
+        .limit(1)
+    : [];
+
   const [membership] = orgId
     ? await db
         .select({ role: schema.member.role })
@@ -634,6 +648,17 @@ app.get("/api/_meta", requireSession(), async (c) => {
 
   return c.json({
     nav: visible,
+    /**
+     * How this business writes a number, which is the whole of the country
+     * code on its settings screen.
+     *
+     * Here rather than with a person's own preferences, because it is not
+     * one: how money is punctuated belongs to the business, the same on
+     * every screen and for everybody signed into it. `en-US` for everybody
+     * wrote a European figure the American way and showed a Canadian
+     * business `CA$` on its own invoices.
+     */
+    countryCode: business?.countryCode ?? "",
     /**
      * The actions this person holds, by resource. Absent actions are absent
      * permissions — a screen reads this to decide what to disable, never to

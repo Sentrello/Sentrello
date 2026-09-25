@@ -81,7 +81,37 @@ export const raised = {
  * from dozens of places, most of them deep inside tables, and passing a
  * preference to each one would touch every file to change a comma.
  */
-let formats = { currency: "USD", dateFormat: "MDY", timezone: "" };
+let formats = {
+  currency: "USD",
+  dateFormat: "MDY",
+  timezone: "",
+  /**
+   * The business's own country, which is the whole of how it writes a number.
+   *
+   * `en-US` for everybody wrote a European figure the American way — Germany
+   * reads `1.279,97 €`, France `1 279,97 €` — and showed a Canadian business
+   * `CA$1,279.97`, the form you use when you are *not* in Canada. The country
+   * is enough on its own: `en-DE`, `en-FR` and `en-CA` group and punctuate
+   * the way those places do.
+   *
+   * Empty until the business says, and empty means what everything did
+   * before the field was read.
+   */
+  countryCode: "",
+};
+
+/** `en-DE`, `en-CA`, `en-US` — or `en-US` for a country nobody has given. */
+function numberLocale(): string {
+  const region = formats.countryCode.trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(region)) return "en-US";
+  try {
+    const locale = `en-${region}`;
+    new Intl.NumberFormat(locale, { style: "currency", currency: "USD" });
+    return locale;
+  } catch {
+    return "en-US";
+  }
+}
 
 export function setFormats(next: Partial<typeof formats>) {
   formats = { ...formats, ...next };
@@ -109,9 +139,10 @@ export function formatMoney(
     console.error("[ui] formatMoney was given", cents);
     return "—";
   }
-  return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(
-    cents / 100,
-  );
+  return new Intl.NumberFormat(numberLocale(), {
+    style: "currency",
+    currency,
+  }).format(cents / 100);
 }
 
 /**
@@ -126,7 +157,7 @@ export function formatMoney(
  */
 export function briefMoney(cents: number, currency = formats.currency): string {
   if (!Number.isFinite(cents)) return "—";
-  return new Intl.NumberFormat("en-US", {
+  return new Intl.NumberFormat(numberLocale(), {
     style: "currency",
     currency,
     notation: "compact",

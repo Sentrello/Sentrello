@@ -40,8 +40,19 @@ function day(value: Date): string {
   });
 }
 
-export function formatMoney(cents: number, currency = "USD"): string {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(
+/**
+ * A figure written the way the business that sent it writes figures.
+ *
+ * The seller's convention, not the reader's — the same as the invoice this
+ * message links to. `en-US` for everybody wrote a European number the
+ * American way and showed a Canadian business's own customers `CA$`.
+ */
+export function formatMoney(
+  cents: number,
+  currency = "USD",
+  locale = "en-US",
+): string {
+  return new Intl.NumberFormat(locale, { style: "currency", currency }).format(
     cents / 100,
   );
 }
@@ -55,8 +66,34 @@ export function formatMoney(cents: number, currency = "USD"): string {
  * because a business paid by transfer otherwise fields "where do I send this?"
  * on every invoice it raises.
  */
+/**
+ * How the seller writes numbers, from the country on their settings screen.
+ *
+ * `db/portal.ts` has the same ten lines, and that is deliberate rather than
+ * an oversight. This package depends on `nodemailer` and nothing else: it
+ * formats messages and sends them, and pulling the database in so that two
+ * regular expressions could be shared would be the larger mistake. A copy
+ * that is small, tested and explained is cheaper than a dependency that is
+ * none of those.
+ *
+ * If a third one appears, that is the signal to find a home both can reach.
+ */
+function sellerLocale(business?: BusinessIdentity): string {
+  const region = (business?.countryCode ?? "").trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(region)) return "en-US";
+  try {
+    const locale = `en-${region}`;
+    new Intl.NumberFormat(locale, { style: "currency", currency: "USD" });
+    return locale;
+  } catch {
+    return "en-US";
+  }
+}
+
 export interface BusinessIdentity {
   name: string;
+  /** ISO 3166-1 alpha-2, and the whole of how this business writes a number. */
+  countryCode?: string | null;
   address?: string | null;
   taxId?: string | null;
   taxIdLabel?: string | null;
@@ -175,7 +212,7 @@ like a bill in the post.</p>`
       : `Invoice ${args.number}`,
     html: layout(
       `Invoice ${args.number}`,
-      `<p>Amount due: <strong>${formatMoney(args.totalCents, args.currency)}</strong></p>${due}${link}`,
+      `<p>Amount due: <strong>${formatMoney(args.totalCents, args.currency, sellerLocale(args.business))}</strong></p>${due}${link}`,
       args.business,
       args.sentrelloCredit,
     ),
@@ -204,7 +241,7 @@ Nothing is charged until you pay it.</p>`
       : `Quote ${args.number}`,
     html: layout(
       `Quote ${args.number}`,
-      `<p>Total: <strong>${formatMoney(args.totalCents, args.currency)}</strong></p>${link}`,
+      `<p>Total: <strong>${formatMoney(args.totalCents, args.currency, sellerLocale(args.business))}</strong></p>${link}`,
       args.business,
       args.sentrelloCredit,
     ),
@@ -235,7 +272,7 @@ export function receiptEmail(args: {
   const remaining =
     args.balanceCents > 0
       ? `<p>Still outstanding on this invoice:
-<strong>${formatMoney(args.balanceCents, args.currency)}</strong></p>`
+<strong>${formatMoney(args.balanceCents, args.currency, sellerLocale(args.business))}</strong></p>`
       : "<p>This invoice is now settled in full. Thank you.</p>";
   const link = args.portalUrl
     ? `<p><a href="${escapeHtml(args.portalUrl)}">See your invoices</a></p>`
@@ -247,7 +284,7 @@ export function receiptEmail(args: {
     subject: `Receipt for invoice ${args.number}`,
     html: layout(
       "Payment received",
-      `<p>We received <strong>${formatMoney(args.amountCents, args.currency)}</strong>
+      `<p>We received <strong>${formatMoney(args.amountCents, args.currency, sellerLocale(args.business))}</strong>
 towards invoice ${escapeHtml(args.number)}${
         args.businessName ? ` from ${escapeHtml(args.businessName)}` : ""
       }.</p>${remaining}${link}${accountLink}`,
@@ -281,7 +318,7 @@ export function orderPaidEmail(args: {
     subject: `Order ${args.number} — payment received`,
     html: layout(
       "Thank you for your order",
-      `<p>We received <strong>${formatMoney(args.totalCents, args.currency)}</strong>
+      `<p>We received <strong>${formatMoney(args.totalCents, args.currency, sellerLocale(args.business))}</strong>
 for order ${escapeHtml(args.number)}${
         args.businessName ? ` from ${escapeHtml(args.businessName)}` : ""
       }.</p>
@@ -350,7 +387,7 @@ export function portalLinkEmail(args: {
 }) {
   const owed =
     args.outstandingCents && args.outstandingCents > 0
-      ? `<p>Outstanding: <strong>${formatMoney(args.outstandingCents, args.currency)}</strong></p>`
+      ? `<p>Outstanding: <strong>${formatMoney(args.outstandingCents, args.currency, sellerLocale(args.business))}</strong></p>`
       : "";
   return {
     subject: `Your invoices from ${args.businessName}`,
@@ -378,7 +415,7 @@ export function overdueReminderEmail(args: {
     subject: `Invoice ${args.number} is overdue`,
     html: layout(
       `Invoice ${args.number} is overdue`,
-      `<p>Outstanding balance: <strong>${formatMoney(args.balanceDueCents, args.currency)}</strong></p>`,
+      `<p>Outstanding balance: <strong>${formatMoney(args.balanceDueCents, args.currency, sellerLocale(args.business))}</strong></p>`,
       args.business,
       args.sentrelloCredit,
     ),

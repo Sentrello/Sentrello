@@ -322,3 +322,40 @@ test("a portal link sent without asking still credits the product", () => {
   });
   expect(html).toContain("Sent by Sentrello");
 });
+
+/**
+ * The business's own way of writing a number, in the message as on the
+ * invoice it links to.
+ *
+ * `en-US` for everybody wrote a European figure the American way — Germany
+ * reads `1.279,97 €` — and showed a Canadian business's own customers the
+ * `CA$` form you use when you are not in Canada.
+ */
+test("an email writes money the way the business that sent it does", () => {
+  const german = invoiceEmail({
+    number: "INV-0001",
+    totalCents: 127997,
+    currency: "EUR",
+    business: { name: "Möbelwerk", countryCode: "DE" },
+  });
+  expect(german.html.replace(/\p{Zs}/gu, " ")).toContain("1.279,97 €");
+
+  const canadian = invoiceEmail({
+    number: "INV-0002",
+    totalCents: 127997,
+    currency: "CAD",
+    business: { name: "Northfield", countryCode: "CA" },
+  });
+  expect(canadian.html).toContain("$1,279.97");
+  expect(canadian.html).not.toContain("CA$");
+});
+
+/** And a sender who never said keeps exactly what it had. */
+test("no country means the figure is written as it always was", () => {
+  const { html } = invoiceEmail({
+    number: "INV-0003",
+    totalCents: 127997,
+    currency: "USD",
+  });
+  expect(html).toContain("$1,279.97");
+});

@@ -43,6 +43,7 @@ import {
   contactByPortalToken,
   deadLinkPage,
   ensurePortalToken,
+  moneyLocale,
 } from "@sentrello/db/portal";
 import { dateFrom, demandDate } from "@sentrello/db/timezone";
 import { emailAdapter, mailConfigured } from "@sentrello/email";
@@ -2048,6 +2049,9 @@ export default defineModule({
             paymentInstructions: org?.paymentInstructions,
           },
           customerName: contact.name,
+          // The seller's own way of writing a number, from the country on
+          // their settings screen — the same as the document this links to.
+          locale: moneyLocale(org?.countryCode),
           // The unified account page across every module — same token,
           // already valid, since it is the one that got them onto this page.
           accountPath: `/account/${supplied}`,
