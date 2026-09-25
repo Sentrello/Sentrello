@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { authClient } from "./auth";
+import { ErrorBoundary } from "./error-boundary";
 import { FindButton } from "./find";
 import { Icon, type IconName } from "./icons";
 import { useNavigation } from "./navigation";
@@ -899,7 +900,23 @@ export function AppShell({
             such screen stopped halfway down an empty page. 3.25rem is the
             header, the same figure the rail and the panel are cut to. */}
         <main className="flex min-h-[calc(100vh-3.25rem)] min-w-0 flex-1 flex-col p-6">
-          {children}
+          {/*
+           * The screen, and only the screen, when a render throws.
+           *
+           * React takes the whole tree down for an uncaught render error, so
+           * without this one screen's bad afternoon is a white page with no
+           * header, no rail and no way back but a reload. Inside `main`, so
+           * everything a person needs to leave the broken screen is outside
+           * the boundary and still drawn.
+           *
+           * Keyed on the screen, so moving to another one clears it. A
+           * boundary that has caught stays caught until it is remounted, and
+           * a person who navigates away and finds the same error waiting is
+           * being told something untrue about where they are.
+           */}
+          <ErrorBoundary key={current.moduleId} label={label || "This screen"}>
+            {children}
+          </ErrorBoundary>
         </main>
       </div>
     </div>

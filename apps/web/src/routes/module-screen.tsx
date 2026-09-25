@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ErrorBoundary } from "../lib/error-boundary";
 import { loadModuleScreen, setModuleRecord } from "../lib/module-ui";
 import { Empty, Loading } from "../lib/ui";
 
@@ -78,5 +79,19 @@ export function ModuleScreen({
   }
 
   const { Screen } = state;
-  return <Screen />;
+  /*
+   * A module's own component, behind a boundary.
+   *
+   * This is the one place in the product where code from another repository
+   * is rendered into the page, and a render that throws takes the whole
+   * application down with it — not the screen, the tree. The module can be
+   * from a later release than the host, written against an API this instance
+   * does not serve, or simply reading a field off a null; none of those is
+   * worth a white page and a lost session.
+   */
+  return (
+    <ErrorBoundary label={label}>
+      <Screen />
+    </ErrorBoundary>
+  );
 }
