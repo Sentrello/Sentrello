@@ -4,6 +4,7 @@ import { useState } from "react";
 import { type Meta, api } from "../lib/api";
 import type { CustomField } from "../lib/crm-settings";
 import { CustomFieldEditor } from "../lib/custom-fields";
+import { TAG_COLOURS } from "../lib/tags";
 
 /** What a CRM field can be attached to, in the order they are offered. */
 const CRM_SUBJECTS = [
@@ -54,16 +55,6 @@ interface Tag {
 }
 
 /** Muted enough to read against, distinct enough to scan by. */
-const TAG_COLOURS = [
-  "#94a3b8",
-  "#f87171",
-  "#fb923c",
-  "#facc15",
-  "#4ade80",
-  "#38bdf8",
-  "#a78bfa",
-  "#f472b6",
-];
 
 export function CrmSettings() {
   const qc = useQueryClient();

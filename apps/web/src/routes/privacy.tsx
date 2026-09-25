@@ -463,7 +463,25 @@ export function Privacy() {
                   Kept: {k.what} — {k.why}.
                 </p>
               ))}
-              {s.error ? <ErrorNote error={s.error} /> : null}
+              {s.error ? (
+                /*
+                 * Said out loud, the way the export above says it.
+                 *
+                 * This was `<ErrorNote error={s.error} />`, and `s.error` is a
+                 * plain string where `ErrorNote` reads `serverMessage` off an
+                 * object — so it fell through to "Something went wrong." On
+                 * the one screen where a business has to be able to say which
+                 * module refused to erase somebody and why, it said nothing.
+                 *
+                 * The consequence is not a worse error message. It is telling
+                 * a data subject their record is gone when a module still
+                 * holds it, and having no way to know which.
+                 */
+                <p className="text-sm" style={{ color: "var(--text-danger)" }}>
+                  This did not erase: {s.error}. They still hold something, so
+                  do not tell anybody it is gone.
+                </p>
+              ) : null}
             </div>
           ))}
           <p className="text-sm" style={muted}>

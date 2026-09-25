@@ -21,19 +21,36 @@ export interface TagChip {
 }
 
 /**
- * Six colours, chosen for the user.
+ * The colours a tag can be. One list, because there were two.
  *
  * Tags are scanned rather than read, so they need to differ at a glance — and
  * asking somebody to pick a hex code before they can label anything is a worse
- * first experience than choosing for them.
+ * first experience than choosing for them. So a tag made from a record gets
+ * one of these at random, and the settings screen offers the same eight as
+ * swatches.
+ *
+ * They were two disjoint lists with **not one colour in common**: this file
+ * assigned from six Tailwind 500s, and the settings screen offered eight
+ * lighter ones. So every tag ever created from a contact, a company or a deal
+ * arrived in a colour that screen could not show as chosen — all eight
+ * swatches computed `aria-pressed={false}`, nothing looked selected, and a
+ * screen reader was told none of them was the current colour. Touching any
+ * swatch then moved the tag into a palette nothing else assigns from.
+ *
+ * These eight are the settings screen's, not this file's, and deliberately:
+ * `#94a3b8` is already what the server falls back to for a contact status
+ * (`modules-free/crm/src/settings.ts`), so it is the list the rest of the
+ * product had quietly agreed on.
  */
-const TAG_COLOURS = [
-  "#22c55e",
-  "#3b82f6",
-  "#f59e0b",
-  "#ef4444",
-  "#a855f7",
-  "#14b8a6",
+export const TAG_COLOURS = [
+  "#94a3b8",
+  "#f87171",
+  "#fb923c",
+  "#facc15",
+  "#4ade80",
+  "#38bdf8",
+  "#a78bfa",
+  "#f472b6",
 ];
 
 export function randomTagColour(): string {

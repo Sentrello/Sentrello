@@ -5,6 +5,7 @@ import { RecordPicker } from "../lib/record-picker";
 import {
   Button,
   Card,
+  ConfirmButton,
   ErrorNote,
   Field,
   Input,
@@ -392,15 +393,30 @@ function CertificatesCard() {
               </td>
               <td className="text-right">
                 {cert.status !== "revoked" ? (
-                  <button
-                    type="button"
-                    className="text-sm link-muted"
-                    // Revoked, never deleted: past invoices cite it.
-                    title="Stops it exempting anything; past invoices keep the reference"
-                    onClick={() => revoke.mutate(cert.id)}
+                  /*
+                   * Asked for, because of what it costs to get wrong.
+                   *
+                   * Revoking is one press on a row in a table, and the next
+                   * invoice to that customer carries tax they are exempt from
+                   * — on their side an overcharge, on ours an audit answer
+                   * that changed without anybody deciding it should. The
+                   * certificate is also never deleted, so a mis-press cannot
+                   * be undone by making it again: it stays revoked and past
+                   * invoices keep citing it.
+                   *
+                   * The number is in the question because a table of them all
+                   * looks alike, and the row somebody meant is not always the
+                   * row under the pointer.
+                   */
+                  <ConfirmButton
+                    title="Revoke this certificate?"
+                    message={`${cert.number} stops exempting anything from now on, and ${cert.companyName ?? "that customer"} will be charged tax on their next invoice. Past invoices keep the reference. It cannot be un-revoked.`}
+                    confirmLabel="Revoke it"
+                    danger
+                    onConfirm={() => revoke.mutate(cert.id)}
                   >
                     Revoke
-                  </button>
+                  </ConfirmButton>
                 ) : null}
               </td>
             </Row>
