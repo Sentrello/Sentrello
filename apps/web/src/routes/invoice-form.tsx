@@ -496,6 +496,15 @@ export function InvoiceForm({
   });
 
   if (taxes.isLoading) return <Loading />;
+  /*
+   * Before the boxes, because a blank one is a statement too.
+   *
+   * Nothing below tells a document that failed to load apart from a document
+   * with nothing on it, so a fetch that broke drew the editor empty — no
+   * customer, no notes, one blank row — for an invoice that has all three.
+   * Press Save from there and the PATCH makes the screen true.
+   */
+  if (existing.error) return <ErrorNote error={existing.error} />;
 
   const usable = lines.some(
     (l) => l.description.trim() && toCents(l.unitPrice) >= 0,

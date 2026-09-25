@@ -203,6 +203,9 @@ export function Settings() {
     queryKey: ["settings"],
     queryFn: () => api<SettingsResponse>("/api/settings"),
   });
+  // No error branch on purpose: the one thing this draws here is the instance
+  // identifier under "This instance", and a line of small grey text that goes
+  // missing tells nobody anything false. The settings query above has a note.
   const licence = useQuery({
     queryKey: ["license"],
     queryFn: () => api<LicenseResponse>("/api/license"),
@@ -1144,6 +1147,10 @@ export function SettingsLicence() {
         ? 5_000
         : false,
   });
+  // No error branch on purpose, though the whole card body hangs off this
+  // one. Every sentence that would name a tier — the badge, "Running as
+  // Free", the renewal date — sits inside the same guard, so a failed fetch
+  // draws an empty card rather than a wrong answer about what was paid for.
   const licence = useQuery({
     queryKey: ["license"],
     queryFn: () => api<LicenseResponse>("/api/license"),

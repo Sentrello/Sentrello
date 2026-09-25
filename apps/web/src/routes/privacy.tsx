@@ -145,6 +145,17 @@ function Safeguards() {
           </p>
         </div>
 
+        {/*
+          One note for the card, above the list it speaks for.
+
+          A fetch that failed has no regimes either, so this drew the heading
+          with nothing under it: no ticks, no safeguards, no obligations — a
+          business told, in effect, that none of this applies to it and that
+          nothing is switched on. On a compliance screen that is the one
+          wrong answer nobody checks, because it is the answer they hoped for.
+        */}
+        {compliance.error ? <ErrorNote error={compliance.error} /> : null}
+
         {regimes.map((r) => (
           <div key={r.id} className="pb-(--gap-toolbar)">
             <label className="flex items-start gap-(--gap-toolbar) text-sm">
@@ -526,7 +537,12 @@ export function Privacy() {
 
       <Card className="flex flex-col gap-(--gap-toolbar)">
         <SectionHeading>Requests you have answered</SectionHeading>
-        {requests.data?.requests.length ? (
+        {/* "None yet" is only true once the list has arrived. This is the
+            record of who was answered and when — the thing a regulator asks
+            for — so a fetch that broke must not read as a clean sheet. */}
+        {requests.error ? (
+          <ErrorNote error={requests.error} />
+        ) : requests.data?.requests.length ? (
           <ul className="text-sm" style={muted}>
             {requests.data.requests.map((r) => (
               <li key={r.id}>

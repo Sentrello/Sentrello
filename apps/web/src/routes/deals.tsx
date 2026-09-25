@@ -296,6 +296,9 @@ export function Deals() {
   const myId = session.data?.user?.id;
   const managers = useCrmManagers();
 
+  // No error branch on purpose: all this feeds is the tag filter, which just
+  // disappears. A dropdown with nothing in it claims nothing about the deals,
+  // and a note beside every lookup on a board is how notes get ignored.
   const tags = useQuery({
     queryKey: ["tags"],
     queryFn: () => api<{ tags: Tag[] }>("/api/tags"),

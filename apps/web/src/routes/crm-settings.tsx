@@ -498,7 +498,17 @@ export function CrmSettings() {
           has it.
         </p>
 
-        {tags.data?.tags.length ? (
+        {tags.error ? (
+          /*
+           * Above "No tags yet", where the empty branch would otherwise
+           * answer for a list nobody managed to read. This is the screen
+           * where tags are made, so somebody who believes that sentence
+           * types the eight they already have in again.
+           */
+          <div className="mb-3">
+            <ErrorNote error={tags.error} />
+          </div>
+        ) : tags.data?.tags.length ? (
           <ul className="mb-3 flex flex-col gap-(--gap-tight)">
             {tags.data.tags.map((tag) => (
               <li

@@ -84,6 +84,9 @@ export function Contacts() {
     useListQuery<Contact>("contacts", state);
   const [findingDuplicates, setFindingDuplicates] = useState(false);
 
+  // No error branch on purpose: this only draws a filter group and an "add
+  // tag" box, both of which simply go missing. Nothing here says anything
+  // about the contacts themselves, and the list already has its own note.
   const tags = useQuery({
     queryKey: ["tags"],
     queryFn: () =>
