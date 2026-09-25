@@ -15,6 +15,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { may } from "./api";
 import { Icon } from "./icons";
 
 export const border = { borderColor: "var(--border)" };
@@ -183,13 +184,46 @@ export function formatDate(value: string | Date | null | undefined): string {
   }).format(d);
 }
 
+/**
+ * What a control needs before it is worth offering — `{ crm: ["delete"] }`.
+ *
+ * Named the way `requirePermission` names it at the route, deliberately: the
+ * two say the same thing about the same button, and a caller copying the
+ * route's own line is far likelier to get it right than one translating it.
+ */
+export type Needs = Record<string, string[]>;
+
+/**
+ * Disabled, with the reason on it, when the policy does not allow it.
+ *
+ * In the kit rather than at each call site, because there are several hundred
+ * call sites and this is one decision. A control the person cannot use is
+ * drawn dim and says why on hover, rather than being hidden — hiding teaches
+ * nobody that the feature exists or that a colleague could do it for them,
+ * and a screen that quietly loses half its buttons reads as broken.
+ *
+ * `title` rather than a live note: it is an explanation somebody goes looking
+ * for once, not something that should shout on every screen.
+ */
+function blockedBy(needs: Needs | undefined): string | undefined {
+  if (!needs) return undefined;
+  const allowed = Object.entries(needs).every(([resource, actions]) =>
+    actions.every((action) => may(resource, action)),
+  );
+  return allowed ? undefined : "Your role does not allow this.";
+}
+
 export function Button({
   children,
   variant = "primary",
+  needs,
   ...rest
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "primary" | "secondary" | "danger";
+  /** The permission this button's route asks for. Disabled without it. */
+  needs?: Needs;
 }) {
+  const blocked = blockedBy(needs);
   const styles = {
     primary: {
       // The shade dark enough for white text on it: brand-500 measures 3.77:1
@@ -206,6 +240,8 @@ export function Button({
     <button
       type="button"
       {...rest}
+      disabled={rest.disabled || blocked !== undefined}
+      title={blocked ?? rest.title}
       className={`rounded px-3 py-1.5 text-sm font-medium disabled:opacity-50 ${
         variant === "secondary" ? "border" : ""
       } ${rest.className ?? ""}`}
@@ -490,6 +526,7 @@ export function ConfirmButton({
   disabled = false,
   className,
   label,
+  needs,
   variant,
   onConfirm,
 }: {
@@ -500,6 +537,12 @@ export function ConfirmButton({
   danger?: boolean;
   disabled?: boolean;
   className?: string;
+  /**
+   * The permission the route behind this asks for. Without it the trigger is
+   * disabled and the dialog never opens — being asked to confirm something
+   * the server is going to refuse is worse than not being offered it.
+   */
+  needs?: Needs;
   /**
    * What the trigger is, for a trigger that is a picture.
    *
@@ -514,13 +557,16 @@ export function ConfirmButton({
   onConfirm: () => void;
 }) {
   const [asking, setAsking] = useState(false);
+  const blocked = blockedBy(needs);
+  const stopped = disabled || blocked !== undefined;
 
   return (
     <>
       {variant ? (
         <Button
           variant={variant}
-          disabled={disabled}
+          disabled={stopped}
+          title={blocked}
           onClick={() => setAsking(true)}
         >
           {children}
@@ -528,8 +574,8 @@ export function ConfirmButton({
       ) : (
         <button
           type="button"
-          disabled={disabled}
-          title={label}
+          disabled={stopped}
+          title={blocked ?? label}
           aria-label={label}
           className={className ?? "text-xs link-muted"}
           style={danger ? { color: "var(--text-danger)" } : undefined}

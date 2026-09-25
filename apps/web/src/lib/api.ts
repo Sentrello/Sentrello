@@ -1,4 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -273,28 +272,33 @@ export type FormDefinition = {
 /**
  * Whether this person may do something, for a screen deciding what to offer.
  *
- * Reads the meta the shell has already fetched rather than asking again: it
- * is one query, cached app-wide, and every screen in the product is drawn
- * after it has answered.
+ * A module-level value set once when the shell's meta lands, rather than a
+ * hook reading the query cache — the same shape `setFormats` in `ui.tsx` uses
+ * and for a sharper version of the same reason. `Button` reads this, there
+ * are several hundred buttons, and a hook inside a primitive makes a
+ * `QueryClientProvider` a requirement of rendering one. That is a real cost:
+ * it broke three sign-in tests that render a button and have no business
+ * knowing what a query client is.
+ *
+ * Permissions do not change while somebody is looking at a screen, and when
+ * the meta query does answer again the shell re-renders the tree under it.
  *
  * **Unknown means allowed.** A resource absent from the set — because the
  * fetch has not landed, because this person belongs to no organization yet,
  * because a module declared a resource the server has not compiled — comes
  * back `true`. Hiding a control from somebody entitled to it is the worse of
- * the two mistakes, and it is the rule the sidebar already follows for the
- * same reason. The route refuses what it must; this only decides what looks
- * available.
+ * the two mistakes, and it is the rule the sidebar already follows. The route
+ * refuses what it must; this only decides what looks available.
  */
-export function useCan(): (resource: string, action: string) => boolean {
-  const { data } = useQuery<Meta>({
-    queryKey: ["meta"],
-    // Never fetches: the shell owns this query and this only reads what it
-    // put there. A second fetcher on one key is two answers to one question.
-    enabled: false,
-  });
-  return (resource, action) => {
-    const held = data?.can?.[resource];
-    if (!held) return true;
-    return held.includes(action);
-  };
+let grants: Record<string, string[]> | null = null;
+
+/** Called by the shell when `/api/_meta` answers. */
+export function setGrants(next: Record<string, string[]> | undefined): void {
+  grants = next ?? null;
+}
+
+export function may(resource: string, action: string): boolean {
+  const held = grants?.[resource];
+  if (!held) return true;
+  return held.includes(action);
 }

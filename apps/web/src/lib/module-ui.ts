@@ -14,7 +14,7 @@
 import * as reactQuery from "@tanstack/react-query";
 import * as React from "react";
 import * as jsxRuntime from "react/jsx-runtime";
-import { api, useCan } from "./api";
+import { api, may } from "./api";
 import * as listUi from "./list-ui";
 import * as money from "./money";
 import * as ui from "./ui";
@@ -53,7 +53,7 @@ interface SentrelloRuntime {
   listUi: typeof listUi;
   money: typeof money;
   /** whether this person may do something — the same answer Core reads */
-  useCan: typeof useCan;
+  may: typeof may;
   api: typeof api;
   /** where a module registers its screen as it loads */
   screens: Record<string, ScreenComponent>;
@@ -95,10 +95,10 @@ export function installRuntime(): SentrelloRuntime {
     ui,
     listUi,
     money,
-    // The same answer Core's own screens read, from the same cached query.
-    // A second implementation of "may this person" is the one thing this
-    // whole arrangement exists to avoid.
-    useCan,
+    // The same answer Core's own screens read, from the same value. A
+    // second implementation of "may this person" is the one thing this whole
+    // arrangement exists to avoid.
+    may,
     api,
     screens: {},
     opened: {},

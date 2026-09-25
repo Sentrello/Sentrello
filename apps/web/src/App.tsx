@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { type Meta, api } from "./lib/api";
+import { type Meta, api, setGrants } from "./lib/api";
 import { AppShell } from "./lib/app-shell";
 import { signOut, useSession } from "./lib/auth";
 import { ModuleFailures } from "./lib/module-alerts";
@@ -411,6 +411,19 @@ export default function App() {
   }, [session.data, session.isPending, canAsk]);
   const meta = useMeta(signedIn);
   const data = meta.data;
+  /*
+   * What this person may do, published for every screen under here.
+   *
+   * During render rather than in an effect: `Button` reads it while the tree
+   * below is being built, and an effect runs after that — so the first paint
+   * after a sign-in would draw every gated control as allowed and then
+   * correct itself, which is a flash of buttons somebody cannot use.
+   *
+   * Writing the same value again is free, and the alternative — threading a
+   * context through every primitive — is the cost this avoids. Same shape as
+   * `setFormats`, a few lines below.
+   */
+  setGrants(data?.can);
   const bootstrap = useBootstrap();
   const profile = useProfile(signedIn);
   const nav = data?.nav ?? [];

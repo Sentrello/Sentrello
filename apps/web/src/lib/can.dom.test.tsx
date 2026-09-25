@@ -1,7 +1,8 @@
 import { expect, test } from "bun:test";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { type Meta, useCan } from "./api";
+import { type Meta, may, setGrants } from "./api";
+import { Button } from "./ui";
 
 /**
  * What a screen is told about what this person may do.
@@ -15,22 +16,8 @@ import { type Meta, useCan } from "./api";
  * regardless.
  */
 function answers(can: Meta["can"] | undefined, asks: [string, string][]) {
-  const qc = new QueryClient();
-  if (can !== undefined) {
-    qc.setQueryData(["meta"], { nav: [], loaded: [], modules: [], can });
-  }
-  let said: boolean[] = [];
-  function Probe() {
-    const may = useCan();
-    said = asks.map(([resource, action]) => may(resource, action));
-    return null;
-  }
-  renderToStaticMarkup(
-    <QueryClientProvider client={qc}>
-      <Probe />
-    </QueryClientProvider>,
-  );
-  return said;
+  setGrants(can);
+  return asks.map(([resource, action]) => may(resource, action));
 }
 
 test("an action the person holds is allowed, one they do not is refused", () => {
@@ -66,4 +53,57 @@ test("a resource listed with no actions refuses all of them", () => {
       ["crm", "delete"],
     ]),
   ).toEqual([false, false]);
+});
+
+/**
+ * The prop itself, because the point of putting the rule in the kit is that
+ * several hundred call sites get the same behaviour from one line each.
+ *
+ * Disabled rather than hidden, on purpose: hiding teaches nobody that the
+ * feature exists or that a colleague could do it for them, and a screen that
+ * quietly loses half its buttons reads as broken rather than as restricted.
+ */
+function draw(can: Meta["can"], node: React.ReactNode) {
+  setGrants(can);
+  // No provider: a primitive that needs a query client to draw a button is a
+  // primitive three sign-in tests cannot render, which is how this ended up a
+  // module-level value rather than a hook.
+  return renderToStaticMarkup(node);
+}
+
+test("a button whose permission is missing is disabled and says why", () => {
+  const html = draw(
+    { crm: ["read"] },
+    <Button needs={{ crm: ["delete"] }}>Delete</Button>,
+  );
+  expect(html).toContain('disabled=""');
+  expect(html).toContain("Your role does not allow this.");
+});
+
+test("a button whose permission is held is left alone", () => {
+  const html = draw(
+    { crm: ["read", "delete"] },
+    <Button needs={{ crm: ["delete"] }}>Delete</Button>,
+  );
+  expect(html).not.toContain('disabled=""');
+  expect(html).not.toContain("does not allow");
+});
+
+/**
+ * Two resources at once — a control that both raises an invoice and touches
+ * the ledger needs each of them, and holding one is not holding both.
+ */
+test("every resource a control names has to be held", () => {
+  const html = draw(
+    { invoicing: ["create"], bookkeeping: [] },
+    <Button needs={{ invoicing: ["create"], bookkeeping: ["create"] }}>
+      Raise it
+    </Button>,
+  );
+  expect(html).toContain('disabled=""');
+});
+
+/** A control that asks for nothing is never touched by any of this. */
+test("a button with no needs is never disabled by permissions", () => {
+  expect(draw({ crm: [] }, <Button>Save</Button>)).not.toContain('disabled=""');
 });

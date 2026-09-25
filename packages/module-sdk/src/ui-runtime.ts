@@ -33,6 +33,13 @@ export interface SentrelloUi {
   Button: React.ComponentType<
     React.ButtonHTMLAttributes<HTMLButtonElement> & {
       variant?: "primary" | "secondary" | "danger";
+      /**
+       * The permission this button's route asks for, written the way
+       * `requirePermission` writes it — `{ shop: ["delete"] }`. Without it the
+       * button is disabled and says why on hover, rather than being offered
+       * and refused after the click.
+       */
+      needs?: Record<string, string[]>;
     }
   >;
   Card: React.ComponentType<{ children: React.ReactNode; className?: string }>;
@@ -72,6 +79,12 @@ export interface SentrelloUi {
     className?: string;
     /** What the trigger is, when the trigger is a picture. */
     label?: string;
+    /**
+     * The permission the route behind this asks for. Without it the trigger
+     * is disabled and the dialog never opens — being asked to confirm
+     * something the server will refuse is worse than not being offered it.
+     */
+    needs?: Record<string, string[]>;
     /** Set to render a full Button rather than the small inline link. */
     variant?: "primary" | "secondary" | "danger";
     onConfirm: () => void;
@@ -476,16 +489,16 @@ export interface Runtime {
   /**
    * Whether the person in front of this screen may do something.
    *
-   * A hook, because the answer arrives with the host's own meta query and a
-   * screen rendered before it lands has to re-render when it does.
-   *
    * **For deciding what to offer, never for deciding what is safe.** The
    * route enforces the same rule and is the only thing between a request and
    * the data; a module reading this is being polite. Unknown answers `true`
    * for the same reason the host's sidebar does — hiding a control from
    * somebody entitled to it is the worse of the two mistakes.
+   *
+   * Most screens want `needs` on the button instead, which reads this and
+   * disables itself. This is for the cases a prop cannot express.
    */
-  useCan: () => (resource: string, action: string) => boolean;
+  may: (resource: string, action: string) => boolean;
   api: <T>(path: string, init?: RequestInit) => Promise<T>;
   screens: Record<string, () => React.ReactElement | null>;
   /**
@@ -533,7 +546,7 @@ export function hostRuntime(moduleName: string): Runtime {
 export function makeModuleRuntime(moduleName: string): {
   ui: SentrelloUi;
   money: Runtime["money"];
-  useCan: Runtime["useCan"];
+  may: Runtime["may"];
   api: Runtime["api"];
   listUi: SentrelloListUi;
   openedRecord: () => string | undefined;
@@ -544,7 +557,7 @@ export function makeModuleRuntime(moduleName: string): {
   return {
     ui: runtime.ui,
     money: runtime.money,
-    useCan: runtime.useCan,
+    may: runtime.may,
     api: runtime.api,
     listUi: runtime.listUi,
     /** The record this screen was opened for, if any. */
