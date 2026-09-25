@@ -27,6 +27,7 @@ import {
   Page,
   PageActions,
   Row,
+  RowMenu,
   SectionHeading,
   Select,
   StatFigure,
@@ -1210,9 +1211,13 @@ export function Accounts() {
        * the page's own title line and the form is a dialog behind it.
        */}
       <PageActions>
-        <Button variant="secondary" onClick={() => setAdding(true)}>
-          New account
-        </Button>
+        {/*
+          Primary, like every other page action in the product. It was the
+          quiet one while a one-time setup helper below it carried the loud
+          treatment — so the screen drew the eye to a button you press once
+          and never again, and greyed the one you came here for.
+        */}
+        <Button onClick={() => setAdding(true)}>New account</Button>
       </PageActions>
 
       <Dialog
@@ -1260,6 +1265,7 @@ export function Accounts() {
       <Card>
         <Toolbar>
           <Button
+            variant="secondary"
             needs={{ bookkeeping: ["create"] }}
             onClick={() => standard.mutate()}
             disabled={standard.isPending}
@@ -1356,37 +1362,53 @@ export function Accounts() {
                     ))}
                 </Select>
               </td>
-              <td>
-                <MenuItem
-                  needs={{ bookkeeping: ["update"] }}
-                  className="link-muted text-xs"
-                  onClick={() =>
-                    archive.mutate({ id: a.id, archived: !a.archivedAt })
-                  }
-                >
-                  {a.archivedAt ? "Restore" : "Archive"}
-                </MenuItem>
-                {/*
-                  Offered on every account, and refused by the server where it
-                  must be: "this account has postings against it — archive it
-                  instead so the history stays" is a better answer than a
-                  missing button, because it says what to do next. Whether an
-                  account has postings is not on this screen — a zero balance
-                  is not an empty account, since debits and credits can cancel
-                  — so hiding it would mean hiding it from the wrong rows.
-                */}
-                <ConfirmButton
-                  title="Delete this account?"
-                  message="It leaves the chart for good. An account with postings against it, or with accounts under it, is refused — archive that one instead and the history stays."
-                  confirmLabel="Delete it"
-                  danger
-                  className="link-danger ml-3 text-xs"
-                  needs={{ bookkeeping: ["delete"] }}
-                  disabled={remove.isPending}
-                  onConfirm={() => remove.mutate(a.id)}
-                >
-                  Delete
-                </ConfirmButton>
+              {/*
+                Behind one menu, like every other row in the product. Written
+                out, the two of them put the word "Delete" in the danger
+                colour twenty-five times down the right edge of the chart of
+                accounts — which made deleting the loudest thing on a screen
+                somebody opens to read a balance.
+              */}
+              <td className="text-right">
+                <RowMenu label={`${a.code} ${a.name}`}>
+                  {(close) => (
+                    <>
+                      <MenuItem
+                        needs={{ bookkeeping: ["update"] }}
+                        onClick={() => {
+                          close();
+                          archive.mutate({
+                            id: a.id,
+                            archived: !a.archivedAt,
+                          });
+                        }}
+                      >
+                        {a.archivedAt ? "Restore" : "Archive"}
+                      </MenuItem>
+                      {/*
+                        Offered on every account, and refused by the server
+                        where it must be: "this account has postings against
+                        it — archive it instead so the history stays" is a
+                        better answer than a missing button, because it says
+                        what to do next. Whether an account has postings is
+                        not on this screen — a zero balance is not an empty
+                        account, since debits and credits can cancel — so
+                        hiding it would mean hiding it from the wrong rows.
+                      */}
+                      <ConfirmButton
+                        title="Delete this account?"
+                        message="It leaves the chart for good. An account with postings against it, or with accounts under it, is refused — archive that one instead and the history stays."
+                        confirmLabel="Delete it"
+                        danger
+                        needs={{ bookkeeping: ["delete"] }}
+                        disabled={remove.isPending}
+                        onConfirm={() => remove.mutate(a.id)}
+                      >
+                        Delete
+                      </ConfirmButton>
+                    </>
+                  )}
+                </RowMenu>
               </td>
             </Row>
           ))}
