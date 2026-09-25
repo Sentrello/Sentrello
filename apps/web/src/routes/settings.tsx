@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { type Meta, api } from "../lib/api";
+import { CountrySelect } from "../lib/ui";
 import {
   Button,
   Card,
@@ -289,7 +290,7 @@ export function Settings() {
             Germany will not accept one without the city and postcode stated
             as themselves.
           */}
-          <div className="grid gap-(--gap-toolbar) sm:grid-cols-[minmax(0,1fr)_8rem_6rem]">
+          <div className="grid gap-(--gap-toolbar) sm:grid-cols-[minmax(0,1fr)_8rem_minmax(0,12rem)]">
             <Field label="City" hint="For structured e-invoices.">
               <Input
                 value={form.city}
@@ -302,11 +303,21 @@ export function Settings() {
                 onChange={(e) => patch({ postcode: e.target.value })}
               />
             </Field>
-            <Field label="Country" hint='Two letters — "US", "CA", "GB".'>
-              <Input
+            {/*
+              The single most load-bearing field on this screen, and it was a
+              text box: it decides how every figure on every document this
+              business sends is written, which tax label its receipts carry,
+              and whether a sale into the EU is a reverse charge. `UK` typed
+              here silently resolved to plain `en` and a British business kept
+              the American conventions.
+            */}
+            <Field
+              label="Country"
+              hint="Sets how money is written on everything you send."
+            >
+              <CountrySelect
                 value={form.countryCode}
-                placeholder="US"
-                onChange={(e) => patch({ countryCode: e.target.value })}
+                onChange={(countryCode) => patch({ countryCode })}
               />
             </Field>
           </div>

@@ -19,6 +19,12 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { may } from "./api";
+import {
+  ELSEWHERE,
+  SERVED,
+  countriesByName,
+  countryName,
+} from "./country-data";
 import { Icon } from "./icons";
 
 export const border = { borderColor: "var(--border)" };
@@ -541,6 +547,82 @@ export function Select({
       />
       {reason.note}
     </>
+  );
+}
+
+/**
+ * Which country somebody is in, chosen rather than typed.
+ *
+ * It was a text box hinted `Two letters — "US", "CA", "GB"`, and the field it
+ * filled is the most load-bearing one on the settings screen: it decides how
+ * every figure on every document a business sends is written, which tax label
+ * its receipts carry, and whether a sale into the EU is a reverse charge.
+ * `UK` passed the two-letter check and resolved to plain `en`, so a British
+ * business quietly kept the American conventions. `Germany` on a customer's
+ * record stopped the VAT rules seeing an EU customer at all.
+ *
+ * It lives beside the other primitives rather than in its own file because a
+ * module needs it as much as Core does: the warehouse a till stands in and
+ * the tax table a shop keeps are the same field, and a picker only Core could
+ * reach would have left them typed by hand.
+ */
+export function CountrySelect({
+  value,
+  onChange,
+  id,
+  /**
+   * Whether somewhere we do not sell into may be chosen.
+   *
+   * Off for the business's own country — the tax regimes, the statutory
+   * payroll and the compliance rules that exist at all are scoped to four
+   * markets, so a fifth is a misconfiguration rather than a choice. On for a
+   * customer's, who can be anywhere.
+   */
+  anywhere = false,
+  placeholder = "Not said",
+}: {
+  value: string;
+  onChange: (code: string) => void;
+  id?: string;
+  anywhere?: boolean;
+  placeholder?: string;
+}) {
+  const served = countriesByName(SERVED);
+  const rest = anywhere ? countriesByName(ELSEWHERE) : [];
+  // A record typed before there was a list, or one restored from an archive,
+  // keeps what it has rather than silently becoming the first option.
+  const stray =
+    value && !SERVED.includes(value) && !rest.includes(value) ? value : null;
+
+  return (
+    <Select id={id} value={value} onChange={(e) => onChange(e.target.value)}>
+      <option value="">{placeholder}</option>
+      {stray ? <option value={stray}>{countryName(stray)}</option> : null}
+      {rest.length === 0 ? (
+        served.map((code) => (
+          <option key={code} value={code}>
+            {countryName(code)}
+          </option>
+        ))
+      ) : (
+        <>
+          <optgroup label="Where this product is built to sell">
+            {served.map((code) => (
+              <option key={code} value={code}>
+                {countryName(code)}
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label="Everywhere else">
+            {rest.map((code) => (
+              <option key={code} value={code}>
+                {countryName(code)}
+              </option>
+            ))}
+          </optgroup>
+        </>
+      )}
+    </Select>
   );
 }
 

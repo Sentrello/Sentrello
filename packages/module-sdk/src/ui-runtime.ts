@@ -79,6 +79,22 @@ export interface SentrelloUi {
       needs?: Record<string, string[]>;
     }
   >;
+  /**
+   * The country somebody is in, chosen from a list rather than typed.
+   *
+   * The same field appears in Core's settings, on a customer's record, on the
+   * warehouse a till stands in and on a shop's tax table — four text boxes
+   * hinted "two letters", and every one of them decides a tax treatment. It
+   * is a primitive for the same reason `formatMoney` is.
+   */
+  CountrySelect: React.ComponentType<{
+    value: string;
+    onChange: (code: string) => void;
+    id?: string;
+    /** Whether somewhere this product does not sell into may be chosen. */
+    anywhere?: boolean;
+    placeholder?: string;
+  }>;
   Dialog: React.ComponentType<{
     title: string;
     open: boolean;
@@ -239,6 +255,7 @@ export const UI_MEMBERS = [
   "SecretInput",
   "Textarea",
   "Select",
+  "CountrySelect",
   "Dialog",
   "ConfirmButton",
   "Table",

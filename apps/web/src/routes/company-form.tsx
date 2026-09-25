@@ -8,6 +8,7 @@ import {
 } from "../lib/crm-settings";
 import { CustomFields } from "../lib/custom-fields";
 import { Icon } from "../lib/icons";
+import { CountrySelect } from "../lib/ui";
 import {
   Button,
   Card,
@@ -341,11 +342,13 @@ export function CompanyForm({
                 onChange={(e) => setStateName(e.target.value)}
               />
             </Field>
+            {/*
+              Typed by hand, this decided VAT: `euCountry` reads a two-letter
+              code, so a customer entered as "Germany" was not an EU customer
+              at all and the reverse charge never applied to them.
+            */}
             <Field label="Country">
-              <Input
-                value={country}
-                onChange={(e) => setCountry(e.target.value)}
-              />
+              <CountrySelect value={country} onChange={setCountry} anywhere />
             </Field>
           </div>
 
