@@ -812,3 +812,18 @@ input[type="week"]:focus-within {
 body {
   overflow-wrap: break-word;
 }
+
+/*
+ * Why a table is left alone here, having been tried the other way.
+ *
+ * `break-word` above lets a long word wrap and does nothing else: a word it
+ * breaks does **not** count towards a column's min-content width, so a table
+ * still sizes a column to the longest unbroken token in it. `anywhere` is the
+ * one that counts — and applied to a table it broke `$1,250.00` across three
+ * lines and the heading `Qty` across two, which is a worse thing to do to an
+ * invoice than making it scroll.
+ *
+ * So a table with a pathological token scrolls sideways inside its own card,
+ * which is what `Table`'s `overflow-x-auto` wrapper is for. The page itself
+ * stays put, which is the part that matters.
+ */

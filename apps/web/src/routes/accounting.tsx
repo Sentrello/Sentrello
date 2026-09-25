@@ -799,7 +799,7 @@ export function Money() {
   return (
     <Page>
       <Card>
-        <div className="grid gap-(--gap-toolbar) sm:grid-cols-[8rem_1fr_8rem_1fr_1fr_9rem_auto]">
+        <div className="grid gap-(--gap-toolbar) sm:grid-cols-[8rem_minmax(0,1fr)_8rem_minmax(0,1fr)_minmax(0,1fr)_9rem_auto]">
           <Field label="Kind">
             <Select
               value={kind}
@@ -1221,7 +1221,7 @@ export function Accounts() {
         onClose={() => setAdding(false)}
       >
         <div className="flex flex-col gap-(--gap-stack)">
-          <div className="grid gap-(--gap-toolbar) sm:grid-cols-[7rem_1fr]">
+          <div className="grid gap-(--gap-toolbar) sm:grid-cols-[7rem_minmax(0,1fr)]">
             <Field label="Code">
               <Input
                 value={code}

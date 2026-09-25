@@ -418,7 +418,7 @@ export function ContactDetail() {
 
   return (
     <Page>
-      <div className="grid gap-(--gap-stack) lg:grid-cols-[1fr_20rem]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-(--gap-stack) lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="flex flex-col gap-(--gap-stack)">
           <Card>
             <div className="flex flex-wrap items-baseline justify-between gap-(--gap-toolbar)">
@@ -757,7 +757,7 @@ export function HistoryPanel({
         called by nothing.
       */}
       {logging && contactId ? (
-        <div className="mb-(--gap-toolbar) grid gap-(--gap-toolbar) sm:grid-cols-[9rem_1fr_auto] items-end">
+        <div className="mb-(--gap-toolbar) grid gap-(--gap-toolbar) sm:grid-cols-[9rem_minmax(0,1fr)_auto] items-end">
           <Field label="What it was">
             <Select
               value={kind}

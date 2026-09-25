@@ -699,7 +699,7 @@ export function InvoiceForm({
           {lines.map((line, i) => (
             <div
               key={line.key}
-              className="grid gap-(--gap-toolbar) sm:grid-cols-[1fr_5rem_6rem_7rem_8rem_2rem]"
+              className="grid gap-(--gap-toolbar) sm:grid-cols-[minmax(0,1fr)_5rem_6rem_7rem_8rem_2rem]"
             >
               <span className="flex flex-col gap-(--gap-tight)">
                 <Input
