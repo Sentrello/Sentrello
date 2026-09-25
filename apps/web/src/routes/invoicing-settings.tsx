@@ -10,6 +10,7 @@ import {
   Field,
   Input,
   Loading,
+  MenuItem,
   Page,
   Row,
   SectionHeading,
@@ -232,8 +233,8 @@ function TaxRates({
               </td>
               <td className="text-right">
                 {tax.active ? (
-                  <button
-                    type="button"
+                  <MenuItem
+                    needs={{ invoicing: ["update"] }}
                     className="text-sm link-muted"
                     // Retired, not deleted: documents copy the rate they were
                     // issued at, and the tax summary groups by this row.
@@ -241,7 +242,7 @@ function TaxRates({
                     onClick={() => retire.mutate(tax.id)}
                   >
                     Retire
-                  </button>
+                  </MenuItem>
                 ) : (
                   <button
                     type="button"
@@ -430,21 +431,21 @@ function Catalogue({
               </td>
               <td className="text-right">
                 {item.active ? (
-                  <button
-                    type="button"
+                  <MenuItem
+                    needs={{ invoicing: ["update"] }}
                     className="text-sm link-muted"
                     onClick={() => retire.mutate(item.id)}
                   >
                     Retire
-                  </button>
+                  </MenuItem>
                 ) : (
-                  <button
-                    type="button"
+                  <MenuItem
+                    needs={{ invoicing: ["update"] }}
                     className="text-sm link-muted"
                     onClick={() => restore.mutate(item.id)}
                   >
                     Bring back
-                  </button>
+                  </MenuItem>
                 )}
               </td>
             </Row>
@@ -1227,13 +1228,13 @@ function Letterhead() {
                     Used by default
                   </span>
                 ) : (
-                  <button
-                    type="button"
+                  <MenuItem
+                    needs={{ invoicing: ["update"] }}
                     className="link-muted text-xs"
                     onClick={() => makeDefault.mutate(template.id)}
                   >
                     Use this one
-                  </button>
+                  </MenuItem>
                 )}
                 <span className="ml-auto flex gap-(--gap-toolbar)">
                   <button

@@ -9,7 +9,8 @@
     "./ui-drift": "./src/ui-drift.ts",
     "./list-invalidation": "./src/list-invalidation.ts",
     "./theme.css": "./src/theme.css",
-    "./nav-screens": "./src/nav-screens.ts"
+    "./nav-screens": "./src/nav-screens.ts",
+    "./control-permissions": "./src/control-permissions.ts"
   },
   "dependencies": {
     "hono": "^4.13.5"

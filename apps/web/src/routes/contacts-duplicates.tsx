@@ -6,6 +6,7 @@ import {
   Empty,
   ErrorNote,
   Loading,
+  MenuItem,
   SectionHeading,
   border,
   muted,
@@ -124,14 +125,14 @@ export function ContactDuplicates({ onChanged }: { onChanged: () => void }) {
                 Keep {keep.name ?? keep.id.slice(0, 8)}
               </ConfirmButton>
             ))}
-            <button
-              type="button"
+            <MenuItem
+              needs={{ crm: ["update"] }}
               className="text-xs link-muted"
               disabled={dismiss.isPending}
               onClick={() => dismiss.mutate(pair)}
             >
               Not duplicates
-            </button>
+            </MenuItem>
           </li>
         ))}
       </ul>

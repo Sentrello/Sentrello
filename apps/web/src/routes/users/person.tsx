@@ -253,6 +253,7 @@ function Details({
                 // the record beside four short lines of text.
                 className="w-56"
                 aria-label={`Policy for ${person.name || person.email}`}
+                needs={{ settings: ["update"] }}
                 disabled={setRole.isPending}
                 onChange={(e) => setRole.mutate(e.target.value)}
               >

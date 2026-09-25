@@ -14,6 +14,7 @@ import {
   Field,
   Input,
   Loading,
+  MenuItem,
   SectionHeading,
   Select,
   formatDate,
@@ -396,14 +397,14 @@ export function DealDetail() {
               {/* Not hidden until the deal is won. Quoting is often how a
                   deal gets won, and a button that appears only afterwards is
                   one nobody finds when they need it. */}
-              <button
-                type="button"
+              <MenuItem
+                needs={{ invoicing: ["create"] }}
                 className="text-sm link-muted"
                 onClick={() => quote.mutate()}
                 disabled={quote.isPending}
               >
                 {quote.isPending ? "Quoting…" : "Create quote"}
-              </button>
+              </MenuItem>
               <button
                 type="button"
                 className="text-sm link-muted"

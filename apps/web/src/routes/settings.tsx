@@ -10,6 +10,7 @@ import {
   Field,
   Input,
   Loading,
+  MenuItem,
   Page,
   SecretInput,
   SectionHeading,
@@ -1353,8 +1354,8 @@ export function SettingsLicence() {
               // Bought a module on the website a minute ago? This is what makes
               // it appear now rather than whenever the daily refresh runs.
               <div className="mt-3">
-                <button
-                  type="button"
+                <MenuItem
+                  needs={{ settings: ["update"] }}
                   onClick={() => sync.mutate()}
                   disabled={sync.isPending}
                   className="text-sm link-muted"
@@ -1362,7 +1363,7 @@ export function SettingsLicence() {
                   {sync.isPending
                     ? "Checking your subscription…"
                     : "Check my subscription for changes"}
-                </button>
+                </MenuItem>
                 {sync.error ? <ErrorNote error={sync.error} /> : null}
               </div>
             )}
@@ -1748,14 +1749,14 @@ function Modules() {
                 In use
               </div>
             </div>
-            <button
-              type="button"
+            <MenuItem
+              needs={{ settings: ["update"] }}
               className="text-xs link-muted"
               disabled={toggle.isPending}
               onClick={() => toggle.mutate({ id: n.id, enabled: false })}
             >
               Put away
-            </button>
+            </MenuItem>
           </li>
         ))}
       </ul>

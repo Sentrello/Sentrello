@@ -361,14 +361,14 @@ export function Invoices() {
               picked.every(
                 (id) => rows.find((r) => r.id === id)?.status === "draft",
               ) ? (
-                <button
-                  type="button"
+                <MenuItem
+                  needs={{ invoicing: ["create"] }}
                   className="text-sm link"
                   disabled={merge.isPending}
                   onClick={() => merge.mutate()}
                 >
                   Merge into one
-                </button>
+                </MenuItem>
               ) : null}
               {confirmingDelete ? (
                 <button

@@ -14,6 +14,7 @@ import {
   ErrorNote,
   Field,
   Input,
+  MenuItem,
   Page,
   Select,
   Textarea,
@@ -132,8 +133,8 @@ function ViesStatus({
           <p>VIES did not recognise this number when checked on {on}.</p>
         ))}
       {problem && <p>{problem}</p>}
-      <button
-        type="button"
+      <MenuItem
+        needs={{ crm: ["update"] }}
         className="link"
         disabled={edited || check.isPending}
         title={
@@ -144,7 +145,7 @@ function ViesStatus({
         onClick={() => check.mutate()}
       >
         {check.isPending ? "Checking…" : "Check with VIES"}
-      </button>
+      </MenuItem>
     </div>
   );
 }

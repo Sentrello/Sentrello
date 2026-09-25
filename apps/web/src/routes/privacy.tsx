@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { api } from "../lib/api";
+import { api, may } from "../lib/api";
 import {
   Button,
   Card,
@@ -69,8 +69,20 @@ type EraseResult = {
  * they are the same job — a business that has to answer a regulator has to
  * answer all of them, and hunting across three screens is how one gets missed.
  */
+/**
+ * Said once for the three writes on this screen.
+ *
+ * They are checkboxes and a date, not buttons, so `needs` has nothing to sit
+ * on — the kit has no checkbox and this is the only screen with one that
+ * writes. The wording matches what the kit puts on a blocked control, because
+ * somebody meeting both should not have to work out that they are the same
+ * thing.
+ */
+const REFUSED = "Your role does not allow this.";
+
 function Safeguards() {
   const qc = useQueryClient();
+  const maySave = may("settings", "update");
   const compliance = useQuery({
     queryKey: ["compliance"],
     queryFn: () =>
@@ -204,6 +216,8 @@ function Safeguards() {
               <input
                 type="checkbox"
                 checked={compliance.data.settings.requireTwoFactor}
+                disabled={!maySave}
+                title={maySave ? undefined : REFUSED}
                 onChange={(e) =>
                   save.mutate({ requireTwoFactor: e.target.checked })
                 }
@@ -211,9 +225,14 @@ function Safeguards() {
               Require a second factor from everybody
             </label>
             <label className="flex items-center gap-(--gap-toolbar) text-sm">
+              {/* A checkbox whose change is the write, so it is gated the
+                  same as a button would be. No primitive for it: the kit has
+                  no checkbox, and one exists on exactly this screen. */}
               <input
                 type="checkbox"
                 checked={compliance.data.settings.logReads}
+                disabled={!maySave}
+                title={maySave ? undefined : REFUSED}
                 onChange={(e) => save.mutate({ logReads: e.target.checked })}
               />
               Record every time somebody opens a patient's record

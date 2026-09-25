@@ -23,6 +23,7 @@ import {
   Field,
   Input,
   Loading,
+  MenuItem,
   Page,
   PageActions,
   Row,
@@ -980,13 +981,13 @@ export function Money() {
                     >
                       Correct
                     </button>
-                    <button
-                      type="button"
+                    <MenuItem
+                      needs={{ bookkeeping: ["delete"] }}
                       className="link-danger ml-3 text-xs"
                       onClick={() => undo.mutate(t.id)}
                     >
                       Undo
-                    </button>
+                    </MenuItem>
                   </>
                 )}
               </td>

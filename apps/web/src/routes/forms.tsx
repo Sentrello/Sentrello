@@ -11,6 +11,7 @@ import {
   Field,
   Input,
   Loading,
+  MenuItem,
   Page,
   PageActions,
   Row,
@@ -403,14 +404,14 @@ function AllowedSites({ form }: { form: FormRow }) {
               className="flex items-center justify-between border-line border-t py-1.5 text-sm"
             >
               <span>{site}</span>
-              <button
-                type="button"
+              <MenuItem
+                needs={{ crm: ["update"] }}
                 className="text-sm link-muted"
                 disabled={save.isPending}
                 onClick={() => save.mutate(sites.filter((s) => s !== site))}
               >
                 Remove
-              </button>
+              </MenuItem>
             </li>
           ))}
         </ul>
