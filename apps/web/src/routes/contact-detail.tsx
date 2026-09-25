@@ -18,6 +18,7 @@ import { type TimelineEntry, mergeTimeline } from "../lib/timeline";
 import {
   Button,
   Card,
+  ConfirmButton,
   Empty,
   ErrorNote,
   Field,
@@ -346,13 +347,16 @@ function Notes({
                 >
                   Correct
                 </button>
-                <button
-                  type="button"
+                <ConfirmButton
+                  title="Delete this note?"
+                  message="The note goes, and any file attached to it goes with it. Nothing here keeps a copy."
+                  confirmLabel="Delete it"
+                  danger
                   className="link-muted"
-                  onClick={() => remove.mutate(n.id)}
+                  onConfirm={() => remove.mutate(n.id)}
                 >
                   Delete
-                </button>
+                </ConfirmButton>
               </p>
             </div>
           ))
@@ -843,15 +847,18 @@ export function HistoryPanel({
                       >
                         Correct
                       </button>
-                      <button
-                        type="button"
+                      <ConfirmButton
+                        title="Delete this entry?"
+                        message="The record of that call or meeting leaves the history for good — what was typed about it is not kept anywhere else."
+                        confirmLabel="Delete it"
+                        danger
                         className="link-muted"
-                        onClick={() =>
+                        onConfirm={() =>
                           dropLog.mutate(entry.activityId as string)
                         }
                       >
                         Delete
-                      </button>
+                      </ConfirmButton>
                     </>
                   ) : null}
                 </span>

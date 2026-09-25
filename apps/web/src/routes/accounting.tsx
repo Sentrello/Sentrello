@@ -16,6 +16,7 @@ import { SavedViews } from "../lib/saved-views";
 import {
   Button,
   Card,
+  ConfirmButton,
   Dialog,
   Empty,
   ErrorNote,
@@ -1368,14 +1369,17 @@ export function Accounts() {
                   is not an empty account, since debits and credits can cancel
                   — so hiding it would mean hiding it from the wrong rows.
                 */}
-                <button
-                  type="button"
+                <ConfirmButton
+                  title="Delete this account?"
+                  message="It leaves the chart for good. An account with postings against it, or with accounts under it, is refused — archive that one instead and the history stays."
+                  confirmLabel="Delete it"
+                  danger
                   className="link-danger ml-3 text-xs"
                   disabled={remove.isPending}
-                  onClick={() => remove.mutate(a.id)}
+                  onConfirm={() => remove.mutate(a.id)}
                 >
                   Delete
-                </button>
+                </ConfirmButton>
               </td>
             </Row>
           ))}

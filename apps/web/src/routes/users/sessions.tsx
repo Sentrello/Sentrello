@@ -119,6 +119,8 @@ export function Sessions() {
               <td style={muted}>{s.ipAddress || "—"}</td>
               <td style={muted}>{formatDate(s.updatedAt)}</td>
               <td className="text-right">
+                {/* Nothing asked first, unlike Sign everybody out above it:
+                    one device signs in again and nothing is lost. */}
                 <button
                   type="button"
                   className="text-xs link-muted"

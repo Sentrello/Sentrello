@@ -442,6 +442,8 @@ function Sessions({
               </div>
             </div>
             {s.current ? null : (
+              // Nothing asked first: this costs that device a sign-in, and
+              // never the account or anything in it.
               <button
                 type="button"
                 className="text-xs link-danger"

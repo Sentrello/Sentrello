@@ -631,6 +631,8 @@ function Sessions({ userId }: { userId: string }) {
             <td style={muted}>{s.ipAddress || "—"}</td>
             <td style={muted}>{formatDate(s.updatedAt)}</td>
             <td className="text-right">
+              {/* Nothing asked first, unlike Sign out everywhere above it:
+                  one device signs in again and nothing is lost. */}
               <button
                 type="button"
                 className="text-xs link-muted"

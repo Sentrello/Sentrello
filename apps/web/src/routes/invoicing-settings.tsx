@@ -5,6 +5,7 @@ import { Icon } from "../lib/icons";
 import {
   Button,
   Card,
+  ConfirmButton,
   ErrorNote,
   Field,
   Input,
@@ -693,13 +694,16 @@ function BillingRules() {
                   />
                 </td>
                 <td className="text-right">
-                  <button
-                    type="button"
+                  <ConfirmButton
+                    title={`Remove ${rule.name}?`}
+                    message="Nothing goes out under it again, and its wording goes with it. Invoices it was chasing fall to whatever other reminders are switched on — or, with none left, to the once-a-week default."
+                    confirmLabel="Remove it"
+                    danger
                     className="text-sm link-muted"
-                    onClick={() => removeRule.mutate(rule.id)}
+                    onConfirm={() => removeRule.mutate(rule.id)}
                   >
                     Remove
-                  </button>
+                  </ConfirmButton>
                 </td>
               </Row>
             ))}
@@ -1234,13 +1238,16 @@ function Letterhead() {
                   >
                     {editing === template.id ? "Close" : "Edit"}
                   </button>
-                  <button
-                    type="button"
+                  <ConfirmButton
+                    title={`Delete the ${template.name} template?`}
+                    message="Its wording, its colour and its logo go with it. Documents that were set to print on it fall back to the default template."
+                    confirmLabel="Delete it"
+                    danger
                     className="link-danger text-xs"
-                    onClick={() => remove.mutate(template.id)}
+                    onConfirm={() => remove.mutate(template.id)}
                   >
                     Delete
-                  </button>
+                  </ConfirmButton>
                 </span>
               </Toolbar>
               {editing === template.id ? (

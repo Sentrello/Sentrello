@@ -130,6 +130,16 @@ export function Invoices() {
   const [adding, setAdding] = useState(false);
   /** What is ticked, for merging and for deleting several at once. */
   const [picked, setPicked] = useState<string[]>([]);
+  /**
+   * Whether Delete has been pressed once already.
+   *
+   * The toolbar is already saying how many are ticked, so a dialog over it
+   * would read the count back at somebody who can see it. What was missing is
+   * the pause: one press turned a whole page of ticked invoices into deleted
+   * ones with nothing asked. Cleared wherever the selection empties, the way
+   * the same two-step on contacts is cleared by unmounting.
+   */
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   /** Narrowed to one label, when a business is working through a pile. */
   const [tagId, setTagId] = useState("");
@@ -200,6 +210,7 @@ export function Invoices() {
       ),
     onSuccess: (made) => {
       setPicked([]);
+      setConfirmingDelete(false);
       refresh();
       open({
         moduleId: "invoicing",
@@ -225,6 +236,7 @@ export function Invoices() {
     },
     onSuccess: () => {
       setPicked([]);
+      setConfirmingDelete(false);
       refresh();
     },
   });
@@ -357,18 +369,33 @@ export function Invoices() {
                   Merge into one
                 </button>
               ) : null}
+              {confirmingDelete ? (
+                <button
+                  type="button"
+                  className="text-sm link-danger"
+                  disabled={removeMany.isPending}
+                  onClick={() => removeMany.mutate()}
+                >
+                  {removeMany.isPending
+                    ? "Deleting…"
+                    : `Really delete ${picked.length}`}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="text-sm link-muted"
+                  onClick={() => setConfirmingDelete(true)}
+                >
+                  Delete
+                </button>
+              )}
               <button
                 type="button"
                 className="text-sm link-muted"
-                disabled={removeMany.isPending}
-                onClick={() => removeMany.mutate()}
-              >
-                Delete
-              </button>
-              <button
-                type="button"
-                className="text-sm link-muted"
-                onClick={() => setPicked([])}
+                onClick={() => {
+                  setPicked([]);
+                  setConfirmingDelete(false);
+                }}
               >
                 Clear
               </button>

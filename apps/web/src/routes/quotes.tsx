@@ -739,6 +739,8 @@ function QuoteActions({
                 Restore
               </button>
             ) : (
+              // Nothing asked first: this is the soft delete. The quote moves
+              // to the Deleted tab and Restore, right here, brings it back.
               <button
                 type="button"
                 className="menu-item"

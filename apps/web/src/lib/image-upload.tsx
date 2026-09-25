@@ -131,6 +131,8 @@ export function ImageUpload({
               : "Add"}
         </button>
         {showing && !remove.isSuccess ? (
+          // Nothing asked first: the picture is a file they still have, and
+          // Add puts it straight back.
           <button
             type="button"
             className="link-muted"

@@ -559,13 +559,16 @@ export function CrmSettings() {
                     </button>
                   ))}
                 </span>
-                <button
-                  type="button"
+                <ConfirmButton
+                  title={`Delete the ${tag.name} tag?`}
+                  message="It comes off every contact carrying it, and this screen is the only place it can be typed back in. Nobody's contacts are touched otherwise."
+                  confirmLabel="Delete it"
+                  danger
                   className="text-sm link-muted"
-                  onClick={() => removeTag.mutate(tag.id)}
+                  onConfirm={() => removeTag.mutate(tag.id)}
                 >
                   Delete
-                </button>
+                </ConfirmButton>
               </li>
             ))}
           </ul>

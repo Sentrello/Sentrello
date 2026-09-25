@@ -8,6 +8,7 @@ import { RecordPicker } from "../lib/record-picker";
 import {
   Button,
   Card,
+  ConfirmButton,
   Empty,
   ErrorNote,
   Field,
@@ -254,13 +255,17 @@ function EditDeal({
           pipeline and in its figures for good. The route was there and nothing
           called it.
         */}
-        <Button
+        <ConfirmButton
+          title="Delete this deal?"
+          message="Its notes, its logged calls and meetings, its follow-ups and its tags all go with it, and out of the pipeline figures. There is no bin to fish it back out of."
+          confirmLabel="Delete it"
+          danger
           variant="danger"
           disabled={remove.isPending}
-          onClick={() => remove.mutate()}
+          onConfirm={() => remove.mutate()}
         >
           Delete
-        </Button>
+        </ConfirmButton>
         <button type="button" className="text-sm link-muted" onClick={onDone}>
           Cancel
         </button>
