@@ -215,6 +215,46 @@ export function findColourWithoutBorder(source: string): HandRolledFinding[] {
   return findings.sort((a, b) => a.line - b.line);
 }
 
+/**
+ * A container's vertical rhythm written as a number instead of named.
+ *
+ * `space-y-*` is never a one-off decision. It is always the gap between the
+ * things stacked inside a container, which is exactly what `--gap-stack` and
+ * `--gap-tight` are for. Six different rhythms were in use across a hundred
+ * and twenty screens — `space-y-4` sixty times, `space-y-1` forty-three,
+ * `space-y-2` thirty-two — for what was almost always the same relationship
+ * between the same two kinds of thing.
+ *
+ * Write `flex flex-col gap-(--gap-stack)` instead. It says what the number
+ * stood in for, and one edit to the token moves every screen at once.
+ *
+ * **`space-y-*` only, on purpose.** The first draft also caught bare `gap-2`
+ * through `gap-6` and found 375 things in core, most of them legitimate: the
+ * `gap-2` between an icon and the word beside it is a real decision about two
+ * things that belong together, not a container's rhythm. A guard that demands
+ * a token for all of those produces noise until somebody suppresses it, and a
+ * suppressed guard protects nothing.
+ *
+ * Held back from 25 September until the sweep that makes it pass was
+ * finished, because a guard added before the thing it guards is a red suite
+ * people learn to ignore. Armed when the count reached zero across Core, Pro
+ * and Modules.
+ */
+export function findOwnVerticalRhythm(source: string): HandRolledFinding[] {
+  const rawLines = source.split("\n");
+  const clean = stripComments(source);
+  const findings: HandRolledFinding[] = [];
+  for (const match of clean.matchAll(/className="[^"]*?\b(space-y-[\d.]+)/g)) {
+    const line = lineOf(clean, match.index);
+    if (exceptedAbove(rawLines, line, "ui-drift")) continue;
+    findings.push({
+      line,
+      say: `\`${match[1]}\` is a container's rhythm written as a number. Use \`flex flex-col gap-(--gap-stack)\`, or \`gap-(--gap-tight)\` where the things belong together.`,
+    });
+  }
+  return findings.sort((a, b) => a.line - b.line);
+}
+
 export function findHandRolledUi(source: string): HandRolledFinding[] {
   const rawLines = source.split("\n");
   const clean = stripComments(source);
@@ -460,6 +500,7 @@ function declareScope(
  */
 declareScope(findHandRolledUi, "react");
 declareScope(findColourWithoutBorder, "react");
+declareScope(findOwnVerticalRhythm, "react");
 declareScope(findFillAsText);
 declareScope(findUnthemedElevation);
 declareScope(findUnpagedList, "react", "page");

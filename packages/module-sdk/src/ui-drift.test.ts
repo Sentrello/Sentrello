@@ -370,6 +370,9 @@ test("every scanner says what kind of source it is for", () => {
     // A JSX attribute, and only ever that: a stylesheet writing a border
     // colour is writing a rule, and a rule can carry its own width.
     findColourWithoutBorder: ["react"],
+    // A className, so React source. A stylesheet naming its own margins is
+    // writing a rule and is somebody else's argument.
+    findOwnVerticalRhythm: ["react"],
     // Markup and CSS wherever they are written — a stylesheet most of all.
     findFillAsText: ["react", "page", "styles"],
     findUnthemedElevation: ["react", "page", "styles"],
