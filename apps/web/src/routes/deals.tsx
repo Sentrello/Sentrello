@@ -26,6 +26,7 @@ import {
   Loading,
   Page,
   PageActions,
+  RowMenu,
   Select,
   Toolbar,
   formatMoney,
@@ -91,6 +92,24 @@ interface Stage {
  * a keyboard, a screen reader and a touch screen all need somewhere else to
  * go. Three dots is the smallest thing that provides it.
  */
+/**
+ * Moving a deal, from the card it is on.
+ *
+ * This was a hand-rolled panel and it had all three faults `RowMenu` exists to
+ * solve, which is what a hand-rolled panel gets you.
+ *
+ * It was absolutely positioned inside a `<section className="… overflow-x-auto">`,
+ * so a card near the right edge of a column had its menu clipped by the
+ * scroller — the board is horizontal, so that is most of them on a narrow
+ * window. `RowMenu` measures the trigger and draws into a portal on the body,
+ * which no ancestor can cut.
+ *
+ * And it closed on `onMouseLeave` and nothing else. No Escape, no click
+ * outside, no close on blur. Open it with a keyboard and there was no way to
+ * shut it with one; open it on a touchscreen, where there is no such thing as
+ * leaving with the pointer, and it stayed open until something else was
+ * pressed.
+ */
 function StageMenu({
   deal,
   stages,
@@ -100,24 +119,11 @@ function StageMenu({
   stages: Stage[];
   onMove: (id: string, stage: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
-
   return (
-    <div className="relative shrink-0">
-      <button
-        type="button"
-        className="link-muted rounded px-1"
-        aria-label={`Move ${deal.name} to another stage`}
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-      >
-        <Icon name="more-horizontal" size={16} />
-      </button>
-      {open ? (
-        // Closing on blur rather than a document listener: the panel holds
-        // the only things worth clicking, so losing focus is the same event.
-        <div className="menu-panel z-10" onMouseLeave={() => setOpen(false)}>
-          {stages
+    <div className="shrink-0">
+      <RowMenu label={`Move ${deal.name} to another stage`}>
+        {(close) =>
+          stages
             .filter((s) => s.id !== deal.stage)
             .map((s) => (
               <button
@@ -126,14 +132,14 @@ function StageMenu({
                 className="menu-item"
                 onClick={() => {
                   onMove(deal.id, s.id);
-                  setOpen(false);
+                  close();
                 }}
               >
                 Move to {s.label}
               </button>
-            ))}
-        </div>
-      ) : null}
+            ))
+        }
+      </RowMenu>
     </div>
   );
 }

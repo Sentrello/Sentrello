@@ -19,9 +19,12 @@
  * string is a string. They are caught by asking the built CSS whether the
  * class is in it, which is the only question that actually decides.
  *
- * Only `className="…"` literals are read. A class assembled at runtime cannot
- * be checked from source, and guessing at template literals would report
- * things that are fine — a guard nobody trusts is a guard nobody keeps.
+ * Only `className="…"` literals are read, and only outside comments. A class
+ * assembled at runtime cannot be checked from source, and guessing at template
+ * literals would report things that are fine — a guard nobody trusts is a
+ * guard nobody keeps. The same goes for prose: this fired on a doc comment
+ * describing the markup it was replacing, and a guard that punishes
+ * documentation is one people route around by writing less of it.
  *
  *   bun run --cwd apps/web build && node apps/web/scripts/check-classes.mjs
  */
@@ -54,9 +57,22 @@ try {
   process.exit(1);
 }
 
+/**
+ * Comments out, newlines kept.
+ *
+ * Replacing a block comment with the same number of lines means a finding
+ * still names the line the class is really on. `//` is only stripped when it
+ * does not follow a colon, so `https://…` inside a string survives.
+ */
+function withoutComments(source) {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "))
+    .replace(/(^|[^:])\/\/[^\n]*/g, "$1");
+}
+
 const asked = new Map();
 for (const file of walk(join(here, "src"))) {
-  const source = readFileSync(file, "utf8");
+  const source = withoutComments(readFileSync(file, "utf8"));
   for (const match of source.matchAll(/className="([^"]*)"/g)) {
     for (const name of match[1].split(/\s+/)) {
       if (name && !asked.has(name))

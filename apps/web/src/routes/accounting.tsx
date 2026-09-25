@@ -1067,6 +1067,8 @@ export function Accounts() {
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [type, setType] = useState("expense");
+  /** The new-account dialog, which used to be a form standing on the page. */
+  const [adding, setAdding] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   /**
    * Narrowing the chart, in the browser.
@@ -1187,18 +1189,41 @@ export function Accounts() {
 
   return (
     <Page>
-      <Card>
-        <div className="grid gap-(--gap-toolbar) sm:grid-cols-[7rem_1fr_9rem_auto]">
-          <Field label="Code">
-            <Input
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder="6100"
-            />
-          </Field>
-          <Field label="Name">
-            <Input value={name} onChange={(e) => setName(e.target.value)} />
-          </Field>
+      {/*
+       * The new-account form is behind a button, not standing on the page.
+       *
+       * It was mounted permanently at the top, so the first thing anybody saw
+       * on a screen whose job is to show a chart of accounts was four empty
+       * boxes for an account they had probably already made — and the chart
+       * itself started below the fold on a laptop.
+       *
+       * Same fault the Forms screen had and the same fix: the action goes in
+       * the page's own title line and the form is a dialog behind it.
+       */}
+      <PageActions>
+        <Button variant="secondary" onClick={() => setAdding(true)}>
+          New account
+        </Button>
+      </PageActions>
+
+      <Dialog
+        title="New account"
+        open={adding}
+        onClose={() => setAdding(false)}
+      >
+        <div className="flex flex-col gap-(--gap-stack)">
+          <div className="grid gap-(--gap-toolbar) sm:grid-cols-[7rem_1fr]">
+            <Field label="Code">
+              <Input
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="6100"
+              />
+            </Field>
+            <Field label="Name">
+              <Input value={name} onChange={(e) => setName(e.target.value)} />
+            </Field>
+          </div>
           <Field label="Type">
             <Select value={type} onChange={(e) => setType(e.target.value)}>
               {["asset", "liability", "equity", "income", "expense"].map(
@@ -1210,16 +1235,20 @@ export function Accounts() {
               )}
             </Select>
           </Field>
-          <div className="flex items-end">
+          {add.error ? <ErrorNote error={add.error} /> : null}
+          <Toolbar>
             <Button
               onClick={() => add.mutate()}
               disabled={add.isPending || !code || !name}
             >
-              Add
+              {add.isPending ? "Adding…" : "Add account"}
             </Button>
-          </div>
+          </Toolbar>
         </div>
-        <Toolbar className="mt-(--gap-stack)">
+      </Dialog>
+
+      <Card>
+        <Toolbar>
           <Button
             onClick={() => standard.mutate()}
             disabled={standard.isPending}
@@ -1243,7 +1272,6 @@ export function Accounts() {
           are used. The standard chart adds the ones a small business usually
           wants, and never adds one twice.
         </p>
-        {add.error ? <ErrorNote error={add.error} /> : null}
       </Card>
 
       <Toolbar>
