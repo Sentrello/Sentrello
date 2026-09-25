@@ -10,7 +10,8 @@
     "./list-invalidation": "./src/list-invalidation.ts",
     "./theme.css": "./src/theme.css",
     "./nav-screens": "./src/nav-screens.ts",
-    "./control-permissions": "./src/control-permissions.ts"
+    "./control-permissions": "./src/control-permissions.ts",
+    "./copied-helpers": "./src/copied-helpers.ts"
   },
   "dependencies": {
     "hono": "^4.13.5"

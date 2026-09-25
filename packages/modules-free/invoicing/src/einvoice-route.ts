@@ -5,6 +5,7 @@ import {
 } from "@sentrello/auth/hono";
 import { and, db, eq, inArray, schema } from "@sentrello/db";
 import { type LineTax, lineCharges } from "@sentrello/db/money";
+import { contentDisposition } from "@sentrello/module-sdk";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import {
   EINVOICE_PROFILES,
@@ -311,7 +312,10 @@ export function registerEInvoice(ctx: ModuleContext) {
           "content-type": "application/xml; charset=utf-8",
           // Named after the invoice and the rulebook it satisfies, because a
           // folder of `einvoice.xml` files is a folder nobody can use.
-          "content-disposition": `attachment; filename="${input.number}-${profile}.xml"`,
+          "content-disposition": contentDisposition(
+            "attachment",
+            `${input.number}-${profile}.xml`,
+          ),
         });
       } catch (err) {
         return c.json({ error: (err as Error).message }, 400);

@@ -9,7 +9,11 @@ import {
   restoreArchive,
   retentionYears,
 } from "@sentrello/db/archive";
-import { type RouteContext, defineModule } from "@sentrello/module-sdk";
+import {
+  type RouteContext,
+  contentDisposition,
+  defineModule,
+} from "@sentrello/module-sdk";
 import {
   archiveDestination,
   destinationFor,
@@ -295,7 +299,10 @@ export default defineModule({
         return new Response(stream, {
           headers: {
             "content-type": "application/zip",
-            "content-disposition": `attachment; filename="${run.filename}"`,
+            "content-disposition": contentDisposition(
+              "attachment",
+              run.filename,
+            ),
           },
         });
       },
