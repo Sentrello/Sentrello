@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { api } from "../../lib/api";
+import { api, may } from "../../lib/api";
 import { useNavigation } from "../../lib/navigation";
 import {
   Button,
@@ -89,7 +89,11 @@ export function Groups() {
               value={name}
               placeholder="The office"
               onChange={(e) => setName(e.target.value)}
+              // The same question the button beside it asks. Enter was a way
+              // round it: the button was gated and the shortcut was not, so a
+              // policy that refused the press let the keystroke through.
               onKeyDown={(e) => {
+                if (!may("settings", "update")) return;
                 if (e.key === "Enter" && name.trim()) create.mutate();
               }}
             />

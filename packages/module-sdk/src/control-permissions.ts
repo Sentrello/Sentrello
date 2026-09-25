@@ -83,9 +83,26 @@ export function controlsFiringMutations(source: string): Control[] {
   const out: Control[] = [];
 
   for (let i = 0; i < lines.length; i += 1) {
-    const fired = /on(?:Click|Confirm|Change)=\{[^}]*?(\w+)\.mutate/.exec(
-      lines[i] ?? "",
-    );
+    /*
+     * The handler and the call it makes are often on different lines.
+     *
+     * `onClick={() =>` and `change.mutate({` sit one above the other wherever
+     * the arguments are an object, which is most of the product — and reading
+     * one line at a time this guard could not see any of them. It reported
+     * zero ungated writes in three repositories while blind to **107 of the
+     * 519 controls**, a fifth of the surface, which is the worse kind of
+     * green: the kind that stops anybody looking.
+     *
+     * So the window is the handler and the four lines under it. It has to
+     * start at the handler, so a `.mutate` on its own line is never counted
+     * twice, and the cap keeps it inside one element rather than running on
+     * into the next.
+     */
+    if (!/on(?:Click|Confirm|Change)=\{/.test(lines[i] ?? "")) continue;
+    const fired =
+      /on(?:Click|Confirm|Change)=\{[\s\S]{0,220}?(\w+)\.mutate/.exec(
+        lines.slice(i, i + 5).join("\n"),
+      );
     if (!fired?.[1]) continue;
     const name = fired[1];
 

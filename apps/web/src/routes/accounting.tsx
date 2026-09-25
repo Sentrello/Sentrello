@@ -1334,6 +1334,7 @@ export function Accounts() {
               </td>
               <td>
                 <Select
+                  needs={{ bookkeeping: ["update"] }}
                   value={a.parentId ?? ""}
                   // A column of identical dropdowns announces as "combo box"
                   // forty times over without this. The account's own name is
@@ -1356,15 +1357,15 @@ export function Accounts() {
                 </Select>
               </td>
               <td>
-                <button
-                  type="button"
+                <MenuItem
+                  needs={{ bookkeeping: ["update"] }}
                   className="link-muted text-xs"
                   onClick={() =>
                     archive.mutate({ id: a.id, archived: !a.archivedAt })
                   }
                 >
                   {a.archivedAt ? "Restore" : "Archive"}
-                </button>
+                </MenuItem>
                 {/*
                   Offered on every account, and refused by the server where it
                   must be: "this account has postings against it — archive it

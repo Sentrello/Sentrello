@@ -119,6 +119,45 @@ test("a control with no prop is reported as bare", () => {
   expect(only?.method).toBe("DELETE");
 });
 
+/**
+ * The handler and the call it makes, on different lines.
+ *
+ * Which is how they sit wherever the arguments are an object — `onClick={()
+ * =>` on one line, `change.mutate({` on the next — and that is most of the
+ * product. Read a line at a time this saw none of them: zero ungated writes
+ * reported in three repositories while 107 of 519 controls were invisible to
+ * it. A guard that cannot see a fifth of its subject and says so in green is
+ * worse than no guard, because it stops anybody looking.
+ */
+test("a handler spread over several lines is still a control", () => {
+  const source = [
+    "const change = useMutation({",
+    "  mutationFn: (input: { id: string }) => api(`/api/shop/discounts/${input.id}`, {",
+    '    method: "PATCH",',
+    "  }),",
+    "});",
+    "<button",
+    '  type="button"',
+    "  onClick={() =>",
+    "    change.mutate({",
+    "      id: discount.id,",
+    "      active: !discount.active,",
+    "    })",
+    "  }",
+    ">",
+    "  Switch off",
+    "</button>",
+  ].join("\n");
+  const found = controlsFiringMutations(source);
+  // Once, not twice: the window has to start at the handler, or the line
+  // carrying `.mutate` on its own counts as a second control.
+  expect(found.length).toBe(1);
+  expect(found[0]?.mutation).toBe("change");
+  expect(found[0]?.gated).toBe(false);
+  expect(found[0]?.method).toBe("PATCH");
+  expect(found[0]?.path).toBe("/api/shop/discounts/:x");
+});
+
 /** A route with no permission guard is not a gap; it is a route to leave. */
 test("a route with no requirePermission is not offered as an answer", () => {
   const routes = guardedRoutes(

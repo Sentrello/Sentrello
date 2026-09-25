@@ -206,12 +206,23 @@ export type Needs = Record<string, string[]>;
  * `title` rather than a live note: it is an explanation somebody goes looking
  * for once, not something that should shout on every screen.
  */
+/**
+ * The words, in one place.
+ *
+ * A checkbox has no primitive in this kit to hang `needs` on — there is no
+ * `Checkbox`, and the handful that write disable themselves by asking `may`
+ * directly. They were each carrying their own copy of this sentence, which is
+ * how a screen ends up saying something a shade different from the screen
+ * beside it about the same refusal.
+ */
+export const REFUSED = "Your role does not allow this.";
+
 function blockedBy(needs: Needs | undefined): string | undefined {
   if (!needs) return undefined;
   const allowed = Object.entries(needs).every(([resource, actions]) =>
     actions.every((action) => may(resource, action)),
   );
-  return allowed ? undefined : "Your role does not allow this.";
+  return allowed ? undefined : REFUSED;
 }
 
 /**
@@ -329,17 +340,36 @@ function withWidth(className: string | undefined): string {
 
 export function Input({
   ref,
+  needs,
   ...props
 }: React.InputHTMLAttributes<HTMLInputElement> & {
   ref?: React.Ref<HTMLInputElement>;
+  /**
+   * The permission this box's own write asks for. Disabled without it.
+   *
+   * For a box whose `onChange` *is* the write — the idle timeout on the
+   * compliance screen, a date that saves as it is typed — and not for one
+   * that fills in a form somebody submits with a button. The button is the
+   * write there, and refusing to let somebody type into a form they cannot
+   * save is a worse way of telling them so.
+   */
+  needs?: Needs;
 }) {
+  const blocked = blockedBy(needs);
+  const reason = useBlockedReason(blocked);
   return (
-    <input
-      {...props}
-      ref={ref}
-      className={`${withWidth(props.className)} rounded border px-2 py-1.5 text-sm ${props.className ?? ""}`}
-      style={{ ...raised, ...props.style }}
-    />
+    <>
+      <input
+        {...props}
+        {...reason.describedBy}
+        ref={ref}
+        disabled={props.disabled || blocked !== undefined}
+        title={blocked ?? props.title}
+        className={`${withWidth(props.className)} rounded border px-2 py-1.5 text-sm ${props.className ?? ""}`}
+        style={{ ...raised, ...props.style }}
+      />
+      {reason.note}
+    </>
   );
 }
 

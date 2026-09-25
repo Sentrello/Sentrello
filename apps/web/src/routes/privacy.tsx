@@ -200,6 +200,7 @@ function Safeguards() {
               hint="Minutes of inactivity. The screen left open in a room patients walk through is the reason for this one."
             >
               <Input
+                needs={{ settings: ["update"] }}
                 type="number"
                 min={1}
                 max={60}
@@ -242,6 +243,7 @@ function Safeguards() {
               hint="Nothing enforces this. It is asked because the commonest audit finding in a small practice is that nobody can produce a date."
             >
               <Input
+                needs={{ settings: ["update"] }}
                 type="date"
                 value={
                   compliance.data.settings.riskAssessmentOn?.slice(0, 10) ?? ""

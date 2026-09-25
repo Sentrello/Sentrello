@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { api } from "../lib/api";
+import { api, may } from "../lib/api";
 import { Icon } from "../lib/icons";
 import {
   Button,
@@ -12,6 +12,7 @@ import {
   Loading,
   MenuItem,
   Page,
+  REFUSED,
   Row,
   SectionHeading,
   Select,
@@ -220,15 +221,15 @@ function TaxRates({
                     <Icon name="tick" size={15} />
                   </span>
                 ) : tax.active ? (
-                  <button
-                    type="button"
+                  <MenuItem
+                    needs={{ invoicing: ["update"] }}
                     className="text-xs link-muted"
                     onClick={() =>
                       change.mutate({ id: tax.id, patch: { isDefault: true } })
                     }
                   >
                     Make it the default
-                  </button>
+                  </MenuItem>
                 ) : null}
               </td>
               <td className="text-right">
@@ -244,15 +245,15 @@ function TaxRates({
                     Retire
                   </MenuItem>
                 ) : (
-                  <button
-                    type="button"
+                  <MenuItem
+                    needs={{ invoicing: ["update"] }}
                     className="text-sm link-muted"
                     onClick={() =>
                       change.mutate({ id: tax.id, patch: { active: true } })
                     }
                   >
                     Bring back
-                  </button>
+                  </MenuItem>
                 )}
               </td>
             </Row>
@@ -684,10 +685,16 @@ function BillingRules() {
                   {rule.subject}
                 </td>
                 <td>
+                  {/* The change is the write, and there is no kit primitive
+                      to hang `needs` on: a checkbox is not an `Input`, which
+                      draws a text box. So it asks the same question the kit
+                      asks, in the same words. */}
                   <input
                     type="checkbox"
                     checked={rule.active}
                     aria-label={`Send ${rule.name}`}
+                    disabled={!may("invoicing", "update")}
+                    title={may("invoicing", "update") ? undefined : REFUSED}
                     onChange={(e) =>
                       toggleRule.mutate({
                         id: rule.id,
@@ -874,6 +881,7 @@ function BillingRules() {
             hint="Receivable never goes negative either way."
           >
             <Select
+              needs={{ invoicing: ["update"] }}
               value={settings.overpaymentPolicy}
               className="w-64"
               onChange={(e) =>
@@ -898,6 +906,7 @@ function BillingRules() {
             hint="Invoices and quotes already raised keep the way they were quoted."
           >
             <Select
+              needs={{ invoicing: ["update"] }}
               value={settings.pricesIncludeTax ? "inclusive" : "exclusive"}
               className="w-64"
               aria-label="How you quote prices"

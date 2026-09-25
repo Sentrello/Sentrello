@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "../../lib/api";
+import { api, may } from "../../lib/api";
 import {
   Card,
   ErrorNote,
@@ -7,6 +7,7 @@ import {
   Input,
   Loading,
   Page,
+  REFUSED,
   SectionHeading,
   muted,
 } from "../../lib/ui";
@@ -77,6 +78,7 @@ export function Authentication() {
 /** The rules for getting in: who needs a second factor, and how long a session lasts. */
 function SignInRules() {
   const qc = useQueryClient();
+  const maySave = may("settings", "update");
 
   const policy = useQuery({
     queryKey: ["user-policy"],
@@ -126,6 +128,8 @@ function SignInRules() {
               <input
                 type="checkbox"
                 checked={current.requireTwoFactorFor.includes(role.role)}
+                disabled={!maySave}
+                title={maySave ? undefined : REFUSED}
                 onChange={(e) =>
                   save.mutate({
                     requireTwoFactorFor: e.target.checked
@@ -164,6 +168,8 @@ function SignInRules() {
           <input
             type="checkbox"
             checked={current.requireEmailVerified}
+            disabled={!maySave}
+            title={maySave ? undefined : REFUSED}
             onChange={(e) =>
               save.mutate({ requireEmailVerified: e.target.checked })
             }

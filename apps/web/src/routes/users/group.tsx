@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { api } from "../../lib/api";
+import { api, may } from "../../lib/api";
 import { useNavigation, useRecordTitle } from "../../lib/navigation";
 import {
   Card,
@@ -10,6 +10,7 @@ import {
   Loading,
   MenuItem,
   Page,
+  REFUSED,
   SectionHeading,
   Tabs,
   activeTab,
@@ -247,6 +248,7 @@ function GroupAccess({ groupId }: { groupId: string }) {
 
 function Access({ group }: { group: GroupRow }) {
   const qc = useQueryClient();
+  const maySet = may("settings", "update");
   const { data, isLoading, error } = useQuery({
     queryKey: ["users-policies"],
     queryFn: () => api<{ roles: PolicyRow[] }>("/api/users/roles"),
@@ -278,7 +280,10 @@ function Access({ group }: { group: GroupRow }) {
               <input
                 type="checkbox"
                 checked={group.roles.includes(policy.role)}
-                disabled={setRoles.isPending}
+                // The change is the write, and a checkbox has no kit
+                // primitive to hang `needs` on. Same question, same words.
+                disabled={setRoles.isPending || !maySet}
+                title={maySet ? undefined : REFUSED}
                 onChange={(e) =>
                   setRoles.mutate(
                     e.target.checked

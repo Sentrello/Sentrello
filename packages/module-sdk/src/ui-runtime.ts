@@ -143,6 +143,8 @@ export interface SentrelloUi {
   /** A sentence we wrote, in the colour of something being wrong. */
   Warning: React.ComponentType<{ children: React.ReactNode }>;
   NeedsPro: React.ComponentType<{ what: string }>;
+  /** What every screen says when a policy refuses, so no module writes its own. */
+  REFUSED: string;
   StatusBadge: React.ComponentType<{ status: string }>;
   formatMoney: (cents: number, currency?: string) => string;
   briefMoney: (cents: number, currency?: string) => string;
@@ -241,6 +243,10 @@ export const UI_MEMBERS = [
   "ErrorNote",
   "Warning",
   "NeedsPro",
+  // The one sentence the whole product says when a policy refuses. A module
+  // with a checkbox that writes has no primitive to hang `needs` on and asks
+  // `may` directly, and three of them were each carrying their own copy.
+  "REFUSED",
   "StatusBadge",
   "formatMoney",
   "briefMoney",

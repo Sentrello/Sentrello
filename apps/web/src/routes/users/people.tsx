@@ -501,6 +501,7 @@ export function People() {
                 <span style={muted}>{policyLabel(p.baseRole)}</span>
               ) : (
                 <Select
+                  needs={{ settings: ["update"] }}
                   value={p.baseRole}
                   // A column heading is not a label. One of these per row, all
                   // announced as "combo box" and nothing else, on the screen

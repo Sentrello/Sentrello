@@ -335,9 +335,8 @@ function FormActions({
             >
               Embed code
             </button>
-            <button
-              type="button"
-              className="menu-item"
+            <MenuItem
+              needs={{ crm: ["delete"] }}
               style={{ color: "var(--text-danger)" }}
               onClick={() => {
                 if (confirming) remove.mutate();
@@ -345,7 +344,7 @@ function FormActions({
               }}
             >
               {confirming ? "Really delete it?" : "Delete"}
-            </button>
+            </MenuItem>
           </>
         )}
       </RowMenu>
