@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { parseCsv, toCsv } from "./csv";
+import { parseCsv, readCapped, toCsv } from "./csv";
 
 /**
  * The only test `parseCsv` had anywhere in the repository lived in the
@@ -61,4 +61,39 @@ test("a negative number is still a number", () => {
 test("a phone number keeps its plus", () => {
   const csv = toCsv(["Phone"], [["+44 1248 555 0123"]]);
   expect(csv).toContain("'+44 1248 555 0123");
+});
+
+/**
+ * A body bigger than anybody meant to send.
+ *
+ * The CRM's public form grew this when somebody noticed it read whatever was
+ * sent; the bank import, which takes an entire statement, did not — and that
+ * runs on whatever box the customer rented, where an honest mistake with the
+ * wrong file is an outage rather than an error message.
+ */
+const body = (text: string, declared?: number) =>
+  new Request("http://localhost/", {
+    method: "POST",
+    body: text,
+    headers:
+      declared === undefined ? {} : { "content-length": String(declared) },
+  });
+
+test("a body inside the cap comes back whole", async () => {
+  expect(await readCapped(body("date,amount\n2026-01-01,100"), 1024)).toBe(
+    "date,amount\n2026-01-01,100",
+  );
+});
+
+test("one over the cap is refused rather than read", async () => {
+  expect(await readCapped(body("x".repeat(2000)), 1024)).toBeNull();
+});
+
+/**
+ * `content-length` is a claim by the sender: absent on a chunked request and
+ * free to lie. The stream is counted either way, which is the half that
+ * actually protects the memory.
+ */
+test("a lying content-length does not get the body read", async () => {
+  expect(await readCapped(body("x".repeat(2000), 10), 1024)).toBeNull();
 });

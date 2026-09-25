@@ -114,3 +114,51 @@ export function parseCsv(text: string): string[][] {
   }
   return rows;
 }
+
+/**
+ * The body, refused rather than read once it is past a cap.
+ *
+ * `content-length` is checked first because it costs nothing and rejects the
+ * ordinary case before a byte of payload arrives — but it is a claim by the
+ * sender, absent on a chunked request and free to lie, so the stream is
+ * counted as it comes in and abandoned the moment it goes over. Whichever
+ * arrives first, nothing larger than the cap is ever held in memory.
+ *
+ * Here because two things need it and the second found out the hard way. The
+ * CRM's public form grew this when somebody noticed it read whatever was
+ * sent; the bank import, which reads an entire statement with `req.text()`,
+ * did not — and that one runs on whatever box the customer rented, where an
+ * honest mistake with the wrong file is an outage rather than an error.
+ */
+export async function readCapped(
+  req: Request,
+  maxBytes: number,
+): Promise<string | null> {
+  const declared = Number(req.headers.get("content-length") ?? Number.NaN);
+  if (Number.isFinite(declared) && declared > maxBytes) return null;
+
+  const reader = req.body?.getReader();
+  if (!reader) return "";
+
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => {});
+      return null;
+    }
+    chunks.push(value);
+  }
+
+  const joined = new Uint8Array(total);
+  let at = 0;
+  for (const chunk of chunks) {
+    joined.set(chunk, at);
+    at += chunk.byteLength;
+  }
+  return new TextDecoder().decode(joined);
+}

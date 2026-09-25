@@ -18,6 +18,7 @@ import {
   checkUpload,
   csvDownload,
   displayFilename,
+  readCapped as readCappedTo,
   removeAttachment,
   scannerAddress,
   storeAttachment,
@@ -1059,44 +1060,8 @@ async function readSubmissionWithFiles(req: Request): Promise<{
 /** Too many boxes to be a form somebody filled in. */
 const MAX_SUBMISSION_FIELDS = 100;
 
-/**
- * The body, refused rather than read once it is past the cap.
- *
- * `content-length` is checked first because it costs nothing and rejects the
- * ordinary case before a byte of payload arrives — but it is a claim by the
- * sender, absent on a chunked request and free to lie, so the stream is
- * counted as it comes in and abandoned the moment it goes over. Whichever
- * arrives first, nothing larger than the cap is ever held in memory.
- */
-async function readCapped(req: Request): Promise<string | null> {
-  const declared = Number(req.headers.get("content-length") ?? Number.NaN);
-  if (Number.isFinite(declared) && declared > MAX_SUBMISSION_BYTES) return null;
-
-  const reader = req.body?.getReader();
-  if (!reader) return "";
-
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    if (!value) continue;
-    total += value.byteLength;
-    if (total > MAX_SUBMISSION_BYTES) {
-      await reader.cancel().catch(() => {});
-      return null;
-    }
-    chunks.push(value);
-  }
-
-  const joined = new Uint8Array(total);
-  let at = 0;
-  for (const chunk of chunks) {
-    joined.set(chunk, at);
-    at += chunk.byteLength;
-  }
-  return new TextDecoder().decode(joined);
-}
+/** The body, capped at what a contact form could possibly need. */
+const readCapped = (req: Request) => readCappedTo(req, MAX_SUBMISSION_BYTES);
 
 /**
  * Accepts JSON or a plain HTML form post, so a snippet needs no JavaScript.
