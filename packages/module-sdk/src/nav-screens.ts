@@ -57,22 +57,33 @@ export function screensDrawn(source: string): {
 /**
  * What a module asks the host to show, split into everything and the pages.
  *
- * A parent is a heading in the rail, not a page — the host opens the first
- * entry under it — so only the children need a screen. Both lists are
- * returned because the two directions want different ones: a door with no
- * room is asked of the children, and a room with no door of all of them.
+ * An entry is a heading in the rail only when something else sits under it —
+ * the host opens the first entry beneath a heading, so the heading itself
+ * needs no screen. Everything else is a page and does.
+ *
+ * **Decided by what points at what, not by whether an entry has a parent.**
+ * The first version asked the simpler question and was wrong for Storage,
+ * which registers one top-level entry and nothing under it: that entry has no
+ * parent and is nevertheless the only page the module has. Reading it as a
+ * heading made the module look like it had no pages at all, which is a check
+ * that passes by finding nothing.
+ *
+ * Both lists come back because the two directions want different ones: a door
+ * with no room is asked of the pages, and a room with no door of all of them.
  */
 export function navAsked(register: (spy: NavSpy) => void): {
   all: string[];
   pages: string[];
 } {
-  const all: string[] = [];
-  const pages: string[] = [];
-  register((entry) => {
-    all.push(entry.id);
-    if (entry.parent) pages.push(entry.id);
-  });
-  return { all, pages };
+  const entries: { id: string; parent?: string }[] = [];
+  register((entry) => entries.push(entry));
+  const headings = new Set(
+    entries.map((e) => e.parent).filter((id): id is string => Boolean(id)),
+  );
+  return {
+    all: entries.map((e) => e.id),
+    pages: entries.filter((e) => !headings.has(e.id)).map((e) => e.id),
+  };
 }
 
 export type NavSpy = (entry: { id: string; parent?: string }) => void;

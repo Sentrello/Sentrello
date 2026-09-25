@@ -38,3 +38,15 @@ test("a heading in the rail is not a page, but is still an id", () => {
   expect(all).toEqual(["shop", "shop-orders", "shop-products"]);
   expect(pages).toEqual(["shop-orders", "shop-products"]);
 });
+
+/**
+ * A module with one page registers it at the top level, and that entry is the
+ * page rather than a heading over it. Reading "no parent" as "heading" made
+ * Storage look like a module with no pages at all — a check that passes by
+ * finding nothing, which is the failure this whole family of tests is about.
+ */
+test("a lone top-level entry is a page, not a heading", () => {
+  const { all, pages } = navAsked((spy) => spy({ id: "documents" }));
+  expect(all).toEqual(["documents"]);
+  expect(pages).toEqual(["documents"]);
+});
