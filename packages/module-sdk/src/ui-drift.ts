@@ -29,6 +29,33 @@ const RULES: { pattern: RegExp; say: string }[] = [
     say: "a link class on a paragraph — it carries display:inline-flex for a tap target, so the paragraph goes inline and runs into the next one. Put the class on the <a> and colour the paragraph with `muted`",
   },
   {
+    /*
+     * The browser's confirmation box, standing in for the app's.
+     *
+     * `window.confirm` looks like nothing else in the product — it is the
+     * operating system's dialog, which reads to most people as the page
+     * having gone wrong rather than as a question being asked. It takes one
+     * line of plain text, so it cannot say what the consequence is beyond the
+     * sentence it opens with, and it blocks everything until it is answered.
+     *
+     * `ConfirmButton` is the same question in the app's dialog, with a title,
+     * a body that can be a paragraph, and a wording for the button that says
+     * what the button does rather than "OK". Five were in the product on
+     * 25 September, one of them refunding money.
+     *
+     * `window.` only, deliberately. Biome's `noRestrictedGlobals` already
+     * denies a bare `confirm`, `alert` and `prompt`, and it does it properly:
+     * it knows whether the name is the global or something the file declared
+     * itself. A regex does not, and the first draft of this rule reported
+     * Core's own `async function confirm()` on the two-factor screen, which
+     * is a local helper and entirely fine. What the linter cannot see is the
+     * member access, because `window.confirm` is not a global reference at
+     * all. So the two rules split it, each doing the half it can prove.
+     */
+    pattern: /window\.(?:confirm|alert|prompt)\s*\(/,
+    say: "the browser's confirmation box rather than the app's — use ConfirmButton, which can say what the consequence is and name the action on its own button",
+  },
+  {
     pattern: /<h[23](?=[\s>])[^>]*(?:className|style)=/,
     say: "a section heading styled by hand — use SectionHeading, which also gets the level right",
   },

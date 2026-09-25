@@ -4,6 +4,7 @@ import { type Meta, api } from "../lib/api";
 import {
   Button,
   Card,
+  Dialog,
   ErrorNote,
   Field,
   Input,
@@ -543,6 +544,7 @@ function TaxRegimesCard() {
     queryFn: () => api<TaxRegimesResponse>("/api/tax-regimes"),
   });
   const [pending, setPending] = useState<string[] | null>(null);
+  const [emptying, setEmptying] = useState(false);
 
   const save = useMutation({
     mutationFn: (regimes: string[]) =>
@@ -562,21 +564,21 @@ function TaxRegimesCard() {
   if (isLoading || !data) return null;
   const chosen = pending ?? data.chosen;
 
+  const apply = (next: string[]) => {
+    setPending(next);
+    save.mutate(next);
+  };
+
   const toggle = (id: string, on: boolean) => {
     const next = on ? [...chosen, id] : chosen.filter((x) => x !== id);
     // Emptying the set entirely is a real choice a business can make — but
     // rarely the one somebody meant by unchecking the last box, so it is
-    // confirmed rather than saved on the spot.
-    if (
-      next.length === 0 &&
-      !window.confirm(
-        "Turn off every tax regime? You will see none of the VAT, Canadian tax or US sales tax screens until you turn one back on.",
-      )
-    ) {
+    // asked rather than saved on the spot.
+    if (next.length === 0) {
+      setEmptying(true);
       return;
     }
-    setPending(next);
-    save.mutate(next);
+    apply(next);
   };
 
   return (
@@ -604,6 +606,38 @@ function TaxRegimesCard() {
         ))}
       </div>
       {save.error ? <ErrorNote error={save.error} /> : null}
+      {/*
+        The checkbox has already sprung back, because `chosen` never changed.
+        So the dialog is the whole of the decision: leaving it puts nothing
+        right, because nothing went wrong.
+      */}
+      <Dialog
+        title="Turn off every tax regime?"
+        open={emptying}
+        onClose={() => setEmptying(false)}
+      >
+        <div className="flex flex-col gap-(--gap-stack)">
+          <p className="text-sm">
+            You will see none of the VAT, Canadian tax or US sales tax screens
+            until you turn one back on. Everything already filed under them
+            stays where it is.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setEmptying(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => {
+                setEmptying(false);
+                apply([]);
+              }}
+            >
+              Turn them all off
+            </Button>
+          </div>
+        </div>
+      </Dialog>
     </Card>
   );
 }

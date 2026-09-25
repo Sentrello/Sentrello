@@ -9,6 +9,14 @@
       "recommended": true,
       "correctness": {
         "useHookAtTopLevel": "error"
+      },
+      "style": {
+        "noRestrictedGlobals": {
+          "level": "error",
+          "options": {
+            "deniedGlobals": ["confirm", "alert", "prompt"]
+          }
+        }
       }
     }
   },

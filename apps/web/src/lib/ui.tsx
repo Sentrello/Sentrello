@@ -489,6 +489,7 @@ export function ConfirmButton({
   danger = false,
   disabled = false,
   className,
+  label,
   variant,
   onConfirm,
 }: {
@@ -499,6 +500,15 @@ export function ConfirmButton({
   danger?: boolean;
   disabled?: boolean;
   className?: string;
+  /**
+   * What the trigger is, for a trigger that is a picture.
+   *
+   * An icon on its own says nothing to somebody who has not met it and
+   * nothing at all to a screen reader, and `title` here is the dialog's
+   * heading rather than the button's. Only read when no `variant` is set,
+   * since a full `Button` carries its own words.
+   */
+  label?: string;
   /** Set to render a full Button rather than the small inline link. */
   variant?: "primary" | "secondary" | "danger";
   onConfirm: () => void;
@@ -519,6 +529,8 @@ export function ConfirmButton({
         <button
           type="button"
           disabled={disabled}
+          title={label}
+          aria-label={label}
           className={className ?? "text-xs link-muted"}
           style={danger ? { color: "var(--text-danger)" } : undefined}
           onClick={() => setAsking(true)}

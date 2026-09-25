@@ -70,6 +70,8 @@ export interface SentrelloUi {
     danger?: boolean;
     disabled?: boolean;
     className?: string;
+    /** What the trigger is, when the trigger is a picture. */
+    label?: string;
     /** Set to render a full Button rather than the small inline link. */
     variant?: "primary" | "secondary" | "danger";
     onConfirm: () => void;
