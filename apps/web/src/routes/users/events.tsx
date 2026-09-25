@@ -9,9 +9,12 @@ import {
   Field,
   Input,
   Loading,
+  Page,
   Row,
+  SectionHeading,
   Select,
   Table,
+  Toolbar,
   formatDate,
   muted,
 } from "../../lib/ui";
@@ -180,33 +183,36 @@ export function Events() {
   const verdict = check.data;
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <p className="text-sm font-medium">Has this log been altered?</p>
-            <p className="text-sm" style={muted}>
-              Every entry is signed with the one before it, so an entry that was
-              changed or removed after it was written can be found. Checking
-              reads the whole log.
-            </p>
-          </div>
-          <Button
-            variant="secondary"
-            disabled={check.isFetching}
-            onClick={() => {
-              setChecking(true);
-              check.refetch();
-            }}
+    <Page>
+      <Card className="flex flex-col gap-(--gap-toolbar)">
+        <div>
+          <SectionHeading
+            trailing={
+              <Button
+                variant="secondary"
+                disabled={check.isFetching}
+                onClick={() => {
+                  setChecking(true);
+                  check.refetch();
+                }}
+              >
+                {check.isFetching ? "Checking…" : "Check the log"}
+              </Button>
+            }
           >
-            {check.isFetching ? "Checking…" : "Check the log"}
-          </Button>
+            Has this log been altered?
+          </SectionHeading>
+          <p className="text-sm" style={muted}>
+            Every entry is signed with the one before it, so an entry that was
+            changed or removed after it was written can be found. Checking reads
+            the whole log.
+          </p>
         </div>
 
         {check.error ? <ErrorNote error={check.error} /> : null}
 
         {verdict ? (
-          <div className="mt-3 text-sm">
+          <div className="text-sm">
             <p
               style={
                 verdict.intact
@@ -219,12 +225,12 @@ export function Events() {
                 : "This log does not match its own record."}
             </p>
             {verdict.problems.map((problem) => (
-              <p key={problem} className="mt-1" style={muted}>
+              <p key={problem} className="mt-(--gap-tight)" style={muted}>
                 {problem}
               </p>
             ))}
             {verdict.unchained > 0 ? (
-              <p className="mt-1" style={muted}>
+              <p className="mt-(--gap-tight)" style={muted}>
                 {verdict.unchained}{" "}
                 {verdict.unchained === 1 ? "entry was" : "entries were"} written
                 before this check existed and cannot be verified. Everything
@@ -238,7 +244,7 @@ export function Events() {
               the end.
             */}
             {verdict.head ? (
-              <p className="mt-2 break-all text-xs" style={muted}>
+              <p className="mt-(--gap-toolbar) break-all text-xs" style={muted}>
                 Latest signature: <code>{verdict.head}</code> — keep a copy of
                 this outside the server and an entry deleted from the end shows
                 up too.
@@ -248,7 +254,7 @@ export function Events() {
         ) : null}
       </Card>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-(--gap-toolbar) sm:grid-cols-2 lg:grid-cols-5">
         <Field label="Actor">
           <Select
             value={filter.actor}
@@ -327,12 +333,12 @@ export function Events() {
         </Empty>
       ) : (
         <>
-          <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+          <Toolbar className="justify-between text-sm">
             <span style={muted}>
               {total} {total === 1 ? "event" : "events"}
             </span>
             {pages > 1 ? (
-              <span className="flex items-center gap-2">
+              <span className="flex items-center gap-(--gap-toolbar)">
                 <button
                   type="button"
                   className="link-muted"
@@ -361,7 +367,7 @@ export function Events() {
                 </button>
               </span>
             ) : null}
-          </div>
+          </Toolbar>
           <Table headers={["When", "Who", "What", "Whom"]}>
             {rows.map((e) => (
               <Row key={e.id}>
@@ -374,6 +380,6 @@ export function Events() {
           </Table>
         </>
       )}
-    </div>
+    </Page>
   );
 }

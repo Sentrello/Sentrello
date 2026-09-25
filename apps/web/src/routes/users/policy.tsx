@@ -9,6 +9,8 @@ import {
   Empty,
   ErrorNote,
   Loading,
+  Page,
+  SectionHeading,
   Tabs,
   activeTab,
   muted,
@@ -88,7 +90,7 @@ export function PolicyDetail() {
   };
 
   return (
-    <div className="space-y-4">
+    <Page>
       <Tabs tabs={TABS} active={tabId} onChange={changeTab} />
       {shown?.id === "permissions" ? (
         <Permissions
@@ -100,7 +102,7 @@ export function PolicyDetail() {
       ) : null}
       {shown?.id === "members" ? <Members members={data.members} /> : null}
       {shown?.id === "groups" ? <CarriedBy groups={data.groups} /> : null}
-    </div>
+    </Page>
   );
 }
 
@@ -140,7 +142,7 @@ function Permissions({
 
   if (builtIn) {
     return (
-      <Card>
+      <Card className="flex flex-col gap-(--gap-toolbar)">
         <p className="text-sm" style={muted}>
           {policyLabel(role)} comes with Sentrello and cannot be changed here.
           Copy it from the policies list and edit the copy instead.
@@ -148,24 +150,22 @@ function Permissions({
         {/* No `onChange` reaches state, so a click reverts on React's own
             next render — a read-only controlled grid without teaching the
             shared editor a `disabled` prop one caller needs. */}
-        <div className="mt-3">
-          <Matrix value={permission} onChange={() => {}} />
-        </div>
+        <Matrix value={permission} onChange={() => {}} />
       </Card>
     );
   }
 
   return (
-    <Card>
-      <p className="mb-1 font-medium text-sm">
-        What {policyLabel(role)} may do
-      </p>
-      <p className="mb-2 text-xs" style={muted}>
-        You can only grant what you hold yourself. Everybody who holds this,
-        directly or through a group, is affected as soon as you save.
-      </p>
+    <Card className="flex flex-col gap-(--gap-toolbar)">
+      <div>
+        <SectionHeading>What {policyLabel(role)} may do</SectionHeading>
+        <p className="text-xs" style={muted}>
+          You can only grant what you hold yourself. Everybody who holds this,
+          directly or through a group, is affected as soon as you save.
+        </p>
+      </div>
       <Matrix value={value} onChange={setValue} />
-      <div className="mt-3">
+      <div>
         <Button onClick={() => save.mutate()} disabled={save.isPending}>
           {save.isPending ? "Saving…" : "Save changes"}
         </Button>
@@ -198,7 +198,7 @@ export function Members({
   }
   return (
     <Card>
-      <ul className="space-y-1 text-sm">
+      <ul className="flex flex-col gap-(--gap-tight) text-sm">
         {members.map((m) => (
           <li key={m.userId}>{m.name || m.email}</li>
         ))}
@@ -218,7 +218,7 @@ export function CarriedBy({
   }
   return (
     <Card>
-      <ul className="space-y-1 text-sm">
+      <ul className="flex flex-col gap-(--gap-tight) text-sm">
         {groups.map((g) => (
           <li key={g.id}>{g.name}</li>
         ))}

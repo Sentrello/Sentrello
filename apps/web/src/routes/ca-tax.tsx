@@ -139,7 +139,7 @@ export function CanadianTax() {
   const nothing = data && !data.gstHst && !data.qst && data.pst.length === 0;
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-(--gap-stack)">
       <Card>
         <p className="mb-1 font-medium">Canadian returns for a period</p>
         <p className="mb-3 text-sm" style={muted}>
@@ -250,7 +250,10 @@ export function CanadianTax() {
       {data && !nothing ? (
         <Card>
           <p className="mb-1 font-medium">Before you file</p>
-          <ul className="list-disc space-y-2 pl-5 text-sm" style={muted}>
+          <ul
+            className="list-disc flex flex-col gap-(--gap-toolbar) pl-5 text-sm"
+            style={muted}
+          >
             {data.notes.map((note) => (
               <li key={note}>{note}</li>
             ))}

@@ -11,7 +11,10 @@ import {
   Field,
   Input,
   Loading,
+  Page,
+  SectionHeading,
   Select,
+  Toolbar,
   formatDate,
   muted,
 } from "../lib/ui";
@@ -94,7 +97,7 @@ export function ProfileScreen() {
   if (!data) return null;
 
   return (
-    <div className="space-y-4">
+    <Page width="prose">
       <Details profile={data} onSaved={() => qc.invalidateQueries()} />
       <ChangeEmail email={data.user.email} />
       <Password />
@@ -103,7 +106,7 @@ export function ProfileScreen() {
         sessions={data.sessions}
         onRevoked={() => qc.invalidateQueries({ queryKey: ["profile"] })}
       />
-    </div>
+    </Page>
   );
 }
 
@@ -144,129 +147,132 @@ function Details({
     });
 
   return (
-    <Card>
-      <p className="mb-2 font-medium">You</p>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Name">
-          <Input value={name} onChange={(e) => setName(e.target.value)} />
-        </Field>
-        <Field label="Email" hint="Change this below.">
-          <Input value={profile.user.email} readOnly />
-        </Field>
-      </div>
-
-      <p className="mt-4 mb-2 font-medium">How the application behaves</p>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Field label="Timezone" hint="Blank follows this computer.">
-          <Input
-            value={prefs.timezone}
-            placeholder={
-              Intl.DateTimeFormat().resolvedOptions().timeZone ?? "UTC"
-            }
-            onChange={(e) => set("timezone", e.target.value)}
-          />
-        </Field>
-        <Field label="Date format">
-          <Select
-            value={prefs.dateFormat}
-            onChange={(e) =>
-              set(
-                "dateFormat",
-                e.target.value as Profile["preferences"]["dateFormat"],
-              )
-            }
-          >
-            <option value="MDY">Month first (Aug 9, 2026)</option>
-            <option value="DMY">Day first (9 Aug 2026)</option>
-            <option value="ISO">Year first (2026-08-09)</option>
-          </Select>
-        </Field>
-        <Field label="Currency" hint="How money is shown to you.">
-          <Input
-            value={prefs.currency}
-            maxLength={3}
-            onChange={(e) => set("currency", e.target.value.toUpperCase())}
-          />
-        </Field>
-        <Field label="Open on" hint="Which screen signing in lands on.">
-          <Input
-            value={prefs.landingPage}
-            placeholder="dashboard"
-            onChange={(e) => set("landingPage", e.target.value)}
-          />
-        </Field>
-      </div>
-
-      <p className="mt-4 mb-2 font-medium">Working hours</p>
-      <div className="flex flex-wrap items-end gap-3">
-        <Field label="From">
-          <Input
-            type="time"
-            value={prefs.workingHours.start}
-            onChange={(e) =>
-              set("workingHours", {
-                ...prefs.workingHours,
-                start: e.target.value,
-              })
-            }
-          />
-        </Field>
-        <Field label="To">
-          <Input
-            type="time"
-            value={prefs.workingHours.end}
-            onChange={(e) =>
-              set("workingHours", {
-                ...prefs.workingHours,
-                end: e.target.value,
-              })
-            }
-          />
-        </Field>
-        <div className="flex flex-wrap gap-2 pb-1 text-sm">
-          {DAYS.map((label, day) => (
-            <label key={label} className="flex items-center gap-1">
-              <input
-                type="checkbox"
-                checked={prefs.workingHours.days.includes(day)}
-                onChange={() => toggleDay(day)}
-              />
-              {label}
-            </label>
-          ))}
+    <Card className="flex flex-col gap-(--gap-stack)">
+      <div>
+        <SectionHeading>You</SectionHeading>
+        <div className="grid gap-(--gap-toolbar) sm:grid-cols-2">
+          <Field label="Name">
+            <Input value={name} onChange={(e) => setName(e.target.value)} />
+          </Field>
+          <Field label="Email" hint="Change this below.">
+            <Input value={profile.user.email} readOnly />
+          </Field>
         </div>
       </div>
 
-      <p className="mt-4 mb-2 font-medium">Appearance</p>
-      <div className="flex gap-2 text-sm">
-        {(["light", "dark", "system"] as const).map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setTheme(t)}
-            aria-pressed={theme === t}
-            className="rounded px-3 py-1 capitalize"
-            style={
-              theme === t
-                ? {
-                    background: "var(--brand-on-white-text)",
-                    color: "var(--color-neutral-50)",
-                  }
-                : muted
-            }
-          >
-            {t}
-          </button>
-        ))}
+      <div>
+        <SectionHeading>How the application behaves</SectionHeading>
+        <div className="grid gap-(--gap-toolbar) sm:grid-cols-2 lg:grid-cols-4">
+          <Field label="Timezone" hint="Blank follows this computer.">
+            <Input
+              value={prefs.timezone}
+              placeholder={
+                Intl.DateTimeFormat().resolvedOptions().timeZone ?? "UTC"
+              }
+              onChange={(e) => set("timezone", e.target.value)}
+            />
+          </Field>
+          <Field label="Date format">
+            <Select
+              value={prefs.dateFormat}
+              onChange={(e) =>
+                set(
+                  "dateFormat",
+                  e.target.value as Profile["preferences"]["dateFormat"],
+                )
+              }
+            >
+              <option value="MDY">Month first (Aug 9, 2026)</option>
+              <option value="DMY">Day first (9 Aug 2026)</option>
+              <option value="ISO">Year first (2026-08-09)</option>
+            </Select>
+          </Field>
+          <Field label="Currency" hint="How money is shown to you.">
+            <Input
+              value={prefs.currency}
+              maxLength={3}
+              onChange={(e) => set("currency", e.target.value.toUpperCase())}
+            />
+          </Field>
+          <Field label="Open on" hint="Which screen signing in lands on.">
+            <Input
+              value={prefs.landingPage}
+              placeholder="dashboard"
+              onChange={(e) => set("landingPage", e.target.value)}
+            />
+          </Field>
+        </div>
       </div>
-      {/* Kept on this machine rather than on the account: it has to be applied
-          before the page paints, and a value that needs a request first means
-          a white flash on every load for anybody using dark. */}
-      <p className="mt-1 text-xs" style={muted}>
-        Appearance is remembered on this device.
-      </p>
 
-      <div className="mt-4">
+      <div>
+        <SectionHeading>Working hours</SectionHeading>
+        <Toolbar>
+          <Field label="From">
+            <Input
+              type="time"
+              value={prefs.workingHours.start}
+              onChange={(e) =>
+                set("workingHours", {
+                  ...prefs.workingHours,
+                  start: e.target.value,
+                })
+              }
+            />
+          </Field>
+          <Field label="To">
+            <Input
+              type="time"
+              value={prefs.workingHours.end}
+              onChange={(e) =>
+                set("workingHours", {
+                  ...prefs.workingHours,
+                  end: e.target.value,
+                })
+              }
+            />
+          </Field>
+          <div className="flex flex-wrap gap-(--gap-toolbar) pb-1 text-sm">
+            {DAYS.map((label, day) => (
+              <label
+                key={label}
+                className="flex items-center gap-(--gap-tight)"
+              >
+                <input
+                  type="checkbox"
+                  checked={prefs.workingHours.days.includes(day)}
+                  onChange={() => toggleDay(day)}
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+        </Toolbar>
+      </div>
+
+      <div>
+        <SectionHeading>Appearance</SectionHeading>
+        <Toolbar className="text-sm">
+          {(["light", "dark", "system"] as const).map((t) => (
+            <Button
+              key={t}
+              variant={theme === t ? "primary" : "secondary"}
+              onClick={() => setTheme(t)}
+              aria-pressed={theme === t}
+              className="capitalize"
+            >
+              {t}
+            </Button>
+          ))}
+        </Toolbar>
+        {/* Kept on this machine rather than on the account: it has to be
+            applied before the page paints, and a value that needs a request
+            first means a white flash on every load for anybody using dark. */}
+        <p className="mt-(--gap-tight) text-xs" style={muted}>
+          Appearance is remembered on this device.
+        </p>
+      </div>
+
+      <div>
         <Button onClick={() => save.mutate()} disabled={save.isPending}>
           {save.isPending ? "Saving…" : "Save"}
         </Button>
@@ -302,11 +308,11 @@ function ChangeEmail({ email }: { email: string }) {
 
   return (
     <Card>
-      <p className="mb-2 font-medium">Sign-in email</p>
+      <SectionHeading>Sign-in email</SectionHeading>
       <p className="text-sm" style={muted}>
         You sign in with <strong>{email}</strong>.
       </p>
-      <div className="mt-3 flex flex-wrap items-end gap-2">
+      <Toolbar className="mt-(--gap-toolbar)">
         <Field label="New email">
           <Input
             type="email"
@@ -324,9 +330,9 @@ function ChangeEmail({ email }: { email: string }) {
         >
           {request.isPending ? "Sending…" : "Change email"}
         </Button>
-      </div>
+      </Toolbar>
       {message ? (
-        <p className="mt-2 text-sm" style={muted}>
+        <p className="mt-(--gap-toolbar) text-sm" style={muted}>
           {message}
         </p>
       ) : null}
@@ -355,8 +361,8 @@ function Password() {
 
   return (
     <Card>
-      <p className="mb-2 font-medium">Password</p>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <SectionHeading>Password</SectionHeading>
+      <div className="grid gap-(--gap-toolbar) sm:grid-cols-2">
         <Field label="Current password">
           <Input
             type="password"
@@ -380,7 +386,7 @@ function Password() {
           />
         </Field>
       </div>
-      <div className="mt-3 flex items-center gap-3">
+      <Toolbar className="mt-(--gap-toolbar)">
         <Button
           onClick={() => change.mutate()}
           disabled={change.isPending || !current || !next}
@@ -392,7 +398,7 @@ function Password() {
             Changed. Your other devices stay signed in.
           </span>
         ) : null}
-      </div>
+      </Toolbar>
       {change.error ? <ErrorNote error={change.error} /> : null}
     </Card>
   );
@@ -413,12 +419,12 @@ function Sessions({
 
   return (
     <Card>
-      <p className="mb-2 font-medium">Where you are signed in</p>
-      <ul className="space-y-2">
+      <SectionHeading>Where you are signed in</SectionHeading>
+      <ul className="flex flex-col gap-(--gap-toolbar)">
         {sessions.map((s) => (
           <li
             key={s.id}
-            className="flex flex-wrap items-baseline justify-between gap-2 border-t pt-2 text-sm border-line"
+            className="flex flex-wrap items-baseline justify-between gap-(--gap-toolbar) border-t pt-(--gap-toolbar) text-sm border-line"
           >
             <div>
               <div>
@@ -437,8 +443,7 @@ function Sessions({
             {s.current ? null : (
               <button
                 type="button"
-                className="text-xs"
-                style={{ color: "var(--text-danger)" }}
+                className="text-xs link-danger"
                 onClick={() => revoke.mutate(s.id)}
               >
                 Sign this one out
@@ -542,7 +547,7 @@ function TwoFactor() {
 
   return (
     <Card>
-      <p className="mb-2 font-medium">Two-factor authentication</p>
+      <SectionHeading>Two-factor authentication</SectionHeading>
 
       {/*
         Whether this person has to have it, and has not got it.
@@ -555,7 +560,7 @@ function TwoFactor() {
       */}
       {security.data?.twoFactorRequired && !enabled ? (
         <p
-          className="mb-3 text-sm font-medium"
+          className="mb-(--gap-toolbar) text-sm font-medium"
           style={{ color: "var(--text-warning)" }}
         >
           Your role requires this. Until you set it up you will be refused the
@@ -568,7 +573,7 @@ function TwoFactor() {
           <p className="text-sm" style={muted}>
             On. Signing in asks for a code from your authenticator app.
           </p>
-          <div className="mt-3 flex flex-wrap items-end gap-2">
+          <Toolbar className="mt-(--gap-toolbar)">
             <Field label="Your password">
               <Input
                 type="password"
@@ -584,7 +589,7 @@ function TwoFactor() {
             >
               Turn off
             </Button>
-          </div>
+          </Toolbar>
         </>
       ) : secret ? (
         <>
@@ -592,7 +597,7 @@ function TwoFactor() {
             Scan this with your authenticator app, then enter the code it shows.
             Nothing changes until that code is accepted.
           </p>
-          <div className="mt-3 flex flex-wrap items-start gap-4">
+          <div className="mt-(--gap-toolbar) flex flex-wrap items-start gap-(--gap-stack)">
             {uri ? (
               // White on purpose, in both themes: a QR code is read by a
               // camera looking for dark modules on a light ground with a quiet
@@ -610,10 +615,12 @@ function TwoFactor() {
                 Or type this in — for setting up an app on this same machine,
                 where there is no camera to point at the screen.
               </p>
-              <p className="money mt-1 text-lg tracking-widest">{secret}</p>
+              <p className="money mt-(--gap-tight) text-lg tracking-widest">
+                {secret}
+              </p>
             </div>
           </div>
-          <div className="mt-3 flex flex-wrap items-end gap-2">
+          <Toolbar className="mt-(--gap-toolbar)">
             <Field label="Code from the app">
               <Input
                 inputMode="numeric"
@@ -624,7 +631,7 @@ function TwoFactor() {
             <Button onClick={confirm} disabled={busy || !code.trim()}>
               Turn on
             </Button>
-          </div>
+          </Toolbar>
         </>
       ) : (
         <>
@@ -632,7 +639,7 @@ function TwoFactor() {
             Off. A password alone is one leaked reused password away from your
             books.
           </p>
-          <div className="mt-3 flex flex-wrap items-end gap-2">
+          <Toolbar className="mt-(--gap-toolbar)">
             <Field label="Your password">
               <Input
                 type="password"
@@ -644,18 +651,18 @@ function TwoFactor() {
             <Button onClick={start} disabled={busy || !password}>
               Set up
             </Button>
-          </div>
+          </Toolbar>
         </>
       )}
 
       {backupCodes ? (
-        <div className="mt-3">
-          <p className="text-sm font-medium">Backup codes</p>
+        <div className="mt-(--gap-toolbar)">
+          <SectionHeading level={3}>Backup codes</SectionHeading>
           <p className="text-xs" style={muted}>
             Shown once. Keep them somewhere that is not the phone with the app
             on it — they are the way back in when that phone is gone.
           </p>
-          <ul className="money mt-1 grid grid-cols-2 gap-x-4 text-sm sm:grid-cols-5">
+          <ul className="money mt-(--gap-tight) grid grid-cols-2 gap-x-4 text-sm sm:grid-cols-5">
             {backupCodes.map((c) => (
               <li key={c}>{c}</li>
             ))}
@@ -664,7 +671,10 @@ function TwoFactor() {
       ) : null}
 
       {error ? (
-        <p className="mt-2 text-sm" style={{ color: "var(--text-danger)" }}>
+        <p
+          className="mt-(--gap-toolbar) text-sm"
+          style={{ color: "var(--text-danger)" }}
+        >
           {error}
         </p>
       ) : null}

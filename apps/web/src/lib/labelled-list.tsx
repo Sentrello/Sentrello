@@ -49,7 +49,7 @@ export function LabelledList({
   };
 
   return (
-    <div className="space-y-1">
+    <div className="flex flex-col gap-(--gap-tight)">
       {rows.map((row, i) => (
         <div
           // Index as key: these rows have no identity of their own, and

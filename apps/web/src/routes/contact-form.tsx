@@ -15,7 +15,10 @@ import {
   ErrorNote,
   Field,
   Input,
+  Page,
   Select,
+  Textarea,
+  Toolbar,
   border,
   muted,
 } from "../lib/ui";
@@ -55,13 +58,13 @@ function LabelledList({
     onChange(values.map((v, at) => (at === i ? { ...v, ...patch } : v)));
 
   return (
-    <fieldset className="space-y-2">
-      <legend className="mb-1 block text-sm">{legend}</legend>
+    <fieldset className="flex flex-col gap-(--gap-toolbar)">
+      <legend className="mb-(--gap-tight) block text-sm">{legend}</legend>
       {values.map((entry, i) => (
         // The index is the identity here: these rows have no id of their own
         // until they are saved, and two blank rows are legitimately equal.
         // biome-ignore lint/suspicious/noArrayIndexKey: rows have no stable id before saving
-        <div key={i} className="flex gap-2">
+        <div key={i} className="flex gap-(--gap-toolbar)">
           <Input
             type={type}
             value={entry.value}
@@ -260,173 +263,185 @@ export function ContactForm({
   const named = firstName.trim() || lastName.trim();
 
   return (
-    <Card>
-      <form
-        className="space-y-5"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (named) save.mutate();
-        }}
-      >
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="First name">
-            <Input
-              value={firstName}
-              autoFocus
-              onChange={(e) => setFirstName(e.target.value)}
-            />
-          </Field>
-          <Field label="Last name">
-            <Input
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-            />
-          </Field>
-        </div>
+    <Page width="prose">
+      <Card>
+        <form
+          className="flex flex-col gap-(--gap-stack)"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (named) save.mutate();
+          }}
+        >
+          <div className="grid gap-(--gap-toolbar) sm:grid-cols-2">
+            <Field label="First name">
+              <Input
+                value={firstName}
+                autoFocus
+                onChange={(e) => setFirstName(e.target.value)}
+              />
+            </Field>
+            <Field label="Last name">
+              <Input
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+              />
+            </Field>
+          </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Job title">
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} />
-          </Field>
-          <Field label="Company">
-            <RecordPicker
-              path="/api/companies"
-              resource="companies"
-              value={company}
-              onChange={setCompany}
-              placeholder="Search companies"
-              clearLabel="No company"
-              noun="company"
+          <div className="grid gap-(--gap-toolbar) sm:grid-cols-2">
+            <Field label="Job title">
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} />
+            </Field>
+            <Field label="Company">
+              <RecordPicker
+                path="/api/companies"
+                resource="companies"
+                value={company}
+                onChange={setCompany}
+                placeholder="Search companies"
+                clearLabel="No company"
+                noun="company"
+              />
+            </Field>
+          </div>
+
+          <div
+            className="grid gap-(--gap-stack) border-t pt-(--gap-stack) sm:grid-cols-2"
+            style={border}
+          >
+            <LabelledList
+              legend="Email"
+              values={emails}
+              onChange={setEmails}
+              type="email"
+              placeholder="name@example.com"
             />
-          </Field>
-        </div>
-
-        <div className="grid gap-4 border-t pt-4 sm:grid-cols-2" style={border}>
-          <LabelledList
-            legend="Email"
-            values={emails}
-            onChange={setEmails}
-            type="email"
-            placeholder="name@example.com"
-          />
-          <LabelledList
-            legend="Phone"
-            values={phones}
-            onChange={setPhones}
-            type="tel"
-            placeholder="+1 555 0100"
-          />
-        </div>
-
-        <div className="grid gap-3 border-t pt-4 sm:grid-cols-2" style={border}>
-          <Field label="Status">
-            <Select value={status} onChange={(e) => setStatus(e.target.value)}>
-              {settings.contactStatuses.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.label}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="LinkedIn">
-            <Input
-              value={linkedinUrl}
-              placeholder="https://linkedin.com/in/…"
-              onChange={(e) => setLinkedinUrl(e.target.value)}
+            <LabelledList
+              legend="Phone"
+              values={phones}
+              onChange={setPhones}
+              type="tel"
+              placeholder="+1 555 0100"
             />
-          </Field>
-          <Field label="Account manager" hint="Whose contact this is.">
-            <Select
-              value={ownerId}
-              onChange={(e) => setOwnerId(e.target.value)}
-            >
-              <option value="">Nobody yet</option>
-              {managers.map((manager) => (
-                <option key={manager.userId} value={manager.userId}>
-                  {managerName(manager)}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Gender">
-            {/* Only ever used to pick the right placeholder face. */}
-            <Select value={gender} onChange={(e) => setGender(e.target.value)}>
-              <option value="">Not stated</option>
-              <option value="female">Female</option>
-              <option value="male">Male</option>
-            </Select>
-          </Field>
-        </div>
+          </div>
 
-        {/* Whatever this business decided it needs to know, from its own
+          <div
+            className="grid gap-(--gap-toolbar) border-t pt-(--gap-stack) sm:grid-cols-2"
+            style={border}
+          >
+            <Field label="Status">
+              <Select
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+              >
+                {settings.contactStatuses.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="LinkedIn">
+              <Input
+                value={linkedinUrl}
+                placeholder="https://linkedin.com/in/…"
+                onChange={(e) => setLinkedinUrl(e.target.value)}
+              />
+            </Field>
+            <Field label="Account manager" hint="Whose contact this is.">
+              <Select
+                value={ownerId}
+                onChange={(e) => setOwnerId(e.target.value)}
+              >
+                <option value="">Nobody yet</option>
+                {managers.map((manager) => (
+                  <option key={manager.userId} value={manager.userId}>
+                    {managerName(manager)}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Gender">
+              {/* Only ever used to pick the right placeholder face. */}
+              <Select
+                value={gender}
+                onChange={(e) => setGender(e.target.value)}
+              >
+                <option value="">Not stated</option>
+                <option value="female">Female</option>
+                <option value="male">Male</option>
+              </Select>
+            </Field>
+          </div>
+
+          {/* Whatever this business decided it needs to know, from its own
             settings rather than from this file. */}
-        <div className="grid gap-3 sm:grid-cols-2">
-          <CustomFields
-            fields={settings.customFields.filter(
-              (f) => f.appliesTo === "contact",
-            )}
-            values={customValues}
-            onChange={setCustomValues}
-          />
-        </div>
+          <div className="grid gap-(--gap-toolbar) sm:grid-cols-2">
+            <CustomFields
+              fields={settings.customFields.filter(
+                (f) => f.appliesTo === "contact",
+              )}
+              values={customValues}
+              onChange={setCustomValues}
+            />
+          </div>
 
-        <Field label="Background">
-          <textarea
-            value={background}
-            rows={3}
-            placeholder="How you met, who introduced you, what they care about"
-            onChange={(e) => setBackground(e.target.value)}
-            className="w-full rounded-md border px-2 py-1.5 text-sm"
-            style={{ ...border, background: "var(--surface-raised)" }}
-          />
-        </Field>
+          <Field label="Background">
+            <Textarea
+              value={background}
+              rows={3}
+              placeholder="How you met, who introduced you, what they care about"
+              onChange={(e) => setBackground(e.target.value)}
+            />
+          </Field>
 
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={hasNewsletter}
-            onChange={(e) => setHasNewsletter(e.target.checked)}
-          />
-          They agreed to receive the newsletter
-        </label>
+          <label className="flex items-center gap-(--gap-toolbar) text-sm">
+            <input
+              type="checkbox"
+              checked={hasNewsletter}
+              onChange={(e) => setHasNewsletter(e.target.checked)}
+            />
+            They agreed to receive the newsletter
+          </label>
 
-        <label className="flex items-start gap-2 text-sm">
-          <input
-            type="checkbox"
-            className="mt-1"
-            checked={doNotSell}
-            onChange={(e) => setDoNotSell(e.target.checked)}
-          />
-          <span>
-            They asked not to have their information sold or shared
-            <span className="block" style={muted}>
-              Marked on every export of your contacts, so whoever opens the file
-              can see it. Different from unsubscribing, which is about
-              contacting them.
+          <label className="flex items-start gap-(--gap-toolbar) text-sm">
+            <input
+              type="checkbox"
+              className="mt-(--gap-tight)"
+              checked={doNotSell}
+              onChange={(e) => setDoNotSell(e.target.checked)}
+            />
+            <span>
+              They asked not to have their information sold or shared
+              <span className="block" style={muted}>
+                Marked on every export of your contacts, so whoever opens the
+                file can see it. Different from unsubscribing, which is about
+                contacting them.
+              </span>
             </span>
-          </span>
-        </label>
+          </label>
 
-        <div className="flex items-center gap-2">
-          <Button type="submit" disabled={save.isPending || !named}>
-            {save.isPending
-              ? "Saving…"
-              : contact
-                ? "Save changes"
-                : "Create contact"}
-          </Button>
-          <Button variant="secondary" onClick={() => onDone()}>
-            Cancel
-          </Button>
-          {!named ? (
-            <span className="text-sm" style={muted}>
-              A first or last name is needed.
-            </span>
-          ) : null}
-        </div>
+          <Toolbar>
+            <Button type="submit" disabled={save.isPending || !named}>
+              {save.isPending
+                ? "Saving…"
+                : contact
+                  ? "Save changes"
+                  : "Create contact"}
+            </Button>
+            <Button variant="secondary" onClick={() => onDone()}>
+              Cancel
+            </Button>
+            {!named ? (
+              <span className="text-sm" style={muted}>
+                A first or last name is needed.
+              </span>
+            ) : null}
+          </Toolbar>
 
-        {save.error ? <ErrorNote error={save.error} /> : null}
-      </form>
-    </Card>
+          {save.error ? <ErrorNote error={save.error} /> : null}
+        </form>
+      </Card>
+    </Page>
   );
 }

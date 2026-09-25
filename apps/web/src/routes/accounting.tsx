@@ -22,12 +22,15 @@ import {
   Field,
   Input,
   Loading,
+  Page,
+  PageActions,
   Row,
   SectionHeading,
   Select,
+  StatFigure,
   Table,
   Tabs,
-  border,
+  Toolbar,
   formatDate,
   formatMoney,
   muted,
@@ -118,7 +121,7 @@ function CorrectTransaction({
       open={Boolean(transaction)}
       onClose={onClose}
     >
-      <p className="text-xs mb-3" style={muted}>
+      <p className="mb-(--gap-stack) text-xs" style={muted}>
         The books are put right as well: the entry that was posted is reversed
         and the corrected one posted in its place, so a report printed last week
         can still be explained.
@@ -156,7 +159,7 @@ function CorrectTransaction({
         </Select>
       </Field>
       {error ? <ErrorNote error={error} /> : null}
-      <div className="flex justify-end gap-2 mt-4">
+      <Toolbar className="mt-(--gap-stack) justify-end">
         <Button variant="secondary" onClick={onClose}>
           Cancel
         </Button>
@@ -168,7 +171,7 @@ function CorrectTransaction({
         >
           Save the correction
         </Button>
-      </div>
+      </Toolbar>
     </Dialog>
   );
 }
@@ -265,9 +268,9 @@ export function Summary() {
   });
 
   return (
-    <div className="space-y-4">
+    <Page>
       <Card>
-        <div className="grid gap-3 sm:grid-cols-[10rem_10rem_12rem_14rem]">
+        <div className="grid gap-(--gap-toolbar) sm:grid-cols-[10rem_10rem_12rem_14rem]">
           <Field label="From">
             <Input
               type="date"
@@ -317,7 +320,7 @@ export function Summary() {
       {pnl.error ? <ErrorNote error={pnl.error} /> : null}
       {pnl.data ? (
         <>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-(--gap-toolbar) sm:grid-cols-3">
             <Figure label="Income" cents={pnl.data.incomeCents} />
             <Figure label="Expenses" cents={pnl.data.expenseCents} />
             <Figure label="Net" cents={pnl.data.netCents} emphasise />
@@ -349,7 +352,7 @@ export function Summary() {
           <Breakdown title="Assets" rows={sheet.data.assets} />
           <Breakdown title="Liabilities" rows={sheet.data.liabilities} />
           <Breakdown title="Equity" rows={sheet.data.equity} />
-          <div className="mt-3 flex justify-between border-t pt-2 text-sm">
+          <div className="mt-(--gap-stack) flex justify-between border-line border-t pt-2 text-sm">
             <span>Earnings not drawn out</span>
             <span className="money">
               {formatMoney(sheet.data.earningsCents)}
@@ -363,7 +366,7 @@ export function Summary() {
           ) : null}
         </Card>
       ) : null}
-    </div>
+    </Page>
   );
 }
 
@@ -466,7 +469,7 @@ function FxRevaluation({ asOf }: { asOf: string }) {
           </Row>
         ))}
       </Table>
-      <div className="mt-3 flex items-center justify-between">
+      <Toolbar className="mt-(--gap-stack) justify-between">
         <span className="text-sm" style={muted}>
           {net === 0
             ? `Nothing to post in ${data.baseCurrency}.`
@@ -489,7 +492,7 @@ function FxRevaluation({ asOf }: { asOf: string }) {
               ? "Posting…"
               : "Post the revaluation"}
         </Button>
-      </div>
+      </Toolbar>
       {post.error ? <ErrorNote error={post.error} /> : null}
     </Card>
   );
@@ -506,10 +509,8 @@ function Breakdown({ title, rows }: { title: string; rows: AccountTotal[] }) {
   const worth = rows.filter((row) => row.balanceCents !== 0);
   if (worth.length === 0) return null;
   return (
-    <div className="mt-3">
-      <p className="text-xs font-medium" style={muted}>
-        {title}
-      </p>
+    <div className="mt-(--gap-stack)">
+      <SectionHeading level={3}>{title}</SectionHeading>
       {worth.map((row) => (
         <div key={row.accountId} className="flex justify-between py-1 text-sm">
           <span>
@@ -533,17 +534,11 @@ function Figure({
 }) {
   return (
     <Card>
-      <p className="text-xs" style={muted}>
-        {label}
-      </p>
-      <p
-        className="money mt-1 text-xl font-semibold"
-        style={
-          emphasise && cents < 0 ? { color: "var(--text-danger)" } : undefined
-        }
-      >
-        {formatMoney(cents)}
-      </p>
+      <StatFigure
+        label={label}
+        value={formatMoney(cents)}
+        tone={emphasise && cents < 0 ? "bad" : "plain"}
+      />
     </Card>
   );
 }
@@ -598,12 +593,8 @@ export function Receipt({
 
   if (has) {
     return (
-      <span className="flex items-center gap-2">
-        <a
-          className="text-xs underline"
-          href={`/api/${holder}/${id}/receipt`}
-          style={muted}
-        >
+      <span className="flex items-center gap-(--gap-toolbar)">
+        <a className="link-muted text-xs" href={`/api/${holder}/${id}/receipt`}>
           Receipt
         </a>
         {/*
@@ -614,8 +605,7 @@ export function Receipt({
         */}
         <button
           type="button"
-          className="text-xs underline"
-          style={muted}
+          className="link-danger text-xs"
           disabled={detach.isPending}
           onClick={() => detach.mutate()}
         >
@@ -625,7 +615,7 @@ export function Receipt({
     );
   }
   return (
-    <label className="cursor-pointer text-xs underline" style={muted}>
+    <label className="link-muted cursor-pointer text-xs">
       {upload.isPending ? "Attaching…" : "Attach"}
       <input
         type="file"
@@ -799,9 +789,9 @@ export function Money() {
   );
 
   return (
-    <div className="space-y-4">
+    <Page>
       <Card>
-        <div className="grid gap-3 sm:grid-cols-[8rem_1fr_8rem_1fr_1fr_9rem_auto]">
+        <div className="grid gap-(--gap-toolbar) sm:grid-cols-[8rem_1fr_8rem_1fr_1fr_9rem_auto]">
           <Field label="Kind">
             <Select
               value={kind}
@@ -879,7 +869,7 @@ export function Money() {
 
       <Tabs tabs={MONEY_TABS} active={tab} onChange={setTab} />
 
-      <div className="flex flex-wrap items-end gap-2">
+      <Toolbar>
         <Input
           value={q}
           className="w-56"
@@ -921,7 +911,7 @@ export function Money() {
             </strong>
           </span>
         ) : null}
-      </div>
+      </Toolbar>
 
       {transactions.isLoading ? <Loading /> : null}
       {transactions.error ? <ErrorNote error={transactions.error} /> : null}
@@ -977,16 +967,14 @@ export function Money() {
                   <>
                     <button
                       type="button"
-                      className="text-xs underline"
-                      style={muted}
+                      className="link-muted text-xs"
                       onClick={() => setEditing(t)}
                     >
                       Correct
                     </button>
                     <button
                       type="button"
-                      className="text-xs underline ml-3"
-                      style={muted}
+                      className="link-danger ml-3 text-xs"
                       onClick={() => undo.mutate(t.id)}
                     >
                       Undo
@@ -999,7 +987,7 @@ export function Money() {
         </Table>
       ) : null}
       {undo.error ? <ErrorNote error={undo.error} /> : null}
-    </div>
+    </Page>
   );
 }
 
@@ -1198,9 +1186,9 @@ export function Accounts() {
   const shown = matchingAccounts(rows, find);
 
   return (
-    <div className="space-y-4">
+    <Page>
       <Card>
-        <div className="grid gap-3 sm:grid-cols-[7rem_1fr_9rem_auto]">
+        <div className="grid gap-(--gap-toolbar) sm:grid-cols-[7rem_1fr_9rem_auto]">
           <Field label="Code">
             <Input
               value={code}
@@ -1231,14 +1219,17 @@ export function Accounts() {
             </Button>
           </div>
         </div>
-        <div className="mt-3 flex items-center gap-3">
+        <Toolbar className="mt-(--gap-stack)">
           <Button
             onClick={() => standard.mutate()}
             disabled={standard.isPending}
           >
             Fill in the standard chart
           </Button>
-          <label className="flex items-center gap-1 text-xs" style={muted}>
+          <label
+            className="flex items-center gap-(--gap-tight) text-xs"
+            style={muted}
+          >
             <input
               type="checkbox"
               checked={showArchived}
@@ -1246,7 +1237,7 @@ export function Accounts() {
             />
             Show archived
           </label>
-        </div>
+        </Toolbar>
         <p className="mt-2 text-xs" style={muted}>
           The accounts Sentrello needs are created for you the first time they
           are used. The standard chart adds the ones a small business usually
@@ -1255,7 +1246,7 @@ export function Accounts() {
         {add.error ? <ErrorNote error={add.error} /> : null}
       </Card>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <Toolbar>
         <Input
           value={find}
           aria-label="Find an account"
@@ -1271,7 +1262,7 @@ export function Accounts() {
         <span className="ml-auto text-sm" style={muted}>
           {shown.length} of {rows.length}
         </span>
-      </div>
+      </Toolbar>
 
       {shown.length === 0 ? (
         <Empty title={find ? "No account matches that" : "No accounts yet"} />
@@ -1327,8 +1318,7 @@ export function Accounts() {
               <td>
                 <button
                   type="button"
-                  className="text-xs underline"
-                  style={muted}
+                  className="link-muted text-xs"
                   onClick={() =>
                     archive.mutate({ id: a.id, archived: !a.archivedAt })
                   }
@@ -1346,8 +1336,7 @@ export function Accounts() {
                 */}
                 <button
                   type="button"
-                  className="text-xs underline ml-3"
-                  style={muted}
+                  className="link-danger ml-3 text-xs"
                   disabled={remove.isPending}
                   onClick={() => remove.mutate(a.id)}
                 >
@@ -1362,7 +1351,7 @@ export function Accounts() {
       {archive.error ? <ErrorNote error={archive.error} /> : null}
       {/* "archive it instead so the history stays" is the useful half. */}
       {remove.error ? <ErrorNote error={remove.error} /> : null}
-    </div>
+    </Page>
   );
 }
 
@@ -1489,15 +1478,16 @@ export function Journal() {
   const mayPost = journal.data?.mayPost === true;
 
   return (
-    <div className="space-y-4">
+    <Page>
       {mayPost ? (
-        composing ? (
-          <NewEntry onDone={() => setComposing(false)} />
-        ) : (
-          <div>
-            <Button onClick={() => setComposing(true)}>New entry</Button>
-          </div>
-        )
+        <>
+          <PageActions>
+            <Button onClick={() => setComposing(true)} disabled={composing}>
+              New entry
+            </Button>
+          </PageActions>
+          {composing ? <NewEntry onDone={() => setComposing(false)} /> : null}
+        </>
       ) : null}
 
       {/*
@@ -1507,17 +1497,14 @@ export function Journal() {
        * explain, on a date, against an account. It had a page number and
        * nothing else while every other list had all of this.
        */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative">
-          <input
-            value={state.q}
-            onChange={(e) => state.setQ(e.target.value)}
-            placeholder="Search notes"
-            aria-label="Search the journal"
-            className="w-56 rounded-md border px-2 py-1.5 text-sm"
-            style={{ ...border, background: "var(--surface-raised)" }}
-          />
-        </div>
+      <Toolbar>
+        <Input
+          value={state.q}
+          onChange={(e) => state.setQ(e.target.value)}
+          placeholder="Search notes"
+          aria-label="Search the journal"
+          className="w-56"
+        />
 
         <Input
           type="date"
@@ -1578,7 +1565,7 @@ export function Journal() {
         <span className="ml-auto text-sm" style={muted}>
           {total} {total === 1 ? "entry" : "entries"}
         </span>
-      </div>
+      </Toolbar>
 
       {entries.length === 0 ? (
         <Empty
@@ -1598,7 +1585,7 @@ export function Journal() {
           ) : null}
         </>
       )}
-    </div>
+    </Page>
   );
 }
 
@@ -1624,7 +1611,7 @@ function EntryCard({
 
   return (
     <Card>
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
+      <div className="flex flex-wrap items-baseline justify-between gap-(--gap-toolbar)">
         <div>
           <span className="font-medium">{entry.memo ?? "—"}</span>{" "}
           <span style={muted}>{formatDate(entry.postedAt)}</span>
@@ -1772,8 +1759,8 @@ function NewEntry({ onDone }: { onDone: () => void }) {
     memo.trim().length > 0 && usable.length >= 2 && difference === 0;
 
   return (
-    <Card className="space-y-3">
-      <div className="flex flex-wrap gap-3">
+    <Card className="flex flex-col gap-(--gap-stack)">
+      <Toolbar>
         <Field label="What this entry is for">
           <Input
             value={memo}
@@ -1788,7 +1775,7 @@ function NewEntry({ onDone }: { onDone: () => void }) {
             onChange={(e) => setPostedAt(e.target.value)}
           />
         </Field>
-      </div>
+      </Toolbar>
 
       <Table
         headers={[
@@ -1840,7 +1827,7 @@ function NewEntry({ onDone }: { onDone: () => void }) {
         ))}
       </Table>
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <Toolbar className="justify-between">
         <span style={muted}>
           {difference === 0
             ? `Balanced at ${formatMoney(debits)}`
@@ -1848,7 +1835,7 @@ function NewEntry({ onDone }: { onDone: () => void }) {
                 difference > 0 ? "debits" : "credits"
               } are over`}
         </span>
-        <div className="flex gap-2">
+        <div className="flex gap-(--gap-toolbar)">
           <Button
             variant="secondary"
             onClick={() => setLines((old) => [...old, EMPTY_LINE])}
@@ -1865,7 +1852,7 @@ function NewEntry({ onDone }: { onDone: () => void }) {
             {post.isPending ? "Posting…" : "Post entry"}
           </Button>
         </div>
-      </div>
+      </Toolbar>
       {post.error ? <ErrorNote error={post.error} /> : null}
     </Card>
   );

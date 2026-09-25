@@ -1,6 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/api";
-import { Card, ErrorNote, Field, Input, Loading, muted } from "../../lib/ui";
+import {
+  Card,
+  ErrorNote,
+  Field,
+  Input,
+  Loading,
+  Page,
+  SectionHeading,
+  muted,
+} from "../../lib/ui";
 import { policyLabel } from "./policy-ui";
 
 /**
@@ -58,10 +67,10 @@ export function singleAdministratorNoMail(
 
 export function Authentication() {
   return (
-    <div className="space-y-4">
+    <Page width="prose">
       <SignInRules />
       <Diagnostics />
-    </div>
+    </Page>
   );
 }
 
@@ -96,19 +105,24 @@ function SignInRules() {
   if (!current) return null;
 
   return (
-    <Card>
-      <p className="font-medium">Signing in</p>
-      <p className="mt-1 text-sm" style={muted}>
-        Who has to use a second factor, and how long somebody stays signed in.
-      </p>
+    <Card className="flex flex-col gap-(--gap-toolbar)">
+      <div>
+        <SectionHeading>Signing in</SectionHeading>
+        <p className="text-sm" style={muted}>
+          Who has to use a second factor, and how long somebody stays signed in.
+        </p>
+      </div>
 
-      <div className="mt-3">
+      <div>
         <p className="text-sm" style={muted}>
           Require two-factor for
         </p>
-        <div className="mt-1 flex flex-wrap gap-3 text-sm">
+        <div className="mt-(--gap-tight) flex flex-wrap gap-(--gap-toolbar) text-sm">
           {(roles.data?.roles ?? []).map((role) => (
-            <label key={role.role} className="flex items-center gap-1.5">
+            <label
+              key={role.role}
+              className="flex items-center gap-(--gap-tight)"
+            >
               <input
                 type="checkbox"
                 checked={current.requireTwoFactorFor.includes(role.role)}
@@ -126,7 +140,7 @@ function SignInRules() {
             </label>
           ))}
         </div>
-        <p className="mt-1 text-xs" style={muted}>
+        <p className="mt-(--gap-tight) text-xs" style={muted}>
           The person who can move money is not the person who clocks in on a
           shared tablet, so this is per role rather than for everybody.
         </p>
@@ -145,8 +159,8 @@ function SignInRules() {
         setting sat there looking switched on, beside the error saying it had
         not been, until a reload quietly put it back.
       */}
-      <div className="mt-4">
-        <label className="flex items-center gap-2 text-sm">
+      <div>
+        <label className="flex items-center gap-(--gap-toolbar) text-sm">
           <input
             type="checkbox"
             checked={current.requireEmailVerified}
@@ -156,13 +170,13 @@ function SignInRules() {
           />
           Require a confirmed email address before signing in
         </label>
-        <p className="mt-1 text-xs" style={muted}>
+        <p className="mt-(--gap-tight) text-xs" style={muted}>
           Needs email configured — everybody has to be able to receive the link,
           including you.
         </p>
       </div>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-(--gap-toolbar) sm:grid-cols-2">
         <Field label="Shortest password" hint="Between 8 and 72 characters.">
           <Input
             type="number"
@@ -203,7 +217,7 @@ function SignInRules() {
         that pairing with a message saying so, which is only useful if the two
         numbers are set in the same place.
       */}
-      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-(--gap-toolbar) sm:grid-cols-3">
         <Field
           label="Lock after"
           hint="Failed attempts in a row. Zero turns locking off."
@@ -258,9 +272,9 @@ function Diagnostics() {
   if (!d) return null;
 
   return (
-    <Card>
-      <p className="font-medium">This instance</p>
-      <dl className="mt-2 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+    <Card className="flex flex-col gap-(--gap-toolbar)">
+      <SectionHeading>This instance</SectionHeading>
+      <dl className="grid gap-x-6 gap-y-(--gap-toolbar) text-sm sm:grid-cols-2">
         <div>
           <dt className="font-medium">Client address</dt>
           <dd style={muted}>
@@ -273,14 +287,14 @@ function Diagnostics() {
           <dd style={muted}>{d.baseUrl}</dd>
         </div>
       </dl>
-      <p className="mt-2 text-xs" style={muted}>
+      <p className="text-xs" style={muted}>
         Lockout is keyed on the address above. If every sign-in looks like it
         comes from the same place, this is naming the wrong header —
         <code> SENTRELLO_CLIENT_IP_HEADER</code> names another.
       </p>
 
       {!d.https ? (
-        <p className="mt-3 text-sm" style={warning}>
+        <p className="text-sm" style={warning}>
           The base URL is not https. A session cookie marked Secure is not sent
           over plain HTTP, so sign-in will appear to succeed and then do
           nothing.
@@ -288,7 +302,7 @@ function Diagnostics() {
       ) : null}
 
       {singleAdministratorNoMail(d) ? (
-        <p className="mt-3 text-sm" style={warning}>
+        <p className="text-sm" style={warning}>
           One administrator, and no mail configured: if they are locked out,
           there is no route back through the browser. On the host,{" "}
           <code>sentrello reset-password &lt;email&gt;</code> or{" "}

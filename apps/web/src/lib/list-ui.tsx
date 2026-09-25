@@ -252,7 +252,7 @@ export function FilterPanel({
   children: ReactNode;
 }) {
   return (
-    <aside className="w-52 shrink-0 space-y-4">
+    <aside className="w-52 shrink-0 flex flex-col gap-(--gap-stack)">
       <div className="relative">
         <input
           value={state.q}
@@ -307,7 +307,9 @@ export function FilterGroup({
         <span className="flex-1 text-left">{label}</span>
         <span className="nav-caret" data-open={open} aria-hidden="true" />
       </button>
-      {open ? <div className="mt-1 space-y-0.5">{children}</div> : null}
+      {open ? (
+        <div className="mt-1 flex flex-col gap-(--gap-tight)">{children}</div>
+      ) : null}
     </div>
   );
 }

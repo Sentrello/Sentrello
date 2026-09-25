@@ -80,7 +80,7 @@ export function ContactDuplicates({ onChanged }: { onChanged: () => void }) {
         the other one — notes, tasks, deals, quotes and invoices — follows the
         record you keep.
       </p>
-      <ul className="space-y-2">
+      <ul className="flex flex-col gap-(--gap-toolbar)">
         {found.map((pair) => (
           <li
             key={`${pair.a.id}-${pair.b.id}`}

@@ -306,7 +306,7 @@ export function TaskDialog({
       open={open}
       onClose={onClose}
     >
-      <div className="space-y-3">
+      <div className="flex flex-col gap-(--gap-toolbar)">
         <Field label="Description">
           <Input
             value={title}

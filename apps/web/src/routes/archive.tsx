@@ -10,11 +10,13 @@ import {
   Field,
   Input,
   Loading,
+  Page,
   Row,
   SectionHeading,
   Select,
   StatusBadge,
   Table,
+  Toolbar,
   formatDate,
   muted,
 } from "../lib/ui";
@@ -154,7 +156,7 @@ export function Archive() {
   const mayRemove = Boolean(plan.data) && blockers.length === 0;
 
   return (
-    <div className="grid gap-6">
+    <Page>
       <Card>
         <SectionHeading hint="Nothing is removed until the archive has been read back and checked.">
           Archive and offload
@@ -167,7 +169,7 @@ export function Archive() {
 
       <Card>
         <SectionHeading>What to archive</SectionHeading>
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-(--gap-toolbar) sm:grid-cols-3">
           <Field label="Records">
             <Select value={setId} onChange={(e) => setSetId(e.target.value)}>
               {sets.data?.sets.map((set) => (
@@ -206,7 +208,7 @@ export function Archive() {
               ))}
             </Table>
             {blockers.length > 0 ? (
-              <div className="grid gap-2">
+              <div className="grid gap-(--gap-toolbar)">
                 <strong>These records can be copied, but not removed:</strong>
                 <ul>
                   {blockers.map((blocker) => (
@@ -215,7 +217,7 @@ export function Archive() {
                 </ul>
               </div>
             ) : null}
-            <div className="mt-3 flex flex-wrap gap-2">
+            <Toolbar className="mt-(--gap-stack)">
               <Button
                 onClick={() => write.mutate(false)}
                 disabled={write.isPending || plan.data.rows === 0}
@@ -237,7 +239,7 @@ export function Archive() {
               >
                 Archive and remove from this server
               </ConfirmButton>
-            </div>
+            </Toolbar>
             {write.error ? <ErrorNote error={write.error} /> : null}
             {write.data ? (
               <p>
@@ -284,8 +286,11 @@ export function Archive() {
                 <td>{formatDate(run.createdAt)}</td>
                 <td>
                   {run.present ? (
-                    <div className="flex gap-2">
-                      <a href={`/api/archive/runs/${run.id}/download`}>
+                    <div className="flex gap-(--gap-toolbar)">
+                      <a
+                        className="link"
+                        href={`/api/archive/runs/${run.id}/download`}
+                      >
                         Download
                       </a>
                       <ConfirmButton
@@ -313,7 +318,7 @@ export function Archive() {
 
       <Restore />
       <Where />
-    </div>
+    </Page>
   );
 }
 
@@ -372,9 +377,9 @@ function Restore() {
         to the live tables. Axe rates an unlabelled form control critical.
       */}
       <Field label="Archive file">
-        <input type="file" accept=".zip" ref={file} className="text-sm" />
+        <Input type="file" accept=".zip" ref={file} />
       </Field>
-      <div className="mt-3 flex flex-wrap gap-2">
+      <Toolbar className="mt-(--gap-stack)">
         <Button
           onClick={() => send.mutate("inspect")}
           disabled={send.isPending}
@@ -391,7 +396,7 @@ function Restore() {
         >
           Restore it
         </ConfirmButton>
-      </div>
+      </Toolbar>
       {send.error ? <ErrorNote error={send.error} /> : null}
       {send.data?.inspected ? (
         <p>
@@ -498,14 +503,14 @@ function Where() {
           />
         </Field>
       ))}
-      <div className="mt-3 flex flex-wrap gap-2">
+      <Toolbar className="mt-(--gap-stack)">
         <Button onClick={() => test.mutate()} disabled={test.isPending}>
           {test.isPending ? "Testing…" : "Test connection"}
         </Button>
         <Button onClick={() => save.mutate()} disabled={save.isPending}>
           Save
         </Button>
-      </div>
+      </Toolbar>
       {tested ? (
         <p style={tested.ok ? undefined : { color: "var(--text-danger)" }}>
           {tested.detail}

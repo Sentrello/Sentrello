@@ -20,11 +20,14 @@ import {
   Field,
   Input,
   Loading,
+  Page,
+  PageActions,
   Row,
   RowMenu,
+  SectionHeading,
   Table,
   Tabs,
-  border,
+  Toolbar,
   formatDate,
   formatMoney,
   muted,
@@ -152,7 +155,16 @@ export function Quotes() {
   }
 
   return (
-    <div className="space-y-4">
+    <Page>
+      <PageActions>
+        <Button onClick={() => setAdding(true)}>
+          <span className="flex items-center gap-1.5">
+            <Icon name="plus" size={15} />
+            New quote
+          </span>
+        </Button>
+      </PageActions>
+
       {/*
         Status first, the same as invoices — a quote is the same document
         before it is owed.
@@ -170,17 +182,14 @@ export function Quotes() {
         }}
       />
 
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative">
-          <input
-            value={state.q}
-            onChange={(e) => state.setQ(e.target.value)}
-            placeholder="Search by number or note"
-            aria-label="Search quotes"
-            className="w-64 rounded-md border px-2 py-1.5 text-sm"
-            style={{ ...border, background: "var(--surface-raised)" }}
-          />
-        </div>
+      <Toolbar>
+        <Input
+          value={state.q}
+          onChange={(e) => state.setQ(e.target.value)}
+          placeholder="Search by number or note"
+          aria-label="Search quotes"
+          className="w-64"
+        />
 
         <SortMenu
           state={state}
@@ -206,19 +215,12 @@ export function Quotes() {
               what is on screen. */}
           <a
             href={`/api/quotes/export.csv?${query}`}
-            className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm"
-            style={border}
+            className="inline-flex items-center gap-1.5 rounded-md border border-line px-3 py-1.5 text-sm"
           >
             Export
           </a>
-          <Button onClick={() => setAdding(true)}>
-            <span className="flex items-center gap-1.5">
-              <Icon name="plus" size={15} />
-              New quote
-            </span>
-          </Button>
         </div>
-      </div>
+      </Toolbar>
 
       {/* Above the table rather than in the row's menu: a schedule with four
           stages in it needs room to be read before it is agreed to. */}
@@ -335,7 +337,7 @@ export function Quotes() {
           ) : null}
         </>
       )}
-    </div>
+    </Page>
   );
 }
 
@@ -399,20 +401,17 @@ function InstalmentPlanner({
 
   return (
     <Card>
-      <div className="mb-3 flex items-center gap-2">
-        <p className="font-medium text-sm">
-          Split {quote.number} into instalments
-        </p>
-        <button
-          type="button"
-          className="ml-auto text-sm link-muted"
-          onClick={onDone}
-        >
-          Cancel
-        </button>
-      </div>
+      <SectionHeading
+        trailing={
+          <button type="button" className="text-sm link-muted" onClick={onDone}>
+            Cancel
+          </button>
+        }
+      >
+        Split {quote.number} into instalments
+      </SectionHeading>
 
-      <div className="mb-3 flex flex-wrap gap-2">
+      <Toolbar className="mb-(--gap-stack)">
         <Button
           variant="secondary"
           onClick={() =>
@@ -458,13 +457,13 @@ function InstalmentPlanner({
         >
           Three equal parts
         </Button>
-      </div>
+      </Toolbar>
 
-      <div className="space-y-2">
+      <div className="flex flex-col gap-(--gap-toolbar)">
         {parts.map((part, i) => (
           <div
             key={part.key}
-            className="grid items-end gap-2 sm:grid-cols-[6rem_8rem_7rem_1fr_auto]"
+            className="grid items-end gap-(--gap-toolbar) sm:grid-cols-[6rem_8rem_7rem_1fr_auto]"
           >
             <Field label={i === 0 ? "Share" : ""}>
               <Input
@@ -529,7 +528,7 @@ function InstalmentPlanner({
         ))}
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-3">
+      <Toolbar className="mt-(--gap-stack)">
         <Button
           variant="secondary"
           onClick={() =>
@@ -552,7 +551,7 @@ function InstalmentPlanner({
         >
           Create {parts.length} draft invoices
         </Button>
-      </div>
+      </Toolbar>
       {split.error ? <ErrorNote error={split.error} /> : null}
     </Card>
   );

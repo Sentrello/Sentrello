@@ -11,7 +11,11 @@ import {
   Field,
   Input,
   Loading,
+  Page,
+  SectionHeading,
   Select,
+  Textarea,
+  Toolbar,
   border,
   formatMoney,
   muted,
@@ -498,8 +502,8 @@ export function InvoiceForm({
   );
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
+    <Page>
+      <Toolbar>
         {/* the form's own title, not a section within it — matches invoice-detail.tsx's <p>, not SectionHeading */}
         <p className="font-semibold text-lg">
           {documentId
@@ -517,13 +521,13 @@ export function InvoiceForm({
         >
           Cancel
         </button>
-      </div>
+      </Toolbar>
 
       <Card>
-        <p className="mb-3 font-medium text-sm">
+        <SectionHeading>
           {asQuote ? "Quote details" : "Invoice details"}
-        </p>
-        <div className="grid gap-3 sm:grid-cols-3">
+        </SectionHeading>
+        <div className="grid gap-(--gap-toolbar) sm:grid-cols-3">
           <Field label="Customer">
             <RecordPicker<Contact>
               path="/api/contacts"
@@ -611,7 +615,7 @@ export function InvoiceForm({
                 write it down. */}
             {terms.some((t) => t.label === paymentTerms) ? null : (
               <Input
-                className="mt-1"
+                className="mt-(--gap-tight)"
                 value={paymentTerms}
                 placeholder="Half on delivery, half in 30 days"
                 aria-label="Payment terms in your own words"
@@ -655,9 +659,8 @@ export function InvoiceForm({
       </Card>
 
       <Card>
-        <div className="mb-3 flex items-center justify-between">
-          <p className="font-medium text-sm">Line items</p>
-          {(() => {
+        <SectionHeading
+          trailing={(() => {
             const local = localRates.data?.taxes ?? [];
             // Nothing to apply, or the sale is exempt under a certificate —
             // in which case offering to put tax on it is the wrong suggestion.
@@ -680,14 +683,16 @@ export function InvoiceForm({
               </button>
             );
           })()}
-        </div>
-        <div className="space-y-2">
+        >
+          Line items
+        </SectionHeading>
+        <div className="flex flex-col gap-(--gap-toolbar)">
           {lines.map((line, i) => (
             <div
               key={line.key}
-              className="grid gap-2 sm:grid-cols-[1fr_5rem_6rem_7rem_8rem_2rem]"
+              className="grid gap-(--gap-toolbar) sm:grid-cols-[1fr_5rem_6rem_7rem_8rem_2rem]"
             >
-              <span className="space-y-1">
+              <span className="flex flex-col gap-(--gap-tight)">
                 <Input
                   value={line.description}
                   placeholder="What was done"
@@ -748,7 +753,7 @@ export function InvoiceForm({
               {/* One select per tax on the line, plus one to add another —
                   Canada charges GST beside a provincial tax on the same
                   line. Clearing a select takes that tax off the line. */}
-              <span className="space-y-1">
+              <span className="flex flex-col gap-(--gap-tight)">
                 {[...line.taxDefinitionIds, ""].map((chosen, at) => (
                   <Select
                     key={`${line.key}-tax-${chosen || "add"}`}
@@ -801,7 +806,7 @@ export function InvoiceForm({
             </div>
           ))}
         </div>
-        <div className="mt-3">
+        <div className="mt-(--gap-toolbar)">
           <Button
             variant="secondary"
             onClick={() =>
@@ -813,24 +818,22 @@ export function InvoiceForm({
         </div>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-(--gap-stack) lg:grid-cols-2">
         <Card>
-          <p className="mb-3 font-medium text-sm">Notes</p>
-          <textarea
+          <SectionHeading>Notes</SectionHeading>
+          <Textarea
             value={notes}
             rows={5}
             placeholder="Anything the customer should read on the invoice"
             aria-label="Notes"
             onChange={(e) => setNotes(e.target.value)}
-            className="w-full rounded-md border px-2 py-1.5 text-sm"
-            style={{ ...border, background: "var(--surface-raised)" }}
           />
         </Card>
 
         <Card>
-          <p className="mb-3 font-medium text-sm">Total</p>
+          <SectionHeading>Total</SectionHeading>
 
-          <div className="mb-3 flex items-end gap-2">
+          <Toolbar className="mb-(--gap-toolbar)">
             <Field label="Discount">
               <Select
                 value={discountType}
@@ -850,14 +853,14 @@ export function InvoiceForm({
                 />
               </Field>
             ) : null}
-          </div>
+          </Toolbar>
 
           {/*
             Pay early, pay less. Not offered on a quote: nothing is owed yet,
             so there is nothing to settle sooner.
           */}
           {!asQuote ? (
-            <div className="mb-3 flex items-end gap-2">
+            <Toolbar className="mb-(--gap-toolbar)">
               <Field label="Pay early, pay less">
                 <Select
                   value={earlyType}
@@ -888,7 +891,7 @@ export function InvoiceForm({
                   </Field>
                 </>
               ) : null}
-            </div>
+            </Toolbar>
           ) : null}
 
           <table className="w-full text-sm">
@@ -918,7 +921,7 @@ export function InvoiceForm({
             Tax on what is left after the discount, not before it — the order
             every tax authority expects, and the one the server uses.
           */}
-          <p className="mt-2 text-xs" style={muted}>
+          <p className="mt-(--gap-toolbar) text-xs" style={muted}>
             {pricesIncludeTax
               ? "Prices include tax, so the total is what you typed. The tax is shown separately above because the document has to state it."
               : "Worked out with the same code the invoice is saved with."}
@@ -926,7 +929,7 @@ export function InvoiceForm({
         </Card>
       </div>
 
-      <div className="flex items-center gap-2">
+      <Toolbar>
         {/* One button when editing, two when raising.
             Editing does not change a document's status — a PATCH that quietly
             issued a draft because somebody pressed the wrong one of two
@@ -962,9 +965,9 @@ export function InvoiceForm({
             At least one line with a description.
           </span>
         ) : null}
-      </div>
+      </Toolbar>
 
       {save.error ? <ErrorNote error={save.error} /> : null}
-    </div>
+    </Page>
   );
 }

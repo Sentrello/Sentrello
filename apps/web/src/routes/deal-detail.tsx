@@ -197,7 +197,7 @@ function EditDeal({
         label="People on this deal"
         hint="A deal usually involves several."
       >
-        <div className="space-y-1">
+        <div className="flex flex-col gap-(--gap-tight)">
           {on.map((p) => (
             <div key={p.id} className="flex items-center gap-2 text-sm">
               <span>{p.name}</span>
@@ -364,7 +364,7 @@ export function DealDetail() {
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
-      <div className="space-y-4">
+      <div className="flex flex-col gap-(--gap-stack)">
         <Card>
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <div>
@@ -466,7 +466,7 @@ export function DealDetail() {
           </div>
           {addNote.error ? <ErrorNote error={addNote.error} /> : null}
 
-          <div className="mt-3 space-y-2">
+          <div className="mt-3 flex flex-col gap-(--gap-toolbar)">
             {notes.length === 0 ? (
               <p className="text-sm" style={muted}>
                 Nothing written down yet.
@@ -485,7 +485,7 @@ export function DealDetail() {
         </Card>
       </div>
 
-      <div className="space-y-4">
+      <div className="flex flex-col gap-(--gap-stack)">
         <Card>
           <p className="mb-2 font-medium">Who is involved</p>
           {company ? (
@@ -508,7 +508,7 @@ export function DealDetail() {
               Nobody attached to this deal.
             </p>
           ) : (
-            <ul className="space-y-1 text-sm">
+            <ul className="flex flex-col gap-(--gap-tight) text-sm">
               {contacts.map((p) => (
                 <li key={p.id}>
                   <RelatedLink

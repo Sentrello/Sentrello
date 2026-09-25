@@ -58,7 +58,7 @@ export function AccessMatrix({ grants }: { grants: Grant[] }) {
   const rows = accessRows(grants);
   return (
     <Card>
-      <div className="space-y-2">
+      <div className="flex flex-col gap-(--gap-toolbar)">
         {rows.map((row) => (
           <div
             key={row.resource}

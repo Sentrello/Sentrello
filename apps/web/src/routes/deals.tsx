@@ -24,8 +24,10 @@ import {
   Field,
   Input,
   Loading,
+  Page,
+  PageActions,
   Select,
-  border,
+  Toolbar,
   formatMoney,
   muted,
 } from "../lib/ui";
@@ -158,8 +160,8 @@ function Column({
 
   return (
     <div
-      className="flex w-64 shrink-0 flex-col rounded-lg border p-2"
-      style={{ borderColor: "var(--border)", background: "var(--surface)" }}
+      className="flex w-64 shrink-0 flex-col rounded-lg border border-line p-2"
+      style={{ background: "var(--surface)" }}
       // Dropping is how a card changes column. Keyboard users get the select
       // on each card instead, so the board is not mouse-only.
       onDragOver={(e) => e.preventDefault()}
@@ -176,19 +178,16 @@ function Column({
         </span>
       </div>
 
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-(--gap-toolbar)">
         {deals.map((d) => (
           <div
             key={d.id}
             draggable
             onDragStart={(e) => e.dataTransfer.setData("text/plain", d.id)}
-            className="rounded border p-2"
-            style={{
-              borderColor: "var(--border)",
-              background: "var(--surface-raised)",
-            }}
+            className="rounded border border-line p-2"
+            style={{ background: "var(--surface-raised)" }}
           >
-            <div className="flex items-start gap-2">
+            <div className="flex items-start gap-(--gap-toolbar)">
               {/*
                 Whose deal it is, at a glance. A column of names alone tells
                 you what is in play but not who with, which is the first thing
@@ -212,7 +211,7 @@ function Column({
                   {d.name}
                 </RelatedLink>
                 <div
-                  className="mt-0.5 flex flex-wrap gap-x-2 text-xs"
+                  className="mt-0.5 flex flex-wrap gap-x-(--gap-toolbar) text-xs"
                   style={muted}
                 >
                   <span>
@@ -339,20 +338,23 @@ export function Deals() {
     .reduce((sum, d) => sum + d.amountCents, 0);
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative">
-          {/* Matches the deal's own name, its company, and anybody attached
-              to it — which is how people actually refer to a job. */}
-          <input
-            value={state.q}
-            onChange={(e) => state.setQ(e.target.value)}
-            placeholder="Search deals, companies, contacts"
-            aria-label="Search deals"
-            className="w-72 rounded-md border px-2 py-1.5 text-sm"
-            style={{ ...border, background: "var(--surface-raised)" }}
-          />
-        </div>
+    <Page>
+      <PageActions>
+        <Button onClick={() => setAdding((v) => !v)}>
+          {adding ? "Cancel" : "New deal"}
+        </Button>
+      </PageActions>
+
+      <Toolbar>
+        {/* Matches the deal's own name, its company, and anybody attached
+            to it — which is how people actually refer to a job. */}
+        <Input
+          value={state.q}
+          onChange={(e) => state.setQ(e.target.value)}
+          placeholder="Search deals, companies, contacts"
+          aria-label="Search deals"
+          className="w-72"
+        />
 
         {settings.dealCategories.length ? (
           <Select
@@ -458,21 +460,17 @@ export function Deals() {
           </button>
         ) : null}
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-(--gap-toolbar)">
           {/* The filters travel with it, so the file is the board somebody is
               looking at rather than the whole pipeline. */}
           <a
             href={`/api/deals/export.csv?${listQueryString(state, false)}`}
-            className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm"
-            style={border}
+            className="inline-flex items-center gap-1.5 rounded-md border border-line px-3 py-1.5 text-sm"
           >
             Export
           </a>
-          <Button onClick={() => setAdding((v) => !v)}>
-            {adding ? "Cancel" : "New deal"}
-          </Button>
         </div>
-      </div>
+      </Toolbar>
 
       <p className="text-sm" style={muted}>
         {formatMoney(openTotal)} in play across {deals.length}{" "}
@@ -484,7 +482,7 @@ export function Deals() {
 
       {adding ? (
         <Card>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-(--gap-toolbar) sm:grid-cols-2">
             <Field label="Name">
               <Input value={name} onChange={(e) => setName(e.target.value)} />
             </Field>
@@ -496,14 +494,14 @@ export function Deals() {
               />
             </Field>
           </div>
-          <div className="mt-3">
+          <Toolbar className="mt-(--gap-stack)">
             <Button
               onClick={() => create.mutate()}
               disabled={!name.trim() || create.isPending}
             >
               {create.isPending ? "Saving…" : "Save"}
             </Button>
-          </div>
+          </Toolbar>
           {create.error ? <ErrorNote error={create.error} /> : null}
         </Card>
       ) : null}
@@ -520,7 +518,7 @@ export function Deals() {
         past the fold might as well not exist for them.
       */}
       <section
-        className="flex gap-3 overflow-x-auto pb-2"
+        className="flex gap-(--gap-toolbar) overflow-x-auto pb-2"
         // biome-ignore lint/a11y/noNoninteractiveTabindex: WCAG 2.1.1 requires a scrollable region to be keyboard-operable and tabindex=0 on the scroll container is the documented remedy; the rule does not model scrolling containers
         tabIndex={0}
         aria-label="Deal stages"
@@ -537,6 +535,6 @@ export function Deals() {
           />
         ))}
       </section>
-    </div>
+    </Page>
   );
 }

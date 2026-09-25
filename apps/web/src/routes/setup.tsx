@@ -321,7 +321,7 @@ function Field({
   hint?: string;
 }) {
   return (
-    <label className="block space-y-1 text-sm">
+    <label className="block flex flex-col gap-(--gap-tight) text-sm">
       <span>{label}</span>
       <input
         type={type}

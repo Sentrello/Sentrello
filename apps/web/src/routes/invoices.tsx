@@ -18,13 +18,16 @@ import {
   Card,
   Empty,
   ErrorNote,
+  Input,
   Loading,
+  Page,
+  PageActions,
   Row,
   RowMenu,
   Select,
   Table,
   Tabs,
-  border,
+  Toolbar,
   formatDate,
   formatMoney,
   muted,
@@ -252,7 +255,20 @@ export function Invoices() {
   }
 
   return (
-    <div className="space-y-4">
+    <Page>
+      {/*
+        The one thing this screen is for, in the title line every screen puts
+        its primary action in.
+      */}
+      <PageActions>
+        <Button onClick={() => setAdding(true)}>
+          <span className="flex items-center gap-1.5">
+            <Icon name="plus" size={15} />
+            New invoice
+          </span>
+        </Button>
+      </PageActions>
+
       {/*
         Status first. The tabs carry their own counts, which is what turns
         this from a list into a summary somebody can act on.
@@ -270,17 +286,14 @@ export function Invoices() {
         }}
       />
 
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative">
-          <input
-            value={state.q}
-            onChange={(e) => state.setQ(e.target.value)}
-            placeholder="Search by number or note"
-            aria-label="Search invoices"
-            className="w-64 rounded-md border px-2 py-1.5 text-sm"
-            style={{ ...border, background: "var(--surface-raised)" }}
-          />
-        </div>
+      <Toolbar>
+        <Input
+          value={state.q}
+          onChange={(e) => state.setQ(e.target.value)}
+          placeholder="Search by number or note"
+          aria-label="Search invoices"
+          className="w-64"
+        />
 
         {/* One label at a time. The pile a business works through is
             "disputed" or "with the accountant", not both at once. */}
@@ -319,7 +332,7 @@ export function Invoices() {
 
         <ColumnsMenu state={columns} />
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-(--gap-toolbar)">
           <span className="text-sm" style={muted}>
             {formatMoney(data?.billedCents ?? 0)} across {data?.total ?? 0}
           </span>
@@ -368,19 +381,12 @@ export function Invoices() {
               is on screen. */}
           <a
             href={`/api/invoices/export.csv?${query}`}
-            className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm"
-            style={border}
+            className="inline-flex items-center gap-1.5 rounded-md border border-line px-3 py-1.5 text-sm"
           >
             Export
           </a>
-          <Button onClick={() => setAdding(true)}>
-            <span className="flex items-center gap-1.5">
-              <Icon name="plus" size={15} />
-              New invoice
-            </span>
-          </Button>
         </div>
-      </div>
+      </Toolbar>
 
       {isLoading ? (
         <Loading />
@@ -524,7 +530,7 @@ export function Invoices() {
           ) : null}
         </>
       )}
-    </div>
+    </Page>
   );
 }
 

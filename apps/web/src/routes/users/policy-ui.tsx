@@ -2,7 +2,16 @@ import { statement } from "@sentrello/auth/permissions";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "../../lib/api";
-import { Button, Card, Field, Input, Row, Table, muted } from "../../lib/ui";
+import {
+  Button,
+  Card,
+  Field,
+  Input,
+  Row,
+  SectionHeading,
+  Table,
+  muted,
+} from "../../lib/ui";
 
 /** One policy, as `GET /api/users/roles` describes it. */
 export interface Policy {
@@ -74,12 +83,18 @@ export function Matrix({
   };
 
   return (
-    <div className="space-y-1">
+    <div className="flex flex-col gap-(--gap-tight)">
       {RESOURCES.map((r) => (
-        <div key={r.name} className="flex flex-wrap items-center gap-2">
+        <div
+          key={r.name}
+          className="flex flex-wrap items-center gap-(--gap-toolbar)"
+        >
           <span className="w-32 shrink-0 text-sm">{r.name}</span>
           {r.actions.map((a) => (
-            <label key={a} className="flex items-center gap-1 text-xs">
+            <label
+              key={a}
+              className="flex items-center gap-(--gap-tight) text-xs"
+            >
               <input
                 type="checkbox"
                 checked={(value[r.name] ?? []).includes(a)}
@@ -183,8 +198,8 @@ export function Policies({
 
   return (
     <Card>
-      {title ? <p className="font-medium">{title}</p> : null}
-      <p className="mt-0.5 mb-2 text-sm" style={muted}>
+      {title ? <SectionHeading>{title}</SectionHeading> : null}
+      <p className="mb-(--gap-toolbar) text-sm" style={muted}>
         {blurb}
       </p>
       <Table headers={["Policy", "May do", ""]}>
@@ -214,38 +229,40 @@ export function Policies({
                 .map(([res, actions]) => `${res} (${actions.join(", ")})`)
                 .join(" · ") || "nothing"}
             </td>
-            <td className="space-x-3 text-right">
-              {/*
+            <td className="text-right">
+              <div className="flex items-center justify-end gap-(--gap-toolbar)">
+                {/*
                 Edit changes what everybody holding this policy may do, so it
                 is offered only where it is real: the two compiled roles cannot
                 be changed, and pretending otherwise would be a button that
                 fails when pressed.
               */}
-              {policy.builtIn ? null : (
+                {policy.builtIn ? null : (
+                  <button
+                    type="button"
+                    className="link-muted text-sm"
+                    onClick={() => onEdit(policy.role, policy.allows)}
+                  >
+                    Edit
+                  </button>
+                )}
                 <button
                   type="button"
                   className="link-muted text-sm"
-                  onClick={() => onEdit(policy.role, policy.allows)}
+                  onClick={() => onCopy(policy.role, policy.allows)}
                 >
-                  Edit
+                  Copy
                 </button>
-              )}
-              <button
-                type="button"
-                className="link-muted text-sm"
-                onClick={() => onCopy(policy.role, policy.allows)}
-              >
-                Copy
-              </button>
-              {policy.builtIn ? null : (
-                <button
-                  type="button"
-                  className="link-danger text-sm"
-                  onClick={() => onDelete(policy.role)}
-                >
-                  Delete
-                </button>
-              )}
+                {policy.builtIn ? null : (
+                  <button
+                    type="button"
+                    className="link-danger text-sm"
+                    onClick={() => onDelete(policy.role)}
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
             </td>
           </Row>
         ))}

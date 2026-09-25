@@ -7,6 +7,8 @@ import {
   Empty,
   ErrorNote,
   Loading,
+  Page,
+  SectionHeading,
   Tabs,
   activeTab,
   formatDate,
@@ -88,12 +90,12 @@ export function GroupDetail() {
   };
 
   return (
-    <div className="space-y-4">
+    <Page>
       <Tabs tabs={TABS} active={tabId} onChange={changeTab} />
       {shown?.id === "members" ? <Members group={group} /> : null}
       {shown?.id === "access" ? <Access group={group} /> : null}
       {shown?.id === "activity" ? <Activity groupId={group.id} /> : null}
-    </div>
+    </Page>
   );
 }
 
@@ -137,15 +139,15 @@ function Members({ group }: { group: GroupRow }) {
   const others = everybody.filter((p) => !inGroup.has(p.userId));
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-(--gap-stack)">
       <Card>
-        <p className="font-medium">In {group.name}</p>
+        <SectionHeading>In {group.name}</SectionHeading>
         {group.members.length === 0 ? (
-          <p className="mt-1 text-sm" style={muted}>
+          <p className="text-sm" style={muted}>
             Nobody yet.
           </p>
         ) : (
-          <ul className="mt-2 space-y-1 text-sm">
+          <ul className="flex flex-col gap-(--gap-tight) text-sm">
             {group.members.map((m) => (
               <li key={m.userId} className="flex items-center justify-between">
                 <span>{m.name || m.email}</span>
@@ -165,8 +167,8 @@ function Members({ group }: { group: GroupRow }) {
 
       {others.length > 0 ? (
         <Card>
-          <p className="font-medium">Add somebody</p>
-          <ul className="mt-2 space-y-1 text-sm">
+          <SectionHeading>Add somebody</SectionHeading>
+          <ul className="flex flex-col gap-(--gap-tight) text-sm">
             {others.map((p) => (
               <li key={p.userId} className="flex items-center justify-between">
                 <span>{p.name || p.email}</span>
@@ -237,12 +239,15 @@ function Access({ group }: { group: GroupRow }) {
   const known = data?.roles ?? [];
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-(--gap-stack)">
       <Card>
-        <p className="font-medium">What {group.name} carries</p>
-        <div className="mt-2 flex flex-wrap gap-3 text-sm">
+        <SectionHeading>What {group.name} carries</SectionHeading>
+        <div className="flex flex-wrap gap-(--gap-toolbar) text-sm">
           {known.map((policy) => (
-            <label key={policy.role} className="flex items-center gap-1.5">
+            <label
+              key={policy.role}
+              className="flex items-center gap-(--gap-tight)"
+            >
               <input
                 type="checkbox"
                 checked={group.roles.includes(policy.role)}
@@ -300,7 +305,7 @@ function Activity({ groupId }: { groupId: string }) {
 
   return (
     <Card>
-      <ul className="space-y-1 text-sm">
+      <ul className="flex flex-col gap-(--gap-tight) text-sm">
         {events.map((e) => (
           <li key={e.id}>
             <span style={muted}>{formatDate(e.at)}</span>{" "}
@@ -316,7 +321,7 @@ function Activity({ groupId }: { groupId: string }) {
         ))}
       </ul>
       {(data?.total ?? 0) > events.length ? (
-        <p className="mt-2 text-xs" style={muted}>
+        <p className="mt-(--gap-toolbar) text-xs" style={muted}>
           The {events.length} most recent of {data?.total}. The whole log is
           under Events.
         </p>

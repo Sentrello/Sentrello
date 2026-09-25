@@ -9,9 +9,12 @@ import {
   Field,
   Input,
   Loading,
+  Page,
   Row,
+  SectionHeading,
   Select,
   Table,
+  Toolbar,
   formatMoney,
   muted,
 } from "../lib/ui";
@@ -63,15 +66,17 @@ function NexusCard() {
   };
 
   return (
-    <Card>
-      <p className="mb-1 font-medium">Where you stand, state by state</p>
-      <p className="mb-3 text-sm" style={muted}>
-        A state can make you collect its sales tax once your sales into it pass
-        its economic-nexus threshold. These are your issued invoices, net of
-        tax, against each state's line — thresholds as checked on{" "}
-        {nexus.data?.checked}. Registering is your decision, and your
-        accountant's; this page only makes sure you hear about it first.
-      </p>
+    <Card className="flex flex-col gap-(--gap-toolbar)">
+      <div>
+        <SectionHeading>Where you stand, state by state</SectionHeading>
+        <p className="text-sm" style={muted}>
+          A state can make you collect its sales tax once your sales into it
+          pass its economic-nexus threshold. These are your issued invoices, net
+          of tax, against each state's line — thresholds as checked on{" "}
+          {nexus.data?.checked}. Registering is your decision, and your
+          accountant's; this page only makes sure you hear about it first.
+        </p>
+      </div>
       {states.length === 0 ? (
         <p className="text-sm" style={muted}>
           No sales into US states yet — nothing to watch.
@@ -123,13 +128,13 @@ function NexusCard() {
         </Table>
       )}
       {(nexus.data?.unattributedCents ?? 0) !== 0 ? (
-        <p className="mt-2 text-sm" style={muted}>
+        <p className="text-sm" style={muted}>
           {formatMoney(nexus.data?.unattributedCents ?? 0)} of US sales could
           not be placed in a state — customers without a company record, or with
           a state that could not be read. Every column above is a floor.
         </p>
       ) : null}
-      <p className="mt-2 text-xs" style={muted}>
+      <p className="text-xs" style={muted}>
         {nexus.data?.basis}
       </p>
     </Card>
@@ -167,15 +172,17 @@ function FilingCard() {
   });
 
   return (
-    <Card>
-      <p className="mb-1 font-medium">Filing figures</p>
-      <p className="mb-3 text-sm" style={muted}>
-        Taxable sales and tax collected, per jurisdiction, for the period — with
-        the same figure read back from that jurisdiction's own ledger account
-        beside it. The two agreeing is the check to run before you type anything
-        into a state's portal.
-      </p>
-      <div className="mb-3 flex flex-wrap items-end gap-2">
+    <Card className="flex flex-col gap-(--gap-toolbar)">
+      <div>
+        <SectionHeading>Filing figures</SectionHeading>
+        <p className="text-sm" style={muted}>
+          Taxable sales and tax collected, per jurisdiction, for the period —
+          with the same figure read back from that jurisdiction's own ledger
+          account beside it. The two agreeing is the check to run before you
+          type anything into a state's portal.
+        </p>
+      </div>
+      <Toolbar>
         <Field label="From">
           <Input
             type="date"
@@ -190,7 +197,7 @@ function FilingCard() {
             onChange={(e) => setPeriod({ from, to: e.target.value })}
           />
         </Field>
-      </div>
+      </Toolbar>
       {report.isLoading ? <Loading /> : null}
       {report.error ? <ErrorNote error={report.error} /> : null}
       {report.data ? (
@@ -237,8 +244,8 @@ function FilingCard() {
         )
       ) : null}
       {report.data && report.data.exempt.length > 0 ? (
-        <div className="mt-3">
-          <p className="mb-1 text-sm font-medium">Exempt sales</p>
+        <div>
+          <SectionHeading level={3}>Exempt sales</SectionHeading>
           <Table headers={["State", "Exempt sales", "Invoices"]}>
             {report.data.exempt.map((e) => (
               <Row key={e.state}>
@@ -337,14 +344,16 @@ function CertificatesCard() {
   };
 
   return (
-    <Card>
-      <p className="mb-1 font-medium">Exemption certificates</p>
-      <p className="mb-3 text-sm" style={muted}>
-        A reseller, non-profit or government customer hands you a certificate
-        and is charged no tax — and in an audit the certificate is the whole
-        defence. Record it here, pick it when you invoice them, and an expired
-        one stops working out loud rather than quietly under-collecting.
-      </p>
+    <Card className="flex flex-col gap-(--gap-toolbar)">
+      <div>
+        <SectionHeading>Exemption certificates</SectionHeading>
+        <p className="text-sm" style={muted}>
+          A reseller, non-profit or government customer hands you a certificate
+          and is charged no tax — and in an audit the certificate is the whole
+          defence. Record it here, pick it when you invoice them, and an expired
+          one stops working out loud rather than quietly under-collecting.
+        </p>
+      </div>
       {rows.length > 0 ? (
         <Table
           headers={["Customer", "State", "Number", "Reason", "Expires", "", ""]}
@@ -403,7 +412,7 @@ function CertificatesCard() {
         </p>
       )}
 
-      <div className="mt-3 flex flex-wrap items-end gap-2">
+      <Toolbar>
         <Field label="Customer">
           <div className="w-48">
             <RecordPicker
@@ -471,7 +480,7 @@ function CertificatesCard() {
         >
           Add it
         </Button>
-      </div>
+      </Toolbar>
       {add.error ? <ErrorNote error={add.error} /> : null}
       {revoke.error ? <ErrorNote error={revoke.error} /> : null}
     </Card>
@@ -480,10 +489,10 @@ function CertificatesCard() {
 
 export function UsSalesTax() {
   return (
-    <div className="space-y-4">
+    <Page>
       <NexusCard />
       <CertificatesCard />
       <FilingCard />
-    </div>
+    </Page>
   );
 }

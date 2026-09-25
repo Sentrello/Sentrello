@@ -9,8 +9,11 @@ import {
   Field,
   Input,
   Loading,
+  Page,
   SecretInput,
+  SectionHeading,
   Select,
+  Textarea,
   muted,
 } from "../../lib/ui";
 
@@ -93,128 +96,136 @@ export function Providers() {
   const connections = list.data?.connections ?? [];
 
   return (
-    <Card>
-      <p className="font-medium">Signing in with your own accounts</p>
-      <p className="mt-1 text-sm" style={muted}>
-        Connect the place your staff already sign in — Google Workspace,
-        Microsoft 365, or anything that speaks SAML. Anybody with an address at
-        a connected domain is sent there instead of being asked for a password.
-      </p>
+    <Page width="prose">
+      <Card className="flex flex-col gap-(--gap-toolbar)">
+        <div>
+          <SectionHeading>Signing in with your own accounts</SectionHeading>
+          <p className="text-sm" style={muted}>
+            Connect the place your staff already sign in — Google Workspace,
+            Microsoft 365, or anything that speaks SAML. Anybody with an address
+            at a connected domain is sent there instead of being asked for a
+            password.
+          </p>
+        </div>
 
-      {connections.length > 0 ? (
-        <ul className="mt-3 space-y-2 text-sm">
-          {connections.map((connection) => (
-            <li
-              key={connection.id}
-              className="flex flex-wrap items-center justify-between gap-2"
-            >
-              <span>
-                <strong>{connection.domain}</strong>
-                <span style={muted}>
-                  {" "}
-                  · {connection.protocol === "saml" ? "SAML" : "OpenID"} ·{" "}
-                  {connection.issuer}
-                </span>
-              </span>
-              <ConfirmButton
-                variant="secondary"
-                disabled={disconnect.isPending}
-                title="Disconnect this provider?"
-                message={`Nobody with an address at ${connection.domain} will be able to sign in through it. If that is how your staff sign in, they will be locked out until somebody with a password gets back in — so check at least one administrator has one first. Everybody keeps their account, their policy and their work.`}
-                confirmLabel="Disconnect it"
-                onConfirm={() => disconnect.mutate(connection.id)}
+        {connections.length > 0 ? (
+          <ul className="flex flex-col gap-(--gap-toolbar) text-sm">
+            {connections.map((connection) => (
+              <li
+                key={connection.id}
+                className="flex flex-wrap items-center justify-between gap-(--gap-toolbar)"
               >
-                Disconnect
-              </ConfirmButton>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      <p className="mt-2 text-xs" style={muted}>
-        Disconnecting stops sign-ins from that domain. Everybody who arrived
-        through it keeps their account and their roles.
-      </p>
-
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <Field label="Where your staff sign in">
-          <Select value={kind} onChange={(e) => setKind(e.target.value)}>
-            {kinds.map((k) => (
-              <option key={k.id} value={k.id}>
-                {k.label}
-              </option>
+                <span>
+                  <strong>{connection.domain}</strong>
+                  <span style={muted}>
+                    {" "}
+                    · {connection.protocol === "saml" ? "SAML" : "OpenID"} ·{" "}
+                    {connection.issuer}
+                  </span>
+                </span>
+                <ConfirmButton
+                  variant="secondary"
+                  disabled={disconnect.isPending}
+                  title="Disconnect this provider?"
+                  message={`Nobody with an address at ${connection.domain} will be able to sign in through it. If that is how your staff sign in, they will be locked out until somebody with a password gets back in — so check at least one administrator has one first. Everybody keeps their account, their policy and their work.`}
+                  confirmLabel="Disconnect it"
+                  onConfirm={() => disconnect.mutate(connection.id)}
+                >
+                  Disconnect
+                </ConfirmButton>
+              </li>
             ))}
-          </Select>
-        </Field>
-        <Field
-          label="Email domain"
-          hint="Everybody with an address here is sent to your provider."
-        >
-          <Input
-            value={domain}
-            placeholder="example.com"
-            onChange={(e) => setDomain(e.target.value)}
-          />
-        </Field>
-
-        {chosen?.needsIssuer ? (
-          <Field
-            label="Issuer URL"
-            hint="Your provider gives you this — it is where its configuration lives."
-          >
-            <Input value={issuer} onChange={(e) => setIssuer(e.target.value)} />
-          </Field>
+          </ul>
         ) : null}
+        <p className="text-xs" style={muted}>
+          Disconnecting stops sign-ins from that domain. Everybody who arrived
+          through it keeps their account and their roles.
+        </p>
 
-        {chosen?.protocol === "oidc" ? (
-          <>
-            <Field label="Client id">
-              <Input
-                value={clientId}
-                onChange={(e) => setClientId(e.target.value)}
-              />
-            </Field>
-            <Field label="Client secret">
-              <SecretInput
-                value={clientSecret}
-                onChange={(e) => setClientSecret(e.target.value)}
-              />
-            </Field>
-          </>
-        ) : (
-          <>
-            <Field label="Sign-in URL" hint="Your provider's SAML endpoint.">
-              <Input
-                value={entryPoint}
-                onChange={(e) => setEntryPoint(e.target.value)}
-              />
-            </Field>
+        <div className="grid gap-(--gap-toolbar) sm:grid-cols-2">
+          <Field label="Where your staff sign in">
+            <Select value={kind} onChange={(e) => setKind(e.target.value)}>
+              {kinds.map((k) => (
+                <option key={k.id} value={k.id}>
+                  {k.label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field
+            label="Email domain"
+            hint="Everybody with an address here is sent to your provider."
+          >
+            <Input
+              value={domain}
+              placeholder="example.com"
+              onChange={(e) => setDomain(e.target.value)}
+            />
+          </Field>
+
+          {chosen?.needsIssuer ? (
             <Field
-              label="Certificate"
-              hint="The signing certificate, pasted whole."
+              label="Issuer URL"
+              hint="Your provider gives you this — it is where its configuration lives."
             >
               <Input
-                value={certificate}
-                onChange={(e) => setCertificate(e.target.value)}
+                value={issuer}
+                onChange={(e) => setIssuer(e.target.value)}
               />
             </Field>
-          </>
-        )}
-      </div>
+          ) : null}
 
-      {connect.error ? <ErrorNote error={connect.error} /> : null}
-      <div className="mt-3">
-        <Button
-          onClick={() => connect.mutate()}
-          disabled={connect.isPending || !domain.trim()}
-        >
-          {connect.isPending ? "Connecting…" : "Connect"}
-        </Button>
-        <p className="mt-2 text-xs" style={muted}>
-          People who sign in this way join as members. Give them a role here
-          afterwards — an identity provider says who somebody is, not what they
-          may do in your books.
-        </p>
-      </div>
-    </Card>
+          {chosen?.protocol === "oidc" ? (
+            <>
+              <Field label="Client id">
+                <Input
+                  value={clientId}
+                  onChange={(e) => setClientId(e.target.value)}
+                />
+              </Field>
+              <Field label="Client secret">
+                <SecretInput
+                  value={clientSecret}
+                  onChange={(e) => setClientSecret(e.target.value)}
+                />
+              </Field>
+            </>
+          ) : (
+            <>
+              <Field label="Sign-in URL" hint="Your provider's SAML endpoint.">
+                <Input
+                  value={entryPoint}
+                  onChange={(e) => setEntryPoint(e.target.value)}
+                />
+              </Field>
+              <Field
+                label="Certificate"
+                hint="The signing certificate, pasted whole."
+              >
+                <Textarea
+                  value={certificate}
+                  onChange={(e) => setCertificate(e.target.value)}
+                />
+              </Field>
+            </>
+          )}
+        </div>
+
+        {connect.error ? <ErrorNote error={connect.error} /> : null}
+        <div>
+          <Button
+            onClick={() => connect.mutate()}
+            disabled={connect.isPending || !domain.trim()}
+          >
+            {connect.isPending ? "Connecting…" : "Connect"}
+          </Button>
+          <p className="mt-(--gap-toolbar) text-xs" style={muted}>
+            People who sign in this way join as members. Give them a role here
+            afterwards — an identity provider says who somebody is, not what
+            they may do in your books.
+          </p>
+        </div>
+      </Card>
+    </Page>
   );
 }

@@ -19,7 +19,9 @@ import {
   Field,
   Input,
   Loading,
-  border,
+  Page,
+  SectionHeading,
+  Toolbar,
   muted,
 } from "../lib/ui";
 
@@ -219,24 +221,30 @@ export function CrmSettings() {
   };
 
   return (
-    <div className="max-w-3xl space-y-4">
+    <Page width="prose">
       <Card>
-        <div className="mb-1 flex items-baseline justify-between">
-          <p className="font-medium">Your pipeline</p>
-          {settings.data.usingDefaults && !dirty ? (
-            <span className="text-xs" style={muted}>
-              using the defaults
-            </span>
-          ) : null}
-        </div>
+        <SectionHeading
+          trailing={
+            settings.data.usingDefaults && !dirty ? (
+              <span className="text-xs" style={muted}>
+                using the defaults
+              </span>
+            ) : null
+          }
+        >
+          Your pipeline
+        </SectionHeading>
         <p className="mb-3 text-sm" style={muted}>
           The columns on the deals board, left to right. Rename them to match
           what you actually do — a stage keeps its deals when you rename it.
         </p>
 
-        <ul className="space-y-2">
+        <ul className="flex flex-col gap-(--gap-toolbar)">
           {current.map((stage, index) => (
-            <li key={stage.id} className="flex items-center gap-2">
+            <li
+              key={stage.id}
+              className="flex items-center gap-(--gap-toolbar)"
+            >
               <Input
                 value={stage.label}
                 /*
@@ -253,8 +261,7 @@ export function CrmSettings() {
               />
               <button
                 type="button"
-                className="px-1 text-sm"
-                style={muted}
+                className="px-1 text-sm link-muted"
                 aria-label="Move earlier"
                 disabled={index === 0}
                 onClick={() => move(index, -1)}
@@ -263,8 +270,7 @@ export function CrmSettings() {
               </button>
               <button
                 type="button"
-                className="px-1 text-sm"
-                style={muted}
+                className="px-1 text-sm link-muted"
                 aria-label="Move later"
                 disabled={index === current.length - 1}
                 onClick={() => move(index, 1)}
@@ -283,7 +289,7 @@ export function CrmSettings() {
           ))}
         </ul>
 
-        <div className="mt-2">
+        <Toolbar className="mt-2">
           <Button
             variant="secondary"
             onClick={() =>
@@ -292,17 +298,17 @@ export function CrmSettings() {
           >
             Add a stage
           </Button>
-        </div>
+        </Toolbar>
       </Card>
 
       <Card>
-        <p className="mb-1 font-medium">Task types</p>
+        <SectionHeading>Task types</SectionHeading>
         <p className="mb-3 text-sm" style={muted}>
           What a task can be: a call, a site visit, whatever you log.
         </p>
-        <div className="flex flex-wrap gap-2">
+        <Toolbar>
           {currentTypes.map((type, index) => (
-            <span key={type} className="flex items-center gap-1">
+            <span key={type} className="flex items-center gap-(--gap-tight)">
               <Input
                 value={type}
                 className="w-36"
@@ -334,7 +340,7 @@ export function CrmSettings() {
           >
             Add
           </Button>
-        </div>
+        </Toolbar>
       </Card>
 
       {/*
@@ -346,13 +352,16 @@ export function CrmSettings() {
         is which.
       */}
       <Card>
-        <p className="mb-1 font-medium">What counts as won and lost</p>
+        <SectionHeading>What counts as won and lost</SectionHeading>
         <p className="mb-3 text-sm" style={muted}>
           The dashboard chart and the pipeline totals read these.
         </p>
-        <div className="space-y-1">
+        <div className="flex flex-col gap-(--gap-tight)">
           {current.map((stage) => (
-            <div key={stage.id} className="flex items-center gap-4 text-sm">
+            <div
+              key={stage.id}
+              className="flex items-center gap-(--gap-toolbar) text-sm"
+            >
               <span className="w-40 truncate">{stage.label}</span>
               {(
                 [
@@ -360,7 +369,10 @@ export function CrmSettings() {
                   ["Lost", currentLost, setLost],
                 ] as const
               ).map(([label, list, set]) => (
-                <label key={label} className="flex items-center gap-1.5">
+                <label
+                  key={label}
+                  className="flex items-center gap-(--gap-tight)"
+                >
                   <input
                     type="checkbox"
                     checked={list.includes(stage.id)}
@@ -384,22 +396,24 @@ export function CrmSettings() {
       </Card>
 
       <Card>
-        <p className="mb-1 font-medium">Contact statuses</p>
+        <SectionHeading>Contact statuses</SectionHeading>
         <p className="mb-3 text-sm" style={muted}>
           How warm a relationship is, coldest first. The order here is the order
           the filter offers them in.
         </p>
-        <div className="space-y-2">
+        <div className="flex flex-col gap-(--gap-toolbar)">
           {currentStatuses.map((status, index) => (
-            <div key={status.id} className="flex items-center gap-2">
+            <div
+              key={status.id}
+              className="flex items-center gap-(--gap-toolbar)"
+            >
               {/* A colour picker, because these are read as dots in a list of
                   two hundred contacts rather than read as words. */}
               <input
                 type="color"
                 value={status.color}
                 aria-label={`Colour for ${status.label}`}
-                className="h-8 w-10 rounded border"
-                style={border}
+                className="h-8 w-10 rounded border border-line"
                 onChange={(e) => {
                   const next = [...currentStatuses];
                   next[index] = { ...status, color: e.target.value };
@@ -460,16 +474,15 @@ export function CrmSettings() {
 
       {dirty ? (
         <Card>
-          <div className="flex items-center gap-3">
+          <Toolbar>
             <Button
               onClick={() => save.mutate(pending)}
               disabled={save.isPending}
             >
               {save.isPending ? "Saving…" : "Save changes"}
             </Button>
-            <button
-              type="button"
-              className="text-sm link-muted"
+            <Button
+              variant="secondary"
               onClick={() => {
                 setStages(null);
                 setTypes(null);
@@ -481,25 +494,25 @@ export function CrmSettings() {
               }}
             >
               Discard
-            </button>
-          </div>
+            </Button>
+          </Toolbar>
           {save.error ? <ErrorNote error={save.error} /> : null}
         </Card>
       ) : null}
 
       <Card>
-        <p className="mb-1 font-medium">Tags</p>
+        <SectionHeading>Tags</SectionHeading>
         <p className="mb-3 text-sm" style={muted}>
           Labels you put on contacts. Deleting one takes it off everybody who
           has it.
         </p>
 
         {tags.data?.tags.length ? (
-          <ul className="mb-3 space-y-1">
+          <ul className="mb-3 flex flex-col gap-(--gap-tight)">
             {tags.data.tags.map((tag) => (
               <li
                 key={tag.id}
-                className="flex items-center gap-3 border-t py-2 first:border-0 border-line"
+                className="flex items-center gap-(--gap-toolbar) border-t py-2 first:border-0 border-line"
               >
                 <span
                   aria-hidden="true"
@@ -507,7 +520,7 @@ export function CrmSettings() {
                   style={{ background: tag.color }}
                 />
                 <span className="flex-1 text-sm">{tag.name}</span>
-                <span className="flex gap-1">
+                <span className="flex gap-(--gap-tight)">
                   {TAG_COLOURS.map((colour) => (
                     <button
                       key={colour}
@@ -562,7 +575,7 @@ export function CrmSettings() {
         )}
 
         <Field label="Add a tag">
-          <div className="flex gap-2">
+          <Toolbar>
             <Input
               value={newTag}
               placeholder="Repeat customer"
@@ -580,7 +593,7 @@ export function CrmSettings() {
             >
               Add
             </Button>
-          </div>
+          </Toolbar>
         </Field>
         {addTag.error ? <ErrorNote error={addTag.error} /> : null}
         {removeTag.error ? <ErrorNote error={removeTag.error} /> : null}
@@ -598,7 +611,7 @@ export function CrmSettings() {
         />
       ) : (settings.data.customFields ?? []).length > 0 ? (
         <Card>
-          <p className="mb-2 font-medium">Custom fields</p>
+          <SectionHeading>Custom fields</SectionHeading>
           <ul className="text-sm" style={muted}>
             {(settings.data.customFields ?? []).map((f) => (
               <li key={f.id}>
@@ -615,7 +628,7 @@ export function CrmSettings() {
 
       <EmailCapture />
       <Webhooks />
-    </div>
+    </Page>
   );
 }
 
@@ -679,7 +692,7 @@ function Webhooks() {
 
   return (
     <Card>
-      <p className="mb-1 font-medium">Webhooks</p>
+      <SectionHeading>Webhooks</SectionHeading>
       <p className="mb-3 text-sm" style={muted}>
         Your own systems can be told when a contact, company or deal changes.
         Each call is signed, so the receiver can prove it came from here.
@@ -688,10 +701,9 @@ function Webhooks() {
       {(hooks.data?.webhooks ?? []).map((hook) => (
         <div
           key={hook.id}
-          className="mb-2 rounded border px-3 py-2"
-          style={border}
+          className="mb-2 rounded border border-line px-3 py-2"
         >
-          <div className="flex flex-wrap items-center gap-2 text-sm">
+          <Toolbar className="text-sm">
             <span className="min-w-0 flex-1 truncate font-mono">
               {hook.url}
             </span>
@@ -716,15 +728,15 @@ function Webhooks() {
             >
               Remove
             </ConfirmButton>
-          </div>
+          </Toolbar>
           {showingLog === hook.id ? <DeliveryLog webhookId={hook.id} /> : null}
         </div>
       ))}
 
       {issued ? (
         <div
-          className="mb-3 rounded border px-3 py-2 text-sm"
-          style={{ ...border, background: "var(--surface)" }}
+          className="mb-3 rounded border border-line px-3 py-2 text-sm"
+          style={{ background: "var(--surface)" }}
         >
           <p className="mb-1 font-medium">Signing secret — shown once</p>
           <p className="mb-1 select-all break-all font-mono text-xs">
@@ -746,7 +758,7 @@ function Webhooks() {
       ) : null}
 
       <form
-        className="space-y-2"
+        className="flex flex-col gap-(--gap-toolbar)"
         onSubmit={(e) => {
           e.preventDefault();
           if (url.trim() && entities.length) create.mutate();
@@ -762,9 +774,9 @@ function Webhooks() {
             placeholder="https://example.com/hooks/sentrello"
           />
         </Field>
-        <div className="flex flex-wrap items-center gap-4 text-sm">
+        <Toolbar className="text-sm">
           {WEBHOOK_ENTITIES.map((entity) => (
-            <label key={entity} className="flex items-center gap-1.5">
+            <label key={entity} className="flex items-center gap-(--gap-tight)">
               <input
                 type="checkbox"
                 checked={entities.includes(entity)}
@@ -773,7 +785,7 @@ function Webhooks() {
               {CRM_RESOURCE[entity]}
             </label>
           ))}
-          <label className="flex items-center gap-1.5" style={muted}>
+          <label className="flex items-center gap-(--gap-tight)" style={muted}>
             <input
               type="checkbox"
               checked={allowInsecure}
@@ -781,7 +793,7 @@ function Webhooks() {
             />
             Allow plain http — anything sent can be read on the way
           </label>
-        </div>
+        </Toolbar>
         <Button
           type="submit"
           disabled={!url.trim() || !entities.length || create.isPending}
@@ -816,14 +828,14 @@ function DeliveryLog({ webhookId }: { webhookId: string }) {
   if (isLoading) return <Loading />;
   if (!data) return null;
   return (
-    <div className="mt-2 border-t pt-2 text-xs" style={border}>
+    <div className="mt-2 border-t border-line pt-2 text-xs">
       <p className="mb-1" style={muted}>
         {data.counts.delivered} delivered · {data.counts.pending} pending ·{" "}
         {data.counts.abandoned} abandoned
       </p>
-      <ul className="max-h-48 space-y-0.5 overflow-y-auto">
+      <ul className="flex max-h-48 flex-col gap-(--gap-tight) overflow-y-auto">
         {data.deliveries.map((d) => (
-          <li key={d.id} className="flex items-center gap-2">
+          <li key={d.id} className="flex items-center gap-(--gap-toolbar)">
             <span className="font-mono">{d.event}</span>
             <span style={muted}>
               {d.status}
@@ -891,7 +903,7 @@ function EmailCapture() {
 
   return (
     <Card>
-      <p className="font-medium">Capture email</p>
+      <SectionHeading>Capture email</SectionHeading>
       <p className="mb-3 text-sm" style={muted}>
         CC one address on the mail you already send, and it lands on that
         customer's record as a note. Mail from an address nobody here has is
@@ -911,13 +923,13 @@ function EmailCapture() {
 
       {data?.enabled && data.webhookUrl ? (
         <div className="mt-3">
-          <p className="text-sm font-medium">Point your provider here</p>
+          <SectionHeading level={3}>Point your provider here</SectionHeading>
           <p className="text-xs" style={muted}>
             This URL is the credential. Anybody holding it can write notes onto
             your contacts, so treat it like a password — and rotate it below if
             it goes anywhere it should not.
           </p>
-          <div className="mt-1 flex items-center gap-2">
+          <Toolbar className="mt-1">
             <Input
               readOnly
               value={data.webhookUrl}
@@ -932,11 +944,11 @@ function EmailCapture() {
             >
               {copied ? "Copied" : "Copy"}
             </Button>
-          </div>
+          </Toolbar>
         </div>
       ) : null}
 
-      <div className="mt-4 flex items-center gap-2">
+      <Toolbar className="mt-4">
         <Button onClick={() => turnOn.mutate()} disabled={turnOn.isPending}>
           {data?.enabled ? "Rotate the URL" : "Turn it on"}
         </Button>
@@ -949,7 +961,7 @@ function EmailCapture() {
             Turn it off
           </Button>
         ) : null}
-      </div>
+      </Toolbar>
 
       {turnOn.error ? <ErrorNote error={turnOn.error} /> : null}
       {turnOff.error ? <ErrorNote error={turnOff.error} /> : null}
@@ -978,16 +990,16 @@ function WordList({
 }) {
   return (
     <Card>
-      <p className="mb-1 font-medium">{title}</p>
+      <SectionHeading>{title}</SectionHeading>
       <p className="mb-3 text-sm" style={muted}>
         {hint}
       </p>
-      <div className="flex flex-wrap gap-2">
+      <Toolbar>
         {values.map((value, index) => (
           // No stable id: these are the labels themselves, and two blank rows
           // while somebody is typing are legitimately equal.
           // biome-ignore lint/suspicious/noArrayIndexKey: the value is the identity and it changes as you type
-          <span key={index} className="flex items-center gap-1">
+          <span key={index} className="flex items-center gap-(--gap-tight)">
             <Input
               value={value}
               className="w-40"
@@ -1013,7 +1025,7 @@ function WordList({
         >
           Add
         </Button>
-      </div>
+      </Toolbar>
     </Card>
   );
 }

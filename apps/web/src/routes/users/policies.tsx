@@ -2,7 +2,16 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { roleApi } from "../../lib/auth";
 import { useNavigation } from "../../lib/navigation";
-import { Button, Card, ErrorNote, Field, Input, muted } from "../../lib/ui";
+import {
+  Button,
+  Card,
+  ErrorNote,
+  Field,
+  Input,
+  Page,
+  SectionHeading,
+  muted,
+} from "../../lib/ui";
 import { Matrix, Policies as PolicyTable, policyLabel } from "./policy-ui";
 
 /**
@@ -68,7 +77,7 @@ export function Policies() {
   };
 
   return (
-    <div className="space-y-4">
+    <Page>
       <PolicyTable
         title="User policies"
         blurb="How senior somebody is. Given to a person directly."
@@ -89,15 +98,18 @@ export function Policies() {
         onDelete={(role) => remove.mutate(role)}
       />
 
-      <div className="flex items-center justify-between">
-        <p className="font-medium">Policies you wrote</p>
-        <Button onClick={() => (creating ? reset() : setCreating(true))}>
-          {creating ? "Cancel" : "New policy"}
-        </Button>
-      </div>
+      <SectionHeading
+        trailing={
+          <Button onClick={() => (creating ? reset() : setCreating(true))}>
+            {creating ? "Cancel" : "New policy"}
+          </Button>
+        }
+      >
+        Policies you wrote
+      </SectionHeading>
 
       {creating ? (
-        <Card>
+        <Card className="flex flex-col gap-(--gap-toolbar)">
           <Field label="Name" hint="What this job is called in your business.">
             <Input
               value={name}
@@ -106,15 +118,17 @@ export function Policies() {
             />
           </Field>
 
-          <p className="mt-3 mb-1 font-medium text-sm">What they may do</p>
-          <p className="mb-2 text-xs" style={muted}>
-            {/* Better Auth enforces this; saying it up front beats a refusal
-                somebody has to interpret. */}
-            You can only grant what you hold yourself.
-          </p>
+          <div>
+            <SectionHeading level={3}>What they may do</SectionHeading>
+            <p className="text-xs" style={muted}>
+              {/* Better Auth enforces this; saying it up front beats a refusal
+                  somebody has to interpret. */}
+              You can only grant what you hold yourself.
+            </p>
+          </div>
           <Matrix value={permission} onChange={setPermission} />
 
-          <div className="mt-3">
+          <div>
             <Button
               onClick={() => create.mutate()}
               disabled={!name.trim() || create.isPending}
@@ -137,6 +151,6 @@ export function Policies() {
       />
 
       {remove.error ? <ErrorNote error={remove.error} /> : null}
-    </div>
+    </Page>
   );
 }

@@ -117,7 +117,7 @@ export function InvoicingDashboard() {
   }));
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-(--gap-stack)">
       {distance.data?.applies && distance.data.warning && (
         <Card>
           <p className="text-sm" style={{ color: "var(--text-danger)" }}>
@@ -172,7 +172,7 @@ export function InvoicingDashboard() {
               Nothing is late. Everything issued is either paid or not yet due.
             </p>
           ) : (
-            <ul className="space-y-1 text-sm">
+            <ul className="flex flex-col gap-(--gap-tight) text-sm">
               {data.late.map((invoice) => (
                 <li key={invoice.id} className="flex flex-wrap gap-2">
                   <button
@@ -202,7 +202,7 @@ export function InvoicingDashboard() {
               No drafts waiting. Everything written has gone out.
             </p>
           ) : (
-            <ul className="space-y-1 text-sm">
+            <ul className="flex flex-col gap-(--gap-tight) text-sm">
               {data.drafts.map((invoice) => (
                 <li key={invoice.id} className="flex flex-wrap gap-2">
                   <button

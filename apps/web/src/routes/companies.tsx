@@ -38,9 +38,12 @@ import {
   Field,
   Input,
   Loading,
+  Page,
+  PageActions,
   Row,
+  SectionHeading,
   Table,
-  border,
+  Toolbar,
   formatMoney,
   muted,
 } from "../lib/ui";
@@ -82,174 +85,178 @@ export function Companies() {
   if (error) return <ErrorNote error={error} />;
 
   return (
-    <div className="flex gap-6">
-      <FilterPanel state={state} placeholder="Search companies">
-        <FilterGroup label="Size" icon="users">
-          {COMPANY_SIZES.map((size) => (
-            <FilterToggle
-              key={size.id}
-              label={size.label}
-              active={state.isFilterActive({ size: String(size.id) })}
-              onClick={() => state.toggleFilter({ size: String(size.id) })}
-            />
-          ))}
-        </FilterGroup>
+    <Page>
+      <PageActions>
+        <Button onClick={() => setAdding(true)}>
+          <span className="flex items-center gap-1.5">
+            <Icon name="plus" size={15} />
+            New company
+          </span>
+        </Button>
+      </PageActions>
 
-        {settings.companySectors.length ? (
-          <FilterGroup label="Sector" icon="briefcase">
-            {settings.companySectors.map((sector) => (
+      <div className="flex gap-(--gap-stack)">
+        <FilterPanel state={state} placeholder="Search companies">
+          <FilterGroup label="Size" icon="users">
+            {COMPANY_SIZES.map((size) => (
               <FilterToggle
-                key={sector}
-                label={sector}
-                active={state.isFilterActive({ sector })}
-                onClick={() => state.toggleFilter({ sector })}
+                key={size.id}
+                label={size.label}
+                active={state.isFilterActive({ size: String(size.id) })}
+                onClick={() => state.toggleFilter({ size: String(size.id) })}
               />
             ))}
           </FilterGroup>
-        ) : null}
 
-        <FilterGroup label="Account manager" icon="user">
-          <FilterToggle
-            label="Companies I manage"
-            active={!!myId && state.isFilterActive({ ownerId: myId })}
-            onClick={() => myId && state.toggleFilter({ ownerId: myId })}
-          />
-          {managers
-            .filter((manager) => manager.userId !== myId)
-            .map((manager) => (
-              <FilterToggle
-                key={manager.userId}
-                label={managerName(manager)}
-                active={state.isFilterActive({ ownerId: manager.userId })}
-                onClick={() => state.toggleFilter({ ownerId: manager.userId })}
-              />
-            ))}
-        </FilterGroup>
-      </FilterPanel>
+          {settings.companySectors.length ? (
+            <FilterGroup label="Sector" icon="briefcase">
+              {settings.companySectors.map((sector) => (
+                <FilterToggle
+                  key={sector}
+                  label={sector}
+                  active={state.isFilterActive({ sector })}
+                  onClick={() => state.toggleFilter({ sector })}
+                />
+              ))}
+            </FilterGroup>
+          ) : null}
 
-      <div className="min-w-0 flex-1 space-y-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <SortMenu
-            state={state}
-            fields={[
-              { field: "name", label: "Name", order: "asc" },
-              { field: "createdAt", label: "Date added", order: "desc" },
-              { field: "sector", label: "Sector", order: "asc" },
-              { field: "size", label: "Size", order: "desc" },
-              { field: "city", label: "City", order: "asc" },
-            ]}
-          />
-          <GroupMenu
-            state={state}
-            fields={[
-              { field: "sector", label: "Sector" },
-              { field: "city", label: "City" },
-              { field: "size", label: "Size" },
-            ]}
-          />
-          <SavedViews
-            resource="companies"
-            state={state}
-            defaults={{ sort: "name", order: "asc" }}
-          />
+          <FilterGroup label="Account manager" icon="user">
+            <FilterToggle
+              label="Companies I manage"
+              active={!!myId && state.isFilterActive({ ownerId: myId })}
+              onClick={() => myId && state.toggleFilter({ ownerId: myId })}
+            />
+            {managers
+              .filter((manager) => manager.userId !== myId)
+              .map((manager) => (
+                <FilterToggle
+                  key={manager.userId}
+                  label={managerName(manager)}
+                  active={state.isFilterActive({ ownerId: manager.userId })}
+                  onClick={() =>
+                    state.toggleFilter({ ownerId: manager.userId })
+                  }
+                />
+              ))}
+          </FilterGroup>
+        </FilterPanel>
 
-          <div className="ml-auto flex items-center gap-2">
+        <div className="min-w-0 flex-1 flex flex-col gap-(--gap-stack)">
+          <Toolbar>
+            <SortMenu
+              state={state}
+              fields={[
+                { field: "name", label: "Name", order: "asc" },
+                { field: "createdAt", label: "Date added", order: "desc" },
+                { field: "sector", label: "Sector", order: "asc" },
+                { field: "size", label: "Size", order: "desc" },
+                { field: "city", label: "City", order: "asc" },
+              ]}
+            />
+            <GroupMenu
+              state={state}
+              fields={[
+                { field: "sector", label: "Sector" },
+                { field: "city", label: "City" },
+                { field: "size", label: "Size" },
+              ]}
+            />
+            <SavedViews
+              resource="companies"
+              state={state}
+              defaults={{ sort: "name", order: "asc" }}
+            />
+
             {/* A plain link, not a fetch: the browser downloads it with the
                 filename the server sends, and the session cookie goes along.
                 The filters travel with it, so the file matches the screen. */}
             <a
               href={`/api/companies/export.csv?${new URLSearchParams(state.filters).toString()}`}
-              className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm"
-              style={border}
+              className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-line px-3 py-1.5 text-sm"
             >
               Export
             </a>
-            <Button onClick={() => setAdding(true)}>
-              <span className="flex items-center gap-1.5">
-                <Icon name="plus" size={15} />
-                New company
-              </span>
-            </Button>
-          </div>
-        </div>
+          </Toolbar>
 
-        {adding ? (
-          <CompanyForm
-            settings={settings}
-            onDone={(saved) => {
-              setAdding(false);
-              qc.invalidateQueries({ queryKey: ["companies"] });
-              if (saved) {
-                open({
-                  moduleId: "companies",
-                  recordId: saved.id,
-                  title: saved.name,
-                });
+          {adding ? (
+            <CompanyForm
+              settings={settings}
+              onDone={(saved) => {
+                setAdding(false);
+                qc.invalidateQueries({ queryKey: ["companies"] });
+                if (saved) {
+                  open({
+                    moduleId: "companies",
+                    recordId: saved.id,
+                    title: saved.name,
+                  });
+                }
+              }}
+            />
+          ) : null}
+
+          {isLoading ? (
+            <Loading />
+          ) : rows.length === 0 ? (
+            <Empty
+              title={
+                state.q || state.hasFilters ? "No matches" : "No companies yet"
               }
-            }}
-          />
-        ) : null}
-
-        {isLoading ? (
-          <Loading />
-        ) : rows.length === 0 ? (
-          <Empty
-            title={
-              state.q || state.hasFilters ? "No matches" : "No companies yet"
-            }
-          >
-            {state.q || state.hasFilters
-              ? "Try a different search, or clear the filters."
-              : "A company groups the people who work there and the deals in flight."}
-          </Empty>
-        ) : (
-          <>
-            {groupedSections(
-              rows,
-              response?.groups as ListGroup[] | undefined,
-              state.filters.groupBy,
-            ).map((section) => (
-              <div key={String(section.group?.value ?? "every-company")}>
-                {section.group ? (
-                  /* The count is the whole filtered set, not this page. */
-                  <p
-                    className="mb-1 flex items-baseline gap-2 text-xs uppercase tracking-wide"
-                    style={muted}
-                  >
-                    <span className="font-medium">
-                      {String(section.group.value ?? "—")}
-                    </span>
-                    <span>{section.group.count}</span>
-                  </p>
-                ) : null}
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                  {section.rows.map((co) => (
-                    <CompanyCard
-                      key={co.id}
-                      company={co}
-                      columns={
-                        response?.computedColumns as
-                          | ComputedColumn[]
-                          | undefined
-                      }
-                      onOpen={() =>
-                        open({
-                          moduleId: "companies",
-                          recordId: co.id,
-                          title: co.name,
-                        })
-                      }
-                    />
-                  ))}
+            >
+              {state.q || state.hasFilters
+                ? "Try a different search, or clear the filters."
+                : "A company groups the people who work there and the deals in flight."}
+            </Empty>
+          ) : (
+            <>
+              {groupedSections(
+                rows,
+                response?.groups as ListGroup[] | undefined,
+                state.filters.groupBy,
+              ).map((section) => (
+                <div key={String(section.group?.value ?? "every-company")}>
+                  {section.group ? (
+                    /* The count is the whole filtered set, not this page. */
+                    <p
+                      className="mb-(--gap-tight) flex items-baseline gap-(--gap-toolbar) text-xs uppercase tracking-wide"
+                      style={muted}
+                    >
+                      <span className="font-medium">
+                        {String(section.group.value ?? "—")}
+                      </span>
+                      <span>{section.group.count}</span>
+                    </p>
+                  ) : null}
+                  <div className="grid gap-(--gap-toolbar) sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    {section.rows.map((co) => (
+                      <CompanyCard
+                        key={co.id}
+                        company={co}
+                        columns={
+                          response?.computedColumns as
+                            | ComputedColumn[]
+                            | undefined
+                        }
+                        onOpen={() =>
+                          open({
+                            moduleId: "companies",
+                            recordId: co.id,
+                            title: co.name,
+                          })
+                        }
+                      />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
 
-            {paginated ? <Pagination state={state} total={total} /> : null}
-          </>
-        )}
+              {paginated ? <Pagination state={state} total={total} /> : null}
+            </>
+          )}
+        </div>
       </div>
-    </div>
+    </Page>
   );
 }
 
@@ -278,10 +285,10 @@ function CompanyCard({
     <button
       type="button"
       onClick={onOpen}
-      className="flex h-44 flex-col justify-between rounded border p-4 text-center"
-      style={{ ...border, background: "var(--surface-raised)" }}
+      className="flex h-44 flex-col justify-between rounded border border-line p-4 text-center"
+      style={{ background: "var(--surface-raised)" }}
     >
-      <span className="flex flex-col items-center gap-1">
+      <span className="flex flex-col items-center gap-(--gap-tight)">
         <Avatar
           src={
             company.logoPath ? `/api/crm/companies/${company.id}/image` : null
@@ -295,14 +302,14 @@ function CompanyCard({
           {company.sector ?? "\u00a0"}
         </span>
         <span
-          className="flex flex-wrap justify-center gap-x-2 text-xs"
+          className="flex flex-wrap justify-center gap-x-(--gap-toolbar) text-xs"
           style={muted}
         >
           <ComputedCells columns={columns} row={company} />
         </span>
       </span>
 
-      <span className="flex w-full items-center justify-between gap-2">
+      <span className="flex w-full items-center justify-between gap-(--gap-toolbar)">
         <span className="flex items-center -space-x-1.5">
           {staff.map((person) => (
             <Avatar
@@ -376,11 +383,11 @@ export function CompanyDetail() {
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
-      <div className="space-y-4">
+    <div className="grid gap-(--gap-stack) lg:grid-cols-[1fr_20rem]">
+      <div className="flex flex-col gap-(--gap-stack)">
         <Card>
-          <div className="flex items-baseline justify-between gap-2">
-            <div className="flex items-center gap-3">
+          <div className="flex items-baseline justify-between gap-(--gap-toolbar)">
+            <div className="flex items-center gap-(--gap-toolbar)">
               <ImageUpload
                 subject="companies"
                 id={company.id}
@@ -410,10 +417,10 @@ export function CompanyDetail() {
           </p>
 
           {company.description ? (
-            <p className="mt-3 text-sm">{company.description}</p>
+            <p className="mt-(--gap-stack) text-sm">{company.description}</p>
           ) : null}
 
-          <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+          <div className="mt-(--gap-stack) grid gap-(--gap-toolbar) text-sm sm:grid-cols-2">
             {company.phone ? (
               <p>
                 <span style={muted}>Phone: </span>
@@ -445,13 +452,13 @@ export function CompanyDetail() {
         </Card>
 
         <Card>
-          <p className="mb-2 font-medium">People here</p>
+          <SectionHeading>People here</SectionHeading>
           {contacts.length === 0 ? (
             <p className="text-sm" style={muted}>
               Nobody recorded at this company yet.
             </p>
           ) : (
-            <ul className="space-y-1 text-sm">
+            <ul className="flex flex-col gap-(--gap-tight) text-sm">
               {contacts.map((p) => (
                 <li key={p.id}>
                   <RelatedLink
@@ -472,18 +479,19 @@ export function CompanyDetail() {
       </div>
 
       <Card>
-        <p className="mb-1 font-medium">Deals</p>
         {/* The number a business actually wants off this screen: what is on the
             table with this customer right now. */}
-        <p className="mb-2 text-sm" style={muted}>
-          {open.length} open · {formatMoney(inFlight)} in flight
-        </p>
+        <SectionHeading
+          hint={`${open.length} open · ${formatMoney(inFlight)} in flight`}
+        >
+          Deals
+        </SectionHeading>
         {deals.length === 0 ? (
           <p className="text-sm" style={muted}>
             Nothing in the pipeline.
           </p>
         ) : (
-          <div className="space-y-2">
+          <div className="flex flex-col gap-(--gap-toolbar)">
             {deals.map((d) => (
               <div key={d.id} className="text-sm">
                 <RelatedLink

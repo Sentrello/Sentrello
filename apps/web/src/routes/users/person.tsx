@@ -9,7 +9,9 @@ import {
   Empty,
   ErrorNote,
   Loading,
+  Page,
   Row,
+  SectionHeading,
   Select,
   Table,
   Tabs,
@@ -137,7 +139,7 @@ export function PersonDetail() {
   };
 
   return (
-    <div className="space-y-4">
+    <Page>
       <Tabs tabs={TABS} active={tabId} onChange={changeTab} />
       {shown?.id === "details" ? (
         <Details person={person} onChanged={refetch} />
@@ -151,7 +153,7 @@ export function PersonDetail() {
       ) : null}
       {shown?.id === "sessions" ? <Sessions userId={person.userId} /> : null}
       {shown?.id === "activity" ? <Activity userId={person.userId} /> : null}
-    </div>
+    </Page>
   );
 }
 
@@ -204,8 +206,8 @@ function Details({
     .map(policyLabel);
 
   return (
-    <Card>
-      <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
+    <Card className="flex flex-col gap-(--gap-toolbar)">
+      <dl className="grid gap-x-6 gap-y-(--gap-toolbar) text-sm sm:grid-cols-2">
         <div>
           <dt className="font-medium">Name</dt>
           <dd style={muted}>{person.name || "—"}</dd>
@@ -237,7 +239,7 @@ function Details({
         </div>
         <div>
           <dt className="font-medium">Policy</dt>
-          <dd className="mt-1">
+          <dd className="mt-(--gap-tight)">
             {person.you ? (
               // Changing your own is how the last administrator locks the
               // business out of its own instance, and nobody else can undo it.
@@ -284,18 +286,18 @@ function Details({
 
       {setRole.error ? <ErrorNote error={setRole.error} /> : null}
 
-      <p className="mt-3 text-xs" style={muted}>
+      <p className="text-xs" style={muted}>
         A person's name and email are theirs to change, under their own account.
         An administrator who could change somebody's email could point it at
         their own and take the account over.
       </p>
 
       {person.you ? (
-        <p className="mt-3 text-xs" style={muted}>
+        <p className="text-xs" style={muted}>
           You cannot disable your own account — ask another administrator.
         </p>
       ) : (
-        <div className="mt-3">
+        <div>
           <ConfirmButton
             variant={person.disabledAt ? "primary" : "danger"}
             disabled={toggle.isPending}
@@ -369,14 +371,14 @@ function Credentials({
   });
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-(--gap-stack)">
       <Card>
-        <p className="font-medium">Password</p>
-        <p className="mt-1 text-sm" style={muted}>
+        <SectionHeading>Password</SectionHeading>
+        <p className="text-sm" style={muted}>
           Issuing a new one signs {person.email} out everywhere. Read it to them
           and have them change it — it is shown once and stored nowhere.
         </p>
-        <div className="mt-2">
+        <div className="mt-(--gap-toolbar)">
           <ConfirmButton
             variant="primary"
             disabled={resetPassword.isPending}
@@ -389,14 +391,16 @@ function Credentials({
           </ConfirmButton>
         </div>
         {issued ? (
-          <p className="money mt-2 text-lg tracking-wide">{issued}</p>
+          <p className="money mt-(--gap-toolbar) text-lg tracking-wide">
+            {issued}
+          </p>
         ) : null}
         {resetPassword.error ? <ErrorNote error={resetPassword.error} /> : null}
       </Card>
 
       <Card>
-        <p className="font-medium">Two-factor</p>
-        <p className="mt-1 text-sm" style={muted}>
+        <SectionHeading>Two-factor</SectionHeading>
+        <p className="text-sm" style={muted}>
           {person.twoFactorEnabled
             ? "Set up on this account."
             : person.twoFactorRequired
@@ -404,7 +408,7 @@ function Credentials({
               : "Not set up."}
         </p>
         {person.twoFactorEnabled ? (
-          <div className="mt-2">
+          <div className="mt-(--gap-toolbar)">
             <ConfirmButton
               variant="danger"
               disabled={revokeTwoFactor.isPending}
@@ -430,8 +434,8 @@ function Credentials({
       */}
       {person.locked ? (
         <Card>
-          <p className="font-medium">Locked</p>
-          <p className="mt-1 text-sm" style={muted}>
+          <SectionHeading>Locked</SectionHeading>
+          <p className="text-sm" style={muted}>
             {person.failedAttempts} failed attempts in a row.{" "}
             {person.lockedUntil
               ? `This lifts by itself at ${new Date(person.lockedUntil).toLocaleTimeString()}.`
@@ -439,7 +443,7 @@ function Credentials({
             Unlocking now lets them try again immediately; it does not change
             their password.
           </p>
-          <div className="mt-2">
+          <div className="mt-(--gap-toolbar)">
             <Button disabled={unlock.isPending} onClick={() => unlock.mutate()}>
               {unlock.isPending ? "Unlocking…" : "Unlock"}
             </Button>
@@ -511,15 +515,15 @@ function PersonGroups({
   const others = groups.filter((g) => !belongs(g));
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-(--gap-stack)">
       <Card>
-        <p className="font-medium">In</p>
+        <SectionHeading>In</SectionHeading>
         {mine.length === 0 ? (
-          <p className="mt-1 text-sm" style={muted}>
+          <p className="text-sm" style={muted}>
             Not in any group.
           </p>
         ) : (
-          <ul className="mt-2 space-y-1 text-sm">
+          <ul className="flex flex-col gap-(--gap-tight) text-sm">
             {mine.map((g) => (
               <li key={g.id} className="flex items-center justify-between">
                 <span>{g.name}</span>
@@ -539,8 +543,8 @@ function PersonGroups({
 
       {others.length > 0 ? (
         <Card>
-          <p className="font-medium">Join a group</p>
-          <ul className="mt-2 space-y-1 text-sm">
+          <SectionHeading>Join a group</SectionHeading>
+          <ul className="flex flex-col gap-(--gap-tight) text-sm">
             {others.map((g) => (
               <li key={g.id} className="flex items-center justify-between">
                 <span>{g.name}</span>
@@ -595,18 +599,21 @@ function Sessions({ userId }: { userId: string }) {
 
   return (
     <Card>
-      <div className="mb-2 flex items-center justify-between">
-        <p className="font-medium">Devices</p>
-        <ConfirmButton
-          title="Sign them out everywhere?"
-          message="Every device below is signed out and will have to sign in again. Anything part-way through being typed is lost."
-          confirmLabel="Sign them out"
-          disabled={revokeAll.isPending}
-          onConfirm={() => revokeAll.mutate()}
-        >
-          Sign out everywhere
-        </ConfirmButton>
-      </div>
+      <SectionHeading
+        trailing={
+          <ConfirmButton
+            title="Sign them out everywhere?"
+            message="Every device below is signed out and will have to sign in again. Anything part-way through being typed is lost."
+            confirmLabel="Sign them out"
+            disabled={revokeAll.isPending}
+            onConfirm={() => revokeAll.mutate()}
+          >
+            Sign out everywhere
+          </ConfirmButton>
+        }
+      >
+        Devices
+      </SectionHeading>
       <Table headers={["Device", "IP", "Last active", ""]}>
         {sessions.map((s) => (
           <Row key={s.id}>
@@ -693,7 +700,7 @@ function Activity({ userId }: { userId: string }) {
 
   return (
     <Card>
-      <ul className="space-y-1 text-sm">
+      <ul className="flex flex-col gap-(--gap-tight) text-sm">
         {events.map((e) => (
           <li key={e.id}>
             <span style={muted}>{formatDate(e.at)}</span>{" "}
@@ -708,7 +715,7 @@ function Activity({ userId }: { userId: string }) {
         ))}
       </ul>
       {more ? (
-        <p className="mt-2 text-xs" style={muted}>
+        <p className="mt-(--gap-toolbar) text-xs" style={muted}>
           The {events.length} most recent. Their whole history is under Events,
           filtered by name.
         </p>

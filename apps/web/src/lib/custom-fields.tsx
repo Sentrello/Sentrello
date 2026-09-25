@@ -181,7 +181,7 @@ export function CustomFieldEditor({
           None yet.
         </p>
       ) : (
-        <ul className="mb-3 space-y-2">
+        <ul className="mb-3 flex flex-col gap-(--gap-toolbar)">
           {fields.map((field, index) => (
             <li
               key={`${field.appliesTo}-${field.id}-${index}`}

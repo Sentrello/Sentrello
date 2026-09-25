@@ -108,7 +108,7 @@ export function AcceptInvitation() {
       </a>
     </>
   ) : info ? (
-    <form onSubmit={onSubmit} className="space-y-4">
+    <form onSubmit={onSubmit} className="flex flex-col gap-(--gap-stack)">
       <h1 className="text-lg font-semibold">Join {info.organization}</h1>
       <p className="text-sm" style={{ color: "var(--text-muted)" }}>
         You were invited as <strong>{info.email}</strong>
@@ -117,7 +117,7 @@ export function AcceptInvitation() {
       </p>
 
       {info.signedInAsInvitee ? null : info.userExists ? (
-        <label className="block space-y-1 text-sm">
+        <label className="block flex flex-col gap-(--gap-tight) text-sm">
           <span>Your password</span>
           <input
             type="password"
@@ -136,7 +136,7 @@ export function AcceptInvitation() {
         </label>
       ) : (
         <>
-          <label className="block space-y-1 text-sm">
+          <label className="block flex flex-col gap-(--gap-tight) text-sm">
             <span>Your name</span>
             <input
               type="text"
@@ -147,7 +147,7 @@ export function AcceptInvitation() {
               className="w-full rounded border px-2 py-1 border-line"
             />
           </label>
-          <label className="block space-y-1 text-sm">
+          <label className="block flex flex-col gap-(--gap-tight) text-sm">
             <span>Choose a password</span>
             <input
               type="password"

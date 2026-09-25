@@ -527,7 +527,7 @@ export function ConfirmButton({
         </button>
       )}
       <Dialog title={title} open={asking} onClose={() => setAsking(false)}>
-        <div className="space-y-4">
+        <div className="flex flex-col gap-(--gap-stack)">
           <p className="text-sm">{message}</p>
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setAsking(false)}>

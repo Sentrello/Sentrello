@@ -88,6 +88,14 @@ step "typecheck" ./node_modules/.bin/tsc -b --force
 if [ -x ./node_modules/.bin/biome ]; then
   step "lint" ./node_modules/.bin/biome check .
 fi
+
+# A class that does not exist is a valid class *name*, so nothing above this
+# line can see it: the compiler emits no rule, the element gets no style, and
+# the screen is wrong only on a monitor. Three shipped on 25 September alone —
+# a Tailwind v4 syntax that was dropped, a name only Core declared, and a
+# shadcn name declared nowhere at all. Asking the built stylesheet is the only
+# question that decides, so the build is part of the check.
+step "classes" bash -c 'bun run --cwd apps/web build >/dev/null && node apps/web/scripts/check-classes.mjs >/dev/null'
 # A test run that leaves an organization behind is a failure, even when green.
 #
 # Every suite here creates organizations and tidies them up afterwards. One

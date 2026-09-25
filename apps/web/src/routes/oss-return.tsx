@@ -107,7 +107,7 @@ export function OssReturn() {
   const data = report.data;
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-(--gap-stack)">
       <Card>
         <p className="mb-1 font-medium">EU One Stop Shop return</p>
         <p className="mb-3 text-sm" style={muted}>
@@ -208,7 +208,7 @@ export function OssReturn() {
              */}
             {data.omissions.length > 0 ? (
               <ul
-                className="mb-3 space-y-1 text-sm"
+                className="mb-3 flex flex-col gap-(--gap-tight) text-sm"
                 style={{ color: "var(--text-danger)" }}
               >
                 {data.omissions.map((omission) => (
@@ -348,7 +348,10 @@ export function OssReturn() {
               </span>
             </p>
 
-            <ul className="mt-3 space-y-1 text-xs" style={muted}>
+            <ul
+              className="mt-3 flex flex-col gap-(--gap-tight) text-xs"
+              style={muted}
+            >
               {data.caveats.map((caveat) => (
                 <li key={caveat}>{caveat}</li>
               ))}

@@ -109,7 +109,7 @@ export function ContactsImport({ onDone }: { onDone: () => void }) {
               {result.skipped.length} row
               {result.skipped.length === 1 ? "" : "s"} skipped:
             </p>
-            <ul className="mt-1 space-y-0.5">
+            <ul className="mt-1 flex flex-col gap-(--gap-tight)">
               {result.skipped.slice(0, 10).map((s) => (
                 <li key={s.row} style={muted}>
                   Row {s.row} — {s.why}

@@ -14,7 +14,10 @@ import {
   ErrorNote,
   Field,
   Input,
+  Page,
   Select,
+  Textarea,
+  Toolbar,
   border,
   muted,
 } from "../lib/ui";
@@ -37,12 +40,12 @@ function ContextLinks({
   onChange: (next: string[]) => void;
 }) {
   return (
-    <fieldset className="space-y-2">
-      <legend className="mb-1 block text-sm">Links</legend>
+    <fieldset className="flex flex-col gap-(--gap-toolbar)">
+      <legend className="mb-(--gap-tight) block text-sm">Links</legend>
       {values.map((value, i) => (
         // No stable id before saving, and two blank rows are legitimately equal.
         // biome-ignore lint/suspicious/noArrayIndexKey: rows have no id until saved
-        <div key={i} className="flex gap-2">
+        <div key={i} className="flex gap-(--gap-toolbar)">
           <Input
             value={value}
             placeholder="https://…"
@@ -115,7 +118,7 @@ function ViesStatus({
     : null;
 
   return (
-    <div className="mt-1 text-xs text-muted-foreground">
+    <div className="mt-(--gap-tight) text-xs" style={muted}>
       {on &&
         (checked.taxIdentifierValid ? (
           <p>
@@ -213,173 +216,184 @@ export function CompanyForm({
   });
 
   return (
-    <Card>
-      <form
-        className="space-y-5"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (name.trim()) save.mutate();
-        }}
-      >
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Name">
-            <Input
-              value={name}
-              autoFocus
-              onChange={(e) => setName(e.target.value)}
-            />
-          </Field>
-          <Field label="Sector">
-            <Select value={sector} onChange={(e) => setSector(e.target.value)}>
-              <option value="">Not stated</option>
-              {settings.companySectors.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </Select>
-          </Field>
-        </div>
+    <Page width="prose">
+      <Card>
+        <form
+          className="flex flex-col gap-(--gap-stack)"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (name.trim()) save.mutate();
+          }}
+        >
+          <div className="grid gap-(--gap-toolbar) sm:grid-cols-2">
+            <Field label="Name">
+              <Input
+                value={name}
+                autoFocus
+                onChange={(e) => setName(e.target.value)}
+              />
+            </Field>
+            <Field label="Sector">
+              <Select
+                value={sector}
+                onChange={(e) => setSector(e.target.value)}
+              >
+                <option value="">Not stated</option>
+                {settings.companySectors.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
 
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Field label="Size">
-            <Select value={size} onChange={(e) => setSize(e.target.value)}>
-              <option value="">Not stated</option>
-              {COMPANY_SIZES.map((band) => (
-                <option key={band.id} value={band.id}>
-                  {band.label}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Revenue" hint="However this business talks about it.">
-            <Input
-              value={revenue}
-              onChange={(e) => setRevenue(e.target.value)}
-            />
-          </Field>
-          <Field
-            label="Tax identifier"
-            hint="VAT number, EIN, GST/HST — whatever applies."
-          >
-            <Input
-              value={taxIdentifier}
-              onChange={(e) => setTaxIdentifier(e.target.value)}
-            />
-            {company && (
-              <ViesStatus company={company} taxIdentifier={taxIdentifier} />
-            )}
-          </Field>
-        </div>
-
-        <div className="grid gap-3 border-t pt-4 sm:grid-cols-4" style={border}>
-          <Field label="Website">
-            <Input
-              value={website}
-              placeholder="https://…"
-              onChange={(e) => setWebsite(e.target.value)}
-            />
-          </Field>
-          <Field label="LinkedIn">
-            <Input
-              value={linkedinUrl}
-              placeholder="https://linkedin.com/company/…"
-              onChange={(e) => setLinkedinUrl(e.target.value)}
-            />
-          </Field>
-          <Field label="Phone">
-            <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
-          </Field>
-          <Field label="Account manager" hint="Whose account this is.">
-            <Select
-              value={ownerId}
-              onChange={(e) => setOwnerId(e.target.value)}
+          <div className="grid gap-(--gap-toolbar) sm:grid-cols-3">
+            <Field label="Size">
+              <Select value={size} onChange={(e) => setSize(e.target.value)}>
+                <option value="">Not stated</option>
+                {COMPANY_SIZES.map((band) => (
+                  <option key={band.id} value={band.id}>
+                    {band.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Revenue" hint="However this business talks about it.">
+              <Input
+                value={revenue}
+                onChange={(e) => setRevenue(e.target.value)}
+              />
+            </Field>
+            <Field
+              label="Tax identifier"
+              hint="VAT number, EIN, GST/HST — whatever applies."
             >
-              <option value="">Nobody yet</option>
-              {managers.map((manager) => (
-                <option key={manager.userId} value={manager.userId}>
-                  {managerName(manager)}
-                </option>
-              ))}
-            </Select>
-          </Field>
-        </div>
+              <Input
+                value={taxIdentifier}
+                onChange={(e) => setTaxIdentifier(e.target.value)}
+              />
+              {company && (
+                <ViesStatus company={company} taxIdentifier={taxIdentifier} />
+              )}
+            </Field>
+          </div>
 
-        <div className="grid gap-3 border-t pt-4 sm:grid-cols-2" style={border}>
-          <Field label="Address">
-            <Input
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-            />
-          </Field>
-          <Field label="City">
-            <Input value={city} onChange={(e) => setCity(e.target.value)} />
-          </Field>
-          <Field label="Postcode">
-            <Input
-              value={postcode}
-              onChange={(e) => setPostcode(e.target.value)}
-            />
-          </Field>
-          <Field label="State or region">
-            <Input
-              value={stateName}
-              onChange={(e) => setStateName(e.target.value)}
-            />
-          </Field>
-          <Field label="Country">
-            <Input
-              value={country}
-              onChange={(e) => setCountry(e.target.value)}
-            />
-          </Field>
-        </div>
+          <div
+            className="grid gap-(--gap-toolbar) border-t pt-(--gap-stack) sm:grid-cols-4"
+            style={border}
+          >
+            <Field label="Website">
+              <Input
+                value={website}
+                placeholder="https://…"
+                onChange={(e) => setWebsite(e.target.value)}
+              />
+            </Field>
+            <Field label="LinkedIn">
+              <Input
+                value={linkedinUrl}
+                placeholder="https://linkedin.com/company/…"
+                onChange={(e) => setLinkedinUrl(e.target.value)}
+              />
+            </Field>
+            <Field label="Phone">
+              <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
+            </Field>
+            <Field label="Account manager" hint="Whose account this is.">
+              <Select
+                value={ownerId}
+                onChange={(e) => setOwnerId(e.target.value)}
+              >
+                <option value="">Nobody yet</option>
+                {managers.map((manager) => (
+                  <option key={manager.userId} value={manager.userId}>
+                    {managerName(manager)}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
 
-        <div className="grid gap-4 border-t pt-4 sm:grid-cols-2" style={border}>
-          <Field label="Description">
-            <textarea
-              value={description}
-              rows={4}
-              placeholder="What they do, and what the relationship is"
-              onChange={(e) => setDescription(e.target.value)}
-              className="w-full rounded-md border px-2 py-1.5 text-sm"
-              style={{ ...border, background: "var(--surface-raised)" }}
+          <div
+            className="grid gap-(--gap-toolbar) border-t pt-(--gap-stack) sm:grid-cols-2"
+            style={border}
+          >
+            <Field label="Address">
+              <Input
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+              />
+            </Field>
+            <Field label="City">
+              <Input value={city} onChange={(e) => setCity(e.target.value)} />
+            </Field>
+            <Field label="Postcode">
+              <Input
+                value={postcode}
+                onChange={(e) => setPostcode(e.target.value)}
+              />
+            </Field>
+            <Field label="State or region">
+              <Input
+                value={stateName}
+                onChange={(e) => setStateName(e.target.value)}
+              />
+            </Field>
+            <Field label="Country">
+              <Input
+                value={country}
+                onChange={(e) => setCountry(e.target.value)}
+              />
+            </Field>
+          </div>
+
+          <div
+            className="grid gap-(--gap-stack) border-t pt-(--gap-stack) sm:grid-cols-2"
+            style={border}
+          >
+            <Field label="Description">
+              <Textarea
+                value={description}
+                placeholder="What they do, and what the relationship is"
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </Field>
+            <ContextLinks values={contextLinks} onChange={setContextLinks} />
+          </div>
+
+          {/* This business's own fields, from its settings rather than here. */}
+          <div className="grid gap-(--gap-toolbar) sm:grid-cols-2">
+            <CustomFields
+              fields={settings.customFields.filter(
+                (f) => f.appliesTo === "company",
+              )}
+              values={customValues}
+              onChange={setCustomValues}
             />
-          </Field>
-          <ContextLinks values={contextLinks} onChange={setContextLinks} />
-        </div>
+          </div>
 
-        {/* This business's own fields, from its settings rather than here. */}
-        <div className="grid gap-3 sm:grid-cols-2">
-          <CustomFields
-            fields={settings.customFields.filter(
-              (f) => f.appliesTo === "company",
-            )}
-            values={customValues}
-            onChange={setCustomValues}
-          />
-        </div>
+          <Toolbar>
+            <Button type="submit" disabled={save.isPending || !name.trim()}>
+              {save.isPending
+                ? "Saving…"
+                : company
+                  ? "Save changes"
+                  : "Create company"}
+            </Button>
+            <Button variant="secondary" onClick={() => onDone()}>
+              Cancel
+            </Button>
+            {!name.trim() ? (
+              <span className="text-sm" style={muted}>
+                A name is needed.
+              </span>
+            ) : null}
+          </Toolbar>
 
-        <div className="flex items-center gap-2">
-          <Button type="submit" disabled={save.isPending || !name.trim()}>
-            {save.isPending
-              ? "Saving…"
-              : company
-                ? "Save changes"
-                : "Create company"}
-          </Button>
-          <Button variant="secondary" onClick={() => onDone()}>
-            Cancel
-          </Button>
-          {!name.trim() ? (
-            <span className="text-sm" style={muted}>
-              A name is needed.
-            </span>
-          ) : null}
-        </div>
-
-        {save.error ? <ErrorNote error={save.error} /> : null}
-      </form>
-    </Card>
+          {save.error ? <ErrorNote error={save.error} /> : null}
+        </form>
+      </Card>
+    </Page>
   );
 }

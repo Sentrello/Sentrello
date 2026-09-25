@@ -23,7 +23,11 @@ import {
   Field,
   Input,
   Loading,
+  Page,
+  SectionHeading,
   Select,
+  Textarea,
+  Toolbar,
   border,
   formatDate,
   formatMoney,
@@ -244,20 +248,14 @@ function Notes({
 
   return (
     <Card>
-      <p className="mb-2 font-medium">Notes</p>
-      <textarea
+      <SectionHeading>Notes</SectionHeading>
+      <Textarea
         rows={2}
         value={text}
         placeholder="What was said?"
         onChange={(e) => setText(e.target.value)}
-        className="w-full rounded border px-2 py-1.5 text-sm"
-        style={{
-          background: "var(--surface-raised)",
-          borderColor: "var(--border)",
-          color: "var(--text)",
-        }}
       />
-      <div className="mt-2">
+      <div className="mt-(--gap-toolbar)">
         <Button
           onClick={() => add.mutate()}
           disabled={!text.trim() || add.isPending}
@@ -269,7 +267,7 @@ function Notes({
       {amend.error ? <ErrorNote error={amend.error} /> : null}
       {remove.error ? <ErrorNote error={remove.error} /> : null}
 
-      <div className="mt-3 space-y-2">
+      <div className="mt-(--gap-toolbar) flex flex-col gap-(--gap-toolbar)">
         {notes.length === 0 ? (
           <p className="text-sm" style={muted}>
             Nothing written down yet.
@@ -279,19 +277,13 @@ function Notes({
             <div key={n.id} className="border-t pt-2 text-sm border-line">
               {editing === n.id ? (
                 <>
-                  <textarea
+                  <Textarea
                     rows={2}
                     value={draft}
                     aria-label="Correct this note"
                     onChange={(e) => setDraft(e.target.value)}
-                    className="w-full rounded border px-2 py-1.5 text-sm"
-                    style={{
-                      background: "var(--surface-raised)",
-                      borderColor: "var(--border)",
-                      color: "var(--text)",
-                    }}
                   />
-                  <div className="mt-1 flex gap-2">
+                  <Toolbar className="mt-(--gap-tight)">
                     <Button
                       disabled={!draft.trim() || amend.isPending}
                       onClick={() => amend.mutate({ id: n.id, text: draft })}
@@ -304,14 +296,14 @@ function Notes({
                     >
                       Cancel
                     </Button>
-                  </div>
+                  </Toolbar>
                 </>
               ) : (
                 <p className="whitespace-pre-wrap">{n.text}</p>
               )}
 
               {n.attachments?.length ? (
-                <ul className="mt-1 space-y-0.5">
+                <ul className="mt-(--gap-tight) flex flex-col gap-(--gap-tight)">
                   {n.attachments.map((a, i) => (
                     <li key={a.path} className="text-xs">
                       <a
@@ -329,7 +321,7 @@ function Notes({
               ) : null}
 
               <p
-                className="mt-0.5 flex items-center gap-2 text-xs"
+                className="mt-(--gap-tight) flex items-center gap-(--gap-toolbar) text-xs"
                 style={muted}
               >
                 {formatDate(n.createdAt)}
@@ -408,171 +400,170 @@ export function ContactDetail() {
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
-      <div className="space-y-4">
-        <Card>
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <div className="flex items-center gap-3">
-              <ImageUpload
-                subject="contacts"
-                id={contact.id}
-                name={contact.name}
-                hasImage={Boolean(contact.avatarPath)}
-              />
-              <div>
-                <p className="flex items-center gap-2 text-lg font-semibold">
-                  {contact.name}
-                  {/* How warm the relationship is, where the name is — it is
+    <Page>
+      <div className="grid gap-(--gap-stack) lg:grid-cols-[1fr_20rem]">
+        <div className="flex flex-col gap-(--gap-stack)">
+          <Card>
+            <div className="flex flex-wrap items-baseline justify-between gap-(--gap-toolbar)">
+              <div className="flex items-center gap-(--gap-toolbar)">
+                <ImageUpload
+                  subject="contacts"
+                  id={contact.id}
+                  name={contact.name}
+                  hasImage={Boolean(contact.avatarPath)}
+                />
+                <div>
+                  <p className="flex items-center gap-(--gap-toolbar) text-lg font-semibold">
+                    {contact.name}
+                    {/* How warm the relationship is, where the name is — it is
                       the first thing somebody wants to know on opening a
                       contact, and it was only visible in the list. */}
-                  <StatusLabel status={contact.status} settings={settings} />
-                </p>
-                <p className="text-sm" style={muted}>
-                  {[contact.title, company?.name]
-                    .filter(Boolean)
-                    .join(" at ") || "No job title"}
-                </p>
+                    <StatusLabel status={contact.status} settings={settings} />
+                  </p>
+                  <p className="text-sm" style={muted}>
+                    {[contact.title, company?.name]
+                      .filter(Boolean)
+                      .join(" at ") || "No job title"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-(--gap-toolbar)">
+                <Tags contactId={contact.id} attached={tags} />
+                <button
+                  type="button"
+                  className="text-sm link-muted"
+                  onClick={() => setEditing(true)}
+                >
+                  Edit
+                </button>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Tags contactId={contact.id} attached={tags} />
-              <button
-                type="button"
-                className="text-sm link-muted"
-                onClick={() => setEditing(true)}
-              >
-                Edit
-              </button>
-            </div>
-          </div>
 
-          {/*
+            {/*
             How they were met, who introduced them, what they care about.
 
             The one thing a CRM holds that a spreadsheet does not, so it sits
             on the record rather than buried in a note somebody has to find.
           */}
-          {contact.background ? (
-            <p className="mt-3 whitespace-pre-line text-sm">
-              <span style={muted}>Background: </span>
-              {contact.background}
-            </p>
-          ) : null}
+            {contact.background ? (
+              <p className="mt-(--gap-toolbar) whitespace-pre-line text-sm">
+                <span style={muted}>Background: </span>
+                {contact.background}
+              </p>
+            ) : null}
 
-          {/* The company is a record, not a label — following it is the point. */}
-          {company ? (
-            <p className="mt-3 text-sm">
-              <span style={muted}>Company: </span>
-              <RelatedLink
-                to={{
-                  moduleId: "companies",
-                  recordId: company.id,
-                  title: company.name,
-                }}
-              >
-                {company.name}
-              </RelatedLink>
-            </p>
-          ) : null}
+            {/* The company is a record, not a label — following it is the point. */}
+            {company ? (
+              <p className="mt-(--gap-toolbar) text-sm">
+                <span style={muted}>Company: </span>
+                <RelatedLink
+                  to={{
+                    moduleId: "companies",
+                    recordId: company.id,
+                    title: company.name,
+                  }}
+                >
+                  {company.name}
+                </RelatedLink>
+              </p>
+            ) : null}
 
-          <CustomValues
-            fields={settings.customFields.filter(
-              (f) => f.appliesTo === "contact",
+            <CustomValues
+              fields={settings.customFields.filter(
+                (f) => f.appliesTo === "contact",
+              )}
+              values={contact.customValues}
+            />
+
+            <div className="mt-(--gap-toolbar) grid gap-(--gap-toolbar) sm:grid-cols-2">
+              <div>
+                <p className="text-xs" style={muted}>
+                  Email
+                </p>
+                {emails.length ? (
+                  emails.map((e) => (
+                    <p key={e.value} className="text-sm">
+                      <a href={`mailto:${e.value}`} className="link">
+                        {e.value}
+                      </a>
+                      <span className="ml-1 text-xs" style={muted}>
+                        {e.label}
+                      </span>
+                    </p>
+                  ))
+                ) : (
+                  <p className="text-sm" style={muted}>
+                    None
+                  </p>
+                )}
+              </div>
+              <div>
+                <p className="text-xs" style={muted}>
+                  Phone
+                </p>
+                {phones.length ? (
+                  phones.map((p) => (
+                    <p key={p.value} className="text-sm">
+                      <a href={`tel:${p.value}`} className="link">
+                        {p.value}
+                      </a>
+                      <span className="ml-1 text-xs" style={muted}>
+                        {p.label}
+                      </span>
+                    </p>
+                  ))
+                ) : (
+                  <p className="text-sm" style={muted}>
+                    None
+                  </p>
+                )}
+              </div>
+            </div>
+          </Card>
+
+          <Notes contactId={contact.id} notes={notes} />
+        </div>
+
+        <div className="flex flex-col gap-(--gap-stack)">
+          <Card>
+            <SectionHeading hint={`(${open.length} open)`}>
+              Deals
+            </SectionHeading>
+            {deals.length === 0 ? (
+              <p className="text-sm" style={muted}>
+                Not on any deals.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-(--gap-toolbar)">
+                {deals.map((d) => (
+                  <div key={d.id} className="text-sm">
+                    <RelatedLink
+                      to={{ moduleId: "deals", recordId: d.id, title: d.name }}
+                    >
+                      {d.name}
+                    </RelatedLink>
+                    <div className="text-xs" style={muted}>
+                      {d.stage} · {formatMoney(d.amountCents)}
+                      {d.expectedCloseOn
+                        ? ` · closes ${formatDate(d.expectedCloseOn)}`
+                        : ""}
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
-            values={contact.customValues}
+          </Card>
+
+          <Tasks
+            contactId={contact.id}
+            tasks={tasks}
+            taskTypes={settings.taskTypes}
           />
 
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <div>
-              <p className="text-xs" style={muted}>
-                Email
-              </p>
-              {emails.length ? (
-                emails.map((e) => (
-                  <p key={e.value} className="text-sm">
-                    <a href={`mailto:${e.value}`} className="link">
-                      {e.value}
-                    </a>
-                    <span className="ml-1 text-xs" style={muted}>
-                      {e.label}
-                    </span>
-                  </p>
-                ))
-              ) : (
-                <p className="text-sm" style={muted}>
-                  None
-                </p>
-              )}
-            </div>
-            <div>
-              <p className="text-xs" style={muted}>
-                Phone
-              </p>
-              {phones.length ? (
-                phones.map((p) => (
-                  <p key={p.value} className="text-sm">
-                    <a href={`tel:${p.value}`} className="link">
-                      {p.value}
-                    </a>
-                    <span className="ml-1 text-xs" style={muted}>
-                      {p.label}
-                    </span>
-                  </p>
-                ))
-              ) : (
-                <p className="text-sm" style={muted}>
-                  None
-                </p>
-              )}
-            </div>
-          </div>
-        </Card>
-
-        <Notes contactId={contact.id} notes={notes} />
+          <HistoryPanel contactId={contact.id} />
+        </div>
       </div>
-
-      <div className="space-y-4">
-        <Card>
-          <p className="mb-2 font-medium">
-            Deals{" "}
-            <span className="text-sm font-normal" style={muted}>
-              ({open.length} open)
-            </span>
-          </p>
-          {deals.length === 0 ? (
-            <p className="text-sm" style={muted}>
-              Not on any deals.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {deals.map((d) => (
-                <div key={d.id} className="text-sm">
-                  <RelatedLink
-                    to={{ moduleId: "deals", recordId: d.id, title: d.name }}
-                  >
-                    {d.name}
-                  </RelatedLink>
-                  <div className="text-xs" style={muted}>
-                    {d.stage} · {formatMoney(d.amountCents)}
-                    {d.expectedCloseOn
-                      ? ` · closes ${formatDate(d.expectedCloseOn)}`
-                      : ""}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-
-        <Tasks
-          contactId={contact.id}
-          tasks={tasks}
-          taskTypes={settings.taskTypes}
-        />
-
-        <HistoryPanel contactId={contact.id} />
-      </div>
-    </div>
+    </Page>
   );
 }
 
@@ -725,14 +716,20 @@ export function HistoryPanel({
 
   return (
     <Card>
-      <div className="mb-2 flex items-center gap-2">
-        <p className="flex-1 font-medium">History</p>
-        {contactId ? (
-          <Button variant="secondary" onClick={() => setLogging((was) => !was)}>
-            {logging ? "Close" : "Log a call"}
-          </Button>
-        ) : null}
-      </div>
+      <SectionHeading
+        trailing={
+          contactId ? (
+            <Button
+              variant="secondary"
+              onClick={() => setLogging((was) => !was)}
+            >
+              {logging ? "Close" : "Log a call"}
+            </Button>
+          ) : null
+        }
+      >
+        History
+      </SectionHeading>
 
       {/*
         What the person actually did, written by the person who did it.
@@ -743,7 +740,7 @@ export function HistoryPanel({
         called by nothing.
       */}
       {logging && contactId ? (
-        <div className="mb-3 grid gap-2 sm:grid-cols-[9rem_1fr_auto] items-end">
+        <div className="mb-(--gap-toolbar) grid gap-(--gap-toolbar) sm:grid-cols-[9rem_1fr_auto] items-end">
           <Field label="What it was">
             <Select
               value={kind}
@@ -780,15 +777,15 @@ export function HistoryPanel({
           Nothing yet. Notes, emails and finished tasks all land here.
         </p>
       ) : (
-        <ul className="space-y-2">
+        <ul className="flex flex-col gap-(--gap-toolbar)">
           {entries.map((entry) => (
             <li
               key={`${entry.at}-${entry.title}`}
-              className="flex gap-2 text-sm"
+              className="flex gap-(--gap-toolbar) text-sm"
             >
               <span className="min-w-0 flex-1">
                 {correcting && correcting === entry.activityId ? (
-                  <span className="flex items-center gap-2">
+                  <span className="flex items-center gap-(--gap-toolbar)">
                     <Input
                       value={correction}
                       aria-label="Correct this entry"
@@ -817,7 +814,10 @@ export function HistoryPanel({
                     {entry.title}
                   </span>
                 )}
-                <span className="text-xs flex items-center gap-2" style={muted}>
+                <span
+                  className="text-xs flex items-center gap-(--gap-toolbar)"
+                  style={muted}
+                >
                   {formatDate(entry.at)}
                   {entry.detail ? ` · ${entry.detail}` : ""}
                   {/* Only what a person typed can be changed. */}

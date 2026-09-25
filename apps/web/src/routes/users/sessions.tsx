@@ -5,8 +5,10 @@ import {
   Empty,
   ErrorNote,
   Loading,
+  Page,
   Row,
   Table,
+  Toolbar,
   formatDate,
   muted,
 } from "../../lib/ui";
@@ -73,8 +75,8 @@ export function Sessions() {
   const sessions = data?.sessions ?? [];
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <Page>
+      <Toolbar className="justify-between">
         <span className="text-sm" style={muted}>
           {sessions.length} live{" "}
           {sessions.length === 1 ? "session" : "sessions"}
@@ -94,7 +96,7 @@ export function Sessions() {
             Sign everybody out
           </ConfirmButton>
         ) : null}
-      </div>
+      </Toolbar>
 
       {sessions.length === 0 ? (
         <Empty title="Nobody is signed in" />
@@ -132,6 +134,6 @@ export function Sessions() {
       )}
       {revokeOne.error ? <ErrorNote error={revokeOne.error} /> : null}
       {revokeAll.error ? <ErrorNote error={revokeAll.error} /> : null}
-    </div>
+    </Page>
   );
 }

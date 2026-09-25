@@ -35,8 +35,10 @@ import {
   Empty,
   ErrorNote,
   Loading,
+  Page,
+  PageActions,
   Select,
-  border,
+  Toolbar,
   muted,
   textOn,
 } from "../lib/ui";
@@ -111,337 +113,350 @@ export function Contacts() {
   if (error) return <ErrorNote error={error} />;
 
   return (
-    <div className="flex gap-6">
-      <FilterPanel state={state} placeholder="Search contacts">
-        <FilterGroup label="Last seen" icon="clock">
-          {ranges.map((range) => (
-            <FilterToggle
-              key={range.label}
-              label={range.label}
-              active={state.isFilterActive(range.values)}
-              onClick={() => {
-                // The five ranges are alternatives, not a set: picking "today"
-                // while "before last month" is on asks for contacts seen in
-                // both, which is nothing at all.
-                state.setFilter({
-                  lastSeenAfter: undefined,
-                  lastSeenBefore: undefined,
-                });
-                if (!state.isFilterActive(range.values)) {
-                  state.setFilter(range.values);
-                }
-              }}
-            />
-          ))}
-        </FilterGroup>
+    <Page>
+      <PageActions>
+        <Button onClick={() => setAdding(true)}>
+          <span className="flex items-center gap-1.5">
+            <Icon name="plus" size={15} />
+            New contact
+          </span>
+        </Button>
+      </PageActions>
 
-        <FilterGroup label="Status" icon="trending-up">
-          {settings.contactStatuses.map((status) => (
-            <FilterToggle
-              key={status.id}
-              label={
-                <span className="flex items-center gap-1.5">
-                  <StatusDot color={status.color} />
-                  {status.label}
-                </span>
-              }
-              active={state.isFilterActive({ status: status.id })}
-              onClick={() => state.toggleFilter({ status: status.id })}
-            />
-          ))}
-        </FilterGroup>
-
-        {tags.data?.tags.length ? (
-          <FilterGroup label="Tags" icon="tag">
-            {tags.data.tags.map((tag) => (
+      <div className="flex gap-(--gap-stack)">
+        <FilterPanel state={state} placeholder="Search contacts">
+          <FilterGroup label="Last seen" icon="clock">
+            {ranges.map((range) => (
               <FilterToggle
-                key={tag.id}
-                label={
-                  <span
-                    className="rounded px-1.5 py-0.5 text-xs"
-                    style={{ background: tag.color, color: textOn(tag.color) }}
-                  >
-                    {tag.name}
-                  </span>
-                }
-                active={state.isFilterActive({ tagId: tag.id })}
-                onClick={() => state.toggleFilter({ tagId: tag.id })}
+                key={range.label}
+                label={range.label}
+                active={state.isFilterActive(range.values)}
+                onClick={() => {
+                  // The five ranges are alternatives, not a set: picking "today"
+                  // while "before last month" is on asks for contacts seen in
+                  // both, which is nothing at all.
+                  state.setFilter({
+                    lastSeenAfter: undefined,
+                    lastSeenBefore: undefined,
+                  });
+                  if (!state.isFilterActive(range.values)) {
+                    state.setFilter(range.values);
+                  }
+                }}
               />
             ))}
           </FilterGroup>
-        ) : null}
 
-        <FilterGroup label="Tasks" icon="check-square">
-          <FilterToggle
-            label="With pending tasks"
-            active={state.isFilterActive({ withPendingTasks: "1" })}
-            onClick={() => state.toggleFilter({ withPendingTasks: "1" })}
-          />
-        </FilterGroup>
-
-        <FilterGroup label="Account manager" icon="users">
-          {/*
-            Everybody who can own a contact, not only "me".
-            
-            The list comes from the platform's roles rather than a table this
-            module keeps, so it is right the moment somebody is given the
-            Sales role in Users — and right again when they leave.
-          */}
-          <FilterToggle
-            label="Contacts I manage"
-            active={!!myId && state.isFilterActive({ ownerId: myId })}
-            onClick={() => myId && state.toggleFilter({ ownerId: myId })}
-          />
-          {managers
-            .filter((manager) => manager.userId !== myId)
-            .map((manager) => (
+          <FilterGroup label="Status" icon="trending-up">
+            {settings.contactStatuses.map((status) => (
               <FilterToggle
-                key={manager.userId}
-                label={managerName(manager)}
-                active={state.isFilterActive({ ownerId: manager.userId })}
-                onClick={() => state.toggleFilter({ ownerId: manager.userId })}
+                key={status.id}
+                label={
+                  <span className="flex items-center gap-1.5">
+                    <StatusDot color={status.color} />
+                    {status.label}
+                  </span>
+                }
+                active={state.isFilterActive({ status: status.id })}
+                onClick={() => state.toggleFilter({ status: status.id })}
               />
             ))}
-        </FilterGroup>
+          </FilterGroup>
 
-        <FilterGroup label="Newsletter" icon="clipboard">
-          <FilterToggle
-            label="Subscribed"
-            active={state.isFilterActive({ hasNewsletter: "1" })}
-            onClick={() => state.toggleFilter({ hasNewsletter: "1" })}
-          />
-        </FilterGroup>
-      </FilterPanel>
-
-      <div className="min-w-0 flex-1 space-y-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <SortMenu
-            state={state}
-            fields={[
-              { field: "lastSeenAt", label: "Last seen", order: "desc" },
-              { field: "firstSeenAt", label: "First seen", order: "desc" },
-              { field: "firstName", label: "First name", order: "asc" },
-              { field: "lastName", label: "Last name", order: "asc" },
-              { field: "createdAt", label: "Date added", order: "desc" },
-            ]}
-          />
-          <GroupMenu
-            state={state}
-            fields={[
-              { field: "status", label: "Status" },
-              { field: "kind", label: "Kind" },
-            ]}
-          />
-          <SavedViews
-            resource="contacts"
-            state={state}
-            defaults={{ sort: "lastSeenAt", order: "desc" }}
-          />
-
-          <div className="ml-auto flex items-center gap-2">
-            <Button
-              variant="secondary"
-              onClick={() => setFindingDuplicates((v) => !v)}
-            >
-              <span className="flex items-center gap-1.5">Duplicates</span>
-            </Button>
-            <Button variant="secondary" onClick={() => setImporting((v) => !v)}>
-              <span className="flex items-center gap-1.5">Import</span>
-            </Button>
-            {/* A plain link, not a fetch: the browser downloads it with the
-                filename the server sends, and the session cookie goes along. */}
-            <a
-              href={`/api/contacts/export.csv?${new URLSearchParams(state.filters).toString()}`}
-              className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm"
-              style={border}
-            >
-              Export
-            </a>
-            <Button onClick={() => setAdding(true)}>
-              <span className="flex items-center gap-1.5">
-                <Icon name="plus" size={15} />
-                New contact
-              </span>
-            </Button>
-          </div>
-        </div>
-
-        {importing ? (
-          <ContactsImport onDone={() => setImporting(false)} />
-        ) : null}
-
-        {findingDuplicates ? (
-          <ContactDuplicates
-            onChanged={() => qc.invalidateQueries({ queryKey: ["contacts"] })}
-          />
-        ) : null}
-
-        {adding ? (
-          <ContactForm
-            settings={settings}
-            onDone={(created) => {
-              setAdding(false);
-              qc.invalidateQueries({ queryKey: ["contacts"] });
-              if (created) {
-                open({
-                  moduleId: "contacts",
-                  recordId: created.id,
-                  title: created.name,
-                });
-              }
-            }}
-          />
-        ) : null}
-
-        {selected.length ? (
-          <BulkActions
-            selected={selected}
-            tags={tags.data?.tags ?? []}
-            onDone={() => {
-              setSelected([]);
-              qc.invalidateQueries({ queryKey: ["contacts"] });
-            }}
-            onClear={() => setSelected([])}
-          />
-        ) : null}
-
-        {isLoading ? (
-          <Loading />
-        ) : rows.length === 0 ? (
-          <Empty
-            title={
-              state.q || state.hasFilters ? "No matches" : "No contacts yet"
-            }
-          >
-            {state.q || state.hasFilters
-              ? "Try a different search, or clear the filters."
-              : "People who fill in your forms or book with you land here automatically."}
-          </Empty>
-        ) : (
-          <>
-            {/*
-              A list of rows, not a table of columns.
-              
-              The reference lays a contact out as one line — who they are, then what
-              little there is worth knowing at a glance — rather than as six
-              columns of which four are usually "—". A table of email, phone,
-              company and status spends most of its width on dashes; this
-              spends it on the name and the tags.
-            */}
-            {groupedSections(
-              rows,
-              response?.groups as ListGroup[] | undefined,
-              state.filters.groupBy,
-            ).map((section) => (
-              <div key={String(section.group?.value ?? "everyone")}>
-                {section.group ? (
-                  /* The count is the whole filtered set, not this page:
-                     "Hot — 41" above the three of them the page holds. */
-                  <p
-                    className="mb-1 flex items-baseline gap-2 text-xs uppercase tracking-wide"
-                    style={muted}
-                  >
-                    <span className="font-medium">
-                      {state.filters.groupBy === "status"
-                        ? (settings.contactStatuses.find(
-                            (s) => s.id === section.group?.value,
-                          )?.label ?? String(section.group.value ?? "—"))
-                        : String(section.group.value ?? "—")}
-                    </span>
-                    <span>{section.group.count}</span>
-                  </p>
-                ) : null}
-                <div
-                  className="overflow-hidden rounded border"
-                  style={{ ...border, background: "var(--surface-raised)" }}
-                >
-                  {section.rows.map((c, i) => (
-                    <div
-                      key={c.id}
-                      className="flex items-center gap-3 px-3 py-2"
-                      style={
-                        i > 0
-                          ? { borderTop: "1px solid var(--border)" }
-                          : undefined
-                      }
+          {tags.data?.tags.length ? (
+            <FilterGroup label="Tags" icon="tag">
+              {tags.data.tags.map((tag) => (
+                <FilterToggle
+                  key={tag.id}
+                  label={
+                    <span
+                      className="rounded px-1.5 py-0.5 text-xs"
+                      style={{
+                        background: tag.color,
+                        color: textOn(tag.color),
+                      }}
                     >
-                      <input
-                        type="checkbox"
-                        aria-label={`Select ${c.name}`}
-                        checked={selected.includes(c.id)}
-                        onChange={(e) => toggleSelected(c.id, e.target.checked)}
-                      />
-                      <Avatar
-                        // Only ask for a picture when the record says it has one:
-                        // a page of 25 contacts otherwise fires 25 requests that
-                        // all come back 404.
-                        src={
-                          c.avatarPath
-                            ? `/api/crm/contacts/${c.id}/image`
-                            : null
-                        }
-                        name={c.name}
-                        size={36}
-                      />
-                      <button
-                        type="button"
-                        className="min-w-0 flex-1 text-left"
-                        onClick={() =>
-                          open({
-                            moduleId: "contacts",
-                            recordId: c.id,
-                            title: c.name,
-                          })
-                        }
+                      {tag.name}
+                    </span>
+                  }
+                  active={state.isFilterActive({ tagId: tag.id })}
+                  onClick={() => state.toggleFilter({ tagId: tag.id })}
+                />
+              ))}
+            </FilterGroup>
+          ) : null}
+
+          <FilterGroup label="Tasks" icon="check-square">
+            <FilterToggle
+              label="With pending tasks"
+              active={state.isFilterActive({ withPendingTasks: "1" })}
+              onClick={() => state.toggleFilter({ withPendingTasks: "1" })}
+            />
+          </FilterGroup>
+
+          <FilterGroup label="Account manager" icon="users">
+            {/*
+              Everybody who can own a contact, not only "me".
+            
+              The list comes from the platform's roles rather than a table this
+              module keeps, so it is right the moment somebody is given the
+              Sales role in Users — and right again when they leave.
+            */}
+            <FilterToggle
+              label="Contacts I manage"
+              active={!!myId && state.isFilterActive({ ownerId: myId })}
+              onClick={() => myId && state.toggleFilter({ ownerId: myId })}
+            />
+            {managers
+              .filter((manager) => manager.userId !== myId)
+              .map((manager) => (
+                <FilterToggle
+                  key={manager.userId}
+                  label={managerName(manager)}
+                  active={state.isFilterActive({ ownerId: manager.userId })}
+                  onClick={() =>
+                    state.toggleFilter({ ownerId: manager.userId })
+                  }
+                />
+              ))}
+          </FilterGroup>
+
+          <FilterGroup label="Newsletter" icon="clipboard">
+            <FilterToggle
+              label="Subscribed"
+              active={state.isFilterActive({ hasNewsletter: "1" })}
+              onClick={() => state.toggleFilter({ hasNewsletter: "1" })}
+            />
+          </FilterGroup>
+        </FilterPanel>
+
+        <div className="min-w-0 flex-1 flex flex-col gap-(--gap-stack)">
+          <Toolbar>
+            <SortMenu
+              state={state}
+              fields={[
+                { field: "lastSeenAt", label: "Last seen", order: "desc" },
+                { field: "firstSeenAt", label: "First seen", order: "desc" },
+                { field: "firstName", label: "First name", order: "asc" },
+                { field: "lastName", label: "Last name", order: "asc" },
+                { field: "createdAt", label: "Date added", order: "desc" },
+              ]}
+            />
+            <GroupMenu
+              state={state}
+              fields={[
+                { field: "status", label: "Status" },
+                { field: "kind", label: "Kind" },
+              ]}
+            />
+            <SavedViews
+              resource="contacts"
+              state={state}
+              defaults={{ sort: "lastSeenAt", order: "desc" }}
+            />
+
+            <div className="ml-auto flex items-center gap-(--gap-toolbar)">
+              <Button
+                variant="secondary"
+                onClick={() => setFindingDuplicates((v) => !v)}
+              >
+                Duplicates
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => setImporting((v) => !v)}
+              >
+                Import
+              </Button>
+              {/* A plain link, not a fetch: the browser downloads it with the
+                  filename the server sends, and the session cookie goes along. */}
+              <a
+                href={`/api/contacts/export.csv?${new URLSearchParams(state.filters).toString()}`}
+                className="inline-flex items-center gap-1.5 rounded-md border border-line px-3 py-1.5 text-sm"
+              >
+                Export
+              </a>
+            </div>
+          </Toolbar>
+
+          {importing ? (
+            <ContactsImport onDone={() => setImporting(false)} />
+          ) : null}
+
+          {findingDuplicates ? (
+            <ContactDuplicates
+              onChanged={() => qc.invalidateQueries({ queryKey: ["contacts"] })}
+            />
+          ) : null}
+
+          {adding ? (
+            <ContactForm
+              settings={settings}
+              onDone={(created) => {
+                setAdding(false);
+                qc.invalidateQueries({ queryKey: ["contacts"] });
+                if (created) {
+                  open({
+                    moduleId: "contacts",
+                    recordId: created.id,
+                    title: created.name,
+                  });
+                }
+              }}
+            />
+          ) : null}
+
+          {selected.length ? (
+            <BulkActions
+              selected={selected}
+              tags={tags.data?.tags ?? []}
+              onDone={() => {
+                setSelected([]);
+                qc.invalidateQueries({ queryKey: ["contacts"] });
+              }}
+              onClear={() => setSelected([])}
+            />
+          ) : null}
+
+          {isLoading ? (
+            <Loading />
+          ) : rows.length === 0 ? (
+            <Empty
+              title={
+                state.q || state.hasFilters ? "No matches" : "No contacts yet"
+              }
+            >
+              {state.q || state.hasFilters
+                ? "Try a different search, or clear the filters."
+                : "People who fill in your forms or book with you land here automatically."}
+            </Empty>
+          ) : (
+            <>
+              {/*
+                A list of rows, not a table of columns.
+              
+                The reference lays a contact out as one line — who they are, then what
+                little there is worth knowing at a glance — rather than as six
+                columns of which four are usually "—". A table of email, phone,
+                company and status spends most of its width on dashes; this
+                spends it on the name and the tags.
+              */}
+              {groupedSections(
+                rows,
+                response?.groups as ListGroup[] | undefined,
+                state.filters.groupBy,
+              ).map((section) => (
+                <div key={String(section.group?.value ?? "everyone")}>
+                  {section.group ? (
+                    /* The count is the whole filtered set, not this page:
+                       "Hot — 41" above the three of them the page holds. */
+                    <p
+                      className="mb-(--gap-tight) flex items-baseline gap-(--gap-toolbar) text-xs uppercase tracking-wide"
+                      style={muted}
+                    >
+                      <span className="font-medium">
+                        {state.filters.groupBy === "status"
+                          ? (settings.contactStatuses.find(
+                              (s) => s.id === section.group?.value,
+                            )?.label ?? String(section.group.value ?? "—"))
+                          : String(section.group.value ?? "—")}
+                      </span>
+                      <span>{section.group.count}</span>
+                    </p>
+                  ) : null}
+                  <div
+                    className="overflow-hidden rounded border border-line"
+                    style={{ background: "var(--surface-raised)" }}
+                  >
+                    {section.rows.map((c, i) => (
+                      <div
+                        key={c.id}
+                        className={`flex items-center gap-(--gap-toolbar) px-3 py-2 ${
+                          i > 0 ? "border-line border-t" : ""
+                        }`}
                       >
-                        <span className="link block font-medium">{c.name}</span>
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${c.name}`}
+                          checked={selected.includes(c.id)}
+                          onChange={(e) =>
+                            toggleSelected(c.id, e.target.checked)
+                          }
+                        />
+                        <Avatar
+                          // Only ask for a picture when the record says it has one:
+                          // a page of 25 contacts otherwise fires 25 requests that
+                          // all come back 404.
+                          src={
+                            c.avatarPath
+                              ? `/api/crm/contacts/${c.id}/image`
+                              : null
+                          }
+                          name={c.name}
+                          size={36}
+                        />
+                        <button
+                          type="button"
+                          className="min-w-0 flex-1 text-left"
+                          onClick={() =>
+                            open({
+                              moduleId: "contacts",
+                              recordId: c.id,
+                              title: c.name,
+                            })
+                          }
+                        >
+                          <span className="link block font-medium">
+                            {c.name}
+                          </span>
+                          <span
+                            className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs"
+                            style={muted}
+                          >
+                            {describe(c, c.companyName ?? undefined)}
+                            <ComputedCells
+                              columns={
+                                response?.computedColumns as
+                                  | ComputedColumn[]
+                                  | undefined
+                              }
+                              row={c}
+                            />
+                            {c.tags?.map((tag) => (
+                              <span
+                                key={tag.id}
+                                className="rounded px-1.5 py-0.5"
+                                style={{
+                                  background: tag.color,
+                                  color: textOn(tag.color),
+                                }}
+                              >
+                                {tag.name}
+                              </span>
+                            ))}
+                          </span>
+                        </button>
                         <span
-                          className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs"
+                          className="flex shrink-0 items-center gap-(--gap-toolbar) text-xs"
                           style={muted}
                         >
-                          {describe(c, c.companyName ?? undefined)}
-                          <ComputedCells
-                            columns={
-                              response?.computedColumns as
-                                | ComputedColumn[]
-                                | undefined
-                            }
-                            row={c}
-                          />
-                          {c.tags?.map((tag) => (
-                            <span
-                              key={tag.id}
-                              className="rounded px-1.5 py-0.5"
-                              style={{
-                                background: tag.color,
-                                color: textOn(tag.color),
-                              }}
-                            >
-                              {tag.name}
-                            </span>
-                          ))}
+                          Last activity {sinceLabel(c.lastSeenAt)}
+                          <StatusLabel status={c.status} settings={settings} />
                         </span>
-                      </button>
-                      <span
-                        className="flex shrink-0 items-center gap-2 text-xs"
-                        style={muted}
-                      >
-                        Last activity {sinceLabel(c.lastSeenAt)}
-                        <StatusLabel status={c.status} settings={settings} />
-                      </span>
-                    </div>
-                  ))}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
 
-            {/* Pages appear once there are more contacts than fit comfortably,
-                which is what "after 25+" means in practice. */}
-            {paginated ? <Pagination state={state} total={total} /> : null}
-          </>
-        )}
+              {/* Pages appear once there are more contacts than fit comfortably,
+                  which is what "after 25+" means in practice. */}
+              {paginated ? <Pagination state={state} total={total} /> : null}
+            </>
+          )}
+        </div>
       </div>
-    </div>
+    </Page>
   );
 }
 
@@ -546,8 +561,8 @@ function BulkActions({
 
   return (
     <div
-      className="flex flex-wrap items-center gap-3 rounded border px-3 py-2"
-      style={{ ...border, background: "var(--surface-raised)" }}
+      className="flex flex-wrap items-center gap-(--gap-toolbar) rounded border border-line px-3 py-2"
+      style={{ background: "var(--surface-raised)" }}
     >
       <span className="text-sm font-medium">{selected.length} selected</span>
 
@@ -571,7 +586,7 @@ function BulkActions({
         </span>
       ) : null}
 
-      <div className="ml-auto flex items-center gap-2">
+      <div className="ml-auto flex items-center gap-(--gap-toolbar)">
         <Button variant="secondary" onClick={onClear}>
           Clear
         </Button>

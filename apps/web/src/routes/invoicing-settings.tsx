@@ -9,10 +9,13 @@ import {
   Field,
   Input,
   Loading,
+  Page,
   Row,
+  SectionHeading,
   Select,
   Table,
-  border,
+  Textarea,
+  Toolbar,
   formatMoney,
   muted,
 } from "../lib/ui";
@@ -97,8 +100,11 @@ export function InvoicingSettings() {
     showRetired ? rows : rows.filter((r) => r.active);
 
   return (
-    <div className="space-y-4">
-      <label className="flex items-center gap-2 text-sm" style={muted}>
+    <Page width="prose">
+      <label
+        className="flex items-center gap-(--gap-tight) text-sm"
+        style={muted}
+      >
         <input
           type="checkbox"
           checked={showRetired}
@@ -122,7 +128,7 @@ export function InvoicingSettings() {
       <Letterhead />
 
       <BillingRules />
-    </div>
+    </Page>
   );
 }
 
@@ -183,7 +189,7 @@ function TaxRates({
 
   return (
     <Card>
-      <p className="mb-1 font-medium">Tax rates</p>
+      <SectionHeading>Tax rates</SectionHeading>
       <p className="mb-3 text-sm" style={muted}>
         What you actually charge, named. Lines pick from these rather than
         carrying a number somebody typed.
@@ -256,7 +262,7 @@ function TaxRates({
         </p>
       )}
 
-      <div className="mt-3 flex flex-wrap items-end gap-2">
+      <Toolbar className="mt-3">
         <Field label="Name">
           <Input
             value={name}
@@ -304,7 +310,7 @@ function TaxRates({
         >
           Add it
         </Button>
-      </div>
+      </Toolbar>
       {add.error ? <ErrorNote error={add.error} /> : null}
       {change.error ? <ErrorNote error={change.error} /> : null}
     </Card>
@@ -378,7 +384,7 @@ function Catalogue({
 
   return (
     <Card>
-      <p className="mb-1 font-medium">What you sell</p>
+      <SectionHeading>What you sell</SectionHeading>
       <p className="mb-3 text-sm" style={muted}>
         So a line is picked rather than retyped. Everything stays editable on
         the invoice itself.
@@ -447,7 +453,7 @@ function Catalogue({
         </p>
       )}
 
-      <div className="mt-3 flex flex-wrap items-end gap-2">
+      <Toolbar className="mt-3">
         <Field label="Name">
           <Input
             value={name}
@@ -516,7 +522,7 @@ function Catalogue({
         >
           Add it
         </Button>
-      </div>
+      </Toolbar>
       <div className="mt-2">
         <Field
           label="Description"
@@ -652,7 +658,7 @@ function BillingRules() {
   return (
     <>
       <Card>
-        <p className="mb-1 font-medium">Chasing</p>
+        <SectionHeading>Chasing</SectionHeading>
         <p className="mb-3 text-sm" style={muted}>
           When to write, and what to say. Nothing is sent until you switch a
           reminder on. With none of these, an overdue invoice is chased once a
@@ -701,8 +707,8 @@ function BillingRules() {
           </p>
         )}
 
-        <div className="mt-3 space-y-2">
-          <div className="flex flex-wrap items-end gap-2">
+        <div className="mt-3 flex flex-col gap-(--gap-toolbar)">
+          <Toolbar>
             <Field label="Name">
               <Input
                 value={name}
@@ -729,14 +735,12 @@ function BillingRules() {
                 onChange={(e) => setSubject(e.target.value)}
               />
             </Field>
-          </div>
-          <textarea
+          </Toolbar>
+          <Textarea
             value={body}
             rows={3}
             aria-label="What the reminder says"
             onChange={(e) => setBody(e.target.value)}
-            className="w-full rounded-md border px-2 py-1.5 text-sm"
-            style={{ background: "var(--surface-raised)" }}
           />
           <p className="text-xs" style={muted}>
             {
@@ -754,14 +758,14 @@ function BillingRules() {
       </Card>
 
       <Card>
-        <p className="mb-1 font-medium">Late fees</p>
+        <SectionHeading>Late fees</SectionHeading>
         <p className="mb-3 text-sm" style={muted}>
           Off unless you turn it on. Charged once, and only after the grace
           period &mdash; a fee added the morning after is a fee charged for a
           payment already in the post.
         </p>
 
-        <div className="flex flex-wrap items-end gap-2">
+        <Toolbar>
           <Field label="Charge">
             <Select
               value={pendingType ?? settings.lateFeeType ?? ""}
@@ -843,7 +847,7 @@ function BillingRules() {
               }
             />
           </Field>
-        </div>
+        </Toolbar>
 
         {/*
           What happens when somebody pays more than an invoice asks for. Two
@@ -898,14 +902,16 @@ function BillingRules() {
         {/* The terms the form offers, and what each one means. Picking one on
             an invoice fills the due date in, which is the whole reason these
             are a list and not a sentence somebody types. */}
-        <p className="mt-5 mb-1 font-medium text-sm">Terms you offer</p>
-        <p className="mb-2 text-sm" style={muted}>
-          Each one names a number of days. Choosing it on an invoice sets the
-          due date.
-        </p>
-        <div className="space-y-2">
+        <div className="mt-5">
+          <SectionHeading level={3}>Terms you offer</SectionHeading>
+          <p className="mb-2 text-sm" style={muted}>
+            Each one names a number of days. Choosing it on an invoice sets the
+            due date.
+          </p>
+        </div>
+        <div className="flex flex-col gap-(--gap-toolbar)">
           {settings.paymentTermOptions.map((term, i) => (
-            <div key={term.label} className="flex items-center gap-2">
+            <Toolbar key={term.label}>
               <Input
                 defaultValue={term.label}
                 className="w-52"
@@ -935,10 +941,8 @@ function BillingRules() {
               <span className="text-sm" style={muted}>
                 days
               </span>
-              <button
-                type="button"
-                className="text-sm underline"
-                style={muted}
+              <Button
+                variant="secondary"
                 onClick={() =>
                   saveSettings.mutate({
                     paymentTermOptions: settings.paymentTermOptions.filter(
@@ -948,8 +952,8 @@ function BillingRules() {
                 }
               >
                 Remove
-              </button>
-            </div>
+              </Button>
+            </Toolbar>
           ))}
           <Button
             variant="secondary"
@@ -968,10 +972,12 @@ function BillingRules() {
 
         {/* And what a line is sold by. Typed free-hand these become "hour",
             "hours", "hr" and "Hrs" on four invoices from one business. */}
-        <p className="mt-5 mb-1 font-medium text-sm">Units</p>
-        <p className="mb-2 text-sm" style={muted}>
-          What a line is sold by. Comma separated.
-        </p>
+        <div className="mt-5">
+          <SectionHeading level={3}>Units</SectionHeading>
+          <p className="mb-2 text-sm" style={muted}>
+            What a line is sold by. Comma separated.
+          </p>
+        </div>
         <Input
           defaultValue={settings.units.join(", ")}
           aria-label="Units"
@@ -1118,24 +1124,22 @@ function Letterhead() {
 
   return (
     <Card>
-      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-        <div>
-          <p className="font-semibold">Letterhead</p>
-          <p className="text-sm" style={muted}>
-            What your invoices and quotes look like when a customer opens one.
-          </p>
-        </div>
-        <button
-          type="button"
-          className="link text-sm"
-          onClick={() => {
-            setAdding((v) => !v);
-            setEditing(null);
-          }}
-        >
-          {adding ? "Cancel" : "New letterhead"}
-        </button>
-      </div>
+      <SectionHeading
+        hint="What your invoices and quotes look like when a customer opens one."
+        trailing={
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setAdding((v) => !v);
+              setEditing(null);
+            }}
+          >
+            {adding ? "Cancel" : "New letterhead"}
+          </Button>
+        }
+      >
+        Letterhead
+      </SectionHeading>
 
       {adding ? (
         <TemplateForm
@@ -1149,22 +1153,24 @@ function Letterhead() {
       {/* Three to start from, with what each one is for. A business that has
           never thought about a letterhead gets one in a press, and can see
           the difference before it presses. */}
-      <div className="mb-4 grid gap-3 sm:grid-cols-3">
+      <div className="mb-4 grid gap-(--gap-toolbar) sm:grid-cols-3">
         {SAMPLES.map((sample) => (
-          <div key={sample.id} className="rounded-lg border p-3" style={border}>
+          <div
+            key={sample.id}
+            className="rounded-lg border border-line p-(--pad-panel)"
+          >
             <SamplePreview sample={sample} />
             <p className="mt-2 font-medium text-sm">{sample.name}</p>
-            <p className="mt-0.5 text-xs" style={muted}>
+            <p className="mt-0.5 mb-(--gap-toolbar) text-xs" style={muted}>
               {sample.says}
             </p>
-            <button
-              type="button"
-              className="link mt-2 text-xs"
+            <Button
+              variant="secondary"
               onClick={() => addSample.mutate(sample)}
               disabled={addSample.isPending}
             >
               Start from this
-            </button>
+            </Button>
           </div>
         ))}
       </div>
@@ -1178,10 +1184,10 @@ function Letterhead() {
           when you want your own logo on them.
         </p>
       ) : (
-        <ul className="space-y-2">
+        <ul className="flex flex-col gap-(--gap-toolbar)">
           {templates.map((template) => (
             <li key={template.id}>
-              <div className="flex flex-wrap items-center gap-2 text-sm">
+              <Toolbar className="text-sm">
                 <span
                   aria-hidden
                   className="inline-block h-4 w-4 rounded"
@@ -1213,7 +1219,7 @@ function Letterhead() {
                     Use this one
                   </button>
                 )}
-                <span className="ml-auto flex gap-3">
+                <span className="ml-auto flex gap-(--gap-toolbar)">
                   <button
                     type="button"
                     className="link-muted text-xs"
@@ -1225,14 +1231,13 @@ function Letterhead() {
                   </button>
                   <button
                     type="button"
-                    className="text-xs"
-                    style={{ color: "var(--text-danger)" }}
+                    className="link-danger text-xs"
                     onClick={() => remove.mutate(template.id)}
                   >
                     Delete
                   </button>
                 </span>
-              </div>
+              </Toolbar>
               {editing === template.id ? (
                 <TemplateForm
                   template={template}
@@ -1276,9 +1281,8 @@ function SamplePreview({ sample }: { sample: (typeof SAMPLES)[number] }) {
   return (
     <div
       aria-hidden
-      className="rounded border p-2"
+      className="rounded border border-line p-2"
       style={{
-        ...border,
         background: "var(--surface-raised)",
         height: "5.5rem",
       }}
@@ -1356,26 +1360,30 @@ function TemplateForm({
   });
 
   return (
-    <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="mt-3 grid gap-(--gap-toolbar) sm:grid-cols-2 lg:grid-cols-3">
       <Field label="Name" hint="Only you see this.">
         <Input value={name} onChange={(e) => setName(e.target.value)} />
       </Field>
 
       <Field label="Colour" hint="Headings and rules on the document.">
-        <div className="flex items-center gap-2">
+        <Toolbar>
+          {/* The picker the form builder already uses: a swatch to choose
+              with, beside the hex for anybody pasting one off a clipboard.
+              The border had a width and no colour, so it drew in
+              currentColor. */}
           <input
             type="color"
             value={accentColor}
             onChange={(e) => setAccent(e.target.value)}
             aria-label="Accent colour"
-            className="h-8 w-12 rounded border"
+            className="h-9 w-12 shrink-0 cursor-pointer rounded-sm border border-line bg-transparent p-1"
           />
           <Input
             value={accentColor}
             onChange={(e) => setAccent(e.target.value)}
             className="w-28"
           />
-        </div>
+        </Toolbar>
       </Field>
 
       <Field label="Shape" hint="The same document, set three ways.">
@@ -1409,12 +1417,12 @@ function TemplateForm({
           label="Logo"
           hint="Drawn at the top. It is re-encoded before it is stored."
         >
-          <div className="flex items-center gap-2">
+          <Toolbar>
             {template.logoPath ? (
               <img
                 src={`/share/template/${template.id}/logo`}
                 alt=""
-                className="h-8 rounded border"
+                className="h-8 rounded border border-line"
               />
             ) : null}
             <input
@@ -1426,11 +1434,11 @@ function TemplateForm({
                 if (file) uploadLogo.mutate(file);
               }}
             />
-          </div>
+          </Toolbar>
         </Field>
       ) : null}
 
-      <div className="flex items-end gap-2">
+      <Toolbar>
         <Button
           onClick={() => save.mutate()}
           disabled={!name || save.isPending}
@@ -1440,7 +1448,7 @@ function TemplateForm({
         <Button variant="secondary" onClick={onDone}>
           Cancel
         </Button>
-      </div>
+      </Toolbar>
 
       {save.error ? <ErrorNote error={save.error} /> : null}
       {uploadLogo.error ? <ErrorNote error={uploadLogo.error} /> : null}

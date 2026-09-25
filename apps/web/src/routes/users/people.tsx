@@ -10,9 +10,12 @@ import {
   Field,
   Input,
   Loading,
+  Page,
   Row,
+  SectionHeading,
   Select,
   Table,
+  Toolbar,
   formatDate,
   muted,
 } from "../../lib/ui";
@@ -256,7 +259,7 @@ export function People() {
   const pages = Math.max(1, Math.ceil(total / (data.data?.perPage ?? 50)));
 
   return (
-    <div className="space-y-4">
+    <Page>
       {/*
         Inviting is for people who work here. A customer account is created by
         the person themselves, in the shop, so an invite box on that list would
@@ -264,8 +267,8 @@ export function People() {
       */}
       {audience === "staff" ? (
         <Card>
-          <p className="mb-2 font-medium">Invite somebody</p>
-          <div className="flex flex-wrap items-end gap-2">
+          <SectionHeading>Invite somebody</SectionHeading>
+          <Toolbar>
             <Field label="Email">
               <Input
                 type="email"
@@ -292,21 +295,21 @@ export function People() {
             >
               {invite.isPending ? "Inviting…" : "Send invitation"}
             </Button>
-          </div>
+          </Toolbar>
           {invite.error ? <ErrorNote error={invite.error} /> : null}
           {invitations.length > 0 ? (
-            <div className="mt-3">
-              <p className="text-sm font-medium">Waiting to be accepted</p>
+            <div className="mt-(--gap-toolbar)">
+              <SectionHeading level={3}>Waiting to be accepted</SectionHeading>
               <p className="text-xs" style={muted}>
                 Only the person invited can accept — the link only works for
                 their address. Until they do, you can withdraw it, and inviting
                 them again makes a fresh link and retires the old one.
               </p>
-              <ul className="mt-1 space-y-1 text-sm">
+              <ul className="mt-(--gap-tight) flex flex-col gap-(--gap-tight) text-sm">
                 {invitations.map((i) => (
                   <li
                     key={i.id}
-                    className="flex flex-wrap items-baseline justify-between gap-2 border-t pt-1 border-line"
+                    className="flex flex-wrap items-baseline justify-between gap-(--gap-toolbar) border-t pt-(--gap-tight) border-line"
                   >
                     <span>
                       {i.email}{" "}
@@ -338,8 +341,8 @@ export function People() {
 
       {issuedInvite ? (
         <Card>
-          <p className="font-medium">Invitation for {issuedInvite.email}</p>
-          <div className="mt-1 flex flex-wrap items-center gap-2">
+          <SectionHeading>Invitation for {issuedInvite.email}</SectionHeading>
+          <Toolbar>
             <Input
               readOnly
               className="min-w-0 flex-1"
@@ -357,8 +360,8 @@ export function People() {
             >
               {copied ? "Copied" : "Copy link"}
             </Button>
-          </div>
-          <p className="mt-1 text-sm" style={muted}>
+          </Toolbar>
+          <p className="mt-(--gap-tight) text-sm" style={muted}>
             {issuedInvite.emailSent
               ? "An email with this link is on its way to them. You can also copy it and send it yourself."
               : "No mail server is connected, so nothing was emailed — copy the link and send it to them yourself. Connect one in Settings → Connections to have this sent for you."}{" "}
@@ -366,7 +369,7 @@ export function People() {
             {formatDate(issuedInvite.expiresAt)}. Withdrawing the invitation
             below stops it working.
           </p>
-          <div className="mt-2">
+          <div className="mt-(--gap-toolbar)">
             <Button variant="secondary" onClick={() => setIssuedInvite(null)}>
               Done
             </Button>
@@ -376,13 +379,13 @@ export function People() {
 
       {issued ? (
         <Card>
-          <p className="font-medium">New password for {issued.email}</p>
-          <p className="money mt-1 text-lg tracking-wide">{issued.password}</p>
-          <p className="mt-1 text-sm" style={muted}>
+          <SectionHeading>New password for {issued.email}</SectionHeading>
+          <p className="money text-lg tracking-wide">{issued.password}</p>
+          <p className="mt-(--gap-tight) text-sm" style={muted}>
             Shown once and stored nowhere. Read it to them, and have them change
             it. They have been signed out everywhere.
           </p>
-          <div className="mt-2">
+          <div className="mt-(--gap-toolbar)">
             <Button variant="secondary" onClick={() => setIssued(null)}>
               Done
             </Button>
@@ -390,7 +393,7 @@ export function People() {
         </Card>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-2 text-sm">
+      <Toolbar className="text-sm">
         {(["staff", "customers"] as const).map((which) => (
           <button
             key={which}
@@ -409,11 +412,11 @@ export function People() {
               : ` (${data.data?.otherTotal ?? 0})`}
           </button>
         ))}
-      </div>
+      </Toolbar>
 
       {/* A name or an email. At five hundred people the list is not something
           anybody reads down. */}
-      <div className="flex flex-wrap items-center gap-2">
+      <Toolbar>
         <Input
           value={q}
           className="w-64"
@@ -428,7 +431,7 @@ export function People() {
           {total} {total === 1 ? "person" : "people"}
         </span>
         {pages > 1 ? (
-          <span className="ml-auto flex items-center gap-2 text-sm">
+          <span className="ml-auto flex items-center gap-(--gap-toolbar) text-sm">
             <button
               type="button"
               className="link-muted"
@@ -450,7 +453,7 @@ export function People() {
             </button>
           </span>
         ) : null}
-      </div>
+      </Toolbar>
 
       {/* "Policy", because that is what the nav, the person record and the
           Policies screen all call it. This table said "Role" — the word the
@@ -542,36 +545,38 @@ export function People() {
             <td style={muted}>
               {p.lastSeenAt ? formatDate(p.lastSeenAt) : "never"}
             </td>
-            <td className="space-x-3 text-right">
-              <ConfirmButton
-                title="Issue a new password?"
-                message={`The password ${p.email} has now stops working immediately, and they are signed out everywhere. The new one is shown once, on this screen, and stored nowhere.`}
-                confirmLabel="Issue one"
-                onConfirm={() => resetPassword.mutate(p)}
-              >
-                Reset password
-              </ConfirmButton>
-              {p.you ? null : (
-                <>
-                  <ConfirmButton
-                    title="Sign them out everywhere?"
-                    message={`${p.email} is signed out on every device and will have to sign in again. Anything they were part-way through typing is lost.`}
-                    confirmLabel="Sign them out"
-                    onConfirm={() => signOut.mutate(p.userId)}
-                  >
-                    Sign out
-                  </ConfirmButton>
-                  <ConfirmButton
-                    title="Remove them from the business?"
-                    message={`${p.email} loses access immediately. The invoices they raised, the notes they wrote and everything they did stay exactly where they are — this removes the person, not their work.`}
-                    confirmLabel="Remove them"
-                    danger
-                    onConfirm={() => remove.mutate(p.userId)}
-                  >
-                    Remove
-                  </ConfirmButton>
-                </>
-              )}
+            <td className="text-right">
+              <div className="flex flex-wrap items-center justify-end gap-(--gap-toolbar)">
+                <ConfirmButton
+                  title="Issue a new password?"
+                  message={`The password ${p.email} has now stops working immediately, and they are signed out everywhere. The new one is shown once, on this screen, and stored nowhere.`}
+                  confirmLabel="Issue one"
+                  onConfirm={() => resetPassword.mutate(p)}
+                >
+                  Reset password
+                </ConfirmButton>
+                {p.you ? null : (
+                  <>
+                    <ConfirmButton
+                      title="Sign them out everywhere?"
+                      message={`${p.email} is signed out on every device and will have to sign in again. Anything they were part-way through typing is lost.`}
+                      confirmLabel="Sign them out"
+                      onConfirm={() => signOut.mutate(p.userId)}
+                    >
+                      Sign out
+                    </ConfirmButton>
+                    <ConfirmButton
+                      title="Remove them from the business?"
+                      message={`${p.email} loses access immediately. The invoices they raised, the notes they wrote and everything they did stay exactly where they are — this removes the person, not their work.`}
+                      confirmLabel="Remove them"
+                      danger
+                      onConfirm={() => remove.mutate(p.userId)}
+                    >
+                      Remove
+                    </ConfirmButton>
+                  </>
+                )}
+              </div>
             </td>
           </Row>
         ))}
@@ -579,12 +584,12 @@ export function People() {
 
       {(data.data?.history ?? []).length > 0 ? (
         <Card>
-          <p className="font-medium">Recent changes</p>
-          <p className="mt-1 text-xs" style={muted}>
+          <SectionHeading>Recent changes</SectionHeading>
+          <p className="text-xs" style={muted}>
             Everything on this screen hands access around, so it is written
             down. Nothing here can be edited or deleted.
           </p>
-          <ul className="mt-2 space-y-1 text-sm">
+          <ul className="mt-(--gap-toolbar) flex flex-col gap-(--gap-tight) text-sm">
             {(data.data?.history ?? []).map((change) => (
               <li key={`${change.at}-${change.says}-${change.subject ?? ""}`}>
                 <span style={muted}>{formatDate(change.at)}</span>{" "}
@@ -614,6 +619,6 @@ export function People() {
       {[setRole, remove, resetPassword, revokeTwoFactor, signOut].map((m, i) =>
         m.error ? <ErrorNote key={String(i)} error={m.error} /> : null,
       )}
-    </div>
+    </Page>
   );
 }

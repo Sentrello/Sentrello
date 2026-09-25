@@ -11,8 +11,11 @@ import {
   Field,
   Input,
   Loading,
+  Page,
   Row,
+  SectionHeading,
   Table,
+  Toolbar,
   muted,
 } from "../../lib/ui";
 import { policyLabel } from "./policy-ui";
@@ -73,14 +76,14 @@ export function Groups() {
   const groups = data?.groups ?? [];
 
   return (
-    <div className="space-y-4">
+    <Page>
       <Card>
-        <p className="mb-1 font-medium">New group</p>
-        <p className="mb-2 text-sm" style={muted}>
+        <SectionHeading>New group</SectionHeading>
+        <p className="mb-(--gap-toolbar) text-sm" style={muted}>
           A group is a set of people who share a job. It carries policies, and
           everybody in it holds those as well as their own.
         </p>
-        <div className="flex flex-wrap items-end gap-2">
+        <Toolbar>
           <Field label="Name">
             <Input
               value={name}
@@ -97,7 +100,7 @@ export function Groups() {
           >
             Create
           </Button>
-        </div>
+        </Toolbar>
         {create.error ? <ErrorNote error={create.error} /> : null}
       </Card>
 
@@ -151,6 +154,6 @@ export function Groups() {
         </Table>
       )}
       {remove.error ? <ErrorNote error={remove.error} /> : null}
-    </div>
+    </Page>
   );
 }

@@ -10,6 +10,7 @@ import {
   Card,
   ErrorNote,
   Loading,
+  SectionHeading,
   briefMoney,
   formatMoney,
   muted,
@@ -116,18 +117,24 @@ function TasksPanel({ tasks }: { tasks: CrmDashboard["tasks"] }) {
 
   return (
     <Card>
-      <div className="mb-3 flex items-baseline justify-between">
-        <p className="font-medium">Your tasks</p>
-        <button
-          type="button"
-          className="link-muted"
-          aria-label="Add a task"
-          title="Add a task"
-          onClick={() => setAdding(true)}
-        >
-          <Icon name="plus" size={16} />
-        </button>
-      </div>
+      {/* The heading and the thing that acts on it: `trailing`, not a
+          hand-built row. Six spellings of this were in the product. */}
+      <SectionHeading
+        level={3}
+        trailing={
+          <button
+            type="button"
+            className="link-muted"
+            aria-label="Add a task"
+            title="Add a task"
+            onClick={() => setAdding(true)}
+          >
+            <Icon name="plus" size={16} />
+          </button>
+        }
+      >
+        Your tasks
+      </SectionHeading>
       {tasks.length ? (
         <ul>
           {tasks.map((task) => (
@@ -168,7 +175,7 @@ export function CrmDashboard() {
   const lostTotal = data.dealOutcomes.reduce((sum, m) => sum + m.lostCents, 0);
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="grid gap-(--gap-stack) lg:grid-cols-2">
       {/*
         Tasks first. Everything else on this screen is something to know;
         this is the only panel that is something to do.
@@ -266,7 +273,7 @@ export function CrmDashboard() {
         </div>
 
         {data.hotContacts.length ? (
-          <ul className="space-y-1">
+          <ul className="flex flex-col gap-(--gap-tight)">
             {data.hotContacts.map((contact) => (
               <li key={contact.id}>
                 <button
@@ -309,7 +316,7 @@ export function CrmDashboard() {
       <Card>
         <p className="mb-3 font-medium">Latest activity</p>
         {data.latestActivity.length ? (
-          <ul className="space-y-1">
+          <ul className="flex flex-col gap-(--gap-tight)">
             {data.latestActivity.map((activity) => (
               <li
                 key={activity.id}

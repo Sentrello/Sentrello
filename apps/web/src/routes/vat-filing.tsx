@@ -9,9 +9,12 @@ import {
   Field,
   Input,
   Loading,
+  Page,
   Row,
+  SectionHeading,
   Select,
   Table,
+  Toolbar,
   formatMoney,
   muted,
 } from "../lib/ui";
@@ -85,15 +88,15 @@ function SchemeCard({
   });
 
   return (
-    <Card className="space-y-3">
+    <Card className="flex flex-col gap-(--gap-toolbar)">
       <div>
-        <p className="text-sm font-medium">Your VAT scheme</p>
+        <SectionHeading>Your VAT scheme</SectionHeading>
         <p className="text-sm" style={muted}>
           Set this to match what you have agreed with HMRC — the scheme you are
           on is your election, not something the software can work out.
         </p>
       </div>
-      <div className="flex flex-wrap items-end gap-3">
+      <Toolbar>
         <Field label="Scheme">
           <Select
             value={scheme}
@@ -138,7 +141,7 @@ function SchemeCard({
         >
           Save
         </Button>
-      </div>
+      </Toolbar>
       <p className="text-xs" style={muted}>
         Eligibility, per gov.uk (checked 15 September 2026): the Flat Rate
         Scheme is open under £150,000 of annual turnover excluding VAT and must
@@ -249,18 +252,20 @@ export function VatFiling() {
    */
   if (!status.data?.available) {
     return (
-      <Card>
-        <p className="text-sm font-medium">Filing to HMRC is not set up here</p>
-        <p className="text-sm" style={muted}>
-          This instance has no HMRC credentials configured, so it cannot file a
-          VAT return. You can still see the return itself under Reports.
-        </p>
-      </Card>
+      <Page>
+        <Card>
+          <SectionHeading>Filing to HMRC is not set up here</SectionHeading>
+          <p className="text-sm" style={muted}>
+            This instance has no HMRC credentials configured, so it cannot file
+            a VAT return. You can still see the return itself under Reports.
+          </p>
+        </Card>
+      </Page>
     );
   }
 
   return (
-    <div className="space-y-4">
+    <Page>
       {status.data.sandbox ? (
         /*
          * Impossible to miss, and it should be. A business that thinks it has
@@ -294,9 +299,9 @@ export function VatFiling() {
         />
       ) : null}
 
-      <Card className="space-y-3">
+      <Card className="flex flex-col gap-(--gap-toolbar)">
         <div>
-          <p className="text-sm font-medium">Your HMRC connection</p>
+          <SectionHeading>Your HMRC connection</SectionHeading>
           <p className="text-sm" style={muted}>
             {status.data.connected
               ? `Connected for VAT number ${status.data.vrn}.`
@@ -305,7 +310,7 @@ export function VatFiling() {
         </div>
 
         {status.data.connected ? (
-          <div className="flex gap-2">
+          <Toolbar>
             <Button
               variant="secondary"
               onClick={() => obligations.mutate()}
@@ -320,7 +325,7 @@ export function VatFiling() {
             >
               Disconnect
             </Button>
-          </div>
+          </Toolbar>
         ) : (
           <>
             <Button
@@ -329,7 +334,7 @@ export function VatFiling() {
             >
               Sign in at HMRC
             </Button>
-            <div className="flex flex-wrap items-end gap-3">
+            <Toolbar>
               <Field
                 label="Your VAT number"
                 hint="Nine digits. Filing against the wrong one cannot be undone."
@@ -355,7 +360,7 @@ export function VatFiling() {
               >
                 Connect
               </Button>
-            </div>
+            </Toolbar>
           </>
         )}
         {authorise.error ? <ErrorNote error={authorise.error} /> : null}
@@ -366,7 +371,7 @@ export function VatFiling() {
 
       {obligations.data ? (
         <Card>
-          <p className="mb-2 text-sm font-medium">What HMRC says is due</p>
+          <SectionHeading>What HMRC says is due</SectionHeading>
           <Table headers={["Period", "Due", "Status", ""]}>
             {obligations.data.obligations.map((o) => (
               <Row key={o.periodKey}>
@@ -391,10 +396,10 @@ export function VatFiling() {
       ) : null}
 
       {chosen ? (
-        <Card className="space-y-3">
-          <p className="text-sm font-medium">
+        <Card className="flex flex-col gap-(--gap-toolbar)">
+          <SectionHeading>
             The return for {chosen.start} to {chosen.end}
-          </p>
+          </SectionHeading>
           {preview.isLoading ? <Loading /> : null}
           {preview.error ? <ErrorNote error={preview.error} /> : null}
           {preview.data ? (
@@ -443,10 +448,10 @@ export function VatFiling() {
                 doing them a disservice on the one screen where the words are
                 the product.
               */}
-              <label className="flex items-start gap-2 text-sm">
+              <label className="flex items-start gap-(--gap-toolbar) text-sm">
                 <input
                   type="checkbox"
-                  className="mt-1"
+                  className="mt-(--gap-tight)"
                   checked={declared}
                   onChange={(e) => setDeclared(e.target.checked)}
                 />
@@ -457,7 +462,7 @@ export function VatFiling() {
                 </span>
               </label>
 
-              <div className="flex gap-2">
+              <Toolbar>
                 <Button
                   variant="danger"
                   disabled={!declared || submit.isPending}
@@ -468,7 +473,7 @@ export function VatFiling() {
                 <Button variant="secondary" onClick={() => setChosen(null)}>
                   Not yet
                 </Button>
-              </div>
+              </Toolbar>
               <p className="text-xs" style={muted}>
                 A filed return cannot be withdrawn. Corrections are made on a
                 later return, or by contacting HMRC.
@@ -481,7 +486,7 @@ export function VatFiling() {
 
       {submit.data ? (
         <Card>
-          <p className="text-sm font-medium">Filed</p>
+          <SectionHeading>Filed</SectionHeading>
           <p className="text-sm" style={muted}>
             HMRC's receipt number is{" "}
             <strong>{submit.data.receipt.formBundleNumber}</strong>, at{" "}
@@ -491,6 +496,6 @@ export function VatFiling() {
           </p>
         </Card>
       ) : null}
-    </div>
+    </Page>
   );
 }

@@ -8,8 +8,12 @@ import {
   Field,
   Input,
   Loading,
+  Page,
   SecretInput,
+  SectionHeading,
   Select,
+  Textarea,
+  Toolbar,
   muted,
 } from "../lib/ui";
 
@@ -242,10 +246,10 @@ export function Settings() {
     );
 
   return (
-    <div className="max-w-3xl space-y-4">
+    <Page width="prose">
       <Card>
-        <p className="mb-3 font-medium">Your business</p>
-        <div className="space-y-3">
+        <SectionHeading>Your business</SectionHeading>
+        <div className="flex flex-col gap-(--gap-stack)">
           <Field
             label="Name"
             hint="Appears on invoices, the customer portal and your storefront."
@@ -265,16 +269,10 @@ export function Settings() {
             label="Address"
             hint="Required on invoices in the UK and EU. Appears at the foot of every one."
           >
-            <textarea
+            <Textarea
               rows={3}
               value={form.address}
               onChange={(e) => patch({ address: e.target.value })}
-              className="w-full rounded border px-2 py-1.5 text-sm"
-              style={{
-                background: "var(--surface-raised)",
-                borderColor: "var(--border)",
-                color: "var(--text)",
-              }}
             />
           </Field>
 
@@ -284,7 +282,7 @@ export function Settings() {
             Germany will not accept one without the city and postcode stated
             as themselves.
           */}
-          <div className="grid gap-3 sm:grid-cols-[1fr_8rem_6rem]">
+          <div className="grid gap-(--gap-toolbar) sm:grid-cols-[1fr_8rem_6rem]">
             <Field label="City" hint="For structured e-invoices.">
               <Input
                 value={form.city}
@@ -306,7 +304,7 @@ export function Settings() {
             </Field>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-(--gap-toolbar) sm:grid-cols-2">
             <Field
               label="Email"
               hint="A contact point for invoices. Germany requires one."
@@ -324,7 +322,7 @@ export function Settings() {
             </Field>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-[10rem_1fr]">
+          <div className="grid gap-(--gap-toolbar) sm:grid-cols-[10rem_1fr]">
             <Field label="Tax number label" hint="e.g. VAT number, ABN, EIN.">
               <Input
                 value={form.taxIdLabel}
@@ -367,16 +365,10 @@ export function Settings() {
             label="How to pay"
             hint="Bank details or instructions, shown on the customer's page."
           >
-            <textarea
+            <Textarea
               rows={3}
               value={form.paymentInstructions}
               onChange={(e) => patch({ paymentInstructions: e.target.value })}
-              className="w-full rounded border px-2 py-1.5 text-sm"
-              style={{
-                background: "var(--surface-raised)",
-                borderColor: "var(--border)",
-                color: "var(--text)",
-              }}
             />
           </Field>
 
@@ -424,7 +416,7 @@ export function Settings() {
                 </Select>
               </Field>
               {form.creditText !== null ? (
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-(--gap-toolbar) sm:grid-cols-2">
                   <Field
                     label="Your line"
                     hint="Clearing it removes the line entirely."
@@ -469,7 +461,7 @@ export function Settings() {
             label="Timezone"
             hint="What 'nine o'clock' means for this business. Leave it blank to use the server's own."
           >
-            <div className="flex gap-2">
+            <Toolbar>
               <Input
                 value={form.timezone}
                 placeholder="Europe/London"
@@ -486,7 +478,7 @@ export function Settings() {
               >
                 Use mine
               </Button>
-            </div>
+            </Toolbar>
           </Field>
 
           <Button
@@ -506,8 +498,8 @@ export function Settings() {
       <TaxRegimesCard />
 
       <Card>
-        <p className="font-medium">This instance</p>
-        <p className="mt-1 text-sm" style={muted}>
+        <SectionHeading>This instance</SectionHeading>
+        <p className="text-sm" style={muted}>
           Links in emails are built from {data.instance.baseUrl}.
         </p>
         {licence.data?.instanceId ? (
@@ -526,7 +518,7 @@ export function Settings() {
       </Card>
 
       <SettingUpRestore />
-    </div>
+    </Page>
   );
 }
 
@@ -589,16 +581,19 @@ function TaxRegimesCard() {
 
   return (
     <Card>
-      <p className="mb-1 font-medium">Tax regimes</p>
+      <SectionHeading>Tax regimes</SectionHeading>
       <p className="mb-3 text-sm" style={muted}>
         Which of these you operate in decides what shows in the sidebar. Sell
         only at home and pick one; sell across borders and pick several —
         turning one off keeps everything already filed under it, it only hides
         the screen.
       </p>
-      <div className="space-y-2">
+      <div className="flex flex-col gap-(--gap-toolbar)">
         {data.regimes.map((r) => (
-          <label key={r.id} className="flex items-center gap-2 text-sm">
+          <label
+            key={r.id}
+            className="flex items-center gap-(--gap-tight) text-sm"
+          >
             <input
               type="checkbox"
               checked={chosen.includes(r.id)}
@@ -641,8 +636,8 @@ function SettingUpRestore() {
 
   return (
     <Card>
-      <p className="font-medium">Setting up</p>
-      <p className="mt-1 text-sm" style={muted}>
+      <SectionHeading>Setting up</SectionHeading>
+      <p className="text-sm" style={muted}>
         The setting-up checklist was hidden with steps still to do. Bring it
         back and it carries on from where it stands — anything done in the
         meantime is already ticked.
@@ -678,13 +673,16 @@ export function SettingsIntegrations() {
   if (!data) return null;
 
   return (
-    <div className="max-w-3xl space-y-4">
+    <Page width="prose">
       <Card>
-        <div className="flex items-baseline justify-between">
-          <p className="font-medium">Email</p>
-          <State ok={data.email.configured} yes="working" no="not set up" />
-        </div>
-        <p className="mt-1 text-sm" style={muted}>
+        <SectionHeading
+          trailing={
+            <State ok={data.email.configured} yes="working" no="not set up" />
+          }
+        >
+          Email
+        </SectionHeading>
+        <p className="text-sm" style={muted}>
           {data.email.configured
             ? `Sent from ${data.email.from ?? "the configured address"}.`
             : "Invoices, receipts and password resets cannot be delivered until an email provider is configured on the server. Overdue invoices are not chased either — they are left alone rather than marked as chased, so nothing is lost by setting this up later."}
@@ -695,7 +693,7 @@ export function SettingsIntegrations() {
         stripeWebhook={data.payments.stripe.webhookUrl}
         paypalWebhook={data.payments.paypal.webhookUrl}
       />
-    </div>
+    </Page>
   );
 }
 
@@ -899,35 +897,32 @@ function Connection({
 
   return (
     <Card>
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <p className="font-medium">{label}</p>
-        <State
-          ok={Boolean(live)}
-          yes={live?.mode === "live" ? "taking payments" : "sandbox"}
-          no="not connected"
-        />
-      </div>
+      <SectionHeading
+        trailing={
+          <State
+            ok={Boolean(live)}
+            yes={live?.mode === "live" ? "taking payments" : "sandbox"}
+            no="not connected"
+          />
+        }
+      >
+        {label}
+      </SectionHeading>
 
-      <div className="mt-2 flex gap-2 text-sm">
+      {/* Sandbox and live are the same control the kit already draws: the
+          selected one is a primary button, the other a secondary. It was two
+          hand-styled buttons carrying the primary's own background token. */}
+      <Toolbar>
         {["test", "live"].map((option) => (
-          <button
+          <Button
             key={option}
-            type="button"
-            className="rounded-md px-3 py-1"
-            style={
-              mode === option
-                ? {
-                    background: "var(--brand-on-white-text)",
-                    color: "var(--color-neutral-50)",
-                  }
-                : { ...muted }
-            }
+            variant={mode === option ? "primary" : "secondary"}
             onClick={() => setMode(option)}
           >
             {option === "test" ? "Sandbox" : "Live"}
-          </button>
+          </Button>
         ))}
-      </div>
+      </Toolbar>
 
       {account ? (
         <p className="mt-2 text-sm" style={muted}>
@@ -954,7 +949,7 @@ function Connection({
         </p>
       ) : null}
 
-      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+      <div className="mt-3 grid gap-(--gap-toolbar) sm:grid-cols-3">
         <Field label="Publishable key" hint="Not a secret.">
           <Input
             value={publicKey}
@@ -996,7 +991,7 @@ function Connection({
          * and neither is a webhook the processor refused. One flat "it did not
          * work" makes somebody re-paste a perfectly good key.
          */
-        <ul className="mt-3 space-y-1 text-sm">
+        <ul className="mt-3 flex flex-col gap-(--gap-tight) text-sm">
           {connect.data.steps.map((step) => (
             <li
               key={step.step}
@@ -1011,7 +1006,7 @@ function Connection({
         </ul>
       ) : null}
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
+      <Toolbar className="mt-3">
         <Button
           onClick={() => connect.mutate()}
           disabled={connect.isPending || (!secretKey && !account?.secretHint)}
@@ -1045,7 +1040,7 @@ function Connection({
             Forget these keys
           </Button>
         ) : null}
-      </div>
+      </Toolbar>
 
       {/*
         The failure that has to be visible.
@@ -1188,7 +1183,7 @@ export function SettingsLicence() {
   const data = settings.data;
 
   return (
-    <div className="max-w-3xl space-y-4">
+    <Page width="prose">
       {licence.data?.failedBundles?.length ? (
         // Paid features vanishing without explanation is the worst way to
         // find out about this, so it goes at the top and stays red.
@@ -1211,22 +1206,25 @@ export function SettingsLicence() {
       ) : null}
 
       <Card>
-        <div className="flex items-baseline justify-between">
-          <p className="font-medium">Licence</p>
-          {licence.data ? (
-            <State
-              // No token at all is not a failure: the instance is simply
-              // Free, which is a tier and not a warning.
-              ok={licence.data.valid || !licence.data.tokenPresent}
-              yes={
-                licence.data.valid && licence.data.tier === "pro"
-                  ? "Pro"
-                  : "Free"
-              }
-              no="not verified"
-            />
-          ) : null}
-        </div>
+        <SectionHeading
+          trailing={
+            licence.data ? (
+              <State
+                // No token at all is not a failure: the instance is simply
+                // Free, which is a tier and not a warning.
+                ok={licence.data.valid || !licence.data.tokenPresent}
+                yes={
+                  licence.data.valid && licence.data.tier === "pro"
+                    ? "Pro"
+                    : "Free"
+                }
+                no="not verified"
+              />
+            ) : null
+          }
+        >
+          Licence
+        </SectionHeading>
         {licence.data ? (
           <>
             {!licence.data.valid && licence.data.tokenPresent ? (
@@ -1324,26 +1322,29 @@ export function SettingsLicence() {
       </Card>
 
       <Card>
-        <div className="flex items-baseline justify-between">
-          <p className="font-medium">Updates</p>
-          {/*
-            An instance that has not looked is not "up to date" — it does not
-            know. Saying so is the difference between a badge and a guess.
-          */}
-          {latest === null ? (
-            <span className="text-sm font-medium" style={muted}>
-              not checked
-            </span>
-          ) : (
-            <State
-              ok={!updateAvailable}
-              yes="up to date"
-              no="update available"
-            />
-          )}
-        </div>
+        <SectionHeading
+          trailing={
+            /*
+              An instance that has not looked is not "up to date" — it does not
+              know. Saying so is the difference between a badge and a guess.
+            */
+            latest === null ? (
+              <span className="text-sm font-medium" style={muted}>
+                not checked
+              </span>
+            ) : (
+              <State
+                ok={!updateAvailable}
+                yes="up to date"
+                no="update available"
+              />
+            )
+          }
+        >
+          Updates
+        </SectionHeading>
 
-        <p className="mt-1 text-sm" style={muted}>
+        <p className="text-sm" style={muted}>
           Running version {updates.data?.current ?? "…"}.
         </p>
 
@@ -1442,7 +1443,7 @@ export function SettingsLicence() {
                   lost. If you need the database put back as well, that is a
                   separate step on the server.
                 </p>
-                <div className="mt-2 flex gap-2">
+                <Toolbar className="mt-2">
                   <Button
                     onClick={() => rollback.mutate()}
                     disabled={rollback.isPending}
@@ -1451,14 +1452,13 @@ export function SettingsLicence() {
                       ? "Going back…"
                       : `Go back to ${updates.data.rollbackTo}`}
                   </Button>
-                  <button
-                    type="button"
+                  <Button
+                    variant="secondary"
                     onClick={() => setConfirmRollback(false)}
-                    className="text-sm link-muted"
                   >
                     Cancel
-                  </button>
-                </div>
+                  </Button>
+                </Toolbar>
               </>
             ) : (
               <p className="text-sm" style={muted}>
@@ -1503,16 +1503,16 @@ export function SettingsLicence() {
       </Card>
 
       {data ? <Telemetry telemetry={data.telemetry} /> : null}
-    </div>
+    </Page>
   );
 }
 
 /** What the licence includes, and which of it this business has set up. */
 export function SettingsModules() {
   return (
-    <div className="max-w-3xl space-y-4">
+    <Page width="prose">
       <Modules />
-    </div>
+    </Page>
   );
 }
 
@@ -1540,14 +1540,14 @@ function Telemetry({
 
   return (
     <Card>
-      <p className="font-medium">Usage reporting</p>
-      <p className="mt-1 text-sm" style={muted}>
+      <SectionHeading>Usage reporting</SectionHeading>
+      <p className="text-sm" style={muted}>
         Once a day, if you allow it, this instance sends: the version it runs,
         whether it is Free or Pro, which modules are loaded, and a band for how
         many people use it (1, 2–5, 6–10, 11–20, 21+). Nothing else — no
         customer records, no names, no figures, no business identifier.
       </p>
-      <div className="mt-2 flex items-center gap-3">
+      <Toolbar className="mt-2">
         <State ok={telemetry.enabled} yes="sending" no="not sending anything" />
         {telemetry.fixedOnServer ? (
           <span className="text-sm" style={muted}>
@@ -1562,7 +1562,7 @@ function Telemetry({
             {telemetry.enabled ? "Stop sending" : "Start sending"}
           </Button>
         )}
-      </div>
+      </Toolbar>
       {toggle.error ? <ErrorNote error={toggle.error} /> : null}
     </Card>
   );
@@ -1607,17 +1607,17 @@ function Modules() {
 
   return (
     <Card>
-      <p className="font-medium">Modules</p>
-      <p className="mt-1 text-sm" style={muted}>
+      <SectionHeading>Modules</SectionHeading>
+      <p className="text-sm" style={muted}>
         What your licence includes. Set one up when you are ready for it —
         nothing is lost by leaving it until then.
       </p>
 
-      <ul className="mt-3 space-y-2">
+      <ul className="mt-3 flex flex-col gap-(--gap-toolbar)">
         {available.map((m) => (
           <li
             key={m.id}
-            className="flex flex-wrap items-center justify-between gap-2 border-t pt-2 text-sm border-line"
+            className="flex flex-wrap items-center justify-between gap-(--gap-toolbar) border-t pt-2 text-sm border-line"
           >
             <div>
               <div>{m.label}</div>
@@ -1638,7 +1638,7 @@ function Modules() {
         {switchable.map((n) => (
           <li
             key={n.id}
-            className="flex flex-wrap items-center justify-between gap-2 border-t pt-2 text-sm border-line"
+            className="flex flex-wrap items-center justify-between gap-(--gap-toolbar) border-t pt-2 text-sm border-line"
           >
             <div>
               <div>{n.label}</div>

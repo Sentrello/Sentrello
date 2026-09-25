@@ -8,6 +8,9 @@ import {
   Field,
   Input,
   Loading,
+  Page,
+  SectionHeading,
+  Toolbar,
   muted,
 } from "../lib/ui";
 
@@ -130,9 +133,9 @@ function Safeguards() {
 
   return (
     <>
-      <Card className="space-y-3">
+      <Card className="flex flex-col gap-(--gap-toolbar)">
         <div>
-          <p className="text-sm font-medium">What applies to this business</p>
+          <SectionHeading>What applies to this business</SectionHeading>
           <p className="text-sm" style={muted}>
             Compliance works like modules here: you switch on what applies to
             you. A t-shirt shop in Texas and the same shop in Berlin are the
@@ -142,11 +145,11 @@ function Safeguards() {
         </div>
 
         {regimes.map((r) => (
-          <div key={r.id} className="pb-2">
-            <label className="flex items-start gap-2 text-sm">
+          <div key={r.id} className="pb-(--gap-toolbar)">
+            <label className="flex items-start gap-(--gap-toolbar) text-sm">
               <input
                 type="checkbox"
-                className="mt-1"
+                className="mt-(--gap-tight)"
                 checked={r.chosen}
                 disabled={save.isPending}
                 onChange={(e) => toggle(r.id, e.target.checked)}
@@ -157,7 +160,7 @@ function Safeguards() {
                   {r.when}
                 </span>
                 {r.chosen && r.turnsOn.length ? (
-                  <span className="block mt-1" style={muted}>
+                  <span className="mt-(--gap-tight) block" style={muted}>
                     Turns on: {r.turnsOn.join("; ")}.
                   </span>
                 ) : null}
@@ -167,7 +170,7 @@ function Safeguards() {
         ))}
 
         {on && compliance.data ? (
-          <div className="space-y-2 pt-1">
+          <div className="flex flex-col gap-(--gap-toolbar) pt-(--gap-tight)">
             <Field
               label="Sign out after"
               hint="Minutes of inactivity. The screen left open in a room patients walk through is the reason for this one."
@@ -176,7 +179,7 @@ function Safeguards() {
                 type="number"
                 min={1}
                 max={60}
-                style={{ width: "6rem" }}
+                className="w-24"
                 value={String(compliance.data.settings.idleTimeoutMinutes)}
                 onChange={(e) =>
                   save.mutate({
@@ -185,7 +188,7 @@ function Safeguards() {
                 }
               />
             </Field>
-            <label className="flex items-center gap-2 text-sm">
+            <label className="flex items-center gap-(--gap-toolbar) text-sm">
               <input
                 type="checkbox"
                 checked={compliance.data.settings.requireTwoFactor}
@@ -195,7 +198,7 @@ function Safeguards() {
               />
               Require a second factor from everybody
             </label>
-            <label className="flex items-center gap-2 text-sm">
+            <label className="flex items-center gap-(--gap-toolbar) text-sm">
               <input
                 type="checkbox"
                 checked={compliance.data.settings.logReads}
@@ -223,10 +226,10 @@ function Safeguards() {
         {save.error ? <ErrorNote error={save.error} /> : null}
 
         {compliance.data?.yourOwnObligations.length ? (
-          <div className="pt-2">
-            <p className="text-sm font-medium">What is still yours to do</p>
+          <div className="pt-(--gap-toolbar)">
+            <SectionHeading level={3}>What is still yours to do</SectionHeading>
             {compliance.data.yourOwnObligations.map((o) => (
-              <div key={o.what} className="mt-2">
+              <div key={o.what} className="mt-(--gap-toolbar)">
                 <p className="text-sm">
                   {o.done === true ? "✓ " : ""}
                   {o.what} <span style={muted}>({o.regime})</span>
@@ -240,14 +243,17 @@ function Safeguards() {
         ) : null}
       </Card>
 
-      <Card className="space-y-2">
-        <p className="text-sm font-medium">Evidence for an audit</p>
-        <p className="text-sm" style={muted}>
-          For a SOC 2 audit, ISO 27001, or a large customer's security
-          questionnaire: who has access and at what level, every change to that
-          access, what personal data is held and for how long. It also names the
-          four things an auditor will ask for that this software cannot see.
-        </p>
+      <Card className="flex flex-col gap-(--gap-toolbar)">
+        <div>
+          <SectionHeading>Evidence for an audit</SectionHeading>
+          <p className="text-sm" style={muted}>
+            For a SOC 2 audit, ISO 27001, or a large customer's security
+            questionnaire: who has access and at what level, every change to
+            that access, what personal data is held and for how long. It also
+            names the four things an auditor will ask for that this software
+            cannot see.
+          </p>
+        </div>
         <div>
           <Button
             variant="secondary"
@@ -325,19 +331,17 @@ export function Privacy() {
   };
 
   return (
-    <div className="space-y-4">
-      <Card className="space-y-3">
+    <Page width="prose">
+      <Card className="flex flex-col gap-(--gap-toolbar)">
         <div>
-          <p className="text-sm font-medium">
-            Somebody asking about their data
-          </p>
+          <SectionHeading>Somebody asking about their data</SectionHeading>
           <p className="text-sm" style={muted}>
             Find everything this business holds about one person, hand it to
             them, or erase it. You have a month to answer under UK and EU law,
             and forty-five days under California's.
           </p>
         </div>
-        <div className="flex flex-wrap items-end gap-3">
+        <Toolbar>
           <Field label="Their email">
             <Input
               value={email}
@@ -351,27 +355,28 @@ export function Privacy() {
           >
             {gather.isPending ? "Looking…" : "Find what we hold"}
           </Button>
-        </div>
+        </Toolbar>
         {gather.error ? <ErrorNote error={gather.error} /> : null}
       </Card>
 
       {gather.data ? (
-        <Card className="space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-medium">
-              {gather.data.total} record
-              {gather.data.total === 1 ? "" : "s"} about {gather.data.subject}
-            </p>
-            {gather.data.total > 0 ? (
-              <Button variant="secondary" onClick={download}>
-                Download it for them
-              </Button>
-            ) : null}
-          </div>
+        <Card className="flex flex-col gap-(--gap-toolbar)">
+          <SectionHeading
+            trailing={
+              gather.data.total > 0 ? (
+                <Button variant="secondary" onClick={download}>
+                  Download it for them
+                </Button>
+              ) : null
+            }
+          >
+            {gather.data.total} record
+            {gather.data.total === 1 ? "" : "s"} about {gather.data.subject}
+          </SectionHeading>
 
           {gather.data.sources.map((s) => (
             <div key={s.source}>
-              <p className="text-sm font-medium">{s.label}</p>
+              <SectionHeading level={3}>{s.label}</SectionHeading>
               {s.error ? (
                 /*
                  * Said out loud rather than swallowed. An export that quietly
@@ -402,9 +407,9 @@ export function Privacy() {
           ))}
 
           {gather.data.total > 0 ? (
-            <div className="pt-2">
+            <div className="pt-(--gap-toolbar)">
               {confirming ? (
-                <div className="space-y-2">
+                <div className="flex flex-col gap-(--gap-toolbar)">
                   <Field
                     label="How did you check this is really them?"
                     hint="Kept with the record of the erasure. It is what you will be asked about afterwards."
@@ -415,7 +420,7 @@ export function Privacy() {
                       onChange={(e) => setNote(e.currentTarget.value)}
                     />
                   </Field>
-                  <div className="flex gap-2">
+                  <Toolbar>
                     <Button
                       variant="danger"
                       disabled={!note.trim() || erase.isPending}
@@ -429,7 +434,7 @@ export function Privacy() {
                     >
                       Cancel
                     </Button>
-                  </div>
+                  </Toolbar>
                 </div>
               ) : (
                 <Button variant="secondary" onClick={() => setConfirming(true)}>
@@ -443,8 +448,8 @@ export function Privacy() {
       ) : null}
 
       {erase.data ? (
-        <Card className="space-y-2">
-          <p className="text-sm font-medium">What was done</p>
+        <Card className="flex flex-col gap-(--gap-toolbar)">
+          <SectionHeading>What was done</SectionHeading>
           {erase.data.sources.map((s) => (
             <div key={s.source}>
               <p className="text-sm">{s.label}</p>
@@ -468,14 +473,17 @@ export function Privacy() {
         </Card>
       ) : null}
 
-      <Card className="space-y-2">
-        <p className="text-sm font-medium">
-          What this business holds, and for how long
-        </p>
-        <p className="text-sm" style={muted}>
-          Assembled from the modules installed here rather than from a document
-          somebody wrote once. This is what to copy into a privacy notice.
-        </p>
+      <Card className="flex flex-col gap-(--gap-toolbar)">
+        <div>
+          <SectionHeading>
+            What this business holds, and for how long
+          </SectionHeading>
+          <p className="text-sm" style={muted}>
+            Assembled from the modules installed here rather than from a
+            document somebody wrote once. This is what to copy into a privacy
+            notice.
+          </p>
+        </div>
         {sources.isLoading ? (
           <Loading />
         ) : (
@@ -497,8 +505,8 @@ export function Privacy() {
 
       <Safeguards />
 
-      <Card className="space-y-2">
-        <p className="text-sm font-medium">Requests you have answered</p>
+      <Card className="flex flex-col gap-(--gap-toolbar)">
+        <SectionHeading>Requests you have answered</SectionHeading>
         {requests.data?.requests.length ? (
           <ul className="text-sm" style={muted}>
             {requests.data.requests.map((r) => (
@@ -515,6 +523,6 @@ export function Privacy() {
           </p>
         )}
       </Card>
-    </div>
+    </Page>
   );
 }

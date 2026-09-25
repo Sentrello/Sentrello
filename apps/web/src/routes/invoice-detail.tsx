@@ -206,7 +206,7 @@ export function InvoiceDetail() {
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
-      <div className="space-y-4">
+      <div className="flex flex-col gap-(--gap-stack)">
         <Card>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -339,7 +339,7 @@ export function InvoiceDetail() {
         ) : null}
       </div>
 
-      <div className="space-y-4">
+      <div className="flex flex-col gap-(--gap-stack)">
         <Card>
           <table className="w-full text-sm">
             <tbody>
@@ -677,7 +677,7 @@ function Payments({
           Nothing received yet.
         </p>
       ) : (
-        <ul className="mb-3 space-y-1 text-sm">
+        <ul className="mb-3 flex flex-col gap-(--gap-tight) text-sm">
           {payments.map((payment) => (
             <li
               key={payment.id}
@@ -721,7 +721,10 @@ function Payments({
       {applyCredit.error ? <ErrorNote error={applyCredit.error} /> : null}
 
       {balanceDue > 0 ? (
-        <div className="space-y-2 border-t pt-3" style={border}>
+        <div
+          className="flex flex-col gap-(--gap-toolbar) border-t pt-3"
+          style={border}
+        >
           <div className="grid gap-2 sm:grid-cols-3">
             <Field label="Record a payment">
               <Input

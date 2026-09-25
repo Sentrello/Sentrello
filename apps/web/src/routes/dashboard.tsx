@@ -9,6 +9,7 @@ import {
   ErrorNote,
   Input,
   Loading,
+  Page,
   StatFigure,
   Tabs,
   activeTab,
@@ -235,7 +236,7 @@ export function Dashboard() {
    * sold to is part of what was bought.
    */
   return (
-    <div className="space-y-4">
+    <Page>
       {/* Before anything else, and only while there is nothing else. */}
       <StartHere startHere={data.startHere} />
       {/*
@@ -248,7 +249,7 @@ export function Dashboard() {
       <SettingUp />
       <AdSlot ad={data.ad} />
       <ArrangedDashboard data={data} />
-    </div>
+    </Page>
   );
 }
 
@@ -292,7 +293,7 @@ function ArrangedDashboard({ data }: { data: Dashboard }) {
   const current = tabs.find((tab) => tab.name === activeTab(strip, active)?.id);
 
   return (
-    <div className="space-y-4">
+    <Page>
       <Tabs
         tabs={strip}
         active={active}
@@ -321,7 +322,7 @@ function ArrangedDashboard({ data }: { data: Dashboard }) {
         />
       ) : null}
 
-      <div className="space-y-4">
+      <div className="flex flex-col gap-(--gap-stack)">
         {(current?.widgets ?? []).map((widget) => (
           <Widget
             key={widget}
@@ -338,7 +339,7 @@ function ArrangedDashboard({ data }: { data: Dashboard }) {
           </Card>
         ) : null}
       </div>
-    </div>
+    </Page>
   );
 }
 
@@ -378,7 +379,7 @@ function Widget({
       return (
         <Card>
           <p className="mb-2 font-medium">Pipeline</p>
-          <div className="grid gap-3 sm:grid-cols-3 text-sm">
+          <div className="grid gap-(--gap-toolbar) text-sm sm:grid-cols-3">
             <Stat
               label="Open"
               value={formatMoney(data.pipeline.openCents)}
@@ -431,7 +432,7 @@ function SummaryCard({ summary }: { summary: FigureWidgetData }) {
 
   return (
     <Card>
-      <div className="mb-2 flex items-baseline gap-2">
+      <div className="mb-(--gap-toolbar) flex items-baseline gap-(--gap-tight)">
         <p className="font-medium">{summary.label}</p>
         {/* Straight into the module, because a figure somebody reads on the
             dashboard is a figure they want to go and act on. */}
@@ -457,7 +458,7 @@ function SummaryCard({ summary }: { summary: FigureWidgetData }) {
         the other one. These cards used to sit two-to-a-row inside one panel,
         which hid it; a module's panel is a panel of its own now.
       */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-(--gap-toolbar) sm:grid-cols-2 lg:grid-cols-4">
         {summary.figures.map((figure) => (
           <Stat
             key={figure.label}
@@ -512,7 +513,7 @@ function BalanceSheetPanel() {
   return (
     <Card>
       <p className="mb-2 font-medium">Balance sheet</p>
-      <div className="grid gap-3 sm:grid-cols-4">
+      <div className="grid gap-(--gap-toolbar) sm:grid-cols-4">
         <Stat label="Assets" value={formatMoney(data.assetsCents)} />
         <Stat label="Liabilities" value={formatMoney(data.liabilitiesCents)} />
         <Stat label="Equity" value={formatMoney(data.equityCents)} />
@@ -545,7 +546,7 @@ function CashFlowPanel() {
   return (
     <Card>
       <p className="mb-2 font-medium">Cash in and out</p>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-(--gap-toolbar) sm:grid-cols-3">
         <Stat label="In" value={formatMoney(data.inCents)} />
         <Stat label="Out" value={formatMoney(data.outCents)} />
         <Stat
@@ -584,7 +585,7 @@ function TrialBalancePanel() {
   return (
     <Card>
       <p className="mb-2 font-medium">Trial balance</p>
-      <ul className="space-y-1 text-sm">
+      <ul className="flex flex-col gap-(--gap-tight) text-sm">
         {rows.map((row) => (
           <li key={row.code} className="flex gap-2">
             <span style={muted}>{row.code}</span>
@@ -649,7 +650,7 @@ export function WhoOwesPanel() {
           tone={(data?.aging.days90plus ?? 0) > 0 ? "bad" : "plain"}
         />
       </div>
-      <ul className="space-y-1 text-sm">
+      <ul className="flex flex-col gap-(--gap-tight) text-sm">
         {owed.slice(0, 12).map((invoice) => (
           <li key={invoice.invoiceId} className="flex flex-wrap gap-2">
             <button
@@ -747,7 +748,7 @@ function InsightWidget({
             No open deals.
           </p>
         ) : (
-          <ul className="space-y-1 text-sm">
+          <ul className="flex flex-col gap-(--gap-tight) text-sm">
             {insights.dealsByStage.map((s) => (
               <li key={s.stage} className="flex justify-between">
                 <span className="capitalize">
@@ -771,7 +772,7 @@ function InsightWidget({
             No invoices sent yet.
           </p>
         ) : (
-          <ul className="space-y-1 text-sm">
+          <ul className="flex flex-col gap-(--gap-tight) text-sm">
             {insights.topCustomers.map((c) => (
               <li key={c.name} className="flex justify-between">
                 <span>{c.name}</span>
@@ -788,7 +789,7 @@ function InsightWidget({
     return (
       <Card>
         <p className="mb-2 font-medium">How late the money is</p>
-        <div className="grid gap-3 sm:grid-cols-5 text-sm">
+        <div className="grid gap-(--gap-toolbar) sm:grid-cols-5 text-sm">
           {insights.aging.map((a) => (
             <Stat
               key={a.bucket}
@@ -907,7 +908,7 @@ function Arrange({
   return (
     <Card>
       <p className="mb-2 font-medium">Arrange your dashboard</p>
-      <div className="space-y-4">
+      <div className="flex flex-col gap-(--gap-stack)">
         {draft.map((tab, i) => (
           <div
             key={`tab-${i}-${tab.name}`}
@@ -978,7 +979,7 @@ function Arrange({
 function MoneyPanel({ data }: { data: Dashboard }) {
   const { money, pipeline, book } = data;
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-(--gap-toolbar) sm:grid-cols-2 lg:grid-cols-4">
       <Card>
         <StatFigure
           label="Owed to you"
@@ -1027,7 +1028,7 @@ function AttentionPanel({ data }: { data: Dashboard }) {
           be.
         </p>
       ) : (
-        <ul className="space-y-2">
+        <ul className="flex flex-col gap-(--gap-toolbar)">
           {attention.map((item) => {
             const to = WHERE[item.kind];
             return (
@@ -1130,7 +1131,7 @@ export function HealthPanel({ health }: { health: Health }) {
   return (
     <Card>
       <p className="mb-2 font-medium">This server</p>
-      <div className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-(--gap-toolbar) text-sm sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <p className="text-xs" style={muted}>
             Version
@@ -1282,7 +1283,7 @@ function SettingUp() {
         Hide it any time — Settings can bring it back where you left off.
       </p>
 
-      <div className="mt-3 space-y-4">
+      <div className="mt-3 flex flex-col gap-(--gap-stack)">
         {guides.map((guide) => (
           <div key={guide.id}>
             <p className="text-sm font-medium">
@@ -1291,7 +1292,7 @@ function SettingUp() {
                 {guide.steps.length - guide.remaining} of {guide.steps.length}
               </span>
             </p>
-            <ul className="mt-1 space-y-1">
+            <ul className="mt-1 flex flex-col gap-(--gap-tight)">
               {guide.steps.map((step) => (
                 <li key={step.id} className="flex gap-2 text-sm">
                   <span
