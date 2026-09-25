@@ -3,11 +3,13 @@ import { useState } from "react";
 import { api } from "../lib/api";
 import {
   Card,
+  Empty,
   ErrorNote,
   Field,
   Input,
   Loading,
   Row,
+  SectionHeading,
   Table,
   formatMoney,
   muted,
@@ -91,9 +93,20 @@ function FormLines({ lines }: { lines: [string, number][] }) {
  * agreeing is the check to run before typing anything into a portal.
  */
 function Reconciliation({ taxes }: { taxes: ReturnLine[] }) {
+  if (taxes.length === 0) {
+    return (
+      <div className="mt-3">
+        <SectionHeading level={3}>Rate by rate</SectionHeading>
+        <Empty title="No tax in this period">
+          Nothing was charged at any rate between these dates, so there is
+          nothing to reconcile against the documents.
+        </Empty>
+      </div>
+    );
+  }
   return (
     <div className="mt-3">
-      <p className="mb-1 text-sm font-medium">Rate by rate</p>
+      <SectionHeading level={3}>Rate by rate</SectionHeading>
       <Table headers={["Rate", "Taxable", "Collected", "On the documents"]}>
         {taxes.map((t) => (
           <Row key={t.definitionId}>

@@ -6,6 +6,7 @@ import {
   Button,
   Card,
   ConfirmButton,
+  Empty,
   ErrorNote,
   Field,
   Input,
@@ -458,6 +459,11 @@ export function People() {
       {/* "Policy", because that is what the nav, the person record and the
           Policies screen all call it. This table said "Role" — the word the
           reference used and the one the console deliberately moved away from. */}
+      {people.length === 0 ? (
+        <Empty title="Nobody matches that">
+          Clear the search, or the filters beside it, to see everyone again.
+        </Empty>
+      ) : null}
       <Table
         headers={["Name", "Email", "Policy", "Two-factor", "Last seen", ""]}
       >

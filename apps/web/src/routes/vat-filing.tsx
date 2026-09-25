@@ -5,6 +5,7 @@ import { hmrcClientContext } from "../lib/hmrc-client";
 import {
   Button,
   Card,
+  Empty,
   ErrorNote,
   Field,
   Input,
@@ -372,6 +373,12 @@ export function VatFiling() {
       {obligations.data ? (
         <Card>
           <SectionHeading>What HMRC says is due</SectionHeading>
+          {obligations.data.obligations.length === 0 ? (
+            <Empty title="Nothing due in this window">
+              HMRC has no open or filed obligations for these dates. Widen the
+              dates if a period you expected is outside them.
+            </Empty>
+          ) : null}
           <Table headers={["Period", "Due", "Status", ""]}>
             {obligations.data.obligations.map((o) => (
               <Row key={o.periodKey}>
