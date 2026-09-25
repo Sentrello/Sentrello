@@ -252,7 +252,10 @@ export function FilterPanel({
   children: ReactNode;
 }) {
   return (
-    <aside className="w-52 shrink-0 flex flex-col gap-(--gap-stack)">
+    // `w-full` until there is room for a rail beside the list. Stacked above
+    // it on a phone, a 208px column leaves the search box two thirds the
+    // width of the screen it is the full width of.
+    <aside className="flex w-full shrink-0 flex-col gap-(--gap-stack) sm:w-52">
       {/*
        * `Input`, not a hand-copied one.
        *
@@ -295,6 +298,13 @@ export function FilterPanel({
  *
  * Open by default and collapsible, because a business that never uses tags
  * should not scroll past them to reach the filter it does use.
+ *
+ * **Shut by default on a phone**, where the rail is not beside the list but
+ * above it. Contacts has six groups and twenty-odd choices between them, so
+ * open they put the first contact a screen and a half down — on the screen
+ * whose job is to show contacts. Shut, the search box and the headings take
+ * two rows and the list starts under them. Anybody who wants a filter taps a
+ * heading, which is one press either way.
  */
 export function FilterGroup({
   label,
@@ -305,7 +315,12 @@ export function FilterGroup({
   icon: IconName;
   children: ReactNode;
 }) {
-  const [open, setOpen] = useState(true);
+  // Read once, at mount. Re-reading on resize would shut a group somebody had
+  // just opened, on the one gesture — turning a phone sideways — most likely
+  // to happen while they are using it.
+  const [open, setOpen] = useState(
+    () => typeof window === "undefined" || window.innerWidth >= 640,
+  );
   return (
     <div>
       <button
