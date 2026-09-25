@@ -1147,10 +1147,6 @@ export function SettingsLicence() {
         ? 5_000
         : false,
   });
-  // No error branch on purpose, though the whole card body hangs off this
-  // one. Every sentence that would name a tier — the badge, "Running as
-  // Free", the renewal date — sits inside the same guard, so a failed fetch
-  // draws an empty card rather than a wrong answer about what was paid for.
   const licence = useQuery({
     queryKey: ["license"],
     queryFn: () => api<LicenseResponse>("/api/license"),
@@ -1267,6 +1263,31 @@ export function SettingsLicence() {
         >
           Licence
         </SectionHeading>
+        {/*
+          A failed fetch says so, rather than drawing an empty card.
+
+          Every sentence that would name a tier sits inside the guard below,
+          so this was never going to state something false — but an empty
+          card is indistinguishable from one still loading, and a Pro
+          customer whose licence call fails also loses the "Check my
+          subscription" button that would fix it. A dead end is its own kind
+          of wrong answer.
+        */}
+        {licence.error ? (
+          <>
+            <ErrorNote error={licence.error} />
+            <div className="mt-(--gap-toolbar)">
+              <button
+                type="button"
+                onClick={() => licence.refetch()}
+                disabled={licence.isFetching}
+                className="text-sm link-muted"
+              >
+                {licence.isFetching ? "Asking again…" : "Try again"}
+              </button>
+            </div>
+          </>
+        ) : null}
         {licence.data ? (
           <>
             {!licence.data.valid && licence.data.tokenPresent ? (
