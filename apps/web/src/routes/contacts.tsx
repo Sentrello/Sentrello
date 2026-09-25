@@ -377,7 +377,12 @@ export function Contacts() {
                     {section.rows.map((c, i) => (
                       <div
                         key={c.id}
-                        className={`flex items-center gap-(--gap-toolbar) px-3 py-2 ${
+                        // `flex-wrap`, so the activity and the status drop to
+                        // their own line on a phone rather than squeezing the
+                        // name into eighty pixels. At 322px the checkbox, the
+                        // avatar and the metadata took everything and "Marion
+                        // Cole" came out on two lines.
+                        className={`flex flex-wrap items-center gap-(--gap-toolbar) px-3 py-2 ${
                           i > 0 ? "border-line border-t" : ""
                         }`}
                       >
@@ -443,7 +448,7 @@ export function Contacts() {
                           </span>
                         </button>
                         <span
-                          className="flex shrink-0 items-center gap-(--gap-toolbar) text-xs"
+                          className="flex w-full shrink-0 items-center gap-(--gap-toolbar) text-xs sm:w-auto"
                           style={muted}
                         >
                           Last activity {sinceLabel(c.lastSeenAt)}
