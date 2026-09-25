@@ -7,6 +7,7 @@ import {
 } from "@sentrello/db/credit";
 import { creditedAgainst } from "@sentrello/db/documents";
 import { earlyPaymentTerms, invoiceState } from "@sentrello/db/money";
+import { deadLinkPage } from "@sentrello/db/portal";
 import { businessIdentity } from "@sentrello/db/portal";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import { rateLimit } from "@sentrello/module-sdk";
@@ -71,6 +72,21 @@ h1{font-size:1.35rem;margin-bottom:.15rem}
 table{width:100%;border-collapse:collapse;margin-top:1.5rem;font-size:.95rem}
 th,td{text-align:left;padding:.5rem .35rem;border-bottom:1px solid rgba(128,128,128,.3)}
 th:last-child,td:last-child,.num{text-align:right;font-variant-numeric:tabular-nums}
+/*
+ A description with no spaces in it, on a phone.
+
+ A product reference, a serial number, an order id: one word, and a table
+ column will not shrink below the longest unbroken token in it. An invoice
+ line carrying a seventy-character reference made this document 856px wide on
+ a 390px phone -- the document a customer was sent a link to, on the thing
+ they were holding when the email arrived.
+
+ overflow-wrap: anywhere rather than break-word, because only anywhere counts
+ towards the column's intrinsic minimum. Scoped to the description and never
+ the figures: on a money cell it breaks $1,250.00 across three lines, which
+ is a worse thing to do to an invoice than making it scroll.
+*/
+td:not(.num){overflow-wrap:anywhere}
 .muted{opacity:.7;font-size:.9rem}
 .totals{margin-left:auto;margin-top:1rem;width:min(22rem,100%)}
 .totals td{border:0;padding:.2rem .35rem}
@@ -549,14 +565,21 @@ export function registerShare(ctx: ModuleContext) {
         60_000,
       );
       if (!limited.allowed) return c.text("Too many requests", 429);
-      if (token.length < 32) return c.notFound();
+      /*
+       * A page rather than Hono's blank 404, for the reason `deadLinkPage`
+       * records: this is a link somebody was sent, and an email breaks a long
+       * one when it wraps it. The same page for a short token and a wrong one
+       * on purpose — telling a guesser which of the two they managed is
+       * telling them something.
+       */
+      if (token.length < 32) return c.html(deadLinkPage(), 404);
 
       const [row] = await db
         .select()
         .from(table)
         .where(and(eq(table.shareToken, token), eq(table.published, true)))
         .limit(1);
-      if (!row) return c.notFound();
+      if (!row) return c.html(deadLinkPage(), 404);
 
       /**
        * The read receipt.
