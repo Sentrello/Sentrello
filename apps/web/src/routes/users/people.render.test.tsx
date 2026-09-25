@@ -111,22 +111,26 @@ test("a group granting nothing extra says so", () => {
 });
 
 /**
- * Destructive actions ask first, and say what will happen.
+ * The row's actions are behind one menu, named for the person it acts on.
  *
- * The dialog is closed on first render, so what this proves is the button that
- * opens it — the browser's own `confirm` left no button of its own, and a
- * regression back to it would leave the row with an onClick and nothing here
- * to find.
+ * They were three text buttons in a wrapping flex row, and they wrapped: two
+ * on one line and "Remove" under them, right-aligned against nothing, at
+ * every width. Every other list in the product puts its row actions behind a
+ * menu; this screen was written before that primitive existed.
+ *
+ * What the menu holds is checked by opening it, next door in
+ * `people.dom.test.tsx` — a closed menu renders none of its items, which is
+ * the whole point of it and the reason this file cannot ask.
  */
-test("every destructive action on a row is offered, and none of them is the browser's dialog", () => {
+test("a row's actions are behind one menu, and nothing is on screen unasked", () => {
   const html = renderWith([PERSON]);
 
-  for (const label of ["Reset password", "Sign out", "Remove"]) {
-    expect(html).toContain(label);
-  }
-  // The dialog renders nothing until it is opened, so its copy must not be in
-  // the markup — if it is, it is on screen when nobody asked for it.
+  expect(html).toContain('aria-label="More for Dana Reyes"');
+  // Neither the items nor the dialogs behind them render until somebody asks.
+  // A regression to the browser's own `confirm` would leave an onClick and
+  // nothing here to find, which is what this file is for.
   expect(html).not.toContain("Remove them from the business?");
+  expect(html).not.toContain("Sign them out everywhere?");
 });
 
 /** You cannot change your own policy, and the screen does not offer to. */

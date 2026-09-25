@@ -13,6 +13,7 @@ import {
   Loading,
   Page,
   Row,
+  RowMenu,
   SectionHeading,
   Select,
   Table,
@@ -555,41 +556,57 @@ export function People() {
             <td style={muted}>
               {p.lastSeenAt ? formatDate(p.lastSeenAt) : "never"}
             </td>
+            {/*
+              Three text buttons wrapped across two lines here, at every width
+              — "Reset password" and "Sign out" on one, "Remove" dropped under
+              them and right-aligned against nothing. Every other list in the
+              product puts its row actions behind one menu, and this screen
+              was written before that primitive existed.
+
+              The confirmations stay as they are. Each one says what actually
+              happens — who gets signed out, what survives a removal — and a
+              menu item that reads "Really?" would be a worse question on the
+              screen that hands out access.
+            */}
             <td className="text-right">
-              <div className="flex flex-wrap items-center justify-end gap-(--gap-toolbar)">
-                <ConfirmButton
-                  title="Issue a new password?"
-                  message={`The password ${p.email} has now stops working immediately, and they are signed out everywhere. The new one is shown once, on this screen, and stored nowhere.`}
-                  confirmLabel="Issue one"
-                  needs={{ settings: ["update"] }}
-                  onConfirm={() => resetPassword.mutate(p)}
-                >
-                  Reset password
-                </ConfirmButton>
-                {p.you ? null : (
+              <RowMenu label={p.name || p.email}>
+                {() => (
                   <>
                     <ConfirmButton
-                      title="Sign them out everywhere?"
-                      message={`${p.email} is signed out on every device and will have to sign in again. Anything they were part-way through typing is lost.`}
-                      confirmLabel="Sign them out"
+                      title="Issue a new password?"
+                      message={`The password ${p.email} has now stops working immediately, and they are signed out everywhere. The new one is shown once, on this screen, and stored nowhere.`}
+                      confirmLabel="Issue one"
                       needs={{ settings: ["update"] }}
-                      onConfirm={() => signOut.mutate(p.userId)}
+                      onConfirm={() => resetPassword.mutate(p)}
                     >
-                      Sign out
+                      Reset password
                     </ConfirmButton>
-                    <ConfirmButton
-                      title="Remove them from the business?"
-                      message={`${p.email} loses access immediately. The invoices they raised, the notes they wrote and everything they did stay exactly where they are — this removes the person, not their work.`}
-                      confirmLabel="Remove them"
-                      danger
-                      needs={{ settings: ["update"] }}
-                      onConfirm={() => remove.mutate(p.userId)}
-                    >
-                      Remove
-                    </ConfirmButton>
+                    {p.you ? null : (
+                      <>
+                        <ConfirmButton
+                          title="Sign them out everywhere?"
+                          message={`${p.email} is signed out on every device and will have to sign in again. Anything they were part-way through typing is lost.`}
+                          confirmLabel="Sign them out"
+                          needs={{ settings: ["update"] }}
+                          onConfirm={() => signOut.mutate(p.userId)}
+                        >
+                          Sign out
+                        </ConfirmButton>
+                        <ConfirmButton
+                          title="Remove them from the business?"
+                          message={`${p.email} loses access immediately. The invoices they raised, the notes they wrote and everything they did stay exactly where they are — this removes the person, not their work.`}
+                          confirmLabel="Remove them"
+                          danger
+                          needs={{ settings: ["update"] }}
+                          onConfirm={() => remove.mutate(p.userId)}
+                        >
+                          Remove
+                        </ConfirmButton>
+                      </>
+                    )}
                   </>
                 )}
-              </div>
+              </RowMenu>
             </td>
           </Row>
         ))}
