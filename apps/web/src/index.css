@@ -1,6 +1,17 @@
 @import "tailwindcss";
 
 /*
+ * The sizes, from the one file a module compiles them from too.
+ *
+ * They lived here, which meant they were Core's — and a module runs its own
+ * Tailwind pass that never reads this file. `rounded-md` meant 0.5rem on a
+ * Core screen and Tailwind's default 0.375rem on a module screen, with no
+ * error anywhere: the same class name, two corner radii, in a product being
+ * swept for exactly that.
+ */
+@import "@sentrello/module-sdk/theme.css";
+
+/*
  * Design tokens: one confident brand hue, warm neutrals,
  * semantic status colors. Light and dark from day one — every component reads
  * these variables, so the whole app themes from one place.
@@ -106,113 +117,6 @@
    * bill, and it only failed once there were bills to look at.
    */
   --color-info: oklch(0.52 0.12 250);
-
-  /*
-   * The line colour, as a colour utility rather than a style object.
-   *
-   * A border in this app is `style={border}` — an object exported from
-   * `ui.tsx` holding `{ borderColor: "var(--border)" }` — and it is referenced
-   * 484 times. It works, and it is a style attribute doing a class's job:
-   * it cannot be overridden by a later class, it cannot be varied by a
-   * breakpoint, and every file that wants a hairline has to import something.
-   *
-   * Naming it here gives Tailwind `border-line`, `divide-line` and
-   * `text-line`, which resolve through `--border` and therefore still follow
-   * the theme. The style object stays for now, because 484 call sites is a
-   * sweep of its own; new markup uses the class.
-   */
-  --color-line: var(--border);
-
-  /* ---------------------------------------------------------------------
-   * Size, which until now was not a token at all.
-   *
-   * Eighty-six properties above this line and every one of them a colour.
-   * Colour was tokenised carefully, measured against WCAG, redeclared for
-   * four theme states — and size was left to whoever was typing. A survey on
-   * 25 September counted what that produced across a hundred and twenty
-   * screens: ten distinct corner radii, two unrelated type systems, six
-   * vertical rhythms, and fifteen spellings of a toolbar row.
-   *
-   * None of that is anybody being careless. Where there is no scale, every
-   * screen invents one, and two screens written a fortnight apart invent
-   * different ones.
-   * ------------------------------------------------------------------- */
-
-  /*
-   * Two radii, wearing six names.
-   *
-   * `rounded` appears 209 times and the other five utilities 51 times between
-   * them, so the cheap fix is not to rewrite 260 call sites — it is to make
-   * the names resolve to two values. A control is 0.25rem and a surface is
-   * 0.5rem. `lg` and `xl` alias to the surface radius so that reaching for a
-   * bigger corner quietly gets the right one.
-   *
-   * `--radius-full` stays its own thing: a pill and an avatar are not a
-   * corner radius, they are a shape.
-   */
-  --radius: 0.25rem;
-  --radius-sm: 0.25rem;
-  --radius-md: 0.5rem;
-  --radius-lg: 0.5rem;
-  --radius-xl: 0.5rem;
-  --radius-2xl: 0.5rem;
-
-  /*
-   * The type scale, dense on purpose.
-   *
-   * This is read for eight hours by somebody who did not choose to be here,
-   * next to a table of forty rows. The steps are close together because the
-   * job is hierarchy, not drama — a heading two steps above its body is
-   * enough to be found, and any more wastes the height a table wants.
-   *
-   * `2xs` is new and exists because six one-off `font-size` declarations in
-   * this file had already invented it: 0.6875rem is the size of a badge and
-   * a column micro-label, and it was being typed as a number.
-   *
-   * Line heights ride with the sizes. Tailwind pairs them by default and the
-   * pairing is what makes a scale hold together — a size without its leading
-   * is half a token.
-   */
-  --text-2xs: 0.6875rem;
-  --text-2xs--line-height: 1.1rem;
-  --text-xs: 0.75rem;
-  --text-xs--line-height: 1.1rem;
-  --text-sm: 0.875rem;
-  --text-sm--line-height: 1.35rem;
-  --text-base: 1rem;
-  --text-base--line-height: 1.55rem;
-  --text-lg: 1.125rem;
-  --text-lg--line-height: 1.6rem;
-  --text-xl: 1.375rem;
-  --text-xl--line-height: 1.75rem;
-  --text-2xl: 1.75rem;
-  --text-2xl--line-height: 2.1rem;
-  --text-3xl: 2.25rem;
-  --text-3xl--line-height: 2.5rem;
-
-  /*
-   * Spacing, named for the job rather than the number.
-   *
-   * Tailwind's scale was never the problem — the problem is that `space-y-4`
-   * appears 60 times, `space-y-1` 43 times and `space-y-2` 32 times for what is
-   * often the same relationship, because nothing said which one a page stack
-   * is. A number cannot disagree with itself; a name can be checked.
-   *
-   * Five, and no more. Every one of them is a relationship somebody has to name
-   * out loud when they use it, which is the whole mechanism: `--gap-stack` is
-   * "these are the blocks of a page", `--gap-tight` is "these two belong to each
-   * other". The primitives in `lib/ui.tsx` read these so a screen does not have
-   * to, and the drift test fails a screen that reaches past them.
-   */
-  /** Page edge to content, and the rhythm between a page's own blocks. */
-  --pad-page: 1rem;
-  --gap-stack: 1rem;
-  /** Inside a card, a dialog, a menu. */
-  --pad-panel: 1rem;
-  /** A toolbar's controls, a row's actions — things acting on one another. */
-  --gap-toolbar: 0.5rem;
-  /** A label to its input, a figure to its caption. Nothing else. */
-  --gap-tight: 0.25rem;
 }
 
 /*
