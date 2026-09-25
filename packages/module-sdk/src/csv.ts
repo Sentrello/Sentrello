@@ -37,6 +37,8 @@ function formulaSafe(text: string): string {
   return `'${text}`;
 }
 
+import { contentDisposition } from "./attachments";
+
 function field(value: unknown): string {
   if (value === null || value === undefined) return "";
   const text = formulaSafe(String(value));
@@ -55,7 +57,9 @@ export function toCsv(headers: string[], rows: unknown[][]): string {
 export function csvDownload(filename: string): Record<string, string> {
   return {
     "content-type": "text/csv; charset=utf-8",
-    "content-disposition": `attachment; filename="${filename}"`,
+    // The helper beside it, not a quote of its own. Every filename handed to
+    // this one today is a constant, and the next one will not be.
+    "content-disposition": contentDisposition("attachment", filename),
   };
 }
 
