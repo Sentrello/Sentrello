@@ -878,8 +878,15 @@ export function AppShell({
           >
             Sentrello
           </button>
-          <div className="flex-1" />
-          <FindButton />
+          {/*
+            Search takes the middle of the header rather than sitting as an
+            afterthought beside the avatar. It is how somebody reaches one
+            invoice out of four thousand, and it was smaller than the button
+            that opens a menu.
+          */}
+          <div className="flex flex-1 justify-end sm:justify-center">
+            <FindButton />
+          </div>
           <ProfileMenu
             name={user.name}
             email={user.email}

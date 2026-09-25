@@ -53,26 +53,38 @@ export function FindButton() {
         away rather than the control. A shortcut is no use on a phone and the
         label is what the magnifier already says.
       */}
+      {/*
+        Drawn as the field it opens, not as a small button beside the avatar.
+
+        It was `opacity: 0.75` over a transparent background, which is fine on
+        white and close to invisible in the dark: the panel behind it is
+        already dim, so dimming a faint border against it leaves an outline
+        nobody can find. Opacity also hides from the contrast test, which
+        measures declared token pairs and cannot see a multiplier.
+
+        So: a sunken surface, a real border, and `--text-muted` for the
+        prompt — a pair `theme-contrast.test.ts` already measures in both
+        themes. Nothing here is transparent and nothing is dimmed.
+      */}
       <button
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Find anything"
-        className="flex items-center gap-2 rounded border px-2 py-1 text-sm"
-        style={{ borderColor: "var(--border)", opacity: 0.75 }}
+        className="flex h-9 w-9 flex-none items-center gap-2 rounded-md border px-2 text-sm sm:w-full sm:max-w-xs sm:flex-1 sm:px-3"
+        style={{
+          borderColor: "var(--border)",
+          background: "var(--surface-sunken)",
+          color: "var(--text-muted)",
+        }}
       >
-        <span className="sm:hidden">
-          <Icon name="search" size={16} />
-        </span>
-        <span className="hidden sm:inline">Find anything</span>
+        <Icon name="search" size={16} />
+        <span className="hidden flex-1 text-left sm:inline">Find anything</span>
         {/*
           The shortcut shown rather than only bound, because a shortcut nobody
-          is told about is a shortcut for the people who did not need it.
-
-          No opacity of its own. The button already carries 0.75, and dimming
-          the dimmed took the hint to 3.49:1 against white — under the 4.5:1 a
-          person with ordinary middle-aged eyesight needs, on every screen in
-          the product, because this button is in the header of all of them.
-          Nested opacity multiplies, and neither number looks wrong on its own.
+          is told about is a shortcut for the people who did not need it. It
+          takes the same muted colour as the prompt rather than a dimming of
+          it — nested opacity multiplies, and that is how this hint reached
+          3.49:1 against white on every screen in the product.
         */}
         <kbd className="hidden text-xs sm:inline">⌘K</kbd>
       </button>
