@@ -15,6 +15,7 @@ import {
   SectionHeading,
   Select,
   Toolbar,
+  Warning,
   formatDate,
   muted,
 } from "../lib/ui";
@@ -670,14 +671,7 @@ function TwoFactor() {
         </div>
       ) : null}
 
-      {error ? (
-        <p
-          className="mt-(--gap-toolbar) text-sm"
-          style={{ color: "var(--text-danger)" }}
-        >
-          {error}
-        </p>
-      ) : null}
+      {error ? <Warning className="mt-(--gap-toolbar)">{error}</Warning> : null}
     </Card>
   );
 }

@@ -2,7 +2,16 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "../lib/api";
 import { type Sheet, guessMapping, parseCsv } from "../lib/csv";
-import { Button, Card, ErrorNote, Row, Select, Table, muted } from "../lib/ui";
+import {
+  Button,
+  Card,
+  ErrorNote,
+  Row,
+  Select,
+  Table,
+  Warning,
+  muted,
+} from "../lib/ui";
 
 /**
  * Bringing a spreadsheet in.
@@ -146,11 +155,7 @@ export function ContactsImport({ onDone }: { onDone: () => void }) {
         }}
         className="text-sm"
       />
-      {readError ? (
-        <p className="mt-2 text-sm" style={{ color: "var(--text-danger)" }}>
-          {readError}
-        </p>
-      ) : null}
+      {readError ? <Warning className="mt-2">{readError}</Warning> : null}
 
       {sheet ? (
         <>

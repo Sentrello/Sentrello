@@ -2,7 +2,7 @@ import { type FormEvent, useEffect, useState } from "react";
 import { authClient } from "../lib/auth";
 import { AuthShell } from "../lib/auth-shell";
 import { PageCredit } from "../lib/credit";
-import { Button, Field, Input } from "../lib/ui";
+import { Button, Field, Input, Warning } from "../lib/ui";
 
 /**
  * Getting back in without a password.
@@ -95,11 +95,7 @@ export function ForgotPassword({ onBack }: { onBack: () => void }) {
               />
             </Field>
 
-            {error ? (
-              <p className="text-sm" style={{ color: "var(--text-danger)" }}>
-                {error}
-              </p>
-            ) : null}
+            {error ? <Warning>{error}</Warning> : null}
 
             <Button type="submit" disabled={busy} className="w-full">
               {busy ? "Sending…" : "Send a reset link"}
@@ -187,9 +183,7 @@ export function ResetPassword() {
           </>
         ) : !token ? (
           <>
-            <p className="text-sm" style={{ color: "var(--text-danger)" }}>
-              This link is missing its token. Ask for another.
-            </p>
+            <Warning>This link is missing its token. Ask for another.</Warning>
             <Button
               type="button"
               onClick={() => setRequestNew(true)}
@@ -219,9 +213,7 @@ export function ResetPassword() {
 
             {error ? (
               <>
-                <p className="text-sm" style={{ color: "var(--text-danger)" }}>
-                  {error}
-                </p>
+                <Warning>{error}</Warning>
                 <button
                   type="button"
                   onClick={() => setRequestNew(true)}

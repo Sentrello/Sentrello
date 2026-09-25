@@ -12,6 +12,7 @@ import {
   Page,
   StatFigure,
   Tabs,
+  Warning,
   activeTab,
   briefMoney,
   formatMoney,
@@ -525,10 +526,10 @@ function BalanceSheetPanel() {
       {/* Shown rather than hidden: a balance sheet that does not balance is
           the single most important thing this panel can say. */}
       {data.balancedCents !== 0 ? (
-        <p className="mt-2 text-sm" style={{ color: "var(--text-danger)" }}>
+        <Warning className="mt-2">
           Out by {formatMoney(data.balancedCents)} — the journal disagrees with
           itself.
-        </p>
+        </Warning>
       ) : null}
     </Card>
   );

@@ -2,7 +2,7 @@ import { type FormEvent, useEffect, useState } from "react";
 import { authClient } from "../lib/auth";
 import { AuthShell } from "../lib/auth-shell";
 import { PageCredit } from "../lib/credit";
-import { Button, Field, Input, muted } from "../lib/ui";
+import { Button, Field, Input, Warning, muted } from "../lib/ui";
 import { ForgotPassword } from "./forgot-password";
 
 export function SignIn() {
@@ -110,11 +110,7 @@ export function SignIn() {
           />
         </Field>
 
-        {error ? (
-          <p className="text-sm" style={{ color: "var(--text-danger)" }}>
-            {error}
-          </p>
-        ) : null}
+        {error ? <Warning>{error}</Warning> : null}
 
         <Button type="submit" disabled={busy} className="w-full">
           {busy ? "Signing in…" : "Sign in"}
@@ -232,11 +228,7 @@ function TwoFactorPrompt({ onCancel }: { onCancel: () => void }) {
           Do not ask on this device for 30 days
         </label>
 
-        {error ? (
-          <p className="text-sm" style={{ color: "var(--text-danger)" }}>
-            {error}
-          </p>
-        ) : null}
+        {error ? <Warning>{error}</Warning> : null}
 
         <Button type="submit" disabled={busy} className="w-full">
           {busy ? "Checking…" : "Continue"}

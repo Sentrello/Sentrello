@@ -15,6 +15,7 @@ import {
   Select,
   Textarea,
   Toolbar,
+  Warning,
   muted,
 } from "../lib/ui";
 
@@ -1011,9 +1012,9 @@ function Connection({
       </div>
 
       {connect.data && !connect.data.ok && !connect.data.steps.length ? (
-        <p className="mt-3 text-sm" style={{ color: "var(--text-danger)" }}>
+        <Warning className="mt-3">
           The processor could not be connected.
-        </p>
+        </Warning>
       ) : null}
 
       {connect.data?.steps?.length ? (
@@ -1224,9 +1225,7 @@ export function SettingsLicence() {
         // Paid features vanishing without explanation is the worst way to
         // find out about this, so it goes at the top and stays red.
         <Card>
-          <p className="font-medium" style={{ color: "var(--text-danger)" }}>
-            A paid module did not start
-          </p>
+          <Warning className="font-medium">A paid module did not start</Warning>
           {licence.data.failedBundles.map((f) => (
             <p key={f.name} className="mt-1 text-sm">
               <strong>{f.name}</strong> — {f.reason}

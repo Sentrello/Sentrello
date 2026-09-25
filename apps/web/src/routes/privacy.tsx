@@ -11,6 +11,7 @@ import {
   Page,
   SectionHeading,
   Toolbar,
+  Warning,
   muted,
 } from "../lib/ui";
 
@@ -384,10 +385,10 @@ export function Privacy() {
                  * business needs to know which part did not answer before they
                  * send it.
                  */
-                <p className="text-sm" style={{ color: "var(--text-danger)" }}>
+                <Warning>
                   This did not answer: {s.error}. Do not send this export until
                   it does.
-                </p>
+                </Warning>
               ) : s.records.length === 0 ? (
                 <p className="text-sm" style={muted}>
                   Nothing held.
@@ -477,10 +478,10 @@ export function Privacy() {
                  * a data subject their record is gone when a module still
                  * holds it, and having no way to know which.
                  */
-                <p className="text-sm" style={{ color: "var(--text-danger)" }}>
+                <Warning>
                   This did not erase: {s.error}. They still hold something, so
                   do not tell anybody it is gone.
-                </p>
+                </Warning>
               ) : null}
             </div>
           ))}

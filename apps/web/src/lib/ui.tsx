@@ -856,9 +856,38 @@ export function ErrorNote({ error }: { error: unknown }) {
       : status === 401
         ? "Your session has expired. Sign in again."
         : (fromServer ?? "Something went wrong. Try again.");
+  return <Warning>{message}</Warning>;
+}
+
+/**
+ * A sentence in the colour of something being wrong.
+ *
+ * `ErrorNote` is for an error object and decides the words itself. This is for
+ * words we chose — "give the formula a name first", "records are past their
+ * deletion date and the purge is not running", "that automation is gone".
+ *
+ * They were the same four lines of markup written out 23 times, and the reason
+ * is worth keeping: `ErrorNote` reads its sentence off `serverMessage`, so a
+ * hand-made `new Error("give it a name")` or a plain string falls straight
+ * through to "Something went wrong. Try again." — the one message that helps
+ * nobody, covering the one that would have. Making `ErrorNote` fall back to
+ * `error.message` instead would print "POST /api/x failed" to customers across
+ * 375 call sites, so the answer is a second door rather than a wider one.
+ */
+export function Warning({
+  children,
+  className = "",
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  // ui-drift-ignore: the primitive the rule points at
   return (
-    <p className="text-sm" style={{ color: "var(--text-danger)" }}>
-      {message}
+    <p
+      className={`text-sm ${className}`}
+      style={{ color: "var(--text-danger)" }}
+    >
+      {children}
     </p>
   );
 }

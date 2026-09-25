@@ -31,6 +31,7 @@ import {
   Table,
   Tabs,
   Toolbar,
+  Warning,
   formatDate,
   formatMoney,
   muted,
@@ -359,10 +360,10 @@ export function Summary() {
             </span>
           </div>
           {!sheet.data.balanced ? (
-            <p className="mt-2 text-xs" style={{ color: "var(--text-danger)" }}>
+            <Warning className="mt-2">
               This balance sheet does not balance. Something has reached the
               ledger that should not have — the journal will show what.
-            </p>
+            </Warning>
           ) : null}
         </Card>
       ) : null}

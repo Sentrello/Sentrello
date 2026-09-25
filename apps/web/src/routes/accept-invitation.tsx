@@ -1,6 +1,7 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { AuthShell } from "../lib/auth-shell";
 import { PageCredit } from "../lib/credit";
+import { Warning } from "../lib/ui";
 import { policyLabel } from "./users/policy-ui";
 
 /**
@@ -168,11 +169,7 @@ export function AcceptInvitation() {
         </>
       )}
 
-      {error ? (
-        <p className="text-sm" style={{ color: "var(--text-danger)" }}>
-          {error}
-        </p>
-      ) : null}
+      {error ? <Warning>{error}</Warning> : null}
 
       <button
         type="submit"

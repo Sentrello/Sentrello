@@ -105,6 +105,8 @@ export interface SentrelloUi {
   Empty: React.ComponentType<{ title: string; children?: React.ReactNode }>;
   Loading: React.ComponentType;
   ErrorNote: React.ComponentType<{ error: unknown }>;
+  /** A sentence we wrote, in the colour of something being wrong. */
+  Warning: React.ComponentType<{ children: React.ReactNode }>;
   NeedsPro: React.ComponentType<{ what: string }>;
   StatusBadge: React.ComponentType<{ status: string }>;
   formatMoney: (cents: number, currency?: string) => string;
@@ -201,6 +203,7 @@ export const UI_MEMBERS = [
   "Empty",
   "Loading",
   "ErrorNote",
+  "Warning",
   "NeedsPro",
   "StatusBadge",
   "formatMoney",

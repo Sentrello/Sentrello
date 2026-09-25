@@ -9,6 +9,7 @@ import {
   Row,
   Select,
   Table,
+  Warning,
   formatMoney,
   muted,
 } from "../lib/ui";
@@ -180,11 +181,7 @@ export function OssReturn() {
           </p>
         ) : null}
 
-        {data?.problem ? (
-          <p className="text-sm" style={{ color: "var(--text-danger)" }}>
-            {data.problem}
-          </p>
-        ) : null}
+        {data?.problem ? <Warning>{data.problem}</Warning> : null}
 
         {data?.applies && !data.problem ? (
           <>

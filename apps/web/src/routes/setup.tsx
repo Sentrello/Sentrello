@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from "react";
 import { api } from "../lib/api";
 import { AuthShell } from "../lib/auth-shell";
+import { Warning } from "../lib/ui";
 
 /**
  * First run: claim the instance. Shown only while no organization exists, and
@@ -280,11 +281,7 @@ export function Setup({
           />
         ) : null}
 
-        {error ? (
-          <p className="text-sm" style={{ color: "var(--text-danger)" }}>
-            {error}
-          </p>
-        ) : null}
+        {error ? <Warning>{error}</Warning> : null}
 
         <button
           type="submit"

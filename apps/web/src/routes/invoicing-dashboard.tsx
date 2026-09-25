@@ -7,6 +7,7 @@ import {
   ErrorNote,
   Loading,
   StatFigure,
+  Warning,
   briefMoney,
   formatDate,
   formatMoney,
@@ -120,9 +121,7 @@ export function InvoicingDashboard() {
     <div className="flex flex-col gap-(--gap-stack)">
       {distance.data?.applies && distance.data.warning && (
         <Card>
-          <p className="text-sm" style={{ color: "var(--text-danger)" }}>
-            {distance.data.warning}
-          </p>
+          <Warning>{distance.data.warning}</Warning>
         </Card>
       )}
       {distance.data?.applies &&

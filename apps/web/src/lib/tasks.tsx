@@ -11,7 +11,16 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 import { api } from "./api";
 import { Icon } from "./icons";
-import { Button, Dialog, Field, Input, RowMenu, Select, muted } from "./ui";
+import {
+  Button,
+  Dialog,
+  Field,
+  Input,
+  RowMenu,
+  Select,
+  Warning,
+  muted,
+} from "./ui";
 
 export interface Task {
   id: string;
@@ -370,9 +379,9 @@ export function TaskDialog({
         </div>
 
         {save.isError ? (
-          <p className="text-sm" style={{ color: "var(--text-danger)" }}>
+          <Warning>
             That did not save. Check the description and try again.
-          </p>
+          </Warning>
         ) : null}
 
         <div className="flex justify-end gap-2">
