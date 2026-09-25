@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
+import { Icon } from "./icons";
 import { useNavigation } from "./navigation";
 import { Warning, muted } from "./ui";
 
@@ -41,13 +42,28 @@ export function FindButton() {
 
   return (
     <>
+      {/*
+        On a phone this was `hidden`, so there was no way to search at all.
+        Which is the wrong way round: the panel is away on a small screen and
+        the rail is icons, so finding one invoice meant a module, a screen and
+        a scroll, where search is one press. Nobody had noticed because
+        nothing had ever opened the product at phone width.
+
+        The same button throughout, with the words and the shortcut dropping
+        away rather than the control. A shortcut is no use on a phone and the
+        label is what the magnifier already says.
+      */}
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="hidden items-center gap-2 rounded border px-2 py-1 text-sm sm:flex"
+        aria-label="Find anything"
+        className="flex items-center gap-2 rounded border px-2 py-1 text-sm"
         style={{ borderColor: "var(--border)", opacity: 0.75 }}
       >
-        Find anything
+        <span className="sm:hidden">
+          <Icon name="search" size={16} />
+        </span>
+        <span className="hidden sm:inline">Find anything</span>
         {/*
           The shortcut shown rather than only bound, because a shortcut nobody
           is told about is a shortcut for the people who did not need it.
@@ -58,7 +74,7 @@ export function FindButton() {
           the product, because this button is in the header of all of them.
           Nested opacity multiplies, and neither number looks wrong on its own.
         */}
-        <kbd className="text-xs">⌘K</kbd>
+        <kbd className="hidden text-xs sm:inline">⌘K</kbd>
       </button>
       {open ? <FindDialog onClose={() => setOpen(false)} /> : null}
     </>
