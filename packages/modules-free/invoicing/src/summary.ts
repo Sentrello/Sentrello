@@ -201,6 +201,32 @@ export function registerInvoicingSummary(ctx: ModuleContext) {
         },
       },
       {
+        /*
+         * Second, because it belongs before the first invoice goes out.
+         *
+         * The portal a customer opens from their link prints "How to pay"
+         * from this and shows nothing at all without it — so a business that
+         * skips it sends a bill that says what is owed and not how to settle
+         * it, and finds out when somebody emails to ask. The section is
+         * called Getting paid and had three steps, none of which was this.
+         */
+        id: "how-to-pay",
+        label: "Say how you want to be paid",
+        detail:
+          "Bank details, or a note about cards. It goes on every invoice and on the page a customer opens from their link — without it a bill says what is owed and not how to settle it.",
+        opens: "settings",
+        done: async (orgId) => {
+          const [org] = await db
+            .select({
+              paymentInstructions: schema.organizations.paymentInstructions,
+            })
+            .from(schema.organizations)
+            .where(eq(schema.organizations.id, orgId))
+            .limit(1);
+          return Boolean(org?.paymentInstructions?.trim());
+        },
+      },
+      {
         id: "first-contact",
         label: "Add somebody to invoice",
         detail: "A customer, with an email address to send it to.",
