@@ -41,8 +41,19 @@ export interface SentrelloUi {
     children: React.ReactNode;
     hint?: string;
   }>;
-  Input: React.ComponentType<React.InputHTMLAttributes<HTMLInputElement>>;
+  Input: React.ComponentType<
+    React.InputHTMLAttributes<HTMLInputElement> & {
+      /** A file input needs one to be cleared, and had to stay raw without it. */
+      ref?: React.Ref<HTMLInputElement>;
+    }
+  >;
   SecretInput: React.ComponentType<React.InputHTMLAttributes<HTMLInputElement>>;
+  /** The same box as `Input`, taller. Nine screens copied its look by hand. */
+  Textarea: React.ComponentType<
+    React.TextareaHTMLAttributes<HTMLTextAreaElement> & {
+      ref?: React.Ref<HTMLTextAreaElement>;
+    }
+  >;
   Select: React.ComponentType<React.SelectHTMLAttributes<HTMLSelectElement>>;
   Dialog: React.ComponentType<{
     title: string;
@@ -177,6 +188,7 @@ export const UI_MEMBERS = [
   "Field",
   "Input",
   "SecretInput",
+  "Textarea",
   "Select",
   "Dialog",
   "ConfirmButton",

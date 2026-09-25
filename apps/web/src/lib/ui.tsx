@@ -255,10 +255,46 @@ function withWidth(className: string | undefined): string {
   return /(^|\s)(w-|min-w-|max-w-)/.test(className ?? "") ? "" : "w-full";
 }
 
-export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
+export function Input({
+  ref,
+  ...props
+}: React.InputHTMLAttributes<HTMLInputElement> & {
+  ref?: React.Ref<HTMLInputElement>;
+}) {
   return (
     <input
       {...props}
+      ref={ref}
+      className={`${withWidth(props.className)} rounded border px-2 py-1.5 text-sm ${props.className ?? ""}`}
+      style={{ ...raised, ...props.style }}
+    />
+  );
+}
+
+/**
+ * The same box, taller.
+ *
+ * There was no such thing, so nine textareas across the product copied
+ * `Input`'s look by hand — `--surface-raised`, `--border`, `--text`, the
+ * padding, the radius — and two more copied nothing at all and therefore did
+ * not match the form they sat in. A campaign body and a CSV import box, both
+ * plain browser grey beside styled fields.
+ *
+ * Four rows by default, because the thing people type into one of these is a
+ * paragraph and one row makes them scroll to reread their own sentence.
+ */
+export function Textarea({
+  ref,
+  rows = 4,
+  ...props
+}: React.TextareaHTMLAttributes<HTMLTextAreaElement> & {
+  ref?: React.Ref<HTMLTextAreaElement>;
+}) {
+  return (
+    <textarea
+      {...props}
+      ref={ref}
+      rows={rows}
       className={`${withWidth(props.className)} rounded border px-2 py-1.5 text-sm ${props.className ?? ""}`}
       style={{ ...raised, ...props.style }}
     />
