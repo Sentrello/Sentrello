@@ -243,16 +243,10 @@ export function Contacts() {
               variant="secondary"
               onClick={() => setFindingDuplicates((v) => !v)}
             >
-              <span className="flex items-center gap-1.5">
-                <Icon name="user" size={15} />
-                Duplicates
-              </span>
+              <span className="flex items-center gap-1.5">Duplicates</span>
             </Button>
             <Button variant="secondary" onClick={() => setImporting((v) => !v)}>
-              <span className="flex items-center gap-1.5">
-                <Icon name="clipboard" size={15} />
-                Import
-              </span>
+              <span className="flex items-center gap-1.5">Import</span>
             </Button>
             {/* A plain link, not a fetch: the browser downloads it with the
                 filename the server sends, and the session cookie goes along. */}
@@ -261,7 +255,6 @@ export function Contacts() {
               className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm"
               style={border}
             >
-              <Icon name="file-text" size={15} />
               Export
             </a>
             <Button onClick={() => setAdding(true)}>

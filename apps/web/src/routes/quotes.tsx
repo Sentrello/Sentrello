@@ -172,18 +172,12 @@ export function Quotes() {
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative">
-          <span
-            className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-2"
-            style={muted}
-          >
-            <Icon name="search" size={15} />
-          </span>
           <input
             value={state.q}
             onChange={(e) => state.setQ(e.target.value)}
             placeholder="Search by number or note"
             aria-label="Search quotes"
-            className="w-64 rounded-md border py-1.5 pr-2 pl-7 text-sm"
+            className="w-64 rounded-md border px-2 py-1.5 text-sm"
             style={{ ...border, background: "var(--surface-raised)" }}
           />
         </div>
@@ -215,7 +209,6 @@ export function Quotes() {
             className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm"
             style={border}
           >
-            <Icon name="file-text" size={15} />
             Export
           </a>
           <Button onClick={() => setAdding(true)}>
@@ -288,7 +281,7 @@ export function Quotes() {
                           style={muted}
                           title={`Opened ${formatDate(quote.firstViewedAt)}`}
                         >
-                          <Icon name="check-square" size={13} />
+                          <Icon name="tick" size={13} />
                         </span>
                       ) : null}
                     </td>

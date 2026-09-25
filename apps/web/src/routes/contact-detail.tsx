@@ -790,9 +790,6 @@ export function HistoryPanel({
               key={`${entry.at}-${entry.title}`}
               className="flex gap-2 text-sm"
             >
-              <span className="mt-0.5" style={muted}>
-                <Icon name={icon[entry.kind] ?? "clipboard"} size={14} />
-              </span>
               <span className="min-w-0 flex-1">
                 {correcting && correcting === entry.activityId ? (
                   <span className="flex items-center gap-2">

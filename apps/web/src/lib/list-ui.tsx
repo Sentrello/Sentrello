@@ -254,18 +254,12 @@ export function FilterPanel({
   return (
     <aside className="w-52 shrink-0 space-y-4">
       <div className="relative">
-        <span
-          className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-2"
-          style={muted}
-        >
-          <Icon name="search" size={15} />
-        </span>
         <input
           value={state.q}
           onChange={(e) => state.setQ(e.target.value)}
           placeholder={placeholder}
           aria-label={placeholder}
-          className="w-full rounded-md border py-1.5 pr-2 pl-7 text-sm"
+          className="w-full rounded-md border px-2 py-1.5 text-sm"
           style={{ ...border, background: "var(--surface-raised)" }}
         />
       </div>
@@ -310,7 +304,6 @@ export function FilterGroup({
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
       >
-        <Icon name={icon} size={14} />
         <span className="flex-1 text-left">{label}</span>
         <span className="nav-caret" data-open={open} aria-hidden="true" />
       </button>
@@ -518,7 +511,6 @@ export function ColumnsMenu({ state }: { state: ColumnState }) {
         className="flex cursor-pointer items-center gap-1.5 rounded border px-2 py-1 text-sm"
         style={{ ...border, ...muted }}
       >
-        <Icon name="layout" size={14} />
         Columns
         {state.hiddenCount > 0 ? (
           <span className="text-xs tabular-nums">

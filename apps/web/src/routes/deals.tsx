@@ -342,12 +342,6 @@ export function Deals() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative">
-          <span
-            className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-2"
-            style={muted}
-          >
-            <Icon name="search" size={15} />
-          </span>
           {/* Matches the deal's own name, its company, and anybody attached
               to it — which is how people actually refer to a job. */}
           <input
@@ -355,7 +349,7 @@ export function Deals() {
             onChange={(e) => state.setQ(e.target.value)}
             placeholder="Search deals, companies, contacts"
             aria-label="Search deals"
-            className="w-72 rounded-md border py-1.5 pr-2 pl-7 text-sm"
+            className="w-72 rounded-md border px-2 py-1.5 text-sm"
             style={{ ...border, background: "var(--surface-raised)" }}
           />
         </div>
@@ -472,7 +466,6 @@ export function Deals() {
             className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm"
             style={border}
           >
-            <Icon name="file-text" size={15} />
             Export
           </a>
           <Button onClick={() => setAdding((v) => !v)}>

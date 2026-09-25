@@ -1509,18 +1509,12 @@ export function Journal() {
        */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative">
-          <span
-            className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-2"
-            style={muted}
-          >
-            <Icon name="search" size={15} />
-          </span>
           <input
             value={state.q}
             onChange={(e) => state.setQ(e.target.value)}
             placeholder="Search notes"
             aria-label="Search the journal"
-            className="w-56 rounded-md border py-1.5 pr-2 pl-7 text-sm"
+            className="w-56 rounded-md border px-2 py-1.5 text-sm"
             style={{ ...border, background: "var(--surface-raised)" }}
           />
         </div>

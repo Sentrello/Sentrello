@@ -56,7 +56,7 @@ function ContextLinks({
             aria-label="Remove this link"
             onClick={() => onChange(values.filter((_, at) => at !== i))}
           >
-            <Icon name="trash" size={15} />
+            <Icon name="close" size={15} />
           </button>
         </div>
       ))}

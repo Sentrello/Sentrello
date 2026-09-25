@@ -401,7 +401,17 @@ function NavRows({
                 else if (node.entry) onGo(node.entry);
               }}
             >
-              {node.icon ? <Icon name={node.icon} size={16} /> : null}
+              {/* A drawing only at the top level.
+                  
+                  The rail draws a group and the panel draws the modules in
+                  it; a page inside a module gets its name and nothing else.
+                  Every row carrying a picture made the panel a column of
+                  pictures with words beside them, and the icons stopped
+                  telling you which level you were looking at — which is the
+                  one job they have here. James, 25 September. */}
+              {depth === 0 && node.icon ? (
+                <Icon name={node.icon} size={16} />
+              ) : null}
               <span className="flex-1 text-left">{node.label}</span>
               {node.children.length ? (
                 // Drawn in CSS, not an icon and not "▸" at 0.6rem. The glyph
@@ -586,7 +596,7 @@ function Sidebar({ nav }: { nav: NavEntry[] }) {
                 title="Hide the section panel"
                 onClick={togglePanel}
               >
-                <Icon name="panel-left" size={16} />
+                <Icon name="panel" size={16} />
               </button>
             </div>
             <NavRows

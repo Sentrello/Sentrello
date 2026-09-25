@@ -89,7 +89,7 @@ function LabelledList({
             // email, so it stays. Emptying it is how you clear it.
             disabled={values.length === 1}
           >
-            <Icon name="trash" size={15} />
+            <Icon name="close" size={15} />
           </button>
         </div>
       ))}

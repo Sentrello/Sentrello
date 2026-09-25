@@ -209,7 +209,7 @@ function TaxRates({
               <td>
                 {tax.isDefault ? (
                   <span style={{ color: "var(--text-success)" }}>
-                    <Icon name="check-square" size={15} />
+                    <Icon name="tick" size={15} />
                   </span>
                 ) : tax.active ? (
                   <button

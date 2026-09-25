@@ -162,7 +162,6 @@ export function Companies() {
               className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm"
               style={border}
             >
-              <Icon name="file-text" size={15} />
               Export
             </a>
             <Button onClick={() => setAdding(true)}>
@@ -326,7 +325,6 @@ function CompanyCard({
 
         {company.dealCount ? (
           <span className="flex items-center gap-1 text-xs" style={muted}>
-            <Icon name="handshake" size={14} />
             <span className="font-medium">{company.dealCount}</span>
             {company.dealCount === 1 ? "deal" : "deals"}
           </span>

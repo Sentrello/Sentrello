@@ -40,6 +40,18 @@ const HOUSE: Record<string, string> = {
   plus: '<path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" d="M12 5.5v13M5.5 12h13"/>',
   "more-horizontal":
     '<circle cx="5.25" cy="12" r="1.35" fill="currentColor"/><circle cx="12" cy="12" r="1.35" fill="currentColor"/><circle cx="18.75" cy="12" r="1.35" fill="currentColor"/>',
+  // Two strokes crossing. What a remove button is, where the button has no
+  // room for the word — a bin is a picture of a container, and the thing
+  // being removed is usually a line in a table, which does not go in a bin.
+  close:
+    '<path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>',
+  // Two strokes meeting, the short one first. A state, not an object.
+  tick: '<path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M5 12.5l4.5 4.5L19 7"/>',
+  // The panel itself: a frame with a rail down one side. The control draws
+  // what it opens, which is the one case where a picture is the right answer
+  // and is still only rectangles.
+  panel:
+    '<path fill="none" stroke="currentColor" stroke-width="1.5" d="M4.25 5.25h15.5v13.5H4.25zM9.5 5.25v13.5"/>',
 };
 
 /** What the application draws: the set, with our own marks over the top. */

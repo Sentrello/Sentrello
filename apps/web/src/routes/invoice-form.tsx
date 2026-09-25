@@ -796,7 +796,7 @@ export function InvoiceForm({
                   setLines((current) => current.filter((_, at) => at !== i))
                 }
               >
-                <Icon name="trash" size={15} />
+                <Icon name="close" size={15} />
               </button>
             </div>
           ))}
