@@ -10,6 +10,7 @@ import {
   Input,
   Loading,
   Page,
+  SectionHeading,
   StatFigure,
   Tabs,
   Warning,
@@ -379,7 +380,7 @@ function Widget({
     case "pipeline":
       return (
         <Card>
-          <p className="mb-2 font-medium">Pipeline</p>
+          <SectionHeading>Pipeline</SectionHeading>
           <div className="grid gap-(--gap-toolbar) text-sm sm:grid-cols-3">
             <Stat
               label="Open"
@@ -433,25 +434,28 @@ function SummaryCard({ summary }: { summary: FigureWidgetData }) {
 
   return (
     <Card>
-      <div className="mb-(--gap-toolbar) flex items-baseline gap-(--gap-tight)">
-        <p className="font-medium">{summary.label}</p>
-        {/* Straight into the module, because a figure somebody reads on the
-            dashboard is a figure they want to go and act on. */}
-        {summary.opens ? (
-          <button
-            type="button"
-            className="ml-auto text-sm link-muted"
-            onClick={() =>
-              open({
-                moduleId: summary.opens ?? summary.moduleId,
-                title: summary.label,
-              })
-            }
-          >
-            Open
-          </button>
-        ) : null}
-      </div>
+      <SectionHeading
+        trailing={
+          // Straight into the module, because a figure somebody reads on the
+          // dashboard is a figure they want to go and act on.
+          summary.opens ? (
+            <button
+              type="button"
+              className="text-sm link-muted"
+              onClick={() =>
+                open({
+                  moduleId: summary.opens ?? summary.moduleId,
+                  title: summary.label,
+                })
+              }
+            >
+              Open
+            </button>
+          ) : null
+        }
+      >
+        {summary.label}
+      </SectionHeading>
       {/*
         Four across on a wide screen, like the health panel. A money figure is
         right-aligned inside its own column, so two columns in a full-width
@@ -513,7 +517,7 @@ function BalanceSheetPanel() {
 
   return (
     <Card>
-      <p className="mb-2 font-medium">Balance sheet</p>
+      <SectionHeading>Balance sheet</SectionHeading>
       <div className="grid gap-(--gap-toolbar) sm:grid-cols-4">
         <Stat label="Assets" value={formatMoney(data.assetsCents)} />
         <Stat label="Liabilities" value={formatMoney(data.liabilitiesCents)} />
@@ -546,7 +550,7 @@ function CashFlowPanel() {
 
   return (
     <Card>
-      <p className="mb-2 font-medium">Cash in and out</p>
+      <SectionHeading>Cash in and out</SectionHeading>
       <div className="grid gap-(--gap-toolbar) sm:grid-cols-3">
         <Stat label="In" value={formatMoney(data.inCents)} />
         <Stat label="Out" value={formatMoney(data.outCents)} />
@@ -575,7 +579,7 @@ function TrialBalancePanel() {
   if (rows.length === 0) {
     return (
       <Card>
-        <p className="mb-2 font-medium">Trial balance</p>
+        <SectionHeading>Trial balance</SectionHeading>
         <p className="text-sm" style={muted}>
           Nothing posted yet.
         </p>
@@ -585,7 +589,7 @@ function TrialBalancePanel() {
 
   return (
     <Card>
-      <p className="mb-2 font-medium">Trial balance</p>
+      <SectionHeading>Trial balance</SectionHeading>
       <ul className="flex flex-col gap-(--gap-tight) text-sm">
         {rows.map((row) => (
           <li key={row.code} className="flex gap-2">
@@ -619,7 +623,7 @@ export function WhoOwesPanel() {
   if (owed.length === 0) {
     return (
       <Card>
-        <p className="mb-2 font-medium">Who owes you</p>
+        <SectionHeading>Who owes you</SectionHeading>
         <p className="text-sm" style={muted}>
           Nothing outstanding. Everything issued has been paid.
         </p>
@@ -629,9 +633,9 @@ export function WhoOwesPanel() {
 
   return (
     <Card>
-      <p className="mb-2 font-medium">
+      <SectionHeading>
         Who owes you — {formatMoney(data?.totalCents ?? 0)} outstanding
-      </p>
+      </SectionHeading>
       <div className="mb-3 grid gap-3 sm:grid-cols-4">
         <Stat
           label="Not yet due"
@@ -687,7 +691,7 @@ export function WhoOwesPanel() {
 function ReportLoading({ id }: { id: string }) {
   return (
     <Card>
-      <p className="mb-2 font-medium">{WIDGET_LABELS[id] ?? id}</p>
+      <SectionHeading>{WIDGET_LABELS[id] ?? id}</SectionHeading>
       <Loading />
     </Card>
   );
@@ -704,7 +708,7 @@ function InsightWidget({
   if (!insights) {
     return (
       <Card>
-        <p className="mb-2 font-medium">{WIDGET_LABELS[id] ?? id}</p>
+        <SectionHeading>{WIDGET_LABELS[id] ?? id}</SectionHeading>
         <Loading />
       </Card>
     );
@@ -720,7 +724,7 @@ function InsightWidget({
     }));
     return (
       <Card>
-        <p className="mb-2 font-medium">Income by month</p>
+        <SectionHeading>Income by month</SectionHeading>
         <Bars points={points} format={briefMoney} />
       </Card>
     );
@@ -734,7 +738,7 @@ function InsightWidget({
     }));
     return (
       <Card>
-        <p className="mb-2 font-medium">Profit by month</p>
+        <SectionHeading>Profit by month</SectionHeading>
         <Line points={points} />
       </Card>
     );
@@ -743,7 +747,7 @@ function InsightWidget({
   if (id === "deals-by-stage") {
     return (
       <Card>
-        <p className="mb-2 font-medium">Deals by stage</p>
+        <SectionHeading>Deals by stage</SectionHeading>
         {insights.dealsByStage.length === 0 ? (
           <p className="text-sm" style={muted}>
             No open deals.
@@ -767,7 +771,7 @@ function InsightWidget({
   if (id === "top-customers") {
     return (
       <Card>
-        <p className="mb-2 font-medium">Top customers</p>
+        <SectionHeading>Top customers</SectionHeading>
         {insights.topCustomers.length === 0 ? (
           <p className="text-sm" style={muted}>
             No invoices sent yet.
@@ -789,7 +793,7 @@ function InsightWidget({
   if (id === "invoice-aging") {
     return (
       <Card>
-        <p className="mb-2 font-medium">How late the money is</p>
+        <SectionHeading>How late the money is</SectionHeading>
         <div className="grid gap-(--gap-toolbar) sm:grid-cols-5 text-sm">
           {insights.aging.map((a) => (
             <Stat
@@ -908,7 +912,7 @@ function Arrange({
 
   return (
     <Card>
-      <p className="mb-2 font-medium">Arrange your dashboard</p>
+      <SectionHeading>Arrange your dashboard</SectionHeading>
       <div className="flex flex-col gap-(--gap-stack)">
         {draft.map((tab, i) => (
           <div
@@ -1025,7 +1029,7 @@ function AttentionPanel({ data }: { data: Dashboard }) {
 
   return (
     <Card>
-      <p className="mb-2 font-medium">Needs attention</p>
+      <SectionHeading>Needs attention</SectionHeading>
       {attention.length === 0 ? (
         <p className="text-sm" style={muted}>
           Nothing overdue and no quotes waiting. Everything is where it should
@@ -1136,7 +1140,7 @@ export function HealthPanel({ health }: { health: Health }) {
 
   return (
     <Card>
-      <p className="mb-2 font-medium">This server</p>
+      <SectionHeading>This server</SectionHeading>
       <div className="grid gap-(--gap-toolbar) text-sm sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <p className="text-xs" style={muted}>
@@ -1273,18 +1277,21 @@ function SettingUp() {
 
   return (
     <Card>
-      <div className="flex items-start justify-between gap-4">
-        <p className="font-medium">Setting up</p>
-        <button
-          type="button"
-          className="link text-sm"
-          style={muted}
-          onClick={() => hide.mutate()}
-        >
-          Hide
-        </button>
-      </div>
-      <p className="mt-1 text-sm" style={muted}>
+      <SectionHeading
+        trailing={
+          <button
+            type="button"
+            className="link text-sm"
+            style={muted}
+            onClick={() => hide.mutate()}
+          >
+            Hide
+          </button>
+        }
+      >
+        Setting up
+      </SectionHeading>
+      <p className="text-sm" style={muted}>
         Nothing here is required. It is what the parts you have work best with.
         Hide it any time — Settings can bring it back where you left off.
       </p>
@@ -1293,12 +1300,12 @@ function SettingUp() {
       <div className="mt-3 flex flex-col gap-(--gap-stack)">
         {guides.map((guide) => (
           <div key={guide.id}>
-            <p className="text-sm font-medium">
-              {guide.label}{" "}
-              <span className="text-xs font-normal" style={muted}>
-                {guide.steps.length - guide.remaining} of {guide.steps.length}
-              </span>
-            </p>
+            <SectionHeading
+              level={3}
+              hint={`${guide.steps.length - guide.remaining} of ${guide.steps.length}`}
+            >
+              {guide.label}
+            </SectionHeading>
             <ul className="mt-1 flex flex-col gap-(--gap-tight)">
               {guide.steps.map((step) => (
                 <li key={step.id} className="flex gap-2 text-sm">
@@ -1356,8 +1363,8 @@ function StartHere({ startHere }: { startHere: Dashboard["startHere"] }) {
         borderColor: "var(--border)",
       }}
     >
-      <p className="font-medium">Start here</p>
-      <p className="mt-1 text-sm" style={muted}>
+      <SectionHeading>Start here</SectionHeading>
+      <p className="text-sm" style={muted}>
         Nothing has been added yet, so there is nothing to show. The
         introduction walks through adding the first customer, sending the first
         invoice, and what each part of this is for.
