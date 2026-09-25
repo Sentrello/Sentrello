@@ -1348,11 +1348,26 @@ async function tellSomebody(
      * that sent the notification — which is the business itself. Every reply
      * would go nowhere, and the person who applied would hear nothing.
      */
-    const replyTo = (payload.email ?? "").trim();
+    /*
+     * An address, or nothing. Not "contains an @".
+     *
+     * Whatever a visitor typed goes into a mail header, and a header value
+     * with a line break in it ends that header and begins another — so
+     * `me@example.com\r\nBcc: everyone@…` passed the old check. The sender
+     * drops a header like that now, which is the guard that matters; this is
+     * the other half of it, so a malformed address is refused here where it
+     * can be seen rather than silently dropped two layers down.
+     */
+    const typed = (payload.email ?? "").trim();
+    const replyTo = /^[^\s<>@,;:"\\]+@[^\s<>@,;:"\\]+\.[^\s<>@,;:"\\]+$/.test(
+      typed,
+    )
+      ? typed
+      : "";
     await emailAdapter().send({
       to: form.notifyEmail,
       from: notificationSender(form.name, systemFrom()),
-      ...(replyTo.includes("@") ? { headers: { "Reply-To": replyTo } } : {}),
+      ...(replyTo ? { headers: { "Reply-To": replyTo } } : {}),
       subject: `${form.name}: a new enquiry`,
       // Everything here was typed by a stranger on the internet, so every
       // part of it is escaped before it becomes markup in somebody's inbox.

@@ -17,6 +17,55 @@ export interface EmailMessage {
   headers?: Record<string, string>;
 }
 
+/**
+ * A header a stranger wrote, on its way into somebody's mail server.
+ *
+ * A carriage return or a newline inside a header value ends that header and
+ * begins another — the oldest trick in SMTP. It matters here because one of
+ * these headers is not ours: the CRM's public form puts whatever address a
+ * visitor typed into `Reply-To`, so that hitting reply on an enquiry writes
+ * back to the person who sent it. The check at that call site is that the
+ * string contains an `@`, which `me@example.com\r\nBcc: everyone@…` passes.
+ *
+ * Both adapters hand `headers` straight to somebody else — Resend as JSON,
+ * nodemailer to its own encoder — and both of them probably cope. "Probably
+ * cope" is not a thing to build a public endpoint on, and the fix belongs
+ * here rather than at each caller: every message in the product goes through
+ * this one door, and the next caller to trust its input will not read this
+ * comment.
+ *
+ * Dropped rather than stripped. A header value with a newline in it is not a
+ * header anybody meant to send, and quietly delivering the first half of
+ * somebody's attempt is worse than delivering none of it.
+ */
+function safeHeaders(
+  headers: Record<string, string> | undefined,
+): Record<string, string> | undefined {
+  if (!headers) return undefined;
+  const clean: Record<string, string> = {};
+  for (const [name, value] of Object.entries(headers)) {
+    if (/[\r\n]/.test(name) || /[\r\n]/.test(value)) {
+      console.error(
+        `[email] dropped a header with a line break in it: ${name}`,
+      );
+      continue;
+    }
+    clean[name] = value;
+  }
+  return Object.keys(clean).length > 0 ? clean : undefined;
+}
+
+/**
+ * The subject is a header too, and the same trick works on it.
+ *
+ * Every subject in the product is written by the product, so this is the belt
+ * rather than the braces — but a subject carrying a form's own name is one
+ * template away, and that name comes from whoever set the form up.
+ */
+function safeSubject(subject: string): string {
+  return subject.replace(/[\r\n]+/g, " ").trim();
+}
+
 export interface EmailAdapter {
   send(msg: EmailMessage): Promise<void>;
 }
@@ -28,6 +77,7 @@ class ResendAdapter implements EmailAdapter {
   ) {}
 
   async send(m: EmailMessage) {
+    const headers = safeHeaders(m.headers);
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -37,9 +87,9 @@ class ResendAdapter implements EmailAdapter {
       body: JSON.stringify({
         from: m.from ?? this.from,
         to: m.to,
-        subject: m.subject,
+        subject: safeSubject(m.subject),
         html: m.html,
-        ...(m.headers ? { headers: m.headers } : {}),
+        ...(headers ? { headers } : {}),
       }),
     });
     if (!res.ok) {
@@ -59,12 +109,13 @@ class SmtpAdapter implements EmailAdapter {
   });
 
   async send(m: EmailMessage) {
+    const headers = safeHeaders(m.headers);
     await this.transport.sendMail({
       from: m.from ?? process.env.EMAIL_FROM,
       to: m.to,
-      subject: m.subject,
+      subject: safeSubject(m.subject),
       html: m.html,
-      ...(m.headers ? { headers: m.headers } : {}),
+      ...(headers ? { headers } : {}),
     });
   }
 }
