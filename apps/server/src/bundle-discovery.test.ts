@@ -6,6 +6,7 @@ import {
   coreIsTooOld,
   discoverOptionalModules,
   failedBundles,
+  migrateLoadedModules,
 } from "./optional-modules";
 
 /**
@@ -256,4 +257,91 @@ test("a stray file beside the bundles is not reported as a broken one", async ()
     "mod-something-nobody-here-has-heard-of",
   );
   expect(failedBundles.slice(before)).toEqual([]);
+});
+
+/**
+ * A module whose tables will not build stops being offered.
+ *
+ * This is the project's most reliable bug shape wearing a new coat: the code
+ * was there, it was correct, and every door onto it opened into a room with no
+ * floor. A module whose migrations threw used to log one line and carry on in
+ * `loaded` — /healthz reported the instance healthy, `/api/_meta` offered the
+ * module, the rail drew it, and every screen behind it answered 500 against
+ * tables that did not exist. The only witness was whoever happened to be
+ * reading stdout as it scrolled past, which on a customer's own server is
+ * nobody.
+ *
+ * Demoting it does not unregister its routes — registration happens first and
+ * Hono cannot take a route back. It takes the module out of everything that
+ * points at those routes, which is the part a person sees.
+ */
+const withTables = (id: string) =>
+  ({
+    id,
+    migrations: { dir: `/tmp/${id}`, table: `__${id}` },
+  }) as unknown as Parameters<typeof migrateLoadedModules>[0][number];
+
+const quiet = { log: () => {}, error: () => {} };
+
+test("a module whose migrations fail is reported, not left serving", async () => {
+  const loaded = ["shop", "booking", "links"];
+  const before = failedBundles.length;
+
+  await migrateLoadedModules(
+    [withTables("shop"), withTables("booking"), withTables("links")],
+    loaded,
+    async (dir) => {
+      if (dir.endsWith("booking"))
+        throw new Error('relation "x" does not exist');
+    },
+    quiet,
+  );
+
+  // Gone from what the instance says it is running, so nothing draws a door.
+  expect(loaded).toEqual(["shop", "links"]);
+
+  const reported = failedBundles.slice(before);
+  expect(reported).toHaveLength(1);
+  expect(reported[0]?.name).toBe("booking");
+  // The reason carries Postgres's own words: "its features may not work" sent
+  // whoever read it back to the logs for the sentence that actually said why.
+  expect(reported[0]?.reason).toContain('relation "x" does not exist');
+});
+
+test("one module's broken tables do not stop the next module's", async () => {
+  // The business still has invoices to send today. A module that will not
+  // migrate is a module, not the instance.
+  const loaded = ["shop", "booking"];
+  const migrated: string[] = [];
+
+  await migrateLoadedModules(
+    [withTables("booking"), withTables("shop")],
+    loaded,
+    async (dir) => {
+      if (dir.endsWith("booking")) throw new Error("nope");
+      migrated.push(dir);
+    },
+    quiet,
+  );
+
+  expect(migrated).toEqual(["/tmp/shop"]);
+  expect(loaded).toEqual(["shop"]);
+});
+
+test("a module the licence never loaded is not migrated at all", async () => {
+  // Someone else's schema has no business in this customer's database.
+  const loaded = ["shop"];
+  const seen: string[] = [];
+
+  await migrateLoadedModules(
+    [withTables("shop"), withTables("pos")],
+    loaded,
+    async (dir) => {
+      seen.push(dir);
+    },
+    quiet,
+  );
+
+  expect(seen).toEqual(["/tmp/shop"]);
+  expect(failedBundles).toHaveLength(0);
 });

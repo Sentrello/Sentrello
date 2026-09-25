@@ -357,3 +357,47 @@ export async function discoverOptionalModules(
 
   return found;
 }
+
+/**
+ * A module's own tables, applied after the licence has decided what loads.
+ *
+ * A customer who buys a module gets its schema on the next restart, and one
+ * they are not entitled to never has it touch their database.
+ *
+ * **A module whose migrations fail is reported as failed, not left running.**
+ * It used to log a line and carry on in `loaded`: /healthz said the instance
+ * was healthy, `/api/_meta` offered the module, the rail drew it, and every
+ * screen behind it answered 500 against tables that were not there. The
+ * failure was real and visible only to whoever was reading stdout at the
+ * moment it scrolled past — which on a customer's own server is nobody.
+ *
+ * Demoting it does not unregister its routes. Registration happens before
+ * this, and Hono has no way to take a route back. What it does is take the
+ * module out of everything that points at those routes: /healthz lists it as
+ * failed, the licence screen names it, the startup banner shouts, and
+ * `/api/_meta` stops offering it, so the UI never draws a door onto a room
+ * with no floor. A request aimed straight at the URL still fails, and should.
+ *
+ * Still not fatal to the instance: the rest of the business has invoices to
+ * send today, and one module's tables are not a reason to refuse all of it.
+ */
+export async function migrateLoadedModules(
+  modules: SentrelloModule[],
+  loaded: string[],
+  migrate: (dir: string, table: string) => Promise<unknown>,
+  log: Pick<Console, "log" | "error"> = console,
+): Promise<void> {
+  for (const module of modules) {
+    if (!module.migrations || !loaded.includes(module.id)) continue;
+    try {
+      await migrate(module.migrations.dir, module.migrations.table);
+      log.log(`[modules] migrated ${module.id}`);
+    } catch (err) {
+      const reason = `its tables could not be created: ${(err as Error).message}`;
+      failedBundles.push({ name: module.id, reason });
+      const at = loaded.indexOf(module.id);
+      if (at >= 0) loaded.splice(at, 1);
+      log.error(`[modules] ${module.id} did not load: ${reason}`);
+    }
+  }
+}

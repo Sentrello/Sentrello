@@ -49,6 +49,7 @@ import { serveModuleUi } from "./module-ui";
 import {
   discoverOptionalModules,
   failedBundles,
+  migrateLoadedModules,
   missingEntitledBundles,
 } from "./optional-modules";
 import { serveWeb } from "./static";
@@ -233,22 +234,9 @@ for (const failure of missingEntitledBundles(
   console.error(`[modules] ${failure.name} did not load: ${failure.reason}`);
 }
 
-// A module brings its own tables. Applying them here — after the licence has
-// decided what loads — means a customer who buys a module gets its schema on the
-// next restart, and one they are not entitled to never touches their database.
-for (const module of modules) {
-  if (!module.migrations || !loaded.includes(module.id)) continue;
-  try {
-    await runModuleMigrations(module.migrations.dir, module.migrations.table);
-    console.log(`[modules] migrated ${module.id}`);
-  } catch (err) {
-    // A module whose schema failed must not take the whole instance down: the
-    // rest of the business still needs to invoice today.
-    console.error(
-      `[modules] ${module.id} migrations failed, its features may not work: ${(err as Error).message}`,
-    );
-  }
-}
+// A module brings its own tables, and one whose tables will not build is
+// reported as failed rather than left serving. See `migrateLoadedModules`.
+await migrateLoadedModules(modules, loaded, runModuleMigrations);
 
 /**
  * Baked into the image at build time, so an instance can say what it is
