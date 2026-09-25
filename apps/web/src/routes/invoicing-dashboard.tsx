@@ -6,6 +6,7 @@ import {
   Card,
   ErrorNote,
   Loading,
+  SectionHeading,
   StatFigure,
   Warning,
   briefMoney,
@@ -158,14 +159,14 @@ export function InvoicingDashboard() {
 
       {points.length > 0 ? (
         <Card>
-          <p className="mb-2 font-medium">Billed by month</p>
+          <SectionHeading>Billed by month</SectionHeading>
           <Bars points={points} format={briefMoney} />
         </Card>
       ) : null}
 
       <div className="grid gap-3 lg:grid-cols-2">
         <Card>
-          <p className="mb-2 font-medium">Past its date</p>
+          <SectionHeading>Past its date</SectionHeading>
           {data.late.length === 0 ? (
             <p className="text-sm" style={muted}>
               Nothing is late. Everything issued is either paid or not yet due.
@@ -195,7 +196,7 @@ export function InvoicingDashboard() {
         </Card>
 
         <Card>
-          <p className="mb-2 font-medium">Written but not sent</p>
+          <SectionHeading>Written but not sent</SectionHeading>
           {data.drafts.length === 0 ? (
             <p className="text-sm" style={muted}>
               No drafts waiting. Everything written has gone out.

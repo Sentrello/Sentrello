@@ -12,6 +12,7 @@ import {
   Input,
   Loading,
   Row,
+  SectionHeading,
   Select,
   Table,
   border,
@@ -418,7 +419,7 @@ export function InvoiceDetail() {
         </Card>
 
         <Card>
-          <p className="mb-2 font-medium">What can be done</p>
+          <SectionHeading>What can be done</SectionHeading>
           <div className="flex flex-wrap gap-2">
             {isDraft ? (
               <Button
@@ -671,7 +672,7 @@ function Payments({
 
   return (
     <Card>
-      <p className="mb-2 font-medium">Payments</p>
+      <SectionHeading>Payments</SectionHeading>
 
       {payments.length === 0 ? (
         <p className="text-sm" style={muted}>

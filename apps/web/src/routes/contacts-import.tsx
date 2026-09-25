@@ -7,6 +7,7 @@ import {
   Card,
   ErrorNote,
   Row,
+  SectionHeading,
   Select,
   Table,
   Warning,
@@ -139,7 +140,7 @@ export function ContactsImport({ onDone }: { onDone: () => void }) {
 
   return (
     <Card>
-      <p className="mb-2 font-medium">Import contacts from a spreadsheet</p>
+      <SectionHeading>Import contacts from a spreadsheet</SectionHeading>
       <p className="mb-3 text-sm" style={muted}>
         A CSV exported from a spreadsheet or another CRM. Nothing is written
         until you press Import.

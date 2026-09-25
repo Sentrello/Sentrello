@@ -14,6 +14,7 @@ import {
   Field,
   Input,
   Loading,
+  SectionHeading,
   Select,
   formatDate,
   formatMoney,
@@ -449,7 +450,7 @@ export function DealDetail() {
         </Card>
 
         <Card>
-          <p className="mb-2 font-medium">Notes</p>
+          <SectionHeading>Notes</SectionHeading>
           <textarea
             rows={2}
             value={text}
@@ -493,7 +494,7 @@ export function DealDetail() {
 
       <div className="flex flex-col gap-(--gap-stack)">
         <Card>
-          <p className="mb-2 font-medium">Who is involved</p>
+          <SectionHeading>Who is involved</SectionHeading>
           {company ? (
             <p className="mb-2 text-sm">
               <span style={muted}>Company: </span>

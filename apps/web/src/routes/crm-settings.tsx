@@ -743,6 +743,9 @@ function Webhooks() {
           className="mb-3 rounded border border-line px-3 py-2 text-sm"
           style={{ background: "var(--surface)" }}
         >
+          {/* Not a SectionHeading: this is a notice that appears once and
+              goes, and an <h2> inside it would stand in the page's outline
+              as a peer of the sections that are always there. */}
           <p className="mb-1 font-medium">Signing secret — shown once</p>
           <p className="mb-1 select-all break-all font-mono text-xs">
             {issued}

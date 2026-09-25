@@ -7,6 +7,7 @@ import {
   Field,
   Loading,
   Row,
+  SectionHeading,
   Select,
   Table,
   Warning,
@@ -110,7 +111,7 @@ export function OssReturn() {
   return (
     <div className="flex flex-col gap-(--gap-stack)">
       <Card>
-        <p className="mb-1 font-medium">EU One Stop Shop return</p>
+        <SectionHeading>EU One Stop Shop return</SectionHeading>
         <p className="mb-3 text-sm" style={muted}>
           Once your sales to consumers in other member states pass €10,000 a
           year, VAT is due at your customer's rate in your customer's country —

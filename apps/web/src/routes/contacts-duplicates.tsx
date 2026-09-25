@@ -6,6 +6,7 @@ import {
   Empty,
   ErrorNote,
   Loading,
+  SectionHeading,
   border,
   muted,
 } from "../lib/ui";
@@ -82,7 +83,7 @@ export function ContactDuplicates({ onChanged }: { onChanged: () => void }) {
 
   return (
     <Card>
-      <p className="mb-1 font-medium">Likely duplicates</p>
+      <SectionHeading>Likely duplicates</SectionHeading>
       <p className="mb-3 text-sm" style={muted}>
         Nothing is merged until you choose which record to keep. Everything on
         the other one — notes, tasks, deals, quotes and invoices — follows the

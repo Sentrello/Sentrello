@@ -154,7 +154,7 @@ export function CanadianTax() {
   return (
     <div className="flex flex-col gap-(--gap-stack)">
       <Card>
-        <p className="mb-1 font-medium">Canadian returns for a period</p>
+        <SectionHeading>Canadian returns for a period</SectionHeading>
         <p className="mb-3 text-sm" style={muted}>
           Computed from your books the moment you ask, never kept as a running
           tally. Each figure lands on the return of the government it is owed
@@ -190,7 +190,7 @@ export function CanadianTax() {
 
       {data?.gstHst ? (
         <Card>
-          <p className="mb-1 font-medium">GST/HST return — CRA</p>
+          <SectionHeading>GST/HST return — CRA</SectionHeading>
           <p className="mb-3 text-sm" style={muted}>
             One federal return covers GST and every harmonised province's HST.
             The line numbers are the CRA's own.
@@ -215,7 +215,7 @@ export function CanadianTax() {
 
       {data?.qst ? (
         <Card>
-          <p className="mb-1 font-medium">QST return — Revenu Québec</p>
+          <SectionHeading>QST return — Revenu Québec</SectionHeading>
           <p className="mb-3 text-sm" style={muted}>
             Filed together with your GST on the combined form, but a separate
             tax with a separate net — the QST side never nets against the GST
@@ -241,9 +241,9 @@ export function CanadianTax() {
 
       {(data?.pst ?? []).map((p) => (
         <Card key={p.jurisdiction}>
-          <p className="mb-1 font-medium">
+          <SectionHeading>
             {p.jurisdiction.replace("CA-", "")} provincial sales tax return
-          </p>
+          </SectionHeading>
           <p className="mb-3 text-sm" style={muted}>
             Filed to the province, separately from GST/HST. Nothing you paid on
             your own purchases nets against this — provincial sales tax is not
@@ -262,7 +262,7 @@ export function CanadianTax() {
 
       {data && !nothing ? (
         <Card>
-          <p className="mb-1 font-medium">Before you file</p>
+          <SectionHeading>Before you file</SectionHeading>
           <ul
             className="list-disc flex flex-col gap-(--gap-toolbar) pl-5 text-sm"
             style={muted}
