@@ -89,6 +89,19 @@ export interface SentrelloUi {
     variant?: "primary" | "secondary" | "danger";
     onConfirm: () => void;
   }>;
+  /**
+   * One line of a row menu, with the permission its route asks for.
+   *
+   * `RowMenu` was already here and its items were not, so a module writing
+   * one wrote `<button className="menu-item">` — which cannot carry a
+   * permission, and is how Core's invoice and quote menus came to hold void,
+   * credit, delete and send with nothing gating any of them.
+   */
+  MenuItem: React.ComponentType<
+    React.ButtonHTMLAttributes<HTMLButtonElement> & {
+      needs?: Record<string, string[]>;
+    }
+  >;
   Table: React.ComponentType<{
     headers: (string | { label: string; money?: boolean })[];
     children: React.ReactNode;
@@ -212,6 +225,7 @@ export const UI_MEMBERS = [
   "Table",
   "Row",
   "RowMenu",
+  "MenuItem",
   "Tabs",
   "Empty",
   "Loading",

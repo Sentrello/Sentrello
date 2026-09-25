@@ -20,6 +20,7 @@ import {
   ErrorNote,
   Input,
   Loading,
+  MenuItem,
   Page,
   PageActions,
   Row,
@@ -624,73 +625,67 @@ function InvoiceActions({
             {/* Out of the bin. Deleting is soft, and a list that can show the
               deleted ones but not bring one back is a bin with no lid off. */}
             {invoice.deletedAt ? (
-              <button
-                type="button"
-                className="menu-item"
+              <MenuItem
+                needs={{ invoicing: ["delete"] }}
                 onClick={() => act.mutate("restore")}
                 disabled={act.isPending}
               >
                 Restore
-              </button>
+              </MenuItem>
             ) : null}
 
             {isDraft && !invoice.deletedAt ? (
               <>
-                <button type="button" className="menu-item" onClick={onEdit}>
+                <MenuItem needs={{ invoicing: ["update"] }} onClick={onEdit}>
                   Edit
-                </button>
-                <button
-                  type="button"
-                  className="menu-item"
+                </MenuItem>
+                <MenuItem
+                  needs={{ invoicing: ["update"] }}
                   onClick={() => act.mutate("issue")}
                   disabled={act.isPending}
                 >
                   Issue it
-                </button>
+                </MenuItem>
               </>
             ) : null}
 
-            <button
-              type="button"
-              className="menu-item"
+            <MenuItem
+              needs={{ invoicing: ["send"] }}
               onClick={() => share.mutate()}
               disabled={share.isPending}
             >
               {copied ? "Link copied" : "Copy a link to send"}
-            </button>
+            </MenuItem>
 
-            <button
-              type="button"
-              className="menu-item"
+            <MenuItem
+              needs={{ invoicing: ["create"] }}
               onClick={() => act.mutate("duplicate")}
               disabled={act.isPending}
             >
               Duplicate
-            </button>
+            </MenuItem>
 
             {!isVoid && !paid && !credited ? (
-              <button
-                type="button"
-                className="menu-item"
+              <MenuItem
+                needs={{ invoicing: ["update"] }}
                 style={{ color: "var(--text-danger)" }}
                 onClick={() => act.mutate("void")}
                 disabled={act.isPending}
               >
                 Void it
-              </button>
+              </MenuItem>
             ) : null}
 
             {/* Money has moved, so voiding would lose it. This is what a
               business does instead. */}
             {paid && invoice.kind !== "credit_note" ? (
-              <button
-                type="button"
-                className="menu-item"
+              <MenuItem
+                needs={{ invoicing: ["create"] }}
                 onClick={() => act.mutate("credit")}
                 disabled={act.isPending}
               >
                 Raise a credit note
-              </button>
+              </MenuItem>
             ) : null}
           </>
         )}

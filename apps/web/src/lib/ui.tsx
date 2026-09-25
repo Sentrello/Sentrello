@@ -1097,6 +1097,39 @@ export {
  * opens upward instead, and the measurement is against the viewport rather
  * than the table, because the viewport is now what constrains it.
  */
+/**
+ * One line of a row menu — Void, Credit, Send, Delete.
+ *
+ * A component rather than a class name, because the class name could not
+ * carry a permission. Invoices and quotes keep their whole vocabulary of
+ * destructive and money-moving actions in these menus, and every one of them
+ * was a bare `<button className="menu-item">` that the policy could not
+ * reach: a bookkeeper opened the menu, pressed Void, and found out from a
+ * 403.
+ *
+ * Disabled with the reason on hover, the same as `Button`, rather than
+ * removed from the menu. A menu that is a different length for different
+ * people is a menu nobody can be told how to use.
+ */
+export function MenuItem({
+  children,
+  needs,
+  ...rest
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { needs?: Needs }) {
+  const blocked = blockedBy(needs);
+  return (
+    <button
+      type="button"
+      {...rest}
+      disabled={rest.disabled || blocked !== undefined}
+      title={blocked ?? rest.title}
+      className={`menu-item ${rest.className ?? ""}`}
+    >
+      {children}
+    </button>
+  );
+}
+
 export function RowMenu({
   label,
   children,

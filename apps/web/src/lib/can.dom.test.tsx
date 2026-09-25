@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import type React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { type Meta, may, setGrants } from "./api";
-import { Button } from "./ui";
+import { Button, MenuItem } from "./ui";
 
 /**
  * What a screen is told about what this person may do.
@@ -106,4 +106,32 @@ test("every resource a control names has to be held", () => {
 /** A control that asks for nothing is never touched by any of this. */
 test("a button with no needs is never disabled by permissions", () => {
   expect(draw({ crm: [] }, <Button>Save</Button>)).not.toContain('disabled=""');
+});
+
+/**
+ * The row menu is where invoices and quotes keep void, credit, delete and
+ * send, and every one of them was a bare `<button className="menu-item">`
+ * that no permission could reach.
+ */
+test("a menu item whose permission is missing is disabled and says why", () => {
+  const html = draw(
+    { invoicing: ["read"] },
+    <MenuItem needs={{ invoicing: ["delete"] }}>Delete</MenuItem>,
+  );
+  expect(html).toContain('disabled=""');
+  expect(html).toContain("Your role does not allow this.");
+  // Still in the menu. A menu that is a different length for different people
+  // is a menu nobody can be told how to use.
+  expect(html).toContain("Delete");
+});
+
+test("a menu item keeps its own class names", () => {
+  const html = draw(
+    { invoicing: ["delete"] },
+    <MenuItem needs={{ invoicing: ["delete"] }} className="extra">
+      Delete
+    </MenuItem>,
+  );
+  expect(html).toContain("menu-item extra");
+  expect(html).not.toContain('disabled=""');
 });

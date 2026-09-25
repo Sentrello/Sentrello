@@ -20,6 +20,7 @@ import {
   Field,
   Input,
   Loading,
+  MenuItem,
   Page,
   PageActions,
   Row,
@@ -651,37 +652,34 @@ function QuoteActions({
               the one that posted to the ledger. A sent quote is still
               editable: revising and re-sending is what negotiation is. */}
             {!quote.convertedInvoiceId ? (
-              <button
-                type="button"
-                className="menu-item"
+              <MenuItem
+                needs={{ invoicing: ["update"] }}
                 onClick={() => {
                   setOpen(false);
                   onEdit();
                 }}
               >
                 Edit
-              </button>
+              </MenuItem>
             ) : null}
 
             {quote.status === "draft" ? (
-              <button
-                type="button"
-                className="menu-item"
+              <MenuItem
+                needs={{ invoicing: ["send"] }}
                 onClick={() => send.mutate()}
                 disabled={send.isPending}
               >
                 Send it
-              </button>
+              </MenuItem>
             ) : null}
 
-            <button
-              type="button"
-              className="menu-item"
+            <MenuItem
+              needs={{ invoicing: ["send"] }}
               onClick={() => share.mutate()}
               disabled={share.isPending}
             >
               {copied ? "Link copied" : "Copy a link to send"}
-            </button>
+            </MenuItem>
 
             {/*
             Taking it back offline. A quote could be published to a link
@@ -690,14 +688,13 @@ function QuoteActions({
             stays readable for as long as somebody keeps the link.
           */}
             {quote.published ? (
-              <button
-                type="button"
-                className="menu-item"
+              <MenuItem
+                needs={{ invoicing: ["send"] }}
                 onClick={() => unshare.mutate()}
                 disabled={unshare.isPending}
               >
                 Stop sharing
-              </button>
+              </MenuItem>
             ) : null}
 
             {/* Once, and only once. A second conversion is a second bill for
@@ -708,49 +705,44 @@ function QuoteActions({
               </span>
             ) : (
               <>
-                <button
-                  type="button"
-                  className="menu-item"
+                <MenuItem
+                  needs={{ invoicing: ["create"] }}
                   onClick={() => convert.mutate()}
                   disabled={convert.isPending}
                 >
                   Turn into an invoice
-                </button>
+                </MenuItem>
                 {/* Or into the schedule that was agreed with it. */}
-                <button
-                  type="button"
-                  className="menu-item"
+                <MenuItem
                   onClick={() => {
                     setOpen(false);
                     onSplit();
                   }}
                 >
                   Split into instalments
-                </button>
+                </MenuItem>
               </>
             )}
 
             {quote.deletedAt ? (
-              <button
-                type="button"
-                className="menu-item"
+              <MenuItem
+                needs={{ invoicing: ["delete"] }}
                 onClick={() => restore.mutate()}
                 disabled={restore.isPending}
               >
                 Restore
-              </button>
+              </MenuItem>
             ) : (
               // Nothing asked first: this is the soft delete. The quote moves
               // to the Deleted tab and Restore, right here, brings it back.
-              <button
-                type="button"
-                className="menu-item"
+              <MenuItem
+                needs={{ invoicing: ["delete"] }}
                 style={{ color: "var(--text-danger)" }}
                 onClick={() => remove.mutate()}
                 disabled={remove.isPending}
               >
                 Delete
-              </button>
+              </MenuItem>
             )}
           </>
         )}
