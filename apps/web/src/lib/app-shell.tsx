@@ -693,7 +693,9 @@ function ProfileMenu({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        aria-haspopup="menu"
+        // `true`, not `menu`: what opens is a box of buttons with the
+        // person's name above them, and the reasoning is at `RowMenu`.
+        aria-haspopup="true"
         aria-expanded={open}
         aria-label="Your account"
         className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold"
@@ -707,7 +709,16 @@ function ProfileMenu({
       </button>
 
       {open ? (
-        <div className="menu-panel" role="menu">
+        /*
+         * No `role="menu"`, for the reason `RowMenu` records at length: a
+         * `menu` may contain only `menuitem`, axe rates the breach critical,
+         * and this one broke it twice over — the panel opens with a `<div>`
+         * carrying the person's name and address, which no `menu` may hold.
+         * Nothing here implements the arrow-key model the role promises
+         * either. So it claims nothing, and the three buttons are announced
+         * by the words on them.
+         */
+        <div className="menu-panel">
           <div className="border-b px-3 py-2 border-line">
             <div className="truncate text-sm font-medium">{name || email}</div>
             {name ? (
@@ -722,7 +733,6 @@ function ProfileMenu({
 
           <button
             type="button"
-            role="menuitem"
             className="menu-item"
             onClick={() => {
               setOpen(false);
@@ -734,7 +744,6 @@ function ProfileMenu({
 
           <button
             type="button"
-            role="menuitem"
             className="menu-item"
             onClick={() => {
               setOpen(false);
@@ -748,7 +757,6 @@ function ProfileMenu({
 
           <button
             type="button"
-            role="menuitem"
             className="menu-item border-t"
             style={{
               borderColor: "var(--border)",
