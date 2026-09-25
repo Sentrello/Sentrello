@@ -291,6 +291,7 @@ export function People() {
               </Select>
             </Field>
             <Button
+              needs={{ settings: ["update"] }}
               onClick={() => invite.mutate()}
               disabled={invite.isPending || !invitee.trim()}
             >
@@ -325,6 +326,7 @@ export function People() {
                       danger
                       disabled={cancelInvite.isPending}
                       className="text-xs"
+                      needs={{ settings: ["update"] }}
                       onConfirm={() => cancelInvite.mutate(i.id)}
                     >
                       Withdraw
@@ -534,6 +536,7 @@ export function People() {
                   title="Turn off two-factor?"
                   message={`${p.email} will be signed out everywhere and can set two-factor up again themselves. Do this when somebody has lost the device that generates their codes.`}
                   confirmLabel="Turn it off"
+                  needs={{ settings: ["update"] }}
                   onConfirm={() => revokeTwoFactor.mutate(p.userId)}
                 >
                   on — turn off
@@ -557,6 +560,7 @@ export function People() {
                   title="Issue a new password?"
                   message={`The password ${p.email} has now stops working immediately, and they are signed out everywhere. The new one is shown once, on this screen, and stored nowhere.`}
                   confirmLabel="Issue one"
+                  needs={{ settings: ["update"] }}
                   onConfirm={() => resetPassword.mutate(p)}
                 >
                   Reset password
@@ -567,6 +571,7 @@ export function People() {
                       title="Sign them out everywhere?"
                       message={`${p.email} is signed out on every device and will have to sign in again. Anything they were part-way through typing is lost.`}
                       confirmLabel="Sign them out"
+                      needs={{ settings: ["update"] }}
                       onConfirm={() => signOut.mutate(p.userId)}
                     >
                       Sign out
@@ -576,6 +581,7 @@ export function People() {
                       message={`${p.email} loses access immediately. The invoices they raised, the notes they wrote and everything they did stay exactly where they are — this removes the person, not their work.`}
                       confirmLabel="Remove them"
                       danger
+                      needs={{ settings: ["update"] }}
                       onConfirm={() => remove.mutate(p.userId)}
                     >
                       Remove

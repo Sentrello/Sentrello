@@ -90,6 +90,7 @@ export function Sessions() {
             confirmLabel="Sign everybody out"
             danger
             className="text-xs"
+            needs={{ settings: ["update"] }}
             disabled={revokeAll.isPending}
             onConfirm={() => revokeAll.mutate()}
           >

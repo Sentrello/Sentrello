@@ -435,6 +435,7 @@ export function Privacy() {
                   <Toolbar>
                     <Button
                       variant="danger"
+                      needs={{ settings: ["update"] }}
                       disabled={!note.trim() || erase.isPending}
                       onClick={() => erase.mutate()}
                     >

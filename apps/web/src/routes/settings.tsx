@@ -491,6 +491,7 @@ export function Settings() {
           </Field>
 
           <Button
+            needs={{ settings: ["update"] }}
             onClick={() =>
               rename.mutate({ name: name ?? data.business.name, ...form })
             }
@@ -1052,6 +1053,7 @@ function Connection({
 
       <Toolbar className="mt-3">
         <Button
+          needs={{ settings: ["update"] }}
           onClick={() => connect.mutate()}
           disabled={connect.isPending || (!secretKey && !account?.secretHint)}
         >
@@ -1064,6 +1066,7 @@ function Connection({
         {account?.enabled ? (
           <Button
             variant="secondary"
+            needs={{ settings: ["update"] }}
             onClick={() => disable.mutate()}
             disabled={disable.isPending}
           >
@@ -1078,6 +1081,7 @@ function Connection({
         {account && !account.enabled ? (
           <Button
             variant="danger"
+            needs={{ settings: ["update"] }}
             onClick={() => forget.mutate()}
             disabled={forget.isPending}
           >
@@ -1333,6 +1337,7 @@ export function SettingsLicence() {
                 </Field>
                 <div className="mt-2">
                   <Button
+                    needs={{ settings: ["update"] }}
                     onClick={() => enterKey.mutate()}
                     disabled={enterKey.isPending || keyInput.trim().length < 24}
                   >
@@ -1442,6 +1447,7 @@ export function SettingsLicence() {
               </p>
               <div className="mt-2">
                 <Button
+                  needs={{ settings: ["update"] }}
                   onClick={() => applyUpdate.mutate()}
                   disabled={
                     applyUpdate.isPending ||
@@ -1476,6 +1482,7 @@ export function SettingsLicence() {
             <div className="mt-2">
               <Button
                 variant="secondary"
+                needs={{ settings: ["update"] }}
                 onClick={() => check.mutate()}
                 disabled={check.isPending}
               >
@@ -1514,6 +1521,7 @@ export function SettingsLicence() {
                 </p>
                 <Toolbar className="mt-2">
                   <Button
+                    needs={{ settings: ["update"] }}
                     onClick={() => rollback.mutate()}
                     disabled={rollback.isPending}
                   >
@@ -1625,6 +1633,7 @@ function Telemetry({
         ) : (
           <Button
             variant="secondary"
+            needs={{ settings: ["update"] }}
             onClick={() => toggle.mutate(!telemetry.enabled)}
             disabled={toggle.isPending}
           >
@@ -1719,6 +1728,7 @@ function Modules() {
             </div>
             <Button
               variant="secondary"
+              needs={{ settings: ["update"] }}
               disabled={toggle.isPending}
               onClick={() => toggle.mutate({ id: m.id, enabled: true })}
             >

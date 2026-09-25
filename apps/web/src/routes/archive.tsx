@@ -219,6 +219,7 @@ export function Archive() {
             ) : null}
             <Toolbar className="mt-(--gap-stack)">
               <Button
+                needs={{ archive: ["create"] }}
                 onClick={() => write.mutate(false)}
                 disabled={write.isPending || plan.data.rows === 0}
               >
@@ -234,6 +235,7 @@ export function Archive() {
                     ? " A summary is posted in place of what goes, so your reports over this period do not change."
                     : ""
                 }`}
+                needs={{ archive: ["create"] }}
                 disabled={!mayRemove || write.isPending || plan.data.rows === 0}
                 onConfirm={() => write.mutate(true)}
               >
@@ -297,6 +299,7 @@ export function Archive() {
                         confirmLabel="Clear it"
                         title="Remove the archive file from this server?"
                         message="Only the file. The record of what left, and its checksum, stays. Make sure you have the file somewhere else first."
+                        needs={{ archive: ["delete"] }}
                         onConfirm={() => forget.mutate(run.id)}
                       >
                         Clear file
@@ -382,6 +385,7 @@ function Restore() {
       </Field>
       <Toolbar className="mt-(--gap-stack)">
         <Button
+          needs={{ archive: ["create"] }}
           onClick={() => send.mutate("inspect")}
           disabled={send.isPending}
         >
@@ -392,6 +396,7 @@ function Restore() {
           confirmLabel="Restore"
           title="Put these records back?"
           message="They go back into the live tables under their original ids. Anything already here is left as it is."
+          needs={{ archive: ["create"] }}
           disabled={send.isPending}
           onConfirm={() => send.mutate("restore")}
         >
@@ -505,10 +510,18 @@ function Where() {
         </Field>
       ))}
       <Toolbar className="mt-(--gap-stack)">
-        <Button onClick={() => test.mutate()} disabled={test.isPending}>
+        <Button
+          needs={{ archive: ["connect"] }}
+          onClick={() => test.mutate()}
+          disabled={test.isPending}
+        >
           {test.isPending ? "Testing…" : "Test connection"}
         </Button>
-        <Button onClick={() => save.mutate()} disabled={save.isPending}>
+        <Button
+          needs={{ archive: ["connect"] }}
+          onClick={() => save.mutate()}
+          disabled={save.isPending}
+        >
           Save
         </Button>
       </Toolbar>

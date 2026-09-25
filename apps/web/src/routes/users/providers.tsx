@@ -129,6 +129,7 @@ export function Providers() {
                   title="Disconnect this provider?"
                   message={`Nobody with an address at ${connection.domain} will be able to sign in through it. If that is how your staff sign in, they will be locked out until somebody with a password gets back in — so check at least one administrator has one first. Everybody keeps their account, their policy and their work.`}
                   confirmLabel="Disconnect it"
+                  needs={{ settings: ["update"] }}
                   onConfirm={() => disconnect.mutate(connection.id)}
                 >
                   Disconnect
@@ -215,6 +216,7 @@ export function Providers() {
         {connect.error ? <ErrorNote error={connect.error} /> : null}
         <div>
           <Button
+            needs={{ settings: ["update"] }}
             onClick={() => connect.mutate()}
             disabled={connect.isPending || !domain.trim()}
           >

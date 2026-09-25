@@ -312,6 +312,7 @@ function Details({
                 : `${person.email} loses access immediately and is signed out everywhere. Their record and everything they did stay — this is how somebody leaves without their work leaving with them.`
             }
             confirmLabel={person.disabledAt ? "Enable them" : "Disable them"}
+            needs={{ settings: ["update"] }}
             onConfirm={() => toggle.mutate(!person.disabledAt)}
           >
             {toggle.isPending
@@ -385,6 +386,7 @@ function Credentials({
             title="Issue a new password?"
             message={`The password ${person.email} has now stops working immediately, and they are signed out everywhere. The new one is shown once, here, and stored nowhere.`}
             confirmLabel="Issue one"
+            needs={{ settings: ["update"] }}
             onConfirm={() => resetPassword.mutate()}
           >
             {resetPassword.isPending ? "Issuing…" : "Issue a new password"}
@@ -415,6 +417,7 @@ function Credentials({
               title="Turn off two-factor?"
               message={`${person.email} will be signed out everywhere and can set two-factor up again themselves. Do this when somebody has lost the device that generates their codes.`}
               confirmLabel="Turn it off"
+              needs={{ settings: ["update"] }}
               onConfirm={() => revokeTwoFactor.mutate()}
             >
               Turn off
@@ -444,7 +447,11 @@ function Credentials({
             their password.
           </p>
           <div className="mt-(--gap-toolbar)">
-            <Button disabled={unlock.isPending} onClick={() => unlock.mutate()}>
+            <Button
+              needs={{ settings: ["update"] }}
+              disabled={unlock.isPending}
+              onClick={() => unlock.mutate()}
+            >
               {unlock.isPending ? "Unlocking…" : "Unlock"}
             </Button>
           </div>
@@ -606,6 +613,7 @@ function Sessions({ userId }: { userId: string }) {
             message="Every device below is signed out and will have to sign in again. Anything part-way through being typed is lost."
             confirmLabel="Sign them out"
             disabled={revokeAll.isPending}
+            needs={{ settings: ["update"] }}
             onConfirm={() => revokeAll.mutate()}
           >
             Sign out everywhere

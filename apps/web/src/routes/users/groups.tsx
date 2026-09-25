@@ -95,6 +95,7 @@ export function Groups() {
             />
           </Field>
           <Button
+            needs={{ settings: ["update"] }}
             onClick={() => create.mutate()}
             disabled={create.isPending || !name.trim()}
           >
@@ -143,6 +144,7 @@ export function Groups() {
                   confirmLabel="Delete it"
                   danger
                   className="text-xs"
+                  needs={{ settings: ["update"] }}
                   disabled={remove.isPending}
                   onConfirm={() => remove.mutate(g.id)}
                 >
