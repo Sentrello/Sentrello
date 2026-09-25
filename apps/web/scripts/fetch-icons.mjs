@@ -68,12 +68,6 @@ const ICONS = {
   calendar: "blank-calendar",
   chart: "graph-bar-increase-square",
   "check-square": "check-square",
-  /*
-   * The set has no chevron, so the disclosure marker is the arrowhead this
-   * set uses to mean "onward". It is the one glyph here chosen for want of a
-   * better, and worth a second look on screen at 14px.
-   */
-  "chevron-right": "track-select-right-tool",
   clipboard: "empty-clipboard",
   clock: "stopwatch",
   // Both names mean a person's record, and this is the card that record sits on.

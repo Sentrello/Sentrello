@@ -404,12 +404,15 @@ function NavRows({
               {node.icon ? <Icon name={node.icon} size={16} /> : null}
               <span className="flex-1 text-left">{node.label}</span>
               {node.children.length ? (
-                // A drawn chevron, not "▸" at 0.6rem. The glyph renders at
-                // whatever weight the font has for it, which on the stack this
-                // app uses is barely a mark on the screen.
-                <span className="nav-caret" data-open={open}>
-                  <Icon name="chevron-right" size={16} />
-                </span>
+                // Drawn in CSS, not an icon and not "▸" at 0.6rem. The glyph
+                // renders at whatever weight the font has for it, which on
+                // this stack is barely a mark; an icon-set chevron reads as a
+                // picture of an arrow sitting beside the label. See .nav-caret.
+                <span
+                  className="nav-caret"
+                  data-open={open}
+                  aria-hidden="true"
+                />
               ) : null}
             </button>
             {open ? (
@@ -528,7 +531,7 @@ function Sidebar({ nav }: { nav: NavEntry[] }) {
             title="Show the section panel"
             onClick={togglePanel}
           >
-            <Icon name="chevron-right" size={16} />
+            <span className="nav-caret" aria-hidden="true" />
           </button>
         ) : null}
         {groups.map((item) => {

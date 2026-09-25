@@ -543,14 +543,36 @@ a {
 .nav-group-toggle:hover {
   background: var(--surface);
 }
+/*
+ * The disclosure caret, drawn here rather than pulled from the icon set.
+ *
+ * It was an icon, and an icon set is drawn for icons: a chevron in one reads
+ * as a picture of an arrow sitting next to a label, at whatever weight the
+ * set's own hand gives it. A caret is not a picture of anything. It is two
+ * hairlines meeting at a corner, and it should be the same weight as the rule
+ * under the row beside it.
+ *
+ * Two borders on an empty box, turned 45 degrees. It costs no glyph, inherits
+ * `currentColor`, scales with the text it sits beside, and the open state is
+ * the same corner turned a quarter further — so the rotation animates the mark
+ * itself rather than swapping one drawing for another.
+ */
 .nav-caret {
-  display: flex;
-  align-items: center;
+  display: block;
+  flex: none;
+  width: 0.375rem;
+  height: 0.375rem;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  /* -45 points it right; the extra 1px back up sits it on the text's centre
+     rather than half a stroke below it, which is where a square rotated about
+     its own middle lands. */
+  transform: translateY(-1px) rotate(-45deg);
   transition: transform 120ms ease;
   color: var(--text-muted);
 }
 .nav-caret[data-open="true"] {
-  transform: rotate(90deg);
+  transform: translateY(-2px) rotate(45deg);
 }
 
 .nav-link {

@@ -312,9 +312,7 @@ export function FilterGroup({
       >
         <Icon name={icon} size={14} />
         <span className="flex-1 text-left">{label}</span>
-        <span className="nav-caret" data-open={open}>
-          <Icon name="chevron-right" size={14} />
-        </span>
+        <span className="nav-caret" data-open={open} aria-hidden="true" />
       </button>
       {open ? <div className="mt-1 space-y-0.5">{children}</div> : null}
     </div>
