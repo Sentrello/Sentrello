@@ -41,6 +41,7 @@ import { nextDocumentNumber } from "@sentrello/db/numbering";
 import {
   businessIdentity,
   contactByPortalToken,
+  deadLinkPage,
   ensurePortalToken,
 } from "@sentrello/db/portal";
 import { dateFrom, demandDate } from "@sentrello/db/timezone";
@@ -1941,6 +1942,16 @@ export default defineModule({
      * account — so the token is compared in constant time and a wrong one is
      * a 404, which is what an unknown URL looks like.
      */
+    /*
+     * A link that lost its token on the way.
+     *
+     * `/portal/` matches no `:token`, so it fell through to the application's
+     * own catch-all and drew the **staff sign-in form** — to a customer, who
+     * has no account and was trying to look at a bill. The same page as any
+     * other dead link is the honest answer.
+     */
+    ctx.app.get("/portal/", (c) => c.html(deadLinkPage(), 404));
+
     ctx.app.get("/portal/:token", async (c) => {
       // The token is 32 random bytes, so guessing is hopeless — the limit is
       // not against that. It is against a public path that does database work
@@ -1959,7 +1970,9 @@ export default defineModule({
 
       const supplied = c.req.param("token");
       const contact = await contactByPortalToken(supplied);
-      if (!contact) return c.notFound();
+      // Not a bare 404: a customer followed this from a bill somebody sent
+      // them, and a blank browser error answers none of their questions.
+      if (!contact) return c.html(deadLinkPage(), 404);
 
       /**
        * Only documents the customer was actually sent. A draft is the

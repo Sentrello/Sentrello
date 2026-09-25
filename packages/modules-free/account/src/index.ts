@@ -1,6 +1,6 @@
 import { clientIp } from "@sentrello/auth";
 import { db, schema } from "@sentrello/db";
-import { contactByPortalToken } from "@sentrello/db/portal";
+import { contactByPortalToken, deadLinkPage } from "@sentrello/db/portal";
 import type {
   EntitlementNeed,
   ModuleContext,
@@ -379,7 +379,9 @@ export default defineModule({
 
       const token = c.req.param("token") ?? "";
       const contact = await contactByPortalToken(token);
-      if (!contact) return c.notFound();
+      // Not a bare 404: the link came from a bill or an email, and the
+      // person following it deserves a sentence rather than a blank page.
+      if (!contact) return c.html(deadLinkPage(), 404);
 
       const [org, all] = await Promise.all([
         db
@@ -429,6 +431,10 @@ export default defineModule({
       );
     };
 
+    // A link that lost its token on the way matches no `:token` and fell
+    // through to the application's catch-all, which drew the staff sign-in
+    // form at a customer. Same page as any other dead link.
+    ctx.app.get("/account/", (c: RouteContext) => c.html(deadLinkPage(), 404));
     ctx.app.get("/account/:token", (c: RouteContext) => draw(c));
     ctx.app.get("/account/:token/print", (c: RouteContext) =>
       draw(c, undefined, true),

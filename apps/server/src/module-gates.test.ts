@@ -81,6 +81,13 @@ const PUBLIC_BY_DESIGN = new Set([
   // small business will not register an account to read an invoice.
   "GET /portal/:token",
   "POST /portal/:token/quotes/:id/accept",
+  // The same links with the token lost on the way, which an email does when
+  // it wraps a long one. They match no `:token`, so they used to fall through
+  // to the application's catch-all and draw the **staff sign-in form** at a
+  // customer. They answer 404 and a sentence now, and they read nothing: the
+  // page they return is the same constant for every caller.
+  "GET /portal/",
+  "GET /account/",
   // A document someone was sent a link to. A 24-byte token, per document,
   // revocable by rotating it.
   "GET /share/invoice/:token",

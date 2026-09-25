@@ -122,3 +122,50 @@ export async function accountUrlFor(
     ? `${base.replace(/\/$/, "")}/account/${contact.portalToken}`
     : null;
 }
+
+/**
+ * What somebody sees when a customer link does not work.
+ *
+ * It used to be Hono's bare `404 Not Found`: no title, no sentence, no link,
+ * on a page a customer reached by following a bill their supplier sent them.
+ * A dead link is an ordinary thing — an email wraps a long URL and breaks it,
+ * a token is replaced, a bookmark goes stale — and the person meeting it has
+ * no idea whether they still owe money, whether the business exists, or what
+ * to do next. A blank browser error is a bad answer to all three.
+ *
+ * Deliberately the same page for every bad token, and it names no business.
+ * Which token was once real is not a customer's question and is not anybody
+ * else's either: a different page for a token that used to work would tell a
+ * stranger guessing at links when they had guessed close.
+ *
+ * Here rather than in the invoicing module for the reason at the top of this
+ * file: the bill and the account page are drawn by two different modules and
+ * both need it, and a commercial bundle may only depend on this package.
+ */
+export function deadLinkPage(): string {
+  return `<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>This link does not work</title>
+<style>
+  :root { color-scheme: light dark }
+  body { margin:0; min-height:100vh; display:grid; place-items:center;
+    padding:1.5rem; font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif;
+    background:#faf9f7; color:#1a1a1a }
+  main { max-width:32rem }
+  h1 { margin:0 0 .5rem; font-size:1.375rem }
+  p { margin:0; color:#555 }
+  @media (prefers-color-scheme: dark) {
+    body { background:#17181a; color:#ececec }
+    p { color:#b4b4b4 }
+  }
+</style>
+</head><body><main>
+<h1>This link does not work</h1>
+<p>It may have been replaced, or part of it lost on the way — an email will
+break a long link when it wraps one. Ask whoever sent it for a new one.
+Nothing has gone: the page is still there for the right link.</p>
+</main></body></html>`;
+}
