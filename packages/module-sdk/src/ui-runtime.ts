@@ -473,6 +473,19 @@ export interface Runtime {
    */
   listUi: SentrelloListUi;
   money: { toCents: (value: string) => number };
+  /**
+   * Whether the person in front of this screen may do something.
+   *
+   * A hook, because the answer arrives with the host's own meta query and a
+   * screen rendered before it lands has to re-render when it does.
+   *
+   * **For deciding what to offer, never for deciding what is safe.** The
+   * route enforces the same rule and is the only thing between a request and
+   * the data; a module reading this is being polite. Unknown answers `true`
+   * for the same reason the host's sidebar does — hiding a control from
+   * somebody entitled to it is the worse of the two mistakes.
+   */
+  useCan: () => (resource: string, action: string) => boolean;
   api: <T>(path: string, init?: RequestInit) => Promise<T>;
   screens: Record<string, () => React.ReactElement | null>;
   /**
@@ -520,6 +533,7 @@ export function hostRuntime(moduleName: string): Runtime {
 export function makeModuleRuntime(moduleName: string): {
   ui: SentrelloUi;
   money: Runtime["money"];
+  useCan: Runtime["useCan"];
   api: Runtime["api"];
   listUi: SentrelloListUi;
   openedRecord: () => string | undefined;
@@ -530,6 +544,7 @@ export function makeModuleRuntime(moduleName: string): {
   return {
     ui: runtime.ui,
     money: runtime.money,
+    useCan: runtime.useCan,
     api: runtime.api,
     listUi: runtime.listUi,
     /** The record this screen was opened for, if any. */

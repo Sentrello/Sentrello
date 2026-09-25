@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -35,6 +36,14 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export type Meta = {
+  /**
+   * The actions this person holds, by resource — `{ crm: ["read", "create"] }`.
+   *
+   * For deciding what to *offer*, never for deciding what is safe: the route
+   * enforces the same rule and is the only thing standing between a request
+   * and the data. A screen that reads this is being polite, not being a gate.
+   */
+  can?: Record<string, string[]>;
   /** The release this instance runs, used to key module scripts by version. */
   version?: string;
   /** `moduleId` is which module registered the entry, and owns its screens. */
@@ -260,3 +269,32 @@ export type FormDefinition = {
   notifyEmail?: string | null;
   submissionCount?: number;
 };
+
+/**
+ * Whether this person may do something, for a screen deciding what to offer.
+ *
+ * Reads the meta the shell has already fetched rather than asking again: it
+ * is one query, cached app-wide, and every screen in the product is drawn
+ * after it has answered.
+ *
+ * **Unknown means allowed.** A resource absent from the set — because the
+ * fetch has not landed, because this person belongs to no organization yet,
+ * because a module declared a resource the server has not compiled — comes
+ * back `true`. Hiding a control from somebody entitled to it is the worse of
+ * the two mistakes, and it is the rule the sidebar already follows for the
+ * same reason. The route refuses what it must; this only decides what looks
+ * available.
+ */
+export function useCan(): (resource: string, action: string) => boolean {
+  const { data } = useQuery<Meta>({
+    queryKey: ["meta"],
+    // Never fetches: the shell owns this query and this only reads what it
+    // put there. A second fetcher on one key is two answers to one question.
+    enabled: false,
+  });
+  return (resource, action) => {
+    const held = data?.can?.[resource];
+    if (!held) return true;
+    return held.includes(action);
+  };
+}

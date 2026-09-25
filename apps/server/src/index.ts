@@ -35,7 +35,7 @@ import {
   searchProviders,
 } from "@sentrello/module-sdk";
 import settings from "@sentrello/module-settings";
-import users from "@sentrello/module-users";
+import users, { resolveAccess } from "@sentrello/module-users";
 import { Hono } from "hono";
 import {
   currentLicenseState,
@@ -601,8 +601,45 @@ app.get("/api/_meta", requireSession(), async (c) => {
     return navAllowed.get(JSON.stringify(needs)) === true;
   });
 
+  /**
+   * What this person may do, for the screens rather than for the menu.
+   *
+   * The sidebar has been permission-aware for a while — every entry above is
+   * filtered by `may`. Inside a screen nothing was: every Delete, every Send,
+   * every Approve was drawn for everybody and the server refused the ones the
+   * policy did not allow. A control that cannot work should not look like one,
+   * which is the same argument as the disabled styling and one level up from
+   * it.
+   *
+   * Resolved in one pass rather than asked per control. `mayAccess` answers
+   * one question and the statement has twenty-one resources with two to five
+   * actions each — eighty questions on every page load, to draw a screen.
+   * `resolveAccess` reads the person's own policy, the roles they hold
+   * unattributed, and every group they are in, and unions the lot once.
+   *
+   * **Two readings of one rule is the shape that has gone wrong here before**,
+   * so `runtime-permissions.test.ts` holds this against `mayAccess` — the
+   * check the routes actually enforce — for every resource and action a
+   * seeded role holds. The fast answer may be fast; it may not be different.
+   */
+  const can: Record<string, string[]> = {};
+  if (orgId && belongsHere) {
+    const { grants } = await resolveAccess(orgId, session.user.id);
+    for (const grant of grants) {
+      const held = can[grant.resource];
+      if (held) held.push(grant.action);
+      else can[grant.resource] = [grant.action];
+    }
+  }
+
   return c.json({
     nav: visible,
+    /**
+     * The actions this person holds, by resource. Absent actions are absent
+     * permissions — a screen reads this to decide what to disable, never to
+     * decide what is safe, which stays the route's job and is enforced there.
+     */
+    can,
     /**
      * Paid modules that are not running, for the shell to say so where an
      * administrator actually looks. A licence screen deep in Settings and a

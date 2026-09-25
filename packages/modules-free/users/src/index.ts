@@ -183,3 +183,13 @@ export default defineModule({
 });
 
 export { temporaryPassword } from "./password";
+/**
+ * What one person holds, for the shell to hand the browser.
+ *
+ * Exported rather than kept behind the admin route it was written for: the
+ * screens need to know what the person in front of them may do, and asking
+ * the platform's permission check once per control is eighty questions on
+ * every page load. `runtime-permissions.test.ts` holds this against
+ * `mayAccess` so the fast answer and the enforced one cannot drift.
+ */
+export { resolveAccess } from "./access";
