@@ -373,6 +373,9 @@ test("every scanner says what kind of source it is for", () => {
     // A className, so React source. A stylesheet naming its own margins is
     // writing a rule and is somebody else's argument.
     findOwnVerticalRhythm: ["react"],
+    // Reads the whole file to see whether the failure is rendered, so it needs
+    // the JSX: a server-rendered page has no mutation to begin with.
+    findUnreportedMutation: ["react"],
     // Markup and CSS wherever they are written — a stylesheet most of all.
     findFillAsText: ["react", "page", "styles"],
     findUnthemedElevation: ["react", "page", "styles"],

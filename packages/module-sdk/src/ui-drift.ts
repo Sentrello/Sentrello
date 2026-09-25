@@ -56,6 +56,24 @@ const RULES: { pattern: RegExp; say: string }[] = [
     say: "the browser's confirmation box rather than the app's — use ConfirmButton, which can say what the consequence is and name the action on its own button",
   },
   {
+    /*
+     * A sentence in the danger colour, written out rather than asked for.
+     *
+     * `<p className="text-sm" style={{ color: "var(--text-danger)" }}>` was
+     * in 23 places across the four repositories, which is `Warning` — the
+     * same four lines `ErrorNote` renders once it has decided its words.
+     *
+     * The duplication was not laziness. `ErrorNote` reads its sentence off
+     * `serverMessage`, so a hand-made `new Error("give it a name first")` or
+     * a plain string falls through to "Something went wrong. Try again." —
+     * and five screens were covering a useful sentence with the one message
+     * that helps nobody. People reached for the markup because the primitive
+     * they needed did not exist. It does now.
+     */
+    pattern: /<p(?=[\s>])[^>]*style=\{\{ color: "var\(--text-danger\)" \}\}/,
+    say: "a sentence in the danger colour written by hand — use `<Warning>`, which is this with the size decided. For an error object use `ErrorNote`.",
+  },
+  {
     pattern: /<h[23](?=[\s>])[^>]*(?:className|style)=/,
     say: "a section heading styled by hand — use SectionHeading, which also gets the level right",
   },
@@ -277,6 +295,70 @@ export function findOwnVerticalRhythm(source: string): HandRolledFinding[] {
     findings.push({
       line,
       say: `\`${match[1]}\` is a container's rhythm written as a number. Use \`flex flex-col gap-(--gap-stack)\`, or \`gap-(--gap-tight)\` where the things belong together.`,
+    });
+  }
+  return findings.sort((a, b) => a.line - b.line);
+}
+
+/**
+ * A mutation whose failure the person never sees.
+ *
+ * The button stops spinning, the screen is unchanged, and there is no way to
+ * tell whether the thing happened. Worse when the request was a delete: the
+ * row is still there, so it reads as a click that missed.
+ *
+ * The house answer is `<ErrorNote error={x.error} />` beside the control that
+ * started it, which 375 mutations across the three repositories already do.
+ * Seventy-nine did neither that nor `onError` when this was counted on
+ * 25 September.
+ *
+ * **Not solved by a default on the query client**, which is the first thing
+ * anybody reaches for. React Query applies `defaultOptions.mutations.onError`
+ * to every mutation without its own handler — which is all but eight of them,
+ * including all 375 that already render the failure inline. Every one of
+ * those would then report twice.
+ *
+ * Reading the whole file rather than the mutation, because the note is
+ * rendered in the JSX and the mutation is declared at the top of the
+ * component: a scanner looking only at the call would report every mutation
+ * in the codebase.
+ *
+ * `isError` counts too. A screen that swaps the control for a message is
+ * reporting the failure; it is only doing it without `ErrorNote`.
+ */
+export function findUnreportedMutation(source: string): HandRolledFinding[] {
+  const rawLines = source.split("\n");
+  const clean = stripComments(source);
+  const findings: HandRolledFinding[] = [];
+  for (const match of clean.matchAll(
+    /const (\w+) = useMutation[^(]*\(\s*\{/g,
+  )) {
+    const name = match[1];
+    if (!name) continue;
+    // From the `{` to its partner, so `onError` belongs to this mutation and
+    // not to whatever is declared under it.
+    let depth = 0;
+    let end = clean.length;
+    for (let i = match.index + match[0].length - 1; i < clean.length; i += 1) {
+      const ch = clean[i];
+      if (ch === "{") depth += 1;
+      else if (ch === "}") {
+        depth -= 1;
+        if (depth === 0) {
+          end = i;
+          break;
+        }
+      }
+    }
+    const body = clean.slice(match.index, end);
+    if (body.includes("onError")) continue;
+    const shown = new RegExp(`\\b${name}\\.(?:error\\b|isError\\b)`);
+    if (shown.test(clean)) continue;
+    const line = lineOf(clean, match.index);
+    if (exceptedAbove(rawLines, line, "ui-drift")) continue;
+    findings.push({
+      line,
+      say: `\`${name}\` reports its failure to nobody — the request fails and the screen is unchanged. Render \`<ErrorNote error={${name}.error} />\` beside the control, or say in a comment why a silent failure is right here.`,
     });
   }
   return findings.sort((a, b) => a.line - b.line);
@@ -528,6 +610,7 @@ function declareScope(
 declareScope(findHandRolledUi, "react");
 declareScope(findColourWithoutBorder, "react");
 declareScope(findOwnVerticalRhythm, "react");
+declareScope(findUnreportedMutation, "react");
 declareScope(findFillAsText);
 declareScope(findUnthemedElevation);
 declareScope(findUnpagedList, "react", "page");
