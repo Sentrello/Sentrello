@@ -120,7 +120,6 @@ function TasksPanel({ tasks }: { tasks: CrmDashboard["tasks"] }) {
       {/* The heading and the thing that acts on it: `trailing`, not a
           hand-built row. Six spellings of this were in the product. */}
       <SectionHeading
-        level={3}
         trailing={
           <button
             type="button"
@@ -191,16 +190,19 @@ export function CrmDashboard() {
         them is the question a sales screen exists to answer.
       */}
       <Card>
-        <div className="mb-3 flex items-baseline justify-between">
-          <p className="font-medium">Deals</p>
-          <button
-            type="button"
-            className="text-sm link-muted"
-            onClick={() => go("deals", "Deals")}
-          >
-            Open the board
-          </button>
-        </div>
+        <SectionHeading
+          trailing={
+            <button
+              type="button"
+              className="text-sm link-muted"
+              onClick={() => go("deals", "Deals")}
+            >
+              Open the board
+            </button>
+          }
+        >
+          Deals
+        </SectionHeading>
 
         <PairedBars
           format={briefMoney}
@@ -242,35 +244,38 @@ export function CrmDashboard() {
         a list that opens with strangers is one people learn to ignore.
       */}
       <Card>
-        <div className="mb-3 flex items-baseline justify-between">
-          <p className="font-medium">Hot contacts</p>
-          <span className="flex items-center gap-3">
-            {data.goingCold > 0 ? (
+        <SectionHeading
+          trailing={
+            <span className="flex items-center gap-3">
+              {data.goingCold > 0 ? (
+                <button
+                  type="button"
+                  className="text-xs link-muted"
+                  onClick={() => go("contacts", "Contacts")}
+                >
+                  {data.goingCold} going quiet
+                </button>
+              ) : null}
+              {/*
+                The contact form, not a dialog — which is what the reference
+                does too, and for the same reason: a contact is pronouns, several
+                labelled emails and phones, a company, an owner and a background
+                note, and none of that belongs in a box somebody has to scroll.
+              */}
               <button
                 type="button"
-                className="text-xs link-muted"
-                onClick={() => go("contacts", "Contacts")}
+                className="link-muted"
+                aria-label="Add a contact"
+                title="Add a contact"
+                onClick={() => go("contacts", "Contacts", "new")}
               >
-                {data.goingCold} going quiet
+                <Icon name="plus" size={16} />
               </button>
-            ) : null}
-            {/*
-              The contact form, not a dialog — which is what the reference
-              does too, and for the same reason: a contact is pronouns, several
-              labelled emails and phones, a company, an owner and a background
-              note, and none of that belongs in a box somebody has to scroll.
-            */}
-            <button
-              type="button"
-              className="link-muted"
-              aria-label="Add a contact"
-              title="Add a contact"
-              onClick={() => go("contacts", "Contacts", "new")}
-            >
-              <Icon name="plus" size={16} />
-            </button>
-          </span>
-        </div>
+            </span>
+          }
+        >
+          Hot contacts
+        </SectionHeading>
 
         {data.hotContacts.length ? (
           <ul className="flex flex-col gap-(--gap-tight)">
@@ -314,7 +319,7 @@ export function CrmDashboard() {
       </Card>
 
       <Card>
-        <p className="mb-3 font-medium">Latest activity</p>
+        <SectionHeading>Latest activity</SectionHeading>
         {data.latestActivity.length ? (
           <ul className="flex flex-col gap-(--gap-tight)">
             {data.latestActivity.map((activity) => (

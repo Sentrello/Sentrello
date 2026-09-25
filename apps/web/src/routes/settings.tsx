@@ -5,6 +5,7 @@ import {
   Button,
   Card,
   Dialog,
+  Empty,
   ErrorNote,
   Field,
   Input,
@@ -1666,14 +1667,37 @@ function Modules() {
   // browser working that out from the nav would get it wrong the first time a
   // Free module was renamed.
   const modules = meta.data?.modules ?? [];
-  if (modules.length === 0) return null;
+  /*
+   * A licence that includes no optional modules says so.
+   *
+   * This returned null, and it is the whole of its own screen — so Settings →
+   * Modules drew the word "Modules" and nothing underneath it, on every Free
+   * instance and on any Pro one that has not bought a module. A page with a
+   * title and no body reads as a page that failed, which is the worst first
+   * impression a screen can make on somebody who went looking for it.
+   */
+  if (modules.length === 0) {
+    return (
+      <Card>
+        {/* No heading: this card is the whole of a page already titled
+            Modules, and Empty carries its own. */}
+        <Empty title="Your licence includes no modules yet">
+          Modules are the optional halves of Sentrello — a shop, a booking
+          diary, a newsletter. Each is bought on its own and appears here once
+          your licence carries it. Settings → Licence shows what this instance
+          is running on.
+        </Empty>
+      </Card>
+    );
+  }
 
   const available = modules.filter((m) => !m.enabled);
   const switchable = modules.filter((m) => m.enabled);
 
   return (
     <Card>
-      <SectionHeading>Modules</SectionHeading>
+      {/* Same here: the page's own title says Modules, and saying it twice
+          reads as two sections rather than one. */}
       <p className="text-sm" style={muted}>
         What your licence includes. Set one up when you are ready for it —
         nothing is lost by leaving it until then.
