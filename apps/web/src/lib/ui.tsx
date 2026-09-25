@@ -1125,11 +1125,46 @@ export function Tabs({
 }) {
   const current = activeTab(tabs, active);
   return (
-    <div className="flex flex-wrap items-center gap-1 border-b" style={border}>
+    /*
+     * `data-tab-strip` is a handle, not a style.
+     *
+     * Every tab here changes `?tab=` and draws a different screen's worth of
+     * UI, and the browser walk only ever saw the one a screen opens on — the
+     * other tabs were as unchecked as an unopened row menu. Plain buttons are
+     * right (see `aria-current` below) and plain buttons are unfindable, so
+     * the strip says what it is.
+     *
+     * An attribute rather than a class name, because `check-classes` asks
+     * every class to emit a rule and is right to: a class that styles nothing
+     * is usually a typo in a Tailwind name, and it caught these two the first
+     * time they were written.
+     */
+    <div
+      data-tab-strip
+      className="flex flex-wrap items-center gap-1 border-b"
+      style={border}
+    >
       {tabs.map((tab) => (
         <button
           key={tab.id}
           type="button"
+          /*
+           * Which one you are on, said rather than coloured.
+           *
+           * The selected tab was a border colour and a text colour and
+           * nothing else — visible, and invisible to anybody not looking at
+           * it. `aria-current` rather than `role="tab"` with `aria-selected`:
+           * that role comes with a keyboard model — arrows, Home, End — that
+           * this does not implement, and the same reasoning that took
+           * `role="menu"` off the row menu applies here. `page` rather than
+           * `true` because each tab is a URL somebody can be sent.
+           */
+          aria-current={tab.id === current?.id ? "page" : undefined}
+          // Marked, because `trailing` renders inside the strip too: the
+          // dashboard's Arrange control sits beside the tabs and is not one,
+          // which the browser walk found by pressing it and asking why it had
+          // not become selected.
+          data-tab
           className="-mb-px border-b-2 px-3 py-2 text-sm"
           style={
             tab.id === current?.id

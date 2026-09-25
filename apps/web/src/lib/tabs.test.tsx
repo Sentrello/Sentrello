@@ -61,3 +61,47 @@ test("a tab can carry a count beside its label", () => {
   expect(html).toContain("Open");
   expect(html).toContain("12");
 });
+
+/**
+ * Which tab you are on, said rather than coloured.
+ *
+ * The selected one was a border colour and a text colour and nothing else:
+ * plain to look at, and nothing at all to anybody not looking. `aria-current`
+ * rather than `role="tab"` and `aria-selected`, because that role promises a
+ * keyboard model — arrows, Home, End — this does not implement, and a role
+ * that lies is worse than no role. The same reasoning took `role="menu"` off
+ * the row menu the same afternoon.
+ */
+test("the selected tab says so, and the others do not", () => {
+  const html = renderToStaticMarkup(
+    <Tabs
+      tabs={[
+        { id: "open", label: "Open" },
+        { id: "paid", label: "Paid" },
+      ]}
+      active="paid"
+      onChange={() => {}}
+    />,
+  );
+  // Exactly one, and it is the one that is selected.
+  expect(html.match(/aria-current="page"/g)).toHaveLength(1);
+  expect(html.slice(html.indexOf('aria-current="page"'))).toContain("Paid");
+});
+
+/**
+ * A handle for the browser walk, which had no way to find a tab strip.
+ *
+ * Every tab changes `?tab=` and draws a different screen's worth of UI, and
+ * the accessibility walk only ever saw the one a screen opens on — so Access,
+ * Activity and Sessions were as unchecked as an unopened row menu.
+ */
+test("the strip is findable", () => {
+  const html = renderToStaticMarkup(
+    <Tabs
+      tabs={[{ id: "open", label: "Open" }]}
+      active="open"
+      onChange={() => {}}
+    />,
+  );
+  expect(html).toContain("data-tab-strip");
+});
