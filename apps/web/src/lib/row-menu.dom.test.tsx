@@ -91,10 +91,48 @@ test("the panel is portalled to the body, not left inside the scrolling table", 
   expect(document.querySelector(".overflow-x-auto")).not.toBeNull();
 });
 
+/**
+ * Not a menu, and no longer claiming to be one.
+ *
+ * `role="menu"` was on the panel and `aria-haspopup="menu"` on the trigger for
+ * months. Axe calls the result **critical**: a `menu` may only contain
+ * `menuitem`, and every item here is a `<button>`. The screen walk never saw
+ * it because it never opens a menu — 234 screens green over a critical
+ * violation on the most-used control in the product.
+ *
+ * Relabelling the buttons `menuitem` would satisfy the rule and leave a
+ * screen-reader user worse off: the role promises arrows, Home, End and
+ * typeahead that this does not implement, and takes the items out of the tab
+ * sequence to pay for it. `MenuItem` is used outside a menu on half a dozen
+ * screens too, where a `menuitem` with no menu around it is a critical
+ * violation of its own.
+ */
+test("the panel does not claim a keyboard model it has not got", () => {
+  openMenu();
+  const panel = document.querySelector(".menu-panel");
+  expect(panel?.getAttribute("role")).toBeNull();
+});
+
+/**
+ * Focus follows the press into the panel.
+ *
+ * The panel is portalled onto `document.body`, so it sits at the end of the
+ * document however near the row it looks. Tab from the trigger therefore went
+ * to the next row, and the only way to reach Void or Delete without a mouse
+ * was to tab through the rest of the screen. Escape and returning focus to
+ * the trigger were here already; this is the other half of them.
+ */
+test("opening it moves focus into the panel", () => {
+  openMenu();
+  const item = document.querySelector<HTMLButtonElement>(".menu-item");
+  expect(document.activeElement).toBe(item);
+});
+
 test("the trigger says whether it is open, and the items can close it", () => {
   const { trigger } = openMenu();
   expect(trigger.getAttribute("aria-expanded")).toBe("true");
-  expect(trigger.getAttribute("aria-haspopup")).toBe("menu");
+  // `true`, not `menu` — there is no menu behind it, only buttons.
+  expect(trigger.getAttribute("aria-haspopup")).toBe("true");
 
   const item = document.querySelector<HTMLButtonElement>(".menu-item");
   if (!item) throw new Error("no item rendered");

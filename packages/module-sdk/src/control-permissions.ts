@@ -78,6 +78,25 @@ export interface Control {
  * Every control in a screen that fires a mutation, with the route resolved
  * from the declaration **in scope for it** rather than by name.
  */
+/*
+ * The handlers a write can hang off.
+ *
+ * `Blur` is here because three writes in one module were "the blur is the
+ * write" — task notes, a board column's name, the hours on a time entry, each
+ * saved when the field was left rather than on a press. The alternation had
+ * three names in it and those three were invisible, which is the same defect
+ * as reading one line at a time and was found the same afternoon.
+ *
+ * Kept as one definition rather than two copies of the same list, because the
+ * test above and the match below going out of step is how a scanner comes to
+ * look for something it no longer recognises.
+ */
+const HANDLERS = "Click|Confirm|Change|Blur";
+const HANDLER = new RegExp(`on(?:${HANDLERS})=\\{`);
+const FIRES = new RegExp(
+  `on(?:${HANDLERS})=\\{[\\s\\S]{0,220}?(\\w+)\\.mutate`,
+);
+
 export function controlsFiringMutations(source: string): Control[] {
   const lines = source.split("\n");
   const out: Control[] = [];
@@ -98,11 +117,23 @@ export function controlsFiringMutations(source: string): Control[] {
      * twice, and the cap keeps it inside one element rather than running on
      * into the next.
      */
-    if (!/on(?:Click|Confirm|Change)=\{/.test(lines[i] ?? "")) continue;
-    const fired =
-      /on(?:Click|Confirm|Change)=\{[\s\S]{0,220}?(\w+)\.mutate/.exec(
-        lines.slice(i, i + 5).join("\n"),
-      );
+    if (!HANDLER.test(lines[i] ?? "")) continue;
+    /*
+     * The cap alone does not keep the window inside one element, and a
+     * self-closing one is where it runs on. `<ProjectPicker list={list}
+     * chosen={chosen} onChange={setProjectId} />` sits one line above a
+     * `<Button needs={{ seo: ["create"] }} onClick={() => start.mutate()}>`,
+     * and the picker was read as the write: a site chooser, a note field, a
+     * filter — all reads, all reported bare while the button above them
+     * carried the permission all along. So the window also stops at the next
+     * line that opens an element.
+     */
+    const withinElement: string[] = [];
+    for (let k = i; k < Math.min(i + 5, lines.length); k += 1) {
+      if (k > i && /^\s*<[A-Za-z]/.test(lines[k] ?? "")) break;
+      withinElement.push(lines[k] ?? "");
+    }
+    const fired = FIRES.exec(withinElement.join("\n"));
     if (!fired?.[1]) continue;
     const name = fired[1];
 

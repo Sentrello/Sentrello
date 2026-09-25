@@ -1280,6 +1280,23 @@ export function RowMenu({
     });
   }, [open]);
 
+  /*
+   * Into the panel, not past it.
+   *
+   * The panel is drawn through a portal on `document.body`, so it sits at the
+   * end of the document however near the trigger it looks. Tab from the
+   * trigger therefore went to the next row rather than into the menu, and the
+   * only way to reach Void or Delete without a mouse was to tab through every
+   * remaining control on the screen. Escape and returning focus to the
+   * trigger were already here; this is the other half of them.
+   */
+  useEffect(() => {
+    if (!open) return;
+    panel.current
+      ?.querySelector<HTMLElement>("button:not([disabled])")
+      ?.focus();
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -1315,7 +1332,7 @@ export function RowMenu({
         type="button"
         className="link-muted px-1"
         aria-label={`More for ${label}`}
-        aria-haspopup="menu"
+        aria-haspopup="true"
         aria-expanded={open}
         onClick={() => setOpen(!open)}
       >
@@ -1326,7 +1343,31 @@ export function RowMenu({
             <div
               ref={panel}
               className="menu-panel"
-              role="menu"
+              /*
+               * A group of buttons, said plainly, rather than `role="menu"`.
+               *
+               * It claimed that role for months and axe calls the result
+               * critical: `menu` may only contain `menuitem`, and every one
+               * of these is a `<button>`. The screen walk never saw it
+               * because it never opens a menu — 234 screens green with a
+               * critical violation on the most-used control in the product.
+               *
+               * The fix is not to relabel the buttons. `menuitem` promises a
+               * keyboard model this does not implement — arrows, Home, End,
+               * typeahead — and takes the items out of the tab sequence to
+               * pay for it, so claiming it would leave a screen-reader user
+               * worse off than the honest answer. `MenuItem` is also used
+               * outside a menu, on half a dozen screens, where a `menuitem`
+               * with no menu around it is a critical violation of its own.
+               *
+               * So: no role at all. A plain box of buttons, each announced by
+               * the words on it, reached by the focus move below. `group`
+               * with a label was tried and is worse for the trouble — the
+               * trigger already says "More for Contact us", the name adds
+               * nothing a second time, and the linter then argues for a
+               * `<fieldset>`, which is for form controls and would bring its
+               * own styling to a floating panel.
+               */
               style={{
                 position: "fixed",
                 // Until the first measurement lands the panel is placed off

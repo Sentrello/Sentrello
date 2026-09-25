@@ -52,6 +52,14 @@ export interface SentrelloUi {
     React.InputHTMLAttributes<HTMLInputElement> & {
       /** A file input needs one to be cleared, and had to stay raw without it. */
       ref?: React.Ref<HTMLInputElement>;
+      /**
+       * For a box whose own change or blur **is** the write — a date that
+       * saves as it is typed, a day off added to a calendar. Not for one
+       * somebody fills in and then saves with a button: the button is the
+       * write there, and refusing to let somebody type into a form they
+       * cannot save is a worse way of telling them so.
+       */
+      needs?: Record<string, string[]>;
     }
   >;
   SecretInput: React.ComponentType<React.InputHTMLAttributes<HTMLInputElement>>;

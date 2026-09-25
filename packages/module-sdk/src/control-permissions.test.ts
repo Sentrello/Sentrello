@@ -185,3 +185,29 @@ test("a control gated by asking directly is not reported as bare", () => {
   ].join("\n");
   expect(controlsFiringMutations(source)[0]?.gated).toBe(true);
 });
+
+/**
+ * A field saved when it is left rather than when something is pressed.
+ *
+ * Three of these in one module — task notes, a board column's name, the hours
+ * on a time entry — were invisible while the alternation named only Click,
+ * Confirm and Change. A control does not stop being a control because the
+ * write happens on the way out of it.
+ */
+test("a write that fires on blur is a control", () => {
+  const source = [
+    "const save = useMutation({",
+    "  mutationFn: (notes: string) => api(`/api/projects/tasks/${id}`, {",
+    '    method: "PATCH",',
+    "  }),",
+    "});",
+    "<textarea",
+    "  defaultValue={task.notes}",
+    "  onBlur={(e) => save.mutate(e.currentTarget.value)}",
+    "/>",
+  ].join("\n");
+  const [only] = controlsFiringMutations(source);
+  expect(only?.mutation).toBe("save");
+  expect(only?.gated).toBe(false);
+  expect(only?.method).toBe("PATCH");
+});

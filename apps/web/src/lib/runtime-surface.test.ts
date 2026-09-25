@@ -106,3 +106,56 @@ test("list-ui.tsx still satisfies the declared surface, apart from FilterGroup",
   const surface: Omit<SentrelloListUi, "FilterGroup"> = listUi;
   expect(typeof surface.useListState).toBe("function");
 });
+
+/**
+ * A prop Core honours and the SDK never mentions.
+ *
+ * `needs` was added to `Input` in `ui.tsx` and not to the declaration modules
+ * read, and every test in this file stayed green: a component that accepts
+ * *more* props is still assignable to one declaring fewer, because the extra
+ * one is optional. So Core worked, and a module writing `needs` on an `Input`
+ * got TS2769 with no hint that the implementation had it all along. Found in
+ * a paid module the same afternoon the prop was added.
+ *
+ * Typed through the declared surface rather than through `ui.tsx`, which is
+ * the whole point: this fails to compile when the SDK forgets one, and the
+ * failure lands here rather than in somebody else's repository.
+ */
+test("every primitive that can be refused declares it to modules", () => {
+  const needs = { crm: ["update"] };
+
+  /*
+   * One constant each, never a union.
+   *
+   * The first version of this test put all five in an
+   * `Array<A | B | C | D | E>`, which checks nothing: an object literal
+   * carrying `needs` satisfies the array if *any* member declares it, so four
+   * of the five could lose the prop in silence. A guard written to catch a
+   * gap and unable to see four fifths of it is the same bug as the one it was
+   * written about.
+   */
+  const button: React.ComponentProps<SentrelloUi["Button"]> = {
+    children: "Delete",
+    needs,
+  };
+  const menuItem: React.ComponentProps<SentrelloUi["MenuItem"]> = {
+    children: "Delete",
+    needs,
+  };
+  const select: React.ComponentProps<SentrelloUi["Select"]> = {
+    children: "Open",
+    needs,
+  };
+  const input: React.ComponentProps<SentrelloUi["Input"]> = { needs };
+  const confirm: React.ComponentProps<SentrelloUi["ConfirmButton"]> = {
+    title: "Delete it?",
+    message: "This cannot be undone.",
+    onConfirm: () => {},
+    children: "Delete",
+    needs,
+  };
+
+  for (const props of [button, menuItem, select, input, confirm]) {
+    expect(props.needs).toEqual(needs);
+  }
+});

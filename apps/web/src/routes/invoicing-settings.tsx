@@ -821,6 +821,7 @@ function BillingRules() {
                 }
               >
                 <Input
+                  needs={{ invoicing: ["update"] }}
                   defaultValue={
                     settings.lateFeeValue
                       ? (settings.lateFeeValue / 100).toString()
@@ -841,6 +842,7 @@ function BillingRules() {
               </Field>
               <Field label="After how many days">
                 <Input
+                  needs={{ invoicing: ["update"] }}
                   defaultValue={String(settings.lateFeeGraceDays)}
                   inputMode="numeric"
                   className="w-28"
@@ -859,6 +861,7 @@ function BillingRules() {
 
           <Field label="Default payment terms">
             <Input
+              needs={{ invoicing: ["update"] }}
               defaultValue={settings.defaultPaymentTerms ?? ""}
               placeholder="30 days net"
               className="w-52"
@@ -936,6 +939,7 @@ function BillingRules() {
           {settings.paymentTermOptions.map((term, i) => (
             <Toolbar key={term.label}>
               <Input
+                needs={{ invoicing: ["update"] }}
                 defaultValue={term.label}
                 className="w-52"
                 aria-label={`Term ${i + 1} name`}
@@ -1004,6 +1008,7 @@ function BillingRules() {
           </p>
         </div>
         <Input
+          needs={{ invoicing: ["update"] }}
           defaultValue={settings.units.join(", ")}
           aria-label="Units"
           onBlur={(e) =>

@@ -185,6 +185,7 @@ function SignInRules() {
       <div className="grid gap-(--gap-toolbar) sm:grid-cols-2">
         <Field label="Shortest password" hint="Between 8 and 72 characters.">
           <Input
+            needs={{ settings: ["update"] }}
             type="number"
             defaultValue={current.minPasswordLength}
             onBlur={(e) =>
@@ -197,6 +198,7 @@ function SignInRules() {
           hint="Days. Leave blank to use the platform's own timing."
         >
           <Input
+            needs={{ settings: ["update"] }}
             type="number"
             defaultValue={current.sessionDays ?? ""}
             onBlur={(e) =>
@@ -229,6 +231,7 @@ function SignInRules() {
           hint="Failed attempts in a row. Zero turns locking off."
         >
           <Input
+            needs={{ settings: ["update"] }}
             type="number"
             defaultValue={current.lockoutAfterAttempts}
             onBlur={(e) =>
@@ -238,6 +241,7 @@ function SignInRules() {
         </Field>
         <Field label="Locked for" hint="Minutes. The lock then lifts itself.">
           <Input
+            needs={{ settings: ["update"] }}
             type="number"
             defaultValue={current.lockoutMinutes}
             onBlur={(e) =>
@@ -250,6 +254,7 @@ function SignInRules() {
           hint="Days. Zero keeps it for ever, and it cannot be shorter than the lock."
         >
           <Input
+            needs={{ settings: ["update"] }}
             type="number"
             defaultValue={current.eventRetentionDays}
             onBlur={(e) =>
