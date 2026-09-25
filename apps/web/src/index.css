@@ -791,19 +791,24 @@ input[type="week"]:focus-within {
 }
 
 /*
- * A thing with no spaces in it, on a phone.
+ * A thing with no spaces in it.
  *
- * A URL, an API key, a webhook endpoint in a `<code>` block: one word, and a
- * word that does not fit its line pushes the page sideways rather than
- * wrapping. Two screens in the modules did exactly that at 390px — a link on
- * the forms list at 406px, and a bounce-webhook address in a `<code>` at 512.
+ * A URL, an API key, a webhook endpoint, a company called
+ * `Llanfairpwllgwyngyll…`, or the seventy-two-character name somebody pastes
+ * in by accident: one word, and a word that does not fit its line does not
+ * wrap — it runs on. Two module screens pushed the page sideways at 390px
+ * that way, a link on the forms list and a `<code>` block of an endpoint.
+ * Worse, on a desktop the contact list drew a long name straight **through**
+ * the activity and status beside it, because the text overflowed its column
+ * and painted over the next one.
  *
- * `break-word`, not `anywhere`: it breaks a word only when the word alone
- * will not fit, so ordinary link text wraps between words as it always did.
- * Element selectors, in the host's own stylesheet, so a module's screens get
- * it without every module having to know.
+ * Everywhere rather than on `a` and `code`, which is where this started: a
+ * name is neither, and a business's own records are exactly where the long
+ * unbroken strings come from. `break-word`, not `anywhere` — a word breaks
+ * only when the word alone will not fit, so ordinary prose wraps between
+ * words as it always did. In the host's stylesheet, so a module's screens
+ * get it without every module having to know.
  */
-a,
-code {
+body {
   overflow-wrap: break-word;
 }
