@@ -123,6 +123,7 @@ export type SecurityAction =
    */
   | "payee.added"
   | "payee.removed"
+  | "payee.restored"
   | "payment.sent"
   | "payment.scheduled"
   /**
@@ -195,6 +196,7 @@ export const ACTION_TEXT: Record<SecurityAction, string> = {
   "bank.reconciled": "finished a bank reconciliation",
   "payee.added": "added somebody to pay",
   "payee.removed": "removed somebody to pay",
+  "payee.restored": "put somebody to pay back on the list",
   "payment.sent": "sent a payment from the bank",
   "payment.scheduled": "changed a repeating payment",
   "links.domain.claimed": "claimed a domain for short links",
