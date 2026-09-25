@@ -789,3 +789,21 @@ input[type="week"]:focus-within {
   padding: 0.25rem 0;
   line-height: 1.5;
 }
+
+/*
+ * A thing with no spaces in it, on a phone.
+ *
+ * A URL, an API key, a webhook endpoint in a `<code>` block: one word, and a
+ * word that does not fit its line pushes the page sideways rather than
+ * wrapping. Two screens in the modules did exactly that at 390px — a link on
+ * the forms list at 406px, and a bounce-webhook address in a `<code>` at 512.
+ *
+ * `break-word`, not `anywhere`: it breaks a word only when the word alone
+ * will not fit, so ordinary link text wraps between words as it always did.
+ * Element selectors, in the host's own stylesheet, so a module's screens get
+ * it without every module having to know.
+ */
+a,
+code {
+  overflow-wrap: break-word;
+}
