@@ -14,8 +14,36 @@
  */
 import { FLEX } from "./icon-flex";
 
-/** What the application draws. */
-export const GLYPHS = FLEX;
+/**
+ * The marks that are geometry rather than pictures, drawn here.
+ *
+ * An icon set is drawn for icons, and a chevron, a plus and an ellipsis taken
+ * from one arrive as small illustrations of those things — in the set's hand,
+ * at the set's weight, beside a label they are meant to be subordinate to.
+ * They are not illustrations. A plus is two strokes crossing. An ellipsis is
+ * three dots. A caret is two hairlines meeting at a corner, and that one is
+ * drawn in CSS because it also has to rotate.
+ *
+ * This set has no plus and no ellipsis at all, so the alternative was the
+ * nearest picture that contained one — an application window with a plus in
+ * the corner for "add a record", a telephone keypad for an overflow menu.
+ * Both were placeholders and both said so in the map they came from.
+ *
+ * Stroked, not filled, unlike everything in FLEX: the weight of a rule is the
+ * point of them. 1.6 at 24x24 renders as a hair over 1px at the 18px the app
+ * draws, which is the weight of the rules beside them.
+ *
+ * Ours, so they carry no attribution and the NOTICE stays true to what it
+ * describes.
+ */
+const HOUSE: Record<string, string> = {
+  plus: '<path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" d="M12 5.5v13M5.5 12h13"/>',
+  "more-horizontal":
+    '<circle cx="5.25" cy="12" r="1.35" fill="currentColor"/><circle cx="12" cy="12" r="1.35" fill="currentColor"/><circle cx="18.75" cy="12" r="1.35" fill="currentColor"/>',
+};
+
+/** What the application draws: the set, with our own marks over the top. */
+export const GLYPHS: Record<string, string> = { ...FLEX, ...HOUSE };
 
 /**
  * Names a module may ask for that mean the same thing as a drawn one.

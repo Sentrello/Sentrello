@@ -2,9 +2,14 @@ import { expect, test } from "bun:test";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { GROUP_ICONS } from "./app-shell";
-import { FLEX } from "./icon-flex";
+import { GLYPHS } from "./icons";
 
 /**
+ * Asserted against `GLYPHS`, not the fetched set. `GLYPHS` is what the
+ * application actually draws — the fetched set with our own marks over the
+ * top, for the three that are geometry rather than pictures — and "can this
+ * name be drawn" is the only question any of this is asking.
+ *
  * `icon-flex.ts` is generated, and the map behind it lives in a script
  * nobody runs by accident. So the way this set goes wrong is not a bad path —
  * it is a name: somebody adds a nav entry asking for an icon that was never
@@ -14,16 +19,18 @@ import { FLEX } from "./icon-flex";
  */
 test("every group the rail draws has a drawing", () => {
   const missing = Object.entries(GROUP_ICONS)
-    .filter(([, icon]) => !FLEX[icon])
+    .filter(([, icon]) => !GLYPHS[icon])
     .map(([group]) => group);
   expect(missing).toEqual([]);
 });
 
 test("every drawing is markup, and only markup", () => {
   const bad: string[] = [];
-  for (const [name, body] of Object.entries(FLEX)) {
+  for (const [name, body] of Object.entries(GLYPHS)) {
     if (typeof body !== "string" || !body.trim()) bad.push(`${name}: empty`);
-    else if (!body.includes("<path")) bad.push(`${name}: no path`);
+    // `<circle>` as well as `<path>`: an ellipsis is three dots and drawing
+    // them as paths to satisfy a regex would be worse than the regex.
+    else if (!/<(path|circle|rect)/.test(body)) bad.push(`${name}: no shape`);
     else if (/<script|http/i.test(body)) bad.push(`${name}: reaches outside`);
   }
   expect(bad).toEqual([]);
@@ -41,7 +48,7 @@ test("every alias points at a drawing", () => {
     (m) => m[1] ?? "",
   );
   expect(targets.length).toBeGreaterThan(0);
-  expect(targets.filter((t) => !FLEX[t])).toEqual([]);
+  expect(targets.filter((t) => !GLYPHS[t])).toEqual([]);
 });
 
 /**
@@ -49,7 +56,7 @@ test("every alias points at a drawing", () => {
  * `<Icon name="…" />`, a module registering nav with `icon: "…"`. This is the
  * test that fails when a nav entry names an icon we never fetched.
  */
-test("every icon the repository asks for has been fetched", () => {
+test("every icon the repository asks for is one the app can draw", () => {
   const root = join(import.meta.dir, "../../../..");
   const skip = new Set(["node_modules", "dist", ".git", "build", "coverage"]);
   const asked = new Set<string>();
@@ -76,5 +83,5 @@ test("every icon the repository asks for has been fetched", () => {
   walk(join(root, "packages"));
 
   expect(asked.size).toBeGreaterThan(20);
-  expect([...asked].filter((name) => !FLEX[name]).sort()).toEqual([]);
+  expect([...asked].filter((name) => !GLYPHS[name]).sort()).toEqual([]);
 });

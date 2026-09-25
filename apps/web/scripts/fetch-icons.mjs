@@ -30,6 +30,11 @@ import { fileURLToPath } from "node:url";
  * The rest are matched to the nearest drawing in the same hand, so the
  * application speaks in one voice instead of two.
  *
+ * Three names are deliberately absent: `plus`, `more-horizontal` and
+ * `chevron-right`. A plus, an ellipsis and a caret are geometry, not pictures,
+ * and this set has none of them — see `HOUSE` in `src/lib/icons.tsx` for the
+ * first two and `.nav-caret` in `index.css` for the third.
+ *
  * `-remix` and `-solid` variants exist upstream for most of these. We take
  * the base name every time: the outline is the one that reads at 18px, which
  * is the size the rail draws.
@@ -81,14 +86,10 @@ const ICONS = {
   layout: "layout-window-1",
   list: "notepad-text",
   mail: "mail-send-envelope",
-  // Chosen for want of a better, like chevron-right above: no ellipsis exists.
-  "more-horizontal": "dial-pad-finger-2",
   notice: "warning-diamond",
   package: "shipping-box-2",
   "panel-left": "layout-right-sidebar",
   phone: "phone",
-  // Chosen for want of a better: the set has no bare plus.
-  plus: "application-add",
   receipt: "receipt",
   // A cycle, where `refresh-cw` now means a subscription specifically.
   repeat: "rotate-right-circle",
