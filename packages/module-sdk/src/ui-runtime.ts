@@ -112,10 +112,25 @@ export interface SentrelloUi {
   border: React.CSSProperties;
   PageActions: React.ComponentType<{ children: React.ReactNode }>;
   PageSubtitle: React.ComponentType<{ children: React.ReactNode }>;
+  /**
+   * The root of a screen. `prose` for a form or a settings page, which at full
+   * width is a line of text a metre long; `full` for anything with a table.
+   */
+  Page: React.ComponentType<{
+    children: React.ReactNode;
+    width?: "full" | "prose";
+    className?: string;
+  }>;
+  /** The row of controls above a list: search, filters, the primary action. */
+  Toolbar: React.ComponentType<{
+    children: React.ReactNode;
+    className?: string;
+  }>;
   SectionHeading: React.ComponentType<{
     children: React.ReactNode;
     level?: 2 | 3;
     hint?: React.ReactNode;
+    trailing?: React.ReactNode;
   }>;
   StatFigure: React.ComponentType<{
     label: React.ReactNode;
@@ -184,6 +199,8 @@ export const UI_MEMBERS = [
   "border",
   "PageActions",
   "PageSubtitle",
+  "Page",
+  "Toolbar",
   "SectionHeading",
   "StatFigure",
   "CustomFields",

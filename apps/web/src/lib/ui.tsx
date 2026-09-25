@@ -527,20 +527,32 @@ export function SectionHeading({
   children,
   level = 2,
   hint,
+  trailing,
 }: {
   children: ReactNode;
   level?: 2 | 3;
   hint?: ReactNode;
+  /** Drawn at the right-hand end: a Close, an Export, a row of small links. */
+  trailing?: ReactNode;
 }) {
   const Tag = level === 3 ? "h3" : "h2";
   return (
-    <div className="mb-2 flex items-baseline gap-2">
+    <div className="mb-[--gap-toolbar] flex items-baseline gap-[--gap-tight]">
       <Tag className="font-semibold text-sm">{children}</Tag>
       {hint ? (
         <span className="text-xs" style={muted}>
           {hint}
         </span>
       ) : null}
+      {/*
+       * Anything after the hint is pushed to the right-hand end. A panel with
+       * a Close or an Export beside its title was being built by hand six
+       * different ways — `mb-3 flex items-center justify-between` four times,
+       * its `items-baseline` twin three more, and a version with no margin at
+       * all six times. It is the same row as this one with something on the
+       * end, so it is this row with something on the end.
+       */}
+      {trailing ? <div className="ml-auto">{trailing}</div> : null}
     </div>
   );
 }
@@ -594,6 +606,66 @@ export function StatFigure({
   );
 }
 
+/**
+ * The root of a screen, and the reason a screen no longer chooses its own.
+ *
+ * Forty-six route files used four different root wrappers between them —
+ * `space-y-4`, `grid gap-4`, `grid gap-6`, `flex gap-6` — and six vertical
+ * rhythms across the app, `space-y-4` sixty times against `space-y-1`
+ * forty-three. None of that was a decision; it was whatever the last screen
+ * was copied from.
+ *
+ * `width` is the one thing a screen legitimately differs on. A list wants the
+ * window; a settings form at full width is a line of text a metre long, and
+ * only two of the forty-six constrained themselves.
+ */
+export function Page({
+  children,
+  width = "full",
+  className = "",
+}: {
+  children: ReactNode;
+  /** `full` for lists and dashboards, `prose` for forms and settings. */
+  width?: "full" | "prose";
+  className?: string;
+}) {
+  return (
+    <div
+      className={`flex flex-col gap-[--gap-stack] ${width === "prose" ? "max-w-3xl" : ""} ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+/**
+ * The row of controls above a list.
+ *
+ * Fifteen distinct spellings did this job — `mt-3 flex flex-wrap items-end
+ * gap-2` eight times, `mt-3 flex flex-wrap gap-2` four, and eleven one-offs.
+ * The variation carried no meaning: every one of them was a search box, some
+ * filters and a button.
+ *
+ * `items-end` rather than `items-center`, because a toolbar mixes bare
+ * controls with labelled ones and it is the baselines that should line up,
+ * not the middles of boxes with different heights.
+ */
+export function Toolbar({
+  children,
+  className = "",
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`flex flex-wrap items-end gap-[--gap-toolbar] ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
+
 export function Card({
   children,
   className = "",
@@ -603,9 +675,9 @@ export function Card({
 }) {
   // Same rule as the inputs above: a caller that names its own padding gets
   // it, rather than losing to whichever rule Tailwind happened to emit last.
-  const padding = /(^|\s)p-/.test(className) ? "" : "p-4";
+  const padding = /(^|\s)p-/.test(className) ? "" : "p-[--pad-panel]";
   return (
-    <div className={`rounded border ${padding} ${className}`} style={raised}>
+    <div className={`rounded-md border ${padding} ${className}`} style={raised}>
       {children}
     </div>
   );
