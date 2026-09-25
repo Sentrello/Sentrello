@@ -4,16 +4,21 @@ import { type FormDefinition, api } from "../lib/api";
 import { Icon } from "../lib/icons";
 import {
   Button,
-  Card,
+  ConfirmButton,
+  Dialog,
   Empty,
   ErrorNote,
   Field,
   Input,
   Loading,
+  Page,
+  PageActions,
   Row,
   RowMenu,
+  SectionHeading,
   Select,
   Table,
+  Toolbar,
   muted,
 } from "../lib/ui";
 import { FormBuilder } from "./form-builder";
@@ -24,14 +29,25 @@ type FormRow = FormDefinition & {
   submissionCount: number;
 };
 
+/**
+ * Which panel is open, and the form it is open on.
+ *
+ * One piece of state, not four booleans. The four were independent, so two
+ * could be open at once — and because each panel was appended *below* the
+ * table rather than drawn over it, opening one from a row thirty down put it
+ * off the bottom of the screen with nothing to say it had happened.
+ */
+type Panel = {
+  kind: "sites" | "submissions" | "embed" | "build";
+  form: FormRow;
+};
+
 export function Forms() {
   const qc = useQueryClient();
   const [name, setName] = useState("");
   const [kind, setKind] = useState("contact");
-  const [showing, setShowing] = useState<FormRow | null>(null);
-  const [building, setBuilding] = useState<FormRow | null>(null);
-  const [viewing, setViewing] = useState<FormRow | null>(null);
-  const [siting, setSiting] = useState<FormRow | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [panel, setPanel] = useState<Panel | null>(null);
 
   // Offered rather than created at first run: a business that deliberately
   // deleted its forms should not find them back tomorrow.
@@ -53,6 +69,7 @@ export function Forms() {
       }),
     onSuccess: () => {
       setName("");
+      setCreating(false);
       qc.invalidateQueries({ queryKey: ["forms"] });
     },
   });
@@ -62,9 +79,23 @@ export function Forms() {
   const rows = forms.data?.forms ?? [];
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <div className="grid gap-3 sm:grid-cols-[1fr_9rem_auto]">
+    <Page>
+      {/*
+       * The primary action goes in the page's own title line, where every
+       * screen's does. It used to be a create form permanently mounted at the
+       * top of the page: the first thing anybody saw, on every visit, was a
+       * blank box for a form they had probably already made.
+       */}
+      <PageActions>
+        <Button onClick={() => setCreating(true)}>New form</Button>
+      </PageActions>
+
+      <Dialog
+        title="New form"
+        open={creating}
+        onClose={() => setCreating(false)}
+      >
+        <div className="flex flex-col gap-[--gap-stack]">
           <Field label="Name">
             <Input
               value={name}
@@ -72,25 +103,27 @@ export function Forms() {
               placeholder="Contact form"
             />
           </Field>
-          <Field label="Type">
+          <Field
+            label="Type"
+            hint="What the form is for. It sets the questions it starts with."
+          >
             <Select value={kind} onChange={(e) => setKind(e.target.value)}>
               <option value="contact">Contact</option>
               <option value="quote">Quote request</option>
             </Select>
           </Field>
-          <div className="flex items-end">
+          {create.error ? <ErrorNote error={create.error} /> : null}
+          <Toolbar>
             <Button onClick={() => create.mutate()} disabled={create.isPending}>
-              New form
+              {create.isPending ? "Creating…" : "Create form"}
             </Button>
-          </div>
+          </Toolbar>
         </div>
-        {create.error ? <ErrorNote error={create.error} /> : null}
-      </Card>
+      </Dialog>
 
       {rows.length === 0 ? (
-        <Card>
-          <p className="font-medium">No forms yet</p>
-          <p className="mt-1 mb-3 text-sm" style={muted}>
+        <Empty title="No forms yet">
+          <p className="mb-[--gap-stack] text-sm" style={muted}>
             A form gives you one line to paste into any website. Submissions
             arrive as contacts, and the ones worth chasing become deals.
           </p>
@@ -103,7 +136,7 @@ export function Forms() {
               : "Create a contact form and a quote form"}
           </Button>
           {makeDefaults.error ? <ErrorNote error={makeDefaults.error} /> : null}
-        </Card>
+        </Empty>
       ) : (
         <Table
           headers={[
@@ -119,7 +152,7 @@ export function Forms() {
             <Row key={f.id}>
               <td className="py-2 font-medium">{f.name}</td>
               <td style={muted}>
-                {f.kind}
+                {KINDS[f.kind] ?? f.kind}
                 {f.tag ? <span className="ml-1 text-xs">· {f.tag}</span> : null}
               </td>
               <td style={muted}>{f.fields?.length ?? 0}</td>
@@ -138,7 +171,7 @@ export function Forms() {
                 <button
                   type="button"
                   className="text-left link"
-                  onClick={() => setSiting(f)}
+                  onClick={() => setPanel({ kind: "sites", form: f })}
                 >
                   {f.allowedOrigins?.length
                     ? f.allowedOrigins.join(", ")
@@ -149,15 +182,18 @@ export function Forms() {
                   behind a menu — four buttons on every row was a table nobody
                   could read across. */}
               <td className="text-right">
-                <div className="flex items-center justify-end gap-2">
-                  <Button variant="secondary" onClick={() => setViewing(f)}>
+                <div className="flex items-center justify-end gap-[--gap-toolbar]">
+                  <Button
+                    variant="secondary"
+                    onClick={() => setPanel({ kind: "submissions", form: f })}
+                  >
                     Submissions
                   </Button>
                   <FormActions
                     form={f}
-                    onEdit={() => setBuilding(f)}
-                    onSites={() => setSiting(f)}
-                    onEmbed={() => setShowing(f)}
+                    onEdit={() => setPanel({ kind: "build", form: f })}
+                    onSites={() => setPanel({ kind: "sites", form: f })}
+                    onEmbed={() => setPanel({ kind: "embed", form: f })}
                     onDeleted={() =>
                       qc.invalidateQueries({ queryKey: ["forms"] })
                     }
@@ -169,35 +205,64 @@ export function Forms() {
         </Table>
       )}
 
-      {siting ? (
-        <AllowedSites
-          form={rows.find((r) => r.id === siting.id) ?? siting}
-          onClose={() => setSiting(null)}
-        />
+      {/*
+       * Every panel is a dialog over the page, not a card appended under it.
+       * `Dialog` brings the title, the close and the focus trap the four
+       * hand-built panels each did without — and being modal is what makes
+       * "two open at once" impossible rather than merely unlikely.
+       */}
+      {panel ? (
+        <Dialog
+          title={panelTitle(panel)}
+          size={
+            panel.kind === "build"
+              ? "xl"
+              : panel.kind === "submissions"
+                ? "lg"
+                : "md"
+          }
+          open
+          onClose={() => setPanel(null)}
+        >
+          {panel.kind === "sites" ? (
+            <AllowedSites
+              form={rows.find((r) => r.id === panel.form.id) ?? panel.form}
+            />
+          ) : panel.kind === "submissions" ? (
+            <Submissions form={panel.form} />
+          ) : panel.kind === "embed" ? (
+            <EmbedCode form={panel.form} />
+          ) : (
+            <FormBuilder
+              formId={panel.form.id}
+              fields={panel.form.fields ?? []}
+              tag={panel.form.tag ?? null}
+              style={panel.form.style ?? null}
+              redirectUrl={panel.form.redirectUrl ?? null}
+              notifyEmail={panel.form.notifyEmail ?? null}
+              onDone={() => setPanel(null)}
+            />
+          )}
+        </Dialog>
       ) : null}
-
-      {viewing ? (
-        <Submissions form={viewing} onClose={() => setViewing(null)} />
-      ) : null}
-
-      {building ? (
-        <FormBuilder
-          formId={building.id}
-          fields={building.fields ?? []}
-          tag={building.tag ?? null}
-          style={building.style ?? null}
-          redirectUrl={building.redirectUrl ?? null}
-          notifyEmail={building.notifyEmail ?? null}
-          onDone={() => setBuilding(null)}
-        />
-      ) : null}
-
-      {showing ? (
-        <EmbedCode form={showing} onClose={() => setShowing(null)} />
-      ) : null}
-    </div>
+    </Page>
   );
 }
+
+/** The dialog's title, which is the sentence the old panels put in a `<p>`. */
+function panelTitle(panel: Panel): string {
+  const name = panel.form.name;
+  if (panel.kind === "sites") return `${name} — allowed sites`;
+  if (panel.kind === "submissions") return `${name} — submissions`;
+  if (panel.kind === "embed") return `${name} — embed code`;
+  return `${name} — questions`;
+}
+
+/** What a form's `kind` is called, rather than the word the database stores. */
+const KINDS: Record<string, string> = {
+  contact: "Contact",
+  quote: "Quote request",
+};
 
 /**
  * What else can be done with a form.
@@ -293,13 +358,7 @@ function FormActions({
  * with them: a business puts a form on its main site, then on a landing page,
  * then takes the landing page down.
  */
-function AllowedSites({
-  form,
-  onClose,
-}: {
-  form: FormRow;
-  onClose: () => void;
-}) {
+function AllowedSites({ form }: { form: FormRow }) {
   const qc = useQueryClient();
   const [entry, setEntry] = useState("");
   const sites = form.allowedOrigins ?? [];
@@ -322,27 +381,19 @@ function AllowedSites({
   };
 
   return (
-    <Card>
-      <div className="mb-3 flex items-center justify-between">
-        <p className="font-medium">{form.name} — allowed sites</p>
-        <Button variant="secondary" onClick={onClose}>
-          Close
-        </Button>
-      </div>
-
-      <p className="mb-3 text-sm" style={muted}>
+    <div className="flex flex-col gap-[--gap-stack]">
+      <p className="text-sm" style={muted}>
         The websites this form may be embedded on. A form with no sites listed
         works only on this instance, so an embed pasted anywhere else shows
         nothing.
       </p>
 
       {sites.length ? (
-        <ul className="mb-3 space-y-1">
+        <ul className="flex flex-col">
           {sites.map((site) => (
             <li
               key={site}
-              className="flex items-center justify-between border-t py-1.5 text-sm"
-              style={{ borderColor: "var(--border)" }}
+              className="flex items-center justify-between border-line border-t py-1.5 text-sm"
             >
               <span>{site}</span>
               <button
@@ -357,7 +408,7 @@ function AllowedSites({
           ))}
         </ul>
       ) : (
-        <p className="mb-3 text-sm" style={muted}>
+        <p className="text-sm" style={muted}>
           No sites yet.
         </p>
       )}
@@ -366,7 +417,7 @@ function AllowedSites({
         label="Add a site"
         hint="example.com, https://example.com or *.example.com for every subdomain. The site the form is on, not the page."
       >
-        <div className="flex gap-2">
+        <Toolbar>
           <Input
             value={entry}
             placeholder="example.com"
@@ -381,10 +432,10 @@ function AllowedSites({
           <Button onClick={add} disabled={save.isPending || !entry.trim()}>
             {save.isPending ? "Saving…" : "Add"}
           </Button>
-        </div>
+        </Toolbar>
       </Field>
       {save.error ? <ErrorNote error={save.error} /> : null}
-    </Card>
+    </div>
   );
 }
 
@@ -395,7 +446,7 @@ function AllowedSites({
  * accepts posts from the sites listed on it, so a copied snippet on someone
  * else's page is refused.
  */
-function EmbedCode({ form, onClose }: { form: FormRow; onClose: () => void }) {
+function EmbedCode({ form }: { form: FormRow }) {
   // Plain HTML: the endpoint accepts a normal form post, so the snippet needs
   // no JavaScript and works on any site, including ones that block scripts.
   // The honeypot is hidden from people and irresistible to bots.
@@ -406,40 +457,31 @@ function EmbedCode({ form, onClose }: { form: FormRow; onClose: () => void }) {
   const snippet = `<script src="${base}/embed.js" data-sentrello-form="${form.key}"></script>`;
 
   return (
-    <Card>
-      <div className="mb-3 flex items-center justify-between">
-        <p className="font-medium">{form.name}</p>
-        <Button variant="secondary" onClick={onClose}>
-          Close
-        </Button>
-      </div>
-
+    <div className="flex flex-col gap-[--gap-stack]">
       {/*
         Said here as well as on the row, because this is the panel somebody
         has open at the moment they paste the snippet into their own site.
       */}
       {form.allowedOrigins?.length ? null : (
-        <p className="mb-3 text-sm">
+        <p className="text-sm">
           This form has no allowed sites yet, so this snippet will show nothing
           anywhere but here. Add the site under <em>Allowed sites</em> first.
         </p>
       )}
 
-      <p className="mt-1 mb-1 text-sm font-medium">Paste this into your page</p>
-      <pre
-        className="overflow-x-auto rounded border p-3 text-xs"
-        style={{ borderColor: "var(--border)" }}
-      >
+      <SectionHeading level={3}>Paste this into your page</SectionHeading>
+      <pre className="overflow-x-auto rounded-md border border-line p-[--pad-panel] text-xs">
         <code>{snippet}</code>
       </pre>
-      <Button
-        variant="secondary"
-        className="mt-2"
-        onClick={() => navigator.clipboard?.writeText(snippet)}
-      >
-        Copy
-      </Button>
-    </Card>
+      <Toolbar>
+        <Button
+          variant="secondary"
+          onClick={() => navigator.clipboard?.writeText(snippet)}
+        >
+          Copy
+        </Button>
+      </Toolbar>
+    </div>
   );
 }
 
@@ -451,13 +493,7 @@ function EmbedCode({ form, onClose }: { form: FormRow; onClose: () => void }) {
  * pipeline that fills itself with every newsletter sign-up stops being looked
  * at.
  */
-function Submissions({
-  form,
-  onClose,
-}: {
-  form: FormRow;
-  onClose: () => void;
-}) {
+function Submissions({ form }: { form: FormRow }) {
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["submissions", form.id],
@@ -485,36 +521,29 @@ function Submissions({
   });
 
   return (
-    <Card>
-      <div className="mb-3 flex items-center justify-between">
-        <p className="font-medium">{form.name} — submissions</p>
-        <div className="flex items-center gap-2">
-          {/* A plain link rather than a fetch: the browser saves the file
-              itself, with the name the server chose, and a large export never
-              has to be held in memory here first. */}
-          {data?.submissions.length ? (
-            <a
-              className="link text-sm"
-              href={`/api/forms/${form.id}/submissions.csv`}
-            >
-              Export CSV
-            </a>
-          ) : null}
-          <Button variant="secondary" onClick={onClose}>
-            Close
-          </Button>
-        </div>
-      </div>
+    <div className="flex flex-col gap-[--gap-stack]">
+      {/* A plain link rather than a fetch: the browser saves the file itself,
+          with the name the server chose, and a large export never has to be
+          held in memory here first. */}
+      {data?.submissions.length ? (
+        <Toolbar>
+          <a
+            className="link text-sm"
+            href={`/api/forms/${form.id}/submissions.csv`}
+          >
+            Export CSV
+          </a>
+        </Toolbar>
+      ) : null}
 
       {isLoading ? (
         <Loading />
       ) : data?.submissions.length ? (
-        <ul className="space-y-2">
+        <ul className="flex flex-col gap-[--gap-toolbar]">
           {data.submissions.map((sub) => (
             <li
               key={sub.id}
-              className="border-t pt-2 text-sm"
-              style={{ borderColor: "var(--border)" }}
+              className="border-line border-t pt-[--gap-toolbar] text-sm"
             >
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
@@ -564,6 +593,6 @@ function Submissions({
         </p>
       )}
       {promote.error ? <ErrorNote error={promote.error} /> : null}
-    </Card>
+    </div>
   );
 }

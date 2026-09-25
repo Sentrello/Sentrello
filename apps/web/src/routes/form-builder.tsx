@@ -1,14 +1,18 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { api } from "../lib/api";
 import { ChoiceOptionsInput } from "../lib/choice-options";
 import {
   Button,
-  Card,
+  ConfirmButton,
   ErrorNote,
   Field,
   Input,
+  Row,
+  SectionHeading,
   Select,
+  Table,
+  Toolbar,
   muted,
 } from "../lib/ui";
 
@@ -201,6 +205,24 @@ export function FormBuilder({
   const [type, setType] = useState("text");
   const [notify, setNotify] = useState(notifyEmail ?? "");
   const [redirect, setRedirect] = useState(redirectUrl ?? "");
+  /** The one question whose per-answer panels are open, if any. */
+  const [showing, setShowing] = useState<string | null>(null);
+
+  /**
+   * Whether closing now would lose anything.
+   *
+   * Compared against what was handed in rather than tracked with a flag: a
+   * flag says "somebody typed", and somebody who types a letter and deletes it
+   * has changed nothing. The fields go through JSON because they are a nested
+   * structure and this is a dozen rows, not a document.
+   */
+  const dirty =
+    JSON.stringify(rows) !== JSON.stringify(fields) ||
+    formTag !== (tag ?? "") ||
+    accent !== (style?.accent ?? "") ||
+    radius !== (style?.radius ?? "") ||
+    notify !== (notifyEmail ?? "") ||
+    redirect !== (redirectUrl ?? "");
 
   const add = () => {
     const trimmed = label.trim();
@@ -254,204 +276,280 @@ export function FormBuilder({
   });
 
   return (
-    <Card>
-      <p className="mb-2 font-medium">Questions this form asks</p>
+    <div className="flex flex-col gap-[--gap-stack]">
+      <SectionHeading level={3}>Questions this form asks</SectionHeading>
 
       {rows.length === 0 ? (
         <p className="text-sm" style={muted}>
-          No fields yet. Add the first one below.
+          No questions yet. Add the first one below.
         </p>
       ) : (
-        <ul className="space-y-1">
+        /*
+         * A table, because this is a table: every question has the same four
+         * facts about it and a reader should be able to run an eye down any
+         * one of them.
+         *
+         * It was a `flex-wrap` list item. Controls reflowed wherever they
+         * landed, every row was a different height depending on its type, and
+         * a five-answer Choice nested five collapsibles of four unlabelled
+         * inputs — twenty controls inside one line of a list.
+         */
+        <Table
+          headers={[
+            "Question",
+            "Answered with",
+            "Width",
+            "Required",
+            "Order",
+            "",
+          ]}
+        >
           {rows.map((f, i) => (
-            <li
-              key={f.name}
-              className="flex flex-wrap items-center gap-2 border-t py-2 text-sm"
-              style={{ borderColor: "var(--border)" }}
-            >
-              <span className="flex-1">
-                {f.label}
-                {/* A choice with no answers offers nothing, whichever way it
-                    is drawn, so the options are edited here rather than on a
-                    second screen somebody has to know to open. */}
-                {f.type === "select" || f.type === "radio" ? (
-                  <ChoiceOptionsInput
-                    className="mt-1 text-xs"
-                    options={f.options ?? []}
-                    label={f.label}
-                    onChange={(options) =>
+            <Fragment key={f.name}>
+              <Row>
+                <td className="py-2">{f.label}</td>
+                <td>
+                  {/* Changeable, at last. The type was fixed at creation, so
+                      asking for an email address as a text box meant deleting
+                      the question and writing it again. */}
+                  <Select
+                    className="text-sm"
+                    aria-label={`How ${f.label} is answered`}
+                    value={f.type}
+                    onChange={(e) =>
                       setRows((r) =>
                         r.map((x, j) =>
-                          i === j
-                            ? { ...x, options, info: kept(x.info, options) }
-                            : x,
+                          i === j ? { ...x, type: e.target.value } : x,
                         ),
                       )
                     }
-                  />
-                ) : null}
-                {/* The panel each answer opens, edited beside the answer it
-                    belongs to. Folded away by default: most forms want none
-                    of this, and a form that wants it wants it on one choice. */}
-                {f.type === "radio" && (f.options ?? []).length > 0
-                  ? (f.options ?? []).map((option) => (
-                      <details key={option} className="mt-1">
-                        <summary
-                          className="cursor-pointer text-xs"
-                          style={muted}
+                  >
+                    {TYPES.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </Select>
+                </td>
+                <td>
+                  <label className="flex items-center gap-[--gap-tight] text-xs">
+                    <input
+                      type="checkbox"
+                      checked={f.half ?? false}
+                      onChange={(e) =>
+                        setRows((r) =>
+                          r.map((x, j) =>
+                            i === j ? { ...x, half: e.target.checked } : x,
+                          ),
+                        )
+                      }
+                    />
+                    Half
+                  </label>
+                </td>
+                <td>
+                  <label className="flex items-center gap-[--gap-tight] text-xs">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(f.required)}
+                      onChange={(e) =>
+                        setRows((r) =>
+                          r.map((x, j) =>
+                            i === j ? { ...x, required: e.target.checked } : x,
+                          ),
+                        )
+                      }
+                    />
+                    Required
+                  </label>
+                </td>
+                <td>
+                  {/* Disabled at the ends, like every other reorder in the
+                      app. They were live everywhere, so the first question's
+                      ↑ was a button you could press and get nothing from. */}
+                  <div className="flex items-center gap-[--gap-tight]">
+                    <button
+                      type="button"
+                      aria-label={`Move ${f.label} up`}
+                      className="px-1 text-xs"
+                      style={muted}
+                      disabled={i === 0}
+                      onClick={() => setRows((r) => moved(r, i, -1))}
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Move ${f.label} down`}
+                      className="px-1 text-xs"
+                      style={muted}
+                      disabled={i === rows.length - 1}
+                      onClick={() => setRows((r) => moved(r, i, 1))}
+                    >
+                      ↓
+                    </button>
+                  </div>
+                </td>
+                <td className="text-right">
+                  <button
+                    type="button"
+                    className="px-1 text-xs"
+                    style={{ color: "var(--text-danger)" }}
+                    onClick={() => setRows((r) => r.filter((_, j) => j !== i))}
+                  >
+                    Remove
+                  </button>
+                </td>
+              </Row>
+
+              {/*
+               * A choice's answers, on their own line under the question.
+               *
+               * They belong to the question, so they sit under it rather than
+               * in a cell of their own that is empty on every other row.
+               */}
+              {f.type === "select" || f.type === "radio" ? (
+                <Row>
+                  <td colSpan={6} className="pb-2">
+                    <ChoiceOptionsInput
+                      className="text-xs"
+                      options={f.options ?? []}
+                      label={f.label}
+                      onChange={(options) =>
+                        setRows((r) =>
+                          r.map((x, j) =>
+                            i === j
+                              ? { ...x, options, info: kept(x.info, options) }
+                              : x,
+                          ),
+                        )
+                      }
+                    />
+                    {/*
+                     * The panel each answer opens, behind one link.
+                     *
+                     * Most forms want none of this, and a form that wants it
+                     * wants it on one question — so twenty controls were being
+                     * drawn on every radio row for a feature almost nobody
+                     * uses. One row opens at a time, which is the other half
+                     * of the same problem.
+                     */}
+                    {f.type === "radio" && (f.options ?? []).length > 0 ? (
+                      <div className="mt-[--gap-tight]">
+                        <button
+                          type="button"
+                          className="text-xs link-muted"
+                          aria-expanded={showing === f.name}
+                          onClick={() =>
+                            setShowing(showing === f.name ? null : f.name)
+                          }
                         >
-                          What “{option}” shows
-                        </summary>
-                        <div className="mt-1 grid gap-1 sm:grid-cols-2">
-                          <Input
-                            className="text-xs"
-                            value={f.info?.[option]?.title ?? ""}
-                            placeholder="What you get"
-                            aria-label={`Heading shown for ${option}`}
-                            onChange={(e) =>
-                              setRows((r) =>
-                                r.map((x, j) =>
-                                  i === j
-                                    ? withInfo(x, option, {
-                                        title: e.target.value,
-                                      })
-                                    : x,
-                                ),
-                              )
-                            }
-                          />
-                          <Input
-                            className="text-xs"
-                            value={f.info?.[option]?.body ?? ""}
-                            placeholder="A sentence the visitor reads before typing"
-                            aria-label={`Detail shown for ${option}`}
-                            onChange={(e) =>
-                              setRows((r) =>
-                                r.map((x, j) =>
-                                  i === j
-                                    ? withInfo(x, option, {
-                                        body: e.target.value,
-                                      })
-                                    : x,
-                                ),
-                              )
-                            }
-                          />
-                          <Input
-                            className="text-xs"
-                            value={f.info?.[option]?.href ?? ""}
-                            placeholder="https://… (optional link)"
-                            aria-label={`Link shown for ${option}`}
-                            onChange={(e) =>
-                              setRows((r) =>
-                                r.map((x, j) =>
-                                  i === j
-                                    ? withInfo(x, option, {
-                                        href: e.target.value,
-                                      })
-                                    : x,
-                                ),
-                              )
-                            }
-                          />
-                          <Input
-                            className="text-xs"
-                            value={f.info?.[option]?.hrefLabel ?? ""}
-                            placeholder="What the link says"
-                            aria-label={`Link text shown for ${option}`}
-                            onChange={(e) =>
-                              setRows((r) =>
-                                r.map((x, j) =>
-                                  i === j
-                                    ? withInfo(x, option, {
-                                        hrefLabel: e.target.value,
-                                      })
-                                    : x,
-                                ),
-                              )
-                            }
-                          />
-                        </div>
-                      </details>
-                    ))
-                  : null}
-              </span>
-              <span className="text-xs" style={muted}>
-                {TYPES.find((t) => t.id === f.type)?.label ?? f.type}
-              </span>
-              {/* Side by side, for the pairs that read as one answer. */}
-              <label className="flex items-center gap-1 text-xs">
-                <input
-                  type="checkbox"
-                  checked={f.half ?? false}
-                  onChange={(e) =>
-                    setRows((r) =>
-                      r.map((x, j) =>
-                        i === j ? { ...x, half: e.target.checked } : x,
-                      ),
-                    )
-                  }
-                />
-                Half width
-              </label>
-              <label className="flex items-center gap-1 text-xs">
-                <input
-                  type="checkbox"
-                  checked={Boolean(f.required)}
-                  onChange={(e) =>
-                    setRows((r) =>
-                      r.map((x, j) =>
-                        i === j ? { ...x, required: e.target.checked } : x,
-                      ),
-                    )
-                  }
-                />
-                required
-              </label>
-              {/* Order is what somebody reads the form in, so it has to be
-                  changeable without deleting and re-adding. */}
-              {/* Disabled at the ends, like every other reorder in the app.
-                  
-                  They were live everywhere, so the first field's ↑ was a
-                  button you could hover, click, and get nothing from — no
-                  movement, no message, no reason. On a Choice that reads as
-                  the field being stuck, because a Choice row is tall enough
-                  that its buttons wrap to the bottom of a block and there is
-                  nothing else on screen to tell you the click landed. */}
-              <button
-                type="button"
-                aria-label={`Move ${f.label} up`}
-                className="px-1 text-xs"
-                style={muted}
-                disabled={i === 0}
-                onClick={() => move(i, -1)}
-              >
-                ↑
-              </button>
-              <button
-                type="button"
-                aria-label={`Move ${f.label} down`}
-                className="px-1 text-xs"
-                style={muted}
-                disabled={i === rows.length - 1}
-                onClick={() => move(i, 1)}
-              >
-                ↓
-              </button>
-              <button
-                type="button"
-                className="px-1 text-xs"
-                style={{ color: "var(--text-danger)" }}
-                onClick={() => setRows((r) => r.filter((_, j) => j !== i))}
-              >
-                Remove
-              </button>
-            </li>
+                          {showing === f.name
+                            ? "Hide"
+                            : "What each answer shows"}
+                        </button>
+                        {showing === f.name ? (
+                          <div className="mt-[--gap-toolbar] flex flex-col gap-[--gap-toolbar]">
+                            {(f.options ?? []).map((option) => (
+                              <div
+                                key={option}
+                                className="border-line border-t pt-[--gap-toolbar]"
+                              >
+                                <p className="mb-[--gap-tight] text-xs font-medium">
+                                  “{option}”
+                                </p>
+                                <div className="grid gap-[--gap-tight] sm:grid-cols-2">
+                                  <Field label="Heading">
+                                    <Input
+                                      className="text-xs"
+                                      value={f.info?.[option]?.title ?? ""}
+                                      placeholder="What you get"
+                                      onChange={(e) =>
+                                        setRows((r) =>
+                                          r.map((x, j) =>
+                                            i === j
+                                              ? withInfo(x, option, {
+                                                  title: e.target.value,
+                                                })
+                                              : x,
+                                          ),
+                                        )
+                                      }
+                                    />
+                                  </Field>
+                                  <Field label="Sentence">
+                                    <Input
+                                      className="text-xs"
+                                      value={f.info?.[option]?.body ?? ""}
+                                      placeholder="What the visitor reads before typing"
+                                      onChange={(e) =>
+                                        setRows((r) =>
+                                          r.map((x, j) =>
+                                            i === j
+                                              ? withInfo(x, option, {
+                                                  body: e.target.value,
+                                                })
+                                              : x,
+                                          ),
+                                        )
+                                      }
+                                    />
+                                  </Field>
+                                  <Field label="Link">
+                                    <Input
+                                      className="text-xs"
+                                      value={f.info?.[option]?.href ?? ""}
+                                      placeholder="https://…"
+                                      onChange={(e) =>
+                                        setRows((r) =>
+                                          r.map((x, j) =>
+                                            i === j
+                                              ? withInfo(x, option, {
+                                                  href: e.target.value,
+                                                })
+                                              : x,
+                                          ),
+                                        )
+                                      }
+                                    />
+                                  </Field>
+                                  <Field label="What the link says">
+                                    <Input
+                                      className="text-xs"
+                                      value={f.info?.[option]?.hrefLabel ?? ""}
+                                      placeholder="Read the guide"
+                                      onChange={(e) =>
+                                        setRows((r) =>
+                                          r.map((x, j) =>
+                                            i === j
+                                              ? withInfo(x, option, {
+                                                  hrefLabel: e.target.value,
+                                                })
+                                              : x,
+                                          ),
+                                        )
+                                      }
+                                    />
+                                  </Field>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </td>
+                </Row>
+              ) : null}
+            </Fragment>
           ))}
-        </ul>
+        </Table>
       )}
 
-      <div className="mt-3 flex flex-wrap items-end gap-2">
+      {/* Both controls labelled. The type select had no label at all, which
+          left three boxes of three different heights sitting on one baseline
+          with a caption over only the first of them. */}
+      <Toolbar>
         <Field label="Add a question">
           <Input
             value={label}
@@ -460,19 +558,64 @@ export function FormBuilder({
             onKeyDown={(e) => e.key === "Enter" && add()}
           />
         </Field>
-        <Select value={type} onChange={(e) => setType(e.target.value)}>
-          {TYPES.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.label}
-            </option>
-          ))}
-        </Select>
+        <Field label="Answered with">
+          <Select value={type} onChange={(e) => setType(e.target.value)}>
+            {TYPES.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.label}
+              </option>
+            ))}
+          </Select>
+        </Field>
         <Button variant="secondary" onClick={add} disabled={!label.trim()}>
           Add
         </Button>
-      </div>
+      </Toolbar>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+      {/*
+       * Two headings over what were two unlabelled grids.
+       *
+       * Five boxes ran together under the question list — a tag, a colour, a
+       * radius, an email and a URL — with nothing saying that the first three
+       * change what a visitor sees and the last two change what happens after
+       * they press the button. They are two different questions and they now
+       * look like two different questions.
+       */}
+      <SectionHeading level={3} hint="What a visitor sees on your own site.">
+        How it looks
+      </SectionHeading>
+      <div className="grid gap-[--gap-toolbar] sm:grid-cols-3">
+        <Field label="Accent colour" hint="The button and the focus ring.">
+          <Toolbar>
+            {/*
+             * A colour input beside the text, not instead of it. Somebody
+             * matching a site has the hex on their clipboard and wants to
+             * paste it; somebody choosing wants to see the colour. This was a
+             * free-text box with neither — no picker, no swatch, and no way to
+             * know whether what you typed was even a colour until the form was
+             * live on a customer's website.
+             */}
+            <input
+              type="color"
+              aria-label="Pick the accent colour"
+              className="h-9 w-9 shrink-0 cursor-pointer rounded-sm border border-line bg-transparent p-1"
+              value={/^#[0-9a-f]{6}$/i.test(accent) ? accent : "#c4470f"}
+              onChange={(e) => setAccent(e.target.value)}
+            />
+            <Input
+              value={accent}
+              placeholder="#c4470f"
+              onChange={(e) => setAccent(e.target.value)}
+            />
+          </Toolbar>
+        </Field>
+        <Field label="Corner radius" hint="e.g. 6px, or 0 for square.">
+          <Input
+            value={radius}
+            placeholder="6px"
+            onChange={(e) => setRadius(e.target.value)}
+          />
+        </Field>
         <Field
           label="Tag"
           hint="Which form a submission came from. Every form collects a name."
@@ -483,23 +626,12 @@ export function FormBuilder({
             onChange={(e) => setFormTag(e.target.value)}
           />
         </Field>
-        <Field label="Accent colour" hint="Hex, to match the site.">
-          <Input
-            value={accent}
-            placeholder="#c4470f"
-            onChange={(e) => setAccent(e.target.value)}
-          />
-        </Field>
-        <Field label="Corner radius" hint="e.g. 6px.">
-          <Input
-            value={radius}
-            placeholder="6px"
-            onChange={(e) => setRadius(e.target.value)}
-          />
-        </Field>
       </div>
 
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+      <SectionHeading level={3} hint="Once somebody presses the button.">
+        What happens next
+      </SectionHeading>
+      <div className="grid gap-[--gap-toolbar] sm:grid-cols-2">
         <Field
           label="Tell somebody"
           hint="Emailed when this form is filled in. Blank tells nobody."
@@ -524,15 +656,38 @@ export function FormBuilder({
         </Field>
       </div>
 
-      <div className="mt-3 flex gap-2">
+      {save.error ? <ErrorNote error={save.error} /> : null}
+
+      {/*
+       * Nothing here is saved until this button.
+       *
+       * Every edit, every checkbox, every reorder and every removal is local
+       * state, so closing the dialog threw the lot away without a word. It
+       * still does, but now it says so first — and only when there is
+       * something to lose, because a confirm on an untouched form is a dialog
+       * that teaches people to dismiss dialogs.
+       */}
+      <Toolbar>
         <Button onClick={() => save.mutate()} disabled={save.isPending}>
           {save.isPending ? "Saving…" : "Save form"}
         </Button>
-        <button type="button" className="text-sm link-muted" onClick={onDone}>
-          Cancel
-        </button>
-      </div>
-      {save.error ? <ErrorNote error={save.error} /> : null}
-    </Card>
+        {dirty ? (
+          <ConfirmButton
+            variant="secondary"
+            title="Throw away these changes?"
+            message="The questions and settings you have changed here have not been saved. Closing now loses them."
+            confirmLabel="Throw them away"
+            danger
+            onConfirm={onDone}
+          >
+            Cancel
+          </ConfirmButton>
+        ) : (
+          <Button variant="secondary" onClick={onDone}>
+            Cancel
+          </Button>
+        )}
+      </Toolbar>
+    </div>
   );
 }
