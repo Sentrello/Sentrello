@@ -374,7 +374,7 @@ export function FormBuilder({
                       className="px-1 text-xs"
                       style={muted}
                       disabled={i === 0}
-                      onClick={() => setRows((r) => moved(r, i, -1))}
+                      onClick={() => move(i, -1)}
                     >
                       ↑
                     </button>
@@ -384,7 +384,7 @@ export function FormBuilder({
                       className="px-1 text-xs"
                       style={muted}
                       disabled={i === rows.length - 1}
-                      onClick={() => setRows((r) => moved(r, i, 1))}
+                      onClick={() => move(i, 1)}
                     >
                       ↓
                     </button>

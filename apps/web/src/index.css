@@ -296,6 +296,32 @@ label:has(input[type="radio"]) {
 }
 
 /*
+ * And a control that will not respond should look like one.
+ *
+ * Nothing in the app said so. 163 controls carry `disabled` and every one of
+ * them was drawn identically to a live control — same colour, same weight,
+ * same border. The only difference was the cursor, which needs a pointer
+ * device and a hover to notice and does not exist on a phone at all.
+ *
+ * This is the whole of the form builder complaint restated. The first
+ * question's ↑ was pressable and did nothing; disabling it stopped the lie
+ * that something had happened, and left a button that still looks ready.
+ *
+ * Opacity rather than a colour, so it works on every control at once and on
+ * whatever is inside one — an icon, a count, a coloured word — without each
+ * needing its own disabled colour. 0.45 is dim enough to read as off and
+ * still legible, which matters because a disabled field is often the one
+ * carrying the value you are trying to read.
+ */
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled,
+[aria-disabled="true"] {
+  opacity: 0.45;
+}
+
+/*
  * Links in body text: colour, never a rule under the word.
  *
  * An underline in a dense table or a card of contact details is visual noise
