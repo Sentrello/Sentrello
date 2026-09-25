@@ -328,11 +328,25 @@ export function orderDespatchedEmail(args: {
   };
 }
 
+/**
+ * The link to everything a customer has with a business.
+ *
+ * It took a name and nothing else, so it was the one email here that could
+ * not carry the seller's details or drop the credit — and a business paying
+ * for Pro got an email about money it is owed, signed by us, with no address
+ * for the customer to reply to and no word on how to pay. Its own invoice
+ * emails do the opposite. These are the parameters every other template
+ * takes; crediting still defaults to on, so a caller that forgets is safe.
+ */
 export function portalLinkEmail(args: {
   businessName: string;
   url: string;
   outstandingCents?: number;
   currency?: string;
+  /** The seller, for the foot of the message. */
+  business?: BusinessIdentity;
+  /** False on Pro, where the business sends under its own name. */
+  sentrelloCredit?: boolean;
 }) {
   const owed =
     args.outstandingCents && args.outstandingCents > 0
@@ -345,6 +359,8 @@ export function portalLinkEmail(args: {
       `${owed}<p><a href="${escapeHtml(args.url)}">View your invoices</a></p>
 <p style="color:#666;font-size:12px">This link is private to you — treat it
 like a bill in the post. Anyone who has it can see the page.</p>`,
+      args.business,
+      args.sentrelloCredit,
     ),
   };
 }

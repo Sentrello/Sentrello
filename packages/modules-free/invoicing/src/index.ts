@@ -1923,6 +1923,11 @@ export default defineModule({
                 url,
                 outstandingCents,
                 currency,
+                // The same as the invoice email beside it: an email about
+                // money owed carries the seller's address and how to pay, and
+                // a business paying for Pro sends it under its own name.
+                business: await businessIdentity(orgId),
+                sentrelloCredit: !ctx.entitled({ tier: "pro" }),
               }),
             });
           } catch (err) {

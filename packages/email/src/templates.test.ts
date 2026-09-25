@@ -5,6 +5,7 @@ import {
   orderDespatchedEmail,
   orderPaidEmail,
   overdueReminderEmail,
+  portalLinkEmail,
   receiptEmail,
 } from "./templates";
 
@@ -286,4 +287,38 @@ test("a due date does not slip a day west of UTC", () => {
     dueDate: new Date("2026-10-25T00:00:00Z"),
   });
   expect(html).toContain("25 Oct 2026");
+});
+
+/**
+ * The one email that could not look like the business sending it.
+ *
+ * `portalLinkEmail` took a name and nothing else, so a business paying for
+ * Pro sent its customer a message about money it is owed — signed by us, with
+ * no address to reply to and no word on how to pay. Its own invoice emails do
+ * the opposite, which is the part that makes it a bug rather than a choice.
+ */
+test("the portal link carries the seller, like every other message", () => {
+  const { html } = portalLinkEmail({
+    businessName: "Barker & Pawski",
+    url: "https://example.test/portal/x",
+    business: {
+      name: "Barker & Pawski",
+      address: "17 Quarry Road, Anglesey",
+      taxId: "GB 123 4567 89",
+      paymentInstructions: "Bank transfer to 12-34-56",
+    },
+    sentrelloCredit: false,
+  });
+  expect(html).toContain("17 Quarry Road, Anglesey");
+  expect(html).toContain("Bank transfer to 12-34-56");
+  expect(html).not.toContain("Sent by Sentrello");
+});
+
+/** And the safe default is unchanged: a caller that forgets credits us. */
+test("a portal link sent without asking still credits the product", () => {
+  const { html } = portalLinkEmail({
+    businessName: "Barker & Pawski",
+    url: "https://example.test/portal/x",
+  });
+  expect(html).toContain("Sent by Sentrello");
 });
