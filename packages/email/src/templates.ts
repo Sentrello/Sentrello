@@ -18,6 +18,28 @@ const escapeHtml = (s: string) =>
   );
 
 /** Cents -> "$1,234.56". Money is never formatted with floats upstream. */
+/**
+ * A date a person reads, not one a machine writes.
+ *
+ * The invoice email said `Due 2026-10-25` while the invoice document it links
+ * to said `due 25 Oct 2026` — the same date, in the same envelope, twice, and
+ * the machine-written one is the copy that lands in the inbox.
+ *
+ * The month as a word on purpose. This product sells into the US, Canada, the
+ * UK and the EU, and `10/25` and `25/10` are the same four characters meaning
+ * two different days to those readers; `25 Oct 2026` is one day to all of
+ * them. The locale only picks the order, and either order is unambiguous once
+ * the month is spelled.
+ */
+function day(value: Date): string {
+  return value.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
 export function formatMoney(cents: number, currency = "USD"): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(
     cents / 100,
@@ -138,7 +160,7 @@ export function invoiceEmail(args: {
   sentrelloCredit?: boolean;
 }) {
   const due = args.dueDate
-    ? `<p>Due ${escapeHtml(args.dueDate.toISOString().slice(0, 10))}.</p>`
+    ? `<p>Due ${escapeHtml(day(args.dueDate))}.</p>`
     : "";
   // The link is the point of the email: an invoice a customer has to reply to
   // in order to pay is an invoice that waits.

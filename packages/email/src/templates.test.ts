@@ -234,3 +234,56 @@ test("an email opened on a phone is not zoomed out", () => {
   // And a line long enough to read to the end of on a desktop client.
   expect(html).toContain("max-width:37.5rem");
 });
+
+/**
+ * The same date, in the same envelope, twice.
+ *
+ * The invoice email said `Due 2026-10-25` while the invoice document it links
+ * to said `due 25 Oct 2026`. The machine-written one is the copy that lands
+ * in the inbox, and it was the only ISO date in any of these templates — an
+ * outlier rather than a convention, since the one beside it already formats.
+ */
+test("a customer is told a date they read, not one a machine wrote", () => {
+  const { html } = invoiceEmail({
+    number: "INV-0001",
+    totalCents: 1000,
+    currency: "GBP",
+    dueDate: new Date("2026-10-25T00:00:00Z"),
+  });
+  expect(html).toContain("Due 25 Oct 2026");
+  expect(html).not.toContain("2026-10-25");
+});
+
+/**
+ * The month as a word, because this product sells into the US, Canada, the UK
+ * and the EU — and `10/25` and `25/10` are the same four characters meaning
+ * two different days to those readers. A due date read a month out is an
+ * invoice paid a month late.
+ */
+test("the month is never a number a reader has to guess at", () => {
+  const { html } = invoiceEmail({
+    number: "INV-0001",
+    totalCents: 1000,
+    currency: "GBP",
+    dueDate: new Date("2026-03-04T00:00:00Z"),
+  });
+  expect(html).toContain("4 Mar 2026");
+  for (const ambiguous of ["03/04", "04/03", "3/4", "4/3"]) {
+    expect([ambiguous, html.includes(ambiguous)]).toEqual([ambiguous, false]);
+  }
+});
+
+/**
+ * Midnight UTC is how a calendar date is stored here, and formatting it west
+ * of UTC shows the day before — an invoice said to be due a day early, for
+ * every customer in the first market this ships to.
+ */
+test("a due date does not slip a day west of UTC", () => {
+  const { html } = invoiceEmail({
+    number: "INV-0001",
+    totalCents: 1000,
+    currency: "GBP",
+    dueDate: new Date("2026-10-25T00:00:00Z"),
+  });
+  expect(html).toContain("25 Oct 2026");
+});
