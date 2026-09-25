@@ -7,6 +7,7 @@ import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import {
   identifyPaymentEvent,
   paymentWebhookConsumers,
+  readCapped,
 } from "@sentrello/module-sdk";
 import { providerFrom } from "./payments";
 
@@ -69,6 +70,9 @@ export async function unclaimedPaymentEvents(
 }
 
 export function registerPaymentWebhookEndpoint(ctx: ModuleContext) {
+  /** The largest webhook any card processor sends, with room to spare. */
+  const MAX_WEBHOOK_BYTES = 256 * 1024;
+
   ctx.app.post("/api/payments/webhook/:provider", async (c: RouteContext) => {
     const name = c.req.param("provider") ?? "";
 
@@ -86,8 +90,23 @@ export function registerPaymentWebhookEndpoint(ctx: ModuleContext) {
     const account = await activePaymentAccount(orgId, name);
     if (!account) return c.json({ error: "not configured" }, 404);
 
+    /*
+     * Read to a cap, not read and then measured.
+     *
+     * This is a public endpoint — a processor sends no session and no origin
+     * — and the signature is over the raw body, so the body has to be in hand
+     * before anything about the caller can be believed. Buffering whatever
+     * arrives is therefore the one thing this route cannot avoid doing for a
+     * stranger, which is exactly why the amount has to be bounded.
+     *
+     * A card processor's webhook is a few kilobytes. 256 is room for the
+     * largest event any of them send and a long way short of trouble.
+     */
+    const raw = await readCapped(c.req.raw, MAX_WEBHOOK_BYTES);
+    if (raw === null) return c.json({ error: "too much to read" }, 413);
+
     const provider = providerFrom(account);
-    const raw = await c.req.text();
+
     if (!(await provider.verifyWebhook(raw, c.req.raw.headers))) {
       /*
        * Counted, because this is the failure nobody can see from either side.

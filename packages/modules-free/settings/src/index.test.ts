@@ -770,3 +770,45 @@ test("a blank field leaves the signing secret alone, and null clears it", async 
   });
   expect(await stored()).toBeNull();
 });
+
+/**
+ * A stranger's body, buffered before anybody can be believed.
+ *
+ * This endpoint is public — a card processor sends no session and no origin
+ * — and the signature is over the raw body, so the body has to be in hand
+ * before anything about the caller can be trusted. Buffering whatever
+ * arrives is the one thing this route cannot avoid doing for a stranger,
+ * which is exactly why the amount has to be bounded. It was not.
+ */
+test("a webhook body too large to be one is refused before it is read", async () => {
+  /*
+   * A business that takes cards, because the route answers 404 to an instance
+   * that does not — cheaply, before reading anything, which is right. Without
+   * this the test passes on that 404 and says nothing about the cap it is
+   * named after.
+   */
+  // Another test in this file connects one too, and the table is unique per
+  // business and provider.
+  await db
+    .delete(schema.paymentAccounts)
+    .where(eq(schema.paymentAccounts.organizationId, orgId));
+  await db.insert(schema.paymentAccounts).values({
+    organizationId: orgId,
+    provider: "stripe",
+    enabled: true,
+    mode: "test",
+    webhookSecret: "whsec_not_a_real_one",
+  });
+
+  try {
+    const res = await app.request(
+      "http://localhost/api/payments/webhook/stripe",
+      { method: "POST", body: "x".repeat(300 * 1024) },
+    );
+    expect(res.status).toBe(413);
+  } finally {
+    await db
+      .delete(schema.paymentAccounts)
+      .where(eq(schema.paymentAccounts.organizationId, orgId));
+  }
+});
