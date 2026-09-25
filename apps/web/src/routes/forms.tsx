@@ -123,7 +123,9 @@ export function Forms() {
 
       {rows.length === 0 ? (
         <Empty title="No forms yet">
-          <p className="mb-(--gap-stack) text-sm" style={muted}>
+          {/* Empty colours and sizes its own children, so this says what it
+              has to say and nothing about how it looks. */}
+          <p className="mb-(--gap-stack)">
             A form gives you one line to paste into any website. Submissions
             arrive as contacts, and the ones worth chasing become deals.
           </p>

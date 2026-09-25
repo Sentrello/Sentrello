@@ -791,10 +791,17 @@ export function Empty({
   return (
     <div className="rounded border p-8 text-center" style={border}>
       <p className="font-medium">{title}</p>
+      {/*
+        A div, not a paragraph. `children` is a ReactNode and callers pass
+        blocks — a paragraph of their own, a link, a button offering the thing
+        that is missing — and a <p> inside a <p> is invalid markup the browser
+        silently reshapes, which is how the Forms empty state came to have its
+        explanation sitting outside the box that was supposed to hold it.
+      */}
       {children ? (
-        <p className="mt-1 text-sm" style={muted}>
+        <div className="mt-1 text-sm" style={muted}>
           {children}
-        </p>
+        </div>
       ) : null}
     </div>
   );

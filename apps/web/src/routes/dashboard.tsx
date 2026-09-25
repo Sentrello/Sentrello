@@ -384,7 +384,7 @@ function Widget({
             <Stat
               label="Open"
               value={formatMoney(data.pipeline.openCents)}
-              hint={`${data.pipeline.openCount} deals`}
+              hint={`${data.pipeline.openCount} deal${data.pipeline.openCount === 1 ? "" : "s"}`}
             />
             <Stat label="Won" value={String(data.pipeline.wonCount)} />
             <Stat
@@ -992,7 +992,7 @@ function MoneyPanel({ data }: { data: Dashboard }) {
         <StatFigure
           label="Overdue"
           value={formatMoney(money.overdueCents)}
-          hint={`${money.overdueCount} past its date`}
+          hint={`${money.overdueCount} past ${money.overdueCount === 1 ? "its" : "their"} date`}
           // The only figure here worth colouring: it is money already earned
           // and not received, and it is the one somebody should act on today.
           tone={money.overdueCents > 0 ? "bad" : "plain"}
@@ -1002,14 +1002,17 @@ function MoneyPanel({ data }: { data: Dashboard }) {
         <StatFigure
           label="In the pipeline"
           value={formatMoney(pipeline.openCents)}
-          hint={`${pipeline.openCount} open deal${pipeline.openCount === 1 ? "" : "s"}`}
+          hint={`${pipeline.openCount} open, ${pipeline.wonCount} won`}
         />
       </Card>
       <Card>
         <StatFigure
           label="People in the book"
           value={String(book.contacts)}
-          hint={`${pipeline.wonCount} deal${pipeline.wonCount === 1 ? "" : "s"} won`}
+          // No hint. It carried the number of deals won, which is a fact
+          // about the pipeline and not about the people — read together they
+          // said "35 people, of whom 11 deals won", which is not a sentence.
+          // It has moved to the figure it describes.
         />
       </Card>
     </div>
@@ -1075,9 +1078,11 @@ function size(bytes: number): string {
 
 /** Uptime as a person would say it, not as seconds. */
 function since(seconds: number): string {
-  if (seconds < 3600) return `${Math.round(seconds / 60)} minutes`;
-  if (seconds < 86_400) return `${Math.round(seconds / 3600)} hours`;
-  return `${Math.round(seconds / 86_400)} days`;
+  // Which means "1 hour", not "1 hours" — the whole claim this function makes.
+  const say = (n: number, unit: string) => `${n} ${unit}${n === 1 ? "" : "s"}`;
+  if (seconds < 3600) return say(Math.round(seconds / 60), "minute");
+  if (seconds < 86_400) return say(Math.round(seconds / 3600), "hour");
+  return say(Math.round(seconds / 86_400), "day");
 }
 
 /**
