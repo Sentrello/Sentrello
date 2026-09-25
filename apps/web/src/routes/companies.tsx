@@ -95,7 +95,10 @@ export function Companies() {
         </Button>
       </PageActions>
 
-      <div className="flex gap-(--gap-stack)">
+      {/* Stacked on a phone, side by side above it: a filter rail beside a
+          list needs both to be wide enough to read, and 390px is not two
+          columns. `sm:` is the same breakpoint the rest of the kit uses. */}
+      <div className="flex flex-col gap-(--gap-stack) sm:flex-row">
         <FilterPanel state={state} placeholder="Search companies">
           <FilterGroup label="Size" icon="users">
             {COMPANY_SIZES.map((size) => (

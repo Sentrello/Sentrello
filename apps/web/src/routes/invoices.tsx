@@ -345,7 +345,7 @@ export function Invoices() {
 
         <ColumnsMenu state={columns} />
 
-        <div className="ml-auto flex items-center gap-(--gap-toolbar)">
+        <div className="ml-auto flex flex-wrap items-center gap-(--gap-toolbar)">
           <span className="text-sm" style={muted}>
             {formatMoney(data?.billedCents ?? 0)} across {data?.total ?? 0}
           </span>

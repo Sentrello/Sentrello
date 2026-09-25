@@ -510,6 +510,42 @@ function Sidebar({ nav }: { nav: NavEntry[] }) {
    * thing still on screen. Whichever is showing takes the focus, or a
    * keyboard user presses a control and lands on the document body.
    */
+  /**
+   * On a narrow screen the panel starts away.
+   *
+   * The rail is 68px and the panel about 240, so on a 390px phone the two of
+   * them took 308 and left the screen itself **82 pixels** — one word per
+   * line, and 33 of the 35 screens scrolling sideways because of it. Nothing
+   * had ever opened the product at phone width: every Playwright project is
+   * Desktop Chrome. With the panel away, 3 of the 35 overflow, and those are
+   * three layouts rather than one shell.
+   *
+   * The same attribute the button flips, so there is one mechanism and not
+   * two, and anybody can still open it — a phone drawer covering the screen
+   * is how a phone drawer works.
+   *
+   * Only on the way in and on a real change of width. Re-applying it on
+   * every resize event would shut the panel on somebody who had just opened
+   * it, which is a worse thing to do than never opening it for them.
+   */
+  useEffect(() => {
+    const narrow = window.matchMedia("(max-width: 899px)");
+    const apply = (matches: boolean) => {
+      const shell = document.querySelector("[data-shell]");
+      if (!shell) return;
+      shell.toggleAttribute("data-panel-hidden", matches);
+      for (const button of shell.querySelectorAll(
+        "[aria-controls='section-panel']",
+      )) {
+        button.setAttribute("aria-expanded", matches ? "false" : "true");
+      }
+    };
+    apply(narrow.matches);
+    const onChange = (e: MediaQueryListEvent) => apply(e.matches);
+    narrow.addEventListener("change", onChange);
+    return () => narrow.removeEventListener("change", onChange);
+  }, []);
+
   const togglePanel = (e: React.MouseEvent<HTMLButtonElement>) => {
     const shell = e.currentTarget.closest("[data-shell]");
     if (!shell) return;

@@ -469,7 +469,7 @@ export function Deals() {
           </button>
         ) : null}
 
-        <div className="ml-auto flex items-center gap-(--gap-toolbar)">
+        <div className="ml-auto flex flex-wrap items-center gap-(--gap-toolbar)">
           {/* The filters travel with it, so the file is the board somebody is
               looking at rather than the whole pipeline. */}
           <a

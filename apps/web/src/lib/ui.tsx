@@ -324,8 +324,18 @@ export function Field({
     // The control is always the child, so the association is implicit and
     // valid HTML. The rule cannot see through the component boundary to
     // confirm that, which is why it is disabled here and nowhere else.
+    /*
+     * `min-w-0` is what makes this fit on a phone.
+     *
+     * A `Field` is nearly always a flex item — the toolbars and filter rows
+     * it lives in are `flex flex-wrap` — and a flex item's `min-width` is
+     * `auto`, meaning "never narrower than my content". So a field whose
+     * label and input came to 288px stayed 288px in a 240px row and pushed
+     * the whole page sideways. That is the single reason the settings
+     * screens scrolled at 390px once the nav stopped taking the room.
+     */
     // biome-ignore lint/a11y/noLabelWithoutControl: the input is passed as children
-    <label className="block text-sm">
+    <label className="block min-w-0 text-sm">
       <span className="mb-1 block font-medium">{label}</span>
       {children}
       {hint ? (
@@ -347,7 +357,17 @@ export function Field({
  * across the whole toolbar. If the caller named a width, this stands aside.
  */
 function withWidth(className: string | undefined): string {
-  return /(^|\s)(w-|min-w-|max-w-)/.test(className ?? "") ? "" : "w-full";
+  /*
+   * `max-w-full` whatever the caller asked for.
+   *
+   * A bare `<input>` has an intrinsic width of about twenty characters, and
+   * a caller naming `w-28` or `w-64` is naming a width for a screen with room
+   * for it. On a 390px phone neither fits the column it is in, and a box that
+   * does not fit pushes the whole page sideways — which is what the settings
+   * screens were doing. A cap costs nothing anywhere it already fits.
+   */
+  const named = /(^|\s)(w-|min-w-|max-w-)/.test(className ?? "");
+  return named ? "max-w-full" : "w-full max-w-full";
 }
 
 export function Input({

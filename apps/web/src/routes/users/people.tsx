@@ -434,7 +434,7 @@ export function People() {
           {total} {total === 1 ? "person" : "people"}
         </span>
         {pages > 1 ? (
-          <span className="ml-auto flex items-center gap-(--gap-toolbar) text-sm">
+          <span className="ml-auto flex flex-wrap items-center gap-(--gap-toolbar) text-sm">
             <button
               type="button"
               className="link-muted"

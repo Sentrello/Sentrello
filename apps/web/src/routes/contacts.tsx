@@ -126,7 +126,10 @@ export function Contacts() {
         </Button>
       </PageActions>
 
-      <div className="flex gap-(--gap-stack)">
+      {/* Stacked on a phone, side by side above it: a filter rail beside a
+          list needs both to be wide enough to read, and 390px is not two
+          columns. `sm:` is the same breakpoint the rest of the kit uses. */}
+      <div className="flex flex-col gap-(--gap-stack) sm:flex-row">
         <FilterPanel state={state} placeholder="Search contacts">
           <FilterGroup label="Last seen" icon="clock">
             {ranges.map((range) => (
@@ -258,7 +261,7 @@ export function Contacts() {
               defaults={{ sort: "lastSeenAt", order: "desc" }}
             />
 
-            <div className="ml-auto flex items-center gap-(--gap-toolbar)">
+            <div className="ml-auto flex flex-wrap items-center gap-(--gap-toolbar)">
               <Button
                 variant="secondary"
                 onClick={() => setFindingDuplicates((v) => !v)}
@@ -589,7 +592,7 @@ function BulkActions({
         </span>
       ) : null}
 
-      <div className="ml-auto flex items-center gap-(--gap-toolbar)">
+      <div className="ml-auto flex flex-wrap items-center gap-(--gap-toolbar)">
         <Button variant="secondary" onClick={onClear}>
           Clear
         </Button>

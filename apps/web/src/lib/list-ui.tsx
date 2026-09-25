@@ -585,7 +585,12 @@ export function SortMenu({
     // A span, not a label: this wraps two controls — which column, and which
     // way round — and a label may only name one. Both carry their own
     // `aria-label` instead.
-    <span className="flex items-center gap-1.5 text-sm" style={muted}>
+    //
+    // `min-w-0`, so a rail of these wraps instead of pushing the page
+    // sideways: a flex item is "never narrower than my content" until it is
+    // told otherwise, and the sort control plus its label came to more than a
+    // phone is wide.
+    <span className="flex min-w-0 items-center gap-1.5 text-sm" style={muted}>
       Sort by
       <Select
         value={state.sort}
@@ -647,7 +652,7 @@ export function Pagination({
         {from}–{to} of {total}
       </span>
 
-      <span className="flex items-center gap-1.5" style={muted}>
+      <span className="flex min-w-0 items-center gap-1.5" style={muted}>
         Rows per page
         <Select
           value={String(state.perPage)}
@@ -663,7 +668,7 @@ export function Pagination({
         </Select>
       </span>
 
-      <div className="ml-auto flex items-center gap-2">
+      <div className="ml-auto flex flex-wrap items-center gap-2">
         <Button
           variant="secondary"
           onClick={() => state.setPage(state.page - 1)}
