@@ -67,11 +67,25 @@ export function ImageUpload({
   });
 
   const remove = useMutation({
-    mutationFn: () =>
-      fetch(`/api/crm/${subject}/${id}/image`, {
+    /*
+     * The status is read, not just the response.
+     *
+     * `isSuccess` is what hides the avatar and swaps "Change" back to "Add", so
+     * a DELETE that came back 500 used to take the picture off the screen and
+     * leave it on the record — the one state worse than a visible failure.
+     */
+    mutationFn: async () => {
+      const res = await fetch(`/api/crm/${subject}/${id}/image`, {
         method: "DELETE",
         credentials: "same-origin",
-      }),
+      });
+      if (!res.ok) {
+        const detail = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        throw new Error(detail.error ?? "that picture could not be removed");
+      }
+    },
     onSuccess: () => {
       setVersion((v) => v + 1);
       qc.invalidateQueries({ queryKey: [subject] });
@@ -127,9 +141,9 @@ export function ImageUpload({
           </button>
         ) : null}
       </div>
-      {upload.error ? (
+      {upload.error || remove.error ? (
         <div className="w-48">
-          <ErrorNote error={upload.error} />
+          <ErrorNote error={upload.error ?? remove.error} />
         </div>
       ) : null}
 
