@@ -7,6 +7,7 @@ import {
 import { db, schema } from "@sentrello/db";
 import {
   MAX_ATTACHMENT_BYTES,
+  attachmentHeaders,
   attachmentsDir,
   displayFilename,
   safeExtension,
@@ -132,13 +133,20 @@ export function registerAttachments(ctx: ModuleContext) {
       }
       const bytes = Buffer.from(await file.arrayBuffer());
 
-      return c.body(new Uint8Array(bytes), 200, {
-        // Never the uploaded content type. An .html or .svg served back as
-        // itself would run as this origin, with the signed-in user's session.
-        "content-type": "application/octet-stream",
-        "content-disposition": `attachment; filename="${attachment.name.replaceAll('"', "")}"`,
-        "x-content-type-options": "nosniff",
-      });
+      /*
+       * The SDK's headers, not a second set.
+       *
+       * This was a copy: the same neutral content type and nosniff, and a
+       * filename with only the quotes taken out. The shared one also strips
+       * control characters — a name carrying a line break makes a header the
+       * runtime refuses, so the attachment answers 500 for ever — and adds
+       * the `default-src 'none'` policy this one had never picked up.
+       */
+      return c.body(
+        new Uint8Array(bytes),
+        200,
+        attachmentHeaders(attachment.name),
+      );
     },
   );
 }

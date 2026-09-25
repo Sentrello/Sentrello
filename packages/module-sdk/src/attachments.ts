@@ -48,10 +48,23 @@ export function safeExtension(filename: string): string {
   return /^\.[a-z0-9]{1,8}$/.test(ext) ? ext : "";
 }
 
-/** Shown to people; never used as a path. */
+/**
+ * Shown to people; never used as a path.
+ *
+ * Control characters go, and a newline is the one that matters. This name is
+ * whatever the uploader's own file was called, and on the CRM's public form
+ * the uploader is anybody on the internet — so it ends up in a
+ * `Content-Disposition` header, and a header value carrying a line break is
+ * rejected outright by the runtime. Not an injection: Bun throws, which
+ * means the attachment answers 500 for ever and the person who needed to
+ * read the CV cannot. A file called `cv\r\n.pdf` was a small, permanent
+ * denial of exactly one record, planted by whoever uploaded it.
+ */
 export function displayFilename(filename: string): string {
   const base = filename.split(/[\\/]/).pop() ?? "file";
-  return base.slice(0, 120) || "file";
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: the point is to remove them
+  const clean = base.replace(/[\u0000-\u001f\u007f]+/g, " ").trim();
+  return clean.slice(0, 120) || "file";
 }
 
 export interface StoredAttachment {
@@ -120,7 +133,11 @@ export function attachmentHeaders(name: string): Record<string, string> {
     // Neutral, always: an uploaded .html served as text/html runs as this
     // origin, with the reader's session.
     "content-type": "application/octet-stream",
-    "content-disposition": `attachment; filename="${name.replace(/["\\]/g, "")}"`,
+    // `displayFilename` has already taken the control characters out of
+    // anything stored through this module; this is for a caller that hands
+    // over a name from somewhere else, because a header the runtime refuses
+    // is a download that answers 500 for ever.
+    "content-disposition": `attachment; filename="${displayFilename(name).replace(/["\\]/g, "")}"`,
     "content-security-policy": "default-src 'none'",
     "x-content-type-options": "nosniff",
   };

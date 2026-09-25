@@ -101,3 +101,37 @@ test("what comes back cannot execute against this origin", () => {
   );
   expect(headers["x-content-type-options"]).toBe("nosniff");
 });
+
+/**
+ * A filename from somebody who is not signed in.
+ *
+ * The CRM's form is embedded on a business's public website and takes files —
+ * a CV, a photograph of a job — so the name on one is whatever a stranger's
+ * computer called it. That name is shown to staff and put into a
+ * `Content-Disposition` header, and a header value carrying a line break is
+ * refused outright by the runtime: not an injection, a 500 on that one
+ * attachment for ever, planted by whoever uploaded it.
+ */
+test("a filename cannot carry a line break out of the upload", () => {
+  expect(displayFilename("cv\r\nX-Injected: 1.pdf")).toBe(
+    "cv X-Injected: 1.pdf",
+  );
+  expect(displayFilename("quote\u0000.pdf")).toBe("quote .pdf");
+});
+
+test("the header it produces is one the runtime will accept", () => {
+  const headers = attachmentHeaders('evil"\r\nX-Injected: 1.pdf');
+  // The proof, rather than a regex: this is the thing that used to throw.
+  expect(() => new Response("x", { headers })).not.toThrow();
+  expect(headers["content-disposition"]).not.toContain("\n");
+});
+
+/** And an ordinary name is still itself. */
+test("a name nobody was attacking is untouched", () => {
+  expect(displayFilename("Quote for the Hendersons.pdf")).toBe(
+    "Quote for the Hendersons.pdf",
+  );
+  expect(attachmentHeaders("Quote.pdf")["content-disposition"]).toBe(
+    'attachment; filename="Quote.pdf"',
+  );
+});
