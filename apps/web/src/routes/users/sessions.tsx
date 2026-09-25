@@ -5,6 +5,7 @@ import {
   Empty,
   ErrorNote,
   Loading,
+  MenuItem,
   Page,
   Row,
   Table,
@@ -122,14 +123,14 @@ export function Sessions() {
               <td className="text-right">
                 {/* Nothing asked first, unlike Sign everybody out above it:
                     one device signs in again and nothing is lost. */}
-                <button
-                  type="button"
-                  className="text-xs link-muted"
+                <MenuItem
+                  className="text-xs link-muted w-auto p-0"
+                  needs={{ settings: ["update"] }}
                   disabled={revokeOne.isPending}
                   onClick={() => revokeOne.mutate(s)}
                 >
                   Sign out
-                </button>
+                </MenuItem>
               </td>
             </Row>
           ))}

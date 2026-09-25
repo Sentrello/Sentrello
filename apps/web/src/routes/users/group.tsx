@@ -4,9 +4,11 @@ import { api } from "../../lib/api";
 import { useNavigation, useRecordTitle } from "../../lib/navigation";
 import {
   Card,
+  ConfirmButton,
   Empty,
   ErrorNote,
   Loading,
+  MenuItem,
   Page,
   SectionHeading,
   Tabs,
@@ -163,14 +165,17 @@ function Members({ group }: { group: GroupRow }) {
             {group.members.map((m) => (
               <li key={m.userId} className="flex items-center justify-between">
                 <span>{m.name || m.email}</span>
-                <button
-                  type="button"
-                  className="text-xs link-muted"
+                <ConfirmButton
+                  danger
+                  needs={{ settings: ["update"] }}
                   disabled={leave.isPending}
-                  onClick={() => leave.mutate(m.userId)}
+                  title={`Take ${m.name || m.email} out of ${group.name}?`}
+                  message="Everything this group grants goes with it. Anything they hold through their own policy, or through another group, stays."
+                  confirmLabel="Take them out"
+                  onConfirm={() => leave.mutate(m.userId)}
                 >
                   Remove
-                </button>
+                </ConfirmButton>
               </li>
             ))}
           </ul>
@@ -192,14 +197,16 @@ function Members({ group }: { group: GroupRow }) {
             {others.map((p) => (
               <li key={p.userId} className="flex items-center justify-between">
                 <span>{p.name || p.email}</span>
-                <button
-                  type="button"
-                  className="text-xs link-muted"
+                {/* Adding asks nothing: it grants, and the way back is the
+                    Remove beside their name once they are in. */}
+                <MenuItem
+                  className="text-xs link-muted w-auto p-0"
+                  needs={{ settings: ["update"] }}
                   disabled={join.isPending}
                   onClick={() => join.mutate(p.userId)}
                 >
                   Add
-                </button>
+                </MenuItem>
               </li>
             ))}
           </ul>

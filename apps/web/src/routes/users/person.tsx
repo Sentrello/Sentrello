@@ -9,6 +9,7 @@ import {
   Empty,
   ErrorNote,
   Loading,
+  MenuItem,
   Page,
   Row,
   SectionHeading,
@@ -534,14 +535,17 @@ function PersonGroups({
             {mine.map((g) => (
               <li key={g.id} className="flex items-center justify-between">
                 <span>{g.name}</span>
-                <button
-                  type="button"
-                  className="text-xs link-muted"
+                <ConfirmButton
+                  danger
+                  needs={{ settings: ["update"] }}
                   disabled={leave.isPending}
-                  onClick={() => leave.mutate(g.id)}
+                  title={`Take ${person.name || person.email} out of ${g.name}?`}
+                  message="Everything that group grants goes with it. Anything they hold through their own policy, or through another group, stays."
+                  confirmLabel="Take them out"
+                  onConfirm={() => leave.mutate(g.id)}
                 >
                   Leave
-                </button>
+                </ConfirmButton>
               </li>
             ))}
           </ul>
@@ -555,14 +559,16 @@ function PersonGroups({
             {others.map((g) => (
               <li key={g.id} className="flex items-center justify-between">
                 <span>{g.name}</span>
-                <button
-                  type="button"
-                  className="text-xs link-muted"
+                {/* Adding asks nothing: it grants, and Leave is beside the
+                    group's name once they are in. */}
+                <MenuItem
+                  className="text-xs link-muted w-auto p-0"
+                  needs={{ settings: ["update"] }}
                   disabled={join.isPending}
                   onClick={() => join.mutate(g.id)}
                 >
                   Join
-                </button>
+                </MenuItem>
               </li>
             ))}
           </ul>
@@ -640,15 +646,17 @@ function Sessions({ userId }: { userId: string }) {
             <td style={muted}>{formatDate(s.updatedAt)}</td>
             <td className="text-right">
               {/* Nothing asked first, unlike Sign out everywhere above it:
-                  one device signs in again and nothing is lost. */}
-              <button
-                type="button"
-                className="text-xs link-muted"
+                  one device signs in again and nothing is lost. Gated all the
+                  same — signing somebody else's device out is an
+                  administrator's act. */}
+              <MenuItem
+                className="text-xs link-muted w-auto p-0"
+                needs={{ settings: ["update"] }}
                 disabled={revokeOne.isPending}
                 onClick={() => revokeOne.mutate(s.id)}
               >
                 Sign out
-              </button>
+              </MenuItem>
             </td>
           </Row>
         ))}
