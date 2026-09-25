@@ -380,10 +380,30 @@ export function SecretInput(
   );
 }
 
-export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
+export function Select({
+  needs,
+  ...props
+}: React.SelectHTMLAttributes<HTMLSelectElement> & {
+  /**
+   * The permission the route behind this asks for, when choosing from it is
+   * the action rather than a step towards one.
+   *
+   * A dropdown whose `onChange` fires a mutation is a control like any other,
+   * and thirteen of them across the product were the one shape the gating
+   * sweep could not touch — a status picker on a row, a policy picker beside
+   * somebody's name. Choose an option, meet a 403.
+   *
+   * Not for a dropdown that only narrows a list or fills in a form. Those are
+   * reads, and disabling a filter because somebody cannot write is nonsense.
+   */
+  needs?: Needs;
+}) {
+  const blocked = blockedBy(needs);
   return (
     <select
       {...props}
+      disabled={props.disabled || blocked !== undefined}
+      title={blocked ?? props.title}
       className={`${withWidth(props.className)} rounded border px-2 py-1.5 text-sm ${props.className ?? ""}`}
       style={{ ...raised, ...props.style }}
     />

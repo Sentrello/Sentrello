@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import type React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { type Meta, may, setGrants } from "./api";
-import { Button, MenuItem } from "./ui";
+import { Button, MenuItem, Select } from "./ui";
 
 /**
  * What a screen is told about what this person may do.
@@ -133,5 +133,33 @@ test("a menu item keeps its own class names", () => {
     </MenuItem>,
   );
   expect(html).toContain("menu-item extra");
+  expect(html).not.toContain('disabled=""');
+});
+
+/**
+ * A dropdown whose `onChange` fires a mutation is a control like any other —
+ * a status picker on a row, a policy picker beside somebody's name. Six of
+ * them across the product were the one shape the gating sweep could not
+ * touch: choose an option, meet a 403.
+ */
+test("a select whose permission is missing is disabled and says why", () => {
+  const html = draw(
+    { crm: ["read"] },
+    <Select needs={{ crm: ["update"] }}>
+      <option>Open</option>
+    </Select>,
+  );
+  expect(html).toContain('disabled=""');
+  expect(html).toContain("Your role does not allow this.");
+});
+
+/** A filter above a list is a read, and disabling one would be nonsense. */
+test("a select with no needs is never disabled by permissions", () => {
+  const html = draw(
+    { crm: [] },
+    <Select>
+      <option>All</option>
+    </Select>,
+  );
   expect(html).not.toContain('disabled=""');
 });

@@ -61,7 +61,16 @@ export interface SentrelloUi {
       ref?: React.Ref<HTMLTextAreaElement>;
     }
   >;
-  Select: React.ComponentType<React.SelectHTMLAttributes<HTMLSelectElement>>;
+  Select: React.ComponentType<
+    React.SelectHTMLAttributes<HTMLSelectElement> & {
+      /**
+       * The permission the route behind this asks for, when choosing from it
+       * is the action rather than a step towards one — a status picker on a
+       * row, not a filter above a list.
+       */
+      needs?: Record<string, string[]>;
+    }
+  >;
   Dialog: React.ComponentType<{
     title: string;
     open: boolean;

@@ -421,6 +421,7 @@ export function DealDetail() {
               Stage
             </span>
             <Select
+              needs={{ crm: ["update"] }}
               value={deal.stage}
               aria-label="Stage"
               onChange={(e) => move.mutate(e.target.value)}
