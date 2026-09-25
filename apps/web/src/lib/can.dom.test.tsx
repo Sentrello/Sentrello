@@ -186,7 +186,10 @@ test("a menu item keeps its own class names", () => {
       Delete
     </MenuItem>,
   );
-  expect(html).toContain("menu-item extra");
+  // `menu-item-inline`, because there is no `RowMenu` around this one: the
+  // menu-line shape is full width on its own line, which is right in a menu
+  // and wrong in the table cell where most of these now live.
+  expect(html).toContain("menu-item-inline extra");
   expect(html).not.toContain('disabled=""');
 });
 

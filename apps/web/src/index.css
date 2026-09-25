@@ -769,3 +769,23 @@ input[type="week"]:focus-within {
   outline: 2px solid var(--brand-on-white-text);
   outline-offset: 2px;
 }
+
+/*
+ * A row-menu line used outside a row menu.
+ *
+ * Eighty-eight of them, because `MenuItem` is the only primitive that takes
+ * a permission without drawing a full button — so it became the shape of
+ * every small inline action. `.menu-item` above is a menu line: full width,
+ * its own line, left-aligned. In a table's last cell, which is right-aligned
+ * and often holds two actions, all three of those are wrong.
+ *
+ * The minimum that makes it an inline action again, plus the 24px target
+ * WCAG 2.2 asks for — which the menu line had from its padding and a bare
+ * `<button className="text-xs">` never did.
+ */
+.menu-item-inline {
+  display: inline-block;
+  min-height: 24px;
+  padding: 0.25rem 0;
+  line-height: 1.5;
+}

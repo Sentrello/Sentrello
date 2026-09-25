@@ -8,7 +8,7 @@ GlobalRegistrator.register({ url: "http://localhost/" });
 import { afterAll, afterEach, expect, test } from "bun:test";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { Row, RowMenu, Table } from "./ui";
+import { MenuItem, Row, RowMenu, Table } from "./ui";
 
 afterAll(() => GlobalRegistrator.unregister());
 
@@ -122,6 +122,32 @@ test("the panel does not claim a keyboard model it has not got", () => {
  * was to tab through the rest of the screen. Escape and returning focus to
  * the trigger were here already; this is the other half of them.
  */
+/**
+ * The same component, two shapes, decided by whether a menu is around it.
+ *
+ * `MenuItem` became the shape of every small inline action, because it is the
+ * only primitive that takes a permission without drawing a full button — and
+ * `.menu-item` is a menu line: full width, its own line, left-aligned. In a
+ * table's right-aligned last cell holding two actions, all three are wrong.
+ */
+test("a menu item is a menu line inside a menu and an inline action outside one", () => {
+  openMenu();
+  const inside = document.querySelector(".menu-panel .menu-item");
+  expect(inside).not.toBeNull();
+  expect(inside?.className).not.toContain("menu-item-inline");
+
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  mounted.push(root);
+  act(() => {
+    root.render(<MenuItem>Retire</MenuItem>);
+  });
+  const outside = host.querySelector("button");
+  expect(outside?.className).toContain("menu-item-inline");
+  expect(outside?.className.split(/\s+/)).not.toContain("menu-item");
+});
+
 test("opening it moves focus into the panel", () => {
   openMenu();
   const item = document.querySelector<HTMLButtonElement>(".menu-item");

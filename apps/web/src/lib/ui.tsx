@@ -8,7 +8,9 @@
  */
 import {
   type ReactNode,
+  createContext,
   useCallback,
+  useContext,
   useEffect,
   useId,
   useLayoutEffect,
@@ -193,6 +195,16 @@ export function formatDate(value: string | Date | null | undefined): string {
  * route's own line is far likelier to get it right than one translating it.
  */
 export type Needs = Record<string, string[]>;
+
+/**
+ * Whether there is a row menu around this control.
+ *
+ * `MenuItem` is drawn as a menu line inside one and as a small inline action
+ * outside one, and the two are different enough that guessing is not an
+ * option — full width and left-aligned in a right-aligned cell is the sort
+ * of wrong that nobody files and everybody notices.
+ */
+const InsideRowMenu = createContext(false);
 
 /**
  * Disabled, with the reason on it, when the policy does not allow it.
@@ -1208,6 +1220,22 @@ export {
  * Disabled with the reason on hover, the same as `Button`, rather than
  * removed from the menu. A menu that is a different length for different
  * people is a menu nobody can be told how to use.
+ *
+ * ## Two shapes, decided here rather than at the call site
+ *
+ * It is also the only primitive a small inline action can be, because it is
+ * the only one that takes `needs` and does not draw a full button — so
+ * eighty-eight of these now sit in a table cell rather than in a menu, and
+ * `.menu-item` is `display: block; width: 100%; text-align: left`. A row's
+ * last cell is right-aligned and often holds two of them; as a menu line
+ * each one takes the full width and its own line, and left-aligns itself in
+ * a cell that asked for the opposite.
+ *
+ * So the shape is read from whether there is a menu around it. `RowMenu`
+ * says so, nothing else does, and no call site has to know: the alternative
+ * was a prop on eighty-eight of them across three repositories, which is
+ * eighty-eight chances to forget. The inline form also keeps a 24px target,
+ * which the menu line got from its padding and a bare button never had.
  */
 export function MenuItem({
   children,
@@ -1216,6 +1244,7 @@ export function MenuItem({
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & { needs?: Needs }) {
   const blocked = blockedBy(needs);
   const reason = useBlockedReason(blocked);
+  const inMenu = useContext(InsideRowMenu);
   return (
     <>
       <button
@@ -1224,7 +1253,7 @@ export function MenuItem({
         {...reason.describedBy}
         disabled={rest.disabled || blocked !== undefined}
         title={blocked ?? rest.title}
-        className={`menu-item ${rest.className ?? ""}`}
+        className={`${inMenu ? "menu-item" : "menu-item-inline"} ${rest.className ?? ""}`}
       >
         {children}
       </button>
@@ -1378,7 +1407,9 @@ export function RowMenu({
                 zIndex: 60,
               }}
             >
-              {children(close)}
+              <InsideRowMenu.Provider value={true}>
+                {children(close)}
+              </InsideRowMenu.Provider>
             </div>,
             document.body,
           )
