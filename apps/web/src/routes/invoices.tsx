@@ -375,6 +375,11 @@ export function Invoices() {
             </>
           ) : null}
           {merge.error ? <ErrorNote error={merge.error} /> : null}
+          {/* The loop stops at the first refusal, so some of the ticked rows
+              may already be gone. Saying so is the difference between reading
+              the shorter list as the delete having worked and knowing to
+              look. */}
+          {removeMany.error ? <ErrorNote error={removeMany.error} /> : null}
           {/* A plain link, not a fetch: the browser downloads it with the
               filename the server sends, and the session cookie goes along.
               The same query the table is showing, so what is exported is what
@@ -664,6 +669,7 @@ function InvoiceActions({
         )}
       </RowMenu>
       {act.error ? <ErrorNote error={act.error} /> : null}
+      {share.error ? <ErrorNote error={share.error} /> : null}
     </>
   );
 }

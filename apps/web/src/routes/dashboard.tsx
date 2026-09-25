@@ -1282,6 +1282,7 @@ function SettingUp() {
         Nothing here is required. It is what the parts you have work best with.
         Hide it any time — Settings can bring it back where you left off.
       </p>
+      {hide.error ? <ErrorNote error={hide.error} /> : null}
 
       <div className="mt-3 flex flex-col gap-(--gap-stack)">
         {guides.map((guide) => (

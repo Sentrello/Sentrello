@@ -314,6 +314,7 @@ export function Archive() {
             Archives you write are listed here, with their checksums.
           </Empty>
         )}
+        {forget.error ? <ErrorNote error={forget.error} /> : null}
       </Card>
 
       <Restore />
@@ -516,6 +517,8 @@ function Where() {
           {tested.detail}
         </p>
       ) : null}
+      {/* A test that never reached the destination is not a failed test. */}
+      {test.error ? <ErrorNote error={test.error} /> : null}
       {save.error ? <ErrorNote error={save.error} /> : null}
     </Card>
   );

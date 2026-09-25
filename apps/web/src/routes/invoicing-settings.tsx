@@ -313,6 +313,7 @@ function TaxRates({
       </Toolbar>
       {add.error ? <ErrorNote error={add.error} /> : null}
       {change.error ? <ErrorNote error={change.error} /> : null}
+      {retire.error ? <ErrorNote error={retire.error} /> : null}
     </Card>
   );
 }
@@ -536,6 +537,8 @@ function Catalogue({
         </Field>
       </div>
       {add.error ? <ErrorNote error={add.error} /> : null}
+      {retire.error ? <ErrorNote error={retire.error} /> : null}
+      {restore.error ? <ErrorNote error={restore.error} /> : null}
     </Card>
   );
 }
@@ -755,6 +758,8 @@ function BillingRules() {
           </Button>
         </div>
         {addRule.error ? <ErrorNote error={addRule.error} /> : null}
+        {toggleRule.error ? <ErrorNote error={toggleRule.error} /> : null}
+        {removeRule.error ? <ErrorNote error={removeRule.error} /> : null}
       </Card>
 
       <Card>

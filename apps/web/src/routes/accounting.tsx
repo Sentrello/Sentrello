@@ -611,21 +611,25 @@ export function Receipt({
         >
           remove
         </button>
+        {detach.error ? <ErrorNote error={detach.error} /> : null}
       </span>
     );
   }
   return (
-    <label className="link-muted cursor-pointer text-xs">
-      {upload.isPending ? "Attaching…" : "Attach"}
-      <input
-        type="file"
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) upload.mutate(file);
-        }}
-      />
-    </label>
+    <span className="flex items-center gap-(--gap-toolbar)">
+      <label className="link-muted cursor-pointer text-xs">
+        {upload.isPending ? "Attaching…" : "Attach"}
+        <input
+          type="file"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) upload.mutate(file);
+          }}
+        />
+      </label>
+      {upload.error ? <ErrorNote error={upload.error} /> : null}
+    </span>
   );
 }
 
@@ -1272,6 +1276,7 @@ export function Accounts() {
           are used. The standard chart adds the ones a small business usually
           wants, and never adds one twice.
         </p>
+        {standard.error ? <ErrorNote error={standard.error} /> : null}
       </Card>
 
       <Toolbar>

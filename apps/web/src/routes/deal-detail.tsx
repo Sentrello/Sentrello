@@ -266,6 +266,7 @@ function EditDeal({
         </button>
       </div>
       {save.error ? <ErrorNote error={save.error} /> : null}
+      {remove.error ? <ErrorNote error={remove.error} /> : null}
     </Card>
   );
 }

@@ -3,7 +3,7 @@ import { useState } from "react";
 import { api } from "./api";
 import { Icon } from "./icons";
 import type { ListState } from "./list-ui";
-import { Button, ConfirmButton, Input, Select, muted } from "./ui";
+import { Button, ConfirmButton, ErrorNote, Input, Select, muted } from "./ui";
 
 /**
  * The list's state, named and kept.
@@ -170,6 +170,9 @@ export function SavedViews({
           >
             Delete
           </ConfirmButton>
+          {update.error || remove.error ? (
+            <ErrorNote error={update.error ?? remove.error} />
+          ) : null}
         </>
       ) : null}
       {naming ? (
@@ -194,6 +197,7 @@ export function SavedViews({
           <Button variant="secondary" onClick={() => setNaming(false)}>
             Cancel
           </Button>
+          {create.error ? <ErrorNote error={create.error} /> : null}
         </form>
       ) : (
         <button

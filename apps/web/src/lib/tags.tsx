@@ -175,7 +175,9 @@ export function TagChips({
           </Button>
         </div>
       ) : null}
-      {create.error ? <ErrorNote error={create.error} /> : null}
+      {create.error || attach.error || detach.error ? (
+        <ErrorNote error={create.error ?? attach.error ?? detach.error} />
+      ) : null}
     </div>
   );
 }

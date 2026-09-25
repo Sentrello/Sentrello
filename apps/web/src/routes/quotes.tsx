@@ -754,6 +754,12 @@ function QuoteActions({
       </RowMenu>
       {convert.error ? <ErrorNote error={convert.error} /> : null}
       {send.error ? <ErrorNote error={send.error} /> : null}
+      {/* Every one of these closes the menu on the way, so a refusal has
+          nowhere else left to appear. */}
+      {share.error ? <ErrorNote error={share.error} /> : null}
+      {unshare.error ? <ErrorNote error={unshare.error} /> : null}
+      {restore.error ? <ErrorNote error={restore.error} /> : null}
+      {remove.error ? <ErrorNote error={remove.error} /> : null}
     </>
   );
 }

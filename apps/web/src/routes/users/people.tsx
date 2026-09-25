@@ -582,6 +582,23 @@ export function People() {
         ))}
       </Table>
 
+      {/*
+        Under the table, not under the page, and one line each.
+
+        These were a map over an array of the five mutations, sitting below the
+        audit log: on a screen listing five hundred people that puts a refused
+        password reset a long scroll from the button that asked for it, and the
+        array hid every one of them from the guard that looks for a mutation
+        nobody reports.
+      */}
+      {setRole.error ? <ErrorNote error={setRole.error} /> : null}
+      {remove.error ? <ErrorNote error={remove.error} /> : null}
+      {resetPassword.error ? <ErrorNote error={resetPassword.error} /> : null}
+      {revokeTwoFactor.error ? (
+        <ErrorNote error={revokeTwoFactor.error} />
+      ) : null}
+      {signOut.error ? <ErrorNote error={signOut.error} /> : null}
+
       {(data.data?.history ?? []).length > 0 ? (
         <Card>
           <SectionHeading>Recent changes</SectionHeading>
@@ -615,10 +632,6 @@ export function People() {
           </ul>
         </Card>
       ) : null}
-
-      {[setRole, remove, resetPassword, revokeTwoFactor, signOut].map((m, i) =>
-        m.error ? <ErrorNote key={String(i)} error={m.error} /> : null,
-      )}
     </Page>
   );
 }

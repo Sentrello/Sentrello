@@ -1086,6 +1086,8 @@ function Connection({
         an error that was being thrown and discarded.
       */}
       {connect.error ? <ErrorNote error={connect.error} /> : null}
+      {disable.error ? <ErrorNote error={disable.error} /> : null}
+      {forget.error ? <ErrorNote error={forget.error} /> : null}
 
       {/* Where the processor sends its events. Nothing is confirmed without
           it, so it is on the screen rather than in a document somewhere. */}

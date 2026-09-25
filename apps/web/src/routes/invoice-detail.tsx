@@ -254,6 +254,7 @@ export function InvoiceDetail() {
                   </button>
                 </p>
               ) : null}
+              {portalLink.error ? <ErrorNote error={portalLink.error} /> : null}
               {/* Labels, on the document rather than only on the customer: a
                   business chases "disputed" and "with the accountant", and
                   those are true of one invoice, not of everything they buy. */}

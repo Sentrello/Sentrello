@@ -137,6 +137,7 @@ export function Providers() {
             ))}
           </ul>
         ) : null}
+        {disconnect.error ? <ErrorNote error={disconnect.error} /> : null}
         <p className="text-xs" style={muted}>
           Disconnecting stops sign-ins from that domain. Everybody who arrived
           through it keeps their account and their roles.

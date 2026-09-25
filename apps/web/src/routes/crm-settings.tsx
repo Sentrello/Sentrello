@@ -587,6 +587,7 @@ export function CrmSettings() {
           </Toolbar>
         </Field>
         {addTag.error ? <ErrorNote error={addTag.error} /> : null}
+        {recolour.error ? <ErrorNote error={recolour.error} /> : null}
         {removeTag.error ? <ErrorNote error={removeTag.error} /> : null}
       </Card>
 
@@ -793,6 +794,7 @@ function Webhooks() {
         </Button>
         {create.error ? <ErrorNote error={create.error} /> : null}
       </form>
+      {remove.error ? <ErrorNote error={remove.error} /> : null}
     </Card>
   );
 }

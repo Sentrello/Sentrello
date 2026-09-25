@@ -1,6 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
-import { Card, ConfirmButton, Empty, Loading, border, muted } from "../lib/ui";
+import {
+  Card,
+  ConfirmButton,
+  Empty,
+  ErrorNote,
+  Loading,
+  border,
+  muted,
+} from "../lib/ui";
 
 /**
  * Likely duplicates, proposed — never merged on their own.
@@ -125,6 +133,13 @@ export function ContactDuplicates({ onChanged }: { onChanged: () => void }) {
           </li>
         ))}
       </ul>
+      {/*
+        A merge that failed is the one nobody can see going wrong: the pair
+        stays on the list either way, so without this the button reads as a
+        click that did not register and gets pressed again.
+      */}
+      {merge.error ? <ErrorNote error={merge.error} /> : null}
+      {dismiss.error ? <ErrorNote error={dismiss.error} /> : null}
     </Card>
   );
 }
