@@ -149,6 +149,32 @@ export function fieldName(label: string, taken: string[]): string {
   return `${base}_${Date.now()}`;
 }
 
+/**
+ * One field moved by `by` places, order being the only thing that says what a
+ * visitor reads first.
+ *
+ * Its own exported function because the version inside the component could not
+ * be tested — and the reordering it does is the same for every field type,
+ * which is worth being able to prove rather than assert. A Choice carries its
+ * answers and their panels on the field object itself, so it travels whole.
+ *
+ * Out of bounds returns the same array, not a copy: the caller is a state
+ * setter, and handing back an identical-but-new array re-renders the list for
+ * nothing.
+ */
+export function moved(
+  rows: FormField[],
+  index: number,
+  by: number,
+): FormField[] {
+  const target = index + by;
+  if (target < 0 || target >= rows.length) return rows;
+  const next = [...rows];
+  const [item] = next.splice(index, 1);
+  if (item) next.splice(target, 0, item);
+  return next;
+}
+
 export function FormBuilder({
   formId,
   fields,
@@ -195,16 +221,8 @@ export function FormBuilder({
     setType("text");
   };
 
-  const move = (index: number, by: number) => {
-    setRows((r) => {
-      const next = [...r];
-      const target = index + by;
-      if (target < 0 || target >= next.length) return r;
-      const [item] = next.splice(index, 1);
-      if (item) next.splice(target, 0, item);
-      return next;
-    });
-  };
+  const move = (index: number, by: number) =>
+    setRows((r) => moved(r, index, by));
 
   const save = useMutation({
     mutationFn: () =>
@@ -392,11 +410,20 @@ export function FormBuilder({
               </label>
               {/* Order is what somebody reads the form in, so it has to be
                   changeable without deleting and re-adding. */}
+              {/* Disabled at the ends, like every other reorder in the app.
+                  
+                  They were live everywhere, so the first field's ↑ was a
+                  button you could hover, click, and get nothing from — no
+                  movement, no message, no reason. On a Choice that reads as
+                  the field being stuck, because a Choice row is tall enough
+                  that its buttons wrap to the bottom of a block and there is
+                  nothing else on screen to tell you the click landed. */}
               <button
                 type="button"
                 aria-label={`Move ${f.label} up`}
                 className="px-1 text-xs"
                 style={muted}
+                disabled={i === 0}
                 onClick={() => move(i, -1)}
               >
                 ↑
@@ -406,6 +433,7 @@ export function FormBuilder({
                 aria-label={`Move ${f.label} down`}
                 className="px-1 text-xs"
                 style={muted}
+                disabled={i === rows.length - 1}
                 onClick={() => move(i, 1)}
               >
                 ↓
