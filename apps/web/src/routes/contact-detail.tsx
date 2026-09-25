@@ -422,16 +422,29 @@ export function ContactDetail() {
         <div className="flex flex-col gap-(--gap-stack)">
           <Card>
             <div className="flex flex-wrap items-baseline justify-between gap-(--gap-toolbar)">
-              <div className="flex items-center gap-(--gap-toolbar)">
+              {/* `min-w-0` down the chain, because a flex item is never
+                  narrower than its content until it is told otherwise — and
+                  a contact's name is whatever the business typed. One with
+                  no spaces in it made this row 947px wide in a 390px phone. */}
+              <div className="flex min-w-0 items-center gap-(--gap-toolbar)">
                 <ImageUpload
                   subject="contacts"
                   id={contact.id}
                   name={contact.name}
                   hasImage={Boolean(contact.avatarPath)}
                 />
-                <div>
-                  <p className="flex items-center gap-(--gap-toolbar) text-lg font-semibold">
-                    {contact.name}
+                <div className="min-w-0">
+                  <p className="flex min-w-0 flex-wrap items-center gap-(--gap-toolbar) text-lg font-semibold">
+                    {/*
+                      A span, not a bare text node. Text sitting directly in a
+                      flex container becomes an *anonymous* flex item, and an
+                      anonymous item cannot be given `min-width: 0` — it sizes
+                      to its longest word and nothing can talk it down. A
+                      company called Llanfairpwllgwyngyll… made this page 702px
+                      wide in a 390px phone, and every `min-w-0` above it was
+                      doing its job perfectly.
+                    */}
+                    <span className="min-w-0">{contact.name}</span>
                     {/* How warm the relationship is, where the name is — it is
                       the first thing somebody wants to know on opening a
                       contact, and it was only visible in the list. */}
@@ -444,7 +457,7 @@ export function ContactDetail() {
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-(--gap-toolbar)">
+              <div className="flex flex-wrap items-center gap-(--gap-toolbar)">
                 <Tags contactId={contact.id} attached={tags} />
                 <button
                   type="button"
