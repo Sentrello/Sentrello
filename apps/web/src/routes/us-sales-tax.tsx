@@ -413,6 +413,7 @@ function CertificatesCard() {
                     message={`${cert.number} stops exempting anything from now on, and ${cert.companyName ?? "that customer"} will be charged tax on their next invoice. Past invoices keep the reference. It cannot be un-revoked.`}
                     confirmLabel="Revoke it"
                     danger
+                    needs={{ invoicing: ["update"] }}
                     onConfirm={() => revoke.mutate(cert.id)}
                   >
                     Revoke
@@ -489,6 +490,7 @@ function CertificatesCard() {
           />
         </Field>
         <Button
+          needs={{ invoicing: ["update"] }}
           onClick={() => add.mutate()}
           disabled={
             add.isPending || !companyId || !number.trim() || !state.trim()

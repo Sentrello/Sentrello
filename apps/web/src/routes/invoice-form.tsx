@@ -947,6 +947,7 @@ export function InvoiceForm({
             labels for the same thing. */}
         {documentId ? (
           <Button
+            needs={{ invoicing: ["update"] }}
             onClick={() => save.mutate("draft")}
             disabled={save.isPending || !usable}
           >
@@ -955,6 +956,7 @@ export function InvoiceForm({
         ) : (
           <>
             <Button
+              needs={{ invoicing: ["create"] }}
               onClick={() => save.mutate("draft")}
               disabled={save.isPending || !usable}
               variant="secondary"
@@ -962,6 +964,7 @@ export function InvoiceForm({
               {save.isPending ? "Saving…" : "Save as a draft"}
             </Button>
             <Button
+              needs={{ invoicing: ["create"] }}
               onClick={() => save.mutate("open")}
               disabled={save.isPending || !usable}
             >

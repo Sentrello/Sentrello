@@ -546,6 +546,7 @@ function InstalmentPlanner({
         </span>
         <Button
           className="ml-auto"
+          needs={{ invoicing: ["create"] }}
           onClick={() => split.mutate()}
           disabled={!balanced || split.isPending}
         >

@@ -423,6 +423,7 @@ export function InvoiceDetail() {
           <div className="flex flex-wrap gap-2">
             {isDraft ? (
               <Button
+                needs={{ invoicing: ["update"] }}
                 onClick={() => act.mutate("issue")}
                 disabled={act.isPending}
               >
@@ -431,6 +432,7 @@ export function InvoiceDetail() {
             ) : null}
             <Button
               variant="secondary"
+              needs={{ invoicing: ["send"] }}
               onClick={() => share.mutate()}
               disabled={share.isPending}
             >
@@ -446,6 +448,7 @@ export function InvoiceDetail() {
             {invoice.published ? (
               <Button
                 variant="secondary"
+                needs={{ invoicing: ["send"] }}
                 onClick={() => act.mutate("unshare")}
                 disabled={act.isPending}
               >
@@ -454,6 +457,7 @@ export function InvoiceDetail() {
             ) : null}
             <Button
               variant="secondary"
+              needs={{ invoicing: ["create"] }}
               onClick={() => act.mutate("duplicate")}
               disabled={act.isPending}
             >
@@ -462,6 +466,7 @@ export function InvoiceDetail() {
             {!isVoid && data.paidCents === 0 && data.creditedCents === 0 ? (
               <Button
                 variant="danger"
+                needs={{ invoicing: ["update"] }}
                 onClick={() => act.mutate("void")}
                 disabled={act.isPending}
               >
@@ -471,6 +476,7 @@ export function InvoiceDetail() {
             {data.paidCents > 0 && !isCredit ? (
               <Button
                 variant="secondary"
+                needs={{ invoicing: ["create"] }}
                 onClick={() => act.mutate("credit")}
                 disabled={act.isPending}
               >
@@ -713,6 +719,7 @@ function Payments({
           </span>
           <Button
             variant="secondary"
+            needs={{ invoicing: ["update"] }}
             onClick={() => applyCredit.mutate()}
             disabled={applyCredit.isPending}
           >
@@ -805,6 +812,7 @@ function Payments({
 
           <div className="flex items-center gap-2">
             <Button
+              needs={{ invoicing: ["update"] }}
               onClick={() => record.mutate()}
               disabled={record.isPending || !amount.trim()}
             >

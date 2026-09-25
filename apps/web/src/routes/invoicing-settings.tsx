@@ -306,6 +306,7 @@ function TaxRates({
           />
         </Field>
         <Button
+          needs={{ invoicing: ["update"] }}
           onClick={() => add.mutate()}
           disabled={add.isPending || !name.trim()}
         >
@@ -519,6 +520,7 @@ function Catalogue({
           </Select>
         </Field>
         <Button
+          needs={{ invoicing: ["update"] }}
           onClick={() => add.mutate()}
           disabled={add.isPending || !name.trim()}
         >
@@ -700,6 +702,7 @@ function BillingRules() {
                     confirmLabel="Remove it"
                     danger
                     className="text-sm link-muted"
+                    needs={{ invoicing: ["update"] }}
                     onConfirm={() => removeRule.mutate(rule.id)}
                   >
                     Remove
@@ -755,6 +758,7 @@ function BillingRules() {
             }
           </p>
           <Button
+            needs={{ invoicing: ["update"] }}
             onClick={() => addRule.mutate()}
             disabled={addRule.isPending || !name.trim()}
           >
@@ -952,6 +956,7 @@ function BillingRules() {
               </span>
               <Button
                 variant="secondary"
+                needs={{ invoicing: ["update"] }}
                 onClick={() =>
                   saveSettings.mutate({
                     paymentTermOptions: settings.paymentTermOptions.filter(
@@ -966,6 +971,7 @@ function BillingRules() {
           ))}
           <Button
             variant="secondary"
+            needs={{ invoicing: ["update"] }}
             onClick={() =>
               saveSettings.mutate({
                 paymentTermOptions: [
@@ -1175,6 +1181,7 @@ function Letterhead() {
             </p>
             <Button
               variant="secondary"
+              needs={{ invoicing: ["update"] }}
               onClick={() => addSample.mutate(sample)}
               disabled={addSample.isPending}
             >
@@ -1244,6 +1251,7 @@ function Letterhead() {
                     confirmLabel="Delete it"
                     danger
                     className="link-danger text-xs"
+                    needs={{ invoicing: ["update"] }}
                     onConfirm={() => remove.mutate(template.id)}
                   >
                     Delete
@@ -1452,6 +1460,7 @@ function TemplateForm({
 
       <Toolbar>
         <Button
+          needs={{ invoicing: ["update"] }}
           onClick={() => save.mutate()}
           disabled={!name || save.isPending}
         >

@@ -133,6 +133,7 @@ function SchemeCard({
           </Field>
         ) : null}
         <Button
+          needs={{ bookkeeping: ["update"] }}
           onClick={() => save.mutate()}
           disabled={
             save.isPending ||
@@ -321,6 +322,7 @@ export function VatFiling() {
             </Button>
             <Button
               variant="secondary"
+              needs={{ bookkeeping: ["update"] }}
               onClick={() => disconnect.mutate()}
               disabled={disconnect.isPending}
             >
@@ -330,6 +332,7 @@ export function VatFiling() {
         ) : (
           <>
             <Button
+              needs={{ bookkeeping: ["update"] }}
               onClick={() => authorise.mutate()}
               disabled={authorise.isPending}
             >
@@ -356,6 +359,7 @@ export function VatFiling() {
                 />
               </Field>
               <Button
+                needs={{ bookkeeping: ["update"] }}
                 disabled={!code.trim() || !vrn.trim() || finish.isPending}
                 onClick={() => finish.mutate()}
               >
@@ -472,6 +476,7 @@ export function VatFiling() {
               <Toolbar>
                 <Button
                   variant="danger"
+                  needs={{ bookkeeping: ["update"] }}
                   disabled={!declared || submit.isPending}
                   onClick={() => submit.mutate()}
                 >

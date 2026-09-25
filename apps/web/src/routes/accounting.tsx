@@ -480,6 +480,7 @@ function FxRevaluation({ asOf }: { asOf: string }) {
               : `A loss of ${formatMoney(-net)} ${data.baseCurrency}.`}
         </span>
         <Button
+          needs={{ bookkeeping: ["create"] }}
           onClick={() => post.mutate()}
           disabled={
             data.alreadyPosted ||
@@ -863,6 +864,7 @@ export function Money() {
           />
           <div className="flex items-end">
             <Button
+              needs={{ bookkeeping: ["create"] }}
               onClick={() => add.mutate()}
               disabled={add.isPending || !amount}
             >
@@ -1244,6 +1246,7 @@ export function Accounts() {
           {add.error ? <ErrorNote error={add.error} /> : null}
           <Toolbar>
             <Button
+              needs={{ bookkeeping: ["create"] }}
               onClick={() => add.mutate()}
               disabled={add.isPending || !code || !name}
             >
@@ -1256,6 +1259,7 @@ export function Accounts() {
       <Card>
         <Toolbar>
           <Button
+            needs={{ bookkeeping: ["create"] }}
             onClick={() => standard.mutate()}
             disabled={standard.isPending}
           >
@@ -1375,6 +1379,7 @@ export function Accounts() {
                   confirmLabel="Delete it"
                   danger
                   className="link-danger ml-3 text-xs"
+                  needs={{ bookkeeping: ["delete"] }}
                   disabled={remove.isPending}
                   onConfirm={() => remove.mutate(a.id)}
                 >
@@ -1687,6 +1692,7 @@ function EntryCard({
         {mayPost && byHand ? (
           <Button
             variant="secondary"
+            needs={{ bookkeeping: ["create"] }}
             disabled={reverse.isPending}
             onClick={() => reverse.mutate()}
           >
@@ -1884,6 +1890,7 @@ function NewEntry({ onDone }: { onDone: () => void }) {
             Cancel
           </Button>
           <Button
+            needs={{ bookkeeping: ["create"] }}
             disabled={!ready || post.isPending}
             onClick={() => post.mutate()}
           >
