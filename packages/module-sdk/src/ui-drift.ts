@@ -173,6 +173,48 @@ export function findUnthemedElevation(source: string): HandRolledFinding[] {
   return findings.sort((a, b) => a.line - b.line);
 }
 
+/**
+ * A border colour with no border width, which draws nothing at all.
+ *
+ * Tailwind's preflight sets `border-width: 0` on every element. So an element
+ * carrying `style={border}` — the exported `{ borderColor: "var(--border)" }`
+ * — and no `border` class has a colour for a line it never draws. The author
+ * plainly meant a line; the screen has none; nothing anywhere says so.
+ *
+ * Three were found in Pro on 25 September, all written months apart by
+ * somebody expecting an edge: a notes textarea with no visible box at all, a
+ * list of saved boards with no rule between them, and a Gantt chart with no
+ * frame round its scrolling area.
+ *
+ * Matched on the opening tag rather than the line, because the class list and
+ * the style object are often several lines apart on a formatted element.
+ */
+export function findColourWithoutBorder(source: string): HandRolledFinding[] {
+  const rawLines = source.split("\n");
+  const clean = stripComments(source);
+  const findings: HandRolledFinding[] = [];
+  const tags = /<[a-zA-Z][a-zA-Z0-9.]*\s[^<>]{0,600}?>/gs;
+  for (const match of clean.matchAll(tags)) {
+    const tag = match[0];
+    const usesToken =
+      /style=\{(?:ui\.)?border\}/.test(tag) ||
+      /style=\{\{[^}]*\.\.\.(?:ui\.)?border\b/.test(tag) ||
+      /borderColor:\s*"var\(--border\)"/.test(tag);
+    if (!usesToken) continue;
+    const classes = tag.match(/className="([^"]*)"/)?.[1] ?? "";
+    // `border`, `border-t`, `border-x` — but not `border-line`, which is a
+    // colour, nor `border-2`, which would have matched anyway.
+    if (/\bborder(-[trblxy])?\b(?![-:\w])/.test(classes)) continue;
+    const line = lineOf(clean, match.index);
+    if (exceptedAbove(rawLines, line, "ui-drift")) continue;
+    findings.push({
+      line,
+      say: "a border colour with no border width — preflight sets every border to 0, so this line is never drawn. Add `border` (or `border-t`, `border-b`…) beside it.",
+    });
+  }
+  return findings.sort((a, b) => a.line - b.line);
+}
+
 export function findHandRolledUi(source: string): HandRolledFinding[] {
   const rawLines = source.split("\n");
   const clean = stripComments(source);
@@ -417,6 +459,7 @@ function declareScope(
  * to a stylesheet.
  */
 declareScope(findHandRolledUi, "react");
+declareScope(findColourWithoutBorder, "react");
 declareScope(findFillAsText);
 declareScope(findUnthemedElevation);
 declareScope(findUnpagedList, "react", "page");

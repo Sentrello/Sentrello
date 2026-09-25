@@ -367,6 +367,9 @@ test("every scanner says what kind of source it is for", () => {
     // Advice a string of HTML cannot take: import SectionHeading, ui.Tabs,
     // listUi.useListState.
     findHandRolledUi: ["react"],
+    // A JSX attribute, and only ever that: a stylesheet writing a border
+    // colour is writing a rule, and a rule can carry its own width.
+    findColourWithoutBorder: ["react"],
     // Markup and CSS wherever they are written — a stylesheet most of all.
     findFillAsText: ["react", "page", "styles"],
     findUnthemedElevation: ["react", "page", "styles"],
@@ -385,6 +388,7 @@ test("a repository asks which scanners its server-rendered pages are under", () 
     .scannersFor(uiDrift, "styles")
     .map(([name]) => name);
   expect(forStyles).toEqual(["findFillAsText", "findUnthemedElevation"]);
+  expect(forPages).not.toContain("findColourWithoutBorder");
 
   // Nothing is narrowed by accident: React source is under all of them.
   expect(uiDrift.scannersFor(uiDrift, "react")).toHaveLength(
