@@ -1,6 +1,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { ApiError, COMPANY_SIZES, type Company, api } from "../lib/api";
+import { postcodeLabel, regionLabel } from "../lib/country-data";
 import {
   type CrmSettings,
   managerName,
@@ -330,25 +331,27 @@ export function CompanyForm({
             <Field label="City">
               <Input value={city} onChange={(e) => setCity(e.target.value)} />
             </Field>
-            <Field label="Postcode">
+            {/*
+              Above the two fields whose labels it decides, and ahead of them
+              for a second reason: typed by hand this decided VAT, because
+              `euCountry` reads a two-letter code — a customer entered as
+              "Germany" was not an EU customer at all and the reverse charge
+              never applied to them.
+            */}
+            <Field label="Country">
+              <CountrySelect value={country} onChange={setCountry} anywhere />
+            </Field>
+            <Field label={postcodeLabel(country)}>
               <Input
                 value={postcode}
                 onChange={(e) => setPostcode(e.target.value)}
               />
             </Field>
-            <Field label="State or region">
+            <Field label={regionLabel(country)}>
               <Input
                 value={stateName}
                 onChange={(e) => setStateName(e.target.value)}
               />
-            </Field>
-            {/*
-              Typed by hand, this decided VAT: `euCountry` reads a two-letter
-              code, so a customer entered as "Germany" was not an EU customer
-              at all and the reverse charge never applied to them.
-            */}
-            <Field label="Country">
-              <CountrySelect value={country} onChange={setCountry} anywhere />
             </Field>
           </div>
 

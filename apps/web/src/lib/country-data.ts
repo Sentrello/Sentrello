@@ -96,3 +96,32 @@ export function countryName(code: string): string {
 /** Alphabetical by the name somebody reads, not by the code nobody does. */
 export const countriesByName = (codes: string[]): string[] =>
   [...codes].sort((a, b) => countryName(a).localeCompare(countryName(b)));
+
+/**
+ * What a country calls the last line of its addresses.
+ *
+ * "Postcode" everywhere is the British word on an American screen, and the US
+ * is the first market this product sells into. Nobody in Ohio has ever filled
+ * in a postcode. It is one word, and the country beside it now says which.
+ */
+export function postcodeLabel(country: string): string {
+  const code = (country ?? "").trim().toUpperCase();
+  if (code === "US") return "ZIP code";
+  if (code === "CA") return "Postal code";
+  return "Postcode";
+}
+
+/**
+ * And what it calls the line above that, where it has one worth asking for.
+ *
+ * The US has states, Canada provinces, the UK counties nobody writes any
+ * more. Most of the EU has nothing between the city and the country, so the
+ * field is offered as a region and left alone.
+ */
+export function regionLabel(country: string): string {
+  const code = (country ?? "").trim().toUpperCase();
+  if (code === "US") return "State";
+  if (code === "CA") return "Province";
+  if (code === "GB") return "County";
+  return "State or region";
+}

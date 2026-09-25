@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { type Meta, api } from "../lib/api";
+import { postcodeLabel } from "../lib/country-data";
 import { CountrySelect } from "../lib/ui";
 import {
   Button,
@@ -290,17 +291,11 @@ export function Settings() {
             Germany will not accept one without the city and postcode stated
             as themselves.
           */}
-          <div className="grid gap-(--gap-toolbar) sm:grid-cols-[minmax(0,1fr)_8rem_minmax(0,12rem)]">
+          <div className="grid gap-(--gap-toolbar) sm:grid-cols-[minmax(0,1fr)_minmax(0,12rem)_8rem]">
             <Field label="City" hint="For structured e-invoices.">
               <Input
                 value={form.city}
                 onChange={(e) => patch({ city: e.target.value })}
-              />
-            </Field>
-            <Field label="Postcode">
-              <Input
-                value={form.postcode}
-                onChange={(e) => patch({ postcode: e.target.value })}
               />
             </Field>
             {/*
@@ -310,6 +305,10 @@ export function Settings() {
               and whether a sale into the EU is a reverse charge. `UK` typed
               here silently resolved to plain `en` and a British business kept
               the American conventions.
+
+              Before the box whose label it decides, too — "Postcode" is the
+              British word on an American screen, and the US is the first
+              market this sells into.
             */}
             <Field
               label="Country"
@@ -318,6 +317,12 @@ export function Settings() {
               <CountrySelect
                 value={form.countryCode}
                 onChange={(countryCode) => patch({ countryCode })}
+              />
+            </Field>
+            <Field label={postcodeLabel(form.countryCode)}>
+              <Input
+                value={form.postcode}
+                onChange={(e) => patch({ postcode: e.target.value })}
               />
             </Field>
           </div>

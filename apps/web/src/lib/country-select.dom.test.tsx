@@ -8,7 +8,12 @@ GlobalRegistrator.register({ url: "http://localhost/" });
 import { afterAll, expect, test } from "bun:test";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { SERVED, countryName } from "./country-data";
+import {
+  SERVED,
+  countryName,
+  postcodeLabel,
+  regionLabel,
+} from "./country-data";
 import { CountrySelect } from "./ui";
 
 afterAll(() => GlobalRegistrator.unregister());
@@ -89,4 +94,24 @@ test("a code is shown as the name somebody would recognise", () => {
   // And a code Intl cannot name is shown as itself rather than as a blank
   // option somebody cannot tell apart from the next one.
   expect(countryName("QQ")).toBe("QQ");
+});
+
+/**
+ * And the two lines under the country are named the way that country names
+ * them. "Postcode" everywhere is the British word on an American screen, and
+ * the US is the first market this product sells into — nobody in Ohio has
+ * ever filled one in.
+ */
+test("the address lines are called what that country calls them", () => {
+  expect(postcodeLabel("US")).toBe("ZIP code");
+  expect(postcodeLabel("CA")).toBe("Postal code");
+  expect(postcodeLabel("GB")).toBe("Postcode");
+  expect(postcodeLabel("DE")).toBe("Postcode");
+  // Nothing chosen yet keeps a word that is wrong nowhere.
+  expect(postcodeLabel("")).toBe("Postcode");
+
+  expect(regionLabel("US")).toBe("State");
+  expect(regionLabel("CA")).toBe("Province");
+  expect(regionLabel("GB")).toBe("County");
+  expect(regionLabel("FR")).toBe("State or region");
 });
