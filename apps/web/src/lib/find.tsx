@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import { useNavigation } from "./navigation";
-import { muted } from "./ui";
+import { Warning, muted } from "./ui";
 
 /**
  * Find anything, from anywhere.
@@ -177,6 +177,19 @@ function FindDialog({ onClose }: { onClose: () => void }) {
             <p className="px-4 py-6 text-sm" style={muted}>
               Looking…
             </p>
+          ) : found.error ? (
+            /*
+             * Before the empty branch, deliberately.
+             *
+             * A search that failed has no hits either, so it used to fall
+             * through to "Nothing matched" — the app stating, about the
+             * business's own records, something it had no way of knowing.
+             * Somebody looking for a contact they are certain exists is then
+             * told it does not, which is the worst answer a search can give.
+             */
+            <div className="px-4 py-6">
+              <Warning>The search did not run. Try again in a moment.</Warning>
+            </div>
           ) : hits.length === 0 ? (
             <p className="px-4 py-6 text-sm" style={muted}>
               Nothing matched “{q}”.

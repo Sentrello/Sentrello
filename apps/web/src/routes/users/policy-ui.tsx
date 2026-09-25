@@ -5,6 +5,7 @@ import { api } from "../../lib/api";
 import {
   Button,
   Card,
+  ErrorNote,
   Field,
   Input,
   Row,
@@ -177,12 +178,27 @@ export function Policies({
    */
   onOpen?: (role: string) => void;
 }) {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["users-policies"],
     queryFn: () => api<{ roles: Policy[] }>("/api/users/roles"),
   });
 
   if (isLoading) return null;
+  /*
+   * A card, rather than the nothing this drew before.
+   *
+   * Both empty branches below return null, so a failed fetch removed the
+   * whole section from the screen — the policies a business runs on, gone,
+   * with the page around them looking finished. Somebody would reasonably
+   * conclude their custom policies had been deleted.
+   */
+  if (error) {
+    return (
+      <Card>
+        <ErrorNote error={error} />
+      </Card>
+    );
+  }
   const rows = (data?.roles ?? []).filter((r) => r.kind === kind);
   if (rows.length === 0 && kind === "custom") {
     return (

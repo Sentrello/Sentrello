@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useId, useRef, useState } from "react";
 import { api } from "./api";
-import { border, muted } from "./ui";
+import { Warning, border, muted } from "./ui";
 
 /**
  * Choosing one record out of however many a business has.
@@ -198,7 +198,17 @@ export function RecordPicker<T extends PickableRecord>({
               Searching…
             </p>
           ) : null}
-          {results.data?.rows.length === 0 && !results.isLoading ? (
+          {/* Before the empty line below, for the reason `find.tsx` gives:
+              a lookup that failed has no rows either, and saying "no matches"
+              about records nobody managed to read is a claim we cannot make. */}
+          {results.error ? (
+            <div className="px-2 py-1.5">
+              <Warning>That list did not load. Try again in a moment.</Warning>
+            </div>
+          ) : null}
+          {results.data?.rows.length === 0 &&
+          !results.isLoading &&
+          !results.error ? (
             <p className="px-2 py-1.5 text-sm" style={muted}>
               {term.trim()
                 ? `No ${noun} matches “${term.trim()}”.`
