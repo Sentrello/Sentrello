@@ -625,8 +625,21 @@ export function People() {
                   "issued a new password for Owner", a sentence with no
                   subject at all.
                 */}
-                <strong>{change.actor ?? "The server"}</strong> {change.says}{" "}
-                <strong>{change.subject ?? "—"}</strong>
+                <strong>{change.actor ?? "The server"}</strong> {change.says}
+                {/*
+                  Nothing at all when there is no subject, where this used to
+                  print an em dash. Most of these are done *to* somebody —
+                  "unlocked the account of Dana Reyes" — but some are not:
+                  "Owner closed the year —" ended on a dash with nothing after
+                  it, which reads as a name that failed to load rather than as
+                  a sentence that never needed one.
+                */}
+                {change.subject ? (
+                  <>
+                    {" "}
+                    <strong>{change.subject}</strong>
+                  </>
+                ) : null}
                 {change.detail && "from" in change.detail ? (
                   <span style={muted}>
                     {" "}
