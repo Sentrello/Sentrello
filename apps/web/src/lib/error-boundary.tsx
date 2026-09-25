@@ -1,5 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
-import { Empty, Warning } from "./ui";
+import { Button, Empty, Warning } from "./ui";
 
 /**
  * One screen failing instead of all of them.
@@ -23,7 +23,16 @@ import { Empty, Warning } from "./ui";
  * reading it is often the person who can report it usefully.
  */
 export class ErrorBoundary extends Component<
-  { children: ReactNode; label: string },
+  {
+    children: ReactNode;
+    label: string;
+    /**
+     * `app` for the one at the very top, where there is no header and no rail
+     * left to move to, so "everything else still works" would be a lie and a
+     * reload is the only way on. `screen` everywhere else.
+     */
+    scope?: "screen" | "app";
+  },
   { failed?: Error }
 > {
   state: { failed?: Error } = {};
@@ -42,14 +51,21 @@ export class ErrorBoundary extends Component<
     const { failed } = this.state;
     if (!failed) return this.props.children;
 
+    const whole = this.props.scope === "app";
     return (
       <Empty title={`${this.props.label} stopped working`}>
         <p className="text-sm">
-          Nothing else is affected. Every other screen still works, and
-          reloading the page will try this one again.
+          {whole
+            ? "Reloading the page usually gets you back in. Nothing has been lost — this is the screen failing to draw, not the business's records."
+            : "Nothing else is affected. Every other screen still works, and reloading the page will try this one again."}
         </p>
         {failed.message ? (
           <Warning className="mt-2 text-xs">{failed.message}</Warning>
+        ) : null}
+        {whole ? (
+          <div className="mt-4">
+            <Button onClick={() => window.location.reload()}>Reload</Button>
+          </div>
         ) : null}
       </Empty>
     );

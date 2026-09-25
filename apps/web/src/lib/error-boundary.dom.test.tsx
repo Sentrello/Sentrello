@@ -98,3 +98,29 @@ test("a screen that does not throw is left alone", () => {
   );
   expect(host.textContent).toBe("Forty-one orders");
 });
+
+/**
+ * The top of the tree says something different, because "everything else
+ * still works" is not true there — there is no header and no rail left to
+ * move to, and the only way on is a reload.
+ */
+test("the one at the top offers the only way out it has", () => {
+  const host = draw(
+    <ErrorBoundary label="Sentrello" scope="app">
+      <Throws />
+    </ErrorBoundary>,
+  );
+  expect(host.textContent).toContain("Sentrello stopped working");
+  expect(host.textContent).toContain("Reload");
+  expect(host.textContent).not.toContain("Every other screen still works");
+});
+
+test("a screen boundary does not offer a reload button", () => {
+  const host = draw(
+    <ErrorBoundary label="Projects">
+      <Throws />
+    </ErrorBoundary>,
+  );
+  expect(host.textContent).toContain("Every other screen still works");
+  expect(host.querySelector("button")).toBeNull();
+});

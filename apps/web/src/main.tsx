@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import { ErrorBoundary } from "./lib/error-boundary";
 import { installRuntime } from "./lib/module-ui";
 import "./index.css";
 
@@ -40,7 +41,16 @@ if (import.meta.env.PROD && "serviceWorker" in navigator) {
 createRoot(root).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <App />
+      {/*
+        The last one, for the shell itself.
+        There are boundaries around each screen, and they are the ones that
+        will fire. This is for the case they cannot catch — the frame around
+        them failing to draw — where the alternative is a white page that says
+        nothing at all on a product somebody is hosting themselves.
+      */}
+      <ErrorBoundary label="Sentrello" scope="app">
+        <App />
+      </ErrorBoundary>
     </QueryClientProvider>
   </StrictMode>,
 );
