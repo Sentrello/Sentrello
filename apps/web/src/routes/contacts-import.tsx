@@ -102,6 +102,7 @@ export function ContactsImport({ onDone }: { onDone: () => void }) {
 
   if (result) {
     return (
+      // ui-drift-ignore: what just happened, not a section of the page
       <Card>
         <p className="font-medium">
           Imported {result.imported} contact

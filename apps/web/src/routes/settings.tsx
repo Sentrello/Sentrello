@@ -793,6 +793,7 @@ function PaymentConnections({
   return (
     <>
       {data && !data.canStoreSecrets ? (
+        // ui-drift-ignore: a warning that appears and goes, not a section
         <Card>
           <p className="font-medium" style={{ color: "var(--text-warning)" }}>
             This instance cannot store credentials
@@ -806,6 +807,7 @@ function PaymentConnections({
       ) : null}
 
       {data?.environmentFallback ? (
+        // ui-drift-ignore: a warning that appears and goes, not a section
         <Card>
           <p className="font-medium" style={{ color: "var(--text-warning)" }}>
             Card payments are using a key set on the server

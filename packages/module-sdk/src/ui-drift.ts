@@ -30,6 +30,34 @@ const RULES: { pattern: RegExp; say: string }[] = [
   },
   {
     /*
+     * A card's title, written as a paragraph in bold.
+     *
+     * It looks right and leaves the page with no structure at all. Every
+     * screen in the product draws its sections with `SectionHeading`, which
+     * is an `<h2>` — so a screen whose cards use a bold `<p>` comes out as one
+     * H1 and nothing else, and a screen reader is offered a single landmark
+     * for a page of twelve panels. That was the dashboard, which is the first
+     * screen anybody sees, and fifteen more cards across eight other screens.
+     *
+     * Matched on a `<Card>` whose first thing is a bold paragraph, which is
+     * where a title sits and almost nowhere else. A bold paragraph further
+     * down a card is usually a real one — a figure, a name, a line that
+     * deserves weight — and is left alone.
+     *
+     * The escape is for a notice rather than a section: the webhooks screen
+     * shows a signing secret once, and an `<h2>` inside something that
+     * appears and goes would stand in the outline beside the sections that
+     * are always there.
+     */
+    // `[\s{}]*` rather than a comment pattern: the scan runs on stripped
+    // source, where `{/* … */}` has already become an empty pair of braces.
+    // No `<` is allowed through, so it cannot skip past a real element.
+    pattern:
+      /<Card(?:\s[^>]*)?>[\s{}]*<p className="[^"]*font-(?:medium|semibold|bold)/,
+    say: "a card's title written as a bold paragraph — use SectionHeading, which is the heading the rest of the product uses and gives the page a structure",
+  },
+  {
+    /*
      * The browser's confirmation box, standing in for the app's.
      *
      * `window.confirm` looks like nothing else in the product — it is the
