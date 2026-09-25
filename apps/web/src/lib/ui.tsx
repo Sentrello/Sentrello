@@ -10,6 +10,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
@@ -213,6 +214,36 @@ function blockedBy(needs: Needs | undefined): string | undefined {
   return allowed ? undefined : "Your role does not allow this.";
 }
 
+/**
+ * The same reason, said where somebody without a mouse will hear it.
+ *
+ * `title` draws a tooltip on hover and **says nothing at all to a screen
+ * reader** — the point `ConfirmButton`'s `label` already makes a few hundred
+ * lines down. A disabled control is out of the tab order too, so until this
+ * the only person who could ever learn why a button was dead was the one
+ * holding a pointer over it. On a product whose explicit decision is to dim
+ * a control rather than hide it, *so that people learn the feature exists
+ * and that a colleague could do it for them*, that is the explanation
+ * reaching nobody it was written for.
+ *
+ * `aria-describedby` pointing at hidden text, rather than folding the reason
+ * into the label: it is a description and not a name. A disabled control is
+ * still reachable in a screen reader's browse mode, where the description is
+ * read with it, and voice control still matches the button by the words
+ * printed on it.
+ */
+function useBlockedReason(blocked: string | undefined) {
+  const id = useId();
+  return {
+    describedBy: blocked ? { "aria-describedby": id } : undefined,
+    note: blocked ? (
+      <span id={id} className="sr-only">
+        {blocked}
+      </span>
+    ) : null,
+  };
+}
+
 export function Button({
   children,
   variant = "primary",
@@ -224,6 +255,7 @@ export function Button({
   needs?: Needs;
 }) {
   const blocked = blockedBy(needs);
+  const reason = useBlockedReason(blocked);
   const styles = {
     primary: {
       // The shade dark enough for white text on it: brand-500 measures 3.77:1
@@ -237,18 +269,22 @@ export function Button({
   }[variant];
 
   return (
-    <button
-      type="button"
-      {...rest}
-      disabled={rest.disabled || blocked !== undefined}
-      title={blocked ?? rest.title}
-      className={`rounded px-3 py-1.5 text-sm font-medium disabled:opacity-50 ${
-        variant === "secondary" ? "border" : ""
-      } ${rest.className ?? ""}`}
-      style={{ ...styles, ...rest.style }}
-    >
-      {children}
-    </button>
+    <>
+      <button
+        type="button"
+        {...rest}
+        {...reason.describedBy}
+        disabled={rest.disabled || blocked !== undefined}
+        title={blocked ?? rest.title}
+        className={`rounded px-3 py-1.5 text-sm font-medium disabled:opacity-50 ${
+          variant === "secondary" ? "border" : ""
+        } ${rest.className ?? ""}`}
+        style={{ ...styles, ...rest.style }}
+      >
+        {children}
+      </button>
+      {reason.note}
+    </>
   );
 }
 
@@ -399,14 +435,19 @@ export function Select({
   needs?: Needs;
 }) {
   const blocked = blockedBy(needs);
+  const reason = useBlockedReason(blocked);
   return (
-    <select
-      {...props}
-      disabled={props.disabled || blocked !== undefined}
-      title={blocked ?? props.title}
-      className={`${withWidth(props.className)} rounded border px-2 py-1.5 text-sm ${props.className ?? ""}`}
-      style={{ ...raised, ...props.style }}
-    />
+    <>
+      <select
+        {...props}
+        {...reason.describedBy}
+        disabled={props.disabled || blocked !== undefined}
+        title={blocked ?? props.title}
+        className={`${withWidth(props.className)} rounded border px-2 py-1.5 text-sm ${props.className ?? ""}`}
+        style={{ ...raised, ...props.style }}
+      />
+      {reason.note}
+    </>
   );
 }
 
@@ -579,30 +620,37 @@ export function ConfirmButton({
   const [asking, setAsking] = useState(false);
   const blocked = blockedBy(needs);
   const stopped = disabled || blocked !== undefined;
+  const reason = useBlockedReason(blocked);
 
   return (
     <>
       {variant ? (
+        // `needs` rather than the computed `blocked`: the full button already
+        // knows how to be refused, and saying it twice is how the two drift.
         <Button
           variant={variant}
-          disabled={stopped}
-          title={blocked}
+          needs={needs}
+          disabled={disabled}
           onClick={() => setAsking(true)}
         >
           {children}
         </Button>
       ) : (
-        <button
-          type="button"
-          disabled={stopped}
-          title={blocked ?? label}
-          aria-label={label}
-          className={className ?? "text-xs link-muted"}
-          style={danger ? { color: "var(--text-danger)" } : undefined}
-          onClick={() => setAsking(true)}
-        >
-          {children}
-        </button>
+        <>
+          <button
+            type="button"
+            disabled={stopped}
+            title={blocked ?? label}
+            aria-label={label}
+            {...reason.describedBy}
+            className={className ?? "text-xs link-muted"}
+            style={danger ? { color: "var(--text-danger)" } : undefined}
+            onClick={() => setAsking(true)}
+          >
+            {children}
+          </button>
+          {reason.note}
+        </>
       )}
       <Dialog title={title} open={asking} onClose={() => setAsking(false)}>
         <div className="flex flex-col gap-(--gap-stack)">
@@ -1137,16 +1185,21 @@ export function MenuItem({
   ...rest
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & { needs?: Needs }) {
   const blocked = blockedBy(needs);
+  const reason = useBlockedReason(blocked);
   return (
-    <button
-      type="button"
-      {...rest}
-      disabled={rest.disabled || blocked !== undefined}
-      title={blocked ?? rest.title}
-      className={`menu-item ${rest.className ?? ""}`}
-    >
-      {children}
-    </button>
+    <>
+      <button
+        type="button"
+        {...rest}
+        {...reason.describedBy}
+        disabled={rest.disabled || blocked !== undefined}
+        title={blocked ?? rest.title}
+        className={`menu-item ${rest.className ?? ""}`}
+      >
+        {children}
+      </button>
+      {reason.note}
+    </>
   );
 }
 

@@ -90,6 +90,60 @@ test("a button whose permission is held is left alone", () => {
 });
 
 /**
+ * The reason, for somebody who is not holding a mouse.
+ *
+ * `title` is a tooltip and nothing else: it needs a pointer to hover, and it
+ * says nothing at all to a screen reader. A disabled control is out of the tab
+ * order too, so without this the explanation reached only the people who were
+ * never going to be confused for long anyway. The whole point of dimming a
+ * control instead of hiding it is that somebody learns the feature exists and
+ * that a colleague could do it for them — which is worth nothing if the
+ * sentence saying so is mouse-only.
+ */
+test("the reason is readable without a pointer, and linked to the control", () => {
+  const html = draw(
+    { crm: ["read"] },
+    <Button needs={{ crm: ["delete"] }}>Delete</Button>,
+  );
+  const described = /aria-describedby="([^"]+)"/.exec(html)?.[1];
+  expect(described).toBeTruthy();
+  // The description is real text in the document, not a promise of one: an
+  // `aria-describedby` pointing at an id that is not there reads as nothing.
+  expect(html).toContain(
+    `<span id="${described}" class="sr-only">Your role does not allow this.</span>`,
+  );
+});
+
+test("a control nobody has refused describes nothing", () => {
+  const html = draw(
+    { crm: ["delete"] },
+    <Button needs={{ crm: ["delete"] }}>Delete</Button>,
+  );
+  expect(html).not.toContain("aria-describedby");
+  expect(html).not.toContain("sr-only");
+});
+
+/** Every gated primitive, because the point of the kit is one decision. */
+test("each primitive links its own reason", () => {
+  // Thunks rather than an array of elements: each is drawn on its own, and a
+  // list of JSX asks for keys these will never need.
+  for (const node of [
+    () => <Button needs={{ crm: ["delete"] }}>Delete</Button>,
+    () => <MenuItem needs={{ crm: ["delete"] }}>Delete</MenuItem>,
+    () => (
+      <Select needs={{ crm: ["update"] }}>
+        <option>Open</option>
+      </Select>
+    ),
+  ]) {
+    const html = draw({ crm: ["read"] }, node());
+    const described = /aria-describedby="([^"]+)"/.exec(html)?.[1];
+    expect(described).toBeTruthy();
+    expect(html).toContain(`id="${described}" class="sr-only"`);
+  }
+});
+
+/**
  * Two resources at once — a control that both raises an invoice and touches
  * the ledger needs each of them, and holding one is not holding both.
  */
