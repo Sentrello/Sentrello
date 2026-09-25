@@ -8,7 +8,7 @@ import {
 import { creditedAgainst } from "@sentrello/db/documents";
 import { earlyPaymentTerms, invoiceState } from "@sentrello/db/money";
 import { deadLinkPage } from "@sentrello/db/portal";
-import { businessIdentity } from "@sentrello/db/portal";
+import { businessIdentity, moneyLocale } from "@sentrello/db/portal";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import { rateLimit } from "@sentrello/module-sdk";
 import { exemptionReasonFor } from "./einvoice";
@@ -38,8 +38,17 @@ const esc = (s: string) =>
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 
-function money(cents: number, currency = "USD"): string {
-  return new Intl.NumberFormat("en-US", {
+/**
+ * A figure written the way the business that sent it writes figures.
+ *
+ * `en-US` for everybody was the American way of writing a European number:
+ * Germany reads `1.279,97 €` and France `1 279,97 €`, and a Canadian
+ * invoicing in dollars was shown `CA$1,279.97` — the form you use when you
+ * are *not* in Canada. The seller's convention rather than the reader's,
+ * because this is the seller's document.
+ */
+function money(cents: number, currency = "USD", locale = "en-US"): string {
+  return new Intl.NumberFormat(locale, {
     style: "currency",
     currency,
   }).format(cents / 100);
@@ -254,6 +263,13 @@ function documentPage(args: {
   issueDate: Date | string;
   dueDate: Date | string | null;
   currency: string;
+  /**
+   * How this business writes a number — `en-DE`, `en-CA`, `en-US`.
+   *
+   * Optional, and absent means the American way, which is what every
+   * document did before the business's own country was asked for.
+   */
+  locale?: string;
   lines: DocumentLine[];
   subtotalCents: number;
   discountCents: number;
@@ -337,8 +353,8 @@ function documentPage(args: {
   const lineRow = (l: DocumentLine) => `<tr>
       <td>${esc(l.description)}</td>
       <td class="num">${quantity(l.quantityMilli)}${l.unit && l.unit !== "piece" ? ` ${esc(l.unit)}` : ""}</td>
-      <td class="num">${money(l.unitPriceCents, args.currency)}</td>
-      <td class="num">${money(Math.round((l.quantityMilli / 1000) * l.unitPriceCents), args.currency)}</td>
+      <td class="num">${money(l.unitPriceCents, args.currency, args.locale)}</td>
+      <td class="num">${money(Math.round((l.quantityMilli / 1000) * l.unitPriceCents), args.currency, args.locale)}</td>
     </tr>`;
 
   const net = (l: DocumentLine) =>
@@ -376,7 +392,7 @@ function documentPage(args: {
           ? `<tr><td colspan="4"><strong>${esc(key)}</strong></td></tr>`
           : "";
         const tail = key
-          ? `<tr><td colspan="3" class="num">${esc(key)} subtotal</td><td class="num">${money(subtotal, args.currency)}</td></tr>`
+          ? `<tr><td colspan="3" class="num">${esc(key)} subtotal</td><td class="num">${money(subtotal, args.currency, args.locale)}</td></tr>`
           : "";
         return heading + own.map(lineRow).join("") + tail;
       })
@@ -398,7 +414,7 @@ function documentPage(args: {
   const bandRows = shown
     .map(
       (b) =>
-        `<tr><td>${esc(b.name)}</td><td class="num">${money(b.taxCents, args.currency)}</td></tr>`,
+        `<tr><td>${esc(b.name)}</td><td class="num">${money(b.taxCents, args.currency, args.locale)}</td></tr>`,
     )
     .join("");
 
@@ -412,7 +428,7 @@ function documentPage(args: {
    */
   const unbanded =
     args.taxCents !== 0 && shown.reduce((sum, b) => sum + b.taxCents, 0) === 0
-      ? `<tr><td>Tax</td><td class="num">${money(args.taxCents, args.currency)}</td></tr>`
+      ? `<tr><td>Tax</td><td class="num">${money(args.taxCents, args.currency, args.locale)}</td></tr>`
       : "";
 
   /**
@@ -466,17 +482,17 @@ ${brand.header}
 </table>
 
 <table class="totals">
-  <tr><td>Subtotal</td><td class="num">${money(args.subtotalCents, args.currency)}</td></tr>
+  <tr><td>Subtotal</td><td class="num">${money(args.subtotalCents, args.currency, args.locale)}</td></tr>
   ${
     args.discountCents > 0
-      ? `<tr><td>Discount</td><td class="num">−${money(args.discountCents, args.currency)}</td></tr>`
+      ? `<tr><td>Discount</td><td class="num">−${money(args.discountCents, args.currency, args.locale)}</td></tr>`
       : ""
   }
   ${bandRows}${unbanded}
-  <tr><td>Total</td><td class="num">${money(args.totalCents, args.currency)}</td></tr>
+  <tr><td>Total</td><td class="num">${money(args.totalCents, args.currency, args.locale)}</td></tr>
   ${
     args.kind === "invoice" && args.paidCents > 0
-      ? `<tr><td>Paid</td><td class="num">−${money(args.paidCents, args.currency)}</td></tr>`
+      ? `<tr><td>Paid</td><td class="num">−${money(args.paidCents, args.currency, args.locale)}</td></tr>`
       : ""
   }
   ${
@@ -484,12 +500,12 @@ ${brand.header}
        lumped them together would tell the customer money moved when the
        business gave the debt up instead. */
     args.kind === "invoice" && args.creditedCents > 0
-      ? `<tr><td>Credited</td><td class="num">−${money(args.creditedCents, args.currency)}</td></tr>`
+      ? `<tr><td>Credited</td><td class="num">−${money(args.creditedCents, args.currency, args.locale)}</td></tr>`
       : ""
   }
   ${
     args.kind === "invoice" && args.paidCents + args.creditedCents > 0
-      ? `<tr><td>${due > 0 ? "Still due" : "Settled"}</td><td class="num">${money(Math.max(0, due), args.currency)}</td></tr>`
+      ? `<tr><td>${due > 0 ? "Still due" : "Settled"}</td><td class="num">${money(Math.max(0, due), args.currency, args.locale)}</td></tr>`
       : ""
   }
 </table>
@@ -506,7 +522,7 @@ ${
   args.earlyPayment &&
   args.paidCents === 0 &&
   due > 0
-    ? `<p class="muted">Pay by ${day(args.earlyPayment.deadline)} and take ${money(args.earlyPayment.savingCents, args.currency)} off — ${money(args.earlyPayment.totalCents, args.currency)} settles it in full.</p>`
+    ? `<p class="muted">Pay by ${day(args.earlyPayment.deadline)} and take ${money(args.earlyPayment.savingCents, args.currency, args.locale)} off — ${money(args.earlyPayment.totalCents, args.currency, args.locale)} settles it in full.</p>`
     : ""
 }
 
@@ -714,6 +730,9 @@ export function registerShare(ctx: ModuleContext) {
           issueDate: row.issueDate,
           dueDate: kind === "invoice" ? invoiceRow.dueDate : null,
           currency: row.currency,
+          // The seller's own way of writing a number, from the country on
+          // their settings screen. `en-US` when they have not said.
+          locale: moneyLocale(business.countryCode),
           lines: lines.map((l) => ({
             description: l.description,
             quantityMilli: l.quantityMilli,

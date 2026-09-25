@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { deadLinkPage } from "./portal";
+import { deadLinkPage, moneyLocale } from "./portal";
 
 /**
  * What a customer meets when their link does not work.
@@ -51,4 +51,52 @@ test("it is drawn for the device it lands on", () => {
   const page = deadLinkPage();
   expect(page).toContain("width=device-width");
   expect(page).toContain("prefers-color-scheme: dark");
+});
+
+/**
+ * How a business writes a number, which is not how every business does.
+ *
+ * `en-US` for everybody was the American way of writing a European figure:
+ * Germany reads `1.279,97 €` and France `1 279,97 €`. A Canadian invoicing
+ * in dollars was shown `CA$1,279.97` — the form you use when you are *not*
+ * in Canada, on an invoice going to somebody who is.
+ *
+ * The country is enough on its own, which is why this is one field and not a
+ * table of locales. It is asked for on the business settings screen, under
+ * the postcode, and is the second thing the onboarding checklist points at.
+ */
+const written = (country: string | null | undefined, currency: string) =>
+  new Intl.NumberFormat(moneyLocale(country), {
+    style: "currency",
+    currency,
+  })
+    .format(1279.97)
+    // `Intl` separates a symbol from its number with a non-breaking space,
+    // which is right on the page and invisible in a failure message: the
+    // first version of this test compared two strings that looked identical.
+    .replace(/\p{Zs}/gu, " ");
+
+test("each market reads its own money", () => {
+  expect(written("DE", "EUR")).toBe("1.279,97 €");
+  expect(written("CA", "CAD")).toBe("$1,279.97");
+  expect(written("GB", "GBP")).toBe("£1,279.97");
+  expect(written("US", "USD")).toBe("$1,279.97");
+});
+
+/**
+ * And nothing changes for the two markets that were already right, which is
+ * what makes this safe to land six days before anybody is using it.
+ */
+test("a business that has not said keeps what it had", () => {
+  expect(moneyLocale(undefined)).toBe("en-US");
+  expect(moneyLocale("")).toBe("en-US");
+  expect(written(null, "USD")).toBe("$1,279.97");
+});
+
+/** A country typed as nonsense is not a reason to throw while drawing an
+ * invoice. */
+test("rubbish in the field is not an exception", () => {
+  expect(moneyLocale("Germany")).toBe("en-US");
+  expect(moneyLocale("!!")).toBe("en-US");
+  expect(moneyLocale("de")).toBe("en-DE");
 });

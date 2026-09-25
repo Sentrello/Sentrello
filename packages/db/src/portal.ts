@@ -82,7 +82,46 @@ export async function businessIdentity(orgId: string) {
     taxId: org?.taxId,
     taxIdLabel: org?.taxIdLabel,
     paymentInstructions: org?.paymentInstructions,
+    /*
+     * How this business writes a number, which is not how every business
+     * does. `€1,279.97` is the American way of writing a European figure:
+     * Germany reads `1.279,97 €` and France `1 279,97 €`, and a Canadian
+     * invoicing in dollars was shown `CA$1,279.97` — the form you use when
+     * you are *not* in Canada.
+     *
+     * The country is enough on its own, which is why this is a field rather
+     * than a table of locales: `en-DE`, `en-FR`, `en-CA` all group and
+     * punctuate the way those countries do. It is asked for on the business
+     * settings screen, under the postcode, and is the second thing the
+     * onboarding checklist sends somebody to fill in.
+     */
+    countryCode: org?.countryCode,
   };
+}
+
+/**
+ * The locale a business's own figures are written in.
+ *
+ * The seller's convention, not the reader's: this is the seller's document,
+ * and a German business's invoice is written the German way wherever it is
+ * opened. `en-` rather than the country's own language because the language
+ * decides the words and the region decides the numbers, and the words here
+ * are already the business's own.
+ *
+ * Falls back to `en-US`, which is what everything did before this existed.
+ * A country nobody filled in, or one typed as nonsense, is not a reason to
+ * throw while drawing an invoice.
+ */
+export function moneyLocale(countryCode?: string | null): string {
+  const region = (countryCode ?? "").trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(region)) return "en-US";
+  try {
+    const locale = `en-${region}`;
+    new Intl.NumberFormat(locale, { style: "currency", currency: "USD" });
+    return locale;
+  } catch {
+    return "en-US";
+  }
 }
 
 /**
