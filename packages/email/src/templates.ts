@@ -82,11 +82,35 @@ function layout(
   business?: BusinessIdentity,
   sentrelloCredit = true,
 ): string {
-  return `<!doctype html><html><body style="font-family:system-ui,sans-serif;line-height:1.5;color:#111">
+  /*
+   * A head, a width and a background — the three things an email needs that
+   * a web page gets for free.
+   *
+   * **The background is the important one.** The body set `color:#111` and no
+   * background at all, and a mail client in dark mode darkens what it is
+   * given: dark text on a background the client just made dark is an invoice
+   * reminder somebody cannot read. Declaring both keeps the pair together,
+   * and `color-scheme: light` tells the clients that honour it not to try.
+   *
+   * The viewport is the reason an email opened on a phone arrives zoomed out
+   * with everything half size; the charset is belt and braces, since both
+   * adapters already set it on the transport, and it costs nine bytes to be
+   * right when a third one is added.
+   *
+   * A width, because a line of text the full span of a desktop mail window
+   * is not a line anybody reads to the end.
+   */
+  return `<!doctype html><html><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+</head><body style="margin:0;padding:24px;font-family:system-ui,sans-serif;line-height:1.5;color:#111;background:#ffffff">
+<div style="max-width:37.5rem">
 <h1 style="font-size:18px">${escapeHtml(title)}</h1>
 ${body}
 ${sellerFooter(business)}
 ${sentrelloCredit ? '<p style="color:#666;font-size:12px">Sent by Sentrello</p>' : ""}
+</div>
 </body></html>`;
 }
 

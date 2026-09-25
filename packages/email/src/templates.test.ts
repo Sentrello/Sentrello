@@ -198,3 +198,39 @@ test("an invitation names the business, carries the link, and cannot inject mark
   expect(mail.html).toContain("expires on");
   expect(mail.html).not.toContain("<img");
 });
+
+/**
+ * The shell every one of these is sent in.
+ *
+ * An email is not a web page: there is no stylesheet to inherit, no viewport
+ * unless it is stated, and a client in dark mode will darken whatever
+ * background it is given. The body carried `color:#111` and no background at
+ * all — dark text on a background the client had just made dark, which is an
+ * invoice reminder nobody can read on the phone they read their mail on.
+ */
+test("every email declares a background beside its text colour", () => {
+  const { html } = invoiceEmail({
+    number: "INV-0001",
+    totalCents: 1000,
+    currency: "USD",
+    dueDate: new Date("2026-10-25T00:00:00Z"),
+    portalUrl: "https://example.test/portal/x",
+  });
+  // The pair, together: either alone is the bug.
+  expect(html).toContain("color:#111");
+  expect(html).toContain("background:#ffffff");
+  expect(html).toContain('name="color-scheme" content="light"');
+});
+
+test("an email opened on a phone is not zoomed out", () => {
+  const { html } = invoiceEmail({
+    number: "INV-0001",
+    totalCents: 1000,
+    currency: "USD",
+    dueDate: new Date("2026-10-25T00:00:00Z"),
+    portalUrl: "https://example.test/portal/x",
+  });
+  expect(html).toContain('name="viewport" content="width=device-width');
+  // And a line long enough to read to the end of on a desktop client.
+  expect(html).toContain("max-width:37.5rem");
+});
