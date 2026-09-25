@@ -276,7 +276,7 @@ export function FormBuilder({
   });
 
   return (
-    <div className="flex flex-col gap-[--gap-stack]">
+    <div className="flex flex-col gap-(--gap-stack)">
       <SectionHeading level={3}>Questions this form asks</SectionHeading>
 
       {rows.length === 0 ? (
@@ -332,7 +332,7 @@ export function FormBuilder({
                   </Select>
                 </td>
                 <td>
-                  <label className="flex items-center gap-[--gap-tight] text-xs">
+                  <label className="flex items-center gap-(--gap-tight) text-xs">
                     <input
                       type="checkbox"
                       checked={f.half ?? false}
@@ -348,7 +348,7 @@ export function FormBuilder({
                   </label>
                 </td>
                 <td>
-                  <label className="flex items-center gap-[--gap-tight] text-xs">
+                  <label className="flex items-center gap-(--gap-tight) text-xs">
                     <input
                       type="checkbox"
                       checked={Boolean(f.required)}
@@ -367,7 +367,7 @@ export function FormBuilder({
                   {/* Disabled at the ends, like every other reorder in the
                       app. They were live everywhere, so the first question's
                       ↑ was a button you could press and get nothing from. */}
-                  <div className="flex items-center gap-[--gap-tight]">
+                  <div className="flex items-center gap-(--gap-tight)">
                     <button
                       type="button"
                       aria-label={`Move ${f.label} up`}
@@ -435,7 +435,7 @@ export function FormBuilder({
                      * of the same problem.
                      */}
                     {f.type === "radio" && (f.options ?? []).length > 0 ? (
-                      <div className="mt-[--gap-tight]">
+                      <div className="mt-(--gap-tight)">
                         <button
                           type="button"
                           className="text-xs link-muted"
@@ -449,16 +449,16 @@ export function FormBuilder({
                             : "What each answer shows"}
                         </button>
                         {showing === f.name ? (
-                          <div className="mt-[--gap-toolbar] flex flex-col gap-[--gap-toolbar]">
+                          <div className="mt-(--gap-toolbar) flex flex-col gap-(--gap-toolbar)">
                             {(f.options ?? []).map((option) => (
                               <div
                                 key={option}
-                                className="border-line border-t pt-[--gap-toolbar]"
+                                className="border-line border-t pt-(--gap-toolbar)"
                               >
-                                <p className="mb-[--gap-tight] text-xs font-medium">
+                                <p className="mb-(--gap-tight) text-xs font-medium">
                                   “{option}”
                                 </p>
-                                <div className="grid gap-[--gap-tight] sm:grid-cols-2">
+                                <div className="grid gap-(--gap-tight) sm:grid-cols-2">
                                   <Field label="Heading">
                                     <Input
                                       className="text-xs"
@@ -584,7 +584,7 @@ export function FormBuilder({
       <SectionHeading level={3} hint="What a visitor sees on your own site.">
         How it looks
       </SectionHeading>
-      <div className="grid gap-[--gap-toolbar] sm:grid-cols-3">
+      <div className="grid gap-(--gap-toolbar) sm:grid-cols-3">
         <Field label="Accent colour" hint="The button and the focus ring.">
           <Toolbar>
             {/*
@@ -631,7 +631,7 @@ export function FormBuilder({
       <SectionHeading level={3} hint="Once somebody presses the button.">
         What happens next
       </SectionHeading>
-      <div className="grid gap-[--gap-toolbar] sm:grid-cols-2">
+      <div className="grid gap-(--gap-toolbar) sm:grid-cols-2">
         <Field
           label="Tell somebody"
           hint="Emailed when this form is filled in. Blank tells nobody."

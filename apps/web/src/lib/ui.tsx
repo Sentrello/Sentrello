@@ -537,7 +537,7 @@ export function SectionHeading({
 }) {
   const Tag = level === 3 ? "h3" : "h2";
   return (
-    <div className="mb-[--gap-toolbar] flex items-baseline gap-[--gap-tight]">
+    <div className="mb-(--gap-toolbar) flex items-baseline gap-(--gap-tight)">
       <Tag className="font-semibold text-sm">{children}</Tag>
       {hint ? (
         <span className="text-xs" style={muted}>
@@ -631,7 +631,7 @@ export function Page({
 }) {
   return (
     <div
-      className={`flex flex-col gap-[--gap-stack] ${width === "prose" ? "max-w-3xl" : ""} ${className}`}
+      className={`flex flex-col gap-(--gap-stack) ${width === "prose" ? "max-w-3xl" : ""} ${className}`}
     >
       {children}
     </div>
@@ -659,7 +659,7 @@ export function Toolbar({
 }) {
   return (
     <div
-      className={`flex flex-wrap items-end gap-[--gap-toolbar] ${className}`}
+      className={`flex flex-wrap items-end gap-(--gap-toolbar) ${className}`}
     >
       {children}
     </div>
@@ -675,7 +675,7 @@ export function Card({
 }) {
   // Same rule as the inputs above: a caller that names its own padding gets
   // it, rather than losing to whichever rule Tailwind happened to emit last.
-  const padding = /(^|\s)p-/.test(className) ? "" : "p-[--pad-panel]";
+  const padding = /(^|\s)p-/.test(className) ? "" : "p-(--pad-panel)";
   return (
     <div className={`rounded-md border ${padding} ${className}`} style={raised}>
       {children}

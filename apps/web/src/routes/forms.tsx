@@ -95,7 +95,7 @@ export function Forms() {
         open={creating}
         onClose={() => setCreating(false)}
       >
-        <div className="flex flex-col gap-[--gap-stack]">
+        <div className="flex flex-col gap-(--gap-stack)">
           <Field label="Name">
             <Input
               value={name}
@@ -123,7 +123,7 @@ export function Forms() {
 
       {rows.length === 0 ? (
         <Empty title="No forms yet">
-          <p className="mb-[--gap-stack] text-sm" style={muted}>
+          <p className="mb-(--gap-stack) text-sm" style={muted}>
             A form gives you one line to paste into any website. Submissions
             arrive as contacts, and the ones worth chasing become deals.
           </p>
@@ -182,7 +182,7 @@ export function Forms() {
                   behind a menu — four buttons on every row was a table nobody
                   could read across. */}
               <td className="text-right">
-                <div className="flex items-center justify-end gap-[--gap-toolbar]">
+                <div className="flex items-center justify-end gap-(--gap-toolbar)">
                   <Button
                     variant="secondary"
                     onClick={() => setPanel({ kind: "submissions", form: f })}
@@ -381,7 +381,7 @@ function AllowedSites({ form }: { form: FormRow }) {
   };
 
   return (
-    <div className="flex flex-col gap-[--gap-stack]">
+    <div className="flex flex-col gap-(--gap-stack)">
       <p className="text-sm" style={muted}>
         The websites this form may be embedded on. A form with no sites listed
         works only on this instance, so an embed pasted anywhere else shows
@@ -457,7 +457,7 @@ function EmbedCode({ form }: { form: FormRow }) {
   const snippet = `<script src="${base}/embed.js" data-sentrello-form="${form.key}"></script>`;
 
   return (
-    <div className="flex flex-col gap-[--gap-stack]">
+    <div className="flex flex-col gap-(--gap-stack)">
       {/*
         Said here as well as on the row, because this is the panel somebody
         has open at the moment they paste the snippet into their own site.
@@ -470,7 +470,7 @@ function EmbedCode({ form }: { form: FormRow }) {
       )}
 
       <SectionHeading level={3}>Paste this into your page</SectionHeading>
-      <pre className="overflow-x-auto rounded-md border border-line p-[--pad-panel] text-xs">
+      <pre className="overflow-x-auto rounded-md border border-line p-(--pad-panel) text-xs">
         <code>{snippet}</code>
       </pre>
       <Toolbar>
@@ -521,7 +521,7 @@ function Submissions({ form }: { form: FormRow }) {
   });
 
   return (
-    <div className="flex flex-col gap-[--gap-stack]">
+    <div className="flex flex-col gap-(--gap-stack)">
       {/* A plain link rather than a fetch: the browser saves the file itself,
           with the name the server chose, and a large export never has to be
           held in memory here first. */}
@@ -539,11 +539,11 @@ function Submissions({ form }: { form: FormRow }) {
       {isLoading ? (
         <Loading />
       ) : data?.submissions.length ? (
-        <ul className="flex flex-col gap-[--gap-toolbar]">
+        <ul className="flex flex-col gap-(--gap-toolbar)">
           {data.submissions.map((sub) => (
             <li
               key={sub.id}
-              className="border-line border-t pt-[--gap-toolbar] text-sm"
+              className="border-line border-t pt-(--gap-toolbar) text-sm"
             >
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">

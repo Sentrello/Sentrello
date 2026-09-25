@@ -107,6 +107,22 @@
    */
   --color-info: oklch(0.52 0.12 250);
 
+  /*
+   * The line colour, as a colour utility rather than a style object.
+   *
+   * A border in this app is `style={border}` — an object exported from
+   * `ui.tsx` holding `{ borderColor: "var(--border)" }` — and it is referenced
+   * 484 times. It works, and it is a style attribute doing a class's job:
+   * it cannot be overridden by a later class, it cannot be varied by a
+   * breakpoint, and every file that wants a hairline has to import something.
+   *
+   * Naming it here gives Tailwind `border-line`, `divide-line` and
+   * `text-line`, which resolve through `--border` and therefore still follow
+   * the theme. The style object stays for now, because 484 call sites is a
+   * sweep of its own; new markup uses the class.
+   */
+  --color-line: var(--border);
+
   /* ---------------------------------------------------------------------
    * Size, which until now was not a token at all.
    *
