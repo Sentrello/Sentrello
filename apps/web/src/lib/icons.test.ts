@@ -2,10 +2,10 @@ import { expect, test } from "bun:test";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { GROUP_ICONS } from "./app-shell";
-import { FREEHAND } from "./icon-freehand";
+import { FLEX } from "./icon-flex";
 
 /**
- * `icon-freehand.ts` is generated, and the map behind it lives in a script
+ * `icon-flex.ts` is generated, and the map behind it lives in a script
  * nobody runs by accident. So the way this set goes wrong is not a bad path —
  * it is a name: somebody adds a nav entry asking for an icon that was never
  * fetched, and the rail quietly draws the fallback. Nothing errors, nothing
@@ -14,14 +14,14 @@ import { FREEHAND } from "./icon-freehand";
  */
 test("every group the rail draws has a drawing", () => {
   const missing = Object.entries(GROUP_ICONS)
-    .filter(([, icon]) => !FREEHAND[icon])
+    .filter(([, icon]) => !FLEX[icon])
     .map(([group]) => group);
   expect(missing).toEqual([]);
 });
 
 test("every drawing is markup, and only markup", () => {
   const bad: string[] = [];
-  for (const [name, body] of Object.entries(FREEHAND)) {
+  for (const [name, body] of Object.entries(FLEX)) {
     if (typeof body !== "string" || !body.trim()) bad.push(`${name}: empty`);
     else if (!body.includes("<path")) bad.push(`${name}: no path`);
     else if (/<script|http/i.test(body)) bad.push(`${name}: reaches outside`);
@@ -41,7 +41,7 @@ test("every alias points at a drawing", () => {
     (m) => m[1] ?? "",
   );
   expect(targets.length).toBeGreaterThan(0);
-  expect(targets.filter((t) => !FREEHAND[t])).toEqual([]);
+  expect(targets.filter((t) => !FLEX[t])).toEqual([]);
 });
 
 /**
@@ -76,5 +76,5 @@ test("every icon the repository asks for has been fetched", () => {
   walk(join(root, "packages"));
 
   expect(asked.size).toBeGreaterThan(20);
-  expect([...asked].filter((name) => !FREEHAND[name]).sort()).toEqual([]);
+  expect([...asked].filter((name) => !FLEX[name]).sort()).toEqual([]);
 });

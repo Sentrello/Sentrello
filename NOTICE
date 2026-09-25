@@ -5,14 +5,14 @@ This product includes third-party artwork.
 
 Icons
 -----
-The application's icons are from the streamline-freehand icon set by
+The application's icons are from the streamline-flex icon set by
 Streamline, used under the Creative Commons Attribution 4.0 International
 licence (CC BY 4.0).
 
-  Set:     https://icon-sets.iconify.design/streamline-freehand/
+  Set:     https://icon-sets.iconify.design/streamline-flex/
   Author:  Streamline — https://www.streamlinehq.com/
   Licence: https://creativecommons.org/licenses/by/4.0/
 
 The drawings are redistributed as SVG path data in
-apps/web/src/lib/icon-freehand.ts, which is generated and should not be
+apps/web/src/lib/icon-flex.ts, which is generated and should not be
 edited by hand.
