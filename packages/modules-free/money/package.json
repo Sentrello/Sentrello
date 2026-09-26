@@ -3,7 +3,8 @@
   "version": "0.0.0",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./books": "./src/books.ts"
   },
   "dependencies": {
     "@sentrello/module-sdk": "*",

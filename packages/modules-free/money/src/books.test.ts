@@ -1,4 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, schema } from "@sentrello/db";
@@ -57,7 +59,14 @@ afterAll(async () => {
 
 const firstOf = (monthsBack: number) => {
   const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth() - monthsBack, 1);
+  return new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - monthsBack, 1),
+  );
+};
+
+const thisMonthKey = () => {
+  const now = new Date();
+  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
 };
 
 test("six months come back, oldest first, quiet ones included", async () => {
@@ -66,10 +75,7 @@ test("six months come back, oldest first, quiet ones included", async () => {
   expect([...months].sort((a, b) => a.month.localeCompare(b.month))).toEqual(
     months,
   );
-  const now = new Date();
-  expect(months[5]?.month).toBe(
-    `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`,
-  );
+  expect(months[5]?.month).toBe(thisMonthKey());
   // Nothing posted yet, and it says so rather than leaving the months out.
   expect(months.every((m) => m.incomeCents === 0 && m.expenseCents === 0)).toBe(
     true,
@@ -78,7 +84,10 @@ test("six months come back, oldest first, quiet ones included", async () => {
 
 test("income and expenses read in the direction an accountant reads them", async () => {
   // £120 earned and £45 spent, this month.
-  const mid = new Date(new Date().getFullYear(), new Date().getMonth(), 15);
+  const now = new Date();
+  const mid = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 15, 12),
+  );
   await postJournalEntry(
     orgId,
     "A sale",
@@ -120,11 +129,7 @@ test("a month's last day is inside that month", async () => {
    */
   const last = firstOf(1);
   const endOfLastMonth = new Date(
-    last.getFullYear(),
-    last.getMonth() + 1,
-    0,
-    23,
-    30,
+    Date.UTC(last.getUTCFullYear(), last.getUTCMonth() + 1, 0, 23, 30),
   );
   await postJournalEntry(
     orgId,
@@ -141,4 +146,29 @@ test("a month's last day is inside that month", async () => {
   expect(months[4]?.incomeCents).toBe(700);
   // And it did not leak into the month after it.
   expect(months[5]?.incomeCents).toBe(12_000);
+});
+
+/**
+ * Every clock read in here is a UTC one.
+ *
+ * The platform dashboard buckets its twelve months by UTC, and this buckets
+ * six — so a server west of Greenwich reading local months would file an
+ * entry posted in the small hours of the 1st into a different month on each
+ * of two screens one click apart. Nothing would fail; a figure would simply
+ * differ depending on where you looked.
+ *
+ * `money-books-agree.test.ts` holds the two answers together, and cannot see
+ * this particular fault, because the runner is UTC and there a local month
+ * and a UTC month are the same month. So this reads the source instead, which
+ * is the only place the difference is visible from inside a UTC process.
+ */
+test("the month windows are cut in UTC, not in the server's own time", () => {
+  const source = readFileSync(join(import.meta.dir, "books.ts"), "utf8");
+  const local = source.match(
+    /\.get(?!UTC)(FullYear|Month|Date|Day|Hours|Minutes)\(/g,
+  );
+  expect(
+    local ?? [],
+    `books.ts reads ${local?.join(", ")} — a local clock, where the dashboard reads a UTC one`,
+  ).toEqual([]);
 });

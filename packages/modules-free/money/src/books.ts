@@ -41,16 +41,26 @@ const total = (accounts: { balanceCents: number }[]) =>
  * `to` is the first instant of the following month rather than the last day
  * of this one: a period that ends "2026-09-30" drops everything posted on the
  * 30th, which is the day a month's work is most likely to be posted on.
+ *
+ * **UTC, because the platform dashboard's twelve-month series is UTC.** Two
+ * screens one click apart, both reading the journal, both naming a month —
+ * and a server an hour west of Greenwich would have put an entry posted late
+ * on the 31st into different months on each of them. `money-books-agree`
+ * holds the two together.
  */
 export async function booksByMonth(
   organizationId: string,
   now = new Date(),
 ): Promise<BooksMonth[]> {
   const windows = Array.from({ length: 6 }, (_, i) => {
-    const from = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
-    const to = new Date(from.getFullYear(), from.getMonth() + 1, 1);
+    const from = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (5 - i), 1),
+    );
+    const to = new Date(
+      Date.UTC(from.getUTCFullYear(), from.getUTCMonth() + 1, 1),
+    );
     return {
-      month: `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, "0")}`,
+      month: `${from.getUTCFullYear()}-${String(from.getUTCMonth() + 1).padStart(2, "0")}`,
       from,
       to,
     };
