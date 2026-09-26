@@ -123,12 +123,43 @@ interface SettingsResponse {
   };
 }
 
-/** Green when it is set up, amber when it is not — never a bare boolean. */
-function State({ ok, yes, no }: { ok: boolean; yes: string; no: string }) {
+/**
+ * A status, in the colour it deserves.
+ *
+ * Two states was one too few. Off is usually something to go and fix — mail
+ * not set up, payments not connected — and the warning colour is right for
+ * those. It is wrong for a setting somebody has deliberately left alone:
+ * usage reporting sends nothing until you allow it, and colouring the
+ * private default as a problem tells a customer they have something to
+ * correct when they have the opposite.
+ *
+ * The licence card had already worked this out in a comment of its own —
+ * "no token at all is not a failure: the instance is simply Free, which is
+ * a tier and not a warning" — and solved it by lying about `ok`. This is the
+ * same idea with a name.
+ */
+function State({
+  ok,
+  yes,
+  no,
+  /** Off is a choice here, not a job left undone. */
+  quiet = false,
+}: {
+  ok: boolean;
+  yes: string;
+  no: string;
+  quiet?: boolean;
+}) {
   return (
     <span
       className="text-sm font-medium"
-      style={{ color: ok ? "var(--text-success)" : "var(--text-warning)" }}
+      style={{
+        color: ok
+          ? "var(--text-success)"
+          : quiet
+            ? "var(--text-muted)"
+            : "var(--text-warning)",
+      }}
     >
       {ok ? yes : no}
     </span>
@@ -1642,7 +1673,12 @@ function Telemetry({
         customer records, no names, no figures, no business identifier.
       </p>
       <Toolbar className="mt-2">
-        <State ok={telemetry.enabled} yes="sending" no="not sending anything" />
+        <State
+          ok={telemetry.enabled}
+          yes="sending"
+          no="not sending anything"
+          quiet
+        />
         {telemetry.fixedOnServer ? (
           <span className="text-sm" style={muted}>
             Set on the server, so it cannot be changed here.
