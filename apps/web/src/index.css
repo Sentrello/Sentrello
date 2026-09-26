@@ -445,6 +445,23 @@ td .link {
   border-bottom: 1px solid var(--border);
 }
 
+/*
+ * And the same bar at the bottom.
+ *
+ * The header's own language — raised surface, one hairline against the
+ * screen — turned over. Not sticky: the header is a place you reach for
+ * while reading and this is not, and a second fixed bar on a phone takes
+ * a tenth of the screen from the thing somebody came to read.
+ *
+ * 2.75rem against the header's 3.25rem, which is the amount `main`'s
+ * minimum height gives back so that a screen with nothing on it does not
+ * scroll by exactly the height of this.
+ */
+.app-footer {
+  background: var(--surface-raised);
+  border-top: 1px solid var(--border);
+}
+
 /* The rail: sections as icons, always visible, so switching part of the
    business is one click from anywhere rather than a scroll.
 
@@ -463,7 +480,17 @@ td .link {
   background: var(--surface-sunken);
   position: sticky;
   top: 3.25rem;
-  height: calc(100vh - 3.25rem);
+  /*
+   * As tall as the row, and never taller than the window below the header.
+   *
+   * It was `height: calc(100vh - 3.25rem)`, which is right until something
+   * is added below the row — a footer — and then the row is a footer's
+   * worth taller than the space there is, and every short screen scrolls
+   * by exactly that. Stretching to the row and capping the scroll here
+   * says the same thing without doing the arithmetic twice.
+   */
+  align-self: stretch;
+  max-height: calc(100vh - 3.25rem);
   overflow-y: auto;
 }
 
@@ -651,7 +678,17 @@ td .link {
   background: var(--surface-raised);
   position: sticky;
   top: 3.25rem;
-  height: calc(100vh - 3.25rem);
+  /*
+   * As tall as the row, and never taller than the window below the header.
+   *
+   * It was `height: calc(100vh - 3.25rem)`, which is right until something
+   * is added below the row — a footer — and then the row is a footer's
+   * worth taller than the space there is, and every short screen scrolls
+   * by exactly that. Stretching to the row and capping the scroll here
+   * says the same thing without doing the arithmetic twice.
+   */
+  align-self: stretch;
+  max-height: calc(100vh - 3.25rem);
   overflow-y: auto;
 }
 

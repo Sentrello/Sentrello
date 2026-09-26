@@ -577,6 +577,7 @@ export default function App() {
       <AppShell
         nav={nav}
         user={session.data?.user ?? { name: null, email: "" }}
+        version={data?.version}
       >
         {/* A paid module that is not running is said here, on every screen,
             to whoever can fix it — not only on /healthz and the licence

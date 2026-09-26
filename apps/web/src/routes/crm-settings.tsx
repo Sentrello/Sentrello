@@ -528,7 +528,13 @@ export function CrmSettings() {
             {tags.data.tags.map((tag) => (
               <li
                 key={tag.id}
-                className="flex items-center gap-(--gap-toolbar) border-t py-2 first:border-0 border-line"
+                /*
+                  Wrapping, like the three rows above it. A dot, a name, a
+                  row of eight colour swatches and a remove come to 460
+                  pixels of fixed width, and only the name can give — so on
+                  a phone the swatches and the remove went off the edge.
+                */
+                className="flex flex-wrap items-center gap-(--gap-toolbar) border-t py-2 first:border-0 border-line"
               >
                 <span
                   aria-hidden="true"
@@ -536,7 +542,7 @@ export function CrmSettings() {
                   style={{ background: tag.color }}
                 />
                 <span className="flex-1 text-sm">{tag.name}</span>
-                <span className="flex gap-(--gap-tight)">
+                <span className="flex flex-wrap gap-(--gap-tight)">
                   {TAG_COLOURS.map((colour) => (
                     <button
                       key={colour}

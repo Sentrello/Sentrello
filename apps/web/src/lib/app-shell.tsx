@@ -5,6 +5,7 @@ import { FindButton } from "./find";
 import { Icon, type IconName } from "./icons";
 import { useNavigation } from "./navigation";
 import { type Theme, useTheme } from "./theme";
+import { muted } from "./ui";
 
 /**
  * The frame every screen sits in.
@@ -815,10 +816,13 @@ function ProfileMenu({
 export function AppShell({
   nav,
   user,
+  version,
   children,
 }: {
   nav: NavEntry[];
   user: { name?: string | null; email: string };
+  /** What this instance is running, for the bar at the bottom. */
+  version?: string;
   children: React.ReactNode;
 }) {
   const { go } = useNavigation();
@@ -894,7 +898,20 @@ export function AppShell({
   }, [label]);
 
   return (
-    <div className="min-h-screen">
+    /*
+      A column: bar, body, bar.
+
+      It was a plain block, and the body carried its own "100vh minus the
+      header" so a screen could fill the window. Adding a footer to that
+      gave every short screen a scrollbar exactly the height of the footer,
+      because the rail is cut to the viewport too and nothing knew there
+      was now something below it.
+
+      As a column the arithmetic goes away: the row between the bars takes
+      what is left, and the footer sits under it — at the bottom of the
+      window when a screen is short, after the content when it is long.
+    */
+    <div className="flex min-h-screen flex-col">
       <div aria-live="polite" className="sr-only">
         {arrived}
       </div>
@@ -947,18 +964,29 @@ export function AppShell({
         </div>
       </header>
 
-      <div className="flex items-start">
+      {/*
+        Stretching rather than `items-start`: the rail and the panel are
+        sticky and carry their own maximum height, so letting them fill the
+        row is what keeps them full height without overshooting into the
+        footer.
+
+        And `min-w-0`, which it did not need as a block. A flex item's
+        minimum width is its content, so as a child of the column above it
+        this row stopped shrinking at whatever the widest thing inside it
+        was — 445 pixels of settings screen in a 390-pixel phone.
+      */}
+      <div className="flex min-w-0 flex-1">
         <Sidebar nav={nav} />
-        {/* The body is at least the height of the screen below the header, and
-            a column, so a module that wants to fill the window — a builder, a
-            board, a table with its own scroll — can say `flex-1` and get it.
-            Without this the body was only as tall as its content and every
-            such screen stopped halfway down an empty page. 3.25rem is the
-            header, the same figure the rail and the panel are cut to. */}
+        {/* A column that fills the row, so a module that wants to fill the
+            window — a builder, a board, a table with its own scroll — can
+            say `flex-1` and get it. The height comes from the row now,
+            rather than from a viewport calculation of its own: that one
+            said `100vh minus the header` and stopped being true the moment
+            there was a bar underneath as well. */}
         <main
           id="screen"
           tabIndex={-1}
-          className="flex min-h-[calc(100vh-3.25rem)] min-w-0 flex-1 flex-col p-6"
+          className="flex min-w-0 flex-1 flex-col p-6"
         >
           {/*
            * The screen, and only the screen, when a render throws.
@@ -979,6 +1007,35 @@ export function AppShell({
           </ErrorBoundary>
         </main>
       </div>
+
+      {/*
+        A bar at the bottom, the same weight as the one at the top.
+        
+        Asked for by James on 26 September 2026, to be filled in later. It
+        carries the two things worth having on every screen in the
+        meantime: what this is, and which release it is running — the
+        first question of every support conversation, and until now
+        readable only from `/healthz` or the licence screen.
+        
+        Outside the row that holds the rail and the panel, so it sits
+        under all three. Both of those are sticky inside that row, which
+        means they stop above this rather than sliding over it.
+      */}
+      <footer className="app-footer">
+        <div className="flex h-11 items-center gap-3 px-4 text-xs">
+          <span style={muted}>Sentrello</span>
+          {/*
+            Not "unknown", which is what an instance built outside the
+            release pipeline reports and what a developer's own copy says.
+            A version nobody can act on is worse than no version at all.
+          */}
+          {version && version !== "unknown" ? (
+            <span className="ml-auto tabular-nums" style={muted}>
+              {version}
+            </span>
+          ) : null}
+        </div>
+      </footer>
     </div>
   );
 }
