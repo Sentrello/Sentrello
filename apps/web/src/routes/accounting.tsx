@@ -972,24 +972,44 @@ export function Money() {
                   onDone={refresh}
                 />
               </td>
-              <td>
+              {/*
+                Behind one menu, like every other row. Written into the row,
+                the two of them put "Undo" in the danger colour on every line
+                of the ledger — on the screen somebody opens to read what the
+                business spent.
+
+                And Undo asked nothing. It posts a reversing entry, so the
+                books stay explainable and nothing is lost, but it is still a
+                journal entry made on one press by somebody who might have
+                meant Correct — which is the item directly above it.
+              */}
+              <td className="text-right">
                 {t.reversedAt ? null : (
-                  <>
-                    <button
-                      type="button"
-                      className="link-muted text-xs"
-                      onClick={() => setEditing(t)}
-                    >
-                      Correct
-                    </button>
-                    <MenuItem
-                      needs={{ bookkeeping: ["delete"] }}
-                      className="link-danger ml-3 text-xs"
-                      onClick={() => undo.mutate(t.id)}
-                    >
-                      Undo
-                    </MenuItem>
-                  </>
+                  <RowMenu label={t.description ?? formatDate(t.occurredAt)}>
+                    {(close) => (
+                      <>
+                        <MenuItem
+                          needs={{ bookkeeping: ["update"] }}
+                          onClick={() => {
+                            close();
+                            setEditing(t);
+                          }}
+                        >
+                          Correct
+                        </MenuItem>
+                        <ConfirmButton
+                          title="Undo this entry?"
+                          message="A reversing entry is posted against it, so the books still show what happened and why. Nothing is deleted. If the figure or the category is simply wrong, Correct it instead."
+                          confirmLabel="Undo it"
+                          danger
+                          needs={{ bookkeeping: ["delete"] }}
+                          onConfirm={() => undo.mutate(t.id)}
+                        >
+                          Undo
+                        </ConfirmButton>
+                      </>
+                    )}
+                  </RowMenu>
                 )}
               </td>
             </Row>
