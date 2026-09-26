@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { type Contact, type Meta, api } from "../lib/api";
+import { type Contact, type Meta, api, may } from "../lib/api";
 import { useCrmSettings } from "../lib/crm-settings";
 import { CustomValues } from "../lib/custom-fields";
 import { Icon } from "../lib/icons";
@@ -25,6 +25,7 @@ import {
   Input,
   Loading,
   Page,
+  REFUSED,
   SectionHeading,
   Select,
   Textarea,
@@ -181,6 +182,7 @@ function Attach({ noteId, onDone }: { noteId: string; onDone: () => void }) {
         <input
           type="file"
           className="hidden"
+          disabled={!may("crm", "update")}
           onChange={(e) => {
             const file = e.target.files?.[0];
             if (file) upload.mutate(file);

@@ -166,7 +166,14 @@ function Permissions({
       </div>
       <Matrix value={value} onChange={setValue} />
       <div>
-        <Button onClick={() => save.mutate()} disabled={save.isPending}>
+        {/* Better Auth's own role API, enforced there; the screen says it
+            the way the rest of this console does. Everybody holding this
+            policy is affected the moment it saves. */}
+        <Button
+          needs={{ settings: ["update"] }}
+          onClick={() => save.mutate()}
+          disabled={save.isPending}
+        >
           {save.isPending ? "Saving…" : "Save changes"}
         </Button>
       </div>

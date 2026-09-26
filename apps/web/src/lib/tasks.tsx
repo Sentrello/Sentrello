@@ -9,13 +9,14 @@
  */
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
-import { api } from "./api";
+import { api, may } from "./api";
 import { Icon } from "./icons";
 import {
   Button,
   Dialog,
   Field,
   Input,
+  REFUSED,
   RowMenu,
   Select,
   Warning,
@@ -191,11 +192,16 @@ export function TaskRow({
 
   return (
     <li className="flex items-start gap-2 border-t py-1.5 text-sm first:border-0 border-line">
+      {/* Ticking a task writes it. A checkbox has no primitive to hang
+          `needs` on, so it asks directly — the same way the compliance
+          screen's do. */}
       <input
         type="checkbox"
         checked={task.done ?? false}
         aria-label={`Mark "${task.title}" done`}
         className="mt-1 shrink-0"
+        disabled={!may("crm", "update")}
+        title={may("crm", "update") ? undefined : REFUSED}
         onChange={(e) =>
           complete.mutate({ id: task.id, done: e.target.checked })
         }

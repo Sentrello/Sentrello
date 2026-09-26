@@ -134,7 +134,10 @@ export function TagChips({
         <button
           key={t.id}
           type="button"
-          disabled={!allowed}
+          // Asked at the control, not read from a variable above it: the
+          // guard's contract is that a control says what it needs where
+          // somebody reading the control can see it.
+          disabled={!may("crm", "update")}
           onClick={() => detach.mutate(t.id)}
           title={allowed ? "Remove" : REFUSED}
           className="rounded-full px-2 py-0.5 text-xs"

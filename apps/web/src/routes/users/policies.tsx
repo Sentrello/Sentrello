@@ -129,7 +129,15 @@ export function Policies() {
           <Matrix value={permission} onChange={setPermission} />
 
           <div>
+            {/*
+              Better Auth's own role API rather than a Hono route, so no
+              `requirePermission` stands behind it for the resolver to read —
+              it is enforced there instead. The screen still has to say so:
+              the rest of this console asks `settings: ["update"]`, and
+              creating a policy is the most consequential write on it.
+            */}
             <Button
+              needs={{ settings: ["update"] }}
               onClick={() => create.mutate()}
               disabled={!name.trim() || create.isPending}
             >

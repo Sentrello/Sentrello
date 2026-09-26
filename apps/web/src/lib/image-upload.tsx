@@ -1,7 +1,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
+import { may } from "./api";
 import { Avatar } from "./avatar";
-import { ErrorNote, muted } from "./ui";
+import { ErrorNote, REFUSED, muted } from "./ui";
 
 /**
  * Putting a picture on a record, and taking it off again.
@@ -136,7 +137,11 @@ export function ImageUpload({
           <button
             type="button"
             className="link-muted"
-            disabled={remove.isPending}
+            // The holder is a prop, so the path this builds cannot be matched
+            // against the table the server registers. It asks directly —
+            // every record this component is used on is a CRM record.
+            disabled={remove.isPending || !may("crm", "update")}
+            title={may("crm", "update") ? undefined : REFUSED}
             onClick={() => remove.mutate()}
           >
             Remove
@@ -157,6 +162,7 @@ export function ImageUpload({
         // trip and the error message.
         accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/heic"
         className="hidden"
+        disabled={!may("crm", "update")}
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (file) upload.mutate(file);

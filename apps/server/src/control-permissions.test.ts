@@ -174,10 +174,19 @@ test("every control that writes says which permission it needs", () => {
  * What is left over is the honest remainder, and counting it is what stops
  * the next one arriving unnoticed.
  *
- * So this counts instead of resolving. Twenty-one today, down from
- * twenty-eight, and most of what is left is right: your own password, your
- * own saved views and your own dashboard arrangement are not somebody
- * else's to permit. The number may not grow while the rest come down.
+ * So this counts instead of resolving. Thirteen today, down from
+ * twenty-eight, and **every one of the thirteen is right** — checked against
+ * what its own route asks for:
+ *
+ * - Your profile: your email, your password, your sessions, your
+ *   preferences. Nobody else permits those.
+ * - Your saved views, your dashboard arrangement, and whether the onboarding
+ *   panel is showing. All three routes ask for `read`.
+ * - The evidence pack, the privacy export and a customer's portal link. Each
+ *   is a POST because it makes a file, and each route asks for `read`.
+ *
+ * So the number is not a backlog any more; it is the shape of what should
+ * never carry a permission. It may not grow.
  *
  * It is a ceiling rather than a floor because the direction is known. A new
  * screen that writes without saying what it needs pushes it up and fails
@@ -199,5 +208,5 @@ test("no new write arrives without a permission on it", () => {
   }
   // Both numbers, so a refactor that stops the scanner seeing anything at
   // all fails here rather than reporting zero ungated writes and passing.
-  expect([gated > 150, bare <= 21]).toEqual([true, true]);
+  expect([gated > 160, bare <= 13]).toEqual([true, true]);
 });

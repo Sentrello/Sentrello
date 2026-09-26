@@ -1460,10 +1460,14 @@ function TemplateForm({
                 className="h-8 rounded border border-line"
               />
             ) : null}
+            {/* The logo on every invoice this business sends. A file input
+                has no primitive to hang `needs` on, so it asks directly. */}
             <input
               type="file"
               accept="image/*"
               className="text-sm"
+              disabled={!may("invoicing", "update")}
+              title={may("invoicing", "update") ? undefined : REFUSED}
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) uploadLogo.mutate(file);
