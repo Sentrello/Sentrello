@@ -8,7 +8,9 @@ import {
   ErrorNote,
   Field,
   Input,
+  MenuItem,
   Row,
+  RowMenu,
   SectionHeading,
   Table,
   muted,
@@ -221,7 +223,14 @@ export function Policies({
       <Table headers={["Policy", "May do", ""]}>
         {rows.map((policy) => (
           <Row key={policy.role}>
-            <td className="py-2 font-medium">
+            {/*
+              The name does not wrap. This column is sized by what is left
+              after the permissions beside it, which is nearly nothing, so
+              "Customer Service" came out on two lines while every other row
+              was on one. The table already scrolls inside its own box if a
+              name is ever long enough to need it.
+            */}
+            <td className="whitespace-nowrap py-2 font-medium">
               {onOpen ? (
                 <button
                   type="button"
@@ -245,40 +254,58 @@ export function Policies({
                 .map(([res, actions]) => `${res} (${actions.join(", ")})`)
                 .join(" · ") || "nothing"}
             </td>
+            {/*
+              Behind one menu, like every other row in the product. Written
+              into the row, the three of them put "Delete" in the danger
+              colour on every line of the list that decides who may do what —
+              and squeezed the policy column hard enough to break "Customer
+              Service" in half.
+            */}
             <td className="text-right">
-              <div className="flex items-center justify-end gap-(--gap-toolbar)">
-                {/*
-                Edit changes what everybody holding this policy may do, so it
-                is offered only where it is real: the two compiled roles cannot
-                be changed, and pretending otherwise would be a button that
-                fails when pressed.
-              */}
-                {policy.builtIn ? null : (
-                  <button
-                    type="button"
-                    className="link-muted text-sm"
-                    onClick={() => onEdit(policy.role, policy.allows)}
-                  >
-                    Edit
-                  </button>
+              <RowMenu label={policy.role}>
+                {(close) => (
+                  <>
+                    {/*
+                      Edit changes what everybody holding this policy may do,
+                      so it is offered only where it is real: the two compiled
+                      roles cannot be changed, and pretending otherwise would
+                      be a button that fails when pressed.
+                    */}
+                    {policy.builtIn ? null : (
+                      <MenuItem
+                        needs={{ settings: ["update"] }}
+                        onClick={() => {
+                          close();
+                          onEdit(policy.role, policy.allows);
+                        }}
+                      >
+                        Edit
+                      </MenuItem>
+                    )}
+                    <MenuItem
+                      needs={{ settings: ["update"] }}
+                      onClick={() => {
+                        close();
+                        onCopy(policy.role, policy.allows);
+                      }}
+                    >
+                      Copy
+                    </MenuItem>
+                    {policy.builtIn ? null : (
+                      <MenuItem
+                        needs={{ settings: ["update"] }}
+                        style={{ color: "var(--text-danger)" }}
+                        onClick={() => {
+                          close();
+                          onDelete(policy.role);
+                        }}
+                      >
+                        Delete
+                      </MenuItem>
+                    )}
+                  </>
                 )}
-                <button
-                  type="button"
-                  className="link-muted text-sm"
-                  onClick={() => onCopy(policy.role, policy.allows)}
-                >
-                  Copy
-                </button>
-                {policy.builtIn ? null : (
-                  <button
-                    type="button"
-                    className="link-danger text-sm"
-                    onClick={() => onDelete(policy.role)}
-                  >
-                    Delete
-                  </button>
-                )}
-              </div>
+              </RowMenu>
             </td>
           </Row>
         ))}
