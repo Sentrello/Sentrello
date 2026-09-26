@@ -307,6 +307,19 @@ export function Button({
 }) {
   const blocked = blockedBy(needs);
   const reason = useBlockedReason(blocked);
+  /*
+   * A transparent border on the filled variants, which sounds pointless and
+   * is the whole fix for one environment.
+   *
+   * In forced colours — Windows High Contrast, and the same switch in
+   * Firefox — the system replaces every colour the page chose. A button that
+   * was a solid brand fill with no border keeps its words and loses its
+   * shape, so on the invoices screen "New invoice" was the only control that
+   * had stopped looking like one, next to two secondary buttons that kept
+   * their outlines. A border declared as transparent is forced to a system
+   * colour there and drawn; everywhere else it is invisible and costs a
+   * pixel of nothing.
+   */
   const styles = {
     primary: {
       // The shade dark enough for white text on it: brand-500 measures 3.77:1
@@ -314,9 +327,14 @@ export function Button({
       // product.
       background: "var(--brand-on-white-text)",
       color: "var(--color-neutral-50)",
+      border: "1px solid transparent",
     },
     secondary: { background: "transparent", ...border, color: "var(--text)" },
-    danger: { background: "var(--color-danger)", color: "white" },
+    danger: {
+      background: "var(--color-danger)",
+      color: "white",
+      border: "1px solid transparent",
+    },
   }[variant];
 
   return (
