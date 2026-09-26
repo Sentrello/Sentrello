@@ -4,8 +4,9 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { db, desc, eq, schema } from "@sentrello/db";
+import { businessIdentity } from "@sentrello/db/portal";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
-import { personalDataSources } from "@sentrello/module-sdk";
+import { personalDataSources, retentionText } from "@sentrello/module-sdk";
 
 /**
  * The things an auditor asks for, in one file.
@@ -41,6 +42,10 @@ export function registerEvidence(ctx: ModuleContext) {
     requirePermission({ settings: ["read"] }),
     async (c: RouteContext) => {
       const orgId = activeOrganizationId(c.get("session"));
+      // How long the business must keep its accounts is its own country's
+      // rule, and an evidence pack that states the wrong one is worse than
+      // one that states none.
+      const { countryCode } = await businessIdentity(orgId);
 
       /**
        * Everybody with access, what they can do, and whether they have a second
@@ -135,7 +140,7 @@ export function registerEvidence(ctx: ModuleContext) {
           sources: personalDataSources().map((s) => ({
             module: s.moduleId,
             label: s.label,
-            retention: s.retention,
+            retention: retentionText(s, countryCode ?? null),
             canEraseOnRequest: Boolean(s.erase),
           })),
         },

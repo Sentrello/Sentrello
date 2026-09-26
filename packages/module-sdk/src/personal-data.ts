@@ -81,8 +81,32 @@ export interface PersonalDataSource {
    * Required, because a record of processing that cannot say how long data is
    * kept is not a record of processing. "Until the customer is deleted" is a
    * valid answer; silence is not.
+   *
+   * A function where the answer depends on where the business is. Most
+   * modules keep data for as long as the record exists, which is the same
+   * sentence everywhere — but the length a business must keep its *accounts*
+   * is set by its own country, and this screen tells a business what to copy
+   * into its privacy notice. It read "six years in the UK" to all four
+   * markets until 26 September 2026.
    */
-  retention: string;
+  retention: string | ((countryCode: string | null) => string);
+}
+
+/**
+ * The sentence, whichever form the module gave.
+ *
+ * One reader, because three things consume this — the sources list, the
+ * evidence pack and the subject-access answer — and a business reading two
+ * different retention periods for one record is worse than reading one
+ * imprecise one.
+ */
+export function retentionText(
+  source: Pick<PersonalDataSource, "retention">,
+  countryCode: string | null,
+): string {
+  return typeof source.retention === "function"
+    ? source.retention(countryCode)
+    : source.retention;
 }
 
 export interface RegisteredPersonalData extends PersonalDataSource {

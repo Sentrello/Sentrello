@@ -4,13 +4,14 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { db, desc, eq, schema } from "@sentrello/db";
+import { businessIdentity } from "@sentrello/db/portal";
 import { record as recordSecurityEvent } from "@sentrello/db/security-events";
 import type {
   DataSubject,
   ModuleContext,
   RouteContext,
 } from "@sentrello/module-sdk";
-import { personalDataSources } from "@sentrello/module-sdk";
+import { personalDataSources, retentionText } from "@sentrello/module-sdk";
 
 /**
  * One place to answer a person asking about their own data.
@@ -61,16 +62,22 @@ export function registerPrivacy(ctx: ModuleContext) {
     "/api/privacy/sources",
     requireSession(),
     requirePermission({ settings: ["read"] }),
-    async (c: RouteContext) =>
-      c.json({
+    async (c: RouteContext) => {
+      // Where the business is, because how long it must keep its accounts is
+      // that country's rule and this list is what it copies into its own
+      // privacy notice.
+      const orgId = activeOrganizationId(c.get("session"));
+      const { countryCode } = await businessIdentity(orgId);
+      return c.json({
         sources: personalDataSources().map((s) => ({
           id: s.id,
           module: s.moduleId,
           label: s.label,
-          retention: s.retention,
+          retention: retentionText(s, countryCode ?? null),
           canErase: Boolean(s.erase),
         })),
-      }),
+      });
+    },
   );
 
   /**
@@ -176,6 +183,10 @@ export function registerPrivacy(ctx: ModuleContext) {
         );
       }
 
+      // The same country the sources list uses, so the reason a record is
+      // kept reads the same in both places.
+      const { countryCode: country } = await businessIdentity(orgId);
+
       const done: {
         source: string;
         label: string;
@@ -190,7 +201,12 @@ export function registerPrivacy(ctx: ModuleContext) {
             source: source.id,
             label: source.label,
             removed: [],
-            kept: [{ what: source.label, why: source.retention }],
+            kept: [
+              {
+                what: source.label,
+                why: retentionText(source, country ?? null),
+              },
+            ],
           });
           continue;
         }

@@ -17,26 +17,89 @@ import type { ModuleContext, PersonalRecord } from "@sentrello/module-sdk";
  * and what would be worse than either is telling somebody their data is gone
  * while the ledger still names them.
  */
+/**
+ * How long invoices are kept, in the market the business is in.
+ *
+ * This screen tells a business what to copy into its own privacy notice, and
+ * the sentence here read "six years in the UK." to all four markets until
+ * 26 September 2026 — so an American shop was handed a British retention
+ * period as if it were its own.
+ *
+ * **The figures are the statutory record-keeping period, and they should be
+ * checked by an accountant before anybody relies on them.** They are in one
+ * table for exactly that reason: correcting one is a one-line change, and
+ * the authority each comes from is named beside it.
+ *
+ * - **GB** — six years. Companies Act 2006 s388 for company records, and
+ *   HMRC's own guidance for business records generally.
+ * - **CA** — six years, counted from the end of the last tax year the record
+ *   relates to. Canada Revenue Agency.
+ * - **US** — the IRS period of limitations is three years for most returns
+ *   and six where income is substantially under-reported, so the sentence
+ *   says at least three and longer in some cases rather than picking one.
+ * - **The EU** — set by each member state and genuinely different across
+ *   them, from six years to ten. Stated as the range rather than invented as
+ *   a single figure.
+ *
+ * A country nobody has filled in, or one outside these markets, gets the
+ * sentence without a number: the obligation is real wherever the business
+ * is, and the length is not ours to assert.
+ */
+const EU = new Set([
+  "AT",
+  "BE",
+  "BG",
+  "HR",
+  "CY",
+  "CZ",
+  "DK",
+  "EE",
+  "FI",
+  "FR",
+  "DE",
+  "GR",
+  "EL",
+  "HU",
+  "IE",
+  "IT",
+  "LV",
+  "LT",
+  "LU",
+  "MT",
+  "NL",
+  "PL",
+  "PT",
+  "RO",
+  "SK",
+  "SI",
+  "ES",
+  "SE",
+]);
+
+const HOW_LONG: Record<string, string> = {
+  GB: "six years",
+  CA: "six years",
+  US: "at least three years, and longer where a return is under enquiry",
+};
+
+export function invoiceRetention(countryCode: string | null): string {
+  const country = (countryCode ?? "").trim().toUpperCase();
+  const period =
+    HOW_LONG[country] ??
+    (EU.has(country)
+      ? "between six and ten years, depending on the country"
+      : null);
+  const opening = period
+    ? `Invoices are kept for as long as the law requires the business to keep its accounts — ${period}.`
+    : "Invoices are kept for as long as the law requires the business to keep its accounts, which is set by the country it is in.";
+  return `${opening} They are not deleted on request.`;
+}
+
 export function registerInvoicingPersonalData(ctx: ModuleContext) {
   ctx.registerPersonalData({
     id: "invoicing",
     label: "Invoices and quotes",
-    /*
-     * How long, without telling three of our four markets the fourth's rule.
-     *
-     * This read "six years in the UK" full stop, on a screen a business is
-     * told to copy into its own privacy notice — so an American shop was
-     * handed a British retention period as if it were theirs. The figure
-     * stays because it is the one we can state without qualification; what
-     * changes is that it is now an example rather than the rule, and the
-     * sentence says the answer depends on where the business is.
-     *
-     * The real fix is country-aware copy, which needs `registerPersonalData`
-     * to take a function of the organisation rather than a string. Worth
-     * doing; not worth guessing at four tax codes to do it today.
-     */
-    retention:
-      "Invoices are kept for as long as the law requires the business to keep its accounts — six years in the UK, for example. How long that is depends on where the business is, and they are not deleted on request.",
+    retention: invoiceRetention,
 
     export: async (orgId, subject) => {
       if (!subject.email && !subject.id) return [];
