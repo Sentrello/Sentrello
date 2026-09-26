@@ -208,9 +208,12 @@
       "name": "@sentrello/module-money",
       "version": "0.0.0",
       "dependencies": {
+        "@sentrello/auth": "*",
+        "@sentrello/db": "*",
         "@sentrello/module-accounting": "*",
         "@sentrello/module-invoicing": "*",
         "@sentrello/module-sdk": "*",
+        "drizzle-orm": "^0.45.0",
       },
     },
     "packages/modules-free/profile": {

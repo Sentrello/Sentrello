@@ -2,6 +2,7 @@ import accounting from "@sentrello/module-accounting";
 import invoicing from "@sentrello/module-invoicing";
 import type { ModuleContext } from "@sentrello/module-sdk";
 import { defineModule } from "@sentrello/module-sdk";
+import { registerBooksSummary } from "./books";
 
 /** The shape `registerNav` takes, which the SDK declares inline. */
 type NavEntry = Parameters<ModuleContext["registerNav"]>[0];
@@ -216,5 +217,15 @@ export default defineModule({
     const pages = asPagesOfMoney(ctx);
     invoicing.register(pages);
     accounting.register(pages);
+
+    /*
+     * The one thing this module owns outright.
+     *
+     * Everything above is an arrangement of two packages. This is a figure
+     * neither of them can produce alone: what the business earned against
+     * what it spent, which is the question a module called Money is named
+     * after and the one its front page could not answer.
+     */
+    registerBooksSummary(ctx);
   },
 });

@@ -8,7 +8,10 @@
   "dependencies": {
     "@sentrello/module-sdk": "*",
     "@sentrello/module-invoicing": "*",
-    "@sentrello/module-accounting": "*"
+    "@sentrello/module-accounting": "*",
+    "@sentrello/auth": "*",
+    "@sentrello/db": "*",
+    "drizzle-orm": "^0.45.0"
   },
   "license": "AGPL-3.0-or-later"
 }

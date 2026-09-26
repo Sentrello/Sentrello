@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { api } from "../lib/api";
-import { Bars, type Point } from "../lib/charts";
+import { api, may } from "../lib/api";
+import { PairedBars, type PairedPoint } from "../lib/charts";
 import { useNavigation } from "../lib/navigation";
 import {
   Card,
@@ -16,12 +16,21 @@ import {
 } from "../lib/ui";
 
 /**
- * Invoicing's own front page.
+ * The front page of Money.
  *
- * The four figures the platform dashboard shows, and then the two lists
- * somebody actually acts on: who is late, and what is sitting in drafts. The
- * second is the one nothing else surfaces — an invoice written and never
- * issued is work already done that nobody has been asked to pay for.
+ * Four figures from the sales side, what the business earned against what it
+ * spent, and then the two lists somebody actually acts on: who is late, and
+ * what is sitting in drafts. The second is the one nothing else surfaces —
+ * an invoice written and never issued is work already done that nobody has
+ * been asked to pay for.
+ *
+ * **It used to be the invoicing dashboard and nothing else**, which meant a
+ * module called Money answered half of one question: a business that had
+ * spent more than it billed could read its own front page and not know. The
+ * earned-and-spent half comes from the journal, so the figure here and the
+ * figure on the Summary screen are the same number, and it is only asked for
+ * by somebody allowed to read the books — raising invoices without seeing
+ * the books is an ordinary arrangement in a small business.
  *
  * Every row opens the document it names. A dashboard of numbers to admire is a
  * dashboard people look at once.
@@ -105,6 +114,28 @@ export function InvoicingDashboard() {
       (s) => s.status === "over" || s.status === "approaching",
     ) ?? [];
 
+  /**
+   * The other half of the answer: earned against spent, from the journal.
+   *
+   * Only asked for by somebody who can read the books. `may` answers from
+   * the grant set `/api/_meta` sends, and an unknown permission is allowed —
+   * hiding a figure from somebody entitled to it is the worse mistake, and
+   * the route refuses what it must regardless.
+   */
+  const books = useQuery({
+    enabled: may("bookkeeping", "read"),
+    queryKey: ["money", "books"],
+    queryFn: () =>
+      api<{
+        months: { month: string; incomeCents: number; expenseCents: number }[];
+        month: {
+          incomeCents: number;
+          expenseCents: number;
+          netCents: number;
+        };
+      }>("/api/money/books"),
+  });
+
   if (isLoading) return <Loading />;
   if (error) return <ErrorNote error={error} />;
   if (!data) return null;
@@ -112,11 +143,21 @@ export function InvoicingDashboard() {
   const openInvoice = (id: string, number: string) =>
     open({ moduleId: "invoicing", recordId: id, title: number });
 
-  const points: Point[] = data.months.map((m) => ({
+  /*
+   * One chart, two series, one scale.
+   *
+   * It was "Billed by month", a single bar per month — which says how much
+   * work went out and nothing about whether the business kept any of it. Two
+   * bars against each other answer both, and sharing a scale is the point:
+   * two charts with their own axes make a bad month look like a good one.
+   */
+  const points: PairedPoint[] = (books.data?.months ?? []).map((m) => ({
     label: m.month.slice(2).replace("-", "/"),
-    value: m.billedCents,
-    display: formatMoney(m.billedCents),
+    up: m.incomeCents,
+    down: m.expenseCents,
+    display: `${formatMoney(m.incomeCents)} in · ${formatMoney(m.expenseCents)} out`,
   }));
+  const anyMovement = points.some((p) => p.up !== 0 || p.down !== 0);
 
   return (
     <div className="flex flex-col gap-(--gap-stack)">
@@ -157,10 +198,52 @@ export function InvoicingDashboard() {
         ))}
       </div>
 
-      {points.length > 0 ? (
+      {/*
+        One card rather than three more, and the same three words the Summary
+        screen uses in the same order.
+
+        Seven figures across two rows is a wall of numbers; a business reads
+        the sales side and the books as two questions, so they are drawn as
+        two things. And a figure that disagrees with the report it came from
+        is a figure somebody stops trusting — these are the journal's, which
+        is what the Summary reads too.
+      */}
+      {books.data ? (
         <Card>
-          <SectionHeading>Billed by month</SectionHeading>
-          <Bars points={points} format={briefMoney} />
+          <SectionHeading>This month</SectionHeading>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <StatFigure
+              label="Income"
+              value={formatMoney(books.data.month.incomeCents)}
+            />
+            <StatFigure
+              label="Expenses"
+              value={formatMoney(books.data.month.expenseCents)}
+            />
+            <StatFigure
+              label="Net"
+              value={formatMoney(books.data.month.netCents)}
+              tone={
+                books.data.month.netCents < 0
+                  ? "bad"
+                  : books.data.month.netCents > 0
+                    ? "good"
+                    : "plain"
+              }
+            />
+          </div>
+        </Card>
+      ) : null}
+
+      {anyMovement ? (
+        <Card>
+          <SectionHeading>Income and expenses</SectionHeading>
+          <PairedBars
+            points={points}
+            upLabel="Income"
+            downLabel="Expenses"
+            format={briefMoney}
+          />
         </Card>
       ) : null}
 
