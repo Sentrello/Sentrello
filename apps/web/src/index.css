@@ -792,6 +792,28 @@ h1 {
   padding-right: 0;
 }
 
+/*
+ * A table given the whole width of its card.
+ *
+ * Three screens put their line items in a `Card` with the padding taken off,
+ * so the rule between two rows runs the full width of the card rather than
+ * stopping short of it. That is the right look and it left the cells with
+ * nothing between them and the border: on the invoice, "Amount" and the
+ * figure under it sat hard against the card's right edge and read as a
+ * column that had been cut off.
+ *
+ * The padding moves to the cells, which is where it belongs when the card
+ * has given its own away. The separators still span the card.
+ */
+.table-inset .app-table th:first-child,
+.table-inset .app-table td:first-child {
+  padding-left: var(--pad-panel);
+}
+.table-inset .app-table th:last-child,
+.table-inset .app-table td:last-child {
+  padding-right: var(--pad-panel);
+}
+
 /* Non-negotiable for an accounting product: money lines up in columns. */
 .money,
 td.money,

@@ -292,7 +292,7 @@ export function InvoiceDetail() {
           </div>
         </Card>
 
-        <Card className="p-0">
+        <Card className="table-inset p-0">
           <Table
             headers={[
               "Description",
