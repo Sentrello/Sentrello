@@ -76,7 +76,12 @@ interface Dashboard {
     unpaidCount: number;
     overdueCount: number;
   };
-  pipeline: { openCount: number; openCents: number; wonCount: number };
+  pipeline: {
+    openCount: number;
+    openCents: number;
+    wonCount: number;
+    wonCents: number;
+  };
   book: { contacts: number };
   attention: {
     id: string;
@@ -379,18 +384,35 @@ function Widget({
       return <WhoOwesPanel />;
     case "pipeline":
       return (
+        /*
+          Two halves of one thing, both in money.
+          
+          It was Open, Won and "People in the book" — and the figure row at
+          the top of this very tab already carries the contact count, so the
+          screen stated it twice, once under a heading it does not belong to.
+          A pipeline panel is what is still to win and what has been won.
+          
+          Won was a bare count, which is the half of that sentence nobody
+          asks for: eleven deals won and no word on what they were worth.
+        */
         <Card>
           <SectionHeading>Pipeline</SectionHeading>
-          <div className="grid gap-(--gap-toolbar) text-sm sm:grid-cols-3">
+          {/*
+            Four columns for two figures, which is the house arrangement on a
+            card this wide — two halves of a full-width card put a label at
+            the far left and its own figure six hundred pixels away, and a
+            pair that far apart stops reading as a pair.
+          */}
+          <div className="grid gap-(--gap-toolbar) text-sm sm:grid-cols-2 lg:grid-cols-4">
             <Stat
               label="Open"
               value={formatMoney(data.pipeline.openCents)}
               hint={`${data.pipeline.openCount} deal${data.pipeline.openCount === 1 ? "" : "s"}`}
             />
-            <Stat label="Won" value={String(data.pipeline.wonCount)} />
             <Stat
-              label="People in the book"
-              value={String(data.book.contacts)}
+              label="Won"
+              value={formatMoney(data.pipeline.wonCents)}
+              hint={`${data.pipeline.wonCount} deal${data.pipeline.wonCount === 1 ? "" : "s"}`}
             />
           </div>
         </Card>

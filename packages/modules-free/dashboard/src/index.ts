@@ -350,6 +350,15 @@ export default defineModule({
               0,
             ),
             wonCount: stages.find((s) => s.stage === "won")?.count ?? 0,
+            /*
+             * What was won, in money.
+             *
+             * The count was here and the amount was not, so the pipeline
+             * panel could say eleven deals were won and never what they were
+             * worth — and it filled the space with the contact count instead,
+             * which is a fact about the book rather than about the pipeline.
+             */
+            wonCents: stages.find((s) => s.stage === "won")?.amountCents ?? 0,
           },
           book: { contacts },
           // Most urgent first: an overdue invoice is money already earned and

@@ -598,6 +598,67 @@ test("a business still setting up is not sold to", async () => {
 });
 
 /**
+ * The pipeline panel is about the pipeline, in money, on both sides.
+ *
+ * It used to read Open, Won and "People in the book" — and the figure row at
+ * the top of the same tab already carries the contact count, so the screen
+ * stated it twice, the second time under a heading it has nothing to do with.
+ * Won was a bare count as well: eleven deals won and no word on what they
+ * were worth, which is the half of that sentence a business actually asks
+ * for.
+ */
+test("the pipeline carries what is open and what was won, both in money", async () => {
+  const made = await db
+    .insert(schema.deals)
+    .values([
+      {
+        organizationId: orgId,
+        name: `Open one ${suffix}`,
+        stage: "opportunity",
+        amountCents: 40_000,
+      },
+      {
+        organizationId: orgId,
+        name: `Open two ${suffix}`,
+        stage: "opportunity",
+        amountCents: 15_000,
+      },
+      {
+        organizationId: orgId,
+        name: `Won one ${suffix}`,
+        stage: "won",
+        amountCents: 90_000,
+      },
+    ])
+    .returning();
+
+  try {
+    const body = (await (await get()).json()) as {
+      pipeline: {
+        openCount: number;
+        openCents: number;
+        wonCount: number;
+        wonCents: number;
+      };
+    };
+
+    // The fixture above this file has deals of its own, so these are read as
+    // "at least mine" rather than as exact totals — a figure that only holds
+    // while nothing else exists is a figure that fails the day it does.
+    expect(body.pipeline.openCents).toBeGreaterThanOrEqual(55_000);
+    expect(body.pipeline.openCount).toBeGreaterThanOrEqual(2);
+    expect(body.pipeline.wonCents).toBeGreaterThanOrEqual(90_000);
+    expect(body.pipeline.wonCount).toBeGreaterThanOrEqual(1);
+    // Won is money, not a count wearing a money label.
+    expect(body.pipeline.wonCents).not.toBe(body.pipeline.wonCount);
+  } finally {
+    for (const deal of made) {
+      await db.delete(schema.deals).where(eq(schema.deals.id, deal.id));
+    }
+  }
+});
+
+/**
  * A business that has started using it is not told where to start.
  *
  * This organization has invoices, contacts and deals from the fixture above,
