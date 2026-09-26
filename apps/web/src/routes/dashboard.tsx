@@ -203,8 +203,21 @@ const WIDGET_LABELS: Record<string, string> = {
   attention: "Needs attention",
   pipeline: "Pipeline",
   health: "This server",
-  "revenue-trend": "Income and expenses",
-  "cash-position": "Profit trend",
+  /*
+   * The names these two panels actually carry once they have data.
+   *
+   * They were "Income and expenses" and "Profit trend", and the loaded cards
+   * said "Income by month" and "Profit by month" — so a panel was called one
+   * thing while it loaded and in the Arrange list, and another thing on the
+   * screen. The first was wrong as well as different: that panel draws
+   * income and nothing else, and there is now a chart on Money's front page
+   * genuinely called Income and expenses.
+   *
+   * Both cards read this map now rather than writing the words again, so the
+   * two cannot part company a second time.
+   */
+  "revenue-trend": "Income by month",
+  "cash-position": "Profit by month",
   "deals-by-stage": "Deals by stage",
   "top-customers": "Top customers",
   "invoice-aging": "How late the money is",
@@ -746,7 +759,7 @@ function InsightWidget({
     }));
     return (
       <Card>
-        <SectionHeading>Income by month</SectionHeading>
+        <SectionHeading>{WIDGET_LABELS[id]}</SectionHeading>
         <Bars points={points} format={briefMoney} />
       </Card>
     );
@@ -760,7 +773,7 @@ function InsightWidget({
     }));
     return (
       <Card>
-        <SectionHeading>Profit by month</SectionHeading>
+        <SectionHeading>{WIDGET_LABELS[id]}</SectionHeading>
         <Line points={points} />
       </Card>
     );
