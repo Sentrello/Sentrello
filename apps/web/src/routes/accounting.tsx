@@ -5,6 +5,7 @@ import {
   type Meta,
   type ProfitAndLoss,
   api,
+  hasModule,
   may,
 } from "../lib/api";
 import type { CustomField } from "../lib/crm-settings";
@@ -256,8 +257,18 @@ export function Summary() {
       api<{ dimensions: { id: string; kind: string; name: string }[] }>(
         "/api/dimensions",
       ),
-    // A Free instance has no dimensions route, and a failed query on this
-    // screen would take the profit and loss down with it.
+    /*
+     * Not asked for on an instance that does not have it.
+     *
+     * The route belongs to `pro-accounting`. `retry: false` below was the
+     * whole of the handling, which meant every Free instance fetched a 404
+     * on the profit and loss and on the trial balance, every time either
+     * was opened, and wrote it to the console of whoever had it open. The
+     * screen has always coped; it simply had no reason to ask.
+     */
+    enabled: hasModule("pro-accounting"),
+    // And if it is there and still fails, the profit and loss is not worth
+    // taking down over a filter.
     retry: false,
   });
   const classes = (dimensions.data?.dimensions ?? []).filter(

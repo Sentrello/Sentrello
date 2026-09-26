@@ -5,7 +5,12 @@ import {
 } from "@sentrello/auth/hono";
 import { db, schema } from "@sentrello/db";
 import { recordConsent } from "@sentrello/db/consent";
-import { type CRM_SUBJECTS, companyNames, crmValues } from "@sentrello/db/crm";
+import {
+  type CRM_SUBJECTS,
+  companyMarks,
+  companyNames,
+  crmValues,
+} from "@sentrello/db/crm";
 import {
   type ListSpec,
   UNPAGED_MAX,
@@ -1262,16 +1267,23 @@ const tables = {
      * on its avatar, which is the only thing on a card that says whose it is.
      */
     async enrich(rows: Record<string, unknown>[], orgId: string) {
-      const customers = await companyNames(
+      const customers = await companyMarks(
         orgId,
         rows.map((row) => (row.companyId as string | null) ?? null),
       );
-      return rows.map((row) => ({
-        ...row,
-        companyName: row.companyId
-          ? (customers.get(String(row.companyId)) ?? null)
-          : null,
-      }));
+      return rows.map((row) => {
+        const customer = row.companyId
+          ? customers.get(String(row.companyId))
+          : undefined;
+        return {
+          ...row,
+          companyName: customer?.name ?? null,
+          // Whether to ask for the mark at all. Without it the board asked
+          // for an image per card and took a 404 for every company that has
+          // none, which is most of them.
+          companyLogo: Boolean(customer?.logoPath),
+        };
+      });
     },
     list: {
       // The board is ordered by hand, so `position` is the default rather

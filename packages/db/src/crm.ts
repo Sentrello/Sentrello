@@ -123,10 +123,31 @@ export async function companyNames(
   organizationId: string,
   ids: (string | null)[],
 ): Promise<Map<string, string>> {
+  const marks = await companyMarks(organizationId, ids);
+  return new Map([...marks].map(([id, mark]) => [id, mark.name]));
+}
+
+/**
+ * The name and whether there is a logo, which is a different question.
+ *
+ * A card draws a company's mark, and asking the server for an image the
+ * company does not have is a 404 per row — thirty of them on a full deals
+ * board, each a round trip, all of them ending in the initials the browser
+ * would have drawn anyway. The column costs nothing to select and is the
+ * difference between asking and knowing.
+ */
+export async function companyMarks(
+  organizationId: string,
+  ids: (string | null)[],
+): Promise<Map<string, { name: string; logoPath: string | null }>> {
   const wanted = [...new Set(ids.filter((id): id is string => Boolean(id)))];
   if (!wanted.length) return new Map();
   const rows = await db
-    .select({ id: schema.companies.id, name: schema.companies.name })
+    .select({
+      id: schema.companies.id,
+      name: schema.companies.name,
+      logoPath: schema.companies.logoPath,
+    })
     .from(schema.companies)
     .where(
       and(
@@ -134,5 +155,7 @@ export async function companyNames(
         inArray(schema.companies.id, wanted),
       ),
     );
-  return new Map(rows.map((row) => [row.id, row.name]));
+  return new Map(
+    rows.map((row) => [row.id, { name: row.name, logoPath: row.logoPath }]),
+  );
 }

@@ -235,6 +235,10 @@ export function registerCrmDashboard(ctx: ModuleContext) {
                 name: contact.name,
                 email: contact.email,
                 companyId: contact.companyId,
+                // Whether the panel should ask for a photograph. Without
+                // this it asked for one per person and took a 404 for
+                // everybody who has none, which is nearly everybody.
+                avatar: Boolean(contact.avatarPath),
                 lastActivityAt: at,
               }
             : null;

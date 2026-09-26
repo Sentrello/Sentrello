@@ -59,6 +59,8 @@ interface Deal {
    * customer's name and, with it, the initials on its avatar.
    */
   companyName: string | null;
+  /** Whether the company has a logo worth asking the server for. */
+  companyLogo?: boolean;
   archivedAt: string | null;
   /** Worked out on read by whatever module defines computed columns. */
   computed?: Record<string, { value: number | string | null; reason?: string }>;
@@ -209,7 +211,11 @@ function Column({
               */}
               {d.companyId ? (
                 <Avatar
-                  src={`/api/crm/companies/${d.companyId}/image`}
+                  src={
+                    d.companyLogo
+                      ? `/api/crm/companies/${d.companyId}/image`
+                      : null
+                  }
                   // The company's initials, not the deal's: the mark is there
                   // to say who the job is for, and "RR" for "Roof
                   // replacement" says nothing at all.

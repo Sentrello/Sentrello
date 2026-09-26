@@ -35,6 +35,8 @@ interface CrmDashboard {
     name: string;
     email: string | null;
     companyId: string | null;
+    /** Whether this person has a photograph worth asking the server for. */
+    avatar?: boolean;
     lastActivityAt: string;
   }[];
   dealOutcomes: {
@@ -293,7 +295,11 @@ export function CrmDashboard() {
                   }
                 >
                   <Avatar
-                    src={`/api/crm/contacts/${contact.id}/image`}
+                    src={
+                      contact.avatar
+                        ? `/api/crm/contacts/${contact.id}/image`
+                        : null
+                    }
                     name={contact.name}
                     size={32}
                   />

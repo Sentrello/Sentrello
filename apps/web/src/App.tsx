@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { type Meta, api, setGrants } from "./lib/api";
+import { type Meta, api, setGrants, setLoadedModules } from "./lib/api";
 import { AppShell } from "./lib/app-shell";
 import { signOut, useSession } from "./lib/auth";
 import { ModuleFailures } from "./lib/module-alerts";
@@ -452,6 +452,9 @@ export default function App() {
    * drawn the American way for a moment and then corrected.
    */
   setFormats({ countryCode: data?.countryCode ?? "" });
+  // And which modules are here at all, so a screen can decline to ask a
+  // Pro endpoint on an instance that does not have one.
+  setLoadedModules(data?.loaded);
   const bootstrap = useBootstrap();
   const profile = useProfile(signedIn);
   const nav = data?.nav ?? [];

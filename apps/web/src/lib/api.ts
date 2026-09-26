@@ -304,3 +304,28 @@ export function may(resource: string, action: string): boolean {
   if (!held) return true;
   return held.includes(action);
 }
+
+/**
+ * Which modules this instance actually loaded.
+ *
+ * The opposite default to `may` above, and deliberately. A permission we
+ * have not been told about is allowed, because hiding a control from
+ * somebody entitled to it is the worse mistake and the route refuses what
+ * it must anyway. A *route* we have not been told about is absent: asking
+ * for it costs a round trip and answers 404, and the screen has already
+ * decided what to do without it.
+ *
+ * This exists because the profit and loss asked a Pro endpoint for its
+ * class list on every Free instance, twice a screen, and took a 404 in the
+ * console each time in front of whoever had opened it.
+ */
+let loadedModules: string[] = [];
+
+/** Called by the shell when `/api/_meta` answers. */
+export function setLoadedModules(next: string[] | undefined): void {
+  loadedModules = next ?? [];
+}
+
+export function hasModule(id: string): boolean {
+  return loadedModules.includes(id);
+}
