@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
+import { announce } from "../lib/announce";
 import { type Contact, type Tag, api } from "../lib/api";
 import { useSession } from "../lib/auth";
 import { Avatar } from "../lib/avatar";
@@ -545,6 +546,7 @@ function BulkActions({
 
   const applyTag = useMutation({
     mutationFn: async (tagId: string) => {
+      const count = selected.length;
       // One call per contact, deliberately: the tag endpoint is per-record,
       // and a bulk write path would be a second way to do the same thing with
       // its own scoping rules to get wrong.
@@ -554,12 +556,24 @@ function BulkActions({
           body: JSON.stringify({ tagId }),
         });
       }
+      return count;
     },
-    onSuccess: onDone,
+    /*
+     * Said out loud, because nothing else here is.
+     *
+     * The tag appears on rows that are about to be replaced by a refresh
+     * and the selection bar goes — so to somebody working by ear, tagging
+     * forty contacts and pressing a dead control are the same event.
+     */
+    onSuccess: (count) => {
+      announce(`${count} contact${count === 1 ? "" : "s"} tagged`);
+      onDone();
+    },
   });
 
   const remove = useMutation({
     mutationFn: async () => {
+      const count = selected.length;
       const refused: string[] = [];
       for (const id of selected) {
         try {
@@ -572,8 +586,12 @@ function BulkActions({
         }
       }
       if (refused.length) throw new Error(refused[0]);
+      return count;
     },
-    onSuccess: onDone,
+    onSuccess: (count) => {
+      announce(`${count} contact${count === 1 ? "" : "s"} deleted`);
+      onDone();
+    },
   });
 
   return (

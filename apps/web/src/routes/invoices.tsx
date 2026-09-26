@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { announce } from "../lib/announce";
 import { api, may } from "../lib/api";
 import { Icon } from "../lib/icons";
 import {
@@ -232,14 +233,24 @@ export function Invoices() {
    */
   const removeMany = useMutation({
     mutationFn: async () => {
+      const count = picked.length;
       for (const id of picked) {
         await api(`/api/invoices/${id}`, { method: "DELETE" });
       }
+      return count;
     },
-    onSuccess: () => {
+    onSuccess: (count) => {
       setPicked([]);
       setConfirmingDelete(false);
       refresh();
+      /*
+       * Said out loud, because nothing else here is.
+       *
+       * The rows go, the bar with them, and the page is otherwise
+       * unchanged — so to somebody working by ear a bulk delete of twelve
+       * invoices and a press that did nothing are the same event.
+       */
+      announce(`${count} invoice${count === 1 ? "" : "s"} deleted`);
     },
   });
 
