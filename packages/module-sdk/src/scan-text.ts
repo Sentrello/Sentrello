@@ -59,6 +59,10 @@ export function exceptedAbove(
   line: number,
   marker: string,
 ): boolean {
-  const pattern = new RegExp(`^\\s*(?://|/\\*)\\s*${marker}-ignore\\b`);
+  // `{/*` as well, because most of what these scanners read is `.tsx` and a
+  // comment inside JSX has to be wrapped in braces to be a comment at all.
+  // Without it the escape hatch was unusable on exactly the files that needed
+  // it, and the scanner reported four deliberate exceptions as findings.
+  const pattern = new RegExp(`^\\s*\\{?\\s*(?://|/\\*)\\s*${marker}-ignore\\b`);
   return pattern.test(rawLines[line - 2] ?? "");
 }

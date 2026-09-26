@@ -307,26 +307,35 @@ function FormActions({
       <RowMenu label={form.name}>
         {(close) => (
           <>
-            <button
-              type="button"
-              className="menu-item"
+            {/*
+              `MenuItem` rather than a bare button, because only the
+              primitive can be refused. Editing the questions and changing
+              which sites may embed the form are both writes, and both opened
+              a panel rather than firing the mutation themselves — so nothing
+              in the sweep saw them and a read-only role was offered both.
+
+              Embed code stays open to anybody: it is the tag to paste, which
+              is a read, and the form is already public by design.
+            */}
+            <MenuItem
+              needs={{ crm: ["update"] }}
               onClick={() => {
                 close();
                 onEdit();
               }}
             >
               Edit questions
-            </button>
-            <button
-              type="button"
-              className="menu-item"
+            </MenuItem>
+            <MenuItem
+              needs={{ crm: ["update"] }}
               onClick={() => {
                 close();
                 onSites();
               }}
             >
               Allowed sites
-            </button>
+            </MenuItem>
+            {/* menu-item-ignore: the tag to paste; the form is public */}
             <button
               type="button"
               className="menu-item"

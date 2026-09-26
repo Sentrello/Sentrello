@@ -404,6 +404,13 @@ export * from "./public-endpoints";
  * matching subtly wrong in one repository only.
  */
 export * from "./reachability";
+/*
+ * The text-scanning helpers, because three repositories' guards read source
+ * and every one of them has now reported the file that *documents* a rule as
+ * the file that breaks it. A comment is not code, and `stripComments` is how
+ * a scanner says so.
+ */
+export { exceptedAbove, lineOf, stripComments } from "./scan-text";
 /**
  * The judgement every outbound call to a customer-typed URL goes through,
  * and the signature it carries. One implementation for every repository —

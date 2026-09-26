@@ -768,6 +768,7 @@ function ProfileMenu({
             ) : null}
           </div>
 
+          {/* menu-item-ignore: your own profile, which everybody has */}
           <button
             type="button"
             className="menu-item"
@@ -779,6 +780,7 @@ function ProfileMenu({
             Your profile
           </button>
 
+          {/* menu-item-ignore: goes to a screen that gates itself */}
           <button
             type="button"
             className="menu-item"
@@ -792,6 +794,7 @@ function ProfileMenu({
 
           <ThemeChoice theme={theme} onChange={setTheme} />
 
+          {/* menu-item-ignore: signing out is nobody's to refuse */}
           <button
             type="button"
             className="menu-item border-t"

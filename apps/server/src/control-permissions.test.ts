@@ -10,8 +10,10 @@ import invoicing from "@sentrello/module-invoicing";
 import profile from "@sentrello/module-profile";
 import {
   createModuleApp,
+  exceptedAbove,
   registerForTest,
   sourceFiles,
+  stripComments,
 } from "@sentrello/module-sdk";
 import {
   controlsFiringMutations,
@@ -209,4 +211,56 @@ test("no new write arrives without a permission on it", () => {
   // Both numbers, so a refactor that stops the scanner seeing anything at
   // all fails here rather than reporting zero ungated writes and passing.
   expect([gated > 160, bare <= 13]).toEqual([true, true]);
+});
+
+/**
+ * A row menu's items are `MenuItem`, not a button wearing its class.
+ *
+ * Only the primitive can be refused: `needs` is its prop, and a bare
+ * `<button className="menu-item">` has nowhere to put one. Nine of them were
+ * live for a read-only role on 26 September — four on a task, four on a deal
+ * and one on a quote — and every one was invisible to the scanner above,
+ * because a menu built in a loop has one handler for however many items it
+ * draws and that handler calls a prop rather than a mutation.
+ *
+ * The exceptions are the ones that are not about permission at all: the
+ * account menu goes to your own profile, to the settings screen and out of
+ * the application, and an embed code is a tag to paste. Those are listed by
+ * hand rather than excused by a rule, so adding to the list is a decision
+ * somebody makes on purpose.
+ */
+test("a menu item that can be refused is the only kind there is", () => {
+  const bare: string[] = [];
+  for (const path of sourceFiles(WEB, [".tsx"])) {
+    if (path.includes(".test.")) continue;
+    const relative = path.slice(ROOT.length + 1);
+    /*
+     * Comments first. The note in `ui.tsx` explaining why this shape is
+     * wrong contains the shape, and a check that reads prose reports the
+     * file that documents the rule as the file that breaks it. Twice in one
+     * night now — `requestedPaths` had the same fault.
+     */
+    const raw = readFileSync(path, "utf8").split("\n");
+    const lines = stripComments(raw.join("\n")).split("\n");
+    lines.forEach((line, i) => {
+      // Anchored on the element's own line rather than on the line carrying
+      // the class, because that is where a reader looks and where the
+      // exception above it has to sit to be read with it.
+      if (!/^\s*<button\b/.test(line)) return;
+      // A `<span>` wearing the class is a label inside a menu, not a control,
+      // and cannot be pressed.
+      const tag = lines.slice(i, i + 8).join("\n");
+      if (!/className="menu-item/.test(tag)) return;
+      /*
+       * Excused one line at a time, with the reason on the line above it,
+       * rather than a file at a time. A file-level exception excuses
+       * everything else in the file — the first draft of this excepted the
+       * forms screen for its embed-code item and thereby stopped seeing the
+       * two writes beside it, which is the failure the whole test is about.
+       */
+      if (exceptedAbove(raw, i + 1, "menu-item")) return;
+      bare.push(`${relative}:${i + 1}`);
+    });
+  }
+  expect(bare, `\n    ${bare.join("\n    ")}`).toEqual([]);
 });
