@@ -206,6 +206,50 @@ rather than quietly included.
 **It computes; it does not file.** Nothing is sent anywhere. You submit the
 return through your own member state's portal, and the deadline is yours.
 
+## Structured e-invoices, and sending them
+
+In much of the EU a PDF is no longer an invoice. Italy, France, Germany and
+Poland require a structured format, and ViDA extends that across the union —
+so a business in Milan cannot legally issue from a system that only produces
+a document to look at.
+
+Sentrello builds the structured document itself: EN 16931 as UBL, in three
+profiles. The bare European norm, Peppol BIS Billing 3.0 for the network most
+reception mandates mean in practice, and XRechnung for German public bodies.
+Each is offered on the invoice only when it would actually validate, and when
+it would not, the screen says what is missing in plain words rather than
+letting you download something that will be rejected a fortnight later.
+
+### Sending it over Peppol
+
+Peppol is a network you join through an access point. **The account is
+yours.** You sign up with a provider, they bill you per document, and your
+invoices travel in your name — Sentrello holds no account with anybody and
+ships no keys.
+
+Connect one under **Invoice settings → Sending over Peppol**:
+
+1. Open an account with an access point. Storecove is supported today, and
+   the interface behind this is deliberately replaceable.
+2. Paste the API key and the legal entity id from their dashboard. The key is
+   encrypted before it is stored, and is never shown again — only its last
+   few characters, so you can tell which key it is.
+3. Leave **This is a sandbox key** ticked while you try it. A sandbox key
+   cannot reach the real network, which is how you walk the whole path
+   without a customer receiving anything.
+4. Press **Test the connection**. It answers with the registered name of the
+   business the key belongs to, which is also how you know the key and the
+   entity id are the pair you meant.
+
+A **Send over Peppol** button then appears on any invoice the network would
+accept. Every attempt is recorded against the invoice — including the ones
+that were refused, with the access point's own reason — because "we never
+received it" is a conversation that needs an answer with a reference in it.
+
+Your customer needs an electronic address for this to go anywhere. Most EU
+businesses are addressed by their VAT number, which Sentrello uses when no
+explicit Peppol identifier is set.
+
 ## The catalogue
 
 Products and services you invoice for repeatedly live in a price list, each with
