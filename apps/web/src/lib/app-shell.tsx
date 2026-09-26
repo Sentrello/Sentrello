@@ -867,8 +867,37 @@ export function AppShell({
     document.title = label ? `${label} · Sentrello` : "Sentrello";
   }, [label]);
 
+  /*
+   * Saying, out loud, that the page changed.
+   *
+   * On a whole-page load a screen reader reads the new document and you
+   * know where you are. Nothing here loads a page: a nav item swaps the
+   * contents of `main`, focus stays on the link you pressed, and the title
+   * changes — which is not announced by any screen reader we can rely on.
+   * So somebody working by ear pressed Contacts and heard nothing at all,
+   * with no way to tell whether it had worked.
+   *
+   * A polite live region rather than moving focus. Focus belongs to the
+   * person: they may be tabbing through the section panel on their way
+   * somewhere else, and hauling them into the page each time they pass a
+   * link is worse than saying nothing.
+   *
+   * Empty on the first render, then filled. A region that already holds
+   * its text when it appears announces nothing — the announcement is the
+   * *change* — and the first arrival is a real page load, which the
+   * browser has already read out.
+   */
+  const [arrived, setArrived] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setArrived(label), 120);
+    return () => clearTimeout(t);
+  }, [label]);
+
   return (
     <div className="min-h-screen">
+      <div aria-live="polite" className="sr-only">
+        {arrived}
+      </div>
       {/*
        * The way past the furniture, for somebody working without a mouse.
        *
