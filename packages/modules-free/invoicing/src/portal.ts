@@ -18,6 +18,7 @@ import { invoiceState } from "@sentrello/db/money";
 import {
   CUSTOMER_THEME_CSS,
   type CustomerTheme,
+  calendarDay,
   customerThemeSwitch,
   themeAttribute,
 } from "@sentrello/module-sdk";
@@ -48,13 +49,7 @@ function money(cents: number, currency = "USD", locale = "en-US"): string {
   );
 }
 
-function day(value: Date | string | null): string {
-  if (!value) return "—";
-  const d = typeof value === "string" ? new Date(value) : value;
-  return Number.isNaN(d.getTime())
-    ? "—"
-    : new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(d);
-}
+const day = (value: Date | string | null): string => calendarDay(value);
 
 const STYLE = `
 /* Ink, paper and the switch are the platform's, so this page looks like the

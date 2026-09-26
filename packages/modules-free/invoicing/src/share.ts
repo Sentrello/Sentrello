@@ -10,7 +10,7 @@ import { earlyPaymentTerms, invoiceState } from "@sentrello/db/money";
 import { deadLinkPage } from "@sentrello/db/portal";
 import { businessIdentity, moneyLocale } from "@sentrello/db/portal";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
-import { rateLimit } from "@sentrello/module-sdk";
+import { calendarDay, rateLimit } from "@sentrello/module-sdk";
 import { exemptionReasonFor } from "./einvoice";
 import { type Template, templateFor } from "./templates";
 
@@ -55,8 +55,7 @@ function money(cents: number, currency = "USD", locale = "en-US"): string {
 }
 
 function day(value: Date | string | null): string {
-  if (!value) return "—";
-  return new Date(value).toLocaleDateString("en-GB", {
+  return calendarDay(value, "en-GB", {
     day: "numeric",
     month: "short",
     year: "numeric",

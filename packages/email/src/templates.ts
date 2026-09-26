@@ -490,10 +490,15 @@ export function invitationEmail(args: {
   const until = args.expiresAt
     ? `<p style="color:#666;font-size:12px">The link works once and expires on
 ${escapeHtml(
+  // UTC, like every other date in this file. The expiry is a moment and the
+  // reader's zone is unknowable from here, so the alternative is the server's
+  // — which would make the same invitation say two different days depending
+  // on where the business rents its box.
   args.expiresAt.toLocaleDateString("en-US", {
     month: "long",
     day: "numeric",
     year: "numeric",
+    timeZone: "UTC",
   }),
 )}. If it has, ask to be invited again.</p>`
     : "";
