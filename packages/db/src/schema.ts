@@ -1176,6 +1176,117 @@ export const mtdConnections = pgTable("mtd_connections", {
 });
 
 /**
+ * How this business reaches the Peppol network, which is not through us.
+ *
+ * A structured invoice is worth nothing until it is delivered, and delivery
+ * happens over a network you have to be a member of. Sentrello is not a
+ * member and does not intend to become one: an access point is a commercial
+ * relationship with per-document pricing, and standing in the middle of it
+ * would mean holding one account for every customer's invoices and billing
+ * them for something we are only forwarding.
+ *
+ * So the business brings its own. They open an account with an access point
+ * — Storecove is the first one this supports — and paste its key here. The
+ * invoice is built by us, signed for by them, and the money and the
+ * liability stay where they belong. Nothing in this repository has an
+ * account, and no shipped build carries a key.
+ *
+ * One per organisation: an invoice goes out through one access point, and a
+ * second would be two copies of the same document on the network.
+ */
+export const peppolConnections = pgTable("peppol_connections", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: text("organization_id").notNull().unique(),
+
+  /**
+   * Which access point. One value today and a column rather than a constant,
+   * because the whole point of the interface behind this is that Storecove
+   * is replaceable — by another aggregator, or by a country's own network
+   * where one exists.
+   */
+  provider: text("provider").notNull().default("storecove"),
+
+  /** Sealed. The business's own key, never ours. */
+  apiKey: text("api_key").notNull(),
+
+  /**
+   * Who they are on the network, in the access point's terms.
+   *
+   * Storecove calls this a legal entity: the registered business, its
+   * country, and the identifiers it receives on. Documents are sent from
+   * one, so without it there is nothing to send as.
+   */
+  legalEntityId: text("legal_entity_id").notNull(),
+
+  /**
+   * Whether this is the sandbox, stored rather than inferred.
+   *
+   * The same reasoning as the HMRC connection above: going live is a change
+   * of endpoint *and* of key, and a connection that silently pointed at the
+   * wrong one would either send a test document to a real customer's
+   * accounts payable or file a real invoice into a system that throws it
+   * away. Sandbox until somebody says otherwise.
+   */
+  sandbox: boolean("sandbox").notNull().default(true),
+
+  /**
+   * What the access point said the last time we asked it who we were.
+   *
+   * A key that has been revoked answers 401 and nothing else changes — no
+   * error appears until the next invoice is sent, which is the worst moment
+   * to find out. The settings screen shows this, and the send path records
+   * it.
+   */
+  checkedAt: timestamp("checked_at"),
+  lastError: text("last_error"),
+
+  connectedAt: timestamp("connected_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+/**
+ * Every attempt to put an invoice on the network, and what came back.
+ *
+ * Kept per attempt rather than as a status column on the invoice, because
+ * "sent" is not one event: a document is submitted, accepted by the access
+ * point, and then delivered — or rejected hours later by the receiver's own
+ * validation, which is the case that costs a business a fortnight of
+ * wondering where the money is. A row per attempt is also what lets somebody
+ * send again after fixing an address without losing the record that the
+ * first one failed.
+ */
+export const peppolSubmissions = pgTable(
+  "peppol_submissions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: text("organization_id").notNull(),
+    invoiceId: uuid("invoice_id").notNull(),
+
+    /** What the access point calls this submission, for support. */
+    providerRef: text("provider_ref"),
+
+    /**
+     * `sent` once the access point has it, `failed` if it refused, and
+     * `delivered` or `rejected` when the network says so later.
+     */
+    status: text("status").notNull().default("sent"),
+
+    /** The receiver, as addressed: `0088:5790000435951`. */
+    recipient: text("recipient"),
+
+    /** Their words, not ours: an access point's refusal names the rule. */
+    detail: text("detail"),
+
+    sandbox: boolean("sandbox").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    index("peppol_submissions_invoice_idx").on(t.organizationId, t.invoiceId),
+  ],
+);
+
+/**
  * Whether this business is running under HIPAA, and what that switches on.
  *
  * HIPAA is not a mode software can grant. It is a programme a business runs —

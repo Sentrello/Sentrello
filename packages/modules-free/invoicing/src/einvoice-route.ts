@@ -5,15 +5,17 @@ import {
 } from "@sentrello/auth/hono";
 import { and, db, eq, inArray, schema } from "@sentrello/db";
 import { type LineTax, lineCharges } from "@sentrello/db/money";
-import { contentDisposition } from "@sentrello/module-sdk";
+import { contentDisposition, secrets } from "@sentrello/module-sdk";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import {
   EINVOICE_PROFILES,
   type EInvoiceInput,
   type EInvoiceProfile,
+  endpointFor,
   missingForEInvoice,
   toUbl,
 } from "./einvoice";
+import { transportFor } from "./einvoice-transport";
 
 /**
  * Handing over a structured e-invoice.
@@ -292,6 +294,120 @@ export function registerEInvoice(ctx: ModuleContext) {
         addressedTo: input.buyer.name,
         country: input.buyer.countryCode,
       });
+    },
+  );
+
+  /**
+   * Putting it on the network, through the access point the business owns.
+   *
+   * The document is built here and handed over whole — the same XML the
+   * download gives, which is the one that passed EN 16931. Everything that
+   * can refuse, refuses before anything is sent: no connection, a document
+   * with a mandatory field missing, a customer with no electronic address.
+   * An invoice that leaves half-formed is rejected hours later by somebody
+   * else's validator, and the business finds out when the money does not
+   * arrive.
+   */
+  ctx.app.post(
+    "/api/invoices/:id/einvoice/send",
+    requireSession(),
+    requirePermission({ invoicing: ["send"] }),
+    async (c: RouteContext) => {
+      const orgId = activeOrganizationId(c.get("session"));
+      const invoiceId = c.req.param("id") ?? "";
+
+      const [connection] = await db
+        .select()
+        .from(schema.peppolConnections)
+        .where(eq(schema.peppolConnections.organizationId, orgId))
+        .limit(1);
+      if (!connection) {
+        return c.json(
+          {
+            error:
+              "No access point is connected. Peppol delivery goes through an account this business holds — connect one on the invoice settings screen.",
+          },
+          400,
+        );
+      }
+      const provider = transportFor(connection.provider);
+      if (!provider) {
+        return c.json(
+          { error: `this instance no longer has ${connection.provider}` },
+          400,
+        );
+      }
+
+      const input = await gather(orgId, invoiceId);
+      if (!input) return c.json({ error: "not found" }, 404);
+
+      /*
+       * Peppol's own profile, not whichever one the screen last showed.
+       * Sending a bare EN 16931 document onto Peppol is a document the
+       * network's validation refuses.
+       */
+      const document: EInvoiceInput = { ...input, profile: "peppol" };
+      const missing = missingForEInvoice(document);
+      if (missing.length > 0) {
+        return c.json({ error: missing[0], missing }, 400);
+      }
+
+      const to = endpointFor(document.buyer);
+      if (!to) {
+        return c.json(
+          {
+            error: `${document.buyer.name} has no electronic address, so there is nobody on the network to deliver this to. Add their Peppol identifier, or their VAT number if they are addressed by it.`,
+          },
+          400,
+        );
+      }
+
+      const credentials = {
+        apiKey: secrets.open(connection.apiKey),
+        legalEntityId: connection.legalEntityId,
+        sandbox: connection.sandbox,
+      };
+
+      try {
+        const sent = await provider.send(
+          {
+            ubl: toUbl(document),
+            to: { scheme: to.scheme, identifier: to.id },
+          },
+          credentials,
+        );
+        const [row] = await db
+          .insert(schema.peppolSubmissions)
+          .values({
+            organizationId: orgId,
+            invoiceId,
+            providerRef: sent.reference,
+            status: "sent",
+            recipient: `${to.scheme}:${to.id}`,
+            sandbox: connection.sandbox,
+          })
+          .returning();
+        return c.json({ submission: row });
+      } catch (err) {
+        const detail = (err as Error).message;
+        /*
+         * A failure is written down too. "I pressed send and nothing
+         * happened" is the support conversation this exists to prevent,
+         * and the access point's own words are what make it answerable.
+         */
+        const [row] = await db
+          .insert(schema.peppolSubmissions)
+          .values({
+            organizationId: orgId,
+            invoiceId,
+            status: "failed",
+            recipient: `${to.scheme}:${to.id}`,
+            detail,
+            sandbox: connection.sandbox,
+          })
+          .returning();
+        return c.json({ error: detail, submission: row }, 502);
+      }
     },
   );
 

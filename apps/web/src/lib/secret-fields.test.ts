@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { stripComments } from "@sentrello/module-sdk";
 
 /**
  * A secret that is not a login must not be offered to a password manager.
@@ -50,7 +51,16 @@ test("no screen masks a non-login secret with a bare password input", () => {
   for (const file of tsxFiles(join(import.meta.dir, "..", "routes"))) {
     const name = file.split("/").pop() ?? "";
     if (REAL_PASSWORDS.has(name)) continue;
-    const source = readFileSync(file, "utf8");
+    /*
+     * Comments stripped first.
+     *
+     * This scan read its own subject as an instance of it: a comment on the
+     * new access-point field explaining why `type="password"` is the wrong
+     * thing to write made the file an offender. Third time a scanner in this
+     * repository has read prose as code, and `stripComments` is what the
+     * other two ended up using.
+     */
+    const source = stripComments(readFileSync(file, "utf8"));
     if (source.includes('type="password"')) {
       offenders.push(name);
     }

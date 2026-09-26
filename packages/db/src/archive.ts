@@ -297,6 +297,17 @@ const CORE_SETS: ArchiveSet[] = [
         name: "quote_instalments",
         follows: { parent: "quotes", column: "quote_id" },
       },
+      /*
+       * Proof that an invoice was put on the network, which is part of the
+       * invoice's record rather than a thing of its own. A business asked
+       * "we never received it" answers with this, and it has to survive as
+       * long as the document does.
+       */
+      {
+        name: "peppol_submissions",
+        org: "organization_id",
+        follows: { parent: "invoices", column: "invoice_id" },
+      },
     ],
     references: [
       {

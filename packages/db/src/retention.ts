@@ -93,6 +93,14 @@ export const NON_STATUTORY_TABLES = [
   "organizations",
   "payees",
   "payment_accounts",
+  /*
+   * The access point a business connected, which is a credential and a
+   * setting. Losing it stops invoices going out until somebody pastes the
+   * key again; it answers nothing an auditor asks. The proof that an
+   * invoice *was* delivered is `peppol_submissions`, and that one is
+   * statutory — it travels with the invoice in the documents archive.
+   */
+  "peppol_connections",
   "payment_webhook_events",
   "record_events",
   "reminder_log",

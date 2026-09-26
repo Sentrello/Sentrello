@@ -90,6 +90,12 @@ export const STATUTORY_TABLES = [
   "invoices",
   "journal_entries",
   "journal_lines",
+  /*
+   * Proof that an invoice was delivered over the network, which is part of
+   * the invoice's own record: it is the answer to "we never received it",
+   * and it has to last as long as the document it belongs to.
+   */
+  "peppol_submissions",
   "payments",
   "quote_instalments",
   "quote_lines",

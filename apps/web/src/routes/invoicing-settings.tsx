@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { api, may } from "../lib/api";
 import { Icon } from "../lib/icons";
 import {
@@ -14,11 +14,14 @@ import {
   Page,
   REFUSED,
   Row,
+  SecretInput,
   SectionHeading,
   Select,
   Table,
   Textarea,
   Toolbar,
+  Warning,
+  formatDate,
   formatMoney,
   muted,
 } from "../lib/ui";
@@ -131,7 +134,257 @@ export function InvoicingSettings() {
       <Letterhead />
 
       <BillingRules />
+
+      <PeppolDelivery />
     </Page>
+  );
+}
+
+/**
+ * The access point this business sends through, which is its own account.
+ *
+ * Peppol delivery is a commercial relationship with per-document pricing,
+ * and Sentrello holds no account with anybody: the business signs up, pastes
+ * its key here, and its invoices go out under its own name and its own bill.
+ * Nothing shipped carries a credential.
+ *
+ * Authorise, store, test, sandbox, then live — the shape every third-party
+ * connection in this product follows.
+ */
+/** One settled fact and its label, for a connection that is already made. */
+function Fact({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <p className="flex flex-wrap gap-x-2 text-sm">
+      <span style={muted}>{label}</span>
+      <span className="min-w-0">{children}</span>
+    </p>
+  );
+}
+
+function PeppolDelivery() {
+  const qc = useQueryClient();
+  const connection = useQuery({
+    queryKey: ["peppol-connection"],
+    queryFn: () =>
+      api<{
+        connection: {
+          provider: string;
+          legalEntityId: string;
+          sandbox: boolean;
+          keyHint: string;
+          checkedAt: string | null;
+          lastError: string | null;
+        } | null;
+        providers: { id: string; label: string }[];
+      }>("/api/einvoice/connection"),
+  });
+
+  const current = connection.data?.connection ?? null;
+  const providers = connection.data?.providers ?? [];
+
+  const [editing, setEditing] = useState(false);
+  const [provider, setProvider] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [legalEntityId, setLegalEntityId] = useState("");
+  const [sandbox, setSandbox] = useState(true);
+  const [said, setSaid] = useState("");
+
+  const start = () => {
+    setProvider(current?.provider ?? providers[0]?.id ?? "storecove");
+    setLegalEntityId(current?.legalEntityId ?? "");
+    setSandbox(current?.sandbox ?? true);
+    setApiKey("");
+    setSaid("");
+    setEditing(true);
+  };
+
+  const save = useMutation({
+    mutationFn: () =>
+      api<{ name: string }>("/api/einvoice/connection", {
+        method: "PUT",
+        body: JSON.stringify({ provider, apiKey, legalEntityId, sandbox }),
+      }),
+    onSuccess: (answer) => {
+      setEditing(false);
+      setApiKey("");
+      setSaid(
+        answer.name
+          ? `Connected as ${answer.name}.`
+          : "Connected. The access point did not give a name back.",
+      );
+      qc.invalidateQueries({ queryKey: ["peppol-connection"] });
+    },
+  });
+
+  const test = useMutation({
+    mutationFn: () =>
+      api<{ ok: boolean; name?: string }>("/api/einvoice/connection/test", {
+        method: "POST",
+      }),
+    onSuccess: (answer) => {
+      setSaid(
+        answer.name ? `Answered as ${answer.name}.` : "The key still works.",
+      );
+      qc.invalidateQueries({ queryKey: ["peppol-connection"] });
+    },
+  });
+
+  const disconnect = useMutation({
+    mutationFn: () => api("/api/einvoice/connection", { method: "DELETE" }),
+    onSuccess: () => {
+      setSaid("");
+      qc.invalidateQueries({ queryKey: ["peppol-connection"] });
+    },
+  });
+
+  return (
+    <Card>
+      <SectionHeading>Sending over Peppol</SectionHeading>
+      <p className="mb-3 text-sm" style={muted}>
+        Much of the EU will only accept a structured invoice, and a structured
+        invoice is delivered over a network you join through an access point.
+        The account is yours — you sign up with them, they bill you, and your
+        invoices go out in your name. We never hold a key.
+      </p>
+
+      {connection.isLoading ? <Loading /> : null}
+
+      {!editing && current ? (
+        <>
+          <Fact label="Access point">
+            {providers.find((p) => p.id === current.provider)?.label ??
+              current.provider}
+          </Fact>
+          <Fact label="Sending as">{current.legalEntityId}</Fact>
+          <Fact label="Key">…{current.keyHint}</Fact>
+          <Fact label="Mode">
+            {current.sandbox
+              ? "Sandbox — nothing reaches a real customer"
+              : "Live"}
+          </Fact>
+          {current.lastError ? (
+            <Warning role="alert">{current.lastError}</Warning>
+          ) : current.checkedAt ? (
+            <p className="text-sm" style={muted}>
+              Last answered {formatDate(current.checkedAt)}.
+            </p>
+          ) : null}
+          {said ? (
+            <p className="text-sm" style={muted}>
+              {said}
+            </p>
+          ) : null}
+          <Toolbar>
+            <Button
+              variant="secondary"
+              needs={{ invoicing: ["read"] }}
+              disabled={test.isPending}
+              onClick={() => test.mutate()}
+            >
+              {test.isPending ? "Asking…" : "Test the connection"}
+            </Button>
+            <Button variant="secondary" onClick={start}>
+              Change the key
+            </Button>
+            <ConfirmButton
+              title="Disconnect the access point?"
+              message="Invoices stop going out over Peppol until another is connected. The record of what has already been delivered is kept."
+              confirmLabel="Disconnect"
+              danger
+              needs={{ invoicing: ["update"] }}
+              onConfirm={() => disconnect.mutate()}
+            >
+              Disconnect
+            </ConfirmButton>
+          </Toolbar>
+          {test.error ? <ErrorNote error={test.error} /> : null}
+          {disconnect.error ? <ErrorNote error={disconnect.error} /> : null}
+        </>
+      ) : null}
+
+      {!editing && !current && !connection.isLoading ? (
+        <Toolbar>
+          <Button needs={{ invoicing: ["update"] }} onClick={start}>
+            Connect an access point
+          </Button>
+        </Toolbar>
+      ) : null}
+
+      {editing ? (
+        <>
+          <Toolbar>
+            <Field label="Access point">
+              <Select
+                value={provider}
+                aria-label="Access point"
+                onChange={(e) => setProvider(e.target.value)}
+              >
+                {providers.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field
+              label="Legal entity id"
+              hint="From their dashboard: the business you send as."
+            >
+              <Input
+                value={legalEntityId}
+                aria-label="Legal entity id"
+                onChange={(e) => setLegalEntityId(e.target.value)}
+              />
+            </Field>
+            <Field
+              label="API key"
+              hint="Stored sealed. It is never shown again."
+            >
+              {/*
+                `SecretInput`, not a masked `Input`. A browser that sees
+                `type="password"` concludes it has found a credential worth
+                keeping, saves the access point's key into a password vault,
+                and then autofills it into the next password box it meets —
+                which is the sign-in screen. That happened here once with a
+                Stripe key.
+              */}
+              <SecretInput
+                value={apiKey}
+                aria-label="API key"
+                onChange={(e) => setApiKey(e.target.value)}
+              />
+            </Field>
+          </Toolbar>
+          <label className="flex items-center gap-(--gap-tight) text-sm">
+            <input
+              type="checkbox"
+              checked={sandbox}
+              onChange={(e) => setSandbox(e.target.checked)}
+            />
+            This is a sandbox key
+          </label>
+          <p className="mt-1 mb-3 text-xs" style={muted}>
+            A sandbox key cannot reach the real network, which is how you try
+            the whole path without a customer receiving anything. Clear this
+            only when you have pasted the live key.
+          </p>
+          <Toolbar>
+            <Button
+              needs={{ invoicing: ["update"] }}
+              disabled={!apiKey || !legalEntityId || save.isPending}
+              onClick={() => save.mutate()}
+            >
+              {save.isPending ? "Checking…" : "Connect"}
+            </Button>
+            <Button variant="secondary" onClick={() => setEditing(false)}>
+              Cancel
+            </Button>
+          </Toolbar>
+          {/* Their words: a refused key names which half is wrong. */}
+          {save.error ? <ErrorNote error={save.error} /> : null}
+        </>
+      ) : null}
+    </Card>
   );
 }
 

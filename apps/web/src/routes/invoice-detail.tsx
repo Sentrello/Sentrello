@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { announce } from "../lib/announce";
 import { type Meta, api } from "../lib/api";
 import { RelatedLink, useNavigation, useRecordTitle } from "../lib/navigation";
 import { type TagChip, TagChips } from "../lib/tags";
@@ -181,6 +182,48 @@ export function InvoiceDetail() {
         check("xrechnung"),
       ]);
       return { en16931, peppol, xrechnung };
+    },
+  });
+
+  /*
+   * Whether this business can put an invoice on the network at all.
+   *
+   * The download buttons above need nobody's permission — the file is ours.
+   * Sending needs an access point, which is an account the business holds,
+   * so the send button appears only once one is connected. Asked here rather
+   * than discovered by pressing, for the same reason the readiness check
+   * above is.
+   */
+  const peppol = useQuery({
+    queryKey: ["peppol-connection"],
+    queryFn: () =>
+      api<{ connection: { sandbox: boolean } | null }>(
+        "/api/einvoice/connection",
+      ),
+  });
+
+  const submissions = useQuery({
+    queryKey: ["peppol-submissions", id],
+    queryFn: () =>
+      api<{
+        submissions: {
+          id: string;
+          status: string;
+          recipient: string | null;
+          detail: string | null;
+          sandbox: boolean;
+          createdAt: string;
+        }[];
+      }>(`/api/invoices/${id}/einvoice/submissions`),
+    enabled: Boolean(id),
+  });
+
+  const sendOverPeppol = useMutation({
+    mutationFn: () =>
+      api(`/api/invoices/${id}/einvoice/send`, { method: "POST" }),
+    onSuccess: () => {
+      announce("Sent over Peppol");
+      submissions.refetch();
     },
   });
 
@@ -531,6 +574,26 @@ export function InvoiceDetail() {
               </Button>
             ) : null}
             {/*
+              And putting it on the network, which is a different act from
+              downloading it. Offered only when there is an access point to
+              send through and a document Peppol would accept — the two
+              failures a business would otherwise meet one after the other.
+            */}
+            {peppol.data?.connection && eInvoice.data?.peppol.ready ? (
+              <Button
+                needs={{ invoicing: ["send"] }}
+                variant="secondary"
+                disabled={sendOverPeppol.isPending}
+                onClick={() => sendOverPeppol.mutate()}
+              >
+                {sendOverPeppol.isPending
+                  ? "Sending…"
+                  : peppol.data.connection.sandbox
+                    ? "Send over Peppol (sandbox)"
+                    : "Send over Peppol"}
+              </Button>
+            ) : null}
+            {/*
               Why the button above is absent, when it is.
 
               Silence would be the wrong answer here: a business in the EU that
@@ -578,6 +641,33 @@ export function InvoiceDetail() {
           </div>
           {act.error ? <ErrorNote error={act.error} /> : null}
           {share.error ? <ErrorNote error={share.error} /> : null}
+          {sendOverPeppol.error ? (
+            <ErrorNote error={sendOverPeppol.error} />
+          ) : null}
+
+          {/*
+            What has been put on the network, and what came back.
+            
+            "We never received it" is the conversation this answers, and the
+            access point's own reference is what a support desk asks for.
+            Failures are listed too — an attempt that was refused is the
+            thing somebody most needs to see, and it is the one a status
+            column on the invoice would have overwritten.
+          */}
+          {submissions.data?.submissions.length ? (
+            <div className="mt-3 flex flex-col gap-(--gap-tight)">
+              {submissions.data.submissions.map((sent) => (
+                <p key={sent.id} className="text-xs" style={muted}>
+                  {sent.status === "failed"
+                    ? "Refused by the access point"
+                    : `Sent to ${sent.recipient ?? "the network"}`}
+                  {sent.sandbox ? " (sandbox)" : ""} ·{" "}
+                  {formatDate(sent.createdAt)}
+                  {sent.detail ? ` — ${sent.detail}` : ""}
+                </p>
+              ))}
+            </div>
+          ) : null}
         </Card>
 
         {!isDraft && !isVoid ? (

@@ -209,8 +209,17 @@ const EAS_VAT_BY_COUNTRY: Record<string, string> = {
   SK: "9950",
 };
 
-/** The party's electronic address: the explicit one, else the VAT number. */
-function endpointFor(party: Party): { scheme: string; id: string } | null {
+/**
+ * The party's electronic address: the explicit one, else the VAT number.
+ *
+ * Exported because sending needs the same answer the document does. A
+ * transport that worked the address out for itself would be a second rule
+ * about who an invoice is addressed to, and the two would disagree the day
+ * somebody filled in an endpoint by hand.
+ */
+export function endpointFor(
+  party: Party,
+): { scheme: string; id: string } | null {
   if (party.endpointId && party.endpointScheme) {
     return { scheme: party.endpointScheme, id: party.endpointId };
   }

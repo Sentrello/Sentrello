@@ -76,6 +76,7 @@ import {
   writeTaxBands,
 } from "./documents";
 import { registerEInvoice } from "./einvoice-route";
+import { registerTransport } from "./einvoice-transport";
 import {
   ExemptionError,
   ensureExemptDefinition,
@@ -86,9 +87,11 @@ import {
 import { registerLifecycle } from "./lifecycle";
 import { registerLists } from "./lists";
 import { registerOssReturn } from "./oss-return";
+import { registerPeppol } from "./peppol-route";
 import { registerInvoicingPersonalData } from "./personal-data";
 import { portalPage } from "./portal";
 import { registerShare } from "./share";
+import { storecove } from "./storecove";
 import { registerInvoiceSearch, registerInvoicingSummary } from "./summary";
 import { registerDocumentTags, tagsFor } from "./tags";
 import { ownedTemplateId, registerTemplates } from "./templates";
@@ -220,6 +223,14 @@ export default defineModule({
     registerInvoicingPersonalData(ctx);
     registerInvoiceSearch(ctx);
     registerEInvoice(ctx);
+    /*
+     * The access points this build can talk to, and the screens for
+     * connecting one. Registered rather than switched on, so a module can
+     * add another — a country's own network, or a second aggregator —
+     * without invoicing knowing about it.
+     */
+    registerTransport(storecove);
+    registerPeppol(ctx);
     registerDistanceSelling(ctx);
     registerOssReturn(ctx);
     registerUsNexus(ctx);
