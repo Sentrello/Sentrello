@@ -92,6 +92,15 @@ button.pay { font:inherit; font-weight:600; padding:.4rem .9rem; border:0;
   /* #2f8f8a put white text at 3.88:1; this is the same teal held down to 5.4:1. */
   border-radius:.375rem; background:#257672; color:#fff; cursor:pointer; }
 form { margin:0; }
+/* Nothing to press on a sheet of paper.
+
+   A printed bill came out with a teal Pay button on it — a control that
+   looks like something the reader can do and is not. What somebody printing
+   this actually needs is the figure and the footer, which say what is owed
+   and where to send it. */
+@media print{
+  button.pay, form { display:none; }
+}
 `;
 
 export interface PortalQuote {
