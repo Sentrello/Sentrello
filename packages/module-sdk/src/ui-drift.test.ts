@@ -444,3 +444,37 @@ test("the same class on the link it was written for is fine", () => {
     ),
   ).toHaveLength(0);
 });
+
+/**
+ * A grid column with a floor under it.
+ *
+ * Both spellings are invisible until somebody enlarges their text, and both
+ * were everywhere: thirty-three of them across the three repositories on
+ * 26 September 2026. `1fr` is `minmax(auto, 1fr)` and `auto` is the
+ * content's own minimum; a `rem` track grows with the reader's font while
+ * the window does not.
+ */
+test("a grid track that will not shrink is named", () => {
+  expect(
+    findHandRolledUi('<div className="grid grid-cols-[9rem_1fr]">'),
+  ).not.toBeEmpty();
+  expect(
+    findHandRolledUi('<div className="grid grid-cols-[1fr_auto]">'),
+  ).not.toBeEmpty();
+  expect(
+    findHandRolledUi(
+      '<div className="grid sm:grid-cols-[minmax(0,1fr)_8rem]">',
+    ),
+  ).not.toBeEmpty();
+});
+
+test("a track that can give is left alone", () => {
+  for (const source of [
+    '<div className="grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)]">',
+    '<div className="grid grid-cols-[minmax(0,1fr)_auto]">',
+    '<div className="grid grid-cols-2">',
+    '<div className="grid grid-cols-[min(16rem,100%)_minmax(0,1fr)]">',
+  ]) {
+    expect(findHandRolledUi(source)).toBeEmpty();
+  }
+});

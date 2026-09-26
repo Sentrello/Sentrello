@@ -117,6 +117,30 @@ const RULES: { pattern: RegExp; say: string }[] = [
     pattern: /\[\s*perPage\s*,\s*setPerPage\s*\]\s*=\s*useState/,
     say: "a page size written by hand — listUi.useListState carries PER_PAGE_CHOICES",
   },
+  {
+    /*
+     * A grid column that cannot give.
+     *
+     * Two floors, both invisible until somebody enlarges their text. A track
+     * written as `9rem` grows with the font while the window does not, and a
+     * bare `1fr` is shorthand for `minmax(auto, 1fr)` — `auto` meaning "never
+     * narrower than what is in me". Either one and the row stops shrinking
+     * before the window does, so the screen scrolls sideways, which is WCAG
+     * 1.4.4.
+     *
+     * Thirty-three of these across the three repositories on 26 September
+     * 2026, written months apart by people reaching for the obvious spelling.
+     * Tailwind's own `grid-cols-2` is `repeat(2, minmax(0, 1fr))` for exactly
+     * this reason.
+     *
+     * Matched on the track list only, so `minmax(0,9rem)` and `auto` and
+     * `max-content` all pass. `min(…)` and `minmax(…)` contain commas and
+     * never bare underscores at the top level, which is why splitting on `_`
+     * is safe here.
+     */
+    pattern: /grid-cols-\[(?:[^\]]*_)?(?:1fr|\d+(?:\.\d+)?rem)(?:_|\])/,
+    say: "a grid column with a floor under it — `1fr` is `minmax(auto,1fr)` and a `rem` track grows with the reader's font, so neither gives and the screen scrolls sideways at a larger text size. Write `minmax(0, …)`",
+  },
 ];
 
 /**
