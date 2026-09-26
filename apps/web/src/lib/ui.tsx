@@ -677,6 +677,31 @@ export function Dialog({
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const opener = useRef<HTMLElement | null>(null);
+
+  /*
+   * Where you were before the dialog, so you are put back there after it.
+   *
+   * A browser restores focus to whatever opened a dialog when `close()`
+   * runs — but this one is unmounted rather than closed, so by the time
+   * `open` is false the element is gone and nothing runs. Focus landed on
+   * `<body>`: no ring anywhere, the screen reader back at the top of the
+   * document, and the next Tab continuing from wherever Chrome happened to
+   * leave its marker.
+   *
+   * Declared above the effect that opens the dialog, because effects run in
+   * order and `showModal()` moves focus inside — captured after it, this
+   * would remember the Close button.
+   */
+  useEffect(() => {
+    if (!open) return;
+    opener.current = document.activeElement as HTMLElement | null;
+    return () => {
+      // Not if it has gone: a dialog that deletes the row it was opened
+      // from leaves a button that is no longer in the document.
+      if (opener.current?.isConnected) opener.current.focus();
+    };
+  }, [open]);
 
   useEffect(() => {
     const el = ref.current;
