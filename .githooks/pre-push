@@ -52,5 +52,10 @@ while read -r sha; do
   git diff-tree --no-color -p --root "$sha" >>"$diff_file"
 done <"$shas_file"
 
+# Where the branch's own checks stand, before adding to it. Its own script
+# because the question has nothing to do with what is in these commits, and
+# because all four repositories ask it the same way.
+bash "$(git rev-parse --show-toplevel)/scripts/ci-standing.sh" || exit 1
+
 exec bun run "$(git rev-parse --show-toplevel)/scripts/trace-guard.ts" \
   --messages "$messages_file" --diff "$diff_file"
