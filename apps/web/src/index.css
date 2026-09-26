@@ -581,6 +581,19 @@ td .link {
   justify-content: center;
   width: 2.875rem;
   height: 2.875rem;
+  /*
+   * Never squeezed, only scrolled.
+   *
+   * The rail stretches to the row it sits in, and a flex child's default is
+   * to shrink when the line is short — so on a screen with little on it the
+   * buttons compressed: 46 pixels became 35 on a short window here, and on
+   * a Pro instance, which has more sections in the rail, axe reported them
+   * under the 24 that WCAG 2.5.8 asks of anything a finger has to hit.
+   *
+   * The rail already scrolls. Scrolling is the right answer to "more
+   * sections than room"; shrinking the target is not.
+   */
+  flex-shrink: 0;
   border-radius: var(--radius-md);
   color: var(--text);
 }
