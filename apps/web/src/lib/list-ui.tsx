@@ -1,5 +1,6 @@
 import { type Query, useQuery } from "@tanstack/react-query";
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { announce } from "./announce";
 import { api } from "./api";
 import { Icon, type IconName } from "./icons";
 import { Button, Input, Select, border, formatMoney, muted } from "./ui";
@@ -202,7 +203,7 @@ export function useListQuery<T>(
   response: ListResponse | undefined;
 } {
   const query = listQueryString(state, true);
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, isFetching, isPlaceholderData, error } = useQuery({
     // The full path, not just its rows key: two modules can each have an
     // "orders" resource, and the cache is keyed on where the request went,
     // not on what its response happens to be called.
@@ -228,6 +229,40 @@ export function useListQuery<T>(
   const trimmed = resource.replace(/\/+$/, "");
   const rowsKey = trimmed.slice(trimmed.lastIndexOf("/") + 1);
   const total = data?.total ?? 0;
+
+  /*
+   * How many, said out loud, when the question changes.
+   *
+   * Typing in the search box or ticking a filter rewrites the table and
+   * nothing else on the screen moves. Somebody who cannot see it has no way
+   * to know whether their search found forty rows or none — and "none" is
+   * the answer they most need, because it is the one that means try
+   * something else.
+   *
+   * Not on arrival, and not on a page change: the first is the screen being
+   * read out anyway, and the second is a count somebody just asked for by
+   * pressing Next. Only when the question itself changes.
+   */
+  const question = listQueryString(state, false);
+  const asked = useRef<string | null>(null);
+  useEffect(() => {
+    // Only once the answer has arrived. The previous page deliberately stays
+    // on screen while the next loads, so between the keystroke and the
+    // response `total` is still the old number and `isLoading` is false —
+    // this told a search that was about to find nothing that it had found
+    // thirty-five, every time, one answer behind.
+    if (isLoading || isFetching || isPlaceholderData) return;
+    if (asked.current === null) {
+      asked.current = question;
+      return;
+    }
+    if (asked.current === question) return;
+    asked.current = question;
+    announce(
+      total === 0 ? "No results" : `${total} result${total === 1 ? "" : "s"}`,
+    );
+  }, [question, total, isLoading, isFetching, isPlaceholderData]);
+
   return {
     rows: ((data?.[rowsKey] as T[] | undefined) ?? []) as T[],
     total,
