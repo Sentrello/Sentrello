@@ -467,7 +467,7 @@ function InstalmentPlanner({
         {parts.map((part, i) => (
           <div
             key={part.key}
-            className="grid items-end gap-(--gap-toolbar) sm:grid-cols-[6rem_8rem_7rem_minmax(0,1fr)_auto]"
+            className="grid items-end gap-(--gap-toolbar) sm:grid-cols-[minmax(0,6rem)_minmax(0,8rem)_minmax(0,7rem)_minmax(0,1fr)_auto]"
           >
             <Field label={i === 0 ? "Share" : ""}>
               <Input

@@ -185,7 +185,7 @@ export function CustomFieldEditor({
           {fields.map((field, index) => (
             <li
               key={`${field.appliesTo}-${field.id}-${index}`}
-              className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_8rem_8rem_auto]"
+              className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,8rem)_minmax(0,8rem)_auto]"
             >
               <Input
                 value={field.label}

@@ -373,7 +373,7 @@ export function DealDetail() {
   }
 
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,20rem)]">
       <div className="flex flex-col gap-(--gap-stack)">
         <Card>
           <div className="flex flex-wrap items-baseline justify-between gap-2">

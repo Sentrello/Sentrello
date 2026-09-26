@@ -288,7 +288,13 @@ function CompanyCard({
     <button
       type="button"
       onClick={onOpen}
-      className="flex h-44 flex-col justify-between rounded border border-line p-4 text-center"
+      /*
+       * `min-h`, not `h`. The card is a fixed height so a grid of them lines
+       * up, and at the browser's largest font setting a fixed height is a
+       * card whose last line is cut off. It keeps the shared height and
+       * grows when it has to.
+       */
+      className="flex min-h-44 flex-col justify-between rounded border border-line p-4 text-center"
       style={{ background: "var(--surface-raised)" }}
     >
       <span className="flex flex-col items-center gap-(--gap-tight)">
@@ -312,8 +318,14 @@ function CompanyCard({
         </span>
       </span>
 
-      <span className="flex w-full items-center justify-between gap-(--gap-toolbar)">
-        <span className="flex items-center -space-x-1.5">
+      {/*
+        Wrapping, because the two ends of this row are a row of faces and a
+        count and neither will shrink. At a larger font they stopped fitting
+        side by side and the count hung off the right edge of the card — and
+        off the right edge of the window with it.
+      */}
+      <span className="flex w-full flex-wrap items-center justify-between gap-x-(--gap-toolbar) gap-y-1">
+        <span className="flex min-w-0 flex-wrap items-center -space-x-1.5">
           {staff.map((person) => (
             <Avatar
               key={person.id}
@@ -386,7 +398,7 @@ export function CompanyDetail() {
   }
 
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)] gap-(--gap-stack) lg:grid-cols-[minmax(0,1fr)_20rem]">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-(--gap-stack) lg:grid-cols-[minmax(0,1fr)_minmax(0,20rem)]">
       <div className="flex flex-col gap-(--gap-stack)">
         <Card>
           <div className="flex items-baseline justify-between gap-(--gap-toolbar)">

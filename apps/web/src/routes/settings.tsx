@@ -322,7 +322,7 @@ export function Settings() {
             Germany will not accept one without the city and postcode stated
             as themselves.
           */}
-          <div className="grid gap-(--gap-toolbar) sm:grid-cols-[minmax(0,1fr)_minmax(0,12rem)_8rem]">
+          <div className="grid gap-(--gap-toolbar) sm:grid-cols-[minmax(0,1fr)_minmax(0,12rem)_minmax(0,8rem)]">
             <Field label="City" hint="For structured e-invoices.">
               <Input
                 value={form.city}
@@ -376,7 +376,7 @@ export function Settings() {
             </Field>
           </div>
 
-          <div className="grid gap-(--gap-toolbar) sm:grid-cols-[10rem_minmax(0,1fr)]">
+          <div className="grid gap-(--gap-toolbar) sm:grid-cols-[minmax(0,10rem)_minmax(0,1fr)]">
             <Field label="Tax number label" hint="e.g. VAT number, ABN, EIN.">
               <Input
                 value={form.taxIdLabel}

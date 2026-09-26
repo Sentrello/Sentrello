@@ -480,6 +480,23 @@ td .link {
   margin-top: calc(1.25rem + 0.25rem);
 }
 
+/*
+ * A toolbar group wraps inside itself, not only between its neighbours.
+ *
+ * The toolbar wraps its children; each child is a little flex row of its own
+ * — a label, a select, a button — and those did not. Set the browser's font
+ * to its largest and "View / All contacts / Save view" was one unbreakable
+ * line 182 pixels wider than the window, which is WCAG 1.4.4 and a page that
+ * scrolls sideways to reach a control.
+ *
+ * Measured at the normal size on seven screens before it went in: every
+ * toolbar child lands on the same pixel. It only does anything once there is
+ * nothing left to give.
+ */
+.app-toolbar > * {
+  flex-wrap: wrap;
+}
+
 .rail-button {
   display: flex;
   align-items: center;
