@@ -296,6 +296,28 @@ label:has(input[type="radio"]) {
 }
 
 /*
+ * A tick box a finger can hit.
+ *
+ * A browser draws one at thirteen pixels, which is right for a mouse in a
+ * dense table and half the size WCAG 2.2 asks of a touch target. Selecting
+ * rows is how this product does anything in bulk — tag these, delete
+ * these, send these — so on a tablet the commonest gesture in the product
+ * was aimed at thirteen pixels.
+ *
+ * `pointer: coarse` rather than a width, because it is the finger that is
+ * the problem and not the screen: a laptop with a mouse keeps the box the
+ * table was drawn around, and anything being touched gets the full
+ * twenty-four.
+ */
+@media (pointer: coarse) {
+  input[type="checkbox"],
+  input[type="radio"] {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+}
+
+/*
  * And a control that will not respond should look like one.
  *
  * Nothing in the app said so. 163 controls carry `disabled` and every one of
