@@ -137,12 +137,30 @@ test("the dashboard answers for a business with months of history", async () => 
   const dashboard = await invoicingDashboard(orgId);
 
   expect(dashboard.figures.length).toBe(4);
-  // Several months, and each one a month rather than a day.
-  expect(dashboard.months.length).toBeGreaterThan(1);
+  /*
+   * Six months, always — including the quiet ones.
+   *
+   * `group by` answers with the months that have invoices in them, so a
+   * business two months old came back with two points, and the chart gives
+   * every point an equal share of the card: one month of trading drew a
+   * single bar the width of the screen. A month where nothing was billed is
+   * exactly the month somebody wants to see on this chart.
+   */
+  expect(dashboard.months.length).toBe(6);
   for (const month of dashboard.months) {
     expect(month.month).toMatch(/^\d{4}-\d{2}$/);
     expect(Number.isInteger(month.billedCents)).toBe(true);
   }
+  // In order, oldest first, with no month missing between two that have work
+  // in them.
+  expect(
+    [...dashboard.months].sort((a, b) => a.month.localeCompare(b.month)),
+  ).toEqual(dashboard.months);
+  const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  expect(dashboard.months[5]?.month).toBe(thisMonth);
+  // The three invoices above land in three of the six; the rest are zero and
+  // present.
+  expect(dashboard.months.filter((m) => m.billedCents > 0).length).toBe(3);
   // The late row carries a whole number of days, not an object the screen
   // then has to guess at.
   expect(dashboard.late.length).toBe(1);
