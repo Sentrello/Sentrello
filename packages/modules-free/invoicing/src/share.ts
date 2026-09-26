@@ -111,6 +111,13 @@ h1,.accent{color:var(--accent,inherit)}
 .print{margin-top:2rem}
 .print button{font:inherit;padding:.4rem .9rem;border-radius:.4rem;border:1px solid currentColor;background:none;color:inherit;cursor:pointer}
 @media print{
+  /* Ink on white, whatever the screen was doing. The palette comes from the
+     shared customer theme, whose dark rules used to apply to paper as well —
+     so an invoice printed from a dark browser came out as near-white text on
+     near-black, or, with background graphics off as every browser ships
+     them, as a sheet that looks blank. On the document this module exists
+     to produce. */
+  :root{color-scheme:light;--ink:#000;--muted:#3f3f46;--line:#bbb;--bg:#fff;--card:#fff}
   body{margin:0;max-width:none}
   .print{display:none}
 }

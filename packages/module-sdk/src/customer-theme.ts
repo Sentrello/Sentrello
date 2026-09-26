@@ -71,14 +71,28 @@ export function customerThemeFor(request: {
  */
 export const CUSTOMER_THEME_CSS = `
 :root{color-scheme:light dark;--ink:#18181b;--muted:#71717a;--line:#e4e4e7;--bg:#fafafa;--card:#fff}
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--ink:#f4f4f5;--muted:#a1a1aa;--line:#27272a;--bg:#0c0c0d;--card:#161618}}
-:root[data-theme="dark"]{color-scheme:dark;--ink:#f4f4f5;--muted:#a1a1aa;--line:#27272a;--bg:#0c0c0d;--card:#161618}
+/* Dark is a screen thing, and saying so is the whole of the fix below.
+
+   Both of these used to apply to paper as well. They out-specify a plain
+   :root — :not([data-theme="light"]) adds a class's worth — so the
+   print block further down could not undo them, and a customer whose
+   browser is in dark mode printed their invoice as near-white text on
+   near-black. Either it swallows a cartridge, or, with background graphics
+   off as every browser ships them, it comes out of the tray looking blank.
+   On the one document this product exists to produce. */
+@media screen and (prefers-color-scheme: dark){:root:not([data-theme="light"]){--ink:#f4f4f5;--muted:#a1a1aa;--line:#27272a;--bg:#0c0c0d;--card:#161618}}
+@media screen{:root[data-theme="dark"]{color-scheme:dark;--ink:#f4f4f5;--muted:#a1a1aa;--line:#27272a;--bg:#0c0c0d;--card:#161618}}
 :root[data-theme="light"]{color-scheme:light}
 .theme-switch{display:inline-flex;align-items:center;justify-content:center;width:2.25rem;height:2.25rem;border:1px solid var(--line);border-radius:.6rem;color:var(--muted);text-decoration:none}
 .theme-switch:hover{color:var(--ink)}
 .theme-switch svg{width:1.125rem;height:1.125rem}
 .theme-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
-@media print{.theme-switch{display:none}}
+/* Ink on white, whatever the screen was doing, and no switch to press on a
+   sheet of paper. */
+@media print{
+  :root{color-scheme:light;--ink:#000;--muted:#3f3f46;--line:#bbb;--bg:#fff;--card:#fff}
+  .theme-switch{display:none}
+}
 `;
 
 const SUN =

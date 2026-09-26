@@ -193,15 +193,18 @@ const STYLE = `
   --ink:#18181b;--muted:#71717a;--line:#e4e4e7;--bg:#fafafa;--card:#fff;
   --accent:#2563eb;--shadow:0 1px 2px rgb(0 0 0 / .05), 0 8px 24px -16px rgb(0 0 0 / .25);
 }
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+/* Screen only. Both of these out-specify the plain :root in the print block
+   below, so on paper they won and it lost — and this is the page with a Save
+   as a PDF button on it. */
+@media screen and (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --ink:#f4f4f5;--muted:#a1a1aa;--line:#27272a;--bg:#0c0c0d;--card:#161618;
   --accent:#7aa2ff;--shadow:0 1px 2px rgb(0 0 0 / .4), 0 8px 24px -16px rgb(0 0 0 / .8);
 }}
-:root[data-theme="dark"]{
+@media screen{:root[data-theme="dark"]{
   color-scheme:dark;
   --ink:#f4f4f5;--muted:#a1a1aa;--line:#27272a;--bg:#0c0c0d;--card:#161618;
   --accent:#7aa2ff;--shadow:0 1px 2px rgb(0 0 0 / .4), 0 8px 24px -16px rgb(0 0 0 / .8);
-}
+}}
 :root[data-theme="light"]{color-scheme:light}
 *{box-sizing:border-box}
 body{
@@ -244,7 +247,7 @@ h2{font-size:1rem;font-weight:650;margin:0;letter-spacing:-.01em}
 /* On paper, and in a PDF: no navigation, no links to things that are not
    there, and the ink in black where a printer will not waste colour on it. */
 @media print{
-  :root{--ink:#000;--muted:#3f3f46;--line:#bbb;--bg:#fff;--card:#fff;--accent:#000;--shadow:none}
+  :root{color-scheme:light;--ink:#000;--muted:#3f3f46;--line:#bbb;--bg:#fff;--card:#fff;--accent:#000;--shadow:none}
   body{padding:0}
   .tools,.actions{display:none}
   section{break-inside:avoid;box-shadow:none}
