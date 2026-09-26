@@ -245,6 +245,16 @@ export function useListQuery<T>(
    */
   const question = listQueryString(state, false);
   const asked = useRef<string | null>(null);
+  /*
+   * The question we arrived with, remembered before any answer to it.
+   *
+   * This used to be set inside the effect, on the first render where
+   * nothing was loading — so somebody who typed while the first list was
+   * still coming had their search treated as the arrival, and the count
+   * they had actually asked for was never said. Rare by hand and reliable
+   * on a slow instance: it is how this first failed in CI.
+   */
+  if (asked.current === null) asked.current = question;
   useEffect(() => {
     // Only once the answer has arrived. The previous page deliberately stays
     // on screen while the next loads, so between the keystroke and the
@@ -252,10 +262,6 @@ export function useListQuery<T>(
     // this told a search that was about to find nothing that it had found
     // thirty-five, every time, one answer behind.
     if (isLoading || isFetching || isPlaceholderData) return;
-    if (asked.current === null) {
-      asked.current = question;
-      return;
-    }
     if (asked.current === question) return;
     asked.current = question;
     announce(
