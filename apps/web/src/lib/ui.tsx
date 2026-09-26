@@ -991,7 +991,7 @@ export function Toolbar({
 }) {
   return (
     <div
-      className={`flex flex-wrap items-end gap-(--gap-toolbar) ${className}`}
+      className={`app-toolbar flex flex-wrap items-start gap-(--gap-toolbar) ${className}`}
     >
       {children}
     </div>

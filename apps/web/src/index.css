@@ -436,6 +436,33 @@ a {
  * letterform does. In the dark these were four grey outlines on near-black
  * with nothing to say which was which.
  */
+/*
+ * Why a toolbar aligns from the top, and what that costs.
+ *
+ * It aligned from the bottom, so a button carrying no label sat level with
+ * the inputs beside it. That is right until one of those fields has a hint:
+ * the hint is part of the field's box, so aligning the bottoms pushes that
+ * field's *input* up by the height of the hint. One hinted field in a row
+ * lifted its own control out of line and left the button below every other
+ * control on the line — which is what the exemption-certificate form looked
+ * like, and the filing period beside it, and half the settings screens.
+ *
+ * Aligning from the top instead lines up the labels, and since a label is
+ * one line the controls line up under them. Hints then hang below their own
+ * field and reach nothing else. The first attempt took the hint out of the
+ * flow instead, which aligned everything and then dropped three hints on top
+ * of the controls in the row beneath — a toolbar wraps, and a flex line
+ * sizes to its tallest item, which an absolutely positioned hint is not.
+ *
+ * The cost is the button: with no label above it, it needs the label's own
+ * height to sit level with the inputs. One rule rather than a class on
+ * forty-six toolbars, and the number is the label's line height plus the
+ * margin under it.
+ */
+.app-toolbar > :not(label) {
+  margin-top: calc(1.25rem + 0.25rem);
+}
+
 .rail-button {
   display: flex;
   align-items: center;
