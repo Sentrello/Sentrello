@@ -625,9 +625,14 @@ export function SortMenu({
       {/* Reversing the order is its own control: which column to sort by and
           which way round are two questions, and folding them into one list
           doubles its length for no gain. */}
+      {/* 24px square, which is WCAG 2.2's minimum target and what this was
+          one pixel under — a single arrow in a bordered box came out 23 wide.
+          A pointer misses a 23px control about as often as it misses a 24px
+          one; the number matters because it is the line the check draws, and
+          a control a pixel under it fails while looking fine. */}
       <button
         type="button"
-        className="rounded border px-1.5 py-1 text-xs"
+        className="flex h-6 w-6 items-center justify-center rounded border text-xs"
         style={border}
         aria-label={
           state.order === "asc" ? "Sorted ascending" : "Sorted descending"

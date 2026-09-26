@@ -344,6 +344,23 @@ a {
 }
 
 /*
+ * The record link in a table row, given the height of a target.
+ *
+ * It is the link somebody presses to open an invoice, a quote or a person,
+ * and at its own text size it measured 22px tall — two under WCAG 2.2's 24px
+ * minimum. The inline exception does not obviously cover it: it is alone in
+ * its cell rather than sitting in a sentence, so nothing else's line height
+ * is constraining it.
+ *
+ * Vertical padding on an inline box grows what a pointer can hit without
+ * growing the line box, so the rows are exactly as tall as they were and the
+ * target clears 24.
+ */
+td .link {
+  padding-block: 0.125rem;
+}
+
+/*
  * Secondary actions written as text — Cancel, Done, Remove, Export.
  *
  * They are not links to anywhere, so they keep the muted weight that stops a

@@ -485,11 +485,17 @@ export function PairedBars({
   return (
     <div>
       <div className="mb-2 flex items-center gap-3 text-xs">
+        {/*
+          `min-h-6` on each of these because they are real controls — each
+          switches a series off the chart — and at the size of their own text
+          they came out 18px tall, six under WCAG 2.2's 24px minimum. A legend
+          that is only a key can be any size; one you press cannot.
+        */}
         {series.map((s) => (
           <button
             key={s.key}
             type="button"
-            className="flex items-center gap-1.5"
+            className="flex min-h-6 items-center gap-1.5"
             aria-pressed={hidden !== s.key}
             /*
              * Dimmed, not faded out. At 0.45 the label of a hidden series
