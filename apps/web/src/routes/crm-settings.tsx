@@ -302,7 +302,7 @@ export function CrmSettings() {
           {currentTypes.map((type, index) => (
             <span
               key={type}
-              className="flex min-w-0 items-center gap-(--gap-tight)"
+              className="flex min-w-0 flex-wrap items-center gap-(--gap-tight)"
             >
               <Input
                 value={type}
@@ -403,7 +403,14 @@ export function CrmSettings() {
           {currentStatuses.map((status, index) => (
             <div
               key={status.id}
-              className="flex items-center gap-(--gap-toolbar)"
+              /*
+                Wrapping, because three fixed widths in a row do not fit a
+                narrow card: a colour swatch, a name field and the remove
+                came to 270 pixels inside 170, and the remove hung off the
+                edge of the page. The field gives what it can and the
+                remove drops below when it must.
+              */
+              className="flex flex-wrap items-center gap-(--gap-toolbar)"
             >
               {/* A colour picker, because these are read as dots in a list of
                   two hundred contacts rather than read as words. */}
@@ -1035,8 +1042,11 @@ function WordList({
         {values.map((value, index) => (
           // No stable id: these are the labels themselves, and two blank rows
           // while somebody is typing are legitimately equal.
-          // biome-ignore lint/suspicious/noArrayIndexKey: the value is the identity and it changes as you type
-          <span key={index} className="flex items-center gap-(--gap-tight)">
+          <span
+            // biome-ignore lint/suspicious/noArrayIndexKey: the value is the identity and it changes as you type
+            key={index}
+            className="flex min-w-0 flex-wrap items-center gap-(--gap-tight)"
+          >
             <Input
               value={value}
               className="w-40"

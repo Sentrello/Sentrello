@@ -227,7 +227,26 @@ export function Bars({
         </div>
       </div>
 
-      <div className="mt-1 flex gap-1 pl-10 text-[10px]" style={muted}>
+      {/*
+        The range, where there is no room for the months themselves.
+
+        Six three-letter labels under a chart 130 pixels wide get about
+        fifteen pixels each and `truncate` eats them: at 320px every month
+        rendered as "Ap…". Hiding half only leaves the other half mangled,
+        and widening those puts a label between two bars rather than under
+        one, which is worse than none.
+
+        So on a narrow screen the row is replaced by what it was there to
+        say — which months these are. The series itself, month by month, is
+        in the description the chart already carries.
+      */}
+      <div className="chart-range text-[10px]" style={muted}>
+        {points[0]?.label} – {points[points.length - 1]?.label}
+      </div>
+      <div
+        className="chart-months mt-1 flex gap-1 pl-10 text-[10px]"
+        style={muted}
+      >
         {points.map((p) => (
           <div key={p.label} className="flex-1 truncate text-center">
             {p.label}
@@ -577,7 +596,14 @@ export function PairedBars({
         </div>
       </div>
 
-      <div className="mt-1 flex gap-2 pl-10 text-[10px]" style={muted}>
+      {/* Same rule as the single-series chart above. */}
+      <div className="chart-range text-[10px]" style={muted}>
+        {points[0]?.label} – {points[points.length - 1]?.label}
+      </div>
+      <div
+        className="chart-months mt-1 flex gap-2 pl-10 text-[10px]"
+        style={muted}
+      >
         {points.map((p) => (
           <div key={p.label} className="flex-1 truncate text-center">
             {p.label}

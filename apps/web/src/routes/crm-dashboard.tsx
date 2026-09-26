@@ -176,7 +176,7 @@ export function CrmDashboard() {
   const lostTotal = data.dealOutcomes.reduce((sum, m) => sum + m.lostCents, 0);
 
   return (
-    <div className="grid gap-(--gap-stack) lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-(--gap-stack) lg:grid-cols-2">
       {/*
         Tasks first. Everything else on this screen is something to know;
         this is the only panel that is something to do.

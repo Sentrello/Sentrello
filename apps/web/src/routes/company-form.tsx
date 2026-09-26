@@ -356,7 +356,7 @@ export function CompanyForm({
           </div>
 
           <div
-            className="grid gap-(--gap-stack) border-t pt-(--gap-stack) sm:grid-cols-2"
+            className="grid grid-cols-1 gap-(--gap-stack) border-t pt-(--gap-stack) sm:grid-cols-2"
             style={border}
           >
             <Field label="Description">

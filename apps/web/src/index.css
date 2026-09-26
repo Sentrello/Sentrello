@@ -497,6 +497,35 @@ td .link {
   flex-wrap: wrap;
 }
 
+/*
+ * The months, or the range they cover, depending on the room.
+ *
+ * Six three-letter labels under a chart about 130 pixels wide get fifteen
+ * pixels each, and `truncate` eats them: at 320px every month on the CRM
+ * dashboard rendered as "Ap…". Ten pixels is already the floor for type
+ * nobody should have to squint at, and widening three of them by hiding the
+ * others puts a label between two bars instead of under one.
+ *
+ * So the row of months goes and "Apr – Sep" takes its place. The series
+ * itself, month by month, is in the description the chart carries above it,
+ * which is what a screen reader has been reading all along.
+ */
+.chart-range {
+  display: none;
+}
+
+@media (max-width: 25rem) {
+  .chart-months {
+    display: none;
+  }
+
+  .chart-range {
+    display: block;
+    margin-top: 0.25rem;
+    text-align: center;
+  }
+}
+
 .rail-button {
   display: flex;
   align-items: center;

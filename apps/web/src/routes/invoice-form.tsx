@@ -827,7 +827,7 @@ export function InvoiceForm({
         </div>
       </Card>
 
-      <div className="grid gap-(--gap-stack) lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-(--gap-stack) lg:grid-cols-2">
         <Card>
           <SectionHeading>Notes</SectionHeading>
           <Textarea
