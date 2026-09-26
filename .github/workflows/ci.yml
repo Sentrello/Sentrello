@@ -1,5 +1,21 @@
 name: ci
-on: { push: {}, pull_request: {} }
+# The same triggers as the other three repositories, which were tidied and
+# this one was not.
+#
+# `push` with no filter beside `pull_request` runs CI twice for every commit
+# on a branch with a pull request open — and again for every tag, over a
+# commit that passed on `main` minutes earlier. Fifty-one runs on
+# 26 September, for about twenty commits. Free on a public repository and
+# still noise: a queue of duplicate runs is a slower answer to the question
+# somebody is actually waiting on.
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["**/*.md", "docs/**", "LICENSE"]
+  pull_request:
+    paths-ignore: ["**/*.md", "docs/**", "LICENSE"]
+  # For asking the question on purpose.
+  workflow_dispatch:
 # One run per branch. A second push supersedes the first rather than
 # paying for both — a 66-minute job left running for a commit nobody
 # will ever look at again is the shape of an Actions bill.
