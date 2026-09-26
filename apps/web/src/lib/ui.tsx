@@ -1110,7 +1110,30 @@ export function NeedsPro({ what }: { what: string }) {
   );
 }
 
-export function Loading() {
+export function Loading({
+  /**
+   * How long to wait before saying anything, in milliseconds.
+   *
+   * A request that answers in twenty milliseconds does not want a word about
+   * it: a spinner that appears and vanishes inside one frame reads as a
+   * flicker, which is why the shell used to render nothing at all while it
+   * waited. That was right for the fast case and wrong for every other one —
+   * on a phone on mobile data it made the product a blank rectangle for
+   * seconds, which is indistinguishable from broken.
+   *
+   * So neither. Nothing for a fifth of a second, then a word. Under a fifth
+   * nobody sees it; over one, nobody is left wondering.
+   */
+  after = 0,
+}: { after?: number } = {}) {
+  const [show, setShow] = useState(after === 0);
+  useEffect(() => {
+    if (after === 0) return;
+    const timer = setTimeout(() => setShow(true), after);
+    return () => clearTimeout(timer);
+  }, [after]);
+
+  if (!show) return null;
   return (
     <p className="text-sm" style={muted}>
       Loading…

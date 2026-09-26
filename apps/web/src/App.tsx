@@ -447,8 +447,20 @@ export default function App() {
    * Nothing is drawn until we know who this is and whether the instance has an
    * owner — except when neither can be asked, where waiting is a blank page
    * that never changes. Somebody signed in on this device has answered both.
+   *
+   * It returned `null` here, which is right for the twenty milliseconds this
+   * usually takes and wrong for every longer case: on a phone on mobile data
+   * the product was a blank rectangle for as long as the network took, with
+   * nothing on it to say the difference between loading and broken. Which is
+   * the one connection our own customer is most likely to be on, standing in
+   * a workshop or a van.
+   *
+   * `Loading` waits a fifth of a second before saying anything, so the fast
+   * path still draws nothing and the slow one stops looking dead.
    */
-  if (canAsk && (session.isPending || bootstrap.isLoading)) return null;
+  if (canAsk && (session.isPending || bootstrap.isLoading)) {
+    return <Loading after={200} />;
+  }
   // A fresh instance has no owner yet: claim it before anything else.
   if (bootstrap.data?.needed) {
     return (
@@ -468,7 +480,9 @@ export default function App() {
    * from what this device remembers instead, which is enough to draw the screen
    * somebody was on.
    */
-  if (canAsk && (meta.isLoading || profile.isLoading)) return <Loading />;
+  if (canAsk && (meta.isLoading || profile.isLoading)) {
+    return <Loading after={200} />;
+  }
 
   /**
    * Signed in, but not part of this business.
