@@ -283,7 +283,7 @@ function CurrentScreen({
   /** The modules this instance can actually serve screens for. */
   withScreens: string[];
 }) {
-  const { current } = useNavigation();
+  const { current, go } = useNavigation();
 
   // A module can have a screen for one record as well as a list. Without this
   // the record id is carried around and never used, which is how the previous
@@ -292,6 +292,23 @@ function CurrentScreen({
     ? (RECORD_SCREENS[current.moduleId] ?? SCREENS[current.moduleId])
     : SCREENS[current.moduleId];
   const entry = nav.find((n) => n.id === current.moduleId);
+
+  /*
+   * A section is its pages. Asked for by name, open the first of them.
+   *
+   * `crm` and `users-console` are headings in the sidebar — they gather
+   * Contacts, Companies, Deals and the rest and draw nothing themselves. The
+   * rail knows that and sends you to the first child. Type `/crm` into the
+   * address bar, or arrive on an old bookmark, and you got "CRM has no
+   * screens yet — its screens arrive in a later release", about a section
+   * with six of them, one click away.
+   */
+  const firstChild = !Screen
+    ? nav.find((n) => n.parent === current.moduleId)
+    : undefined;
+  useEffect(() => {
+    if (firstChild) go(firstChild.id, firstChild.label);
+  }, [firstChild, go]);
 
   return (
     <>
@@ -322,6 +339,10 @@ function CurrentScreen({
       </div>
       {Screen ? (
         <Screen />
+      ) : firstChild ? (
+        // Leaving on the next tick; a message about having no screens would
+        // be both wrong and a flash.
+        <Loading />
       ) : (
         // Not a Core screen: the module may have shipped its own. The script is
         // fetched by module id, which is not always the nav id.

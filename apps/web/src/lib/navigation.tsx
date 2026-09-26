@@ -175,9 +175,26 @@ export function NavigationProvider({
     window.history[replace ? "replaceState" : "pushState"]({}, "", path);
   }, []);
 
+  /*
+   * The address bar follows the view, not only the click.
+   *
+   * This ran once, on the first paint, which was enough while every change
+   * of view came from a click that had already pushed its own path. It is
+   * not enough for a view the application chooses on arrival: a section like
+   * `/crm` draws no page of its own and sends you to its first child, and
+   * that redirect happens in a child effect — which runs *before* this one.
+   * So this replaced the corrected path with the one the page was opened
+   * with, and the address bar read `/crm` over the CRM dashboard.
+   *
+   * Running it whenever the view changes costs nothing: `showPath` returns
+   * immediately when the path already matches, which is every ordinary
+   * navigation, because those set the path themselves on the way through.
+   */
   useEffect(() => {
-    showPath(currentRef.current, true);
+    showPath(current, true);
+  }, [current, showPath]);
 
+  useEffect(() => {
     const onPop = () => {
       const view = viewFromPath(window.location.pathname, known);
       // A path this instance does not have is not navigated to; the screen
@@ -193,7 +210,7 @@ export function NavigationProvider({
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
     // `known` is the loaded module list: stable for the life of the session.
-  }, [showPath, known]);
+  }, [known]);
 
   const setTitle = useCallback((title: string) => {
     setCurrent((view) => (view.title === title ? view : { ...view, title }));
