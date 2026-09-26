@@ -213,7 +213,7 @@ export function Bars({
               aria-label={`${p.label}: ${p.display ?? p.value}`}
             >
               <div
-                className="rounded-t transition-[height,opacity] duration-200"
+                className="rounded-t transition-[height,opacity] duration-200 motion-reduce:transition-none"
                 style={{
                   // Always at least a hairline: a bar of zero height reads as a
                   // missing month rather than an empty one.
@@ -562,7 +562,7 @@ export function PairedBars({
               {showing.map((s) => (
                 <div
                   key={s.key}
-                  className="flex-1 rounded-t transition-[height,opacity] duration-200"
+                  className="flex-1 rounded-t transition-[height,opacity] duration-200 motion-reduce:transition-none"
                   style={{
                     // Always at least a hairline: a bar of zero height reads as
                     // a missing month rather than an empty one.

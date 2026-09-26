@@ -901,3 +901,27 @@ body {
  * which is what `Table`'s `overflow-x-auto` wrapper is for. The page itself
  * stays put, which is the part that matters.
  */
+
+/*
+ * Somebody who has asked their machine for less movement gets less.
+ *
+ * Two things move in this product: the section panel slides its width away,
+ * and a caret turns. Neither is decoration — both say what just happened —
+ * but the whole navigation panel sliding is exactly what that preference
+ * exists for, and the state it lands in is the same either way. So the
+ * change still happens, it just stops being a journey.
+ *
+ * `reduce` rather than a blanket "no-preference" check: the setting is
+ * three-valued, and a machine that has never been asked must keep the
+ * motion it has always had.
+ *
+ * Last in the file on purpose. Declared beside the panel it undid the
+ * panel's transition and not the caret's, because the caret's own rule
+ * comes later and wins at equal specificity.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .app-sidebar,
+  .nav-caret {
+    transition: none;
+  }
+}
