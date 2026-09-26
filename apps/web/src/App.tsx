@@ -306,12 +306,28 @@ function CurrentScreen({
   const firstChild = !Screen
     ? nav.find((n) => n.parent === current.moduleId)
     : undefined;
+
+  /*
+   * And an address that names a record the module cannot open.
+   *
+   * `/quotes/<id>` is one: a quote is edited in place and has no page of
+   * its own, so the id went into the address, nothing read it, and the
+   * screen drew the list — with the address bar still claiming to point at
+   * one quote. A stale link, a bookmark or a trimmed URL all land there.
+   * The list is the right place to end up; the address should say so.
+   */
+  const unopenable = Boolean(
+    current.recordId && !RECORD_SCREENS[current.moduleId],
+  );
+
   useEffect(() => {
     // Replacing, not pushing: pushed, the heading stays in the history right
     // behind the screen it sent you to, so Back lands on it, it redirects
     // again, and there is no way past it.
     if (firstChild) redirect(firstChild.id, firstChild.label);
-  }, [firstChild, redirect]);
+    else if (unopenable)
+      redirect(current.moduleId, entry?.label ?? current.moduleId);
+  }, [firstChild, unopenable, current.moduleId, entry?.label, redirect]);
 
   return (
     <>
