@@ -66,6 +66,16 @@ interface Navigation {
   takeIntent: () => string | null;
   /** Step back to a point in the trail. */
   backTo: (index: number) => void;
+  /**
+   * Open a view *in place of* the one being left, not after it.
+   *
+   * For the case where the address asked for is not a page: `/crm` is a
+   * heading and opens the first of its screens. Pushed, that leaves the
+   * heading in the history right behind the screen it sent you to — so Back
+   * lands on `/crm`, which redirects again, and there is no way past it. The
+   * browser's own rule for a redirect is to replace, and so is this.
+   */
+  redirect: (moduleId: string, title: string) => void;
 }
 
 const NavigationContext = createContext<Navigation | null>(null);
@@ -241,6 +251,15 @@ export function NavigationProvider({
     [showPath],
   );
 
+  const redirect = useCallback(
+    (moduleId: string, title: string) => {
+      setTrail([]);
+      setCurrent({ moduleId, title });
+      showPath({ moduleId, title }, true);
+    },
+    [showPath],
+  );
+
   /**
    * A ref rather than state: reading an intent must not itself cause a render,
    * or the screen that consumed it re-renders, consumes null, and closes the
@@ -267,8 +286,17 @@ export function NavigationProvider({
   );
 
   const value = useMemo<Navigation>(
-    () => ({ current, trail, open, go, backTo, setTitle, takeIntent }),
-    [current, trail, open, go, backTo, setTitle, takeIntent],
+    () => ({
+      current,
+      trail,
+      open,
+      go,
+      redirect,
+      backTo,
+      setTitle,
+      takeIntent,
+    }),
+    [current, trail, open, go, redirect, backTo, setTitle, takeIntent],
   );
 
   return (

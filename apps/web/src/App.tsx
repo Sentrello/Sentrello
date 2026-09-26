@@ -283,7 +283,7 @@ function CurrentScreen({
   /** The modules this instance can actually serve screens for. */
   withScreens: string[];
 }) {
-  const { current, go } = useNavigation();
+  const { current, redirect } = useNavigation();
 
   // A module can have a screen for one record as well as a list. Without this
   // the record id is carried around and never used, which is how the previous
@@ -307,8 +307,11 @@ function CurrentScreen({
     ? nav.find((n) => n.parent === current.moduleId)
     : undefined;
   useEffect(() => {
-    if (firstChild) go(firstChild.id, firstChild.label);
-  }, [firstChild, go]);
+    // Replacing, not pushing: pushed, the heading stays in the history right
+    // behind the screen it sent you to, so Back lands on it, it redirects
+    // again, and there is no way past it.
+    if (firstChild) redirect(firstChild.id, firstChild.label);
+  }, [firstChild, redirect]);
 
   return (
     <>
