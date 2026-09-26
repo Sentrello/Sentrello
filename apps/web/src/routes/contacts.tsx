@@ -118,7 +118,13 @@ export function Contacts() {
   return (
     <Page>
       <PageActions>
-        <Button onClick={() => setAdding(true)}>
+        {/*
+          The button that opens the form, gated the same as the form's own
+          Save. A read-only person was offered New contact, given the whole
+          form, and refused at the end of it — which is the product's own rule
+          about a control you cannot use, broken at the entrance to it.
+        */}
+        <Button needs={{ crm: ["create"] }} onClick={() => setAdding(true)}>
           <span className="flex items-center gap-1.5">
             <Icon name="plus" size={15} />
             New contact

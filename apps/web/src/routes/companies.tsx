@@ -87,7 +87,7 @@ export function Companies() {
   return (
     <Page>
       <PageActions>
-        <Button onClick={() => setAdding(true)}>
+        <Button needs={{ crm: ["create"] }} onClick={() => setAdding(true)}>
           <span className="flex items-center gap-1.5">
             <Icon name="plus" size={15} />
             New company

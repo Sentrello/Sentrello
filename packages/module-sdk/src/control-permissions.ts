@@ -91,7 +91,24 @@ export interface Control {
  * test above and the match below going out of step is how a scanner comes to
  * look for something it no longer recognises.
  */
-const HANDLERS = "Click|Confirm|Change|Blur";
+/*
+ * `Submit` was missing, and it is where a form's save lives.
+ *
+ * The sweep that put a permission on four hundred controls read `onClick`,
+ * `onConfirm`, `onChange` and `onBlur`. A dialog's Save button is
+ * `type="submit"` inside a `<form onSubmit={...}>`, so the mutation fires
+ * from the form and not from the button — invisible here, and the guard
+ * reported green over the two biggest record forms in the CRM.
+ *
+ * Found by drawing the product as somebody holding `read` and nothing else:
+ * New contact was offered, the form opened, and Save was live all the way to
+ * the 403.
+ *
+ * `KeyDown` for the same reason, one screen over. The button that adds a CRM
+ * tag carries `needs`; the input beside it fires the same mutation on Enter
+ * and carried nothing. So the control was refused and the keyboard was not.
+ */
+const HANDLERS = "Click|Confirm|Change|Blur|Submit|KeyDown";
 const HANDLER = new RegExp(`on(?:${HANDLERS})=\\{`);
 const FIRES = new RegExp(
   `on(?:${HANDLERS})=\\{[\\s\\S]{0,220}?(\\w+)\\.mutate`,
@@ -151,11 +168,43 @@ export function controlsFiringMutations(source: string): Control[] {
     let method: string | undefined;
     let path: string | undefined;
     if (decl >= 0) {
-      const body = lines.slice(decl, decl + 16).join("\n");
+      /*
+       * Far enough to reach the request.
+       *
+       * Sixteen lines stopped short of it on any form that assembles a body
+       * before it sends one — the contact form builds twenty lines of object
+       * first — so the path was never found and the method fell through to
+       * the default below.
+       */
+      const body = lines.slice(decl, decl + 48).join("\n");
       const call = /api[<(][^`"']*[`"']([^`"']+)[`"']/.exec(body);
-      const verb = /method:\s*"(\w+)"/.exec(body);
       if (call?.[1]) path = normalisePath(call[1]);
-      method = verb?.[1]?.toUpperCase() ?? "GET";
+
+      /*
+       * The method, when it is not a literal.
+       *
+       * `method: "POST"` was the only shape read, and a form that both
+       * creates and updates writes `method: contact ? "PATCH" : "POST"`.
+       * That matched nothing, fell to `GET`, and every such control was
+       * excused as a read — which is how the two biggest record forms in the
+       * CRM carried no permission with the guard green over them.
+       *
+       * So: the literal if there is one, otherwise the strictest verb
+       * quoted anywhere in the request, and otherwise a write. A mutation is
+       * not a read. Defaulting the unknown case to `GET` made the guard
+       * quieter exactly where it could not see.
+       */
+      const verb = /method:\s*"(\w+)"/.exec(body);
+      if (verb?.[1]) {
+        method = verb[1].toUpperCase();
+      } else {
+        const quoted = [...body.matchAll(/"(GET|POST|PATCH|PUT|DELETE)"/g)].map(
+          (m) => (m[1] as string).toUpperCase(),
+        );
+        const rank = ["DELETE", "PUT", "PATCH", "POST", "GET"];
+        method =
+          quoted.sort((a, b) => rank.indexOf(a) - rank.indexOf(b))[0] ?? "POST";
+      }
     }
 
     /*
@@ -171,14 +220,44 @@ export function controlsFiringMutations(source: string): Control[] {
     while (tagStart > 0 && !/^\s*<[A-Za-z]/.test(lines[tagStart] ?? "")) {
       tagStart -= 1;
     }
-    const tag = lines.slice(tagStart, i + 1).join("\n");
+    /*
+     * A few lines past the handler, because a keyboard shortcut asks inside
+     * its own body.
+     *
+     * `onKeyDown={(e) => {` is the line this loop finds and `if (!may(...))
+     * return;` is the line under it, so a window ending at the handler
+     * reported the one screen that had already got this right as a gap. A
+     * guard that reports a gap where there is none is the kind that gets
+     * suppressed, and takes the real findings with it.
+     */
+    const tag = lines.slice(tagStart, i + 8).join("\n");
     /*
      * `needs=` is the usual way and `may(` is the other one: a checkbox has
      * no kit primitive to hang a prop on, so the compliance screen disables
      * itself by asking directly. Both are the control being gated, and a
      * guard that only knew the prop would report the honest one as a gap.
      */
-    const gated = tag.includes("needs=") || /\bmay[A-Z(]/.test(tag);
+    let gated = tag.includes("needs=") || /\bmay[A-Z(]/.test(tag);
+
+    /*
+     * A form's gate is on the button, not on the form.
+     *
+     * `<form onSubmit={...}>` is where the mutation fires, so that is the
+     * element this loop finds — and `needs` belongs on the Save inside it,
+     * which is the control somebody actually presses and the one the kit can
+     * disable. Reading only the opening tag reported every properly gated
+     * form as bare.
+     *
+     * Bounded to the form's own submit: the first `type="submit"` below it.
+     */
+    if (!gated && /^\s*<form\b/.test(lines[tagStart] ?? "")) {
+      const within = lines.slice(i, i + 200).join("\n");
+      const submit = within.indexOf('type="submit"');
+      if (submit >= 0) {
+        const around = within.slice(Math.max(0, submit - 400), submit + 400);
+        gated = around.includes("needs=") || /\bmay[A-Z(]/.test(around);
+      }
+    }
 
     out.push({ line: i + 1, mutation: name, gated, method, path });
   }

@@ -1,7 +1,7 @@
 import { CRM_RESOURCE, WEBHOOK_ENTITIES } from "@sentrello/module-crm/entities";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { type Meta, api } from "../lib/api";
+import { type Meta, api, may } from "../lib/api";
 import type { CustomField } from "../lib/crm-settings";
 import { CustomFieldEditor } from "../lib/custom-fields";
 import { TAG_COLOURS } from "../lib/tags";
@@ -21,6 +21,7 @@ import {
   Input,
   Loading,
   Page,
+  REFUSED,
   SectionHeading,
   Toolbar,
   muted,
@@ -542,6 +543,12 @@ export function CrmSettings() {
                        * this changes only what a finger has to find.
                        */
                       className="grid size-6 place-items-center rounded-full"
+                      // A bare swatch with no kit primitive to hang `needs`
+                      // on, so it asks directly — the same way the compliance
+                      // screen's checkboxes do. It recolours a tag, which is
+                      // a write, and it was open to anybody who could read.
+                      disabled={!may("crm", "update")}
+                      title={may("crm", "update") ? undefined : REFUSED}
                       onClick={() =>
                         recolour.mutate({ id: tag.id, color: colour })
                       }
@@ -586,7 +593,12 @@ export function CrmSettings() {
               value={newTag}
               placeholder="Repeat customer"
               onChange={(e) => setNewTag(e.target.value)}
+              // The same question the button beside it asks. Enter was a way
+              // round it: the button carried `needs` and the shortcut carried
+              // nothing, so a policy that refused the press let the keystroke
+              // through.
               onKeyDown={(e) => {
+                if (!may("crm", "create")) return;
                 if (e.key === "Enter" && newTag.trim()) {
                   e.preventDefault();
                   addTag.mutate(newTag.trim());
@@ -808,6 +820,7 @@ function Webhooks() {
         </Toolbar>
         <Button
           type="submit"
+          needs={{ crm: ["update"] }}
           disabled={!url.trim() || !entities.length || create.isPending}
         >
           {create.isPending ? "Checking…" : "Add webhook"}

@@ -422,7 +422,22 @@ export function ContactForm({
           </label>
 
           <Toolbar>
-            <Button type="submit" disabled={save.isPending || !named}>
+            {/*
+              A form's Save fires from the form, not from the button, so the
+              sweep that gated four hundred controls never saw this one — and
+              the route it posts to is generated from a template, so the route
+              side could not see it either. Both blind spots at once, on the
+              biggest record form in the CRM.
+
+              `create` rather than `update` because this form does both and a
+              person who may only update an existing contact still cannot make
+              a new one here; the route asks for `create` on the POST.
+            */}
+            <Button
+              type="submit"
+              needs={{ crm: [contact ? "update" : "create"] }}
+              disabled={save.isPending || !named}
+            >
               {save.isPending
                 ? "Saving…"
                 : contact

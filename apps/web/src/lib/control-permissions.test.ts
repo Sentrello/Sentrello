@@ -103,3 +103,41 @@ test("every control that writes says which permission it needs", () => {
   }
   expect(bare).toEqual([]);
 });
+
+/**
+ * Every write that still carries no permission, counted.
+ *
+ * The test above only speaks when it can resolve the route a control calls,
+ * and it cannot resolve the ones that matter most: contacts, companies,
+ * deals, tasks, tags, notes and activities all have their routes generated
+ * from one template, so `guardedRoutes` — which reads literal paths and
+ * literal permission objects — sees none of them. A screen full of ungated
+ * writes therefore passed in silence.
+ *
+ * So this counts instead of resolving. Twenty-eight today, and some of them
+ * are right: your own password, your own saved views and your own dashboard
+ * arrangement are not somebody else's to permit. The rest are a list to work
+ * down, and the number may not grow while that happens.
+ *
+ * It is a ceiling rather than a floor because the direction is known. A new
+ * screen that writes without saying what it needs pushes it up and fails
+ * here, which is the whole point; gating one pushes it down, and the ceiling
+ * comes down with it in the same commit.
+ */
+test("no new write arrives without a permission on it", () => {
+  let bare = 0;
+  let gated = 0;
+  for (const path of sourceFiles(WEB, [".tsx"])) {
+    if (path.includes(".test.")) continue;
+    for (const control of controlsFiringMutations(readFileSync(path, "utf8"))) {
+      // A read needs nothing, and the resolver calls a request it cannot
+      // read a verb for a write — which is the safe way round.
+      if (control.method === "GET") continue;
+      if (control.gated) gated += 1;
+      else bare += 1;
+    }
+  }
+  // Both numbers, so a refactor that stops the scanner seeing anything at
+  // all fails here rather than reporting zero ungated writes and passing.
+  expect([gated > 120, bare <= 28]).toEqual([true, true]);
+});

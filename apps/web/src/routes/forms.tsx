@@ -88,7 +88,9 @@ export function Forms() {
        * blank box for a form they had probably already made.
        */}
       <PageActions>
-        <Button onClick={() => setCreating(true)}>New form</Button>
+        <Button needs={{ crm: ["create"] }} onClick={() => setCreating(true)}>
+          New form
+        </Button>
       </PageActions>
 
       <Dialog

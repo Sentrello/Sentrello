@@ -381,7 +381,14 @@ export function CompanyForm({
           </div>
 
           <Toolbar>
-            <Button type="submit" disabled={save.isPending || !name.trim()}>
+            {/* Same shape as the contact form, and missed for the same two
+                reasons: the mutation fires from the form, and the route it
+                posts to is generated. */}
+            <Button
+              type="submit"
+              needs={{ crm: [company ? "update" : "create"] }}
+              disabled={save.isPending || !name.trim()}
+            >
               {save.isPending
                 ? "Saving…"
                 : company

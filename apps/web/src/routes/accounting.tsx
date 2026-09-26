@@ -1237,7 +1237,12 @@ export function Accounts() {
           treatment — so the screen drew the eye to a button you press once
           and never again, and greyed the one you came here for.
         */}
-        <Button onClick={() => setAdding(true)}>New account</Button>
+        <Button
+          needs={{ bookkeeping: ["create"] }}
+          onClick={() => setAdding(true)}
+        >
+          New account
+        </Button>
       </PageActions>
 
       <Dialog

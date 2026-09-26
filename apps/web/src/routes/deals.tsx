@@ -349,7 +349,10 @@ export function Deals() {
   return (
     <Page>
       <PageActions>
-        <Button onClick={() => setAdding((v) => !v)}>
+        <Button
+          needs={{ crm: ["create"] }}
+          onClick={() => setAdding((v) => !v)}
+        >
           {adding ? "Cancel" : "New deal"}
         </Button>
       </PageActions>
