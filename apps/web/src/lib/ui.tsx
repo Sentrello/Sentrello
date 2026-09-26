@@ -869,8 +869,17 @@ export function SectionHeading({
 }) {
   const Tag = level === 3 ? "h3" : "h2";
   return (
-    <div className="mb-(--gap-toolbar) flex items-baseline gap-(--gap-tight)">
-      <Tag className="font-semibold text-sm">{children}</Tag>
+    /*
+     * It wraps, and the heading may shrink.
+     *
+     * A heading beside its own action is two things that both want their
+     * full width, and at 320 CSS pixels — the width WCAG's reflow criterion
+     * measures, which is a 400% zoom on a laptop as often as it is a small
+     * phone — they did not fit. The row pushed the page sideways on three
+     * screens rather than putting the action on a second line.
+     */
+    <div className="mb-(--gap-toolbar) flex flex-wrap items-baseline gap-(--gap-tight)">
+      <Tag className="min-w-0 font-semibold text-sm">{children}</Tag>
       {hint ? (
         <span className="text-xs" style={muted}>
           {hint}

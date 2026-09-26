@@ -300,10 +300,16 @@ export function CrmSettings() {
         </p>
         <Toolbar>
           {currentTypes.map((type, index) => (
-            <span key={type} className="flex items-center gap-(--gap-tight)">
+            <span
+              key={type}
+              className="flex min-w-0 items-center gap-(--gap-tight)"
+            >
               <Input
                 value={type}
-                className="w-36"
+                // `max-w-full` as well as a width: at 320 the fixed 9rem plus
+                // the remove beside it came to more than the card, and a
+                // fixed width cannot give any of it back.
+                className="w-36 max-w-full"
                 // A row of identical boxes announces as "edit text" over and
                 // over; the position on screen is the only thing telling them
                 // apart, and that is what a screen reader user does not have.

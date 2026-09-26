@@ -484,7 +484,11 @@ export function PairedBars({
 
   return (
     <div>
-      <div className="mb-2 flex items-center gap-3 text-xs">
+      {/* Wraps, because two money figures side by side are as wide as the
+          numbers happen to be — and at 320 CSS pixels, which is the width
+          WCAG's reflow criterion measures, "Won · $83,442.61" beside
+          "Lost · $36,804.35" pushed the whole card past the screen. */}
+      <div className="mb-2 flex flex-wrap items-center gap-3 text-xs">
         {/*
           `min-h-6` on each of these because they are real controls — each
           switches a series off the chart — and at the size of their own text
