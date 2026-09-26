@@ -111,9 +111,35 @@ function FindDialog({ onClose }: { onClose: () => void }) {
   const [q, setQ] = useState("");
   const [at, setAt] = useState(0);
   const box = useRef<HTMLInputElement>(null);
+  const opener = useRef<HTMLElement | null>(null);
+  // Set when a hit is opened, which is the one exit that must not put focus
+  // back on the header.
+  const taken = useRef(false);
+
+  /*
+   * Where you were before the palette, so Escape puts you back.
+   *
+   * This is not the `Dialog` primitive and does not get focus restoring for
+   * free; without it, closing the palette left focus on `<body>` — no ring
+   * anywhere and a screen reader starting the page again from the top, after
+   * a search that found nothing.
+   *
+   * On mount and only on mount. Written with `[onClose]` beside the key
+   * listener it looked right and did nothing useful: the parent passes a new
+   * closure every render, so the effect re-ran on each keystroke and
+   * remembered the palette's own input as the thing to go back to.
+   */
+  useEffect(() => {
+    opener.current = document.activeElement as HTMLElement | null;
+    box.current?.focus();
+    return () => {
+      // Not when the palette closed by opening a record — that screen owns
+      // focus now, and the button this came from may not exist on it.
+      if (!taken.current && opener.current?.isConnected) opener.current.focus();
+    };
+  }, []);
 
   useEffect(() => {
-    box.current?.focus();
     const key = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
@@ -138,6 +164,7 @@ function FindDialog({ onClose }: { onClose: () => void }) {
    * is arriving somewhere with no way back that says where you were.
    */
   const open = (hit: Hit) => {
+    taken.current = true;
     if (hit.opens.recordId) {
       openRecord({
         moduleId: hit.opens.moduleId,
@@ -184,11 +211,25 @@ function FindDialog({ onClose }: { onClose: () => void }) {
           that adapts to both themes, and removing it fails WCAG 2.4.7 for the
           sake of a border.
         */}
+        {/*
+          A combobox, said out loud.
+          
+          Arrow keys moved a highlight down the list and announced nothing:
+          focus never leaves this field, so a screen reader had no idea the
+          selection had moved. `aria-activedescendant` is how a field says
+          "the thing I am pointing at is over there" — the highlight and the
+          announcement are then the same fact rather than two.
+        */}
         <input
           ref={box}
           value={q}
           placeholder="A name, a number, anything"
           aria-label="What are you looking for?"
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={hits.length > 0}
+          aria-controls="find-hits"
+          aria-activedescendant={hits[at] ? `find-hit-${at}` : undefined}
           className="w-full border-b px-4 py-3 text-base"
           style={{ background: "transparent", borderColor: "var(--border)" }}
           onChange={(e) => {
@@ -236,28 +277,48 @@ function FindDialog({ onClose }: { onClose: () => void }) {
               Nothing matched “{q}”.
             </p>
           ) : (
-            hits.map((hit, i) => (
-              <button
-                key={`${hit.kind}-${hit.opens.recordId ?? hit.title}`}
-                type="button"
-                onMouseEnter={() => setAt(i)}
-                onClick={() => open(hit)}
-                className="flex w-full items-baseline gap-3 px-4 py-2 text-left"
-                style={
-                  i === at ? { background: "var(--surface-sunken)" } : undefined
-                }
-              >
-                <span className="text-xs uppercase" style={muted}>
-                  {hit.kind}
-                </span>
-                <span className="flex-1">{hit.title}</span>
-                {hit.subtitle ? (
-                  <span className="text-sm" style={muted}>
-                    {hit.subtitle}
+            /*
+              The listbox is only drawn around the hits themselves. Wrapped
+              around the whole area it would also contain "Nothing matched"
+              and "Looking…", and a listbox whose children are paragraphs is
+              a listbox a screen reader reads as empty.
+              Neither rule below applies to this shape. A listbox driven by
+              `aria-activedescendant` must not be focusable — focus stays in
+              the field, which is the whole pattern — and a `<select>` cannot
+              hold a row of three differently-styled pieces of text.
+            */
+            // biome-ignore lint/a11y/useFocusableInteractive: focus belongs to the combobox
+            // biome-ignore lint/a11y/useSemanticElements: a select cannot draw these rows
+            <div id="find-hits" role="listbox" aria-label="Results">
+              {hits.map((hit, i) => (
+                <button
+                  key={`${hit.kind}-${hit.opens.recordId ?? hit.title}`}
+                  id={`find-hit-${i}`}
+                  type="button"
+                  // biome-ignore lint/a11y/useSemanticElements: an <option> holds text, not three styled pieces of it
+                  role="option"
+                  aria-selected={i === at}
+                  onMouseEnter={() => setAt(i)}
+                  onClick={() => open(hit)}
+                  className="flex w-full items-baseline gap-3 px-4 py-2 text-left"
+                  style={
+                    i === at
+                      ? { background: "var(--surface-sunken)" }
+                      : undefined
+                  }
+                >
+                  <span className="text-xs uppercase" style={muted}>
+                    {hit.kind}
                   </span>
-                ) : null}
-              </button>
-            ))
+                  <span className="flex-1">{hit.title}</span>
+                  {hit.subtitle ? (
+                    <span className="text-sm" style={muted}>
+                      {hit.subtitle}
+                    </span>
+                  ) : null}
+                </button>
+              ))}
+            </div>
           )}
         </div>
       </dialog>
