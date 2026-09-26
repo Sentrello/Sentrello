@@ -24,6 +24,7 @@ import {
   Field,
   Input,
   Loading,
+  MenuItem,
   Page,
   PageActions,
   RowMenu,
@@ -126,17 +127,24 @@ function StageMenu({
           stages
             .filter((s) => s.id !== deal.stage)
             .map((s) => (
-              <button
+              /*
+               * Moving a deal between stages is the write this board exists
+               * for, and it was open to anybody who could read the board.
+               * Built in a loop over the stages, so there is one handler for
+               * however many columns a business has and it calls a prop
+               * rather than a mutation — which is why the scanner that reads
+               * handlers never saw it.
+               */
+              <MenuItem
                 key={s.id}
-                type="button"
-                className="menu-item"
+                needs={{ crm: ["update"] }}
                 onClick={() => {
                   onMove(deal.id, s.id);
                   close();
                 }}
               >
                 Move to {s.label}
-              </button>
+              </MenuItem>
             ))
         }
       </RowMenu>

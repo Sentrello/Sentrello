@@ -715,8 +715,12 @@ function QuoteActions({
                 >
                   Turn into an invoice
                 </MenuItem>
-                {/* Or into the schedule that was agreed with it. */}
+                {/* Or into the schedule that was agreed with it. It raises
+                    the invoices, so it asks what raising one asks — and it
+                    was the one item in this menu that did not, because it
+                    opens a panel rather than firing the mutation itself. */}
                 <MenuItem
+                  needs={{ invoicing: ["create"] }}
                   onClick={() => {
                     setOpen(false);
                     onSplit();

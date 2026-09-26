@@ -16,6 +16,7 @@ import {
   Dialog,
   Field,
   Input,
+  MenuItem,
   REFUSED,
   RowMenu,
   Select,
@@ -149,10 +150,17 @@ function TaskMenu({
             ["Edit", onEdit, false],
             ["Delete", onDelete, true],
           ].map(([label, onClick, danger]) => (
-            <button
+            /*
+             * Every item here writes the task — postponing it, editing it,
+             * deleting it — so every one takes the permission. Built in a
+             * loop, which is why the scanner that reads handlers never saw
+             * them: there is one handler for four controls and it calls a
+             * prop rather than a mutation. A read-only role was offered all
+             * four.
+             */
+            <MenuItem
               key={label as string}
-              type="button"
-              className="menu-item"
+              needs={{ crm: ["update"] }}
               style={danger ? { color: "var(--text-danger)" } : undefined}
               onClick={() => {
                 close();
@@ -160,7 +168,7 @@ function TaskMenu({
               }}
             >
               {label as string}
-            </button>
+            </MenuItem>
           ))}
         </>
       )}
