@@ -869,6 +869,23 @@ export function AppShell({
 
   return (
     <div className="min-h-screen">
+      {/*
+       * The way past the furniture, for somebody working without a mouse.
+       *
+       * The header, the rail and the section panel are the same on every
+       * screen, and they are up to eighteen tab stops deep on Accounting.
+       * Without this, reaching the first control on the page you asked for
+       * means pressing Tab through all of it — again on the next page, and
+       * the next. The automated check passes either way: it is satisfied by
+       * the `main` landmark, which only helps somebody using a screen reader.
+       *
+       * Invisible until focused, so it costs nothing to anyone else, and
+       * `main` takes `tabIndex={-1}` because a browser will not move focus
+       * to an element that cannot hold it.
+       */}
+      <a className="skip-link" href="#screen">
+        Skip to content
+      </a>
       {/* Global: who you are, and the way home. The modules are not up here —
           fifteen of them scrolling sideways told you nothing about how they
           relate, which was the whole complaint. */}
@@ -909,7 +926,11 @@ export function AppShell({
             Without this the body was only as tall as its content and every
             such screen stopped halfway down an empty page. 3.25rem is the
             header, the same figure the rail and the panel are cut to. */}
-        <main className="flex min-h-[calc(100vh-3.25rem)] min-w-0 flex-1 flex-col p-6">
+        <main
+          id="screen"
+          tabIndex={-1}
+          className="flex min-h-[calc(100vh-3.25rem)] min-w-0 flex-1 flex-col p-6"
+        >
           {/*
            * The screen, and only the screen, when a render throws.
            *

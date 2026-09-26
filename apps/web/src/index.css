@@ -845,6 +845,39 @@ input[type="week"]:focus-within {
 }
 
 /*
+ * The link past the header, the rail and the section panel.
+ *
+ * Off the top of the screen until it is focused, which makes it the first
+ * Tab on every page and invisible to everybody else. It cannot be
+ * `display: none` or `visibility: hidden` — either one takes it out of the
+ * tab order, which is the one thing it exists to be in.
+ *
+ * `#screen` holds focus only because it is given `tabindex="-1"`; the
+ * outline is inset so a full-width content area doesn't draw a ring
+ * hanging off the edge of the window.
+ */
+.skip-link {
+  position: absolute;
+  top: -3rem;
+  left: 0.5rem;
+  z-index: 60;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.25rem;
+  background: var(--brand-on-white-text);
+  color: var(--color-neutral-50);
+  font-size: 0.875rem;
+}
+
+.skip-link:focus {
+  top: 0.5rem;
+}
+
+#screen:focus-visible {
+  outline: 2px solid var(--brand-on-white-text);
+  outline-offset: -2px;
+}
+
+/*
  * A row-menu line used outside a row menu.
  *
  * Eighty-eight of them, because `MenuItem` is the only primitive that takes
