@@ -1,6 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { type Account, type Meta, type ProfitAndLoss, api } from "../lib/api";
+import {
+  type Account,
+  type Meta,
+  type ProfitAndLoss,
+  api,
+  may,
+} from "../lib/api";
 import type { CustomField } from "../lib/crm-settings";
 import { CustomFields } from "../lib/custom-fields";
 import { Icon } from "../lib/icons";
@@ -26,6 +32,7 @@ import {
   MenuItem,
   Page,
   PageActions,
+  REFUSED,
   Row,
   RowMenu,
   SectionHeading,
@@ -611,7 +618,11 @@ export function Receipt({
         <button
           type="button"
           className="link-danger text-xs"
-          disabled={detach.isPending}
+          // The holder is a variable, so the path this builds cannot be
+          // matched against the table the server registers. It asks directly
+          // instead — taking a receipt off a line is a write either way.
+          disabled={detach.isPending || !may("bookkeeping", "update")}
+          title={may("bookkeeping", "update") ? undefined : REFUSED}
           onClick={() => detach.mutate()}
         >
           remove
@@ -627,6 +638,7 @@ export function Receipt({
         <input
           type="file"
           className="hidden"
+          disabled={!may("bookkeeping", "update")}
           onChange={(e) => {
             const file = e.target.files?.[0];
             if (file) upload.mutate(file);

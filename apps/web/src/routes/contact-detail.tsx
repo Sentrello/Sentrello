@@ -823,6 +823,7 @@ export function HistoryPanel({
                       onChange={(e) => setCorrection(e.currentTarget.value)}
                     />
                     <Button
+                      needs={{ crm: ["update"] }}
                       disabled={!correction.trim() || amendLog.isPending}
                       onClick={() =>
                         amendLog.mutate({
@@ -869,6 +870,7 @@ export function HistoryPanel({
                         message="The record of that call or meeting leaves the history for good — what was typed about it is not kept anywhere else."
                         confirmLabel="Delete it"
                         danger
+                        needs={{ crm: ["delete"] }}
                         className="link-muted"
                         onConfirm={() =>
                           dropLog.mutate(entry.activityId as string)

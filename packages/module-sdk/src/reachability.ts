@@ -1,5 +1,6 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { stripComments } from "./scan-text";
 
 /**
  * Finding routes nothing can reach.
@@ -230,8 +231,17 @@ function withLocalPrefixes(source: string): string[] {
 
 /** Every API path a set of screen files asks for. */
 export function requestedPaths(files: string[]): AskedPath[] {
+  /*
+   * Comments first, because a comment is not a request.
+   *
+   * A note explaining why a control asks `may` directly — "the path is built
+   * from a holder, `/api/${holder}/${id}/tags`" — was read as a call to a
+   * route nobody had registered, and failed the walk. The prose that explains
+   * a path is exactly where a path gets written out in full, so this check
+   * was most likely to misfire on the files somebody had bothered to explain.
+   */
   const text = files
-    .flatMap((f) => withLocalPrefixes(readFileSync(f, "utf8")))
+    .flatMap((f) => withLocalPrefixes(stripComments(readFileSync(f, "utf8"))))
     .join("\n");
   const asked: AskedPath[] = [];
   // Up to the closing quote or backtick: a template literal's `${…}` is part

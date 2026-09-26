@@ -590,6 +590,7 @@ function BulkActions({
             value=""
             aria-label="Add a tag to the selected contacts"
             className="w-auto"
+            needs={{ crm: ["update"] }}
             disabled={applyTag.isPending}
             onChange={(e) => e.target.value && applyTag.mutate(e.target.value)}
           >

@@ -1,12 +1,26 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { sourceFiles } from "@sentrello/module-sdk";
+import account from "@sentrello/module-account";
+import accounting from "@sentrello/module-accounting";
+import archive from "@sentrello/module-archive";
+import crm from "@sentrello/module-crm";
+import dashboard from "@sentrello/module-dashboard";
+import invoicing from "@sentrello/module-invoicing";
+import profile from "@sentrello/module-profile";
+import {
+  createModuleApp,
+  registerForTest,
+  sourceFiles,
+} from "@sentrello/module-sdk";
 import {
   controlsFiringMutations,
+  declaredRoutes,
   guardedRoutes,
   needsFor,
 } from "@sentrello/module-sdk/control-permissions";
+import settings from "@sentrello/module-settings";
+import users from "@sentrello/module-users";
 
 /**
  * A control that writes, in front of a route that asks for a permission,
@@ -30,15 +44,59 @@ import {
  * on a screen they are already looking at is nonsense, and the nav has
  * already decided whether they see the screen at all.
  */
-const WEB = join(import.meta.dir, "..");
-const ROOT = join(WEB, "..", "..", "..");
+/*
+ * It reads the web app from disk and imports the modules from here.
+ *
+ * It lived under `apps/web` and moved on 26 September, when the route table
+ * stopped being scanned out of the source and started being asked of a real
+ * app: that needs every Free module imported, and the browser bundle has no
+ * business depending on nine server modules to satisfy one test. The screens
+ * it checks are still read by path, which needs no dependency at all.
+ */
+const ROOT = join(import.meta.dir, "..", "..", "..");
+const WEB = join(ROOT, "apps", "web", "src");
 
-const routes = [
+/**
+ * The routes this instance actually registers, asked of the app itself.
+ *
+ * This used to read every server file with a regular expression, and that
+ * worked until a module generated its routes. The CRM builds contacts,
+ * companies, deals, tasks, tags, notes and activities from one template with
+ * a computed permission key, so the scanner resolved **none** of the seven
+ * biggest record types in the product — and the test below only speaks when
+ * it can resolve a route, so every ungated write on every one of those
+ * screens passed in silence. That is how New contact came to be offered to
+ * somebody holding `read` and nothing else.
+ *
+ * `requirePermission` tags the middleware it returns and Hono lists what it
+ * has registered, so `declaredRoutes` reads the table the server enforces
+ * rather than guessing at the code that built it. The scan stays beside it:
+ * a route a module registers only under a licence this test does not hold is
+ * still in the source, and two readings that disagree is the shape this
+ * project has been caught by before.
+ */
+const app = [
+  account,
+  accounting,
+  archive,
+  crm,
+  dashboard,
+  invoicing,
+  profile,
+  settings,
+  users,
+].reduce((acc, module) => registerForTest(module, acc), createModuleApp());
+
+const scanned = [
   ...sourceFiles(join(ROOT, "packages"), [".ts"]),
   ...sourceFiles(join(ROOT, "apps", "server", "src"), [".ts"]),
 ]
   .filter((path) => !path.includes(".test."))
   .flatMap((path) => guardedRoutes(readFileSync(path, "utf8")));
+
+const registered = declaredRoutes(app);
+
+const routes = [...registered, ...scanned];
 
 test("there are routes and screens to check", () => {
   // Either matching nothing would pass the assertion below it — which is how
@@ -108,16 +166,18 @@ test("every control that writes says which permission it needs", () => {
  * Every write that still carries no permission, counted.
  *
  * The test above only speaks when it can resolve the route a control calls,
- * and it cannot resolve the ones that matter most: contacts, companies,
- * deals, tasks, tags, notes and activities all have their routes generated
- * from one template, so `guardedRoutes` — which reads literal paths and
- * literal permission objects — sees none of them. A screen full of ungated
- * writes therefore passed in silence.
+ * and some paths cannot be resolved by any table: the tag controls and the
+ * receipt controls build their path from a holder, so what they call is not
+ * known until it runs. Those ask `may` directly instead, which this scanner
+ * counts as gated.
  *
- * So this counts instead of resolving. Twenty-eight today, and some of them
- * are right: your own password, your own saved views and your own dashboard
- * arrangement are not somebody else's to permit. The rest are a list to work
- * down, and the number may not grow while that happens.
+ * What is left over is the honest remainder, and counting it is what stops
+ * the next one arriving unnoticed.
+ *
+ * So this counts instead of resolving. Twenty-one today, down from
+ * twenty-eight, and most of what is left is right: your own password, your
+ * own saved views and your own dashboard arrangement are not somebody
+ * else's to permit. The number may not grow while the rest come down.
  *
  * It is a ceiling rather than a floor because the direction is known. A new
  * screen that writes without saying what it needs pushes it up and fails
@@ -139,5 +199,5 @@ test("no new write arrives without a permission on it", () => {
   }
   // Both numbers, so a refactor that stops the scanner seeing anything at
   // all fails here rather than reporting zero ungated writes and passing.
-  expect([gated > 120, bare <= 28]).toEqual([true, true]);
+  expect([gated > 150, bare <= 21]).toEqual([true, true]);
 });

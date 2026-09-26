@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { api } from "./api";
-import { Button, ErrorNote, Input, muted, textOn } from "./ui";
+import { api, may } from "./api";
+import { Button, ErrorNote, Input, REFUSED, muted, textOn } from "./ui";
 
 /**
  * The tag editor, for anything that can wear a tag.
@@ -116,14 +116,27 @@ export function TagChips({
   const on = new Set(attached.map((t) => t.id));
   const available = (all.data?.tags ?? []).filter((t) => !on.has(t.id));
 
+  /*
+   * Tagging a record writes to it, and the path is built from a holder —
+   * `/api/${holder}/${id}/tags` — so it cannot be matched against the table
+   * the server registers. It asks directly instead.
+   *
+   * One question for all three controls here: attaching a tag, taking one
+   * off and opening the picker are the same permission, and a picker that
+   * opens onto tags nobody may apply is a worse answer than one that does
+   * not open.
+   */
+  const allowed = may("crm", "update");
+
   return (
     <div className="flex flex-wrap items-center gap-1">
       {attached.map((t) => (
         <button
           key={t.id}
           type="button"
+          disabled={!allowed}
           onClick={() => detach.mutate(t.id)}
-          title="Remove"
+          title={allowed ? "Remove" : REFUSED}
           className="rounded-full px-2 py-0.5 text-xs"
           style={{ background: t.color, color: textOn(t.color) }}
         >
@@ -133,6 +146,8 @@ export function TagChips({
 
       <button
         type="button"
+        disabled={!allowed}
+        title={allowed ? undefined : REFUSED}
         onClick={() => setPicking((v) => !v)}
         className="rounded-full border px-2 py-0.5 text-xs"
         style={{ borderColor: "var(--border)", ...muted }}
@@ -146,6 +161,7 @@ export function TagChips({
             <button
               key={t.id}
               type="button"
+              disabled={!may("crm", "update")}
               onClick={() => attach.mutate(t.id)}
               className="rounded-full px-2 py-0.5 text-xs"
               // No opacity: it multiplies against the text as well as the chip, which

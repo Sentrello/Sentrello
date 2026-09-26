@@ -176,8 +176,25 @@ async function hipaaRefusal(
  * boolean — truthiness-testing the response would let every check pass, so the
  * `success` flag is read explicitly and anything else denies.
  */
+/**
+ * What a guard asks for, readable from the route it is mounted on.
+ *
+ * The middleware knows the permission and the app knows the path, and until
+ * now nothing put the two together — so the only way to ask "what does this
+ * route require" was to read the source with a regular expression. That works
+ * until a module generates its routes, which the CRM does for contacts,
+ * companies, deals, tasks, tags, notes and activities: seven resources, one
+ * template, `requirePermission({ [permission]: ["create"] })`, and a scanner
+ * that can see none of it.
+ *
+ * Hono lists every handler it has registered with the method and path it was
+ * registered under, so tagging the middleware is enough to turn that list
+ * into the real table. `declaredRoutes` in the module SDK reads it.
+ */
+export const DECLARES = Symbol.for("sentrello.requirePermission");
+
 export function requirePermission(permissions: Record<string, string[]>) {
-  return createMiddleware<AppEnv>(async (c, next) => {
+  const middleware = createMiddleware<AppEnv>(async (c, next) => {
     let granted = false;
     try {
       const result = await auth.api.hasPermission({
@@ -191,6 +208,7 @@ export function requirePermission(permissions: Record<string, string[]>) {
     if (!granted) return c.json({ error: "forbidden" }, 403);
     await next();
   });
+  return Object.assign(middleware, { [DECLARES]: permissions });
 }
 
 /**

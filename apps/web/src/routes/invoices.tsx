@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { api } from "../lib/api";
+import { api, may } from "../lib/api";
 import { Icon } from "../lib/icons";
 import {
   ColumnsMenu,
@@ -23,6 +23,7 @@ import {
   MenuItem,
   Page,
   PageActions,
+  REFUSED,
   Row,
   RowMenu,
   Select,
@@ -374,7 +375,12 @@ export function Invoices() {
                 <button
                   type="button"
                   className="text-sm link-danger"
-                  disabled={removeMany.isPending}
+                  // A bare button with no kit primitive to hang `needs` on,
+                  // so it asks directly. It deletes every invoice somebody
+                  // has ticked, and it was open to anybody who could read
+                  // the list.
+                  disabled={removeMany.isPending || !may("invoicing", "delete")}
+                  title={may("invoicing", "delete") ? undefined : REFUSED}
                   onClick={() => removeMany.mutate()}
                 >
                   {removeMany.isPending

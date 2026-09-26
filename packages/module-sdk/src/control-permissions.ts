@@ -62,6 +62,60 @@ export function guardedRoutes(source: string): GuardedRoute[] {
   return out;
 }
 
+/**
+ * Every guarded route an app has actually registered.
+ *
+ * Ground truth, where `guardedRoutes` above is inference. It reads the
+ * source with a regular expression, which works right up until a module
+ * generates its routes — the CRM builds contacts, companies, deals, tasks,
+ * tags, notes and activities from one template with a computed permission
+ * key, so the scanner resolved none of the seven biggest record types in the
+ * product and the gating test passed in silence over every screen that uses
+ * them.
+ *
+ * Hono lists what it has registered, path and method included, and
+ * `requirePermission` tags the middleware it returns. So this is not a better
+ * guess: it is the table the server enforces, whatever shape the code that
+ * registered it happened to take.
+ *
+ * The symbol is looked up by name rather than imported, because this package
+ * is the one `@sentrello/auth` depends on and not the other way round.
+ */
+const DECLARES = Symbol.for("sentrello.requirePermission");
+
+interface RoutesOf {
+  routes: { method: string; path: string; handler: unknown }[];
+}
+
+export function declaredRoutes(app: RoutesOf): GuardedRoute[] {
+  const out = new Map<string, GuardedRoute>();
+  for (const route of app.routes) {
+    const declared = (
+      route.handler as Record<symbol, Record<string, string[]> | undefined>
+    )?.[DECLARES];
+    if (!declared) continue;
+    const needs = Object.entries(declared)
+      .map(([resource, actions]) => `${resource}: ${JSON.stringify(actions)}`)
+      .join(", ");
+    const found = {
+      method: route.method.toUpperCase(),
+      path: normalisePath(route.path),
+      needs,
+    };
+    // `ALL` is Hono's wildcard method; a route registered that way guards
+    // every verb, so it answers for each of them rather than for a verb
+    // called "ALL" that no caller will ever ask about.
+    const methods =
+      found.method === "ALL"
+        ? ["GET", "POST", "PATCH", "PUT", "DELETE"]
+        : [found.method];
+    for (const method of methods) {
+      out.set(`${method} ${found.path}`, { ...found, method });
+    }
+  }
+  return [...out.values()];
+}
+
 /** A control that fires a mutation, and what it carries. */
 export interface Control {
   line: number;
