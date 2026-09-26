@@ -1218,7 +1218,18 @@ export function ErrorNote({ error }: { error: unknown }) {
       : status === 401
         ? "Your session has expired. Sign in again."
         : (fromServer ?? "Something went wrong. Try again.");
-  return <Warning>{message}</Warning>;
+  /*
+   * `role="alert"`, and it is the whole difference between a message and a
+   * message somebody receives.
+   *
+   * This is only ever drawn after something failed — `{save.error ?
+   * <ErrorNote … /> : null}`, in two hundred and fifty-nine places. It
+   * appears below the button that was just pressed, in red, and until now
+   * it said nothing to anybody working by ear: the press did nothing, the
+   * page looked unchanged, and the reason was a paragraph they had no way
+   * to know had arrived.
+   */
+  return <Warning role="alert">{message}</Warning>;
 }
 
 /**
@@ -1239,13 +1250,25 @@ export function ErrorNote({ error }: { error: unknown }) {
 export function Warning({
   children,
   className = "",
+  role,
 }: {
   children: ReactNode;
   className?: string;
+  /**
+   * `alert` when this appeared because something just failed.
+   *
+   * Left off by default on purpose. Most of the twenty-two warnings in the
+   * product are standing notes — a setting that is off, a period that is
+   * closed — and they are on the screen when it draws. An alert region
+   * announces what it already holds, so marking those up would read a list
+   * of warnings at somebody every time they arrived anywhere.
+   */
+  role?: "alert";
 }) {
   // ui-drift-ignore: the primitive the rule points at
   return (
     <p
+      role={role}
       className={`text-sm ${className}`}
       style={{ color: "var(--text-danger)" }}
     >
