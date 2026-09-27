@@ -111,6 +111,11 @@ Customer Service. A new joiner gets the right access by being put in the right
 group, rather than by somebody remembering fourteen switches. A group has its
 own Access tab, which answers the same question about the policies it carries.
 
+Two more groups arrive with them — **Admins** and **Customers** — which are
+a group *and* a policy of the same name. A business puts its owners in a
+group and hands the same access to one person directly, and two things
+meaning the same would be two places to edit it. Six groups in all.
+
 Every one of these is yours to change, copy or delete. They are data, not
 something compiled into the product.
 

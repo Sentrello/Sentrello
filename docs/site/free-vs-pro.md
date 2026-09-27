@@ -36,7 +36,7 @@ Pro is **per instance, not per person**. Hiring somebody costs nothing.
 | **Tax returns**: UK VAT in the Making Tax Digital boxes, Canadian GST/HST, US sales tax with state nexus thresholds, EU One Stop Shop | ● | ● |
 | **Structured e-invoices**: EN 16931, in the Peppol BIS and XRechnung profiles | ● | ● |
 | Tax summary, cash flow and multi-currency | — | ● |
-| **Accounts and access**: five policies, four groups, all editable; sessions, sign-in providers, two-factor, event log | ● | ● |
+| **Accounts and access**: nine policies and six groups, all editable; sessions, sign-in providers, two-factor, event log | ● | ● |
 | **Settings**: business details on every document, third-party connections, one-click update and rollback | ● | ● |
 | **Automations**: rules on your own records, so that when a deal is won a task appears, an email goes out, and a field updates itself, without anybody remembering to do it | — | ● |
 | Your own credit on public pages: replace or remove "Powered by Sentrello" on the sign-in screen and thank-you pages | — | ● |
