@@ -1,6 +1,7 @@
 import { createHmac } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
+import { stripComments } from "./scan-text";
 
 /**
  * Whether this process may send anything to a customer-supplied URL.
@@ -180,4 +181,65 @@ export function signOutbound(
  */
 export function deadline(ms = 15_000): AbortSignal {
   return AbortSignal.timeout(ms);
+}
+
+/** One place a request calls out with nothing to stop it waiting for ever. */
+export interface UntimedCall {
+  line: number;
+  say: string;
+}
+
+/**
+ * Every `fetch` in this source that could hang for ever.
+ *
+ * The rule `deadline` states, made checkable. A hung outbound call holds a
+ * database connection until its socket closes, and ten of those is an
+ * instance that answers nothing — so this is not a style preference, it is
+ * the difference between one slow screen and a business whose whole product
+ * has stopped.
+ *
+ * Source-level rather than a runtime wrapper, because the thing worth
+ * catching is somebody writing the seventeenth call next year and not
+ * knowing. A `fetch` that genuinely wants to wait — a job, a stream, a
+ * download — says so with `// outbound-ignore:` and its reason on the line
+ * above, which is a decision rather than an omission.
+ *
+ * Deliberately crude about what counts: it reads the call's own parentheses
+ * and asks whether the word `signal` appears between them. A call that
+ * builds its options elsewhere will be flagged and should pass its signal
+ * where a reader can see it.
+ */
+export function findUntimedFetch(source: string): UntimedCall[] {
+  const lines = source.split("\n");
+  // Comments first, or a docblock explaining `fetch(path)` is a finding.
+  const clean = stripComments(source);
+  const out: UntimedCall[] = [];
+  for (const match of clean.matchAll(/\bfetch\(/g)) {
+    const open = match.index + match[0].length - 1;
+    let depth = 0;
+    let close = clean.length;
+    for (let i = open; i < clean.length; i++) {
+      const ch = clean[i];
+      if (ch === "(") depth += 1;
+      else if (ch === ")") {
+        depth -= 1;
+        if (depth === 0) {
+          close = i;
+          break;
+        }
+      }
+    }
+    const call = clean.slice(open, close);
+    if (call.includes("signal")) continue;
+    // The browser's own calls: a hung one there costs a screen, not an
+    // instance, and the page is what aborts it.
+    if (/^\(\s*[`"']\//.test(call)) continue;
+    const line = clean.slice(0, match.index).split("\n").length;
+    if (lines[line - 2]?.includes("outbound-ignore:")) continue;
+    out.push({
+      line,
+      say: "a fetch with no signal — a request holding a connection can wait for ever; pass `deadline()`, or say why above it with `// outbound-ignore:`",
+    });
+  }
+  return out;
 }
