@@ -8,6 +8,7 @@ import {
   ErrorNote,
   Field,
   Input,
+  Loading,
   MenuItem,
   Row,
   RowMenu,
@@ -193,7 +194,25 @@ export function Policies({
     queryFn: () => api<{ roles: Policy[] }>("/api/users/roles"),
   });
 
-  if (isLoading) return null;
+  /*
+   * The same fix as the error branch below, one line above it and missed.
+   *
+   * Three of these tables make up the Policies screen, and all three drew
+   * nothing at all while the one call they share was in flight. On this
+   * machine that is fifteen milliseconds; on a small VPS, or a phone on
+   * mobile data, it is seconds of a heading with an empty page under it —
+   * the screen that says who may do what, reading as though the answer were
+   * nobody. `Loading` waits a fifth of a second before it says anything, so
+   * the fast case still shows no flicker.
+   */
+  if (isLoading) {
+    return (
+      <Card>
+        {title ? <SectionHeading>{title}</SectionHeading> : null}
+        <Loading />
+      </Card>
+    );
+  }
   /*
    * A card, rather than the nothing this drew before.
    *

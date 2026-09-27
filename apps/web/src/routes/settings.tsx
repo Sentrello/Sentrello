@@ -841,7 +841,20 @@ function PaymentConnections({
   const refresh = () =>
     qc.invalidateQueries({ queryKey: ["payment-accounts"] });
 
-  if (isLoading) return null;
+  /*
+   * Card payments are a section of Connections, and while this call was in
+   * flight the section was simply not on the page. On a slow instance
+   * somebody looking for where to connect Stripe found a Connections screen
+   * that did not mention cards — and the natural conclusion is that this
+   * build does not do them.
+   */
+  if (isLoading) {
+    return (
+      <Card>
+        <Loading />
+      </Card>
+    );
+  }
 
   return (
     <>
