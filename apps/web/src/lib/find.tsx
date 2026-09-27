@@ -111,6 +111,7 @@ function FindDialog({ onClose }: { onClose: () => void }) {
   const [q, setQ] = useState("");
   const [at, setAt] = useState(0);
   const box = useRef<HTMLInputElement>(null);
+  const shell = useRef<HTMLDialogElement>(null);
   const opener = useRef<HTMLElement | null>(null);
   // Set when a hit is opened, which is the one exit that must not put focus
   // back on the header.
@@ -139,13 +140,29 @@ function FindDialog({ onClose }: { onClose: () => void }) {
     };
   }, []);
 
+  /*
+   * `showModal()`, not the `open` attribute.
+   *
+   * The two look identical and are not the same thing. A dialog with `open`
+   * is an ordinary box that happens to be a dialog: the page behind it stays
+   * live, stays in the accessibility tree, and stays in the tab order. One
+   * Tab out of the search field landed on "Your account" in the header,
+   * behind the palette, with the palette still covering the screen — so
+   * somebody driving this by keyboard had no way to reach their own results
+   * and no way to tell they had left. `showModal()` is what puts a dialog in
+   * the top layer, makes the rest of the document inert and holds Tab inside
+   * it, and it is why Escape is `cancel` here rather than a listener on the
+   * window: with the page inert there is nowhere else for the key to be
+   * pressed.
+   *
+   * The comment this replaces said the browser "does the right things about
+   * focus and about what is behind it" for a real dialog element. It does —
+   * for a modal one.
+   */
   useEffect(() => {
-    const key = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
-  }, [onClose]);
+    const el = shell.current;
+    if (el && !el.open) el.showModal();
+  }, []);
 
   const found = useQuery({
     queryKey: ["search", q],
@@ -178,31 +195,45 @@ function FindDialog({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-24">
+    <>
       {/*
-        The backdrop is a button rather than a div with a click on it.
-        
-        A div that closes things when clicked is invisible to a keyboard and to
-        a screen reader, and the usual answer — suppressing the rule — makes the
-        warning go away rather than the problem. A button is reachable, sayable
-        and closes on Enter for free.
+        A real dialog element rather than a div wearing the role, opened
+        modally. The backdrop used to be a button covering the screen, because
+        a dialog that is not modal has no backdrop of its own; a modal one
+        does, and a click that lands on the dialog box rather than on anything
+        inside it happened on that backdrop.
       */}
-      <button
-        type="button"
-        aria-label="Close"
-        onClick={onClose}
-        className="absolute inset-0 h-full w-full cursor-default"
-        style={{ background: "var(--scrim)" }}
-      />
-      {/*
-        A real dialog element rather than a div wearing the role. It brings the
-        semantics with it, and a browser that knows it is a dialog does the
-        right things about focus and about what is behind it.
-      */}
+      {/* The keyboard route out is Escape, which arrives as `cancel` below. A
+          backdrop cannot be tabbed to, because the modal holds focus inside. */}
+      {/* biome-ignore lint/a11y/useKeyWithClickEvents: Escape is handled by onCancel */}
       <dialog
-        open
+        ref={shell}
+        onCancel={(e) => {
+          e.preventDefault();
+          onClose();
+        }}
+        onClick={(e) => {
+          if (e.target === shell.current) onClose();
+        }}
         aria-label="Find anything"
-        className="overlay-panel relative w-full max-w-xl overflow-hidden rounded-lg border p-0 border-line"
+        /*
+          `mt-24` over `m-auto`: a native dialog centres itself with automatic
+          margins, and a palette belongs near the top of the screen rather
+          than the middle of it.
+        */
+        /*
+          A gutter of its own. The wrapper that used to hold this had `p-4`
+          around it; a dialog in the top layer has no wrapper, so `w-full`
+          meant edge to edge on a phone with its own rounded corners cut off
+          by the screen.
+        */
+        className="overlay-panel m-auto mt-24 w-[calc(100%-2rem)] max-w-xl overflow-hidden rounded-lg border p-0 backdrop:bg-black/50 border-line"
+        /*
+          The browser's own stylesheet gives a dialog `color: CanvasText`,
+          which ignores the page's theme entirely — every other surface in
+          the product inherits from the body and never meets this rule.
+        */
+        style={{ color: "var(--text)" }}
       >
         {/*
           No `outline-none`. It was there to keep the flush top edge clean, and
@@ -322,6 +353,6 @@ function FindDialog({ onClose }: { onClose: () => void }) {
           )}
         </div>
       </dialog>
-    </div>
+    </>
   );
 }
