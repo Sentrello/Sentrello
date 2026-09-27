@@ -157,6 +157,77 @@ test("pruning the oldest entries is not mistaken for tampering", async () => {
   expect(verdict.checked).toBe(3);
 });
 
+/**
+ * And pruning from the *middle* is not either, where the marker explains it.
+ *
+ * Retention keeps one row when it prunes — the `events.pruned` marker, so
+ * that history cannot vanish without a trace — and removes everything else
+ * past the window. The surviving log is therefore an old marker followed by
+ * whatever is inside the window, and the first row after the marker links to
+ * an entry that was deliberately taken away.
+ *
+ * The existing test covers the easy shape, where the missing rows are at the
+ * very front and there is no `previous` to compare against. This is the shape
+ * a real instance actually has, and it reported "something is missing" the
+ * first night the job ran — which is the alarm that gets the whole check
+ * switched off.
+ */
+test("a recorded prune in the middle is explained, not condemned", async () => {
+  const mark = () =>
+    record({
+      organizationId: orgId,
+      actor: null,
+      action: "events.pruned",
+      detail: { removed: 500 },
+    });
+
+  /*
+   * Two nights of pruning, which is the shape an instance actually reaches.
+   *
+   * One marker at the very front is the easy case and the test above it
+   * covers that. Markers accumulate — the job writes one every night it
+   * removes anything — so the surviving log is marker, marker, then the
+   * window, and the second marker is the row that links to something
+   * deliberately taken away.
+   */
+  await write(1);
+  await mark();
+  await write(2);
+  await mark();
+  await write(2);
+
+  const all = await rows();
+  const keep = new Set([
+    ...all.filter((r) => r.action === "events.pruned").map((r) => r.id),
+    ...all.slice(-2).map((r) => r.id),
+  ]);
+  for (const row of all) {
+    if (keep.has(row.id)) continue;
+    await db.execute(sql`delete from security_events where id = ${row.id}`);
+  }
+
+  const verdict = await verifyChain(orgId);
+  expect(verdict.problems).toEqual([]);
+  expect(verdict.intact).toBe(true);
+});
+
+/**
+ * But a gap anywhere else still is. The exemption is for the marker and
+ * nothing else — otherwise it is a way to excuse a deletion.
+ */
+test("a gap with no marker explaining it is still tampering", async () => {
+  await write(4);
+  const all = await rows();
+  const middle = all[2];
+  if (!middle) throw new Error("no row to remove");
+
+  await db.execute(sql`delete from security_events where id = ${middle.id}`);
+
+  const verdict = await verifyChain(orgId);
+  expect(verdict.intact).toBe(false);
+  expect(verdict.problems.join(" ")).toContain("no longer here");
+});
+
 test("rows written before the chain existed are counted, not condemned", async () => {
   await write(2);
   // As an upgrade leaves them: a real entry with no signature.

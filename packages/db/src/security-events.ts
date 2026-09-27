@@ -631,7 +631,24 @@ export async function verifyChain(
       );
     }
 
-    previous = { id: row.id, hash: row.hash };
+    /*
+     * A recorded prune ends the chain, the way the start of it does.
+     *
+     * Retention removes everything past the window except the marker saying
+     * it happened, so the surviving log is an old marker and then whatever
+     * is inside the window — and the first row after the marker links to an
+     * entry that was deliberately taken away. Without this the check reports
+     * "something is missing" the first time the nightly job runs, which is
+     * the alarm that gets the whole check switched off.
+     *
+     * It does not weaken anything. Reaching this line means the marker's own
+     * hash verified, which needs the instance secret; anybody who can forge
+     * a marker to excuse a gap can forge the rows either side of it instead.
+     * The test that matters is that a gap anywhere *else* is still a
+     * problem, and it is.
+     */
+    previous =
+      row.action === "events.pruned" ? null : { id: row.id, hash: row.hash };
     head = row.hash;
     checked += 1;
   }
