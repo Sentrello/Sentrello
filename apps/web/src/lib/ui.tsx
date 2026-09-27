@@ -1100,13 +1100,23 @@ export function Card({
 export function Table({
   headers,
   children,
+  label,
 }: {
   headers: (string | { label: string; money?: boolean })[];
   children: ReactNode;
+  /**
+   * What this table is, where a screen has more than one.
+   *
+   * A screen reader lists the tables on a page and moves between them, so
+   * two unnamed ones are "table" and "table" — the journal screen and the
+   * policies screen both put a reader in that position. Optional, because
+   * a screen with one table has already named it in the heading above.
+   */
+  label?: string;
 }) {
   return (
     <div className="overflow-x-auto">
-      <table className="app-table w-full text-sm">
+      <table className="app-table w-full text-sm" aria-label={label}>
         <thead>
           <tr className="border-b text-left" style={border}>
             {headers.map((h, i) => {

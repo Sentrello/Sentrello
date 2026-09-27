@@ -220,7 +220,7 @@ export function Policies({
       <p className="mb-(--gap-toolbar) text-sm" style={muted}>
         {blurb}
       </p>
-      <Table headers={["Policy", "May do", ""]}>
+      <Table headers={["Policy", "May do", ""]} label={title}>
         {rows.map((policy) => (
           <Row key={policy.role}>
             {/*

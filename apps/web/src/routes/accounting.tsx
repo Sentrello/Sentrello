@@ -1780,6 +1780,10 @@ function EntryCard({
           { label: "Debit", money: true },
           { label: "Credit", money: true },
         ]}
+        // Every entry on the journal draws one of these, so a screen reader
+        // listing the tables on that page otherwise gets "table, table,
+        // table" — each one a different day's posting.
+        label={`${entry.memo ?? "Entry"}, ${formatDate(entry.postedAt)}`}
       >
         {entry.lines.map((line, i) => (
           <Row key={`${line.id}-${i}`}>
