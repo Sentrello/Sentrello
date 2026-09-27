@@ -1185,12 +1185,32 @@ body {
   }
 }
 
+/*
+ * On paper there is no navigation.
+ *
+ * An accountant is handed the profit and loss, a customer is handed the
+ * invoice, and neither of them can press anything. Printing a report gave
+ * them the module rail, the whole section panel listing every screen in
+ * Money, the search box and the account badge — about a quarter of the sheet
+ * spent on furniture, with the figures squeezed into what was left.
+ *
+ * Only the furniture goes. Buttons stay, because in this product a row's
+ * name is often a button — hiding every control would take the Name column
+ * off the page with it, which is a worse thing to print than a button is.
+ */
 @media print {
   html:has(.app-shell-frame),
   .app-shell-frame,
   .app-screen {
     height: auto;
     overflow: visible;
+  }
+
+  .app-rail,
+  .app-sidebar,
+  .app-header,
+  .app-footer {
+    display: none;
   }
 }
 
