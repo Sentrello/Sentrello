@@ -1463,7 +1463,11 @@ function Letterhead() {
             </p>
             <Button
               variant="secondary"
-              aria-label={`Start from ${sample.name}`}
+              // Contains the words on the button, or a voice asking for
+              // "start from this" finds nothing — WCAG 2.5.3, and the
+              // reason a name may add to the visible text but not replace
+              // it.
+              aria-label={`Start from this: ${sample.name}`}
               needs={{ invoicing: ["update"] }}
               onClick={() => addSample.mutate(sample)}
               disabled={addSample.isPending}
