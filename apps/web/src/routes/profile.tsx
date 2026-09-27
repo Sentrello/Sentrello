@@ -163,7 +163,16 @@ function Details({
 
       <div>
         <SectionHeading>How the application behaves</SectionHeading>
-        <div className="grid gap-(--gap-toolbar) sm:grid-cols-2 lg:grid-cols-4">
+        {/*
+          Two across, not four.
+
+          This card is on a prose-width page, so four columns are about 140
+          pixels each — and "Month first (Aug 9, 2026)" is 164. The label is
+          the useful part of that option: it shows you the format rather
+          than naming it, and a person picking one should be able to read
+          the example.
+        */}
+        <div className="grid gap-(--gap-toolbar) sm:grid-cols-2">
           <Field label="Timezone" hint="Blank follows this computer.">
             <Input
               value={prefs.timezone}

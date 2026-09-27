@@ -824,7 +824,18 @@ function Payments({
           className="flex flex-col gap-(--gap-toolbar) border-t pt-3"
           style={border}
         >
-          <div className="grid gap-2 sm:grid-cols-3">
+          {/*
+            Three across while this card has the width, stacked once it does
+            not.
+
+            `sm:` asks about the window, and from 1024px up this card is in
+            a 20rem column beside the invoice — so the window got wider, the
+            card got narrower, and the row went to three columns of about
+            ninety pixels: "Bank tra…" in the method picker and "mm/dd/" in
+            the date. A person choosing how they were paid could not read
+            the choices.
+          */}
+          <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-1">
             <Field label="Record a payment">
               <Input
                 value={amount}
