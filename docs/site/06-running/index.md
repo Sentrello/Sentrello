@@ -11,7 +11,8 @@ Sentrello is on your server, which means the boring parts are yours. There are
 four of them. None is difficult.
 
 1. **[Updating](/running/updating)**. One command, with a way back.
-2. **[Backups](/running/backups)**. Automatic, encrypted, and worth testing.
+2. **[Backups](/running/backups)**. One command, and the half you have to
+   arrange yourself.
 3. **[Archiving old data](/running/archiving)**. When the disk fills, take
    years of old records off it without losing them.
 4. **[When something is wrong](/running/troubleshooting)**. Where to look

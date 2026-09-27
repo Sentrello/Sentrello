@@ -1,35 +1,59 @@
 ---
 title: Backups
 sidebar_position: 2
-description: What is backed up, where it goes, and how to prove it works.
+description: What a backup contains, what it does not, and how to prove it works.
 tags: [operations]
 ---
 
 # Backups
 
 Your business lives in one PostgreSQL database. Backing it up is the single
-most valuable thing you will do as a self-hoster, and it is already running.
+most valuable thing you will do as a self-hoster — and the part Sentrello
+cannot do for you is the part that matters most.
 
-## What happens automatically
-
-A backup runs nightly. Each one is a full dump, **encrypted before it leaves
-the machine**, and copied off the server if you have configured somewhere to
-put it. Old ones are removed on a schedule so the disk does not fill.
-
-The encryption key lives at `secrets/backup.key` in your installation
-directory.
-
-:::danger[Keep the key somewhere else]
-A backup you cannot decrypt is not a backup. If the key only exists on the
-machine the backup is protecting, a lost server takes both. Copy it somewhere
-you would still have after a fire.
-:::
-
-## Taking one now
+## Taking one
 
 ```bash
 sentrello backup
 ```
+
+That writes `backups/sentrello-<stamp>.sql.gz` in your installation
+directory. If you have uploaded files, a `-files.tar.gz` lands beside it,
+named after the same moment so putting back last Tuesday's database does not
+bring back today's documents.
+
+Sentrello also takes one for you before anything that could go wrong:
+`update`, `rollback` and `restore` each begin with a backup and refuse to
+continue without one. Those are labelled `pre-update`, `pre-rollback` and
+`pre-restore`, and only the last three of each are kept — the ones you took
+deliberately are yours, and nothing here deletes them.
+
+## What Sentrello does not do
+
+:::danger[The dump is not encrypted, and it does not leave the machine]
+`sentrello backup` writes a plain gzipped SQL file next to the instance it
+came from. It holds every customer, every invoice and every email address
+your business has. **Nothing copies it off the server, nothing encrypts it,
+and nothing runs it on a schedule.** A server that catches fire takes the
+database and every backup of it at the same moment.
+
+Getting it somewhere else, on a schedule, is yours to arrange. It is one
+cron line and worth doing today:
+
+```
+15 2 * * * cd /opt/sentrello && ./sentrello backup && \
+  rclone copy backups remote:sentrello-backups
+```
+
+Anything that moves files will do — `rclone`, `restic`, `borg`, your
+provider's object storage, a second machine. If what you use encrypts at
+rest, so much the better; `restic` and `borg` do.
+:::
+
+Your provider's nightly snapshot of the whole disk is a reasonable second
+line, and it covers the uploaded files as well. It is not a substitute for a
+dump you can read: a snapshot restores a machine, and what you usually want
+is one database on a machine that is still running.
 
 ## Proving it is real
 
@@ -49,8 +73,9 @@ time to discover that is now.
 sentrello restore backups/sentrello-<stamp>.sql.gz
 ```
 
-This clears the database and puts the backup in its place. It is deliberately
-loud about that.
+This stops the app, clears the database, puts the backup in its place, and
+restores the files archive if it is beside the dump. It is deliberately loud
+about that, and it takes a backup of what is there now before it starts.
 
 :::warning[Restore onto a spare server first]
 At least once, before you need to. It tells you how long a restore takes, that
@@ -60,10 +85,10 @@ want to be learning on the day.
 
 ## What is not in the database
 
-**Uploaded files** live on disk in the data directory, not in the dump.
-Documents, product images, receipts. If you use Documents or Shop, back that
-directory up as well. Your provider's snapshots cover it, and so does any
-ordinary file backup.
+**Uploaded files** live on disk in the data directory. Documents, product
+images, receipts. `sentrello backup` archives them beside the dump, but only
+what is under `data/attachments` — if you point Sentrello's file storage
+somewhere else, back that up yourself.
 
 ## Moving to another server
 
@@ -75,10 +100,7 @@ one people skip:
    order, invoice and payment taken since it ran, and nothing in the restore
    will tell you they are gone.
 2. Install Sentrello on the new machine.
-3. Copy the data directory and `secrets/backup.key` across. The install in
-   step 2 generated a `backup.key` of its own and you are overwriting it
-   deliberately: without the old key, every backup you already hold is
-   permanently undecryptable.
+3. Copy the backup, its files archive, and the data directory across.
 4. Restore the dump you took in step 1.
 5. Point your domain at the new address.
 
