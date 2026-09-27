@@ -21,7 +21,7 @@ import { RATE_SCALE, toBaseCents } from "./currency";
 import { db, schema } from "./index";
 import { sumCents } from "./money";
 import { recordSalePlace } from "./sale-place";
-import { demandDate } from "./timezone";
+import { UnreadableDateError, demandDate } from "./timezone";
 
 type Posting = {
   accountId: string;
@@ -485,9 +485,30 @@ export function periodFrom(query: (name: string) => string | undefined): {
    */
   const classId = query("classId");
   const locationId = query("locationId");
+  const from = parse(query("from"));
+  const to = parse(query("to"), true);
+
+  /*
+   * A period that ends before it begins is a mistake, not an empty quarter.
+   *
+   * The two dates are typed into a pair of boxes, and typing them the wrong
+   * way round — or getting a year wrong — returned a clean profit and loss of
+   * **zero**, with a 200 and no sign anywhere that the question was the
+   * problem. A business reads that as a quarter in which it earned nothing.
+   *
+   * Thrown rather than returned, like the impossible date above it, because
+   * every report parses its period through here and the one place that can
+   * turn it into an answer is `onError`.
+   */
+  if (from && to && to.getTime() < from.getTime()) {
+    throw new UnreadableDateError(
+      "That period ends before it begins — check the dates the right way round.",
+    );
+  }
+
   return {
-    from: parse(query("from")),
-    to: parse(query("to"), true),
+    from,
+    to,
     ...(classId ? { classId } : {}),
     ...(locationId ? { locationId } : {}),
   };

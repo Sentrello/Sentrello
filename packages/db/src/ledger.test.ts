@@ -153,6 +153,39 @@ test("the org's trial balance nets to zero", async () => {
   expect(net).toBe(0);
 });
 
+/**
+ * A period that ends before it begins is a mistake, not an empty quarter.
+ *
+ * The dates are typed into a pair of boxes. Type them the wrong way round —
+ * or get one year wrong — and the profit and loss came back **zero**, with a
+ * 200 and nothing anywhere saying the question was the problem. A business
+ * reads that as a quarter in which it earned nothing, on the report it files
+ * from.
+ */
+test("periodFrom — a period that ends before it begins is refused", () => {
+  const reversed = () =>
+    periodFrom((name) =>
+      name === "from" ? "2026-12-31" : name === "to" ? "2026-01-01" : undefined,
+    );
+  expect(reversed).toThrow(/ends before it begins/i);
+
+  // The same day both ways round is a single day, not a mistake: `to` is
+  // stretched to the end of it, so it is after `from` by a hair under a day.
+  const oneDay = () =>
+    periodFrom((name) =>
+      name === "from" ? "2026-06-30" : name === "to" ? "2026-06-30" : undefined,
+    );
+  expect(oneDay).not.toThrow();
+
+  // And one bound on its own is still an open-ended period.
+  expect(() =>
+    periodFrom((n) => (n === "from" ? "2026-06-30" : undefined)),
+  ).not.toThrow();
+  expect(() =>
+    periodFrom((n) => (n === "to" ? "2026-06-30" : undefined)),
+  ).not.toThrow();
+});
+
 test("periodFrom — a bare 'to' date is stretched to the end of that day", () => {
   const period = periodFrom((name) =>
     name === "to" ? "2026-06-30" : undefined,
