@@ -5,7 +5,7 @@ GlobalRegistrator.register({ url: "http://localhost/users" });
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
 
-import { afterAll, expect, test } from "bun:test";
+import { afterAll, afterEach, beforeEach, expect, test } from "bun:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
@@ -41,7 +41,60 @@ const PERSON = {
   you: false,
 };
 
+/**
+ * Seeding the cache is not the same as answering the screen.
+ *
+ * `setQueryData` below puts the rows in before the first render, which is
+ * what makes these tests fast and deterministic — but TanStack serves cached
+ * data and then refetches it in the background, so both queries still went
+ * out. With no server here they went to `localhost:80` and came back
+ * ECONNREFUSED, twelve times a run, printed against whichever file the
+ * runner happened to be on. The assertions never noticed, because the seed
+ * had already drawn the table.
+ *
+ * So the refetch is answered with the same rows the seed used, and anything
+ * else throws by name rather than spending a socket to find out.
+ */
+let served: unknown[] = [];
+
+const realFetch = globalThis.fetch;
+beforeEach(() => {
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    const body = url.startsWith("/api/users/roles")
+      ? {
+          roles: [
+            { role: "admins", kind: "user" },
+            { role: "staff", kind: "user" },
+            { role: "sales", kind: "group" },
+          ],
+        }
+      : url.startsWith("/api/users")
+        ? {
+            people: served,
+            total: served.length,
+            otherTotal: 0,
+            perPage: 50,
+            invitations: [],
+            history: [],
+          }
+        : null;
+    if (!body) {
+      throw new Error(
+        `the People screen asked for ${url}, which nothing here serves`,
+      );
+    }
+    return new Response(JSON.stringify(body), {
+      headers: { "content-type": "application/json" },
+    });
+  }) as typeof fetch;
+});
+afterEach(() => {
+  globalThis.fetch = realFetch;
+});
+
 function draw(people: unknown[]) {
+  served = people;
   const node = document.createElement("div");
   document.body.append(node);
   const client = new QueryClient({

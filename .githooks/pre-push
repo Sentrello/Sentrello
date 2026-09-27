@@ -9,6 +9,12 @@
 # Pre-push, not pre-commit: this is the last point before anything becomes
 # public, and it does not slow down local work.
 #
+# It also refuses a named reference product, if you have told it what those
+# are: set SENTRELLO_REFERENCE_NAMES to a file holding one name per line and
+# the guard reads it at push time. Nothing about that list lives here — not
+# the names, not where the file is kept. With the variable unset the check is
+# silent, which is right for anyone cloning this who has no such list.
+#
 # Enable once per clone:  git config core.hooksPath .githooks
 # Bypass deliberately:    git push --no-verify   (say why, out loud)
 set -euo pipefail

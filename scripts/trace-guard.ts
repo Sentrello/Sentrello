@@ -144,11 +144,92 @@ const RULES: Rule[] = [
   },
 ];
 
+/**
+ * The third scope: a reference product, named.
+ *
+ * "Never name a reference product — not in a file, not in a commit message,
+ * not in customer-facing copy" is the oldest rule on this project and the
+ * only one with no guard behind it, because the guard cannot hold the list:
+ * a file in a public repository whose job is to catch these names must not
+ * be a file that contains them. Restated by James on 27 September 2026 as
+ * "we do not name any sources ever anywhere", which is what finally made
+ * this worth wiring up rather than checking by hand.
+ *
+ * So the list is loaded at run time from a path given in the environment,
+ * one name per line, `#` for a comment. Nothing about it is in this
+ * repository — not the names, not where the file lives, not the fact that
+ * any particular name is on it. With the variable unset the check is silent,
+ * which is the right behaviour for a fresh clone by somebody who has no such
+ * list and is not bound by this rule.
+ *
+ * Short entries are skipped on purpose. A three-letter name matches inside
+ * ordinary words and would fire on every push, and a guard that cries wolf
+ * gets disabled — the same reasoning the rules above are tuned by.
+ */
+const REFERENCE_LIST_VAR = "SENTRELLO_REFERENCE_NAMES";
+const SHORTEST_NAME_WORTH_MATCHING = 4;
+
+/** Keyed on the path, so a test can point it somewhere else and be believed. */
+const referenceRules = new Map<string, Rule[]>();
+
+function referenceNameRules(): Rule[] {
+  const path = process.env[REFERENCE_LIST_VAR];
+  if (!path) return [];
+  const already = referenceRules.get(path);
+  if (already) return already;
+  let lines: string[];
+  try {
+    lines = require("node:fs").readFileSync(path, "utf8").split("\n");
+  } catch {
+    // A missing list is not a clean push: say so rather than pass silently.
+    console.error(
+      `pre-push: ${REFERENCE_LIST_VAR} points at ${path}, which cannot be read.`,
+    );
+    process.exit(2);
+  }
+  const rules = lines
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith("#"))
+    .filter((l) => l.length >= SHORTEST_NAME_WORTH_MATCHING)
+    .map((name) => ({
+      // Named without naming it: the message says which entry, by position,
+      // so this guard's own output cannot become the leak it exists to stop.
+      name: `${REFERENCE_RULE_PREFIX} (entry ${lines.indexOf(name) + 1} of the list)`,
+      pattern: new RegExp(
+        `\\b${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`,
+        "i",
+      ),
+    }));
+  referenceRules.set(path, rules);
+  return rules;
+}
+
+const REFERENCE_RULE_PREFIX = "a reference product";
+
+/**
+ * Every other rule echoes the offending line, because seeing it is how you
+ * fix it. A reference-product rule must not: printing the line would put the
+ * name into a terminal, a CI log and somebody's scrollback, which is the
+ * thing the rule exists to prevent. Both scanners below route their `where`
+ * through this, so there is one place that decides it rather than three.
+ */
+export function contextFor(rule: string, where: string): string {
+  return rule.startsWith(REFERENCE_RULE_PREFIX)
+    ? "not printed — the name is what this rule exists to keep out of logs"
+    : where;
+}
+
 export function findViolations(text: string): Violation[] {
   const hits: Violation[] = [];
-  for (const rule of RULES) {
+  for (const rule of [...RULES, ...referenceNameRules()]) {
     const m = text.match(rule.pattern);
-    if (m) hits.push({ rule: rule.name, match: m[0], where: text });
+    if (m) {
+      hits.push({
+        rule: rule.name,
+        match: m[0],
+        where: contextFor(rule.name, text),
+      });
+    }
   }
   return hits;
 }
@@ -219,7 +300,10 @@ export function scanAddedLines(diff: string): Violation[] {
 
     const content = rawLine.slice(1);
     for (const v of findViolations(content)) {
-      violations.push({ ...v, where: `${currentFile}: ${content.trim()}` });
+      violations.push({
+        ...v,
+        where: contextFor(v.rule, `${currentFile}: ${content.trim()}`),
+      });
     }
   }
   return violations;
@@ -237,7 +321,10 @@ export function scanCommitMessages(messages: string[]): Violation[] {
     if (message === "") continue;
     const subject = message.split("\n")[0] ?? message;
     for (const v of findViolations(message)) {
-      violations.push({ ...v, where: `commit "${subject}"` });
+      violations.push({
+        ...v,
+        where: contextFor(v.rule, `commit "${subject}"`),
+      });
     }
   }
   return violations;
@@ -275,8 +362,21 @@ async function main() {
   console.error(
     "\npre-push: refused — this push carries a trace of how the code was written.\n",
   );
+  /*
+   * One line per rule-and-place, not per hit.
+   *
+   * A reference-product rule prints no context, so a name used in eighty
+   * commit messages printed the same sentence eighty times and buried the
+   * other two findings above it. The count is what is useful there; the line
+   * is what is useful everywhere else, and those stay one-to-one.
+   */
+  const seen = new Map<string, number>();
   for (const v of violations) {
-    console.error(`  [${v.rule}] ${v.where}`);
+    const key = `  [${v.rule}] ${v.where}`;
+    seen.set(key, (seen.get(key) ?? 0) + 1);
+  }
+  for (const [line, times] of seen) {
+    console.error(times > 1 ? `${line} (${times} times)` : line);
   }
   console.error(
     "\nRemove the trace and push again, or if this is a false positive, say so" +

@@ -1,11 +1,5 @@
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 
-// Captured before happy-dom touches anything: happy-dom's `register()` below
-// replaces `globalThis.fetch` with its own implementation, and this is the
-// one call in the file that needs the real thing underneath it, to actually
-// reach the network for whatever this file itself does not care about.
-const nativeFetch = globalThis.fetch;
-
 // A real origin, not the default `about:blank`: `pushState` below moves
 // between `/reset-password` and its variants, and happy-dom refuses a
 // history entry whose URL does not share the document's own origin.
@@ -14,7 +8,7 @@ GlobalRegistrator.register({ url: "http://localhost/" });
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
 
-import { afterAll, afterEach, expect, mock, test } from "bun:test";
+import { afterAll, afterEach, beforeEach, expect, mock, test } from "bun:test";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 
@@ -69,29 +63,50 @@ const { ForgotPassword, ResetPassword } = await import("./forgot-password");
 // test that runs after this file for the rest of the process.
 afterAll(() => GlobalRegistrator.unregister());
 
-// `ForgotPassword` asks `/api/_signin` directly (not through `authClient`) to
-// learn whether this instance can mail a link at all. There is no server
-// here to answer, so a plain, always-mail-configured stand-in takes its
-// place — the no-mail screen has nothing to do with the recovery paths these
-// tests are about.
-//
-// Everything else falls through to the real `fetch` — captured above, before
-// happy-dom replaced it — never throws. `bun test` does not wall this file
-// off from the rest of the suite in time: a test elsewhere that is mid
-// network call while this file's module scope is evaluating would have had
-// that call caught and killed by a stricter stand-in here, for a request this
-// file never made and has no business judging.
-globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-  if (String(input).includes("/api/_signin")) {
-    return new Response(JSON.stringify({ mailConfigured: true }), {
-      status: 200,
-      headers: { "content-type": "application/json" },
-    });
-  }
-  return nativeFetch(input, init);
-}) as typeof fetch;
+/**
+ * Nothing in this file reaches the network, and the stand-in is only on
+ * while one of its own tests is running.
+ *
+ * `ForgotPassword` asks `/api/_signin` directly, not through `authClient`,
+ * to learn whether this instance can mail a link at all. There is no server
+ * here to answer, so an always-mail-configured stand-in takes its place —
+ * the no-mail screen has nothing to do with the recovery paths these tests
+ * are about.
+ *
+ * Anything else throws by name. It used to fall through to the real `fetch`,
+ * and the reasoning was sound at the time: this was a bare assignment at
+ * module scope, Bun loads every test file into one process before running
+ * any of them, and a stricter stand-in installed here would have caught and
+ * killed a request some other file made and this one has no business
+ * judging. What it actually did was the reverse — installed last, it
+ * replaced the strict stubs three other files had installed at *their*
+ * import time, and their requests went out of the machine. That is the
+ * ECONNREFUSED this repository read as contention twice.
+ *
+ * Both halves are fixed by the same move. The stub goes on in `beforeEach`
+ * and comes off in `afterEach`, so it is only ever in place during this
+ * file's own tests — and because Bun runs them one at a time, no other
+ * file's request can be passing through it. There is nothing left for a
+ * fallthrough to protect, and a named throw says which URL was missed
+ * instead of spending a socket to find out.
+ */
+const realFetch = globalThis.fetch;
+beforeEach(() => {
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input).includes("/api/_signin")) {
+      return new Response(JSON.stringify({ mailConfigured: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    throw new Error(
+      `this test asked for ${String(input)}, which nothing in forgot-password.dom.test.tsx serves`,
+    );
+  }) as typeof fetch;
+});
 
 afterEach(() => {
+  globalThis.fetch = realFetch;
   document.body.innerHTML = "";
 });
 

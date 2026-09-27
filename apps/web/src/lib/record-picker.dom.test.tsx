@@ -5,7 +5,7 @@ GlobalRegistrator.register();
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
 
-import { afterAll, afterEach, expect, test } from "bun:test";
+import { afterAll, afterEach, beforeEach, expect, test } from "bun:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
@@ -57,10 +57,27 @@ function serve(url: string) {
   };
 }
 
-globalThis.fetch = (async (input: RequestInfo | URL) =>
-  new Response(JSON.stringify(serve(String(input))), {
-    headers: { "content-type": "application/json" },
-  })) as typeof fetch;
+/**
+ * The stub goes on for each test and comes off after it.
+ *
+ * It used to be a bare assignment at module scope. Bun loads every test file
+ * into one process before it runs any of them, so four files each installing
+ * their own `globalThis.fetch` at import time left whichever loaded last
+ * serving all four — and a form asking for a URL that file does not know
+ * about fell through to the real network. That is the ECONNREFUSED that has
+ * been read as contention twice: 2,284 tests pass and two fail, never the
+ * same two, and never when the file is run on its own.
+ */
+const realFetch = globalThis.fetch;
+beforeEach(() => {
+  globalThis.fetch = (async (input: RequestInfo | URL) =>
+    new Response(JSON.stringify(serve(String(input))), {
+      headers: { "content-type": "application/json" },
+    })) as typeof fetch;
+});
+afterEach(() => {
+  globalThis.fetch = realFetch;
+});
 
 function mount(node: React.ReactNode): HTMLElement {
   const client = new QueryClient({

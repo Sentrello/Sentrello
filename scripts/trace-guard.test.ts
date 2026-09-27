@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import {
   findViolations,
   isExcludedPath,
@@ -438,4 +440,53 @@ test("the instructions file itself is still exempt, by path", () => {
   // of the instructions file contains these words because that is what it is.
   expect(isExcludedPath(`${cap(VENDOR)}.md`)).toBe(true);
   expect(isExcludedPath("scripts/trace-guard.ts")).toBe(true);
+});
+
+/**
+ * The third scope: a reference product, named.
+ *
+ * Every name here is invented. A test for a guard whose whole point is that
+ * the list never touches this repository cannot be a test that writes the
+ * list into this repository, so it makes its own on a temporary path and
+ * checks the mechanism rather than the contents.
+ */
+describe("refuses a named reference product", () => {
+  const listPath = `${tmpdir()}/trace-guard-reference-names-${Date.now()}.txt`;
+  writeFileSync(
+    listPath,
+    "# invented, every one\nQuellstone\nMarrowbight\nab\n",
+  );
+
+  test("a name on the list is refused wherever it appears", () => {
+    process.env.SENTRELLO_REFERENCE_NAMES = listPath;
+    const found = findViolations("modelled on Quellstone's deal pipeline");
+    expect(found).toHaveLength(1);
+    expect(found[0]?.rule).toContain("a reference product");
+  });
+
+  test("and the refusal does not print the name it found", () => {
+    process.env.SENTRELLO_REFERENCE_NAMES = listPath;
+    const [found] = findViolations("the way MARROWBIGHT does it");
+    expect(found?.where).not.toContain("MARROWBIGHT");
+    expect(found?.where).not.toContain("arrowbight");
+  });
+
+  test("an entry too short to match safely is skipped", () => {
+    process.env.SENTRELLO_REFERENCE_NAMES = listPath;
+    // "ab" is on the list and two characters long, so it never becomes a
+    // rule: a short name matches inside ordinary words and a guard that
+    // cries wolf gets turned off.
+    expect(
+      findViolations("ab is a perfectly ordinary pair of letters"),
+    ).toEqual([]);
+  });
+
+  test("with no list configured the check is silent", () => {
+    process.env.SENTRELLO_REFERENCE_NAMES = undefined;
+    // biome-ignore lint/performance/noDelete: the guard reads absence, not "undefined"
+    delete process.env.SENTRELLO_REFERENCE_NAMES;
+    expect(findViolations("modelled on Quellstone's deal pipeline")).toEqual(
+      [],
+    );
+  });
 });

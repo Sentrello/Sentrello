@@ -164,6 +164,15 @@ const READS = [
   "/api/users/sso",
 ];
 
+/*
+ * Two minutes, like the tenancy walks in `apps/server`.
+ *
+ * These two make a request per route in the module against a second
+ * organisation's ids — dozens of round trips each, and every one of them
+ * deliberate. At Bun's five-second default they passed alone at eight
+ * seconds for the pair and timed out inside the full suite at five point
+ * one, which reads as a tenancy failure and is a stopwatch.
+ */
 test("no read in this module returns another business's rows", async () => {
   const leaked: string[] = [];
 
@@ -178,7 +187,7 @@ test("no read in this module returns another business's rows", async () => {
 
   // Named rather than counted, so a regression says which door opened.
   expect(leaked).toEqual([]);
-});
+}, 120_000);
 
 /**
  * The other half: a caller who knows an id from another business, which is
@@ -240,4 +249,4 @@ test("no id from another business can be reached, read or changed", async () => 
     .from(schema.member)
     .where(eq(schema.member.userId, bUserId));
   expect(bMember?.disabledAt ?? null).toBeNull();
-});
+}, 120_000);
