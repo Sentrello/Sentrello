@@ -959,11 +959,21 @@ export function InvoiceForm({
             buttons would be a surprise with a journal entry behind it — so
             offering "Save as a draft" beside "Raise it" here would be two
             labels for the same thing. */}
+        {/*
+         * The reason is tied to the button, not printed beside it.
+         *
+         * A dimmed button is a dead end to anybody who cannot see the
+         * sentence next to it: a screen reader announces "Raise it, dimmed"
+         * and stops, and the one thing that would fix the invoice is a span
+         * further along the toolbar that nothing points at. `describedby`
+         * makes the two the same statement.
+         */}
         {documentId ? (
           <Button
             needs={{ invoicing: ["update"] }}
             onClick={() => save.mutate("draft")}
             disabled={save.isPending || !usable}
+            aria-describedby={usable ? undefined : "save-blocked"}
           >
             {save.isPending ? "Saving…" : "Save changes"}
           </Button>
@@ -973,6 +983,7 @@ export function InvoiceForm({
               needs={{ invoicing: ["create"] }}
               onClick={() => save.mutate("draft")}
               disabled={save.isPending || !usable}
+              aria-describedby={usable ? undefined : "save-blocked"}
               variant="secondary"
             >
               {save.isPending ? "Saving…" : "Save as a draft"}
@@ -981,13 +992,14 @@ export function InvoiceForm({
               needs={{ invoicing: ["create"] }}
               onClick={() => save.mutate("open")}
               disabled={save.isPending || !usable}
+              aria-describedby={usable ? undefined : "save-blocked"}
             >
               {asQuote ? "Save the quote" : "Raise it"}
             </Button>
           </>
         )}
         {!usable ? (
-          <span className="text-sm" style={muted}>
+          <span id="save-blocked" className="text-sm" style={muted}>
             At least one line with a description.
           </span>
         ) : null}

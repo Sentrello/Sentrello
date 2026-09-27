@@ -441,10 +441,14 @@ export function ContactForm({
               person who may only update an existing contact still cannot make
               a new one here; the route asks for `create` on the POST.
             */}
+            {/* The reason travels with the button. A dimmed control and a
+                sentence further along the toolbar are two facts to anybody
+                who can see both and one dead end to anybody who cannot. */}
             <Button
               type="submit"
               needs={{ crm: [contact ? "update" : "create"] }}
               disabled={save.isPending || !named}
+              aria-describedby={named ? undefined : "needs-a-name"}
             >
               {save.isPending
                 ? "Saving…"
@@ -456,7 +460,7 @@ export function ContactForm({
               Cancel
             </Button>
             {!named ? (
-              <span className="text-sm" style={muted}>
+              <span id="needs-a-name" className="text-sm" style={muted}>
                 A first or last name is needed.
               </span>
             ) : null}
