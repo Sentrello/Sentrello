@@ -8,7 +8,7 @@
  * this is how they come to.
  */
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useId, useState } from "react";
 import { api, may } from "./api";
 import { Icon } from "./icons";
 import {
@@ -197,12 +197,21 @@ export function TaskRow({
   const { complete, postpone, remove } = useTaskActions(invalidate);
   const [editing, setEditing] = useState(false);
   const overdue = isOverdue(task.dueAt);
+  const refusedId = useId();
 
   return (
     <li className="flex items-start gap-2 border-t py-1.5 text-sm first:border-0 border-line">
       {/* Ticking a task writes it. A checkbox has no primitive to hang
           `needs` on, so it asks directly — the same way the compliance
           screen's do. */}
+      {/* The reason, for somebody not holding a mouse. A `title` cannot be
+          hovered on a tablet or reached with a keyboard, and this tick box
+          is the only control on a task. */}
+      {may("crm", "update") ? null : (
+        <span id={refusedId} className="sr-only">
+          {REFUSED}
+        </span>
+      )}
       <input
         type="checkbox"
         checked={task.done ?? false}
@@ -210,6 +219,7 @@ export function TaskRow({
         className="mt-1 shrink-0"
         disabled={!may("crm", "update")}
         title={may("crm", "update") ? undefined : REFUSED}
+        aria-describedby={may("crm", "update") ? undefined : refusedId}
         onChange={(e) =>
           complete.mutate({ id: task.id, done: e.target.checked })
         }

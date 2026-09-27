@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { may } from "./api";
 import { Avatar } from "./avatar";
 import { ErrorNote, REFUSED, muted } from "./ui";
@@ -33,6 +33,9 @@ export function ImageUpload({
 }) {
   const qc = useQueryClient();
   const picker = useRef<HTMLInputElement>(null);
+  /* A `title` is the mouse half of "your role does not allow this"; this is
+     the other half, for a keyboard and for a tablet. */
+  const refusedId = useId();
 
   /**
    * Bumped after every change, and appended to the image URL.
@@ -146,19 +149,27 @@ export function ImageUpload({
         {showing && !remove.isSuccess ? (
           // Nothing asked first: the picture is a file they still have, and
           // Add puts it straight back.
-          <button
-            type="button"
-            className="link-muted"
-            // The holder is a prop, so the path this builds cannot be matched
-            // against the table the server registers. It asks directly —
-            // every record this component is used on is a CRM record.
-            disabled={remove.isPending || !may("crm", "update")}
-            title={may("crm", "update") ? undefined : REFUSED}
-            aria-label="Remove the picture"
-            onClick={() => remove.mutate()}
-          >
-            Remove
-          </button>
+          <>
+            {may("crm", "update") ? null : (
+              <span id={refusedId} className="sr-only">
+                {REFUSED}
+              </span>
+            )}
+            <button
+              type="button"
+              className="link-muted"
+              // The holder is a prop, so the path this builds cannot be matched
+              // against the table the server registers. It asks directly —
+              // every record this component is used on is a CRM record.
+              disabled={remove.isPending || !may("crm", "update")}
+              title={may("crm", "update") ? undefined : REFUSED}
+              aria-describedby={may("crm", "update") ? undefined : refusedId}
+              aria-label="Remove the picture"
+              onClick={() => remove.mutate()}
+            >
+              Remove
+            </button>
+          </>
         ) : null}
       </div>
       {upload.error || remove.error ? (

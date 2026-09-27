@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useId } from "react";
 import { api, may } from "../../lib/api";
 import {
   Card,
@@ -79,6 +80,9 @@ export function Authentication() {
 function SignInRules() {
   const qc = useQueryClient();
   const maySave = may("settings", "update");
+  /* The reason these tick boxes are dead, for a keyboard and a tablet. A
+     `title` is the mouse half of it and was the only half. */
+  const refusedId = useId();
 
   const policy = useQuery({
     queryKey: ["user-policy"],
@@ -108,6 +112,11 @@ function SignInRules() {
 
   return (
     <Card className="flex flex-col gap-(--gap-toolbar)">
+      {maySave ? null : (
+        <span id={refusedId} className="sr-only">
+          {REFUSED}
+        </span>
+      )}
       <div>
         <SectionHeading>Signing in</SectionHeading>
         <p className="text-sm" style={muted}>
@@ -130,6 +139,7 @@ function SignInRules() {
                 checked={current.requireTwoFactorFor.includes(role.role)}
                 disabled={!maySave}
                 title={maySave ? undefined : REFUSED}
+                aria-describedby={maySave ? undefined : refusedId}
                 onChange={(e) =>
                   save.mutate({
                     requireTwoFactorFor: e.target.checked
@@ -170,6 +180,7 @@ function SignInRules() {
             checked={current.requireEmailVerified}
             disabled={!maySave}
             title={maySave ? undefined : REFUSED}
+            aria-describedby={maySave ? undefined : refusedId}
             onChange={(e) =>
               save.mutate({ requireEmailVerified: e.target.checked })
             }

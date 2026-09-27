@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { api, may } from "./api";
 import { Button, ErrorNote, Input, REFUSED, muted, textOn } from "./ui";
 
@@ -127,9 +127,27 @@ export function TagChips({
    * not open.
    */
   const allowed = may("crm", "update");
+  /*
+   * "Your role does not allow this", said to somebody who is not holding a
+   * mouse.
+   *
+   * The reason lived in a `title`, which a keyboard cannot ask for and a
+   * tablet cannot hover — so a read-only reader met a row of dead chips with
+   * no explanation anywhere. `Button` and `Select` have carried the reason
+   * as a described-by note since the gating guard went in; these are the
+   * controls that do not go through either, and they had the mouse half
+   * only. One id for the component, because there are several chips and a
+   * hook cannot be called inside the loop that draws them.
+   */
+  const refusedId = useId();
 
   return (
     <div className="flex flex-wrap items-center gap-1">
+      {allowed ? null : (
+        <span id={refusedId} className="sr-only">
+          {REFUSED}
+        </span>
+      )}
       {attached.map((t) => (
         <button
           key={t.id}
@@ -140,6 +158,7 @@ export function TagChips({
           disabled={!may("crm", "update")}
           onClick={() => detach.mutate(t.id)}
           title={allowed ? "Remove" : REFUSED}
+          aria-describedby={allowed ? undefined : refusedId}
           className="rounded-full px-2 py-0.5 text-xs"
           style={{ background: t.color, color: textOn(t.color) }}
         >
@@ -151,6 +170,7 @@ export function TagChips({
         type="button"
         disabled={!allowed}
         title={allowed ? undefined : REFUSED}
+        aria-describedby={allowed ? undefined : refusedId}
         onClick={() => setPicking((v) => !v)}
         className="rounded-full border px-2 py-0.5 text-xs"
         style={{ borderColor: "var(--border)", ...muted }}
