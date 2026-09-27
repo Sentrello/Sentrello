@@ -203,6 +203,24 @@ export function welcomeEmail(name: string) {
   };
 }
 
+/**
+ * Who it is from, in the subject line.
+ *
+ * The invoice email has said this since it was written — "Invoice INV-0104
+ * from Barker Pawski" — and the four messages that follow an invoice did
+ * not. A customer with a dozen suppliers was sent "Invoice INV-0104 is
+ * overdue" and could not tell whose invoice it was without opening it, on
+ * the one message in this file whose entire purpose is to be acted on.
+ *
+ * `businessName` where a caller passes it, the identity's own name where it
+ * does not, and nothing at all when neither is known — an instance sending
+ * before it has been given a name should not send the word "undefined".
+ */
+function from(args: { businessName?: string; business?: BusinessIdentity }) {
+  const name = args.businessName?.trim() || args.business?.name?.trim();
+  return name ? ` from ${name}` : "";
+}
+
 export function invoiceEmail(args: {
   number: string;
   totalCents: number;
@@ -301,7 +319,7 @@ export function receiptEmail(args: {
     ? `<p><a href="${escapeHtml(args.accountUrl)}">See everything you have with us</a></p>`
     : "";
   return {
-    subject: `Receipt for invoice ${args.number}`,
+    subject: `Receipt${from(args)} for invoice ${args.number}`,
     html: layout(
       "Payment received",
       `<p>We received <strong>${formatMoney(args.amountCents, args.currency, sellerLocale(args.business))}</strong>
@@ -335,7 +353,7 @@ export function orderPaidEmail(args: {
     ? `<p><a href="${escapeHtml(args.orderUrl)}">See your order</a></p>`
     : "";
   return {
-    subject: `Order ${args.number} — payment received`,
+    subject: `Order ${args.number}${from(args)} — payment received`,
     html: layout(
       "Thank you for your order",
       `<p>We received <strong>${formatMoney(args.totalCents, args.currency, sellerLocale(args.business))}</strong>
@@ -373,7 +391,7 @@ export function orderDespatchedEmail(args: {
     ? `<p><a href="${escapeHtml(args.orderUrl)}">See your order</a></p>`
     : "";
   return {
-    subject: `Order ${args.number} is on its way`,
+    subject: `Order ${args.number}${from(args)} is on its way`,
     html: layout(
       "Your order has been sent",
       `<p>Order ${escapeHtml(args.number)}${
@@ -451,7 +469,7 @@ export function overdueReminderEmail(args: {
 like a bill in the post.</p>`
     : "";
   return {
-    subject: `Invoice ${args.number} is overdue`,
+    subject: `Invoice ${args.number}${from(args)} is overdue`,
     html: layout(
       `Invoice ${args.number} is overdue`,
       `<p>Outstanding balance: <strong>${formatMoney(args.balanceDueCents, args.currency, sellerLocale(args.business))}</strong></p>${pay}`,

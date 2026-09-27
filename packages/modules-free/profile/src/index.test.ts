@@ -268,7 +268,14 @@ function stubResend() {
       sent.push(payload);
       return new Response(JSON.stringify({ id: "stubbed" }), { status: 200 });
     }
-    return realFetch(input, init);
+    // Anything this stub does not know about is a test reaching the real
+    // internet, and the way that reports itself is `ECONNREFUSED` from
+    // inside Bun's http client — a stack with no test name in it, which
+    // cost an afternoon being read as an intermittent fault. Say what
+    // happened instead.
+    throw new Error(
+      `a test asked the real network for ${url}; stub it, or stop asking`,
+    );
   }) as typeof fetch;
   return {
     sent,

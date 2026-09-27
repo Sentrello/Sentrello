@@ -35,7 +35,14 @@ beforeAll(async () => {
     if (url.startsWith("https://api.resend.com/")) {
       return new Response(JSON.stringify({ id: "stubbed" }), { status: 200 });
     }
-    return realFetch(input, init);
+    // Anything this stub does not know about is a test reaching the real
+    // internet, and the way that reports itself is `ECONNREFUSED` from
+    // inside Bun's http client — a stack with no test name in it, which
+    // cost an afternoon being read as an intermittent fault. Say what
+    // happened instead.
+    throw new Error(
+      `a test asked the real network for ${url}; stub it, or stop asking`,
+    );
   }) as typeof fetch;
 
   invoicing.register({
@@ -4775,7 +4782,14 @@ test("a receipt carries the customer's own account link, same token as the porta
       sent.push(JSON.parse(String(init?.body ?? "{}")));
       return new Response(JSON.stringify({ id: "stubbed" }), { status: 200 });
     }
-    return realFetch(input, init);
+    // Anything this stub does not know about is a test reaching the real
+    // internet, and the way that reports itself is `ECONNREFUSED` from
+    // inside Bun's http client — a stack with no test name in it, which
+    // cost an afternoon being read as an intermittent fault. Say what
+    // happened instead.
+    throw new Error(
+      `a test asked the real network for ${url}; stub it, or stop asking`,
+    );
   }) as typeof fetch;
 
   try {
@@ -4788,7 +4802,10 @@ test("a receipt carries the customer's own account link, same token as the porta
     globalThis.fetch = realFetch;
   }
 
-  const receipt = sent.find((m) => m.subject?.startsWith("Receipt for"));
+  // The subject names the business before the invoice — "Receipt from Barker
+  // Pawski for invoice INV-0104" — so this matches the word rather than the
+  // opening of a sentence it does not own.
+  const receipt = sent.find((m) => m.subject?.startsWith("Receipt"));
   if (!receipt?.html) throw new Error("no receipt was sent");
 
   const portalMatch = receipt.html.match(/\/portal\/([\w-]{43})/);
