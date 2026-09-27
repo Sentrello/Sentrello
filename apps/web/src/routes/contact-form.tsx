@@ -66,10 +66,26 @@ function LabelledList({
         // until they are saved, and two blank rows are legitimately equal.
         // biome-ignore lint/suspicious/noArrayIndexKey: rows have no stable id before saving
         <div key={i} className="flex gap-(--gap-toolbar)">
+          {/*
+            The field somebody types an email address into was called
+            "name@example.com".
+
+            A `<legend>` names the group, not the boxes inside it, and a
+            placeholder is not a label — it is an example, it goes away the
+            moment anybody types, and the accessible name it leaves behind
+            is the example. So a screen reader announced the email box as
+            "name@example.com, edit text", and a voice user asking for
+            "Email" found nothing. The type picker beside it has said
+            "Email type" all along; this is the box that holds the answer.
+
+            Numbered only when there is more than one, because "Email 1" on
+            a form with one email is a count nobody asked for.
+          */}
           <Input
             type={type}
             value={entry.value}
             placeholder={placeholder}
+            aria-label={values.length > 1 ? `${legend} ${i + 1}` : legend}
             onChange={(e) => update(i, { value: e.target.value })}
           />
           <Select

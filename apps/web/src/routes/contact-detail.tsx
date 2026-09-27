@@ -6,7 +6,6 @@ import { CustomValues } from "../lib/custom-fields";
 import { Icon } from "../lib/icons";
 import { ImageUpload } from "../lib/image-upload";
 import {
-  LabelledList,
   type Labelled as ListRow,
   tidy,
   withBlank,

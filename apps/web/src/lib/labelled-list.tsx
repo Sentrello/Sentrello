@@ -66,10 +66,14 @@ export function LabelledList({
             className="w-24"
             onChange={(e) => set(i, { label: e.target.value })}
           />
+          {/* "Value", not the example. Naming a field after its own
+              placeholder tells a screen reader the box is called
+              "name@example.com" — which is what it should be *filled*
+              with, not what it is. The box beside it is "Label". */}
           <Input
             value={row.value}
             placeholder={placeholder}
-            aria-label={placeholder}
+            aria-label="Value"
             onChange={(e) => set(i, { value: e.target.value })}
           />
         </div>
