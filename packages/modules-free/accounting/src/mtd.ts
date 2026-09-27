@@ -1,3 +1,16 @@
+import { deadline } from "@sentrello/module-sdk";
+
+/**
+ * Every call to HMRC, with a deadline on it.
+ *
+ * All three are made while a screen waits — signing in, refreshing a token,
+ * filing a return — and `fetch` has no timeout of its own. A call that is
+ * accepted and never answered holds its database connection until the
+ * socket closes. See `deadline` in the SDK's `outbound`.
+ */
+const send = (url: string, init: RequestInit = {}) =>
+  fetch(url, { ...init, signal: init.signal ?? deadline() });
+
 import { secrets } from "@sentrello/module-sdk";
 import {
   explainMissing,
@@ -75,7 +88,7 @@ export async function exchangeCode(
   config: HmrcConfig,
   code: string,
 ): Promise<Tokens> {
-  const res = await fetch(`${apiBase(config)}/oauth/token`, {
+  const res = await send(`${apiBase(config)}/oauth/token`, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -118,7 +131,7 @@ export async function refreshTokens(
   config: HmrcConfig,
   refreshToken: string,
 ): Promise<Tokens> {
-  const res = await fetch(`${apiBase(config)}/oauth/token`, {
+  const res = await send(`${apiBase(config)}/oauth/token`, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
@@ -178,7 +191,7 @@ async function call<T>(
     );
   }
 
-  const res = await fetch(`${apiBase(config)}${path}`, {
+  const res = await send(`${apiBase(config)}${path}`, {
     ...init,
     headers: {
       authorization: `Bearer ${accessToken}`,

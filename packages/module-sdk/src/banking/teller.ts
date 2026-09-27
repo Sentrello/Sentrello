@@ -1,3 +1,4 @@
+import { deadline } from "../outbound";
 import type {
   BankAccountInfo,
   BankCapabilities,
@@ -42,6 +43,10 @@ async function call<T>(
       "content-type": "application/json",
       ...(init.headers ?? {}),
     },
+    // A request is waiting on this and `fetch` has no timeout of its own;
+    // see `deadline` in `outbound.ts` for what a hung one costs. After the
+    // spread, so a caller cannot drop it by passing an `init` without one.
+    signal: init.signal ?? deadline(),
   });
 
   if (!res.ok) {

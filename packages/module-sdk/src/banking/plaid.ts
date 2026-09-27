@@ -1,3 +1,4 @@
+import { deadline } from "../outbound";
 import type {
   BankAccountInfo,
   BankCapabilities,
@@ -33,6 +34,9 @@ async function call<T>(
       secret: credentials.secret,
       ...body,
     }),
+    // A request is waiting on this and `fetch` has no timeout of its own;
+    // see `deadline` in `outbound.ts` for what a hung one costs.
+    signal: deadline(),
   });
 
   if (!res.ok) {

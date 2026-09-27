@@ -1,3 +1,16 @@
+import { deadline } from "@sentrello/module-sdk";
+
+/**
+ * Sending, with a deadline.
+ *
+ * `fetch` has no timeout of its own, and an invoice is sent while somebody
+ * is watching a button say "Sending…". A call that is accepted and never
+ * answered holds the request — and its database connection — until the
+ * socket closes. See `deadline` in the SDK's `outbound`.
+ */
+const send = (url: string, init: RequestInit = {}) =>
+  fetch(url, { ...init, signal: init.signal ?? deadline() });
+
 import nodemailer from "nodemailer";
 
 export interface EmailMessage {
@@ -149,7 +162,7 @@ class ResendAdapter implements EmailAdapter {
 
   async send(m: EmailMessage) {
     const headers = safeHeaders(m.headers);
-    const res = await fetch("https://api.resend.com/emails", {
+    const res = await send("https://api.resend.com/emails", {
       method: "POST",
       headers: {
         authorization: `Bearer ${this.key}`,

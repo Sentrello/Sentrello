@@ -151,3 +151,33 @@ export function signOutbound(
     .digest("hex");
   return `t=${timestamp},v1=${mac}`;
 }
+
+/**
+ * A deadline on anything sent while somebody is waiting for a screen.
+ *
+ * `fetch` has no timeout of its own. A call that is refused fails in
+ * milliseconds and is easy to handle; a call that is *accepted and never
+ * answered* hangs for as long as the socket stays open, which on a
+ * blackholing firewall is for ever. The handler waiting on it holds its
+ * database connection the whole time, and the pool is ten — so ten hung
+ * requests take the instance down completely. Every screen of every module,
+ * because they all share the pool, with Postgres perfectly healthy
+ * throughout and nothing in any log.
+ *
+ * That is not a thought experiment. On 27 September 2026 two licensed walks
+ * lost their instance mid-run, and the screens they died on were the ones
+ * whose route asks an outside service for a figure: Sentrello's own SEO
+ * cloud, from `GET /api/seo/settings`, on a runner that cannot always reach
+ * it. The caller already handled the *error* — "a balance we cannot reach is
+ * not a reason for the screen to fail" — and a call that never answers is
+ * not an error.
+ *
+ * So: **anything a request makes to another host takes one of these.** A job
+ * can wait, because nobody is looking at it and it holds no browser open; a
+ * request cannot. Fifteen seconds is far longer than any of these should
+ * take and short enough that a wedged one frees its connection while the
+ * screen is still worth drawing.
+ */
+export function deadline(ms = 15_000): AbortSignal {
+  return AbortSignal.timeout(ms);
+}

@@ -1,3 +1,17 @@
+import { deadline } from "../outbound";
+
+/**
+ * Every call to PayPal, with a deadline on it.
+ *
+ * `fetch` has no timeout of its own, and all seven of these are made while
+ * somebody is waiting — a checkout page, a webhook, a refund. A call that is
+ * accepted and never answered holds its database connection until the socket
+ * closes, and ten of those take the whole instance down. See `deadline` in
+ * `outbound.ts`.
+ */
+const send = (url: string, init: RequestInit = {}) =>
+  fetch(url, { ...init, signal: init.signal ?? deadline() });
+
 import type {
   CheckoutRequest,
   ConnectionResult,
@@ -74,7 +88,7 @@ export function paypalProvider(credentials: Credentials): PaymentProvider {
 
   async function accessToken(): Promise<string> {
     if (!clientId || !secret) throw new Error("PayPal credentials are not set");
-    const res = await fetch(`${base}/v1/oauth2/token`, {
+    const res = await send(`${base}/v1/oauth2/token`, {
       method: "POST",
       headers: {
         authorization: `Basic ${btoa(`${clientId}:${secret}`)}`,
@@ -125,7 +139,7 @@ export function paypalProvider(credentials: Credentials): PaymentProvider {
       }
       const token = await accessToken();
 
-      const res = await fetch(`${base}/v2/checkout/orders`, {
+      const res = await send(`${base}/v2/checkout/orders`, {
         method: "POST",
         headers: {
           authorization: `Bearer ${token}`,
@@ -191,7 +205,7 @@ export function paypalProvider(credentials: Credentials): PaymentProvider {
 
       try {
         const token = await accessToken();
-        const res = await fetch(
+        const res = await send(
           `${base}/v1/notifications/verify-webhook-signature`,
           {
             method: "POST",
@@ -230,7 +244,7 @@ export function paypalProvider(credentials: Credentials): PaymentProvider {
       if (!orderId) return;
 
       const token = await accessToken();
-      const res = await fetch(`${base}/v2/checkout/orders/${orderId}/capture`, {
+      const res = await send(`${base}/v2/checkout/orders/${orderId}/capture`, {
         method: "POST",
         headers: {
           authorization: `Bearer ${token}`,
@@ -249,7 +263,7 @@ export function paypalProvider(credentials: Credentials): PaymentProvider {
     async confirmPaid(reference: string) {
       try {
         const token = await accessToken();
-        const res = await fetch(`${base}/v2/checkout/orders/${reference}`, {
+        const res = await send(`${base}/v2/checkout/orders/${reference}`, {
           headers: { authorization: `Bearer ${token}` },
           signal: AbortSignal.timeout(15_000),
         });
@@ -325,7 +339,7 @@ export function paypalProvider(credentials: Credentials): PaymentProvider {
     async refund(reference: string, amountCents: number, currency: string) {
       try {
         const token = await accessToken();
-        const order = await fetch(`${base}/v2/checkout/orders/${reference}`, {
+        const order = await send(`${base}/v2/checkout/orders/${reference}`, {
           headers: { authorization: `Bearer ${token}` },
           signal: AbortSignal.timeout(15_000),
         });
@@ -344,7 +358,7 @@ export function paypalProvider(credentials: Credentials): PaymentProvider {
           return { ok: false, amountCents: 0, message: "nothing was captured" };
         }
 
-        const res = await fetch(
+        const res = await send(
           `${base}/v2/payments/captures/${capture.id}/refund`,
           {
             method: "POST",
