@@ -14,6 +14,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { and, db, eq, schema } from "@sentrello/db";
+import { DEFAULT_LOST_STAGES, DEFAULT_WON_STAGES } from "@sentrello/db/crm";
 import type { CustomField, ModuleContext } from "@sentrello/module-sdk";
 
 /** What a pipeline looks like before anybody has said otherwise. */
@@ -78,8 +79,12 @@ export const DEFAULT_COMPANY_SECTORS = [
  * default stage in one place cannot leave the dashboard counting a stage that
  * no longer exists.
  */
-export const DEFAULT_WON_STAGES = ["won"];
-export const DEFAULT_LOST_STAGES = ["lost"];
+/*
+ * Kept where every reader can get at them: the paid half, the dashboard and
+ * this file all need to know which stage means finished, and none of those
+ * packages imports another. `decidedStages` beside them is the query.
+ */
+export { DEFAULT_LOST_STAGES, DEFAULT_WON_STAGES };
 
 /**
  * Enough for any pipeline anybody actually runs.

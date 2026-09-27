@@ -5,6 +5,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { db, schema } from "@sentrello/db";
+import { decidedStages } from "@sentrello/db/crm";
 import { isOverdueSql, owingInvoices } from "@sentrello/db/documents";
 import { countExpression } from "@sentrello/db/list-query";
 import { centsFromDriver, sumCents } from "@sentrello/db/money";
@@ -258,9 +259,19 @@ export default defineModule({
 
         /* One row each, and a business with no contacts gets no row at all. */
         const contacts = counted?.contacts ?? 0;
-        const openStages = stages.filter(
-          (s) => s.stage !== "won" && s.stage !== "lost",
-        );
+        /*
+         * Which stages this business calls finished, from its own settings.
+         *
+         * It was `stage !== "won" && stage !== "lost"`, written here and
+         * nowhere else — while the CRM panel on the same dashboard read the
+         * settings. A business that renames its stages to "invoiced" and
+         * "dead" therefore had every closed deal counted as still in the
+         * pipeline by one panel and correctly by the one beside it: one
+         * screen, two answers to what is still in play.
+         */
+        const { won: wonStages, decided } = await decidedStages(orgId);
+        const openStages = stages.filter((s) => !decided.includes(s.stage));
+        const wonRows = stages.filter((s) => wonStages.includes(s.stage));
         const dealCount = stages.reduce((total, s) => total + s.count, 0);
 
         const attention: Attention[] = [
@@ -349,7 +360,7 @@ export default defineModule({
               (total, s) => total + s.amountCents,
               0,
             ),
-            wonCount: stages.find((s) => s.stage === "won")?.count ?? 0,
+            wonCount: wonRows.reduce((total, s) => total + s.count, 0),
             /*
              * What was won, in money.
              *
@@ -358,7 +369,7 @@ export default defineModule({
              * worth — and it filled the space with the contact count instead,
              * which is a fact about the book rather than about the pipeline.
              */
-            wonCents: stages.find((s) => s.stage === "won")?.amountCents ?? 0,
+            wonCents: wonRows.reduce((total, s) => total + s.amountCents, 0),
           },
           book: { contacts },
           // Most urgent first: an overdue invoice is money already earned and

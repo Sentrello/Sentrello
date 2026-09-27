@@ -16,6 +16,46 @@ import * as schema from "./schema";
  */
 export const CRM_SUBJECTS = ["contact", "company", "deal"] as const;
 
+/**
+ * A pipeline stage a business has finished with, won or lost.
+ *
+ * Here rather than in either half of the CRM, for the reason `crmFieldsFor`
+ * is here: both halves need it and neither imports the other — and so does
+ * the platform dashboard, which is a third package again.
+ *
+ * **Read from this business's own settings, never assumed.** A business
+ * renames its stages — "invoiced", "dead", "no budget" — and a hard-coded
+ * "won"/"lost" then reports every closed deal as still open. The dashboard
+ * did exactly that while the CRM panel beside it on the same screen read the
+ * settings, so one screen carried two answers to "what is still in play".
+ */
+export const DEFAULT_WON_STAGES = ["won"];
+export const DEFAULT_LOST_STAGES = ["lost"];
+
+export interface DecidedStages {
+  won: string[];
+  lost: string[];
+  /** Both together, which is what "not still open" means. */
+  decided: string[];
+}
+
+export async function decidedStages(
+  organizationId: string,
+): Promise<DecidedStages> {
+  const [row] = await db
+    .select({
+      wonStages: schema.crmSettings.wonStages,
+      lostStages: schema.crmSettings.lostStages,
+    })
+    .from(schema.crmSettings)
+    .where(eq(schema.crmSettings.organizationId, organizationId))
+    .limit(1);
+
+  const won = row?.wonStages ?? DEFAULT_WON_STAGES;
+  const lost = row?.lostStages ?? DEFAULT_LOST_STAGES;
+  return { won, lost, decided: [...won, ...lost] };
+}
+
 /** The definitions this business has, or none. */
 export async function crmFieldsFor(
   organizationId: string,

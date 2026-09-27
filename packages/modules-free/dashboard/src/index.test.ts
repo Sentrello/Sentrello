@@ -598,6 +598,81 @@ test("a business still setting up is not sold to", async () => {
 });
 
 /**
+ * A business that renamed its stages is still counted correctly.
+ *
+ * The dashboard decided what was open with `stage !== "won" && stage !==
+ * "lost"`, written here and nowhere else — while the CRM panel on the same
+ * screen read the business's own settings. A roofer whose board runs quote →
+ * measured → scheduled → **invoiced** had every finished job counted as
+ * still in the pipeline by one panel and correctly by the one beside it.
+ */
+test("a business that calls its stages something else is still counted", async () => {
+  await db
+    .insert(schema.crmSettings)
+    .values({
+      organizationId: orgId,
+      wonStages: ["invoiced"],
+      lostStages: ["no-budget"],
+    })
+    .onConflictDoUpdate({
+      target: schema.crmSettings.organizationId,
+      set: { wonStages: ["invoiced"], lostStages: ["no-budget"] },
+    });
+
+  const made = await db
+    .insert(schema.deals)
+    .values([
+      {
+        organizationId: orgId,
+        name: `Finished ${suffix}`,
+        stage: "invoiced",
+        amountCents: 70_000,
+      },
+      {
+        organizationId: orgId,
+        name: `Dead ${suffix}`,
+        stage: "no-budget",
+        amountCents: 50_000,
+      },
+      {
+        organizationId: orgId,
+        name: `Live ${suffix}`,
+        stage: "measured",
+        amountCents: 25_000,
+      },
+    ])
+    .returning();
+
+  try {
+    const body = (await (await get()).json()) as {
+      pipeline: {
+        openCount: number;
+        openCents: number;
+        wonCount: number;
+        wonCents: number;
+      };
+    };
+
+    // The finished job and the dead one are not in the pipeline; the live one
+    // is. Read as "at least" and "not at all", because the fixture above has
+    // deals of its own on the default stages.
+    expect(body.pipeline.openCents).toBeGreaterThanOrEqual(25_000);
+    expect(
+      body.pipeline.openCents,
+      "a finished job was counted as still in the pipeline",
+    ).toBeLessThan(70_000 + 50_000);
+    expect(body.pipeline.wonCents).toBeGreaterThanOrEqual(70_000);
+  } finally {
+    for (const deal of made) {
+      await db.delete(schema.deals).where(eq(schema.deals.id, deal.id));
+    }
+    await db
+      .delete(schema.crmSettings)
+      .where(eq(schema.crmSettings.organizationId, orgId));
+  }
+});
+
+/**
  * The pipeline panel is about the pipeline, in money, on both sides.
  *
  * It used to read Open, Won and "People in the book" — and the figure row at

@@ -1,6 +1,6 @@
 import { db, eq, notInArray, schema, sql } from "@sentrello/db";
+import { decidedStages } from "@sentrello/db/crm";
 import type { ModuleContext, SummaryFigure } from "@sentrello/module-sdk";
-import { DEFAULT_LOST_STAGES, DEFAULT_WON_STAGES } from "./settings";
 
 /**
  * The CRM on the dashboard, which it was not on at all.
@@ -17,27 +17,15 @@ import { DEFAULT_LOST_STAGES, DEFAULT_WON_STAGES } from "./settings";
 export async function crmFigures(
   organizationId: string,
 ): Promise<SummaryFigure[]> {
-  const [settings] = await db
-    .select({
-      wonStages: schema.crmSettings.wonStages,
-      lostStages: schema.crmSettings.lostStages,
-    })
-    .from(schema.crmSettings)
-    .where(eq(schema.crmSettings.organizationId, organizationId))
-    .limit(1);
-
   /*
    * Decided is won *or* lost, read from this business's own settings.
    *
    * A business renames its stages — "invoiced", "dead" — and a hard-coded
    * "won" would report every one of its closed deals as still open. The
-   * defaults are only what an instance that has never touched the settings
-   * screen has.
+   * query is shared now: the platform dashboard needs the same answer and
+   * had been guessing it.
    */
-  const decided = [
-    ...(settings?.wonStages ?? DEFAULT_WON_STAGES),
-    ...(settings?.lostStages ?? DEFAULT_LOST_STAGES),
-  ];
+  const { decided } = await decidedStages(organizationId);
 
   /*
    * Composed as a Drizzle condition rather than written as `<> all(...)`.
