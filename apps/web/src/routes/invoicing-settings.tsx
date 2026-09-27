@@ -843,7 +843,7 @@ function whenItFires(daysOffset: number): string {
  */
 function BillingRules() {
   const qc = useQueryClient();
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["invoicing-billing"],
     queryFn: () =>
       api<{ settings: BillingSettings; rules: ReminderRule[] }>(
@@ -913,6 +913,8 @@ function BillingRules() {
     onSuccess: refresh,
   });
 
+  // Same as the tax regimes in Settings: waiting is fine, vanishing is not.
+  if (error) return <ErrorNote error={error} />;
   if (isLoading || !data) return null;
   const settings = data.settings;
 

@@ -596,7 +596,7 @@ interface TaxRegimesResponse {
  */
 function TaxRegimesCard() {
   const qc = useQueryClient();
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["tax-regimes"],
     queryFn: () => api<TaxRegimesResponse>("/api/tax-regimes"),
   });
@@ -618,6 +618,10 @@ function TaxRegimesCard() {
     },
   });
 
+  // A section that has not arrived yet can wait in silence. One that could
+  // not be asked for cannot: it would simply not be on the screen, and
+  // nothing would say which part of the page was missing.
+  if (error) return <ErrorNote error={error} />;
   if (isLoading || !data) return null;
   const chosen = pending ?? data.chosen;
 
