@@ -4,6 +4,11 @@ export interface EmailMessage {
   to: string;
   subject: string;
   html: string;
+  /**
+   * The plain-text half. Derived from the HTML when a caller does not write
+   * one, which is every caller — see `plainText`.
+   */
+  text?: string;
   from?: string;
   /**
    * Extra headers, for the ones that change how a message is treated rather
@@ -15,6 +20,62 @@ export interface EmailMessage {
    * gradually stops arriving.
    */
   headers?: Record<string, string>;
+}
+
+/**
+ * The same message, for a reader who is not being shown HTML.
+ *
+ * Every message this product sends was HTML and nothing else, and that costs
+ * more here than it would elsewhere. A self-hosted business sends its
+ * invoices from its own domain with no sending reputation at all, and an
+ * HTML-only message is one a spam filter marks down for being HTML-only —
+ * SpamAssassin has a rule for exactly it. The difference is the inbox or the
+ * junk folder, for the message that asks to be paid.
+ *
+ * It also decides what Gmail shows under the subject line, and it is the
+ * whole of what a watch, a terminal client, or somebody who has told their
+ * mail client to prefer plain text ever sees.
+ *
+ * Derived here rather than written fourteen times, because a second copy of
+ * each message is a second copy to keep true — and a text part that has
+ * drifted from the HTML is worse than none.
+ *
+ * **A link becomes its words and its address.** `<a href="…">Pay this
+ * invoice</a>` is the whole point of the message; as bare words it is a dead
+ * end, so the address rides along in brackets.
+ */
+export function plainText(html: string): string {
+  return (
+    html
+      // Before anything: a stylesheet or a <head> would otherwise survive tag
+      // stripping as a paragraph of CSS.
+      .replace(/<head[\s\S]*?<\/head>|<style[\s\S]*?<\/style>/gi, "")
+      .replace(
+        /<a\b[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi,
+        (_all, href: string, label: string) => {
+          const words = label.replace(/<[^>]+>/g, "").trim();
+          return !words || words === href ? href : `${words} (${href})`;
+        },
+      )
+      .replace(/<li\b[^>]*>/gi, "\n- ")
+      .replace(/<(br|hr)\b[^>]*>/gi, "\n")
+      .replace(/<\/(p|div|h[1-6]|tr|li|table)>/gi, "\n\n")
+      .replace(/<[^>]+>/g, "")
+      // The five `escapeHtml` writes, and the space that is not a space.
+      .replace(/&nbsp;/g, " ")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      // Last, or an escaped `&lt;` written as `&amp;lt;` would come out as a
+      // tag rather than as the four characters somebody typed.
+      .replace(/&amp;/g, "&")
+      .split("\n")
+      .map((line) => line.replace(/[ \t]+/g, " ").trim())
+      .join("\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim()
+  );
 }
 
 /**
@@ -89,6 +150,7 @@ class ResendAdapter implements EmailAdapter {
         to: m.to,
         subject: safeSubject(m.subject),
         html: m.html,
+        text: m.text ?? plainText(m.html),
         ...(headers ? { headers } : {}),
       }),
     });
@@ -115,6 +177,7 @@ class SmtpAdapter implements EmailAdapter {
       to: m.to,
       subject: safeSubject(m.subject),
       html: m.html,
+      text: m.text ?? plainText(m.html),
       ...(headers ? { headers } : {}),
     });
   }
@@ -149,12 +212,18 @@ export function smtpAdapter(config: SmtpConfig): EmailAdapter {
   const transport = nodemailer.createTransport(config);
   return {
     async send(m: EmailMessage) {
+      // Through the same two guards as the built-in adapters. This one went
+      // round both, and it is the adapter a *module* configures — the one
+      // whose subject and headers are likeliest to carry something somebody
+      // else typed.
+      const headers = safeHeaders(m.headers);
       await transport.sendMail({
         from: m.from ?? process.env.EMAIL_FROM,
         to: m.to,
-        subject: m.subject,
+        subject: safeSubject(m.subject),
         html: m.html,
-        ...(m.headers ? { headers: m.headers } : {}),
+        text: m.text ?? plainText(m.html),
+        ...(headers ? { headers } : {}),
       });
     },
   };
