@@ -250,6 +250,19 @@ Your customer needs an electronic address for this to go anywhere. Most EU
 businesses are addressed by their VAT number, which Sentrello uses when no
 explicit Peppol identifier is set.
 
+:::warning[Walk it with a sandbox key before you rely on it]
+Every part of this is built and tested, and the connection has been proved
+against a real access point — an invalid key comes back refused, from their
+servers, not ours. **What we have not yet done is watch an invoice travel the
+live network**, because the sandbox account we asked for has not been granted
+yet.
+
+So if a mandate is the reason you are here, do step 3 properly: connect with a
+sandbox key, send one, and read what comes back, before the first real invoice
+depends on it. If something goes wrong there, tell us — that is a conversation
+we would rather have with you than not have at all.
+:::
+
 ## The catalogue
 
 Products and services you invoice for repeatedly live in a price list, each with
