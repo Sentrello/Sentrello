@@ -64,10 +64,22 @@ import { sql } from "./orm";
  * shortest, for the same reason.
  */
 export const RETENTION_YEARS: Record<string, number> = {
-  // HMRC: six years from the end of the accounting period.
-  GB: 6,
-  // CRA: six years from the end of the last tax year the records relate to.
-  CA: 6,
+  /*
+   * HMRC: six years from the end of the accounting period — so seven here.
+   *
+   * Six was the statute and it was the wrong number for us, because the
+   * statute's clock starts at the end of the period and ours starts on the
+   * document. An invoice dated the first week of a period is nearly a year
+   * older by the time the statutory clock even starts, and six years measured
+   * our way would have let it go while HMRC could still ask for it. Reviewed
+   * by an accountant on 27 September 2026, who named exactly that gap.
+   */
+  GB: 7,
+  /*
+   * CRA: six years from the end of the last tax year the records relate to.
+   * Seven, for the same reason as the United Kingdom above.
+   */
+  CA: 7,
   /*
    * The IRS's general period is three years and runs to seven in the cases a
    * small business is most likely to meet — a bad-debt deduction, an

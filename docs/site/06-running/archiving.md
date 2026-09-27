@@ -44,8 +44,8 @@ Invoices, payments and journal entries have to be kept, by law, for years:
 
 | Where you trade | How long | Where the number comes from |
 | --- | --- | --- |
-| United Kingdom | 6 years | HMRC: six years from the end of the accounting period |
-| Canada | 6 years | CRA: six years from the end of the last tax year the records relate to |
+| United Kingdom | 7 years | HMRC asks for six from the end of the accounting period. We count from the document's own date, so we hold you a year longer |
+| Canada | 7 years | CRA asks for six from the end of the last tax year the records relate to. Same one-year margin, for the same reason |
 | United States | 7 years | The IRS's general period is three, and runs to seven in the cases a small business actually meets. Several states are longer again |
 | European Union | 10 years | A deliberate ceiling. See below |
 | Anywhere else, or not set | 10 years | The longest floor we know of |

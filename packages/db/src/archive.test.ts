@@ -216,8 +216,8 @@ test("an archive whose manifest disagrees with the database is refused", async (
 // ---------------------------------------------------------------------------
 
 test("each market's floor is the one its own authority sets", () => {
-  expect(retentionYears("GB")).toBe(6);
-  expect(retentionYears("CA")).toBe(6);
+  expect(retentionYears("GB")).toBe(7);
+  expect(retentionYears("CA")).toBe(7);
   expect(retentionYears("US")).toBe(7);
   expect(retentionYears("DE")).toBe(10);
   expect(retentionYears("IE")).toBe(10);
@@ -227,7 +227,7 @@ test("each market's floor is the one its own authority sets", () => {
   expect(retentionYears(null)).toBe(10);
   expect(
     retentionCutoff("GB", new Date("2026-09-17T00:00:00Z")).toISOString(),
-  ).toBe("2020-09-17T00:00:00.000Z");
+  ).toBe("2019-09-17T00:00:00.000Z");
 });
 
 test("a period inside the retention window cannot be deleted, and says why", async () => {
@@ -237,7 +237,7 @@ test("a period inside the retention window cannot be deleted, and says why", asy
 
   const statutory = plan.blockers.find((b) => b.kind === "statutory");
   expect(statutory).toBeDefined();
-  expect(statutory?.message).toContain("6 years");
+  expect(statutory?.message).toContain("7 years");
   expect(statutory?.message).toContain("You can still write the archive");
 
   // And the refusal is real: removal is not merely discouraged.

@@ -217,7 +217,7 @@ test("the plan says what is there, and the floor before anything is chosen", asy
     "documents",
     "ledger",
   ]);
-  expect(sets.retention.years).toBe(6);
+  expect(sets.retention.years).toBe(7);
   expect(sets.retention.countryCode).toBe("GB");
 
   const plan = (await (
