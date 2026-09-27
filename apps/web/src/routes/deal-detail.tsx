@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "../lib/api";
-import { useCrmSettings } from "../lib/crm-settings";
+import { isDecided, useCrmSettings } from "../lib/crm-settings";
 import { CustomFields, CustomValues } from "../lib/custom-fields";
 import { RelatedLink, useNavigation, useRecordTitle } from "../lib/navigation";
 import { RecordPicker } from "../lib/record-picker";
@@ -358,7 +358,8 @@ export function DealDetail() {
   if (!data) return null;
 
   const { deal, company, contacts, notes } = data;
-  const closed = deal.stage === "won" || deal.stage === "lost";
+  // By this business's own names for finished, not by ours. See `isDecided`.
+  const closed = isDecided(settings, deal.stage);
 
   if (editing) {
     return (

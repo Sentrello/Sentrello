@@ -74,6 +74,22 @@ export const FALLBACK_SETTINGS: CrmSettings = {
   usingDefaults: true,
 };
 
+/**
+ * Whether a deal is finished, by this business's own names for finished.
+ *
+ * Three screens wrote `stage !== "won" && stage !== "lost"` by hand — the
+ * board's pipeline total, a contact's open deals and a deal's own header —
+ * while each of them already held the settings that say otherwise. A roofer
+ * whose board runs quote → measured → scheduled → **invoiced** saw every
+ * finished job counted as still in play, on the screen where it matters
+ * most.
+ */
+export function isDecided(settings: CrmSettings, stage: string): boolean {
+  return (
+    settings.wonStages.includes(stage) || settings.lostStages.includes(stage)
+  );
+}
+
 export function useCrmSettings(): CrmSettings {
   const { data } = useQuery({
     queryKey: ["crm-settings"],

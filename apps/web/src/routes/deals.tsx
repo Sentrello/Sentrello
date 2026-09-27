@@ -4,6 +4,7 @@ import { type Tag, api } from "../lib/api";
 import { useSession } from "../lib/auth";
 import { Avatar } from "../lib/avatar";
 import {
+  isDecided,
   managerName,
   useCrmManagers,
   useCrmSettings,
@@ -356,8 +357,9 @@ export function Deals() {
       .filter((d) => d.stage === stage)
       .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name));
 
+  // By this business's own names for finished, not by ours. See `isDecided`.
   const openTotal = deals
-    .filter((d) => d.stage !== "won" && d.stage !== "lost")
+    .filter((d) => !isDecided(settings, d.stage))
     .reduce((sum, d) => sum + d.amountCents, 0);
 
   return (

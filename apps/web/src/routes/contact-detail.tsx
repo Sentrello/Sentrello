@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { type Contact, type Meta, api, may } from "../lib/api";
-import { useCrmSettings } from "../lib/crm-settings";
+import { isDecided, useCrmSettings } from "../lib/crm-settings";
 import { CustomValues } from "../lib/custom-fields";
 import { Icon } from "../lib/icons";
 import { ImageUpload } from "../lib/image-upload";
@@ -395,7 +395,8 @@ export function ContactDetail() {
   const { contact, company, deals, notes, tasks, tags } = data;
   const emails = ways(contact.email, contact.emails);
   const phones = ways(contact.phone, contact.phones);
-  const open = deals.filter((d) => d.stage !== "won" && d.stage !== "lost");
+  // By this business's own names for finished, not by ours. See `isDecided`.
+  const open = deals.filter((d) => !isDecided(settings, d.stage));
 
   if (editing) {
     // The same form as creating one, so status, background, the extra emails
