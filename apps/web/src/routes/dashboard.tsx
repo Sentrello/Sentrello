@@ -316,6 +316,33 @@ function ArrangedDashboard({ data }: { data: Dashboard }) {
   if (!layout.data) return null;
 
   const tabs = layout.data.tabs;
+  /*
+   * Nothing to arrange, and nothing to say it.
+   *
+   * The unarranged default is built from the widgets the reader may see, and
+   * filtering an empty set leaves no tabs at all — so somebody who can open
+   * the dashboard but holds none of the permissions its panels read got the
+   * word "Dashboard", the word "Arrange", and an otherwise blank page. Both
+   * halves of that are day-one conditions: an instance nobody has arranged
+   * yet, and an employee whose policy covers one module.
+   *
+   * A stored arrangement never lands here — `shownTabs` keeps a tab the
+   * business named even after the cut, and an empty tab says so itself.
+   */
+  if (tabs.length === 0) {
+    return (
+      <Page>
+        <Card>
+          <p className="text-sm" style={muted}>
+            There is nothing on your dashboard yet. Its panels come from the
+            rest of Sentrello — your invoices, your money, your pipeline — and
+            your account cannot see any of those. Whoever set this up can widen
+            what you are allowed to open.
+          </p>
+        </Card>
+      </Page>
+    );
+  }
   // The tab strip works in ids; a dashboard tab's name is its id. `activeTab`
   // resolves the one showing, which is also the fallback that replaced the
   // `Math.min(active, tabs.length - 1)` clamp this screen used to do inline —

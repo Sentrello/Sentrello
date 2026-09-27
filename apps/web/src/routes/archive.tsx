@@ -199,14 +199,25 @@ export function Archive() {
         {plan.error ? <ErrorNote error={plan.error} /> : null}
         {plan.data ? (
           <>
-            <Table headers={["Table", "Records"]}>
-              {plan.data.counts.map((count) => (
-                <Row key={count.table}>
-                  <td>{count.table.replaceAll("_", " ")}</td>
-                  <td>{count.rows.toLocaleString()}</td>
-                </Row>
-              ))}
-            </Table>
+            {/* Two column headings over nothing, and two buttons that had
+                quietly disabled themselves, was the whole answer a new
+                instance got here — every period is empty when the business
+                is three days old. Say which of the two knobs to turn. */}
+            {plan.data.counts.length === 0 ? (
+              <p style={muted}>
+                Nothing in that period to archive. Widen the months, or choose a
+                different kind of record.
+              </p>
+            ) : (
+              <Table headers={["Table", "Records"]}>
+                {plan.data.counts.map((count) => (
+                  <Row key={count.table}>
+                    <td>{count.table.replaceAll("_", " ")}</td>
+                    <td>{count.rows.toLocaleString()}</td>
+                  </Row>
+                ))}
+              </Table>
+            )}
             {blockers.length > 0 ? (
               <div className="grid gap-(--gap-toolbar)">
                 <strong>These records can be copied, but not removed:</strong>

@@ -1684,13 +1684,20 @@ export function Journal() {
       </Toolbar>
 
       {entries.length === 0 ? (
-        <Empty
-          title={
-            state.hasFilters || state.q
-              ? "Nothing matches that"
-              : "Nothing posted yet"
-          }
-        />
+        // A title on its own, on the one screen in the product most likely to
+        // be opened by somebody who is not sure what it is for. Every other
+        // empty state here says where the missing thing comes from.
+        state.hasFilters || state.q ? (
+          <Empty title="Nothing matches that">
+            Clear the search, or the account and dates beside it.
+          </Empty>
+        ) : (
+          <Empty title="Nothing posted yet">
+            Every invoice you issue and every payment you take writes a balanced
+            entry here. This is the record the reports are built from — you will
+            not be typing in it.
+          </Empty>
+        )
       ) : (
         <>
           {entries.map((entry) => (

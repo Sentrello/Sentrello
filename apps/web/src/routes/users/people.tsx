@@ -463,101 +463,121 @@ export function People() {
       {/* "Policy", because that is what the nav, the person record and the
           Policies screen all call it. This table said "Role" — the word the
           reference used and the one the console deliberately moved away from. */}
+      {/*
+       * An empty list has two quite different reasons, and this screen gave
+       * the search one to both. "Clear the search, or the filters beside it"
+       * is unhelpful on day one of a new instance, where the Customers list
+       * is empty because nobody has bought anything yet — there is no search
+       * to clear, and the sentence sends somebody looking for a filter that
+       * is not set. The table went on drawing its header row underneath as
+       * well, so the honest answer arrived above five columns of nothing.
+       */}
       {people.length === 0 ? (
-        <Empty title="Nobody matches that">
-          Clear the search, or the filters beside it, to see everyone again.
-        </Empty>
-      ) : null}
-      <Table
-        headers={["Name", "Email", "Policy", "Two-factor", "Last seen", ""]}
-      >
-        {people.map((p) => (
-          <Row key={p.userId}>
-            <td className="py-2 font-medium">
-              <button
-                type="button"
-                className="link"
-                onClick={() =>
-                  open({
-                    moduleId: "users",
-                    recordId: p.userId,
-                    title: p.name || p.email,
-                  })
-                }
-              >
-                {p.name || "—"}
-              </button>
-              {p.you ? (
-                <span className="ml-2 text-xs" style={muted}>
-                  you
-                </span>
-              ) : null}
-            </td>
-            <td style={muted}>{p.email}</td>
-            <td>
-              {p.you || audience === "customers" ? (
-                // Changing your own policy is how an owner locks the business
-                // out of its own instance, and nobody else can undo it. A
-                // customer's is not chosen from a list either — the shop's
-                // portal assigns it when they create the account.
-                <span style={muted}>{policyLabel(p.baseRole)}</span>
-              ) : (
-                <Select
-                  needs={{ settings: ["update"] }}
-                  value={p.baseRole}
-                  // A column heading is not a label. One of these per row, all
-                  // announced as "combo box" and nothing else, on the screen
-                  // that decides what everybody can do.
-                  aria-label={`Policy for ${p.name || p.email}`}
-                  onChange={(e) =>
-                    setRole.mutate({ userId: p.userId, role: e.target.value })
+        q ? (
+          <Empty title="Nobody matches that">
+            Clear the search to see everyone again.
+          </Empty>
+        ) : audience === "customers" ? (
+          <Empty title="No customers yet">
+            Somebody appears here once the portal gives them an account of their
+            own — the one that shows them their invoices and nothing else.
+          </Empty>
+        ) : (
+          <Empty title="Nobody here yet">
+            Invite the people who work with you and they will be listed here.
+          </Empty>
+        )
+      ) : (
+        <Table
+          headers={["Name", "Email", "Policy", "Two-factor", "Last seen", ""]}
+        >
+          {people.map((p) => (
+            <Row key={p.userId}>
+              <td className="py-2 font-medium">
+                <button
+                  type="button"
+                  className="link"
+                  onClick={() =>
+                    open({
+                      moduleId: "users",
+                      recordId: p.userId,
+                      title: p.name || p.email,
+                    })
                   }
                 >
-                  {[...new Set([p.baseRole, ...roleNames])].map((r) => (
-                    <option key={r} value={r}>
-                      {policyLabel(r)}
-                    </option>
-                  ))}
-                </Select>
-              )}
-              {p.groups.length > 0 ? (
-                // What a group grants is not editable here on purpose: it is
-                // changed for the group, not for one person inside it.
-                <div className="text-xs" style={muted}>
-                  and, through {p.groups.join(", ")}:{" "}
-                  {p.role
-                    .split(",")
-                    .filter((r) => r && r !== p.baseRole)
-                    .map(policyLabel)
-                    .join(", ") || "nothing extra"}
-                </div>
-              ) : null}
-            </td>
-            <td>
-              {p.twoFactorEnabled ? (
-                <ConfirmButton
-                  title="Turn off two-factor?"
-                  message={`${p.email} will be signed out everywhere and can set two-factor up again themselves. Do this when somebody has lost the device that generates their codes.`}
-                  confirmLabel="Turn it off"
-                  needs={{ settings: ["update"] }}
-                  onConfirm={() => revokeTwoFactor.mutate(p.userId)}
-                >
-                  on — turn off
-                </ConfirmButton>
-              ) : p.twoFactorRequired ? (
-                // The rules say somebody with their roles must have one. Said
-                // here so an administrator can see who is still without it.
-                <span style={{ color: "var(--text-warning)" }}>
-                  off — required
-                </span>
-              ) : (
-                <span style={muted}>off</span>
-              )}
-            </td>
-            <td style={muted}>
-              {p.lastSeenAt ? formatDate(p.lastSeenAt) : "never"}
-            </td>
-            {/*
+                  {p.name || "—"}
+                </button>
+                {p.you ? (
+                  <span className="ml-2 text-xs" style={muted}>
+                    you
+                  </span>
+                ) : null}
+              </td>
+              <td style={muted}>{p.email}</td>
+              <td>
+                {p.you || audience === "customers" ? (
+                  // Changing your own policy is how an owner locks the business
+                  // out of its own instance, and nobody else can undo it. A
+                  // customer's is not chosen from a list either — the shop's
+                  // portal assigns it when they create the account.
+                  <span style={muted}>{policyLabel(p.baseRole)}</span>
+                ) : (
+                  <Select
+                    needs={{ settings: ["update"] }}
+                    value={p.baseRole}
+                    // A column heading is not a label. One of these per row, all
+                    // announced as "combo box" and nothing else, on the screen
+                    // that decides what everybody can do.
+                    aria-label={`Policy for ${p.name || p.email}`}
+                    onChange={(e) =>
+                      setRole.mutate({ userId: p.userId, role: e.target.value })
+                    }
+                  >
+                    {[...new Set([p.baseRole, ...roleNames])].map((r) => (
+                      <option key={r} value={r}>
+                        {policyLabel(r)}
+                      </option>
+                    ))}
+                  </Select>
+                )}
+                {p.groups.length > 0 ? (
+                  // What a group grants is not editable here on purpose: it is
+                  // changed for the group, not for one person inside it.
+                  <div className="text-xs" style={muted}>
+                    and, through {p.groups.join(", ")}:{" "}
+                    {p.role
+                      .split(",")
+                      .filter((r) => r && r !== p.baseRole)
+                      .map(policyLabel)
+                      .join(", ") || "nothing extra"}
+                  </div>
+                ) : null}
+              </td>
+              <td>
+                {p.twoFactorEnabled ? (
+                  <ConfirmButton
+                    title="Turn off two-factor?"
+                    message={`${p.email} will be signed out everywhere and can set two-factor up again themselves. Do this when somebody has lost the device that generates their codes.`}
+                    confirmLabel="Turn it off"
+                    needs={{ settings: ["update"] }}
+                    onConfirm={() => revokeTwoFactor.mutate(p.userId)}
+                  >
+                    on — turn off
+                  </ConfirmButton>
+                ) : p.twoFactorRequired ? (
+                  // The rules say somebody with their roles must have one. Said
+                  // here so an administrator can see who is still without it.
+                  <span style={{ color: "var(--text-warning)" }}>
+                    off — required
+                  </span>
+                ) : (
+                  <span style={muted}>off</span>
+                )}
+              </td>
+              <td style={muted}>
+                {p.lastSeenAt ? formatDate(p.lastSeenAt) : "never"}
+              </td>
+              {/*
               Three text buttons wrapped across two lines here, at every width
               — "Reset password" and "Sign out" on one, "Remove" dropped under
               them and right-aligned against nothing. Every other list in the
@@ -569,49 +589,50 @@ export function People() {
               menu item that reads "Really?" would be a worse question on the
               screen that hands out access.
             */}
-            <td className="text-right">
-              <RowMenu label={p.name || p.email}>
-                {() => (
-                  <>
-                    <ConfirmButton
-                      title="Issue a new password?"
-                      message={`The password ${p.email} has now stops working immediately, and they are signed out everywhere. The new one is shown once, on this screen, and stored nowhere.`}
-                      confirmLabel="Issue one"
-                      needs={{ settings: ["update"] }}
-                      onConfirm={() => resetPassword.mutate(p)}
-                    >
-                      Reset password
-                    </ConfirmButton>
-                    {p.you ? null : (
-                      <>
-                        <ConfirmButton
-                          title="Sign them out everywhere?"
-                          message={`${p.email} is signed out on every device and will have to sign in again. Anything they were part-way through typing is lost.`}
-                          confirmLabel="Sign them out"
-                          needs={{ settings: ["update"] }}
-                          onConfirm={() => signOut.mutate(p.userId)}
-                        >
-                          Sign out
-                        </ConfirmButton>
-                        <ConfirmButton
-                          title="Remove them from the business?"
-                          message={`${p.email} loses access immediately. The invoices they raised, the notes they wrote and everything they did stay exactly where they are — this removes the person, not their work.`}
-                          confirmLabel="Remove them"
-                          danger
-                          needs={{ settings: ["update"] }}
-                          onConfirm={() => remove.mutate(p.userId)}
-                        >
-                          Remove
-                        </ConfirmButton>
-                      </>
-                    )}
-                  </>
-                )}
-              </RowMenu>
-            </td>
-          </Row>
-        ))}
-      </Table>
+              <td className="text-right">
+                <RowMenu label={p.name || p.email}>
+                  {() => (
+                    <>
+                      <ConfirmButton
+                        title="Issue a new password?"
+                        message={`The password ${p.email} has now stops working immediately, and they are signed out everywhere. The new one is shown once, on this screen, and stored nowhere.`}
+                        confirmLabel="Issue one"
+                        needs={{ settings: ["update"] }}
+                        onConfirm={() => resetPassword.mutate(p)}
+                      >
+                        Reset password
+                      </ConfirmButton>
+                      {p.you ? null : (
+                        <>
+                          <ConfirmButton
+                            title="Sign them out everywhere?"
+                            message={`${p.email} is signed out on every device and will have to sign in again. Anything they were part-way through typing is lost.`}
+                            confirmLabel="Sign them out"
+                            needs={{ settings: ["update"] }}
+                            onConfirm={() => signOut.mutate(p.userId)}
+                          >
+                            Sign out
+                          </ConfirmButton>
+                          <ConfirmButton
+                            title="Remove them from the business?"
+                            message={`${p.email} loses access immediately. The invoices they raised, the notes they wrote and everything they did stay exactly where they are — this removes the person, not their work.`}
+                            confirmLabel="Remove them"
+                            danger
+                            needs={{ settings: ["update"] }}
+                            onConfirm={() => remove.mutate(p.userId)}
+                          >
+                            Remove
+                          </ConfirmButton>
+                        </>
+                      )}
+                    </>
+                  )}
+                </RowMenu>
+              </td>
+            </Row>
+          ))}
+        </Table>
+      )}
 
       {/*
         Under the table, not under the page, and one line each.
