@@ -550,11 +550,19 @@ function BulkActions({
       // One call per contact, deliberately: the tag endpoint is per-record,
       // and a bulk write path would be a second way to do the same thing with
       // its own scoping rules to get wrong.
+      let done = 0;
       for (const id of selected) {
-        await api(`/api/contacts/${id}/tags`, {
-          method: "POST",
-          body: JSON.stringify({ tagId }),
-        });
+        try {
+          await api(`/api/contacts/${id}/tags`, {
+            method: "POST",
+            body: JSON.stringify({ tagId }),
+          });
+          done += 1;
+        } catch (err) {
+          throw new Error(
+            `${done} of ${count} tagged, then: ${(err as Error).message}`,
+          );
+        }
       }
       return count;
     },

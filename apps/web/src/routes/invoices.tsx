@@ -234,11 +234,25 @@ export function Invoices() {
    */
   const removeMany = useMutation({
     mutationFn: async () => {
-      const count = picked.length;
+      /*
+       * Where it got to, when it does not get all the way. Throwing on the
+       * first failure leaves the rows before it deleted and the rows after
+       * it untouched, and the screen said only what went wrong — so the
+       * safe move, pressing it again, is the one that repeats the first
+       * twelve against a selection that is no longer the same list.
+       */
+      let done = 0;
       for (const id of picked) {
-        await api(`/api/invoices/${id}`, { method: "DELETE" });
+        try {
+          await api(`/api/invoices/${id}`, { method: "DELETE" });
+          done += 1;
+        } catch (err) {
+          throw new Error(
+            `${done} of ${picked.length} deleted, then: ${(err as Error).message}`,
+          );
+        }
       }
-      return count;
+      return done;
     },
     onSuccess: (count) => {
       setPicked([]);
