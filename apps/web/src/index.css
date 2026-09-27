@@ -1194,6 +1194,51 @@ body {
   }
 }
 
+/*
+ * Where you are, when the reader's own palette has replaced ours.
+ *
+ * Windows high contrast — `forced-colors: active` — throws away every colour
+ * the page chose and paints everything in the reader's pair. Our "you are
+ * here" is a brand background with light text, so both halves of it went: the
+ * current section in the rail and the current screen in the panel came out
+ * with the same text colour and a background indistinguishable from the page.
+ * On a screen whose whole job is telling somebody where they are, in the mode
+ * used by people who need the most help being told.
+ *
+ * `Highlight` and `HighlightText` are the reader's own selection pair, which
+ * is the one thing guaranteed to contrast in their theme and the idiom a
+ * screen reader user's other software already uses for the same idea.
+ */
+@media (forced-colors: active) {
+  .rail-button[aria-current="true"],
+  .nav-link[aria-current="page"] {
+    background: Highlight;
+    color: HighlightText;
+  }
+
+  /*
+   * And the tab strip, which had the opposite failure.
+   *
+   * A tab carries a 2px bottom border: the brand colour on the current one,
+   * `transparent` on the rest. Forced colours repaint that transparent
+   * border in the reader's own colour — the substitution happens after the
+   * cascade, so `transparent !important` does not survive it either, and
+   * only `forced-color-adjust: none` would, which means opting the strip out
+   * of the reader's palette altogether. Not worth it for a border.
+   *
+   * So every tab keeps its underline and the current one is told apart by
+   * three things instead: the selection colour, bold, and a text underline.
+   * The last two carry no colour at all, so they survive any theme and
+   * anything done here later. `!important` because the border colour is set
+   * inline, per tab, and an important author rule is what outranks that.
+   */
+  [data-tab][aria-current="page"] {
+    border-bottom-color: Highlight !important;
+    font-weight: 700;
+    text-decoration: underline;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .app-sidebar,
   .nav-caret {
