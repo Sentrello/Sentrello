@@ -195,6 +195,9 @@ export function Forms() {
                 <div className="flex items-center justify-end gap-(--gap-toolbar)">
                   <Button
                     variant="secondary"
+                    // One per form, and the form's name is the first cell
+                    // of the row rather than part of this.
+                    aria-label={`Submissions to ${f.name}`}
                     onClick={() => setPanel({ kind: "submissions", form: f })}
                   >
                     Submissions

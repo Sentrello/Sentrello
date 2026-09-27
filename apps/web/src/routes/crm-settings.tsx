@@ -380,8 +380,12 @@ export function CrmSettings() {
                   key={label}
                   className="flex items-center gap-(--gap-tight)"
                 >
+                  {/* One pair per stage, so "Won" names five checkboxes
+                      and so does "Lost". The stage is at the start of the
+                      row for anybody looking. */}
                   <input
                     type="checkbox"
+                    aria-label={`${stage.label || "This stage"} counts as ${label.toLowerCase()}`}
                     checked={list.includes(stage.id)}
                     onChange={(e) =>
                       // A stage cannot be both. Ticking one unticks the other,

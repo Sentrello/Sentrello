@@ -98,8 +98,16 @@ export function Matrix({
               key={a}
               className="flex items-center gap-(--gap-tight) text-xs"
             >
+              {/*
+                A matrix: every action appears once per resource, so "read"
+                is the name of twenty-two checkboxes and "delete" of
+                fifteen. The resource is at the start of the row for
+                anybody looking; this is the screen that decides who can do
+                what, and it should not be operable only by counting.
+              */}
               <input
                 type="checkbox"
+                aria-label={`${a} on ${r.name}`}
                 checked={(value[r.name] ?? []).includes(a)}
                 onChange={(e) => toggle(r.name, a, e.target.checked)}
               />

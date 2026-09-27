@@ -522,6 +522,9 @@ function TaxRates({
         <Field label="Name">
           <Input
             value={name}
+            // Three cards on this screen have a field called Name. The
+            // heading says which for anybody looking.
+            aria-label="Name of the tax rate"
             placeholder="VAT 20%"
             className="w-44"
             onChange={(e) => setName(e.target.value)}
@@ -562,6 +565,7 @@ function TaxRates({
         </Field>
         <Button
           needs={{ invoicing: ["update"] }}
+          aria-label="Add it: the tax rate"
           onClick={() => add.mutate()}
           disabled={add.isPending || !name.trim()}
         >
@@ -715,6 +719,7 @@ function Catalogue({
         <Field label="Name">
           <Input
             value={name}
+            aria-label="Name of the item"
             placeholder="Site survey"
             className="w-52"
             onChange={(e) => setName(e.target.value)}
@@ -776,6 +781,7 @@ function Catalogue({
         </Field>
         <Button
           needs={{ invoicing: ["update"] }}
+          aria-label="Add it: the item"
           onClick={() => add.mutate()}
           disabled={add.isPending || !name.trim()}
         >
@@ -986,6 +992,7 @@ function BillingRules() {
             <Field label="Name">
               <Input
                 value={name}
+                aria-label="Name of the reminder"
                 placeholder="Fourteen days late"
                 className="w-52"
                 onChange={(e) => setName(e.target.value)}
@@ -1526,6 +1533,11 @@ function Letterhead() {
                   <button
                     type="button"
                     className="link-muted text-xs"
+                    // One Edit and one Delete per letterhead. The name is
+                    // in the row for anybody looking at it.
+                    aria-label={`${
+                      editing === template.id ? "Close" : "Edit"
+                    } ${template.name}`}
                     onClick={() =>
                       setEditing(editing === template.id ? null : template.id)
                     }
@@ -1533,6 +1545,7 @@ function Letterhead() {
                     {editing === template.id ? "Close" : "Edit"}
                   </button>
                   <ConfirmButton
+                    label={`Delete ${template.name}`}
                     title={`Delete the ${template.name} template?`}
                     message="Its wording, its colour and its logo go with it. Documents that were set to print on it fall back to the default template."
                     confirmLabel="Delete it"
