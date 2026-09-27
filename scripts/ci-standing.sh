@@ -31,14 +31,28 @@ default="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null
 [ "${SENTRELLO_PUSH_ANYWAY:-}" = "1" ] && exit 0
 command -v gh >/dev/null 2>&1 || exit 0
 
-# The newest run that has finished. One in flight says nothing yet, and
-# waiting for it would put a ten-minute pause in front of every push.
+# The newest run that has finished, **of a workflow that tests something**.
+# One in flight says nothing yet, and waiting for it would put a ten-minute
+# pause in front of every push.
+#
+# `red-main` is excluded, and that is the whole of this filter. It is the
+# notifier — it watches CI and opens or closes an issue — so its conclusion
+# is a statement about GitHub's API, not about the code. On 27 September it
+# ran with `RESULT: success`, went to close the issue, got a GraphQL error
+# doing it, and failed. CI itself was green. Every push to this repository
+# was then refused as "main is red" by a job that had just finished saying
+# main was fine.
+#
+# A few runs rather than one, because the notifier fires after each CI run
+# and would otherwise usually be the newest thing there is.
 latest="$(
-  gh run list --branch "$default" --status completed --limit 1 \
+  gh run list --branch "$default" --status completed --limit 10 \
     --json conclusion,workflowName,headSha,url \
-    --jq '.[0] | "\(.conclusion)\t\(.workflowName)\t\(.headSha[0:7])\t\(.url)"' \
+    --jq '[.[] | select(.workflowName != "red-main")][0]
+          | "\(.conclusion)\t\(.workflowName)\t\(.headSha[0:7])\t\(.url)"' \
     2>/dev/null
 )" || exit 0
+[ "$latest" = "null" ] && exit 0
 [ -n "$latest" ] || exit 0
 
 IFS=$'\t' read -r conclusion workflow sha url <<<"$latest"
