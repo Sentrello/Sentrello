@@ -31,6 +31,7 @@ import {
   RowMenu,
   Select,
   Toolbar,
+  formatCount,
   formatMoney,
   muted,
 } from "../lib/ui";
@@ -501,7 +502,7 @@ export function Deals() {
       </Toolbar>
 
       <p className="text-sm" style={muted}>
-        {formatMoney(openTotal)} in play across {deals.length}{" "}
+        {formatMoney(openTotal)} in play across {formatCount(deals.length)}{" "}
         {deals.length === 1 ? "deal" : "deals"}
         {data?.truncated
           ? " — the first 1,000 only. Search or filter to see the rest; the totals above count what is shown."

@@ -43,6 +43,7 @@ import {
   Tabs,
   Toolbar,
   Warning,
+  formatCount,
   formatDate,
   formatMoney,
   muted,
@@ -1678,7 +1679,7 @@ export function Journal() {
         ) : null}
 
         <span className="ml-auto text-sm" style={muted}>
-          {total} {total === 1 ? "entry" : "entries"}
+          {formatCount(total)} {total === 1 ? "entry" : "entries"}
         </span>
       </Toolbar>
 

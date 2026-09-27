@@ -3,7 +3,15 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { announce } from "./announce";
 import { api } from "./api";
 import { Icon, type IconName } from "./icons";
-import { Button, Input, Select, border, formatMoney, muted } from "./ui";
+import {
+  Button,
+  Input,
+  Select,
+  border,
+  formatCount,
+  formatMoney,
+  muted,
+} from "./ui";
 
 /**
  * The furniture every list screen needs: search, filters, sort, pages.
@@ -414,7 +422,7 @@ export function FilterToggle({
           className="text-xs tabular-nums"
           style={active ? undefined : muted}
         >
-          {count}
+          {formatCount(count)}
         </span>
       ) : null}
     </button>
@@ -710,7 +718,7 @@ export function Pagination({
   return (
     <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
       <span style={muted}>
-        {from}–{to} of {total}
+        {formatCount(from)}–{formatCount(to)} of {formatCount(total)}
       </span>
 
       <span className="flex min-w-0 items-center gap-1.5" style={muted}>

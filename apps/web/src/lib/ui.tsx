@@ -162,6 +162,20 @@ export function briefMoney(cents: number, currency = formats.currency): string {
   }).format(cents / 100);
 }
 
+/**
+ * A count, grouped: "12,480 entries", not "12480 entries".
+ *
+ * Money already goes through `Intl` and reads properly at any size. Counts
+ * did not, and they are the figures that grow — a journal takes a line per
+ * invoice and per payment, so a business two years in reads its own books
+ * as a run of digits. Same locale as the money beside it, so a reader in
+ * Berlin gets 12.480 and one in London 12,480 on the same screen.
+ */
+export function formatCount(n: number): string {
+  if (!Number.isFinite(n)) return "—";
+  return new Intl.NumberFormat(numberLocale()).format(n);
+}
+
 /** Basis points to "8.75%". */
 export function formatRate(basisPoints: number): string {
   return `${(basisPoints / 100).toFixed(2).replace(/\.?0+$/, "")}%`;

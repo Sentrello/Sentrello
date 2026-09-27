@@ -31,6 +31,7 @@ import {
   Table,
   Tabs,
   Toolbar,
+  formatCount,
   formatDate,
   formatMoney,
   muted,
@@ -362,7 +363,8 @@ export function Invoices() {
 
         <div className="ml-auto flex flex-wrap items-center gap-(--gap-toolbar)">
           <span className="text-sm" style={muted}>
-            {formatMoney(data?.billedCents ?? 0)} across {data?.total ?? 0}
+            {formatMoney(data?.billedCents ?? 0)} across{" "}
+            {formatCount(data?.total ?? 0)}
           </span>
           {/* What can be done to what is ticked. Nothing is offered until
               something is, and merging only when the selection can be merged:

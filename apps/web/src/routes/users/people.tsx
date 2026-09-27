@@ -18,6 +18,7 @@ import {
   Select,
   Table,
   Toolbar,
+  formatCount,
   formatDate,
   muted,
 } from "../../lib/ui";
@@ -432,7 +433,7 @@ export function People() {
           }}
         />
         <span className="text-sm" style={muted}>
-          {total} {total === 1 ? "person" : "people"}
+          {formatCount(total)} {total === 1 ? "person" : "people"}
         </span>
         {pages > 1 ? (
           <span className="ml-auto flex flex-wrap items-center gap-(--gap-toolbar) text-sm">

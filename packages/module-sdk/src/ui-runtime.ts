@@ -172,6 +172,8 @@ export interface SentrelloUi {
   StatusBadge: React.ComponentType<{ status: string }>;
   formatMoney: (cents: number, currency?: string) => string;
   briefMoney: (cents: number, currency?: string) => string;
+  /** A count, grouped in the reader's locale: 12,480 rather than 12480. */
+  formatCount: (n: number) => string;
   formatRate: (basisPoints: number) => string;
   formatDate: (value: string | Date | null | undefined) => string;
   textOn: (colour: string) => string;
@@ -275,6 +277,7 @@ export const UI_MEMBERS = [
   "StatusBadge",
   "formatMoney",
   "briefMoney",
+  "formatCount",
   "formatRate",
   "formatDate",
   "textOn",

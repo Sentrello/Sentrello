@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useId, useRef, useState } from "react";
 import { api } from "./api";
-import { Warning, border, muted } from "./ui";
+import { Warning, border, formatCount, muted } from "./ui";
 
 /**
  * Choosing one record out of however many a business has.
@@ -74,7 +74,8 @@ function Counted({ shown, total }: { shown: number; total: number }) {
   if (total <= shown) return null;
   return (
     <p className="px-2 py-1 text-xs" style={muted}>
-      Showing {shown} of {total} matches — type more of the name to narrow it.
+      Showing {formatCount(shown)} of {formatCount(total)} matches — type more
+      of the name to narrow it.
     </p>
   );
 }

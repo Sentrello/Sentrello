@@ -139,8 +139,9 @@ test("the picker offers what it found and says how much it did not", async () =>
   await settle();
 
   // Twenty of twelve hundred, said in words somebody can act on — not a
-  // `truncated` flag nothing reads and a list that simply stops.
-  expect(host.textContent).toContain("Showing 20 of 1200");
+  // `truncated` flag nothing reads and a list that simply stops. Grouped,
+  // because the figure beside it on the same screen is money and is.
+  expect(host.textContent).toContain("Showing 20 of 1,200");
   expect(host.textContent).toContain("type more of the name");
 
   const first = everyone[0] as { id: string; name: string };

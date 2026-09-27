@@ -15,6 +15,7 @@ import {
   Select,
   Table,
   Toolbar,
+  formatCount,
   formatDate,
   muted,
 } from "../../lib/ui";
@@ -365,7 +366,7 @@ export function Events() {
         <>
           <Toolbar className="justify-between text-sm">
             <span style={muted}>
-              {total} {total === 1 ? "event" : "events"}
+              {formatCount(total)} {total === 1 ? "event" : "events"}
             </span>
             {pages > 1 ? (
               <span className="flex items-center gap-(--gap-toolbar)">
