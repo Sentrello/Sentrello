@@ -246,25 +246,35 @@ export function NavigationProvider({
    * here; the shell draws the question.
    *
    * Refused rather than queued on purpose. If the answer is "stay", there
-   * must be nothing left over to fire later; if it is "leave", the same call
-   * is made again with the guard lifted, so there is one path into a view
-   * and not two.
+   * is nothing left over to fire later; if it is "leave", the navigation
+   * that was refused runs exactly as it would have.
    */
   const [pending, setPending] = useState<View | null>(null);
-  const leaving = useRef(false);
+  /**
+   * The navigation itself, held until the question is answered.
+   *
+   * The destination alone is not enough. `go` clears the trail and `open`
+   * extends it, so resuming a parked `go` by doing what `open` does would
+   * put somebody on the right screen with the wrong breadcrumb behind them.
+   * Each caller parks its own body, and answering "leave" runs that.
+   */
+  const parked = useRef<(() => void) | null>(null);
   /** True when this navigation may proceed; parks it and returns false when not. */
-  const mayLeave = useCallback((to: View) => {
-    if (leaving.current || !hasUnsaved()) return true;
+  const mayLeave = useCallback((to: View, carryOn: () => void) => {
+    if (!hasUnsaved()) return true;
+    parked.current = carryOn;
     setPending(to);
     return false;
   }, []);
 
   const open = useCallback(
     (view: View) => {
-      if (!mayLeave(view)) return;
-      setTrail((t) => trailAfterOpening(t, currentRef.current, view));
-      setCurrent(view);
-      showPath(view);
+      const carryOn = () => {
+        setTrail((t) => trailAfterOpening(t, currentRef.current, view));
+        setCurrent(view);
+        showPath(view);
+      };
+      if (mayLeave(view, carryOn)) carryOn();
     },
     [showPath, mayLeave],
   );
@@ -277,11 +287,13 @@ export function NavigationProvider({
 
   const go = useCallback(
     (moduleId: string, title: string, intent?: string) => {
-      if (!mayLeave({ moduleId, title })) return;
-      setTrail([]);
-      intentRef.current = intent ?? null;
-      setCurrent({ moduleId, title });
-      showPath({ moduleId, title });
+      const carryOn = () => {
+        setTrail([]);
+        intentRef.current = intent ?? null;
+        setCurrent({ moduleId, title });
+        showPath({ moduleId, title });
+      };
+      if (mayLeave({ moduleId, title }, carryOn)) carryOn();
     },
     [showPath, mayLeave],
   );
@@ -320,28 +332,20 @@ export function NavigationProvider({
     [showPath],
   );
 
-  /**
-   * Leaving, with the guard lifted for exactly one call.
-   *
-   * A ref rather than a flag in state: the second call has to see it, and a
-   * state update would not have landed by then. Cleared in the same tick,
-   * so nothing later slips through on it.
-   */
+  /** Run the navigation that was refused, exactly as it would have run. */
   const leaveAnyway = useCallback(() => {
-    const to = pending;
+    const carryOn = parked.current;
+    parked.current = null;
     setPending(null);
-    if (!to) return;
-    leaving.current = true;
-    try {
-      setTrail((t) => trailAfterOpening(t, currentRef.current, to));
-      setCurrent(to);
-      showPath(to);
-    } finally {
-      leaving.current = false;
-    }
-  }, [pending, showPath]);
+    carryOn?.();
+  }, []);
 
-  const stayHere = useCallback(() => setPending(null), []);
+  const stayHere = useCallback(() => {
+    // Nothing left over to fire later: if the answer is stay, the
+    // navigation that was refused is gone rather than waiting.
+    parked.current = null;
+    setPending(null);
+  }, []);
 
   const value = useMemo<Navigation>(
     () => ({
