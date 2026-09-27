@@ -1022,14 +1022,27 @@ export function Page({
   children,
   width = "full",
   className = "",
+  editor = false,
 }: {
   children: ReactNode;
   /** `full` for lists and dashboards, `prose` for forms and settings. */
   width?: "full" | "prose";
   className?: string;
+  /**
+   * This page is somewhere somebody types, and losing it would matter.
+   *
+   * `useUnsaved` watches for a real edit and needs to know where the editor
+   * ends — the contact and company forms open *beside* their list, so
+   * typing in the list's filter box must not arm a guard about the form. A
+   * marker on the page the editor already renders, rather than a wrapper
+   * around it: a wrapper reindents the whole form and makes an
+   * eight-hundred-line diff out of one idea.
+   */
+  editor?: boolean;
 }) {
   return (
     <div
+      data-editor={editor ? "" : undefined}
       className={`flex flex-col gap-(--gap-stack) ${width === "prose" ? "max-w-3xl" : ""} ${className}`}
     >
       {children}

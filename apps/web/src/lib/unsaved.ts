@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 
 /**
  * Work somebody has typed and not saved, and the one question worth asking
@@ -45,7 +45,7 @@ export function hasUnsaved(): boolean {
  * against a ref that was still null and never ran again. A later one watched
  * the whole of `#screen`, which is too much — the contact and company forms
  * open *beside* their list, so typing in the list's filter box would have
- * armed a guard about the form. `EditorScope` marks the editor itself and
+ * armed a guard about the form. `<Page editor>` marks the editor itself and
  * the listener asks whether the edit happened inside one.
  */
 export function useUnsaved(): { settled: () => void } {
@@ -97,19 +97,4 @@ export function useUnsaved(): { settled: () => void } {
       editing.delete(mine.current);
     },
   };
-}
-
-/**
- * What counts as inside the editor.
- *
- * `display: contents` on purpose: the marker has to be a real element for
- * `closest` to find it and must not be a box, or wrapping three forms in it
- * would move them. Nothing else in the product needs to know it is here.
- */
-export function EditorScope({ children }: { children: ReactNode }) {
-  return (
-    <div data-editor style={{ display: "contents" }}>
-      {children}
-    </div>
-  );
 }

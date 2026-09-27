@@ -20,7 +20,7 @@ import {
   formatMoney,
   muted,
 } from "../lib/ui";
-import { EditorScope, useUnsaved } from "../lib/unsaved";
+import { useUnsaved } from "../lib/unsaved";
 
 /**
  * Writing an invoice.
@@ -525,484 +525,475 @@ export function InvoiceForm({
   );
 
   return (
-    <EditorScope>
-      <Page>
-        <Toolbar>
-          {/* the form's own title, not a section within it — matches invoice-detail.tsx's <p>, not SectionHeading */}
-          <p className="font-semibold text-lg">
-            {documentId
-              ? asQuote
-                ? "Edit quote"
-                : "Edit invoice"
-              : asQuote
-                ? "New quote"
-                : "New invoice"}
-          </p>
-          <button
-            type="button"
-            className="ml-auto text-sm link-muted"
-            onClick={() => onDone()}
-          >
-            Cancel
-          </button>
-        </Toolbar>
+    <Page editor>
+      <Toolbar>
+        {/* the form's own title, not a section within it — matches invoice-detail.tsx's <p>, not SectionHeading */}
+        <p className="font-semibold text-lg">
+          {documentId
+            ? asQuote
+              ? "Edit quote"
+              : "Edit invoice"
+            : asQuote
+              ? "New quote"
+              : "New invoice"}
+        </p>
+        <button
+          type="button"
+          className="ml-auto text-sm link-muted"
+          onClick={() => onDone()}
+        >
+          Cancel
+        </button>
+      </Toolbar>
 
-        <Card>
-          <SectionHeading>
-            {asQuote ? "Quote details" : "Invoice details"}
-          </SectionHeading>
-          <div className="grid gap-(--gap-toolbar) sm:grid-cols-3">
-            <Field label="Customer">
-              <RecordPicker<Contact>
-                path="/api/contacts"
-                resource="contacts"
-                value={customer}
-                onChange={setCustomer}
-                placeholder="Choose a customer"
-                clearLabel="No customer"
-                noun="customer"
+      <Card>
+        <SectionHeading>
+          {asQuote ? "Quote details" : "Invoice details"}
+        </SectionHeading>
+        <div className="grid gap-(--gap-toolbar) sm:grid-cols-3">
+          <Field label="Customer">
+            <RecordPicker<Contact>
+              path="/api/contacts"
+              resource="contacts"
+              value={customer}
+              onChange={setCustomer}
+              placeholder="Choose a customer"
+              clearLabel="No customer"
+              noun="customer"
+            />
+          </Field>
+          {!asQuote &&
+            (() => {
+              const company = customer?.companyId;
+              const usable = (exemptions.data?.certificates ?? []).filter(
+                (cert) =>
+                  cert.companyId === company &&
+                  (cert.status === "valid" || cert.status === "expiring-soon"),
+              );
+              // No certificates, no field: the café never sees this.
+              if (!company || usable.length === 0) return null;
+              return (
+                <Field
+                  label="Tax exemption"
+                  hint="Charged at nothing, with the certificate recorded on the invoice as evidence."
+                >
+                  <Select
+                    value={exemptionCertificateId}
+                    onChange={(e) => setExemptionCertificateId(e.target.value)}
+                  >
+                    <option value="">Not exempt</option>
+                    {usable.map((cert) => (
+                      <option key={cert.id} value={cert.id}>
+                        {cert.state} · {cert.number}
+                        {cert.status === "expiring-soon"
+                          ? " (expiring soon)"
+                          : ""}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              );
+            })()}
+          {asQuote ? (
+            <Field
+              label="Valid until"
+              hint="After this the price is no longer promised."
+            >
+              <Input
+                type="date"
+                value={validUntil}
+                onChange={(e) => setValidUntil(e.target.value)}
               />
             </Field>
-            {!asQuote &&
-              (() => {
-                const company = customer?.companyId;
-                const usable = (exemptions.data?.certificates ?? []).filter(
-                  (cert) =>
-                    cert.companyId === company &&
-                    (cert.status === "valid" ||
-                      cert.status === "expiring-soon"),
-                );
-                // No certificates, no field: the café never sees this.
-                if (!company || usable.length === 0) return null;
-                return (
-                  <Field
-                    label="Tax exemption"
-                    hint="Charged at nothing, with the certificate recorded on the invoice as evidence."
-                  >
-                    <Select
-                      value={exemptionCertificateId}
-                      onChange={(e) =>
-                        setExemptionCertificateId(e.target.value)
-                      }
-                    >
-                      <option value="">Not exempt</option>
-                      {usable.map((cert) => (
-                        <option key={cert.id} value={cert.id}>
-                          {cert.state} · {cert.number}
-                          {cert.status === "expiring-soon"
-                            ? " (expiring soon)"
-                            : ""}
-                        </option>
-                      ))}
-                    </Select>
-                  </Field>
-                );
-              })()}
-            {asQuote ? (
-              <Field
-                label="Valid until"
-                hint="After this the price is no longer promised."
-              >
-                <Input
-                  type="date"
-                  value={validUntil}
-                  onChange={(e) => setValidUntil(e.target.value)}
-                />
-              </Field>
-            ) : (
-              <Field
-                label="Due"
-                hint="Left blank, it defaults to thirty days — an invoice with no due date is never chased."
-              >
-                <Input
-                  type="date"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                />
-              </Field>
-            )}
+          ) : (
             <Field
-              label="Payment terms"
-              hint="Choosing one sets the due date to match."
+              label="Due"
+              hint="Left blank, it defaults to thirty days — an invoice with no due date is never chased."
             >
+              <Input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+              />
+            </Field>
+          )}
+          <Field
+            label="Payment terms"
+            hint="Choosing one sets the due date to match."
+          >
+            <Select
+              value={
+                terms.some((t) => t.label === paymentTerms) ? paymentTerms : ""
+              }
+              onChange={(e) => chooseTerms(e.target.value)}
+            >
+              <option value="">Something else…</option>
+              {terms.map((term) => (
+                <option key={term.label} value={term.label}>
+                  {term.label}
+                </option>
+              ))}
+            </Select>
+            {/* A business with an arrangement nobody else has still needs to
+                write it down. */}
+            {terms.some((t) => t.label === paymentTerms) ? null : (
+              <Input
+                className="mt-(--gap-tight)"
+                value={paymentTerms}
+                placeholder="Half on delivery, half in 30 days"
+                aria-label="Payment terms in your own words"
+                onChange={(e) => setPaymentTerms(e.target.value)}
+              />
+            )}
+          </Field>
+          {/* The reference the customer files this under — their PO number,
+              or a German public body's Leitweg-ID. A structured e-invoice
+              cannot travel the network without one. */}
+          {asQuote ? null : (
+            <Field
+              label="Customer's reference"
+              hint="Their PO number or reference. Required on e-invoices."
+            >
+              <Input
+                value={buyerReference}
+                onChange={(e) => setBuyerReference(e.target.value)}
+              />
+            </Field>
+          )}
+          {/* One business, usually one letterhead — but a trade that bills
+              two names out of one company needs to say which. */}
+          {(letterheads.data?.templates ?? []).length > 1 ? (
+            <Field label="Letterhead">
               <Select
-                value={
-                  terms.some((t) => t.label === paymentTerms)
-                    ? paymentTerms
-                    : ""
-                }
-                onChange={(e) => chooseTerms(e.target.value)}
+                value={templateId}
+                onChange={(e) => setTemplateId(e.target.value)}
               >
-                <option value="">Something else…</option>
-                {terms.map((term) => (
-                  <option key={term.label} value={term.label}>
-                    {term.label}
+                <option value="">The usual one</option>
+                {(letterheads.data?.templates ?? []).map((letterhead) => (
+                  <option key={letterhead.id} value={letterhead.id}>
+                    {letterhead.name}
+                    {letterhead.isDefault ? " (default)" : ""}
                   </option>
                 ))}
               </Select>
-              {/* A business with an arrangement nobody else has still needs to
-                  write it down. */}
-              {terms.some((t) => t.label === paymentTerms) ? null : (
-                <Input
-                  className="mt-(--gap-tight)"
-                  value={paymentTerms}
-                  placeholder="Half on delivery, half in 30 days"
-                  aria-label="Payment terms in your own words"
-                  onChange={(e) => setPaymentTerms(e.target.value)}
-                />
-              )}
             </Field>
-            {/* The reference the customer files this under — their PO number,
-                or a German public body's Leitweg-ID. A structured e-invoice
-                cannot travel the network without one. */}
-            {asQuote ? null : (
-              <Field
-                label="Customer's reference"
-                hint="Their PO number or reference. Required on e-invoices."
+          ) : null}
+        </div>
+      </Card>
+
+      <Card>
+        <SectionHeading
+          trailing={(() => {
+            const local = localRates.data?.taxes ?? [];
+            // Nothing to apply, or the sale is exempt under a certificate —
+            // in which case offering to put tax on it is the wrong suggestion.
+            if (local.length === 0 || exemptionCertificateId) return null;
+            return (
+              <button
+                type="button"
+                className="text-sm link-muted"
+                title="Puts the rates for this customer's own state and city on every line."
+                onClick={() =>
+                  setLines((current) =>
+                    current.map((l) => ({
+                      ...l,
+                      taxDefinitionIds: local.map((t) => t.id),
+                    })),
+                  )
+                }
               >
+                Use the customer's local rates
+              </button>
+            );
+          })()}
+        >
+          Line items
+        </SectionHeading>
+        <div className="flex flex-col gap-(--gap-toolbar)">
+          {lines.map((line, i) => (
+            <div
+              key={line.key}
+              className="grid gap-(--gap-toolbar) sm:grid-cols-[minmax(0,1fr)_minmax(0,5rem)_minmax(0,6rem)_minmax(0,7rem)_minmax(0,8rem)_minmax(0,2rem)]"
+            >
+              <span className="flex flex-col gap-(--gap-tight)">
                 <Input
-                  value={buyerReference}
-                  onChange={(e) => setBuyerReference(e.target.value)}
+                  value={line.description}
+                  placeholder="What was done"
+                  aria-label={`Line ${i + 1} description`}
+                  onChange={(e) => setLine(i, { description: e.target.value })}
                 />
-              </Field>
-            )}
-            {/* One business, usually one letterhead — but a trade that bills
-                two names out of one company needs to say which. */}
-            {(letterheads.data?.templates ?? []).length > 1 ? (
-              <Field label="Letterhead">
-                <Select
-                  value={templateId}
-                  onChange={(e) => setTemplateId(e.target.value)}
-                >
-                  <option value="">The usual one</option>
-                  {(letterheads.data?.templates ?? []).map((letterhead) => (
-                    <option key={letterhead.id} value={letterhead.id}>
-                      {letterhead.name}
-                      {letterhead.isDefault ? " (default)" : ""}
+                {catalogue.length > 0 ? (
+                  <Select
+                    value={line.billableItemId ?? ""}
+                    aria-label={`Line ${i + 1} from the catalogue`}
+                    className="w-full text-xs"
+                    onChange={(e) => pickItem(i, e.target.value)}
+                  >
+                    <option value="">Or pick from your list…</option>
+                    {catalogue.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name} — {formatMoney(item.unitPriceCents)}
+                      </option>
+                    ))}
+                  </Select>
+                ) : null}
+              </span>
+              <Input
+                value={line.quantity}
+                inputMode="decimal"
+                aria-label={`Line ${i + 1} quantity`}
+                onChange={(e) => setLine(i, { quantity: e.target.value })}
+              />
+              {/* The line keeps whatever unit it arrived with, even if the
+                  business has since dropped it from the list — an invoice
+                  that silently changes "cubic yard" to "piece" is worse than
+                  a stale option. */}
+              <Select
+                value={line.unit}
+                aria-label={`Line ${i + 1} unit`}
+                onChange={(e) => setLine(i, { unit: e.target.value })}
+              >
+                {(units.includes(line.unit)
+                  ? units
+                  : [line.unit, ...units].filter(Boolean)
+                ).map((unit) => (
+                  <option key={unit} value={unit}>
+                    {unit}
+                  </option>
+                ))}
+              </Select>
+              <Input
+                value={line.unitPrice}
+                inputMode="decimal"
+                placeholder="0.00"
+                aria-label={
+                  pricesIncludeTax
+                    ? `Line ${i + 1} unit price including tax`
+                    : `Line ${i + 1} unit price`
+                }
+                onChange={(e) => setLine(i, { unitPrice: e.target.value })}
+              />
+              {/* One select per tax on the line, plus one to add another —
+                  Canada charges GST beside a provincial tax on the same
+                  line. Clearing a select takes that tax off the line. */}
+              <span className="flex flex-col gap-(--gap-tight)">
+                {[...line.taxDefinitionIds, ""].map((chosen, at) => (
+                  <Select
+                    key={`${line.key}-tax-${chosen || "add"}`}
+                    value={chosen}
+                    className="w-full"
+                    aria-label={
+                      chosen
+                        ? `Line ${i + 1} tax ${at + 1}`
+                        : line.taxDefinitionIds.length
+                          ? `Line ${i + 1}: add another tax`
+                          : `Line ${i + 1} tax`
+                    }
+                    onChange={(e) => {
+                      const next = [...line.taxDefinitionIds];
+                      if (e.target.value) next.splice(at, 1, e.target.value);
+                      else next.splice(at, 1);
+                      setLine(i, { taxDefinitionIds: [...new Set(next)] });
+                    }}
+                  >
+                    <option value="">
+                      {chosen || !line.taxDefinitionIds.length
+                        ? "No tax"
+                        : "Add tax…"}
                     </option>
-                  ))}
-                </Select>
-              </Field>
-            ) : null}
-          </div>
+                    {rates
+                      .filter(
+                        (rate) =>
+                          rate.id === chosen ||
+                          !line.taxDefinitionIds.includes(rate.id),
+                      )
+                      .map((rate) => (
+                        <option key={rate.id} value={rate.id}>
+                          {rate.name}
+                        </option>
+                      ))}
+                  </Select>
+                ))}
+              </span>
+              <button
+                type="button"
+                className="link-muted"
+                aria-label={`Remove line ${i + 1}`}
+                disabled={lines.length === 1}
+                onClick={() =>
+                  setLines((current) => current.filter((_, at) => at !== i))
+                }
+              >
+                <Icon name="close" size={15} />
+              </button>
+            </div>
+          ))}
+        </div>
+        <div className="mt-(--gap-toolbar)">
+          <Button
+            variant="secondary"
+            onClick={() =>
+              setLines((current) => [...current, blankLine(units[0])])
+            }
+          >
+            Add a line
+          </Button>
+        </div>
+      </Card>
+
+      <div className="grid grid-cols-1 gap-(--gap-stack) lg:grid-cols-2">
+        <Card>
+          <SectionHeading>Notes</SectionHeading>
+          <Textarea
+            value={notes}
+            rows={5}
+            placeholder="Anything the customer should read on the invoice"
+            aria-label="Notes"
+            onChange={(e) => setNotes(e.target.value)}
+          />
         </Card>
 
         <Card>
-          <SectionHeading
-            trailing={(() => {
-              const local = localRates.data?.taxes ?? [];
-              // Nothing to apply, or the sale is exempt under a certificate —
-              // in which case offering to put tax on it is the wrong suggestion.
-              if (local.length === 0 || exemptionCertificateId) return null;
-              return (
-                <button
-                  type="button"
-                  className="text-sm link-muted"
-                  title="Puts the rates for this customer's own state and city on every line."
-                  onClick={() =>
-                    setLines((current) =>
-                      current.map((l) => ({
-                        ...l,
-                        taxDefinitionIds: local.map((t) => t.id),
-                      })),
-                    )
-                  }
-                >
-                  Use the customer's local rates
-                </button>
-              );
-            })()}
-          >
-            Line items
-          </SectionHeading>
-          <div className="flex flex-col gap-(--gap-toolbar)">
-            {lines.map((line, i) => (
-              <div
-                key={line.key}
-                className="grid gap-(--gap-toolbar) sm:grid-cols-[minmax(0,1fr)_minmax(0,5rem)_minmax(0,6rem)_minmax(0,7rem)_minmax(0,8rem)_minmax(0,2rem)]"
+          <SectionHeading>Total</SectionHeading>
+
+          <Toolbar className="mb-(--gap-toolbar)">
+            <Field label="Discount">
+              <Select
+                value={discountType}
+                onChange={(e) => setDiscountType(e.target.value)}
               >
-                <span className="flex flex-col gap-(--gap-tight)">
-                  <Input
-                    value={line.description}
-                    placeholder="What was done"
-                    aria-label={`Line ${i + 1} description`}
-                    onChange={(e) =>
-                      setLine(i, { description: e.target.value })
-                    }
-                  />
-                  {catalogue.length > 0 ? (
-                    <Select
-                      value={line.billableItemId ?? ""}
-                      aria-label={`Line ${i + 1} from the catalogue`}
-                      className="w-full text-xs"
-                      onChange={(e) => pickItem(i, e.target.value)}
-                    >
-                      <option value="">Or pick from your list…</option>
-                      {catalogue.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name} — {formatMoney(item.unitPriceCents)}
-                        </option>
-                      ))}
-                    </Select>
-                  ) : null}
-                </span>
+                <option value="">None</option>
+                <option value="percent">A percentage</option>
+                <option value="amount">A fixed amount</option>
+              </Select>
+            </Field>
+            {discountType ? (
+              <Field label={discountType === "percent" ? "%" : "Amount"}>
                 <Input
-                  value={line.quantity}
+                  value={discountValue}
                   inputMode="decimal"
-                  aria-label={`Line ${i + 1} quantity`}
-                  onChange={(e) => setLine(i, { quantity: e.target.value })}
+                  onChange={(e) => setDiscountValue(e.target.value)}
                 />
-                {/* The line keeps whatever unit it arrived with, even if the
-                    business has since dropped it from the list — an invoice
-                    that silently changes "cubic yard" to "piece" is worse than
-                    a stale option. */}
-                <Select
-                  value={line.unit}
-                  aria-label={`Line ${i + 1} unit`}
-                  onChange={(e) => setLine(i, { unit: e.target.value })}
-                >
-                  {(units.includes(line.unit)
-                    ? units
-                    : [line.unit, ...units].filter(Boolean)
-                  ).map((unit) => (
-                    <option key={unit} value={unit}>
-                      {unit}
-                    </option>
-                  ))}
-                </Select>
-                <Input
-                  value={line.unitPrice}
-                  inputMode="decimal"
-                  placeholder="0.00"
-                  aria-label={
-                    pricesIncludeTax
-                      ? `Line ${i + 1} unit price including tax`
-                      : `Line ${i + 1} unit price`
-                  }
-                  onChange={(e) => setLine(i, { unitPrice: e.target.value })}
-                />
-                {/* One select per tax on the line, plus one to add another —
-                    Canada charges GST beside a provincial tax on the same
-                    line. Clearing a select takes that tax off the line. */}
-                <span className="flex flex-col gap-(--gap-tight)">
-                  {[...line.taxDefinitionIds, ""].map((chosen, at) => (
-                    <Select
-                      key={`${line.key}-tax-${chosen || "add"}`}
-                      value={chosen}
-                      className="w-full"
-                      aria-label={
-                        chosen
-                          ? `Line ${i + 1} tax ${at + 1}`
-                          : line.taxDefinitionIds.length
-                            ? `Line ${i + 1}: add another tax`
-                            : `Line ${i + 1} tax`
-                      }
-                      onChange={(e) => {
-                        const next = [...line.taxDefinitionIds];
-                        if (e.target.value) next.splice(at, 1, e.target.value);
-                        else next.splice(at, 1);
-                        setLine(i, { taxDefinitionIds: [...new Set(next)] });
-                      }}
-                    >
-                      <option value="">
-                        {chosen || !line.taxDefinitionIds.length
-                          ? "No tax"
-                          : "Add tax…"}
-                      </option>
-                      {rates
-                        .filter(
-                          (rate) =>
-                            rate.id === chosen ||
-                            !line.taxDefinitionIds.includes(rate.id),
-                        )
-                        .map((rate) => (
-                          <option key={rate.id} value={rate.id}>
-                            {rate.name}
-                          </option>
-                        ))}
-                    </Select>
-                  ))}
-                </span>
-                <button
-                  type="button"
-                  className="link-muted"
-                  aria-label={`Remove line ${i + 1}`}
-                  disabled={lines.length === 1}
-                  onClick={() =>
-                    setLines((current) => current.filter((_, at) => at !== i))
-                  }
-                >
-                  <Icon name="close" size={15} />
-                </button>
-              </div>
-            ))}
-          </div>
-          <div className="mt-(--gap-toolbar)">
-            <Button
-              variant="secondary"
-              onClick={() =>
-                setLines((current) => [...current, blankLine(units[0])])
-              }
-            >
-              Add a line
-            </Button>
-          </div>
-        </Card>
+              </Field>
+            ) : null}
+          </Toolbar>
 
-        <div className="grid grid-cols-1 gap-(--gap-stack) lg:grid-cols-2">
-          <Card>
-            <SectionHeading>Notes</SectionHeading>
-            <Textarea
-              value={notes}
-              rows={5}
-              placeholder="Anything the customer should read on the invoice"
-              aria-label="Notes"
-              onChange={(e) => setNotes(e.target.value)}
-            />
-          </Card>
-
-          <Card>
-            <SectionHeading>Total</SectionHeading>
-
+          {/*
+            Pay early, pay less. Not offered on a quote: nothing is owed yet,
+            so there is nothing to settle sooner.
+          */}
+          {!asQuote ? (
             <Toolbar className="mb-(--gap-toolbar)">
-              <Field label="Discount">
+              <Field label="Pay early, pay less">
                 <Select
-                  value={discountType}
-                  onChange={(e) => setDiscountType(e.target.value)}
+                  value={earlyType}
+                  onChange={(e) => setEarlyType(e.target.value)}
                 >
-                  <option value="">None</option>
-                  <option value="percent">A percentage</option>
-                  <option value="amount">A fixed amount</option>
+                  <option value="">Not offered</option>
+                  <option value="percent">A percentage off</option>
+                  <option value="amount">A fixed amount off</option>
                 </Select>
               </Field>
-              {discountType ? (
-                <Field label={discountType === "percent" ? "%" : "Amount"}>
-                  <Input
-                    value={discountValue}
-                    inputMode="decimal"
-                    onChange={(e) => setDiscountValue(e.target.value)}
-                  />
-                </Field>
+              {earlyType ? (
+                <>
+                  <Field label={earlyType === "percent" ? "%" : "Amount"}>
+                    <Input
+                      value={earlyValue}
+                      inputMode="decimal"
+                      className="w-24"
+                      onChange={(e) => setEarlyValue(e.target.value)}
+                    />
+                  </Field>
+                  <Field label="Within (days)">
+                    <Input
+                      value={earlyDays}
+                      inputMode="numeric"
+                      className="w-24"
+                      onChange={(e) => setEarlyDays(e.target.value)}
+                    />
+                  </Field>
+                </>
               ) : null}
             </Toolbar>
+          ) : null}
 
-            {/*
-              Pay early, pay less. Not offered on a quote: nothing is owed yet,
-              so there is nothing to settle sooner.
-            */}
-            {!asQuote ? (
-              <Toolbar className="mb-(--gap-toolbar)">
-                <Field label="Pay early, pay less">
-                  <Select
-                    value={earlyType}
-                    onChange={(e) => setEarlyType(e.target.value)}
-                  >
-                    <option value="">Not offered</option>
-                    <option value="percent">A percentage off</option>
-                    <option value="amount">A fixed amount off</option>
-                  </Select>
-                </Field>
-                {earlyType ? (
-                  <>
-                    <Field label={earlyType === "percent" ? "%" : "Amount"}>
-                      <Input
-                        value={earlyValue}
-                        inputMode="decimal"
-                        className="w-24"
-                        onChange={(e) => setEarlyValue(e.target.value)}
-                      />
-                    </Field>
-                    <Field label="Within (days)">
-                      <Input
-                        value={earlyDays}
-                        inputMode="numeric"
-                        className="w-24"
-                        onChange={(e) => setEarlyDays(e.target.value)}
-                      />
-                    </Field>
-                  </>
-                ) : null}
-              </Toolbar>
-            ) : null}
-
-            <table className="w-full text-sm">
-              <tbody>
+          <table className="w-full text-sm">
+            <tbody>
+              <tr>
+                <td style={muted}>Subtotal</td>
+                <td className="money">{formatMoney(preview.subtotal)}</td>
+              </tr>
+              {preview.discount > 0 ? (
                 <tr>
-                  <td style={muted}>Subtotal</td>
-                  <td className="money">{formatMoney(preview.subtotal)}</td>
+                  <td style={muted}>Discount</td>
+                  <td className="money">−{formatMoney(preview.discount)}</td>
                 </tr>
-                {preview.discount > 0 ? (
-                  <tr>
-                    <td style={muted}>Discount</td>
-                    <td className="money">−{formatMoney(preview.discount)}</td>
-                  </tr>
-                ) : null}
-                <tr>
-                  <td style={muted}>Tax</td>
-                  <td className="money">{formatMoney(preview.tax)}</td>
-                </tr>
-                <tr className="border-t font-semibold" style={border}>
-                  <td className="pt-1">Total</td>
-                  <td className="money pt-1">{formatMoney(preview.total)}</td>
-                </tr>
-              </tbody>
-            </table>
+              ) : null}
+              <tr>
+                <td style={muted}>Tax</td>
+                <td className="money">{formatMoney(preview.tax)}</td>
+              </tr>
+              <tr className="border-t font-semibold" style={border}>
+                <td className="pt-1">Total</td>
+                <td className="money pt-1">{formatMoney(preview.total)}</td>
+              </tr>
+            </tbody>
+          </table>
 
-            {/*
-              Tax on what is left after the discount, not before it — the order
-              every tax authority expects, and the one the server uses.
-            */}
-            <p className="mt-(--gap-toolbar) text-xs" style={muted}>
-              {pricesIncludeTax
-                ? "Prices include tax, so the total is what you typed. The tax is shown separately above because the document has to state it."
-                : "Worked out with the same code the invoice is saved with."}
-            </p>
-          </Card>
-        </div>
+          {/*
+            Tax on what is left after the discount, not before it — the order
+            every tax authority expects, and the one the server uses.
+          */}
+          <p className="mt-(--gap-toolbar) text-xs" style={muted}>
+            {pricesIncludeTax
+              ? "Prices include tax, so the total is what you typed. The tax is shown separately above because the document has to state it."
+              : "Worked out with the same code the invoice is saved with."}
+          </p>
+        </Card>
+      </div>
 
-        <Toolbar>
-          {/* One button when editing, two when raising.
-              Editing does not change a document's status — a PATCH that quietly
-              issued a draft because somebody pressed the wrong one of two
-              buttons would be a surprise with a journal entry behind it — so
-              offering "Save as a draft" beside "Raise it" here would be two
-              labels for the same thing. */}
-          {documentId ? (
+      <Toolbar>
+        {/* One button when editing, two when raising.
+            Editing does not change a document's status — a PATCH that quietly
+            issued a draft because somebody pressed the wrong one of two
+            buttons would be a surprise with a journal entry behind it — so
+            offering "Save as a draft" beside "Raise it" here would be two
+            labels for the same thing. */}
+        {documentId ? (
+          <Button
+            needs={{ invoicing: ["update"] }}
+            onClick={() => save.mutate("draft")}
+            disabled={save.isPending || !usable}
+          >
+            {save.isPending ? "Saving…" : "Save changes"}
+          </Button>
+        ) : (
+          <>
             <Button
-              needs={{ invoicing: ["update"] }}
+              needs={{ invoicing: ["create"] }}
               onClick={() => save.mutate("draft")}
               disabled={save.isPending || !usable}
+              variant="secondary"
             >
-              {save.isPending ? "Saving…" : "Save changes"}
+              {save.isPending ? "Saving…" : "Save as a draft"}
             </Button>
-          ) : (
-            <>
-              <Button
-                needs={{ invoicing: ["create"] }}
-                onClick={() => save.mutate("draft")}
-                disabled={save.isPending || !usable}
-                variant="secondary"
-              >
-                {save.isPending ? "Saving…" : "Save as a draft"}
-              </Button>
-              <Button
-                needs={{ invoicing: ["create"] }}
-                onClick={() => save.mutate("open")}
-                disabled={save.isPending || !usable}
-              >
-                {asQuote ? "Save the quote" : "Raise it"}
-              </Button>
-            </>
-          )}
-          {!usable ? (
-            <span className="text-sm" style={muted}>
-              At least one line with a description.
-            </span>
-          ) : null}
-        </Toolbar>
+            <Button
+              needs={{ invoicing: ["create"] }}
+              onClick={() => save.mutate("open")}
+              disabled={save.isPending || !usable}
+            >
+              {asQuote ? "Save the quote" : "Raise it"}
+            </Button>
+          </>
+        )}
+        {!usable ? (
+          <span className="text-sm" style={muted}>
+            At least one line with a description.
+          </span>
+        ) : null}
+      </Toolbar>
 
-        {save.error ? <ErrorNote error={save.error} /> : null}
-      </Page>
-    </EditorScope>
+      {save.error ? <ErrorNote error={save.error} /> : null}
+    </Page>
   );
 }
