@@ -1097,8 +1097,12 @@ const tables = {
       if (quotes.length) {
         parts.push(`${quotes.length} quote${quotes.length > 1 ? "s" : ""}`);
       }
+      // "1 invoice … would leave those without a customer" is the plural
+      // agreeing with nothing. One document is "it"; two or more, or one of
+      // each kind, are "those".
+      const many = invoices.length + quotes.length > 1;
       return parts.length
-        ? `This customer has ${parts.join(" and ")}. Deleting them would leave those without a customer.`
+        ? `This customer has ${parts.join(" and ")}. Deleting them would leave ${many ? "those" : "it"} without a customer.`
         : null;
     },
     /**

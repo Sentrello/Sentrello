@@ -573,11 +573,12 @@ function BulkActions({
 
   const remove = useMutation({
     mutationFn: async () => {
-      const count = selected.length;
       const refused: string[] = [];
+      let gone = 0;
       for (const id of selected) {
         try {
           await api(`/api/contacts/${id}`, { method: "DELETE" });
+          gone += 1;
         } catch (err) {
           // A customer with invoices cannot be deleted, and the server says
           // so per contact. Carrying on and reporting at the end beats
@@ -585,8 +586,28 @@ function BulkActions({
           refused.push((err as Error).message);
         }
       }
-      if (refused.length) throw new Error(refused[0]);
-      return count;
+      /*
+       * Both halves of what happened, because a selection of forty is
+       * usually neither.
+       *
+       * This threw the first refusal and nothing else: thirty-five contacts
+       * were deleted, five were kept, and the screen reported one sentence
+       * about one of the five. Somebody reading it has no way to know the
+       * other thirty-five are gone — so the safe assumption is that nothing
+       * worked, and the safe action is to try again on a list that is no
+       * longer the one they selected.
+       */
+      if (refused.length) {
+        const [first] = refused;
+        const also =
+          refused.length > 1
+            ? ` ${refused.length - 1} more could not be deleted either.`
+            : "";
+        throw new Error(
+          `${gone === 0 ? "Nothing was deleted." : `${gone} deleted.`} ${first}${also}`,
+        );
+      }
+      return gone;
     },
     onSuccess: (count) => {
       announce(`${count} contact${count === 1 ? "" : "s"} deleted`);
