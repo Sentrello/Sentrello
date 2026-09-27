@@ -389,6 +389,40 @@ td .link {
  * form looking like a page of hyperlinks. They still have to answer the
  * pointer: quiet until hovered, full text colour once it is.
  */
+/*
+ * A prompt somebody can read, in both themes.
+ *
+ * Nothing in this product had ever said what a placeholder should look like,
+ * so every field used the browser's own answer: the text colour at roughly
+ * half strength. On white that is quiet and fine. On the dark panel behind
+ * the search palette it is most of the way to the background — James, 27
+ * September 2026, on the one field where a prompt is the whole of what the
+ * control says before you type.
+ *
+ * `--text-muted` instead, which is the token every other quiet thing on the
+ * page uses and the one the contrast pass measured. `opacity: 1` because
+ * Firefox dims placeholders on top of whatever colour it is given, which
+ * would put this back where it started.
+ */
+::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+/*
+ * And brighter still where the prompt is the whole of what the control says.
+ *
+ * The same argument the header's search button already carries in a comment:
+ * "Find anything" is a label on a control, not placeholder text waiting to be
+ * replaced, so it takes the full text colour. The field that opens from it is
+ * the same control a moment later, and its prompt was the muted token — which
+ * is right for a hint beside a label and too quiet for a field that has no
+ * label at all.
+ */
+.prompt-strong::placeholder {
+  color: var(--text);
+}
+
 .link-muted {
   color: var(--text-muted);
   text-decoration: none;

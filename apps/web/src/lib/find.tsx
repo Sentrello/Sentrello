@@ -261,7 +261,7 @@ function FindDialog({ onClose }: { onClose: () => void }) {
           aria-expanded={hits.length > 0}
           aria-controls="find-hits"
           aria-activedescendant={hits[at] ? `find-hit-${at}` : undefined}
-          className="w-full border-b px-4 py-3 text-base"
+          className="prompt-strong w-full border-b px-4 py-3 text-base"
           style={{ background: "transparent", borderColor: "var(--border)" }}
           onChange={(e) => {
             setQ(e.target.value);
