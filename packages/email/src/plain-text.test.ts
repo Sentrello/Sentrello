@@ -75,3 +75,19 @@ test("a line wrapped in the markup is one sentence in the words", () => {
     "treat it like a bill in the post.",
   );
 });
+
+/**
+ * A figure that is not a number never reaches a customer. `ui.tsx` learned
+ * this when a component read the wrong property name and put "$NaN" on a
+ * screen; in a message it is worse, because it is in somebody's inbox and
+ * the business has to explain it.
+ */
+test("a money figure that is not a number stops the message", () => {
+  expect(() =>
+    invoiceEmail({
+      number: "INV-0009",
+      totalCents: Number.NaN,
+      currency: "USD",
+    }),
+  ).toThrow(/money figure/);
+});

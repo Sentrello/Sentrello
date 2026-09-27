@@ -60,6 +60,26 @@ export function formatMoney(
   currency = "USD",
   locale = "en-US",
 ): string {
+  /**
+   * A figure that is not a number never reaches a customer.
+   *
+   * `ui.tsx` learned this the hard way and wrote it down: a component read
+   * `cents` from a response whose field is `balanceCents`, and "$NaN" went
+   * on a screen a business makes decisions on. The same mistake here is
+   * worse. A screen can be reloaded; a receipt saying "We received $NaN"
+   * is in somebody's inbox, and the business has to explain it.
+   *
+   * On screen the answer is a dash, because the rest of the page is still
+   * worth drawing. In a message it is a throw: the caller is a send site
+   * that already catches and logs, so the message is not sent and somebody
+   * finds out — which is exactly what should happen to a field name that
+   * does not exist.
+   */
+  if (!Number.isFinite(cents)) {
+    throw new Error(
+      `[email] a money figure was ${cents}; the message was not sent`,
+    );
+  }
   return new Intl.NumberFormat(locale, { style: "currency", currency }).format(
     cents / 100,
   );
