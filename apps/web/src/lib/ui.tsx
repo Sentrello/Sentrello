@@ -1227,14 +1227,31 @@ export function ErrorNote({ error }: { error: unknown }) {
     error && typeof error === "object" && "serverMessage" in error
       ? (error as { serverMessage?: string }).serverMessage
       : undefined;
+  /*
+   * "not found" is what a route says to a log, and it reached the screen.
+   *
+   * A bookmark to a record somebody has since deleted drew the page's own
+   * title above the server's two words: **"Contacts not found"**, which
+   * reads as the Contacts screen being missing rather than one contact. The
+   * commonest way to land here is an old link, and the answer to that is a
+   * sentence rather than a status.
+   *
+   * Only when the server said nothing better. A route that names what is
+   * missing has said something worth keeping, and this must not talk over
+   * it.
+   */
+  const bareNotFound =
+    status === 404 && (!fromServer || /^not found\.?$/i.test(fromServer));
   const message =
     status === 403
       ? "Your role does not allow this."
       : status === 401
         ? "Your session has expired. Sign in again."
-        : (fromServer ??
-          unreachableMessage(error) ??
-          "Something went wrong. Try again.");
+        : bareNotFound
+          ? "This is not here any more. It may have been deleted, or the link may be out of date."
+          : (fromServer ??
+            unreachableMessage(error) ??
+            "Something went wrong. Try again.");
   /*
    * `role="alert"`, and it is the whole difference between a message and a
    * message somebody receives.
