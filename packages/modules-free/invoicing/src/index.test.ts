@@ -441,6 +441,40 @@ test("an overpayment becomes a customer credit when the policy says so, posting 
   await db.delete(schema.contacts).where(eq(schema.contacts.id, customer.id));
 });
 
+/**
+ * An id that cannot be an id is a 404, not a 500.
+ *
+ * Postgres answers a malformed uuid with an error rather than an empty
+ * result, so `/invoicing/new` typed into the address bar — or any stale link
+ * with a word where an id should be — came back 500 and the screen drew its
+ * error boundary: "something went wrong". A person who mistyped an address
+ * was being told the software had broken.
+ *
+ * The CRM's records already refused it. Invoices and quotes did not, and
+ * they are the two a customer's own link points at.
+ */
+for (const [what, path] of [
+  ["an invoice", "/api/invoices"],
+  ["a quote", "/api/quotes"],
+] as const) {
+  test(`${what} asked for by a word rather than an id is a 404`, async () => {
+    for (const id of ["new", "not-a-uuid", "1", "%20"]) {
+      const res = await app.request(`http://localhost${path}/${id}`, {
+        headers,
+      });
+      expect(res.status, `${path}/${id} answered ${res.status}`).toBe(404);
+    }
+
+    // And a well-formed id that is simply not there is still a 404, which is
+    // the behaviour this must not have changed.
+    const absent = await app.request(
+      `http://localhost${path}/00000000-0000-0000-0000-000000000000`,
+      { headers },
+    );
+    expect(absent.status).toBe(404);
+  });
+}
+
 test("paying an invoice from another organization is a 404, not a leak", async () => {
   const [foreign] = await db
     .insert(schema.invoices)

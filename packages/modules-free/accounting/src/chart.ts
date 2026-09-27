@@ -3,7 +3,7 @@ import {
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
-import { and, db, eq, inArray, isNull, schema } from "@sentrello/db";
+import { and, db, eq, inArray, isNull, isUuid, schema } from "@sentrello/db";
 import { ensureAccount, ownedAccount } from "@sentrello/db/ledger";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 
@@ -106,15 +106,10 @@ export const STANDARD_CHART: {
 /**
  * A shape check before the database sees it.
  *
- * Postgres rejects a malformed uuid with an error rather than an empty result,
- * so an id typed into a URL by hand would otherwise be a 500 rather than the
- * 404 it is.
+ * Lives in `@sentrello/db` now, with the other things three packages needed.
+ * Re-exported so every caller here keeps working.
  */
-export function isUuid(value: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-    value,
-  );
-}
+export { isUuid };
 
 /** Accounts an organization already has, by code. */
 async function codesInUse(orgId: string): Promise<Set<string>> {

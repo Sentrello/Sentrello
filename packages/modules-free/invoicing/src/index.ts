@@ -4,7 +4,7 @@ import {
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
-import { db, schema } from "@sentrello/db";
+import { db, isUuid, schema } from "@sentrello/db";
 import { creditFor } from "@sentrello/db/credit";
 import {
   RATE_SCALE,
@@ -1562,12 +1562,15 @@ export default defineModule({
       requirePermission({ invoicing: ["read"] }),
       async (c) => {
         const orgId = activeOrganizationId(c.get("session"));
+        // A shape check before the database sees it; see the invoice route.
+        const quoteId = c.req.param("id");
+        if (!isUuid(quoteId)) return c.json({ error: "not found" }, 404);
         const [quote] = await db
           .select()
           .from(schema.quotes)
           .where(
             and(
-              eq(schema.quotes.id, c.req.param("id")),
+              eq(schema.quotes.id, quoteId),
               eq(schema.quotes.organizationId, orgId),
             ),
           )
@@ -2113,12 +2116,23 @@ export default defineModule({
       requirePermission({ invoicing: ["read"] }),
       async (c) => {
         const orgId = activeOrganizationId(c.get("session"));
+        /*
+         * A shape check before the database sees it.
+         *
+         * This is a route a person reaches by typing, and Postgres answers a
+         * malformed uuid with an error rather than an empty result — so
+         * `/invoicing/new` in the address bar was a 500 and a screen saying
+         * "something went wrong", where it should say it could not find that.
+         * The CRM's records already refused it; these two did not.
+         */
+        const id = c.req.param("id");
+        if (!isUuid(id)) return c.json({ error: "not found" }, 404);
         const [invoice] = await db
           .select()
           .from(schema.invoices)
           .where(
             and(
-              eq(schema.invoices.id, c.req.param("id")),
+              eq(schema.invoices.id, id),
               eq(schema.invoices.organizationId, orgId),
             ),
           )
