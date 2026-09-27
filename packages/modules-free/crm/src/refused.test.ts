@@ -142,6 +142,33 @@ test("a string where a moment belongs is named, on any timestamp column", async 
   }
 });
 
+/**
+ * And the other half: a value the column would have taken.
+ *
+ * An object sent as a contact's `name` is *accepted* — the driver
+ * stringifies it — so the record is saved as `[object Object]` and the list
+ * draws it. Nothing fails. The only sign is a row in somebody's book that
+ * cannot be searched for, or corrected, by name. Found by probing the API
+ * with wrong shapes and then watching the screens walk fail on the mess it
+ * had left behind.
+ */
+test("an object where text belongs is refused, not stringified", async () => {
+  for (const name of [{ a: 1 }, ["a"], {}]) {
+    const res = await post("/api/contacts", { name });
+    expect(res.status, `${JSON.stringify(name)} was accepted`).toBe(400);
+    expect((await res.json()).error).toContain("name");
+  }
+
+  // A number still reads back as what somebody meant.
+  const fine = await post("/api/contacts", { name: 123 });
+  expect(fine.status).toBe(201);
+  const { contact } = (await fine.json()) as {
+    contact: { id: string; name: string };
+  };
+  expect(contact.name).toBe("123");
+  await db.delete(schema.contacts).where(eq(schema.contacts.id, contact.id));
+});
+
 test("and an ordinary create still works", async () => {
   const res = await post("/api/deals", {
     name: `Real ${suffix}`,

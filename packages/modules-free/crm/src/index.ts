@@ -138,6 +138,39 @@ function dateColumnsOf(table: CrudTable): {
   return { moments, days };
 }
 
+/**
+ * A value the column would take and should not.
+ *
+ * The refusals above are the ones Postgres makes for us. This is the other
+ * half: an object sent as a contact's `name` is *accepted* — the driver
+ * stringifies it — so the record is saved as `[object Object]` and the list
+ * draws it. Nothing fails, and the only sign is a row in somebody's book
+ * that cannot be searched for or corrected by name.
+ *
+ * Only text columns, and only objects and arrays. A number or a boolean
+ * where text belongs reads back as "123" or "true", which is what somebody
+ * meant; `{}` and `[]` never are. jsonb columns take objects by design, so
+ * asking the table which is which is the whole of the check.
+ */
+function withCheckedText(
+  table: CrudTable,
+  value: Record<string, unknown>,
+): { ok: true } | { ok: false; field: string } {
+  const columns = getTableColumns(table) as Record<
+    string,
+    { columnType?: string } | undefined
+  >;
+  for (const [field, raw] of Object.entries(value)) {
+    if (raw === null || typeof raw !== "object") continue;
+    if (raw instanceof Date) continue;
+    const kind = columns[field]?.columnType;
+    if (kind === "PgText" || kind === "PgVarchar" || kind === "PgChar") {
+      return { ok: false, field };
+    }
+  }
+  return { ok: true };
+}
+
 function withParsedDates(
   body: Record<string, unknown>,
   table?: CrudTable,
@@ -478,6 +511,13 @@ function crud<T extends keyof typeof tables>(
         fillNameParts(parsed.value);
         normaliseStatus(parsed.value);
       }
+      const shaped = withCheckedText(table, parsed.value);
+      if (!shaped.ok) {
+        return c.json(
+          { error: `${shaped.field} has to be text, not a list or an object.` },
+          400,
+        );
+      }
       await withCustomValues(resource, orgId, parsed.value);
       if (resource === "deals") await withDecidedAt(orgId, parsed.value);
       const refError = await checkLinkedRecords(resource, orgId, parsed.value);
@@ -527,6 +567,13 @@ function crud<T extends keyof typeof tables>(
         if (parsed.value.doNotSell !== undefined) {
           parsed.value.doNotSellOn = parsed.value.doNotSell ? new Date() : null;
         }
+      }
+      const shaped = withCheckedText(table, parsed.value);
+      if (!shaped.ok) {
+        return c.json(
+          { error: `${shaped.field} has to be text, not a list or an object.` },
+          400,
+        );
       }
       await withCustomValues(resource, orgId, parsed.value);
       if (resource === "deals") await withDecidedAt(orgId, parsed.value);
