@@ -1708,7 +1708,7 @@ function Telemetry({
  * in. Turning one off later hides it and deletes nothing — a diary switched
  * off in the winter is still there in the spring.
  */
-function Modules() {
+export function Modules() {
   const qc = useQueryClient();
   const meta = useQuery({
     queryKey: ["meta"],
@@ -1725,7 +1725,34 @@ function Modules() {
     onSuccess: () => qc.invalidateQueries(),
   });
 
-  if (meta.isLoading) return null;
+  if (meta.isLoading) return <Loading />;
+  /*
+   * A call that failed is not a licence with nothing in it.
+   *
+   * This screen read `meta.data?.modules ?? []` and then said, in as many
+   * words, "your licence includes no modules yet" — so a customer with three
+   * of them, on the one occasion the call did not come back, was told
+   * plainly that they had bought nothing. A blank screen is a poor answer;
+   * a confident wrong one is worse, and this is the screen somebody opens
+   * *because* a module is missing.
+   */
+  if (meta.error) {
+    return (
+      <Card>
+        <ErrorNote error={meta.error} />
+        <div className="mt-(--gap-toolbar)">
+          <button
+            type="button"
+            onClick={() => meta.refetch()}
+            disabled={meta.isFetching}
+            className="text-sm link-muted"
+          >
+            {meta.isFetching ? "Asking again…" : "Try again"}
+          </button>
+        </div>
+      </Card>
+    );
+  }
 
   // The server says which modules are optional and how each stands. The
   // browser working that out from the nav would get it wrong the first time a
