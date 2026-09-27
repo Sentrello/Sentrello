@@ -252,6 +252,33 @@ function recallShape(): Meta | null {
  * The nav renders only what the server loaded, which is only what the license
  * entitles — the UI can never show a feature the instance isn't licensed for.
  */
+/**
+ * Whether a query the whole application waits on has answered *at all* yet.
+ *
+ * `isLoading` is not that question, and the difference held the product
+ * hostage. A query with no data that starts fetching again goes back to
+ * `pending` — an error it had already reported is cleared — so `isLoading`
+ * turns true a second time, and anything gated on it goes back to a spinner.
+ *
+ * That is not hypothetical. The Profile screen reads `["profile"]`, which is
+ * the same query this shell waits on. With the call failing: the shell gives
+ * up, draws itself, mounts Profile, Profile's observer refetches, the query
+ * returns to `pending`, the shell goes back to `Loading…` and unmounts
+ * Profile again. Twice a second, for ever, on a bare page with no header and
+ * no way out — for as long as that tab is open, and against the instance's
+ * own API. Settings → Modules shares `["meta"]` with the shell the same way.
+ *
+ * `isFetched` is the honest question: it is true from the moment the first
+ * attempt settles, success or failure, and stays true. Wait for the first
+ * answer; never wait again.
+ */
+export function stillDeciding(query: {
+  isLoading: boolean;
+  isFetched: boolean;
+}) {
+  return query.isLoading && !query.isFetched;
+}
+
 function useBootstrap() {
   return useQuery({
     queryKey: ["bootstrap"],
@@ -501,7 +528,7 @@ export default function App() {
    * `Loading` waits a fifth of a second before saying anything, so the fast
    * path still draws nothing and the slow one stops looking dead.
    */
-  if (canAsk && (session.isPending || bootstrap.isLoading)) {
+  if (canAsk && (session.isPending || stillDeciding(bootstrap))) {
     return <Loading after={200} />;
   }
   // A fresh instance has no owner yet: claim it before anything else.
@@ -523,7 +550,7 @@ export default function App() {
    * from what this device remembers instead, which is enough to draw the screen
    * somebody was on.
    */
-  if (canAsk && (meta.isLoading || profile.isLoading)) {
+  if (canAsk && (stillDeciding(meta) || stillDeciding(profile))) {
     return <Loading after={200} />;
   }
 
