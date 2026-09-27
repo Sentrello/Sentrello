@@ -29,14 +29,6 @@ import {
  * same failure a contact's company link had before companies got one.
  */
 
-const STAGES = [
-  { id: "opportunity", label: "Opportunity" },
-  { id: "proposal", label: "Proposal" },
-  { id: "negotiation", label: "Negotiation" },
-  { id: "won", label: "Won" },
-  { id: "lost", label: "Lost" },
-];
-
 interface Related {
   deal: {
     id: string;
@@ -428,7 +420,17 @@ export function DealDetail() {
               aria-label="Stage"
               onChange={(e) => move.mutate(e.target.value)}
             >
-              {STAGES.map((s) => (
+              {/*
+               * The business's own pipeline, not the five we ship with.
+               *
+               * This list was written out here, so an instance that had
+               * renamed or replaced its stages saw the defaults on the
+               * record page — and moving a deal into one of them put it in
+               * a stage the board does not draw, which made the card vanish
+               * while the row stayed. `useCrmSettings` was already being
+               * read three lines into this component for something else.
+               */}
+              {settings.dealStages.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.label}
                 </option>

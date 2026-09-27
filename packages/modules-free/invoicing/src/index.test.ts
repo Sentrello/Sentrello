@@ -5153,3 +5153,49 @@ test("a letterhead belonging to somebody else is never written onto a document",
     .delete(schema.documentTemplates)
     .where(eq(schema.documentTemplates.organizationId, other));
 });
+
+/**
+ * A business outside the United States can raise an invoice.
+ *
+ * It could not, until 2026-09-27. The invoice form sent `currency: "USD"` on
+ * every create and every edit, and the route defaulted the same way when a
+ * caller said nothing — so a business keeping its books in pounds or euros
+ * produced a document in a foreign currency from its own main screen, and
+ * the route then refused it because nobody had recorded a dollar rate. The
+ * refusal was right: guessing a rate puts a plausible and wrong number in
+ * the books. The default was wrong, and it locked out three of our four
+ * markets while everything beneath it — the stored rate, settlement gain
+ * and loss, period-end revaluation — had worked all along.
+ *
+ * Two things are asserted, because one without the other is still broken:
+ * the document is raised at all, and the currency it is stored in is the
+ * one its exchange rate was fixed against.
+ */
+test("an invoice with no currency named is the business's own, not the dollar", async () => {
+  await db
+    .update(schema.organizations)
+    .set({ baseCurrency: "GBP" })
+    .where(eq(schema.organizations.id, orgId));
+
+  try {
+    const res = await app.request("http://localhost/api/invoices", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        contactId,
+        lines: [{ description: "Consulting", quantity: 1, unitPrice: 10000 }],
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    const { invoice } = (await res.json()) as {
+      invoice: typeof schema.invoices.$inferSelect;
+    };
+    expect(invoice.currency).toBe("GBP");
+  } finally {
+    await db
+      .update(schema.organizations)
+      .set({ baseCurrency: "USD" })
+      .where(eq(schema.organizations.id, orgId));
+  }
+});

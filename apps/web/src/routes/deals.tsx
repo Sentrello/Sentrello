@@ -4,6 +4,7 @@ import { type Tag, api } from "../lib/api";
 import { useSession } from "../lib/auth";
 import { Avatar } from "../lib/avatar";
 import {
+  FALLBACK_SETTINGS,
   isDecided,
   managerName,
   useCrmManagers,
@@ -77,13 +78,6 @@ interface Deal {
  * Settings owns the real list, and an instance that has never opened it gets
  * exactly these.
  */
-const DEFAULT_STAGES = [
-  { id: "opportunity", label: "Opportunity" },
-  { id: "proposal", label: "Proposal" },
-  { id: "negotiation", label: "Negotiation" },
-  { id: "won", label: "Won" },
-  { id: "lost", label: "Lost" },
-];
 
 interface Stage {
   id: string;
@@ -317,7 +311,7 @@ export function Deals() {
   const settings = useCrmSettings();
   const stages = settings.dealStages.length
     ? settings.dealStages
-    : DEFAULT_STAGES;
+    : FALLBACK_SETTINGS.dealStages;
 
   const session = useSession();
   const myId = session.data?.user?.id;

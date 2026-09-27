@@ -342,15 +342,25 @@ export default defineModule({
          * books, and nothing downstream would question it. The same refusal
          * the purchase side makes.
          */
-        const rateMicro = await rateOn(
-          orgId,
-          String(currency ?? "USD"),
-          new Date(),
+        /*
+         * And the default is this business's own currency, not the dollar.
+         *
+         * `?? "USD"` meant a caller that said nothing got an American
+         * invoice. On a GBP or EUR instance that is a document in a foreign
+         * currency, so the refusal below fired and the business could not
+         * raise an invoice at all — correctly refusing to guess a rate for a
+         * currency nobody had chosen. Three of our four markets, turned away
+         * by a fallback. Found 2026-09-27.
+         */
+        const documentCurrency = String(
+          currency ?? (await baseCurrency(orgId)),
         );
+
+        const rateMicro = await rateOn(orgId, documentCurrency, new Date());
         if (rateMicro === null) {
           return c.json(
             {
-              error: `no exchange rate recorded for ${currency} — set one under Accounting first`,
+              error: `no exchange rate recorded for ${documentCurrency} — set one under Accounting first`,
             },
             400,
           );
@@ -470,7 +480,10 @@ export default defineModule({
             .values({
               organizationId: orgId,
               contactId,
-              currency,
+              // The same one the rate above was fixed against, never the raw
+              // request value: those two disagreeing is a document priced in
+              // one currency and converted from another.
+              currency: documentCurrency,
               ...(issued ? { issueDate: issued } : {}),
               // Defaulted rather than left null: overdue chasing skips an
               // invoice with no due date, so one created without a date is

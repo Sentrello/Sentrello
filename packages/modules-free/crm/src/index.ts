@@ -69,6 +69,7 @@ import { registerCrmPersonalData } from "./personal-data";
 import { registerCrmRetention } from "./retention";
 import {
   DEFAULT_LOST_STAGES,
+  DEFAULT_STAGES,
   DEFAULT_WON_STAGES,
   registerCrmSettings,
 } from "./settings";
@@ -2083,6 +2084,38 @@ function registerCrmScreens(
           : undefined;
       if (!stage && position === undefined) {
         return c.json({ error: "a stage or a position is required" }, 400);
+      }
+
+      /*
+       * And it has to be a stage this business actually has.
+       *
+       * This validated the name against nothing. A deal moved into a stage
+       * that is not on the board disappears from it — the card is drawn per
+       * stage — while the row sits in the database in a stage nobody can
+       * see or move it out of. The settings route already guards the
+       * opposite direction and refuses to delete a stage holding deals, so
+       * this was the one way round an existing rule.
+       *
+       * Found on 2026-09-27 behind the record page, which offered the five
+       * stages we ship with rather than the business's own.
+       */
+      if (stage) {
+        const [settings] = await db
+          .select({ dealStages: schema.crmSettings.dealStages })
+          .from(schema.crmSettings)
+          .where(eq(schema.crmSettings.organizationId, orgId))
+          .limit(1);
+        const allowed = (settings?.dealStages ?? DEFAULT_STAGES) as {
+          id: string;
+        }[];
+        if (!allowed.some((s) => s.id === stage)) {
+          return c.json(
+            {
+              error: `there is no stage called "${stage}" on this board — it is one of ${allowed.map((s) => s.id).join(", ")}`,
+            },
+            400,
+          );
+        }
       }
 
       /*

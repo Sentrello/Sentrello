@@ -437,7 +437,22 @@ export function InvoiceForm({
     mutationFn: async (status: "draft" | "open") => {
       const body = {
         contactId: customer?.id ?? null,
-        currency: "USD",
+        /*
+         * No currency: the server uses the business's own.
+         *
+         * This said `"USD"` on every create and every edit, so a business
+         * based in the UK or the EU sent an American invoice from its own
+         * main screen — and the route then refused it, correctly, because
+         * nobody had recorded a dollar rate. Three of our four markets could
+         * not raise an invoice at all, and everything underneath it — the
+         * stored rate, settlement gain and loss, period-end revaluation —
+         * had worked the whole time. The form simply never asked.
+         *
+         * Omitted rather than fetched, so there is one answer to "what
+         * currency is this" and it lives on the server. A document in
+         * another currency is a thing to add here deliberately, with a
+         * picker and a rate, not a constant.
+         */
         status,
         ...(asQuote
           ? { validUntil: validUntil || undefined }

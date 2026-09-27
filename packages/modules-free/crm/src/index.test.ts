@@ -2719,3 +2719,48 @@ test("notes page too, newest first", async () => {
     await db.delete(schema.contacts).where(eq(schema.contacts.id, contact.id));
   }
 });
+
+/**
+ * A deal cannot be moved into a stage the board does not have.
+ *
+ * The move route validated the stage name against nothing. A card is drawn
+ * per stage, so a deal in a stage that is not on the board vanishes from it
+ * while the row sits in the database, in a stage nobody can see or move it
+ * back out of. The settings route already guarded the opposite direction —
+ * it refuses to delete a stage that still holds deals — so this was the one
+ * path around a rule that already existed.
+ *
+ * Found on 2026-09-27 behind the deal record page, which offered the five
+ * stages we ship with rather than the ones this business configured, so on
+ * any instance that had renamed a stage the picker itself was the way in.
+ */
+test("a deal cannot be moved into a stage this business does not have", async () => {
+  const created = await app.request("http://localhost/api/deals", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name: "Chimney survey" }),
+  });
+  const { deal } = (await created.json()) as { deal: { id: string } };
+
+  const nowhere = await app.request(
+    `http://localhost/api/deals/${deal.id}/move`,
+    {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ stage: "renamed-last-year" }),
+    },
+  );
+  expect(nowhere.status).toBe(400);
+  const { error } = (await nowhere.json()) as { error: string };
+  // The message names the stages there are, because the caller that got
+  // this wrong is a screen showing somebody else's list.
+  expect(error).toContain("renamed-last-year");
+  expect(error).toContain("opportunity");
+
+  // And the deal did not move.
+  const [row] = await db
+    .select({ stage: schema.deals.stage })
+    .from(schema.deals)
+    .where(eq(schema.deals.id, deal.id));
+  expect(row?.stage).not.toBe("renamed-last-year");
+});
