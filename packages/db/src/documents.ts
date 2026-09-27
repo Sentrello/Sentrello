@@ -424,6 +424,16 @@ export async function raiseInvoice(
       taxDefinitionId?: string | null;
       unit?: string;
     }[];
+    /**
+     * The caller's transaction, when the document has to commit with
+     * something else.
+     *
+     * A billing run is the caller that needs it: the row that claims a period
+     * and the invoice that pays for it have to land together, or a crash
+     * between the two leaves a claim with no invoice and the next run bills
+     * the month again. Same shape as `copyInvoice`, for the same reason.
+     */
+    tx?: DbTx;
   },
 ): Promise<typeof schema.invoices.$inferSelect | null> {
   if (input.lines.length === 0) return null;
@@ -452,7 +462,7 @@ export async function raiseInvoice(
     })),
   );
 
-  const invoice = await db.transaction(async (tx) => {
+  const write = async (tx: DbTx) => {
     const [inv] = await tx
       .insert(schema.invoices)
       .values({
@@ -491,8 +501,8 @@ export async function raiseInvoice(
     // and in the same commit, so a refusal takes the document with it.
     await postInvoiceIssued(organizationId, inv, undefined, undefined, { tx });
     return inv;
-  });
-  return invoice;
+  };
+  return input.tx ? await write(input.tx) : await db.transaction(write);
 }
 
 /**
