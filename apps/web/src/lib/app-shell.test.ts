@@ -203,6 +203,23 @@ test("every group the modules use is ranked, so the order is chosen", () => {
   ).toEqual([]);
 });
 
+/**
+ * The four in the middle are in the order James chose, not an order that
+ * happened.
+ *
+ * Money led this list until 27 September 2026, which is the order a
+ * bookkeeper works in rather than the order a business does: the customer
+ * comes first, then what brings the next one in, then the job, then the
+ * invoice. It is a decision, so it is written down somewhere that fails when
+ * somebody rearranges it by accident.
+ */
+test("the rail follows the work: Sales, Marketing, Work, Money", () => {
+  const work = GROUP_ORDER.filter(
+    (g) => g !== "People" && g !== "Configuration",
+  );
+  expect(work).toEqual(["Sales", "Marketing", "Work", "Money"]);
+});
+
 test("Configuration sorts last, because settings are settings wherever you are", () => {
   const others = GROUP_ORDER.filter((g) => g !== "Configuration");
   for (const group of others) {
