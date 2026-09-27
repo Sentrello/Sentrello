@@ -176,6 +176,21 @@ export async function createTransaction(
   if (!Number.isInteger(amountCents) || (amountCents as number) <= 0) {
     return { error: "amountCents must be a positive whole number of cents" };
   }
+  /*
+   * And small enough for the column that holds it.
+   *
+   * `amount_cents` is a Postgres `integer`, so anything past 2^31−1 cents —
+   * about $21.4m — is refused by the database with an error, which arrived
+   * as a 500 and "something went wrong". A single transaction that large is
+   * a typo or a client sending the wrong units, and either deserves a
+   * sentence rather than a crash.
+   */
+  if ((amountCents as number) > 2_147_483_647) {
+    return {
+      error:
+        "That amount is larger than a single transaction can hold — check the units.",
+    };
+  }
   const occurredAt = parseDate(body.occurredAt ?? body.spentAt);
   if (!occurredAt) return { error: "unreadable date" };
 

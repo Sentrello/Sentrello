@@ -236,6 +236,41 @@ async function withDecidedAt(
   value.decidedAt = decided.has(value.stage) ? new Date() : null;
 }
 
+/**
+ * A write the database refused because of what the caller sent.
+ *
+ * The generic CRUD writes the body and the organization id and nothing else,
+ * so a not-null, range or type violation here is the caller's mistake rather
+ * than ours — which is what makes it safe to answer 400 in this one place
+ * and not globally, where the same violation could be our own bug.
+ *
+ * It was a 500 and "something went wrong": `POST /api/tasks` with no title,
+ * a deal with `amountCents: "lots"`, a deal worth nine quadrillion. None of
+ * those is a crash and none of them said what was wrong.
+ *
+ * `null` for anything else, so a genuine failure keeps the behaviour it had
+ * and still reaches the log.
+ */
+function refusedByTheDatabase(err: unknown): string | null {
+  const e = err as { code?: unknown; column_name?: unknown; cause?: unknown };
+  const at = (e.code ? e : (e.cause as typeof e)) ?? e;
+  const field =
+    typeof at?.column_name === "string" ? at.column_name : undefined;
+
+  switch (at?.code) {
+    case "23502":
+      return `${field ?? "Something the record needs"} is required.`;
+    case "22001":
+      return `${field ?? "One of those values"} is too long.`;
+    case "22003":
+      return `${field ?? "One of those numbers"} is larger than this field holds.`;
+    case "22P02":
+      return `${field ?? "One of those values"} is not the right kind of value.`;
+    default:
+      return null;
+  }
+}
+
 function crud<T extends keyof typeof tables>(
   ctx: Parameters<Parameters<typeof defineModule>[0]["register"]>[0],
   resource: T,
@@ -407,10 +442,17 @@ function crud<T extends keyof typeof tables>(
       if (resource === "deals") await withDecidedAt(orgId, parsed.value);
       const refError = await checkLinkedRecords(resource, orgId, parsed.value);
       if (refError) return c.json({ error: refError.error }, refError.status);
-      const [row] = await db
-        .insert(table)
-        .values({ ...parsed.value, organizationId: orgId })
-        .returning();
+      let row: Record<string, unknown> | undefined;
+      try {
+        [row] = await db
+          .insert(table)
+          .values({ ...parsed.value, organizationId: orgId })
+          .returning();
+      } catch (err) {
+        const refused = refusedByTheDatabase(err);
+        if (!refused) throw err;
+        return c.json({ error: refused }, 400);
+      }
       await announce(orgId, resource, row, "created", null, row);
       return c.json({ [singular]: row }, 201);
     },
