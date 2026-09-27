@@ -128,6 +128,12 @@ export function ContactDuplicates({ onChanged }: { onChanged: () => void }) {
             <MenuItem
               needs={{ crm: ["update"] }}
               className="text-xs link-muted"
+              // One per pair, and all of them "Not duplicates". The names
+              // are on the line above for anybody reading; a voice asking
+              // for one of them has three to choose from.
+              aria-label={`Not duplicates: ${pair.a.name ?? "Unnamed"} and ${
+                pair.b.name ?? "Unnamed"
+              }`}
               disabled={dismiss.isPending}
               onClick={() => dismiss.mutate(pair)}
             >
