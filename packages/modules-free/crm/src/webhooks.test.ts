@@ -390,3 +390,68 @@ test("deleting the endpoint takes its history with it", async () => {
     .where(eq(schema.crmWebhookDeliveries.webhookId, webhookId));
   expect(gone).toHaveLength(0);
 });
+
+/**
+ * The same credential, on the route everybody actually uses.
+ *
+ * The webhook payload has stripped `portalToken` since it was written, and
+ * the CSV export never had it — so the field was understood to be a
+ * credential in two places out of three. The third was the generic resource
+ * factory that serves `/api/contacts`, which selects the row and returns it.
+ * Every list answered to anybody with `crm:read` carried one portal login
+ * per customer, and `PATCH` let `crm:update` choose one.
+ *
+ * A portal token is a session-free door to that customer's invoices, so
+ * both directions are asserted here rather than left to the factory's own
+ * tests.
+ */
+test("a portal token never leaves through the contacts API", async () => {
+  const created = await app.request("http://localhost/api/contacts", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name: "Portal Holder", email: "ph@example.test" }),
+  });
+  expect(created.status).toBe(201);
+  const { contact } = (await created.json()) as { contact: { id: string } };
+
+  /*
+   * Put a real credential on the row.
+   *
+   * Minting it properly is `POST /api/contacts/:id/portal-link`, which
+   * belongs to invoicing and is not mounted in this app. What matters here
+   * is the field, not who wrote it.
+   */
+  await db
+    .update(schema.contacts)
+    .set({ portalToken: "tok_a_real_looking_credential" })
+    .where(eq(schema.contacts.id, contact.id));
+
+  // The list anybody with crm:read can ask for.
+  const listed = await app.request("http://localhost/api/contacts", {
+    headers,
+  });
+  const { contacts } = (await listed.json()) as {
+    contacts: Record<string, unknown>[];
+  };
+  const row = contacts.find((c) => c.id === contact.id);
+  expect(row).toBeDefined();
+  expect(row).not.toHaveProperty("portalToken");
+
+  // And it cannot be chosen: a token somebody picks is a guessable door
+  // that outlives whoever made it.
+  const chosen = await app.request(
+    `http://localhost/api/contacts/${contact.id}`,
+    {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ portalToken: "guess-me", name: "Portal Holder" }),
+    },
+  );
+  expect(chosen.status).toBe(200);
+
+  const after = await db
+    .select({ portalToken: schema.contacts.portalToken })
+    .from(schema.contacts)
+    .where(eq(schema.contacts.id, contact.id));
+  expect(after[0]?.portalToken).not.toBe("guess-me");
+});

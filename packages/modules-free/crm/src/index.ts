@@ -391,7 +391,9 @@ function crud<T extends keyof typeof tables>(
        * the rows are the same objects the list has always returned.
        */
       const decorate = async (rows: Record<string, unknown>[]) => {
-        const enriched = enrich ? await enrich(rows, orgId) : rows;
+        const enriched = (enrich ? await enrich(rows, orgId) : rows).map(
+          withoutCredentials,
+        );
         const computed = await withComputedColumns(singular, orgId, enriched);
         return {
           [path]: computed.rows,
@@ -545,8 +547,10 @@ function crud<T extends keyof typeof tables>(
     async (c) => {
       const orgId = activeOrganizationId(c.get("session"));
       const body = await c.req.json();
-      // organizationId is never taken from the body — it comes from the session
-      const { organizationId: _ignored, id: _id, ...rest } = body;
+      // organizationId is never taken from the body — it comes from the
+      // session — and neither is a credential: see `CREDENTIAL_FIELDS`.
+      const { organizationId: _ignored, id: _id, ...withCredentials } = body;
+      const rest = withoutCredentials(withCredentials);
       const parsed = withParsedDates(rest, table);
       if (!parsed.ok) {
         return c.json({ error: `${parsed.field} is not a date` }, 400);
@@ -812,6 +816,41 @@ function crud<T extends keyof typeof tables>(
       return c.json({ deleted: row.id });
     },
   );
+}
+
+/**
+ * Fields that are credentials, and never travel through a resource route.
+ *
+ * `portalToken` is the whole of a customer's portal login: anyone holding it
+ * reads that customer's invoices at `/account/:token` with no session at
+ * all. It sat on `contacts`, and `contacts` is served by the generic factory
+ * below, which selects the row and returns it — so every list answered to
+ * anybody with `crm:read` carried one per customer, including a contractor
+ * with no invoicing permission at all. Worse on the way in: `PATCH` spread
+ * the body into the update, so `crm:update` could *choose* a token, which is
+ * a guessable door that outlives whoever made it.
+ *
+ * The field was already understood to be a credential in two places out of
+ * three — the webhook payload strips it and the CSV export omits it — which
+ * is exactly how this survived: every place somebody thought about it was
+ * handled, and the generic path nobody had to think about was not.
+ *
+ * Stripped in both directions, in the factory, so a resource added later
+ * inherits it. A portal link is minted by `POST /api/contacts/:id/portal-link`
+ * and comes back as a URL; nothing legitimate needs the raw token from a
+ * list.
+ */
+const CREDENTIAL_FIELDS = ["portalToken"] as const;
+
+function withoutCredentials<T extends Record<string, unknown>>(row: T): T {
+  let copy: Record<string, unknown> | null = null;
+  for (const field of CREDENTIAL_FIELDS) {
+    if (field in row) {
+      copy ??= { ...row };
+      delete copy[field];
+    }
+  }
+  return (copy ?? row) as T;
 }
 
 /**
