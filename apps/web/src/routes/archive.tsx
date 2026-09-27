@@ -418,8 +418,11 @@ function Restore() {
       {send.data?.inspected ? (
         <p>
           {send.data.manifest?.set} for{" "}
-          {send.data.manifest?.period.from.slice(0, 10)} to{" "}
-          {send.data.manifest?.period.to.slice(0, 10)} —{" "}
+          {/* The table above this one already uses `formatDate` for the day
+              an archive was written; the sentence under it printed the period
+              the way the manifest stores it. */}
+          {formatDate(send.data.manifest?.period.from)} to{" "}
+          {formatDate(send.data.manifest?.period.to)} —{" "}
           {send.data.manifest?.rows.toLocaleString()} records, checksums all
           match.{" "}
           {send.data.mine ? "" : "It was written by a different business."}

@@ -11,6 +11,7 @@ import {
   Select,
   Table,
   Warning,
+  formatDate,
   formatMoney,
   muted,
 } from "../lib/ui";
@@ -188,9 +189,12 @@ export function OssReturn() {
           <>
             <p className="mb-2 text-sm" style={muted}>
               {data.year} Q{data.quarter} — return and payment due{" "}
-              <strong>{data.dueDate.slice(0, 10)}</strong>.
+              {/* A filing deadline, in bold, written the way a database
+                  stores it. It is also the one date on this screen somebody
+                  copies into a calendar. */}
+              <strong>{formatDate(data.dueDate)}</strong>.
               {data.conversion
-                ? ` Converted from ${data.conversion.from} at the European Central Bank rate for ${data.conversion.asOf.slice(0, 10)}${
+                ? ` Converted from ${data.conversion.from} at the European Central Bank rate for ${formatDate(data.conversion.asOf)}${
                     data.conversion.prescribed
                       ? "."
                       : " — which is not the quarter-end rate the rules prescribe. Record that day's rate under Accounting and these figures will be exact."
