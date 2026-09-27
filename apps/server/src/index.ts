@@ -30,6 +30,7 @@ import profile from "@sentrello/module-profile";
 import type { SentrelloEnv, SentrelloModule } from "@sentrello/module-sdk";
 import {
   allCrawlable,
+  isMalformedUuid,
   robotsTxt,
   searchEverything,
   searchProviders,
@@ -69,30 +70,6 @@ const app = new Hono<SentrelloEnv>();
  * Only the caller's own mistakes are caught here. Every other failure keeps
  * the behaviour it had.
  */
-/**
- * Whether a failure is only "that is not the shape of an id".
- *
- * Drizzle wraps the driver's error, so the cause chain is walked rather than
- * the top of it. `22P02` is `invalid_text_representation`, which Postgres
- * also raises for a bad integer or a bad enum — hence the second half: this
- * must not swallow anything but an id.
- */
-export function isMalformedUuid(err: unknown): boolean {
-  let at: unknown = err;
-  for (let depth = 0; at && depth < 5; depth += 1) {
-    const e = at as { code?: unknown; message?: unknown; cause?: unknown };
-    if (
-      e.code === "22P02" &&
-      typeof e.message === "string" &&
-      e.message.includes("uuid")
-    ) {
-      return true;
-    }
-    at = e.cause;
-  }
-  return false;
-}
-
 app.onError((err, c) => {
   if (err instanceof PeriodClosedError) {
     return c.json({ error: err.message }, 409);

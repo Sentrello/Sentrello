@@ -363,6 +363,7 @@ export interface SentrelloModule {
 import { type AccountSection, addAccountSection } from "./account";
 import { type ComputedColumns, addComputedColumns } from "./computed-columns";
 import { type CrawlableSurface, addCrawlable } from "./crawlable";
+import { isMalformedUuid } from "./malformed-id";
 import { type OnboardingGuide, addOnboarding } from "./onboarding";
 import {
   type PaymentWebhookConsumer,
@@ -572,6 +573,12 @@ export function registerForTest(
     if (err instanceof SyntaxError) {
       return c.json({ error: "the request body is not valid JSON" }, 400);
     }
+    // And the same for a word where an id belongs, which the host answers
+    // 404. A harness that stops mirroring the host is a suite describing
+    // behaviour nobody ships.
+    if (isMalformedUuid(err)) {
+      return c.json({ error: "not found" }, 404);
+    }
     // Everything else keeps the answer the host gives it, 500 included: a
     // harness that rethrows turns a route's crash into a rejected request and
     // a sweep asking every route for its status gets an exception instead.
@@ -582,6 +589,7 @@ export function registerForTest(
   return app;
 }
 export * from "./custom-fields";
+export * from "./malformed-id";
 export * from "./services";
 export * from "./payments/provider";
 export * from "./payments/webhooks";

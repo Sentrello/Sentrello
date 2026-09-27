@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { isMalformedUuid } from "./index";
+import { isMalformedUuid } from "./malformed-id";
 
 /**
  * An id that cannot be an id is a 404, not a 500.
@@ -11,8 +11,9 @@ import { isMalformedUuid } from "./index";
  * measured.
  *
  * The two a customer's own link points at refuse it before the query. This
- * is the net under the rest, and the thing worth testing about a net is what
- * it does **not** catch: `22P02` is Postgres's "invalid text
+ * is the net under the rest — used by the host's error handler and by the
+ * module harness, so both answer it the same way — and the thing worth
+ * testing about a net is what it does **not** catch: `22P02` is Postgres's "invalid text
  * representation", which it also raises for a bad integer and a bad enum,
  * and turning either of those into a quiet 404 would hide a real fault.
  */
