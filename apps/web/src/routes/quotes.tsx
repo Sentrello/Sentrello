@@ -285,6 +285,12 @@ export function Quotes() {
                         <span
                           className="ml-1.5"
                           style={muted}
+                          // A tick with a `title` is a mark only a mouse can
+                          // ask about. `role="img"` and a name of its own so
+                          // it is read out as well, and so a tablet is not
+                          // left with a glyph nobody can query.
+                          role="img"
+                          aria-label={`Opened ${formatDate(quote.firstViewedAt)}`}
                           title={`Opened ${formatDate(quote.firstViewedAt)}`}
                         >
                           <Icon name="tick" size={13} />

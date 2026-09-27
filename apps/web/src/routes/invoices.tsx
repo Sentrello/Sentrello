@@ -513,6 +513,12 @@ export function Invoices() {
                         <span
                           className="ml-1.5"
                           style={muted}
+                          // A tick with a `title` is a mark only a mouse can
+                          // ask about. `role="img"` and a name of its own so
+                          // it is read out as well, and so a tablet is not
+                          // left with a glyph nobody can query.
+                          role="img"
+                          aria-label={`Opened ${formatDate(invoice.firstViewedAt)}`}
                           title={`Opened ${formatDate(invoice.firstViewedAt)}`}
                         >
                           <Icon name="tick" size={13} />
