@@ -255,11 +255,20 @@ export function CrmDashboard() {
                 labelled emails and phones, a company, an owner and a background
                 note, and none of that belongs in a box somebody has to scroll.
               */}
+              {/*
+                "New contact", because that is what the control this hands
+                over to is called. It goes to the same form as the button on
+                the Contacts screen, and a product that calls one action two
+                things is two products to anybody driving it by voice: say
+                "click New contact" here and nothing happens. "Add" is kept
+                for the ones that open an adder in place, like the task
+                above — the distinction is a form or no form, not a whim.
+              */}
               <button
                 type="button"
                 className="link-muted"
-                aria-label="Add a contact"
-                title="Add a contact"
+                aria-label="New contact"
+                title="New contact"
                 onClick={() => go("contacts", "Contacts", "new")}
               >
                 <Icon name="plus" size={16} />
