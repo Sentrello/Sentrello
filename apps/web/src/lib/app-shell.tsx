@@ -578,13 +578,7 @@ function Sidebar({ nav }: { nav: NavEntry[] }) {
     const narrow = window.matchMedia("(max-width: 899px)");
     const apply = (matches: boolean) => {
       const shell = document.querySelector("[data-shell]");
-      if (!shell) return;
-      shell.toggleAttribute("data-panel-hidden", matches);
-      for (const button of shell.querySelectorAll(
-        "[aria-controls='section-panel']",
-      )) {
-        button.setAttribute("aria-expanded", matches ? "false" : "true");
-      }
+      if (shell) setPanelHidden(shell, matches);
     };
     apply(narrow.matches);
     const onChange = (e: MediaQueryListEvent) => apply(e.matches);
@@ -592,15 +586,57 @@ function Sidebar({ nav }: { nav: NavEntry[] }) {
     return () => narrow.removeEventListener("change", onChange);
   }, []);
 
+  /**
+   * On a phone the panel lies over the screen, so it needs the ways out an
+   * overlay has. It had none.
+   *
+   * Opened on a 390px phone it covered three quarters of the screen, and
+   * nothing put it away again: not Escape, not a tap on the page behind it,
+   * and not choosing a screen — so the ordinary thing somebody does with a
+   * drawer, open it to go somewhere, left them on the page they asked for
+   * with the drawer still on top of it. The only way back was the one
+   * control inside the drawer itself.
+   *
+   * None of this applies above 900px, where the panel is a column beside
+   * the screen rather than on it. Closing a column every time somebody
+   * changed page would be its own kind of rude.
+   */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") dismissPanelOverlay(true);
+    };
+    const onClick = (e: MouseEvent) => {
+      // The rail is beside the drawer rather than under it, and the control
+      // that opens the drawer lives there — so a click on the rail is not a
+      // click away from the drawer.
+      if ((e.target as Element | null)?.closest(".app-sidebar, .app-rail"))
+        return;
+      dismissPanelOverlay();
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("click", onClick);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("click", onClick);
+    };
+  }, []);
+
+  /**
+   * And going somewhere is the end of the drawer, whoever asked — a row in
+   * the panel, an icon on the rail, the account menu. Watching the screen
+   * change catches all of them at once; watching each control would be one
+   * more list to keep in step with the shell.
+   */
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the change of screen is the event, not the value
+  useEffect(() => {
+    dismissPanelOverlay();
+  }, [current.moduleId]);
+
   const togglePanel = (e: React.MouseEvent<HTMLButtonElement>) => {
     const shell = e.currentTarget.closest("[data-shell]");
     if (!shell) return;
-    const hidden = shell.toggleAttribute("data-panel-hidden");
-    for (const button of shell.querySelectorAll(
-      "[aria-controls='section-panel']",
-    )) {
-      button.setAttribute("aria-expanded", hidden ? "false" : "true");
-    }
+    const hidden = !shell.hasAttribute("data-panel-hidden");
+    setPanelHidden(shell, hidden);
     shell
       .querySelector<HTMLElement>(hidden ? ".panel-tab" : ".panel-collapse")
       ?.focus();
@@ -694,6 +730,40 @@ function Sidebar({ nav }: { nav: NavEntry[] }) {
       ) : null}
     </div>
   );
+}
+
+/**
+ * The panel's open state is one attribute and two `aria-expanded`s, and they
+ * have to move together — so they move in one place. Four things ask for it
+ * now: the width on the way in, the two buttons, and a phone drawer being
+ * dismissed.
+ */
+function setPanelHidden(shell: Element, hidden: boolean) {
+  shell.toggleAttribute("data-panel-hidden", hidden);
+  for (const button of shell.querySelectorAll(
+    "[aria-controls='section-panel']",
+  )) {
+    button.setAttribute("aria-expanded", hidden ? "false" : "true");
+  }
+}
+
+/** Under 900px the panel lies over the screen instead of beside it. */
+const panelOverlays = () => window.matchMedia("(max-width: 899px)").matches;
+
+/**
+ * Put the drawer away, if there is a drawer and it is open.
+ *
+ * `focusTab` is for the dismissals a keyboard made — Escape should leave the
+ * focus on the control that brings the panel back, not on the body. A tap
+ * elsewhere, or a change of screen, should leave the focus where the person
+ * just put it.
+ */
+function dismissPanelOverlay(focusTab = false) {
+  if (!panelOverlays()) return;
+  const shell = document.querySelector("[data-shell]");
+  if (!shell || shell.hasAttribute("data-panel-hidden")) return;
+  setPanelHidden(shell, true);
+  if (focusTab) shell.querySelector<HTMLElement>(".panel-tab")?.focus();
 }
 
 /** Initials, for when there is no avatar — which is the normal case. */
