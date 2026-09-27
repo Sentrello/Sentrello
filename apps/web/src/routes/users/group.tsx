@@ -333,7 +333,14 @@ function Activity({ groupId }: { groupId: string }) {
   if (error) return <ErrorNote error={error} />;
 
   const events = data?.events ?? [];
-  if (events.length === 0) return <Empty title="Nothing recorded yet" />;
+  if (events.length === 0) {
+    return (
+      <Empty title="Nothing recorded yet">
+        Joining, leaving and any change to what this group grants are written
+        down here as they happen.
+      </Empty>
+    );
+  }
 
   return (
     <Card>

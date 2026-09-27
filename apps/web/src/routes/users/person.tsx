@@ -609,7 +609,15 @@ function Sessions({ userId }: { userId: string }) {
   if (error) return <ErrorNote error={error} />;
 
   const sessions = data?.sessions ?? [];
-  if (sessions.length === 0) return <Empty title="No devices signed in" />;
+  if (sessions.length === 0) {
+    return (
+      <Empty title="No devices signed in">
+        They are not signed in anywhere at the moment. Each browser or phone
+        they sign in on appears here, with where it was and when it was last
+        used.
+      </Empty>
+    );
+  }
 
   return (
     <Card>
@@ -715,7 +723,14 @@ function Activity({ userId }: { userId: string }) {
 
   const events = data?.events ?? [];
   const more = (data?.total ?? 0) > events.length;
-  if (events.length === 0) return <Empty title="Nothing recorded yet" />;
+  if (events.length === 0) {
+    return (
+      <Empty title="Nothing recorded yet">
+        Sign-ins, password resets, policy changes and sessions ended by somebody
+        else are all written down here as they happen.
+      </Empty>
+    );
+  }
 
   return (
     <Card>
