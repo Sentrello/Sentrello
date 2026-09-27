@@ -16,6 +16,7 @@ import {
   Select,
   Table,
   Toolbar,
+  formatDate,
   formatMoney,
   muted,
 } from "../lib/ui";
@@ -74,8 +75,13 @@ function NexusCard() {
           A state can make you collect its sales tax once your sales into it
           pass its economic-nexus threshold. These are your issued invoices, net
           of tax, against each state's line — thresholds as checked on{" "}
-          {nexus.data?.checked}. Registering is your decision, and your
-          accountant's; this page only makes sure you hear about it first.
+          {/* The one date this product printed to a reader as the server
+              stores it. Every other date on every other screen goes through
+              `formatDate`, which is also what reads the day/month order
+              somebody chose on their profile — so this sentence ignored the
+              setting as well as the house style. */}
+          {formatDate(nexus.data?.checked)}. Registering is your decision, and
+          your accountant's; this page only makes sure you hear about it first.
         </p>
       </div>
       {states.length === 0 ? (
