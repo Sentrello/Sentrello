@@ -163,6 +163,7 @@ function Column({
   deals,
   columns,
   onMove,
+  quiet = false,
 }: {
   /** Every stage, so a card can be moved to any of them without a mouse. */
   stages: Stage[];
@@ -172,6 +173,16 @@ function Column({
   /** Columns a module works out, when this instance has one that does. */
   columns: ComputedColumn[] | undefined;
   onMove: (id: string, stage: string) => void;
+  /**
+   * Stay silent when the whole board is empty.
+   *
+   * Five columns each saying "Nothing here." is five ways of saying one
+   * thing, and it is what the board says to every new business on its first
+   * morning. The board says it once instead, above them, and these go back
+   * to meaning what they were for: this stage is empty and the others are
+   * not.
+   */
+  quiet?: boolean;
 }) {
   const { open } = useNavigation();
   const total = deals.reduce((sum, d) => sum + d.amountCents, 0);
@@ -257,7 +268,7 @@ function Column({
             </div>
           </div>
         ))}
-        {deals.length === 0 ? (
+        {deals.length === 0 && !quiet ? (
           <p className="px-1 py-2 text-xs" style={muted}>
             Nothing here.
           </p>
@@ -547,6 +558,14 @@ export function Deals() {
         cannot reach at all unless the container can take focus — the columns
         past the fold might as well not exist for them.
       */}
+      {deals.length === 0 && !isLoading ? (
+        <p className="text-sm" style={muted}>
+          {state.hasFilters || state.q
+            ? "No deal matches that. Clear the search, or the filters beside it, to see the board again."
+            : `Nothing on the board yet. A deal is a job you are hoping to win — the first one you add starts in ${stages[0]?.label ?? "the first stage"}, and you move it along as it goes.`}
+        </p>
+      ) : null}
+
       <section
         className="flex gap-(--gap-toolbar) overflow-x-auto pb-2"
         // biome-ignore lint/a11y/noNoninteractiveTabindex: WCAG 2.1.1 requires a scrollable region to be keyboard-operable and tabindex=0 on the scroll container is the documented remedy; the rule does not model scrolling containers
@@ -562,6 +581,7 @@ export function Deals() {
             deals={byStage(s.id)}
             columns={data?.computedColumns}
             onMove={(id, stage) => move.mutate({ id, stage })}
+            quiet={deals.length === 0}
           />
         ))}
       </section>
