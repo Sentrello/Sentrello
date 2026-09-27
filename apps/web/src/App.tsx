@@ -424,7 +424,9 @@ function NoAccess() {
         className="mt-4 text-sm link"
         onClick={async () => {
           await signOut();
-          window.location.reload();
+          // The root, not a reload: a reload keeps the path, and this screen
+          // is reached by somebody whose account has no business here.
+          window.location.assign("/");
         }}
       >
         Sign out

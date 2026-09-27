@@ -52,16 +52,23 @@ export interface NavEntry {
  * being dropped — a module may name its own.
  */
 export const GROUP_ORDER = [
+  /*
+   * Set by James, 27 September 2026: Sales, Marketing, Work, Money.
+   *
+   * Money led this list before, which is the order a bookkeeper works in
+   * rather than the order a business does. The customer comes first, then
+   * what brings the next one in, then the job, then the invoice.
+   *
+   * Marketing was once missing from this list entirely, which is not a small
+   * thing: an unlisted group scores 99 and sorts below `Configuration`, so
+   * Links, Search and Documentation rendered *under* Settings and Users.
+   * Nobody chose that — it was the absence of two lines, and the order this
+   * list exists to state was not the order anybody saw.
+   */
   "Sales",
-  "Money",
-  "Work",
-  // Everything that brings somebody in before there is a sale to make. It was
-  // missing from this list entirely, which is not a small thing: an unlisted
-  // group scores 99 and sorts below `Configuration`, so Links, Search and
-  // Documentation rendered *under* Settings and Users. Nobody chose that — it
-  // was the absence of two lines, and the order this list exists to state was
-  // not the order anybody saw.
   "Marketing",
+  "Work",
+  "Money",
   // Nothing registers this yet; HR will. Kept so the day it arrives it lands
   // where it belongs rather than at the end with the unranked.
   "People",
@@ -995,7 +1002,20 @@ function ProfileMenu({
               borderColor: "var(--border)",
               color: "var(--text-danger)",
             }}
-            onClick={() => authClient.signOut()}
+            /*
+             * Out, and back to the front door.
+             *
+             * Signing out left the address bar on whatever screen you were
+             * reading, so the sign-in form appeared under `/invoicing` — and
+             * the next person to sign in on that machine was sent straight
+             * back to a screen chosen by somebody else. A whole navigation
+             * rather than a router push: everything React is holding belongs
+             * to the session that just ended.
+             */
+            onClick={async () => {
+              await authClient.signOut();
+              window.location.assign("/");
+            }}
           >
             Sign out
           </button>
@@ -1024,7 +1044,6 @@ export function AppShell({
   // when configuring the platform, the other where you look when it is your
   // own account you are thinking about.
   const settings = nav.find((n) => n.id === "settings");
-  const first = nav.find((n) => n.id !== "settings") ?? nav[0];
 
   /**
    * The tab says which screen you are on.
@@ -1138,13 +1157,15 @@ export function AppShell({
           relate, which was the whole complaint. */}
       <header className="app-header">
         <div className="flex h-13 items-center gap-3 px-4 py-2">
-          <button
-            type="button"
-            onClick={() => first && go(first.id, first.label)}
-            className="shrink-0 font-semibold"
-          >
-            Sentrello
-          </button>
+          {/*
+            The name, not a way home. James, 27 September 2026: it is the
+            product's name at the top of the product's own window, and there
+            is already a way to the dashboard — the first icon on the rail,
+            which is where somebody looks for it. A word that moves you when
+            you press it and looks exactly like a word that does not is a tab
+            stop announced as a button with nothing useful to say.
+          */}
+          <span className="shrink-0 font-semibold">Sentrello</span>
           {/*
             Search takes the middle of the header rather than sitting as an
             afterthought beside the avatar. It is how somebody reaches one
@@ -1249,14 +1270,18 @@ export function AppShell({
       */}
       <footer className="app-footer">
         <div className="flex h-11 items-center gap-3 px-4 text-xs">
-          <span style={muted}>Sentrello</span>
+          {/* Both facts together at the right-hand end, rather than one in
+              each corner with the width of the window between them. */}
+          <span className="ml-auto" style={muted}>
+            Sentrello
+          </span>
           {/*
             Not "unknown", which is what an instance built outside the
             release pipeline reports and what a developer's own copy says.
             A version nobody can act on is worse than no version at all.
           */}
           {version && version !== "unknown" ? (
-            <span className="ml-auto tabular-nums" style={muted}>
+            <span className="tabular-nums" style={muted}>
               {version}
             </span>
           ) : null}
