@@ -27,6 +27,7 @@ import {
   countryName,
 } from "./country-data";
 import { Icon } from "./icons";
+import { unreachableMessage } from "./unreachable";
 
 export const border = { borderColor: "var(--border)" };
 export const muted = { color: "var(--text-muted)" };
@@ -1231,7 +1232,9 @@ export function ErrorNote({ error }: { error: unknown }) {
       ? "Your role does not allow this."
       : status === 401
         ? "Your session has expired. Sign in again."
-        : (fromServer ?? "Something went wrong. Try again.");
+        : (fromServer ??
+          unreachableMessage(error) ??
+          "Something went wrong. Try again.");
   /*
    * `role="alert"`, and it is the whole difference between a message and a
    * message somebody receives.
