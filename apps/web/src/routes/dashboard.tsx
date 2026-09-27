@@ -290,14 +290,23 @@ function ArrangedDashboard({ data }: { data: Dashboard }) {
       api<{ tabs: Tab[]; widgets: WidgetChoice[] }>("/api/dashboard/layout"),
   });
   /*
-   * Twelve months of ledger, which is the half Free does not buy. The endpoint
-   * is not there on Free — not merely hidden — so asking would be a 404 in an
-   * error box on the screen every instance opens first.
+   * Twelve months of ledger, asked for on every instance.
+   *
+   * This was gated on `tier === "pro"`, with a comment saying the endpoint
+   * was not there on Free. It has been there since 20 September, when the
+   * Free dashboard became the Pro dashboard — every figure it returns is
+   * computed by Core from tables every instance already has, so there was
+   * never anything to install, only something to allow.
+   *
+   * The gate outlived the reason for it, and the layout endpoint went on
+   * offering the panels: a Free instance drew "Income by month", "Profit by
+   * month", "Deals by stage" and "Top customers" and left all four saying
+   * **Loading…** for ever. Nothing failed, no request was made, and the most
+   * looked-at screen in the product had four panels permanently mid-thought.
    */
   const insights = useQuery({
     queryKey: ["dashboard", "insights"],
     queryFn: () => api<Insights>("/api/dashboard/insights"),
-    enabled: data.tier === "pro",
   });
 
   if (layout.isLoading) return <Loading />;
@@ -349,6 +358,7 @@ function ArrangedDashboard({ data }: { data: Dashboard }) {
             id={widget}
             data={data}
             insights={insights.data}
+            insightsFailed={Boolean(insights.error)}
           />
         ))}
         {current && current.widgets.length === 0 ? (
@@ -367,10 +377,13 @@ function Widget({
   id,
   data,
   insights,
+  insightsFailed,
 }: {
   id: string;
   data: Dashboard;
   insights: Insights | undefined;
+  /** The ledger panels asked and were refused; see `InsightWidget`. */
+  insightsFailed?: boolean;
 }) {
   /*
    * Panels are addressed as `moduleId:id`, so that a module which calls its
@@ -435,7 +448,9 @@ function Widget({
     case "deals-by-stage":
     case "top-customers":
     case "invoice-aging":
-      return <InsightWidget id={own} insights={insights} />;
+      return (
+        <InsightWidget id={own} insights={insights} failed={insightsFailed} />
+      );
     default:
       /*
        * A panel a module brought with it. The dashboard knows nothing about
@@ -736,15 +751,32 @@ function ReportLoading({ id }: { id: string }) {
 function InsightWidget({
   id,
   insights,
+  failed,
 }: {
   id: string;
   insights: Insights | undefined;
+  /**
+   * The query came back refused, so this panel is never going to fill.
+   *
+   * Without this it says "Loading…" for ever, which is what the whole free
+   * tier saw for six days — and is worse than saying so, because a spinner
+   * is a promise. A reader who cannot have these figures should be told in
+   * a sentence, not left watching.
+   */
+  failed?: boolean;
 }) {
   if (!insights) {
     return (
       <Card>
         <SectionHeading>{WIDGET_LABELS[id] ?? id}</SectionHeading>
-        <Loading />
+        {failed ? (
+          <p className="text-sm" style={muted}>
+            This panel needs the twelve-month ledger, which this instance did
+            not answer for. Use “Arrange” to take it off the tab.
+          </p>
+        ) : (
+          <Loading />
+        )}
       </Card>
     );
   }
