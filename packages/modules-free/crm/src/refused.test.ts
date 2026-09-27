@@ -98,6 +98,50 @@ test("a number too large for its field says so", async () => {
   expect((await res.json()).error).toMatch(/larger than/i);
 });
 
+const patch = (path: string, body: unknown) =>
+  app.request(`http://localhost${path}`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify(body),
+  });
+
+/**
+ * A change is the same story, and had two faults of its own.
+ *
+ * Drizzle silently drops keys the table does not know, so a change made
+ * entirely of fields the record has not got built `update "tasks" set  where
+ * …` — malformed SQL rather than a query. And a string sent to any timestamp
+ * column that nobody had added to a hand-kept list reached Drizzle's
+ * `value.toISOString()`, which is a TypeError before the database is asked
+ * anything at all.
+ */
+test("a change with nothing the record has says so", async () => {
+  const made = await post("/api/tasks", { title: `Probe ${suffix}` });
+  const { task } = (await made.json()) as { task: { id: string } };
+  try {
+    const res = await patch(`/api/tasks/${task.id}`, { amountCents: 5 });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/nothing here/i);
+  } finally {
+    await db.delete(schema.tasks).where(eq(schema.tasks.id, task.id));
+  }
+});
+
+test("a string where a moment belongs is named, on any timestamp column", async () => {
+  const made = await post("/api/contacts", { name: `Probe ${suffix}` });
+  const { contact } = (await made.json()) as { contact: { id: string } };
+  try {
+    // `createdAt` was on no list, which is how it reached Drizzle and threw.
+    const res = await patch(`/api/contacts/${contact.id}`, {
+      createdAt: "not-a-date",
+    });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toContain("createdAt");
+  } finally {
+    await db.delete(schema.contacts).where(eq(schema.contacts.id, contact.id));
+  }
+});
+
 test("and an ordinary create still works", async () => {
   const res = await post("/api/deals", {
     name: `Real ${suffix}`,

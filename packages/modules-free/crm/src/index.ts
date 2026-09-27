@@ -43,6 +43,7 @@ import {
   asc,
   desc,
   eq,
+  getTableColumns,
   gte,
   ilike,
   inArray,
@@ -107,11 +108,43 @@ const TIMESTAMP_FIELDS = new Set([
   "endsAt",
 ]);
 
+/** Any of the tables the generic CRUD writes. */
+type CrudTable = (typeof tables)[keyof typeof tables]["table"];
+
+/**
+ * Which of a table's own columns are moments, and which are plain days.
+ *
+ * Asked of the table rather than kept as a list. The list was missing
+ * `createdAt`, `doneAt` and `doNotSellOn`, and a string sent to any of them
+ * reached Drizzle's `value.toISOString()` — a TypeError, a 500 and "something
+ * went wrong" on a field a client can perfectly well send.
+ *
+ * Which is the fault the list was written to fix, still happening on the
+ * columns nobody had remembered to add to it. A hand-kept list of a table's
+ * own columns is a second copy of the schema.
+ */
+function dateColumnsOf(table: CrudTable): {
+  moments: Set<string>;
+  days: Set<string>;
+} {
+  const moments = new Set<string>();
+  const days = new Set<string>();
+  for (const [name, column] of Object.entries(getTableColumns(table))) {
+    const kind = (column as { columnType?: string }).columnType;
+    if (kind === "PgTimestamp" || kind === "PgTimestampString")
+      moments.add(name);
+    if (kind === "PgDate" || kind === "PgDateString") days.add(name);
+  }
+  return { moments, days };
+}
+
 function withParsedDates(
   body: Record<string, unknown>,
+  table?: CrudTable,
 ): { ok: true; value: Record<string, unknown> } | { ok: false; field: string } {
   const out: Record<string, unknown> = { ...body };
-  for (const field of TIMESTAMP_FIELDS) {
+  const known = table ? dateColumnsOf(table) : null;
+  for (const field of known?.moments ?? TIMESTAMP_FIELDS) {
     const raw = out[field];
     if (raw === undefined) continue;
     if (raw === null || raw === "") {
@@ -131,7 +164,7 @@ function withParsedDates(
    * type error, which reaches the person as a 500 on ordinary typed input.
    * Refused here instead, where the answer can name the field.
    */
-  for (const field of DAY_FIELDS) {
+  for (const field of known?.days ?? DAY_FIELDS) {
     const raw = out[field];
     if (raw === undefined) continue;
     if (raw === null || raw === "") {
@@ -266,6 +299,13 @@ function refusedByTheDatabase(err: unknown): string | null {
       return `${field ?? "One of those numbers"} is larger than this field holds.`;
     case "22P02":
       return `${field ?? "One of those values"} is not the right kind of value.`;
+    case "42703":
+      // A field that is not on this record at all. Only a change can produce
+      // it: a create writes what the table has, and this writes what was sent.
+      return "There is no such field on this record.";
+    case "22007":
+    case "22008":
+      return `${field ?? "One of those values"} is not a date.`;
     default:
       return null;
   }
@@ -428,7 +468,7 @@ function crud<T extends keyof typeof tables>(
     async (c) => {
       const orgId = activeOrganizationId(c.get("session"));
       const body = await c.req.json();
-      const parsed = withParsedDates(body);
+      const parsed = withParsedDates(body, table);
       if (!parsed.ok) {
         return c.json({ error: `${parsed.field} is not a date` }, 400);
       }
@@ -467,7 +507,7 @@ function crud<T extends keyof typeof tables>(
       const body = await c.req.json();
       // organizationId is never taken from the body — it comes from the session
       const { organizationId: _ignored, id: _id, ...rest } = body;
-      const parsed = withParsedDates(rest);
+      const parsed = withParsedDates(rest, table);
       if (!parsed.ok) {
         return c.json({ error: `${parsed.field} is not a date` }, 400);
       }
@@ -529,7 +569,24 @@ function crud<T extends keyof typeof tables>(
        * "when the stage is won" is the row as it was a moment ago — without it
        * every rule on a busy record fires on every save.
        */
-      const [row, before] = await db.transaction(async (tx) => {
+      /*
+       * Something this record actually has, or there is nothing to do.
+       *
+       * Drizzle drops keys the table does not know, so a change made only of
+       * fields that are not on this record built `update "tasks" set  where
+       * …` — malformed SQL, a 500, and "something went wrong". A PATCH with
+       * nothing the record recognises is the caller's mistake and reads as
+       * one now.
+       */
+      const columns = Object.keys(getTableColumns(table));
+      if (!Object.keys(parsed.value).some((key) => columns.includes(key))) {
+        return c.json(
+          { error: "There is nothing here that this record has to change." },
+          400,
+        );
+      }
+
+      const write = db.transaction(async (tx) => {
         const before = (
           await tx
             .select()
@@ -612,6 +669,24 @@ function crud<T extends keyof typeof tables>(
         }
         return [updated[0], before] as const;
       });
+
+      /*
+       * The same refusals the create answers, for the same reason.
+       *
+       * A change writes the caller's body and nothing else, so a field that
+       * does not exist, a number too large for its column or a word where a
+       * date belongs are all theirs. Every one of them was a 500 and
+       * "something went wrong".
+       */
+      let written: Awaited<typeof write>;
+      try {
+        written = await write;
+      } catch (err) {
+        const refused = refusedByTheDatabase(err);
+        if (!refused) throw err;
+        return c.json({ error: refused }, 400);
+      }
+      const [row, before] = written;
 
       if (!row) return c.json({ error: "not found" }, 404);
       await announce(orgId, resource, row, "updated", before, row);
