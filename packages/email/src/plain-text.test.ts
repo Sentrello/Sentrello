@@ -64,3 +64,14 @@ test("the head does not become the first paragraph", () => {
 test("a double-escaped angle bracket stays four characters", () => {
   expect(plainText("<p>&amp;lt;</p>")).toBe("&lt;");
 });
+
+/**
+ * The templates wrap their source at eighty columns, and a newline in
+ * markup is a space. Read as a break it landed in the message: "treat
+ * it⏎like a bill in the post."
+ */
+test("a line wrapped in the markup is one sentence in the words", () => {
+  expect(plainText("<p>treat it\nlike a bill in the post.</p>")).toBe(
+    "treat it like a bill in the post.",
+  );
+});

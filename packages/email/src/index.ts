@@ -50,6 +50,16 @@ export function plainText(html: string): string {
       // Before anything: a stylesheet or a <head> would otherwise survive tag
       // stripping as a paragraph of CSS.
       .replace(/<head[\s\S]*?<\/head>|<style[\s\S]*?<\/style>/gi, "")
+      /*
+       * A newline in the markup is a space, not a line break.
+       *
+       * These templates wrap their source at eighty columns, and reading
+       * the newlines as breaks put them in the message: "This link is
+       * private to you — treat it⏎like a bill in the post." Collapsed
+       * first, so the only breaks left are the ones `<br>` and the block
+       * tags below put there on purpose.
+       */
+      .replace(/\s*\n\s*/g, " ")
       .replace(
         /<a\b[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi,
         (_all, href: string, label: string) => {
