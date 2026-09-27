@@ -879,6 +879,10 @@ export function ConfirmButton({
           variant={variant}
           needs={needs}
           disabled={disabled}
+          // A full button carries its own words, and three of them on one
+          // screen carry the same ones. `label` was read only by the
+          // inline trigger; it belongs here too.
+          aria-label={label}
           onClick={() => setAsking(true)}
         >
           {children}
