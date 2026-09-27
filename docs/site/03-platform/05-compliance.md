@@ -53,8 +53,11 @@ sign-out, mandatory two-factor authentication, and a log of every read of a
 patient's record. The screen also lists what stays your own responsibility:
 risk assessment, training, and business associate agreements.
 
-**PCI DSS.** Card details never touch the server. Payment goes straight to the
-processor, which keeps you on the shortest self-assessment there is, SAQ A.
+**PCI DSS.** The card number and the security code never touch your server.
+Payment goes straight to the processor, and what comes back is a token plus
+the brand, the last four digits and the expiry — enough to show somebody
+which card is on file, and nothing a thief could spend. That is what keeps
+you on the shortest self-assessment there is, SAQ A.
 
 **SOC 2.** An exportable evidence pack: the access list, every change to it,
 second-factor coverage, and the personal-data inventory. Whatever it cannot
