@@ -958,6 +958,7 @@ function BillingRules() {
                 </td>
                 <td className="text-right">
                   <ConfirmButton
+                    aria-label={`Remove the ${rule.name} reminder`}
                     title={`Remove ${rule.name}?`}
                     message="Nothing goes out under it again, and its wording goes with it. Invoices it was chasing fall to whatever other reminders are switched on — or, with none left, to the once-a-week default."
                     confirmLabel="Remove it"
@@ -1233,6 +1234,7 @@ function BillingRules() {
               </span>
               <Button
                 variant="secondary"
+                aria-label={`Remove the ${term.label || "unnamed"} payment term`}
                 needs={{ invoicing: ["update"] }}
                 onClick={() =>
                   saveSettings.mutate({
@@ -1459,6 +1461,7 @@ function Letterhead() {
             </p>
             <Button
               variant="secondary"
+              aria-label={`Start from ${sample.name}`}
               needs={{ invoicing: ["update"] }}
               onClick={() => addSample.mutate(sample)}
               disabled={addSample.isPending}

@@ -254,7 +254,7 @@ export function CrmSettings() {
               <button
                 type="button"
                 className="px-1 text-sm link-muted"
-                aria-label="Move earlier"
+                aria-label={`Move ${stage.label || "this stage"} earlier`}
                 disabled={index === 0}
                 onClick={() => move(index, -1)}
               >
@@ -263,7 +263,7 @@ export function CrmSettings() {
               <button
                 type="button"
                 className="px-1 text-sm link-muted"
-                aria-label="Move later"
+                aria-label={`Move ${stage.label || "this stage"} later`}
                 disabled={index === current.length - 1}
                 onClick={() => move(index, 1)}
               >
@@ -272,6 +272,7 @@ export function CrmSettings() {
               <button
                 type="button"
                 className="px-1 text-sm link-muted"
+                aria-label={`Remove the ${stage.label || "unnamed"} stage`}
                 disabled={current.length === 1}
                 onClick={() => setStages(current.filter((_, i) => i !== index))}
               >
@@ -320,10 +321,17 @@ export function CrmSettings() {
                   setTypes(next);
                 }}
               />
+              {/*
+                A cross is a picture, not a name. Twenty-four buttons on this
+                screen were called "×" and nothing else — "times, button" to
+                a screen reader, and unsayable to anybody driving by voice,
+                who has to name the control they want.
+              */}
               <button
                 type="button"
                 className="text-sm link-muted"
                 disabled={currentTypes.length === 1}
+                aria-label={`Remove the ${type || "unnamed"} task type`}
                 onClick={() =>
                   setTypes(currentTypes.filter((_, i) => i !== index))
                 }
@@ -334,6 +342,7 @@ export function CrmSettings() {
           ))}
           <Button
             variant="secondary"
+            aria-label="Add a task type"
             onClick={() => setTypes([...currentTypes, "visit"])}
           >
             Add
@@ -439,6 +448,7 @@ export function CrmSettings() {
                 type="button"
                 className="text-sm link-muted"
                 disabled={currentStatuses.length === 1}
+                aria-label={`Remove the ${status.label || "unnamed"} status`}
                 onClick={() =>
                   setStatuses(currentStatuses.filter((_, i) => i !== index))
                 }
@@ -626,6 +636,7 @@ export function CrmSettings() {
             />
             <Button
               needs={{ crm: ["create"] }}
+              aria-label="Add a tag"
               onClick={() => addTag.mutate(newTag.trim())}
               disabled={!newTag.trim() || addTag.isPending}
             >
@@ -1066,6 +1077,9 @@ function WordList({
             <button
               type="button"
               className="text-sm link-muted"
+              // The list's own name too: deal categories and company sectors
+              // are both drawn by this, and both of them have an "Other".
+              aria-label={`Remove ${value || "the empty entry"} from ${title.toLowerCase()}`}
               onClick={() => onChange(values.filter((_, i) => i !== index))}
             >
               ×
@@ -1074,6 +1088,7 @@ function WordList({
         ))}
         <Button
           variant="secondary"
+          aria-label={`Add to ${title.toLowerCase()}`}
           onClick={() => onChange([...values, placeholder])}
         >
           Add
