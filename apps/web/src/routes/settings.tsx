@@ -1010,10 +1010,17 @@ function Connection({
           selected one is a primary button, the other a secondary. It was two
           hand-styled buttons carrying the primary's own background token. */}
       <Toolbar>
+        {/*
+          Named with the provider. This card is drawn once for Stripe and
+          once for PayPal, so the screen carries two Sandboxes, two Lives
+          and two Connects — right in their own card and ambiguous the
+          moment somebody asks for one by name.
+        */}
         {["test", "live"].map((option) => (
           <Button
             key={option}
             variant={mode === option ? "primary" : "secondary"}
+            aria-label={`${option === "test" ? "Sandbox" : "Live"} — ${label}`}
             onClick={() => setMode(option)}
           >
             {option === "test" ? "Sandbox" : "Live"}
@@ -1106,6 +1113,7 @@ function Connection({
       <Toolbar className="mt-3">
         <Button
           needs={{ settings: ["update"] }}
+          aria-label={`${account?.enabled ? "Reconnect" : "Connect"} ${label}`}
           onClick={() => connect.mutate()}
           disabled={connect.isPending || (!secretKey && !account?.secretHint)}
         >

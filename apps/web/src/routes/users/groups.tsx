@@ -143,6 +143,10 @@ export function Groups() {
               </td>
               <td className="text-right">
                 <ConfirmButton
+                  // Six of these on a screen, all of them "Delete". The row
+                  // names the group for somebody reading it; a voice saying
+                  // "click Delete" has six to choose from.
+                  label={`Delete the ${g.name} group`}
                   title="Delete this group?"
                   message={`Everybody in ${g.name} keeps the policy given to them directly and loses whatever this group granted on top. Nobody is removed from the business.`}
                   confirmLabel="Delete it"

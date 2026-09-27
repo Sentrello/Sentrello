@@ -829,12 +829,14 @@ export function ConfirmButton({
    */
   needs?: Needs;
   /**
-   * What the trigger is, for a trigger that is a picture.
+   * What this trigger is, when its own words are not enough.
    *
-   * An icon on its own says nothing to somebody who has not met it and
-   * nothing at all to a screen reader, and `title` here is the dialog's
-   * heading rather than the button's. Only read when no `variant` is set,
-   * since a full `Button` carries its own words.
+   * Two cases. An icon on its own says nothing to somebody who has not met
+   * it and nothing at all to a screen reader — and `title` here is the
+   * dialog's heading rather than the button's. And a word that is right in
+   * its row and ambiguous on its screen: six rows of "Delete" are six
+   * identical names, so each one says which group it means. Only read when
+   * no `variant` is set, since a full `Button` carries its own words.
    */
   label?: string;
   /** Set to render a full Button rather than the small inline link. */
