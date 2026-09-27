@@ -22,7 +22,7 @@ import {
   border,
   muted,
 } from "../lib/ui";
-import { useUnsaved } from "../lib/unsaved";
+import { EditorScope, useUnsaved } from "../lib/unsaved";
 
 /**
  * Creating and editing a contact, with every field the record actually has.
@@ -271,200 +271,205 @@ export function ContactForm({
   const named = firstName.trim() || lastName.trim();
 
   return (
-    <Page width="prose">
-      <Card>
-        <form
-          className="flex flex-col gap-(--gap-stack)"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (named) save.mutate();
-          }}
-        >
-          <div className="grid gap-(--gap-toolbar) sm:grid-cols-2">
-            <Field label="First name">
-              <Input
-                value={firstName}
-                autoFocus
-                onChange={(e) => setFirstName(e.target.value)}
-              />
-            </Field>
-            <Field label="Last name">
-              <Input
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-              />
-            </Field>
-          </div>
-
-          <div className="grid gap-(--gap-toolbar) sm:grid-cols-2">
-            <Field label="Job title">
-              <Input value={title} onChange={(e) => setTitle(e.target.value)} />
-            </Field>
-            <Field label="Company">
-              <RecordPicker
-                path="/api/companies"
-                resource="companies"
-                value={company}
-                onChange={setCompany}
-                placeholder="Search companies"
-                clearLabel="No company"
-                noun="company"
-              />
-            </Field>
-          </div>
-
-          <div
-            className="grid grid-cols-1 gap-(--gap-stack) border-t pt-(--gap-stack) sm:grid-cols-2"
-            style={border}
+    <EditorScope>
+      <Page width="prose">
+        <Card>
+          <form
+            className="flex flex-col gap-(--gap-stack)"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (named) save.mutate();
+            }}
           >
-            <LabelledList
-              legend="Email"
-              values={emails}
-              onChange={setEmails}
-              type="email"
-              placeholder="name@example.com"
-            />
-            <LabelledList
-              legend="Phone"
-              values={phones}
-              onChange={setPhones}
-              type="tel"
-              placeholder="+1 555 0100"
-            />
-          </div>
+            <div className="grid gap-(--gap-toolbar) sm:grid-cols-2">
+              <Field label="First name">
+                <Input
+                  value={firstName}
+                  autoFocus
+                  onChange={(e) => setFirstName(e.target.value)}
+                />
+              </Field>
+              <Field label="Last name">
+                <Input
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                />
+              </Field>
+            </div>
 
-          <div
-            className="grid gap-(--gap-toolbar) border-t pt-(--gap-stack) sm:grid-cols-2"
-            style={border}
-          >
-            <Field label="Status">
-              <Select
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-              >
-                {settings.contactStatuses.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.label}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="LinkedIn">
-              <Input
-                value={linkedinUrl}
-                placeholder="https://linkedin.com/in/…"
-                onChange={(e) => setLinkedinUrl(e.target.value)}
-              />
-            </Field>
-            <Field label="Account manager" hint="Whose contact this is.">
-              <Select
-                value={ownerId}
-                onChange={(e) => setOwnerId(e.target.value)}
-              >
-                <option value="">Nobody yet</option>
-                {managers.map((manager) => (
-                  <option key={manager.userId} value={manager.userId}>
-                    {managerName(manager)}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Gender">
-              {/* Only ever used to pick the right placeholder face. */}
-              <Select
-                value={gender}
-                onChange={(e) => setGender(e.target.value)}
-              >
-                <option value="">Not stated</option>
-                <option value="female">Female</option>
-                <option value="male">Male</option>
-              </Select>
-            </Field>
-          </div>
+            <div className="grid gap-(--gap-toolbar) sm:grid-cols-2">
+              <Field label="Job title">
+                <Input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                />
+              </Field>
+              <Field label="Company">
+                <RecordPicker
+                  path="/api/companies"
+                  resource="companies"
+                  value={company}
+                  onChange={setCompany}
+                  placeholder="Search companies"
+                  clearLabel="No company"
+                  noun="company"
+                />
+              </Field>
+            </div>
 
-          {/* Whatever this business decided it needs to know, from its own
-            settings rather than from this file. */}
-          <div className="grid gap-(--gap-toolbar) sm:grid-cols-2">
-            <CustomFields
-              fields={settings.customFields.filter(
-                (f) => f.appliesTo === "contact",
-              )}
-              values={customValues}
-              onChange={setCustomValues}
-            />
-          </div>
-
-          <Field label="Background">
-            <Textarea
-              value={background}
-              rows={3}
-              placeholder="How you met, who introduced you, what they care about"
-              onChange={(e) => setBackground(e.target.value)}
-            />
-          </Field>
-
-          <label className="flex items-center gap-(--gap-toolbar) text-sm">
-            <input
-              type="checkbox"
-              checked={hasNewsletter}
-              onChange={(e) => setHasNewsletter(e.target.checked)}
-            />
-            They agreed to receive the newsletter
-          </label>
-
-          <label className="flex items-start gap-(--gap-toolbar) text-sm">
-            <input
-              type="checkbox"
-              className="mt-(--gap-tight)"
-              checked={doNotSell}
-              onChange={(e) => setDoNotSell(e.target.checked)}
-            />
-            <span>
-              They asked not to have their information sold or shared
-              <span className="block" style={muted}>
-                Marked on every export of your contacts, so whoever opens the
-                file can see it. Different from unsubscribing, which is about
-                contacting them.
-              </span>
-            </span>
-          </label>
-
-          <Toolbar>
-            {/*
-              A form's Save fires from the form, not from the button, so the
-              sweep that gated four hundred controls never saw this one — and
-              the route it posts to is generated from a template, so the route
-              side could not see it either. Both blind spots at once, on the
-              biggest record form in the CRM.
-
-              `create` rather than `update` because this form does both and a
-              person who may only update an existing contact still cannot make
-              a new one here; the route asks for `create` on the POST.
-            */}
-            <Button
-              type="submit"
-              needs={{ crm: [contact ? "update" : "create"] }}
-              disabled={save.isPending || !named}
+            <div
+              className="grid grid-cols-1 gap-(--gap-stack) border-t pt-(--gap-stack) sm:grid-cols-2"
+              style={border}
             >
-              {save.isPending
-                ? "Saving…"
-                : contact
-                  ? "Save changes"
-                  : "Create contact"}
-            </Button>
-            <Button variant="secondary" onClick={() => onDone()}>
-              Cancel
-            </Button>
-            {!named ? (
-              <span className="text-sm" style={muted}>
-                A first or last name is needed.
-              </span>
-            ) : null}
-          </Toolbar>
+              <LabelledList
+                legend="Email"
+                values={emails}
+                onChange={setEmails}
+                type="email"
+                placeholder="name@example.com"
+              />
+              <LabelledList
+                legend="Phone"
+                values={phones}
+                onChange={setPhones}
+                type="tel"
+                placeholder="+1 555 0100"
+              />
+            </div>
 
-          {save.error ? <ErrorNote error={save.error} /> : null}
-        </form>
-      </Card>
-    </Page>
+            <div
+              className="grid gap-(--gap-toolbar) border-t pt-(--gap-stack) sm:grid-cols-2"
+              style={border}
+            >
+              <Field label="Status">
+                <Select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                >
+                  {settings.contactStatuses.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="LinkedIn">
+                <Input
+                  value={linkedinUrl}
+                  placeholder="https://linkedin.com/in/…"
+                  onChange={(e) => setLinkedinUrl(e.target.value)}
+                />
+              </Field>
+              <Field label="Account manager" hint="Whose contact this is.">
+                <Select
+                  value={ownerId}
+                  onChange={(e) => setOwnerId(e.target.value)}
+                >
+                  <option value="">Nobody yet</option>
+                  {managers.map((manager) => (
+                    <option key={manager.userId} value={manager.userId}>
+                      {managerName(manager)}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Gender">
+                {/* Only ever used to pick the right placeholder face. */}
+                <Select
+                  value={gender}
+                  onChange={(e) => setGender(e.target.value)}
+                >
+                  <option value="">Not stated</option>
+                  <option value="female">Female</option>
+                  <option value="male">Male</option>
+                </Select>
+              </Field>
+            </div>
+
+            {/* Whatever this business decided it needs to know, from its own
+              settings rather than from this file. */}
+            <div className="grid gap-(--gap-toolbar) sm:grid-cols-2">
+              <CustomFields
+                fields={settings.customFields.filter(
+                  (f) => f.appliesTo === "contact",
+                )}
+                values={customValues}
+                onChange={setCustomValues}
+              />
+            </div>
+
+            <Field label="Background">
+              <Textarea
+                value={background}
+                rows={3}
+                placeholder="How you met, who introduced you, what they care about"
+                onChange={(e) => setBackground(e.target.value)}
+              />
+            </Field>
+
+            <label className="flex items-center gap-(--gap-toolbar) text-sm">
+              <input
+                type="checkbox"
+                checked={hasNewsletter}
+                onChange={(e) => setHasNewsletter(e.target.checked)}
+              />
+              They agreed to receive the newsletter
+            </label>
+
+            <label className="flex items-start gap-(--gap-toolbar) text-sm">
+              <input
+                type="checkbox"
+                className="mt-(--gap-tight)"
+                checked={doNotSell}
+                onChange={(e) => setDoNotSell(e.target.checked)}
+              />
+              <span>
+                They asked not to have their information sold or shared
+                <span className="block" style={muted}>
+                  Marked on every export of your contacts, so whoever opens the
+                  file can see it. Different from unsubscribing, which is about
+                  contacting them.
+                </span>
+              </span>
+            </label>
+
+            <Toolbar>
+              {/*
+                A form's Save fires from the form, not from the button, so the
+                sweep that gated four hundred controls never saw this one — and
+                the route it posts to is generated from a template, so the route
+                side could not see it either. Both blind spots at once, on the
+                biggest record form in the CRM.
+
+                `create` rather than `update` because this form does both and a
+                person who may only update an existing contact still cannot make
+                a new one here; the route asks for `create` on the POST.
+              */}
+              <Button
+                type="submit"
+                needs={{ crm: [contact ? "update" : "create"] }}
+                disabled={save.isPending || !named}
+              >
+                {save.isPending
+                  ? "Saving…"
+                  : contact
+                    ? "Save changes"
+                    : "Create contact"}
+              </Button>
+              <Button variant="secondary" onClick={() => onDone()}>
+                Cancel
+              </Button>
+              {!named ? (
+                <span className="text-sm" style={muted}>
+                  A first or last name is needed.
+                </span>
+              ) : null}
+            </Toolbar>
+
+            {save.error ? <ErrorNote error={save.error} /> : null}
+          </form>
+        </Card>
+      </Page>
+    </EditorScope>
   );
 }

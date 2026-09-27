@@ -24,7 +24,7 @@ import {
   border,
   muted,
 } from "../lib/ui";
-import { useUnsaved } from "../lib/unsaved";
+import { EditorScope, useUnsaved } from "../lib/unsaved";
 
 /**
  * Creating and editing a company, with every field the record has.
@@ -227,195 +227,203 @@ export function CompanyForm({
   });
 
   return (
-    <Page width="prose">
-      <Card>
-        <form
-          className="flex flex-col gap-(--gap-stack)"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (name.trim()) save.mutate();
-          }}
-        >
-          <div className="grid gap-(--gap-toolbar) sm:grid-cols-2">
-            <Field label="Name">
-              <Input
-                value={name}
-                autoFocus
-                onChange={(e) => setName(e.target.value)}
-              />
-            </Field>
-            <Field label="Sector">
-              <Select
-                value={sector}
-                onChange={(e) => setSector(e.target.value)}
+    <EditorScope>
+      <Page width="prose">
+        <Card>
+          <form
+            className="flex flex-col gap-(--gap-stack)"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (name.trim()) save.mutate();
+            }}
+          >
+            <div className="grid gap-(--gap-toolbar) sm:grid-cols-2">
+              <Field label="Name">
+                <Input
+                  value={name}
+                  autoFocus
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </Field>
+              <Field label="Sector">
+                <Select
+                  value={sector}
+                  onChange={(e) => setSector(e.target.value)}
+                >
+                  <option value="">Not stated</option>
+                  {settings.companySectors.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+
+            <div className="grid gap-(--gap-toolbar) sm:grid-cols-3">
+              <Field label="Size">
+                <Select value={size} onChange={(e) => setSize(e.target.value)}>
+                  <option value="">Not stated</option>
+                  {COMPANY_SIZES.map((band) => (
+                    <option key={band.id} value={band.id}>
+                      {band.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field
+                label="Revenue"
+                hint="However this business talks about it."
               >
-                <option value="">Not stated</option>
-                {settings.companySectors.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          </div>
-
-          <div className="grid gap-(--gap-toolbar) sm:grid-cols-3">
-            <Field label="Size">
-              <Select value={size} onChange={(e) => setSize(e.target.value)}>
-                <option value="">Not stated</option>
-                {COMPANY_SIZES.map((band) => (
-                  <option key={band.id} value={band.id}>
-                    {band.label}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Revenue" hint="However this business talks about it.">
-              <Input
-                value={revenue}
-                onChange={(e) => setRevenue(e.target.value)}
-              />
-            </Field>
-            <Field
-              label="Tax identifier"
-              hint="VAT number, EIN, GST/HST — whatever applies."
-            >
-              <Input
-                value={taxIdentifier}
-                onChange={(e) => setTaxIdentifier(e.target.value)}
-              />
-              {company && (
-                <ViesStatus company={company} taxIdentifier={taxIdentifier} />
-              )}
-            </Field>
-          </div>
-
-          <div
-            className="grid gap-(--gap-toolbar) border-t pt-(--gap-stack) sm:grid-cols-4"
-            style={border}
-          >
-            <Field label="Website">
-              <Input
-                value={website}
-                placeholder="https://…"
-                onChange={(e) => setWebsite(e.target.value)}
-              />
-            </Field>
-            <Field label="LinkedIn">
-              <Input
-                value={linkedinUrl}
-                placeholder="https://linkedin.com/company/…"
-                onChange={(e) => setLinkedinUrl(e.target.value)}
-              />
-            </Field>
-            <Field label="Phone">
-              <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
-            </Field>
-            <Field label="Account manager" hint="Whose account this is.">
-              <Select
-                value={ownerId}
-                onChange={(e) => setOwnerId(e.target.value)}
+                <Input
+                  value={revenue}
+                  onChange={(e) => setRevenue(e.target.value)}
+                />
+              </Field>
+              <Field
+                label="Tax identifier"
+                hint="VAT number, EIN, GST/HST — whatever applies."
               >
-                <option value="">Nobody yet</option>
-                {managers.map((manager) => (
-                  <option key={manager.userId} value={manager.userId}>
-                    {managerName(manager)}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          </div>
+                <Input
+                  value={taxIdentifier}
+                  onChange={(e) => setTaxIdentifier(e.target.value)}
+                />
+                {company && (
+                  <ViesStatus company={company} taxIdentifier={taxIdentifier} />
+                )}
+              </Field>
+            </div>
 
-          <div
-            className="grid gap-(--gap-toolbar) border-t pt-(--gap-stack) sm:grid-cols-2"
-            style={border}
-          >
-            <Field label="Address">
-              <Input
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-              />
-            </Field>
-            <Field label="City">
-              <Input value={city} onChange={(e) => setCity(e.target.value)} />
-            </Field>
-            {/*
-              Above the two fields whose labels it decides, and ahead of them
-              for a second reason: typed by hand this decided VAT, because
-              `euCountry` reads a two-letter code — a customer entered as
-              "Germany" was not an EU customer at all and the reverse charge
-              never applied to them.
-            */}
-            <Field label="Country">
-              <CountrySelect value={country} onChange={setCountry} anywhere />
-            </Field>
-            <Field label={postcodeLabel(country)}>
-              <Input
-                value={postcode}
-                onChange={(e) => setPostcode(e.target.value)}
-              />
-            </Field>
-            <Field label={regionLabel(country)}>
-              <Input
-                value={stateName}
-                onChange={(e) => setStateName(e.target.value)}
-              />
-            </Field>
-          </div>
-
-          <div
-            className="grid grid-cols-1 gap-(--gap-stack) border-t pt-(--gap-stack) sm:grid-cols-2"
-            style={border}
-          >
-            <Field label="Description">
-              <Textarea
-                value={description}
-                placeholder="What they do, and what the relationship is"
-                onChange={(e) => setDescription(e.target.value)}
-              />
-            </Field>
-            <ContextLinks values={contextLinks} onChange={setContextLinks} />
-          </div>
-
-          {/* This business's own fields, from its settings rather than here. */}
-          <div className="grid gap-(--gap-toolbar) sm:grid-cols-2">
-            <CustomFields
-              fields={settings.customFields.filter(
-                (f) => f.appliesTo === "company",
-              )}
-              values={customValues}
-              onChange={setCustomValues}
-            />
-          </div>
-
-          <Toolbar>
-            {/* Same shape as the contact form, and missed for the same two
-                reasons: the mutation fires from the form, and the route it
-                posts to is generated. */}
-            <Button
-              type="submit"
-              needs={{ crm: [company ? "update" : "create"] }}
-              disabled={save.isPending || !name.trim()}
+            <div
+              className="grid gap-(--gap-toolbar) border-t pt-(--gap-stack) sm:grid-cols-4"
+              style={border}
             >
-              {save.isPending
-                ? "Saving…"
-                : company
-                  ? "Save changes"
-                  : "Create company"}
-            </Button>
-            <Button variant="secondary" onClick={() => onDone()}>
-              Cancel
-            </Button>
-            {!name.trim() ? (
-              <span className="text-sm" style={muted}>
-                A name is needed.
-              </span>
-            ) : null}
-          </Toolbar>
+              <Field label="Website">
+                <Input
+                  value={website}
+                  placeholder="https://…"
+                  onChange={(e) => setWebsite(e.target.value)}
+                />
+              </Field>
+              <Field label="LinkedIn">
+                <Input
+                  value={linkedinUrl}
+                  placeholder="https://linkedin.com/company/…"
+                  onChange={(e) => setLinkedinUrl(e.target.value)}
+                />
+              </Field>
+              <Field label="Phone">
+                <Input
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                />
+              </Field>
+              <Field label="Account manager" hint="Whose account this is.">
+                <Select
+                  value={ownerId}
+                  onChange={(e) => setOwnerId(e.target.value)}
+                >
+                  <option value="">Nobody yet</option>
+                  {managers.map((manager) => (
+                    <option key={manager.userId} value={manager.userId}>
+                      {managerName(manager)}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
 
-          {save.error ? <ErrorNote error={save.error} /> : null}
-        </form>
-      </Card>
-    </Page>
+            <div
+              className="grid gap-(--gap-toolbar) border-t pt-(--gap-stack) sm:grid-cols-2"
+              style={border}
+            >
+              <Field label="Address">
+                <Input
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                />
+              </Field>
+              <Field label="City">
+                <Input value={city} onChange={(e) => setCity(e.target.value)} />
+              </Field>
+              {/*
+                Above the two fields whose labels it decides, and ahead of them
+                for a second reason: typed by hand this decided VAT, because
+                `euCountry` reads a two-letter code — a customer entered as
+                "Germany" was not an EU customer at all and the reverse charge
+                never applied to them.
+              */}
+              <Field label="Country">
+                <CountrySelect value={country} onChange={setCountry} anywhere />
+              </Field>
+              <Field label={postcodeLabel(country)}>
+                <Input
+                  value={postcode}
+                  onChange={(e) => setPostcode(e.target.value)}
+                />
+              </Field>
+              <Field label={regionLabel(country)}>
+                <Input
+                  value={stateName}
+                  onChange={(e) => setStateName(e.target.value)}
+                />
+              </Field>
+            </div>
+
+            <div
+              className="grid grid-cols-1 gap-(--gap-stack) border-t pt-(--gap-stack) sm:grid-cols-2"
+              style={border}
+            >
+              <Field label="Description">
+                <Textarea
+                  value={description}
+                  placeholder="What they do, and what the relationship is"
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+              </Field>
+              <ContextLinks values={contextLinks} onChange={setContextLinks} />
+            </div>
+
+            {/* This business's own fields, from its settings rather than here. */}
+            <div className="grid gap-(--gap-toolbar) sm:grid-cols-2">
+              <CustomFields
+                fields={settings.customFields.filter(
+                  (f) => f.appliesTo === "company",
+                )}
+                values={customValues}
+                onChange={setCustomValues}
+              />
+            </div>
+
+            <Toolbar>
+              {/* Same shape as the contact form, and missed for the same two
+                  reasons: the mutation fires from the form, and the route it
+                  posts to is generated. */}
+              <Button
+                type="submit"
+                needs={{ crm: [company ? "update" : "create"] }}
+                disabled={save.isPending || !name.trim()}
+              >
+                {save.isPending
+                  ? "Saving…"
+                  : company
+                    ? "Save changes"
+                    : "Create company"}
+              </Button>
+              <Button variant="secondary" onClick={() => onDone()}>
+                Cancel
+              </Button>
+              {!name.trim() ? (
+                <span className="text-sm" style={muted}>
+                  A name is needed.
+                </span>
+              ) : null}
+            </Toolbar>
+
+            {save.error ? <ErrorNote error={save.error} /> : null}
+          </form>
+        </Card>
+      </Page>
+    </EditorScope>
   );
 }

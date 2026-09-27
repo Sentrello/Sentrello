@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 
 /**
  * Work somebody has typed and not saved, and the one question worth asking
@@ -39,13 +39,14 @@ export function hasUnsaved(): boolean {
  * perfectly reproducible — typing "Roofing" into a new invoice gave
  * "oofing". A guard against losing work must not lose any.
  *
- * **Scoped to the screen, not to an element.** An earlier attempt took a ref
- * to the editor's own page, and never fired at all: an editor's first render
- * is `<Loading/>` while its lookups arrive, so the effect ran against a ref
- * that was still null and never ran again. `#screen` is in the document from
- * the start and holds whatever screen is open — and while an editor is
- * mounted, that is the editor. Typing in the header's search box is outside
- * it and correctly ignored.
+ * **Scoped by a marker in the document, not by a ref.** An earlier attempt
+ * took a ref to the editor's own page and never fired at all: an editor's
+ * first render is `<Loading/>` while its lookups arrive, so the effect ran
+ * against a ref that was still null and never ran again. A later one watched
+ * the whole of `#screen`, which is too much — the contact and company forms
+ * open *beside* their list, so typing in the list's filter box would have
+ * armed a guard about the form. `EditorScope` marks the editor itself and
+ * the listener asks whether the edit happened inside one.
  */
 export function useUnsaved(): { settled: () => void } {
   const mine = useRef(Symbol("editor"));
@@ -60,7 +61,9 @@ export function useUnsaved(): { settled: () => void } {
      * shortcut handler — cannot hide the edit from this.
      */
     const noticed = (e: Event) => {
-      if ((e.target as Element | null)?.closest("#screen")) editing.add(id);
+      if ((e.target as Element | null)?.closest("[data-editor]")) {
+        editing.add(id);
+      }
     };
     document.addEventListener("input", noticed, true);
     document.addEventListener("change", noticed, true);
@@ -94,4 +97,19 @@ export function useUnsaved(): { settled: () => void } {
       editing.delete(mine.current);
     },
   };
+}
+
+/**
+ * What counts as inside the editor.
+ *
+ * `display: contents` on purpose: the marker has to be a real element for
+ * `closest` to find it and must not be a box, or wrapping three forms in it
+ * would move them. Nothing else in the product needs to know it is here.
+ */
+export function EditorScope({ children }: { children: ReactNode }) {
+  return (
+    <div data-editor style={{ display: "contents" }}>
+      {children}
+    </div>
+  );
 }
