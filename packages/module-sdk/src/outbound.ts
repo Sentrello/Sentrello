@@ -183,6 +183,19 @@ export function deadline(ms = 15_000): AbortSignal {
   return AbortSignal.timeout(ms);
 }
 
+/*
+ * Verified rather than assumed, 27 September 2026: a `Bun.serve` that accepts
+ * the connection and never answers, fetched with a one-second deadline,
+ * rejects with `TimeoutError` after 1002ms. Bun's `fetch` honours the signal
+ * mid-flight, which is the whole premise above and would be worth nothing if
+ * it did not.
+ *
+ * Not kept as a test: the figure that matters in the real calls is fifteen
+ * seconds, so proving it end to end costs fifteen seconds on every commit to
+ * re-establish a platform behaviour. `findUntimedFetch` guards the part that
+ * can actually drift — whether the signal is there at all.
+ */
+
 /** One place a request calls out with nothing to stop it waiting for ever. */
 export interface UntimedCall {
   line: number;
