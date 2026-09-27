@@ -423,7 +423,11 @@ export function CompanyDetail() {
           <p className="text-sm" style={muted}>
             {[
               company.sector,
-              company.size ? `${company.size} people` : null,
+              // A one-person company is the ordinary case in this market,
+              // and it read "1 people".
+              company.size
+                ? `${company.size} ${company.size === 1 ? "person" : "people"}`
+                : null,
               [company.city, company.country].filter(Boolean).join(", ") ||
                 null,
             ]
