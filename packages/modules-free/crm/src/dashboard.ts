@@ -16,6 +16,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { and, db, desc, eq, gte, inArray, isNull, schema } from "@sentrello/db";
+import { decidedStages } from "@sentrello/db/crm";
 import type { ModuleContext } from "@sentrello/module-sdk";
 
 /** Long enough that a quiet fortnight is not an alarm, short enough to act on. */
@@ -61,17 +62,13 @@ async function dealOutcomes(
     lostCents: number;
   }[]
 > {
-  const [settings] = await db
-    .select({
-      wonStages: schema.crmSettings.wonStages,
-      lostStages: schema.crmSettings.lostStages,
-    })
-    .from(schema.crmSettings)
-    .where(eq(schema.crmSettings.organizationId, orgId))
-    .limit(1);
-
-  const won = new Set(settings?.wonStages ?? ["won"]);
-  const lost = new Set(settings?.lostStages ?? ["lost"]);
+  // The business's own names, asked for in the one place that knows them.
+  // This read the settings correctly and wrote the fallback words out again,
+  // which is a fourth copy of "won" and "lost" in a product where what those
+  // mean is configurable.
+  const stages = await decidedStages(orgId);
+  const won = new Set(stages.won);
+  const lost = new Set(stages.lost);
 
   const months = new Map<
     string,
