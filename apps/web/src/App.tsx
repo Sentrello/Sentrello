@@ -249,10 +249,6 @@ function recallShape(): Meta | null {
 }
 
 /**
- * The nav renders only what the server loaded, which is only what the license
- * entitles — the UI can never show a feature the instance isn't licensed for.
- */
-/**
  * Whether a query the whole application waits on has answered *at all* yet.
  *
  * `isLoading` is not that question, and the difference held the product
@@ -279,6 +275,10 @@ export function stillDeciding(query: {
   return query.isLoading && !query.isFetched;
 }
 
+/**
+ * The nav renders only what the server loaded, which is only what the license
+ * entitles — the UI can never show a feature the instance isn't licensed for.
+ */
 function useBootstrap() {
   return useQuery({
     queryKey: ["bootstrap"],
