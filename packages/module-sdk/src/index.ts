@@ -363,7 +363,7 @@ export interface SentrelloModule {
 import { type AccountSection, addAccountSection } from "./account";
 import { type ComputedColumns, addComputedColumns } from "./computed-columns";
 import { type CrawlableSurface, addCrawlable } from "./crawlable";
-import { isMalformedUuid } from "./malformed-id";
+import { isMalformedUuid, isStatementTimeout } from "./malformed-id";
 import { type OnboardingGuide, addOnboarding } from "./onboarding";
 import {
   type PaymentWebhookConsumer,
@@ -578,6 +578,18 @@ export function registerForTest(
     // behaviour nobody ships.
     if (isMalformedUuid(err)) {
       return c.json({ error: "not found" }, 404);
+    }
+    // And a statement the instance cut for running too long, which the host
+    // answers 503 with the name of the knob in it. Same reason: a module's
+    // tests should see the refusal its users will.
+    if (isStatementTimeout(err)) {
+      return c.json(
+        {
+          error:
+            "that took longer than this instance allows a single query to run. If it is genuinely a big job, raise SENTRELLO_DB_STATEMENT_TIMEOUT (seconds, 0 to turn it off).",
+        },
+        503,
+      );
     }
     // Everything else keeps the answer the host gives it, 500 included: a
     // harness that rethrows turns a route's crash into a rejected request and

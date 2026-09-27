@@ -28,6 +28,37 @@ if (!url) throw new Error("DATABASE_URL is not set");
  * use with nobody doing anything — measured, not guessed. Leave a third of the
  * ceiling free, or the first thing to fail is the backup nobody was watching.
  */
+/**
+ * How long one statement may run before Postgres cuts it.
+ *
+ * The last way a pooled connection is held for a long time. Not a hung
+ * outbound call — that family is closed, see `deadline` in the SDK's
+ * `outbound` — but a *query*: a missing index on a table that grew, a filter
+ * that turned into a scan, a report over a decade of books on a box with one
+ * core. The pool is ten, and ten of those is an instance that answers
+ * nothing while Postgres works away perfectly happily.
+ *
+ * **Sixty seconds, and it is a knob.** Measured against this product's
+ * honest work, which is nowhere near it: on ten thousand contacts every
+ * report, list and dashboard answers between five and fifteen milliseconds.
+ * A request nobody will wait for is already lost at thirty seconds, so sixty
+ * is generous twice over — and it is per *statement*, not per request, so
+ * the long jobs in this product, which are loops of small writes, are not
+ * touched by it.
+ *
+ * It is a knob because the figure that is obviously safe on measured data is
+ * a guess about somebody else's: a business with fifteen years of ledger on
+ * a small VPS is the case nobody here can measure. `0` turns it off
+ * entirely. And when it does fire, the answer says so and names this
+ * variable rather than saying "something went wrong" — see
+ * `isStatementTimeout`.
+ */
+export function statementTimeout(): number {
+  const asked = Number(process.env.SENTRELLO_DB_STATEMENT_TIMEOUT ?? 60);
+  if (!Number.isFinite(asked) || asked < 0) return 60_000;
+  return Math.trunc(asked) * 1000;
+}
+
 export function poolSize(): number {
   const asked = Number(process.env.SENTRELLO_DB_POOL ?? 10);
   return Number.isFinite(asked) ? Math.max(2, Math.trunc(asked)) : 10;
@@ -89,7 +120,10 @@ if (!held) {
        * needs a figure somebody has measured the slowest report and archive
        * against.
        */
-      connection: { idle_in_transaction_session_timeout: 60_000 },
+      connection: {
+        idle_in_transaction_session_timeout: 60_000,
+        statement_timeout: statementTimeout(),
+      },
       ...(ssl ? { ssl } : {}),
     }),
   };

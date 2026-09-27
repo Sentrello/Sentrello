@@ -31,6 +31,7 @@ import type { SentrelloEnv, SentrelloModule } from "@sentrello/module-sdk";
 import {
   allCrawlable,
   isMalformedUuid,
+  isStatementTimeout,
   robotsTxt,
   searchEverything,
   searchProviders,
@@ -108,6 +109,25 @@ app.onError((err, c) => {
    */
   if (isMalformedUuid(err)) {
     return c.json({ error: "not found" }, 404);
+  }
+  /*
+   * A statement Postgres cut for running too long.
+   *
+   * Not the caller's mistake and not a crash: it is the instance saying this
+   * query needed longer than it is allowed. A self-hoster can act on that —
+   * raise the figure, or look at why one query grew — and cannot act on
+   * "something went wrong", so the answer names the knob. 503 rather than
+   * 500 because the work is legitimate and trying again on a quieter
+   * instance may well succeed.
+   */
+  if (isStatementTimeout(err)) {
+    return c.json(
+      {
+        error:
+          "that took longer than this instance allows a single query to run. If it is genuinely a big job, raise SENTRELLO_DB_STATEMENT_TIMEOUT (seconds, 0 to turn it off).",
+      },
+      503,
+    );
   }
   console.error(err);
   return c.json({ error: "something went wrong" }, 500);

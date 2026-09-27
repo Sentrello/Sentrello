@@ -131,6 +131,28 @@ PostgreSQL is sized at install time from the machine it found. Give the server
 less memory afterwards, or add other things to it, and the database is working
 from numbers that no longer describe the machine.
 
+## One page says a query took too long
+
+Something like *"that took longer than this instance allows a single query to
+run"*. It is not a fault, and trying again rarely helps: a single database
+query hit the ceiling this instance puts on one, which is sixty seconds.
+
+Nothing in Sentrello comes close to that on ordinary data — every report, list
+and dashboard answers in well under a second on ten thousand customers — so
+one query alone at a minute means either a great deal of history or a machine
+working harder than it should be. Look at memory first, as above.
+
+If the job really is that big, raise the ceiling:
+
+```
+SENTRELLO_DB_STATEMENT_TIMEOUT=180
+```
+
+Seconds, and `0` turns it off entirely. The ceiling exists because a query
+that runs for ever holds one of ten database connections while it does, and
+ten of those is an instance that answers nothing at all — so turning it off
+trades one slow page for the chance of a silent stop.
+
 ## The page loads but a section is empty
 
 Almost always permissions rather than data. Open the same page as an

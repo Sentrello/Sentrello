@@ -32,3 +32,25 @@ export function isMalformedUuid(err: unknown): boolean {
   }
   return false;
 }
+
+/**
+ * Whether a failure is Postgres cutting a statement that ran too long.
+ *
+ * `57014` is `query_canceled`, which is what `statement_timeout` raises. It
+ * is not a fault in the request and it is not a fault a person can do
+ * anything about by trying again — but it *is* one a self-hoster can do
+ * something about, which is why it must not arrive as "something went
+ * wrong". See `statementTimeout` in `@sentrello/db`.
+ *
+ * Beside `isMalformedUuid` and walked the same way, because drizzle wraps
+ * the driver's error and the code is somewhere down the cause chain.
+ */
+export function isStatementTimeout(err: unknown): boolean {
+  let at: unknown = err;
+  for (let depth = 0; at && depth < 5; depth += 1) {
+    const e = at as { code?: unknown; cause?: unknown };
+    if (e.code === "57014") return true;
+    at = e.cause;
+  }
+  return false;
+}
