@@ -22,6 +22,7 @@ import {
   border,
   muted,
 } from "../lib/ui";
+import { useUnsaved } from "../lib/unsaved";
 
 /**
  * Creating and editing a contact, with every field the record actually has.
@@ -177,6 +178,10 @@ export function ContactForm({
   settings: CrmSettings;
   onDone: (saved?: Contact) => void;
 }) {
+  // Half a record typed and a click on the rail threw it away. The
+  // guard is armed by a real edit inside this screen, and stood down
+  // the moment the save lands.
+  const { settled } = useUnsaved();
   const boxes = nameBoxes(contact);
   const [firstName, setFirstName] = useState(boxes.firstName);
   const [lastName, setLastName] = useState(boxes.lastName);
@@ -257,7 +262,10 @@ export function ContactForm({
       );
       return res.contact;
     },
-    onSuccess: (saved) => onDone(saved),
+    onSuccess: (saved) => {
+      settled();
+      onDone(saved);
+    },
   });
 
   const named = firstName.trim() || lastName.trim();

@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { setModuleNavigator } from "./module-ui";
+import { hasUnsaved } from "./unsaved";
 
 /**
  * Where you are, and how you got there.
@@ -45,6 +46,16 @@ interface Navigation {
   setTitle: (title: string) => void;
   /** Everything opened to get here, oldest first, excluding `current`. */
   trail: View[];
+  /**
+   * Where somebody asked to go while an editor held unsaved typing.
+   *
+   * Navigation is refused rather than queued: `null` means nothing is
+   * waiting. The shell draws the question and calls `leaveAnyway` or
+   * `stayHere`; nothing else should touch these three.
+   */
+  pending: View | null;
+  leaveAnyway: () => void;
+  stayHere: () => void;
   /** Open a view, remembering where you were. */
   open: (view: View) => void;
   /**
@@ -226,13 +237,36 @@ export function NavigationProvider({
     setCurrent((view) => (view.title === title ? view : { ...view, title }));
   }, []);
 
+  /**
+   * Somewhere somebody asked to go while an editor held unsaved typing.
+   *
+   * Every editor in this product replaces the list in place, so the rail and
+   * the panel are still beside a half-written invoice and one click threw it
+   * away — nothing asked, nothing kept. The navigation is refused and parked
+   * here; the shell draws the question.
+   *
+   * Refused rather than queued on purpose. If the answer is "stay", there
+   * must be nothing left over to fire later; if it is "leave", the same call
+   * is made again with the guard lifted, so there is one path into a view
+   * and not two.
+   */
+  const [pending, setPending] = useState<View | null>(null);
+  const leaving = useRef(false);
+  /** True when this navigation may proceed; parks it and returns false when not. */
+  const mayLeave = useCallback((to: View) => {
+    if (leaving.current || !hasUnsaved()) return true;
+    setPending(to);
+    return false;
+  }, []);
+
   const open = useCallback(
     (view: View) => {
+      if (!mayLeave(view)) return;
       setTrail((t) => trailAfterOpening(t, currentRef.current, view));
       setCurrent(view);
       showPath(view);
     },
-    [showPath],
+    [showPath, mayLeave],
   );
 
   // A module's screen navigates through the same door Core's own screens do,
@@ -243,12 +277,13 @@ export function NavigationProvider({
 
   const go = useCallback(
     (moduleId: string, title: string, intent?: string) => {
+      if (!mayLeave({ moduleId, title })) return;
       setTrail([]);
       intentRef.current = intent ?? null;
       setCurrent({ moduleId, title });
       showPath({ moduleId, title });
     },
-    [showPath],
+    [showPath, mayLeave],
   );
 
   const redirect = useCallback(
@@ -285,10 +320,36 @@ export function NavigationProvider({
     [showPath],
   );
 
+  /**
+   * Leaving, with the guard lifted for exactly one call.
+   *
+   * A ref rather than a flag in state: the second call has to see it, and a
+   * state update would not have landed by then. Cleared in the same tick,
+   * so nothing later slips through on it.
+   */
+  const leaveAnyway = useCallback(() => {
+    const to = pending;
+    setPending(null);
+    if (!to) return;
+    leaving.current = true;
+    try {
+      setTrail((t) => trailAfterOpening(t, currentRef.current, to));
+      setCurrent(to);
+      showPath(to);
+    } finally {
+      leaving.current = false;
+    }
+  }, [pending, showPath]);
+
+  const stayHere = useCallback(() => setPending(null), []);
+
   const value = useMemo<Navigation>(
     () => ({
       current,
       trail,
+      pending,
+      leaveAnyway,
+      stayHere,
       open,
       go,
       redirect,
@@ -296,7 +357,19 @@ export function NavigationProvider({
       setTitle,
       takeIntent,
     }),
-    [current, trail, open, go, redirect, backTo, setTitle, takeIntent],
+    [
+      current,
+      trail,
+      pending,
+      leaveAnyway,
+      stayHere,
+      open,
+      go,
+      redirect,
+      backTo,
+      setTitle,
+      takeIntent,
+    ],
   );
 
   return (

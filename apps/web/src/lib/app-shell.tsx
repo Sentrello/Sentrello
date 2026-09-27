@@ -5,7 +5,7 @@ import { FindButton } from "./find";
 import { Icon, type IconName } from "./icons";
 import { useNavigation } from "./navigation";
 import { type Theme, useTheme } from "./theme";
-import { muted } from "./ui";
+import { Button, Dialog, muted } from "./ui";
 
 /**
  * The frame every screen sits in.
@@ -766,6 +766,48 @@ function dismissPanelOverlay(focusTab = false) {
   if (focusTab) shell.querySelector<HTMLElement>(".panel-tab")?.focus();
 }
 
+/**
+ * "You have not saved that."
+ *
+ * Every editor in this product replaces the list in place, so the rail and
+ * the section panel sit beside a half-written invoice. One click on Contacts
+ * and eight lines of typing were gone — nothing asked, nothing kept, on a
+ * product whose whole subject is money somebody is owed.
+ *
+ * Drawn once, here, rather than per screen: the navigation parks the
+ * destination and this is the only thing that reads it, so no screen has to
+ * know the guard exists.
+ *
+ * Deliberately not `window.confirm`. It would be fewer lines and it is the
+ * wrong thing twice over: the browser's wording cannot say what is at stake,
+ * and a native modal blocks the page so completely that the automated walks
+ * hang on it rather than reporting it.
+ */
+function LeaveGuard() {
+  const { pending, leaveAnyway, stayHere } = useNavigation();
+  return (
+    <Dialog
+      title="You have not saved this yet"
+      open={pending !== null}
+      onClose={stayHere}
+    >
+      <p className="text-sm">
+        Leaving now throws away what you have typed. Nothing has been sent to
+        the server.
+      </p>
+      <div className="mt-4 flex flex-wrap justify-end gap-(--gap-toolbar)">
+        {/* Staying is the safe answer, so it is the one the focus lands on
+            and the one that reads as ordinary. Leaving is the destructive
+            half and says what it destroys. */}
+        <Button onClick={stayHere}>Keep editing</Button>
+        <Button variant="danger" onClick={leaveAnyway}>
+          Discard and leave
+        </Button>
+      </div>
+    </Dialog>
+  );
+}
+
 /** Initials, for when there is no avatar — which is the normal case. */
 function initials(name: string | null | undefined, email: string): string {
   const source = name?.trim() || email;
@@ -1037,6 +1079,7 @@ export function AppShell({
       <div aria-live="polite" className="sr-only">
         {arrived}
       </div>
+      <LeaveGuard />
       {/*
        * The way past the furniture, for somebody working without a mouse.
        *

@@ -192,7 +192,7 @@ function Column({
       <div className="mb-2 flex items-baseline justify-between px-1">
         <span className="text-sm font-medium">{label}</span>
         <span className="text-xs" style={muted}>
-          {deals.length} · {formatMoney(total)}
+          {formatCount(deals.length)} · {formatMoney(total)}
         </span>
       </div>
 

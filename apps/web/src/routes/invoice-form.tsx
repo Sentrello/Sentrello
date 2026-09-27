@@ -20,6 +20,7 @@ import {
   formatMoney,
   muted,
 } from "../lib/ui";
+import { useUnsaved } from "../lib/unsaved";
 
 /**
  * Writing an invoice.
@@ -145,6 +146,16 @@ export function InvoiceForm({
   asQuote?: boolean;
   onDone: (saved?: { id: string; number: string }) => void;
 }) {
+  /**
+   * A half-written document is the most expensive thing to lose in here.
+   *
+   * This form replaces the list in place, so the rail and the section panel
+   * are still beside eight lines of typing and one click threw them away.
+   * `useUnsaved` watches this page for a real edit rather than asking the
+   * dozen pieces of state below to declare themselves.
+   */
+  const { settled } = useUnsaved();
+
   const taxes = useQuery({
     queryKey: ["invoicing-taxes"],
     queryFn: () => api<{ taxes: TaxDefinition[] }>("/api/invoicing/taxes"),
@@ -492,7 +503,10 @@ export function InvoiceForm({
       });
       return res.invoice;
     },
-    onSuccess: (saved) => onDone(saved),
+    onSuccess: (saved) => {
+      settled();
+      onDone(saved);
+    },
   });
 
   if (taxes.isLoading) return <Loading />;

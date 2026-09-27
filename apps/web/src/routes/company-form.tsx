@@ -24,6 +24,7 @@ import {
   border,
   muted,
 } from "../lib/ui";
+import { useUnsaved } from "../lib/unsaved";
 
 /**
  * Creating and editing a company, with every field the record has.
@@ -162,6 +163,10 @@ export function CompanyForm({
   settings: CrmSettings;
   onDone: (saved?: Company) => void;
 }) {
+  // Half a record typed and a click on the rail threw it away. The
+  // guard is armed by a real edit inside this screen, and stood down
+  // the moment the save lands.
+  const { settled } = useUnsaved();
   const [name, setName] = useState(company?.name ?? "");
   const [sector, setSector] = useState(company?.sector ?? "");
   const [size, setSize] = useState(company?.size ? String(company.size) : "");
@@ -215,7 +220,10 @@ export function CompanyForm({
       );
       return res.company;
     },
-    onSuccess: (saved) => onDone(saved),
+    onSuccess: (saved) => {
+      settled();
+      onDone(saved);
+    },
   });
 
   return (
