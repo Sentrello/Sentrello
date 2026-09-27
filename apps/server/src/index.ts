@@ -69,6 +69,30 @@ const app = new Hono<SentrelloEnv>();
  * Only the caller's own mistakes are caught here. Every other failure keeps
  * the behaviour it had.
  */
+/**
+ * Whether a failure is only "that is not the shape of an id".
+ *
+ * Drizzle wraps the driver's error, so the cause chain is walked rather than
+ * the top of it. `22P02` is `invalid_text_representation`, which Postgres
+ * also raises for a bad integer or a bad enum — hence the second half: this
+ * must not swallow anything but an id.
+ */
+export function isMalformedUuid(err: unknown): boolean {
+  let at: unknown = err;
+  for (let depth = 0; at && depth < 5; depth += 1) {
+    const e = at as { code?: unknown; message?: unknown; cause?: unknown };
+    if (
+      e.code === "22P02" &&
+      typeof e.message === "string" &&
+      e.message.includes("uuid")
+    ) {
+      return true;
+    }
+    at = e.cause;
+  }
+  return false;
+}
+
 app.onError((err, c) => {
   if (err instanceof PeriodClosedError) {
     return c.json({ error: err.message }, 409);
@@ -91,6 +115,22 @@ app.onError((err, c) => {
   // one place that can say so for all of them.
   if (err instanceof SyntaxError) {
     return c.json({ error: "the request body is not valid JSON" }, 400);
+  }
+  /*
+   * An id that cannot be an id, for every route at once.
+   *
+   * Postgres answers a malformed uuid with an error rather than an empty
+   * result, so a word where an id belongs was a 500 and a screen saying
+   * "something went wrong" — a person who mistyped an address being told the
+   * software had broken. Eleven routes answered that way; the two a customer's
+   * own link points at refuse it before the query now, and this is the rest.
+   *
+   * Narrow on purpose. `22P02` is Postgres's "invalid text representation",
+   * and the message has to name the uuid type — so a genuinely broken query
+   * still answers 500 and still gets logged.
+   */
+  if (isMalformedUuid(err)) {
+    return c.json({ error: "not found" }, 404);
   }
   console.error(err);
   return c.json({ error: "something went wrong" }, 500);
