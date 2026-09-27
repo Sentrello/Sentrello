@@ -43,7 +43,18 @@ export async function invoicingFigures(
   organizationId: string,
 ): Promise<SummaryFigure[]> {
   const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  /*
+   * The month in UTC, as every other period in this product is.
+   *
+   * It was the server's own month. On a host west of Greenwich that puts the
+   * boundary at, say, 06:00 UTC on the 1st — and `issueDate` is a date, which
+   * compares as midnight UTC, so every invoice issued *on* the 1st fell out
+   * of "this month". The books panel beside this one counts a UTC month and
+   * so do the reports; one word meant two things on one screen.
+   */
+  const monthStart = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
+  );
 
   const [row] = await db
     .select({
@@ -308,7 +319,10 @@ function sixMonthsFrom(
  */
 export async function invoicingDashboard(organizationId: string) {
   const now = new Date();
-  const since = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+  // UTC, with the month boundary above and the rest of the reporting stack.
+  const since = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5, 1),
+  );
 
   const [months, late, drafts] = await Promise.all([
     /**
