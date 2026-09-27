@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "../lib/api";
 import { Avatar } from "../lib/avatar";
-import { PairedBars } from "../lib/charts";
+import { PairedBars, monthLabel } from "../lib/charts";
 import { Icon } from "../lib/icons";
 import { useNavigation } from "../lib/navigation";
 import { TaskDialog, TaskRow } from "../lib/tasks";
@@ -67,16 +67,6 @@ interface CrmDashboard {
     overdue: boolean;
   }[];
   goingCold: number;
-}
-
-/** "2026-08" is a key, not a label. An axis wants "Aug". */
-function monthLabel(key: string): string {
-  const [year, month] = key.split("-").map(Number);
-  if (!year || !month) return key;
-  return new Date(Date.UTC(year, month - 1, 1)).toLocaleString(undefined, {
-    month: "short",
-    timeZone: "UTC",
-  });
 }
 
 /** "3 days ago", because an exact timestamp is not what anybody is asking. */

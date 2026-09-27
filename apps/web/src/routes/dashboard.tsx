@@ -16,6 +16,7 @@ import {
   Warning,
   activeTab,
   briefMoney,
+  formatCount,
   formatMoney,
   muted,
 } from "../lib/ui";
@@ -1079,7 +1080,11 @@ function MoneyPanel({ data }: { data: Dashboard }) {
       <Card>
         <StatFigure
           label="People in the book"
-          value={String(book.contacts)}
+          // Grouped, like the money beside it. On a business with ten
+          // thousand contacts this row read "$500.00" and "10003" side by
+          // side, which is the one place the difference is impossible to
+          // miss and the last place it was left.
+          value={formatCount(book.contacts)}
           // No hint. It carried the number of deals won, which is a fact
           // about the pipeline and not about the people — read together they
           // said "35 people, of whom 11 deals won", which is not a sentence.

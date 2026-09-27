@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api, may } from "../lib/api";
-import { PairedBars, type PairedPoint } from "../lib/charts";
+import { PairedBars, type PairedPoint, monthLabel } from "../lib/charts";
 import { useNavigation } from "../lib/navigation";
 import {
   Card,
@@ -10,6 +10,7 @@ import {
   StatFigure,
   Warning,
   briefMoney,
+  formatCount,
   formatDate,
   formatMoney,
   muted,
@@ -152,7 +153,7 @@ export function InvoicingDashboard() {
    * two charts with their own axes make a bad month look like a good one.
    */
   const points: PairedPoint[] = (books.data?.months ?? []).map((m) => ({
-    label: m.month.slice(2).replace("-", "/"),
+    label: monthLabel(m.month),
     up: m.incomeCents,
     down: m.expenseCents,
     display: `${formatMoney(m.incomeCents)} in · ${formatMoney(m.expenseCents)} out`,
@@ -188,9 +189,12 @@ export function InvoicingDashboard() {
             <StatFigure
               label={figure.label}
               value={
-                figure.kind === "money" && typeof figure.value === "number"
-                  ? formatMoney(figure.value)
-                  : String(figure.value)
+                typeof figure.value !== "number"
+                  ? String(figure.value)
+                  : figure.kind === "money"
+                    ? formatMoney(figure.value)
+                    : // A count, grouped the way the money beside it is.
+                      formatCount(figure.value)
               }
               tone={figure.tone}
             />
