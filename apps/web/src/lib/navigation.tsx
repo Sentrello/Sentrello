@@ -374,6 +374,20 @@ export function NavigationProvider({
 
   const forgetMissing = useCallback(() => setMissing(null), []);
 
+  /*
+   * And it goes when you go. The note belongs to the arrival, not to the
+   * dashboard: left standing it followed somebody onto Contacts and told
+   * them, on a screen they had just asked for, that a different one is not
+   * here. The first render is the arrival itself, so the effect only fires
+   * from the second view onwards.
+   */
+  const landed = useRef(current);
+  useEffect(() => {
+    if (landed.current === current) return;
+    landed.current = current;
+    setMissing(null);
+  }, [current]);
+
   const value = useMemo<Navigation>(
     () => ({
       current,
