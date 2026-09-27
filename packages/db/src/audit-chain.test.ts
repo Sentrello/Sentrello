@@ -171,6 +171,49 @@ test("rows written before the chain existed are counted, not condemned", async (
   expect(verdict.intact).toBe(true);
 });
 
+/**
+ * Two events in the same millisecond do not read as an altered log.
+ *
+ * This is the one that flaked in CI and passed a hundred times on a laptop.
+ * The chain was walked by `(at, id)`: `at` is a `Date` and stops at
+ * milliseconds, `id` is random, so two rows written inside one millisecond
+ * sorted by a random number. The second one written could sort first, and the
+ * walk then reported that the entry before it was "no longer here" — a false
+ * "this log has been interfered with" about the log HIPAA, SOC 2 and 800-171
+ * lean on.
+ *
+ * Recorded all at once rather than in a loop, which is both the realistic
+ * shape — a bulk role change, an import, anything scripted — and the only
+ * reliable way to make the collision happen: each `record` takes its own
+ * timestamp *before* it takes the lock, so twenty at once share a
+ * millisecond or two, and the order they then reach the table is the order
+ * the lock lets them through, not the order of their clocks.
+ */
+test("a burst of events in one millisecond still verifies", async () => {
+  await Promise.all(
+    Array.from({ length: 20 }, (_, i) =>
+      record({
+        organizationId: orgId,
+        actor: { id: `actor-${i}`, name: `Person ${i}` },
+        subject: { id: `subject-${i}`, name: `Target ${i}` },
+        action: "role.changed",
+        detail: { from: "member", to: "admin", n: i },
+      }),
+    ),
+  );
+
+  const stamps = (await rows()).map((r) => r.at.getTime());
+  expect(
+    new Set(stamps).size,
+    "every event landed in its own millisecond, so this checked nothing — write more of them",
+  ).toBeLessThan(stamps.length);
+
+  const verdict = await verifyChain(orgId);
+  expect(verdict.problems).toEqual([]);
+  expect(verdict.intact).toBe(true);
+  expect(verdict.checked).toBe(20);
+});
+
 test("one business's log is checked without the other's", async () => {
   await write(3);
   await write(2, other);

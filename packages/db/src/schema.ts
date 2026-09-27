@@ -1,5 +1,6 @@
 import {
   bigint,
+  bigserial,
   boolean,
   date,
   index,
@@ -3096,6 +3097,28 @@ export const securityEvents = pgTable(
   "security_events",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    /**
+     * The order the rows were actually written in.
+     *
+     * The chain is walked in this order and the writer picks its predecessor
+     * by it, and those two have to be the same order or a sound log reads as
+     * an interfered-with one.
+     *
+     * They were `(at desc, id desc)`, which is not the order anything was
+     * written in: `at` is a JavaScript `Date` and carries milliseconds, and
+     * `id` is random. Two events in the same millisecond — an ordinary thing
+     * for a bulk role change or a script — sort by a random number, so the
+     * second one written could sort first, and the walk then found an entry
+     * whose predecessor was "no longer here". A false "this log has been
+     * altered" about the log HIPAA, SOC 2 and 800-171 lean on.
+     *
+     * The database assigns this inside the writer's transaction, under the
+     * per-organization advisory lock, so it is exactly the serialisation
+     * order. It is deliberately **not** part of the hash: the hash covers
+     * what happened, this covers when it was filed, and adding it would
+     * invalidate every row written before today.
+     */
+    seq: bigserial("seq", { mode: "number" }).notNull(),
     organizationId: text("organization_id").notNull(),
     /**
      * The person who did it, where there is one.

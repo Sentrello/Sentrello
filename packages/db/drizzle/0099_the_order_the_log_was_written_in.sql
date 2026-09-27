@@ -1,0 +1,28 @@
+-- The audit log is walked in the order it was written, and now it can be.
+--
+-- The chain is verified by walking the rows and checking each one's link
+-- against the one before it. That walk ordered by `(at, id)` — and so did the
+-- writer when it picked the row to link to — which is not the order anything
+-- was written in. `at` is a JavaScript `Date`, so it carries milliseconds and
+-- no more, and `id` is random. Two events recorded in the same millisecond,
+-- which is an ordinary thing for a bulk role change or anything scripted,
+-- therefore sort by a random number: the second one written can sort first,
+-- and the walk then reports that the entry before it is "no longer here".
+--
+-- A false report that the log has been interfered with, on the log that
+-- HIPAA, SOC 2 and 800-171 lean on. Found by a test that flaked in CI and
+-- passed a hundred times on a laptop, which is the only way this was ever
+-- going to show up.
+--
+-- `bigserial` because the database assigns it inside the writer's
+-- transaction, under the per-organization advisory lock the writer already
+-- holds — so it is exactly the serialisation order, with nothing for a clock
+-- or a random number to get wrong.
+--
+-- Existing rows are numbered in the order the table happens to hold them,
+-- which for an append-only table is the order they were inserted. It is not
+-- part of the hash: the hash covers what happened, this covers when it was
+-- filed, and putting it in would invalidate every row written before today.
+ALTER TABLE "security_events" ADD COLUMN "seq" bigserial NOT NULL;
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "security_events_org_seq_idx" ON "security_events" ("organization_id", "seq");

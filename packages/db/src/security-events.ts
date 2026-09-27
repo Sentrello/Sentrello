@@ -297,11 +297,22 @@ export async function record(input: {
       await tx.execute(
         sql`select pg_advisory_xact_lock(hashtext(${`security-events:${input.organizationId}`}))`,
       );
+      /*
+       * The last row *written*, which is not the last row by clock and id.
+       *
+       * `at` is a `Date` and stops at milliseconds; `id` is random. Two
+       * events in the same millisecond therefore sorted by a random number,
+       * so this could link to the wrong predecessor and the walk that checks
+       * the chain would find an entry whose predecessor was missing — a
+       * false report of tampering. `seq` is assigned by the database inside
+       * this transaction, under the lock above, so it is the serialisation
+       * order itself.
+       */
       const [last] = await tx
         .select({ hash: schema.securityEvents.hash })
         .from(schema.securityEvents)
         .where(eq(schema.securityEvents.organizationId, input.organizationId))
-        .orderBy(desc(schema.securityEvents.at), desc(schema.securityEvents.id))
+        .orderBy(desc(schema.securityEvents.seq))
         .limit(1);
       const prevHash = last?.hash ?? null;
       await tx
@@ -572,11 +583,14 @@ export async function verifyChain(
   organizationId: string,
 ): Promise<ChainVerdict> {
   const key = chainKey();
+  // In the order the rows were written, which is what the chain follows.
+  // See `seq` on the table, and the writer above, for why the clock and the
+  // id cannot answer this.
   const rows = await db
     .select()
     .from(schema.securityEvents)
     .where(eq(schema.securityEvents.organizationId, organizationId))
-    .orderBy(asc(schema.securityEvents.at), asc(schema.securityEvents.id));
+    .orderBy(asc(schema.securityEvents.seq));
 
   const problems: string[] = [];
   let checked = 0;
