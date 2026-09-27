@@ -246,7 +246,7 @@ export function registerChart(ctx: ModuleContext) {
 
       if (body.code !== undefined) {
         const code = String(body.code).trim();
-        if (!code) return c.json({ error: "code" }, 400);
+        if (!code) return c.json({ error: "Give the account a code." }, 400);
         const [clash] = await db
           .select({ id: schema.accounts.id })
           .from(schema.accounts)
