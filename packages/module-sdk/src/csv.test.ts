@@ -97,3 +97,35 @@ test("one over the cap is refused rather than read", async () => {
 test("a lying content-length does not get the body read", async () => {
   expect(await readCapped(body("x".repeat(2000), 10), 1024)).toBeNull();
 });
+
+/**
+ * A bank statement from a German bank.
+ *
+ * Excel and most European banks write a semicolon wherever the comma is the
+ * decimal separator, and the EU is a market. Read as commas the whole
+ * statement is one column, and nothing fails — the import screen simply
+ * offers `Datum;Betrag;Verwendungszweck` as a single heading.
+ */
+test("a semicolon statement reads as columns", () => {
+  const rows = parseCsv(
+    "Datum;Betrag;Verwendungszweck\n01.09.2026;-12,50;Kaffee\n",
+  );
+  expect(rows[0]).toEqual(["Datum", "Betrag", "Verwendungszweck"]);
+  expect(rows[1]).toEqual(["01.09.2026", "-12,50", "Kaffee"]);
+});
+
+/**
+ * Left in, Excel's byte-order mark becomes part of the first heading — so
+ * the date column is one no mapping matches and every transaction lands
+ * undated.
+ */
+test("the mark Excel writes is not part of the first heading", () => {
+  const rows = parseCsv("﻿Date,Amount\n2026-09-01,-12.50\n");
+  expect(rows[0]).toEqual(["Date", "Amount"]);
+});
+
+test("a comma statement whose notes hold semicolons is still a comma statement", () => {
+  const rows = parseCsv('Date,Note\n2026-09-01,"rang; left a message"\n');
+  expect(rows[0]).toEqual(["Date", "Note"]);
+  expect(rows[1]).toEqual(["2026-09-01", "rang; left a message"]);
+});

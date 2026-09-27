@@ -77,3 +77,39 @@ test("one column is not claimed by two fields", () => {
   expect(m.email).toBe("Email");
   expect(m.other).toBeUndefined();
 });
+
+/**
+ * Excel writes a semicolon wherever the comma is the decimal separator, which
+ * is most of the EU — and the EU is a market. Read as commas, the whole sheet
+ * is one column: the mapping screen offers `Vorname;Nachname;E-Mail` as a
+ * single heading and the import writes contacts named after the entire row.
+ */
+test("a sheet Excel saved in Germany reads as columns", () => {
+  const s = parseCsv(
+    "Vorname;Nachname;E-Mail\nAnna;Schmidt;anna@example.test\n",
+  );
+  expect(s.headers).toEqual(["Vorname", "Nachname", "E-Mail"]);
+  expect(s.rows).toEqual([["Anna", "Schmidt", "anna@example.test"]]);
+});
+
+test("a tab-separated sheet reads as columns", () => {
+  const s = parseCsv("Name\tEmail\nAda\tada@example.test\n");
+  expect(s.headers).toEqual(["Name", "Email"]);
+  expect(s.rows).toEqual([["Ada", "ada@example.test"]]);
+});
+
+/**
+ * The separator is decided from the heading line and outside quotes, so a
+ * note full of semicolons cannot outvote the headings that came before it.
+ */
+test("a comma sheet whose notes are full of semicolons is still a comma sheet", () => {
+  const s = parseCsv('Name,Note\nOsei,"rang; left a message; rang again"\n');
+  expect(s.headers).toEqual(["Name", "Note"]);
+  expect(s.rows).toEqual([["Osei", "rang; left a message; rang again"]]);
+});
+
+test("one column and no separator at all is still one column", () => {
+  const s = parseCsv("Email\nada@example.test\n");
+  expect(s.headers).toEqual(["Email"]);
+  expect(s.rows).toEqual([["ada@example.test"]]);
+});

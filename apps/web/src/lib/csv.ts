@@ -8,9 +8,12 @@
  * will match.
  *
  * Not a full RFC 4180 implementation. It handles quoted fields, doubled quotes
- * inside them, CRLF or LF, and a trailing newline — which between them covers
- * what Excel, Numbers, Google Sheets and every CRM export produce.
+ * inside them, CRLF or LF, a trailing newline, and a separator that is not a
+ * comma — which between them covers what Excel, Numbers, Google Sheets and
+ * every CRM export produce.
  */
+
+import { csvSeparator } from "@sentrello/module-sdk/csv-separator";
 
 export interface Sheet {
   headers: string[];
@@ -24,6 +27,7 @@ function stripBom(text: string): string {
 
 export function parseCsv(text: string): Sheet {
   const src = stripBom(text);
+  const separator = csvSeparator(src);
   const rows: string[][] = [];
   let row: string[] = [];
   let field = "";
@@ -66,7 +70,7 @@ export function parseCsv(text: string): Sheet {
       i += 1;
       continue;
     }
-    if (ch === ",") {
+    if (ch === separator) {
       endField();
       i += 1;
       continue;

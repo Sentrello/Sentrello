@@ -38,6 +38,7 @@ function formulaSafe(text: string): string {
 }
 
 import { contentDisposition } from "./attachments";
+import { csvSeparator } from "./csv-separator";
 
 function field(value: unknown): string {
   if (value === null || value === undefined) return "";
@@ -71,19 +72,25 @@ export function csvDownload(filename: string): Record<string, string> {
  * doubled quotes inside them. It is here rather than in one module because
  * three of them read a spreadsheet somebody else produced — a bank's, a
  * mailing list's, a shop's — and two parsers is two sets of quoting bugs.
+ *
+ * The byte-order mark Excel writes is dropped on the way in. Left there it
+ * becomes part of the first heading, so `Datum` is a column no mapping will
+ * ever match and the date of every transaction goes unread.
  */
 export function parseCsv(text: string): string[][] {
+  const src = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+  const separator = csvSeparator(src);
   const rows: string[][] = [];
   let row: string[] = [];
   let cell = "";
   let quoted = false;
 
-  for (let i = 0; i < text.length; i += 1) {
-    const char = text[i];
+  for (let i = 0; i < src.length; i += 1) {
+    const char = src[i];
     if (quoted) {
       if (char === '"') {
         // A doubled quote inside a quoted field is a literal quote.
-        if (text[i + 1] === '"') {
+        if (src[i + 1] === '"') {
           cell += '"';
           i += 1;
         } else {
@@ -96,7 +103,7 @@ export function parseCsv(text: string): string[][] {
     }
     if (char === '"') {
       quoted = true;
-    } else if (char === ",") {
+    } else if (char === separator) {
       row.push(cell);
       cell = "";
     } else if (char === "\n") {
