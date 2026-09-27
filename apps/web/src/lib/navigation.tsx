@@ -87,6 +87,17 @@ interface Navigation {
    * browser's own rule for a redirect is to replace, and so is this.
    */
   redirect: (moduleId: string, title: string) => void;
+  /**
+   * The screen the address bar asked for and this instance does not have.
+   *
+   * A path naming nothing put the reader on the dashboard and said nothing
+   * about it — so a bookmark to a module that was switched off, a link in an
+   * old email, or a typo all looked like the application ignoring a click.
+   * The fallback is right; the silence was not. Cleared once read, so a
+   * refresh does not bring it back.
+   */
+  missing: string | null;
+  forgetMissing: () => void;
 }
 
 const NavigationContext = createContext<Navigation | null>(null);
@@ -174,6 +185,20 @@ export function NavigationProvider({
     () => viewFromPath(window.location.pathname, known) ?? initial,
   );
   const [trail, setTrail] = useState<View[]>([]);
+  /*
+   * What was asked for, when it was something and it is not here.
+   *
+   * `/` is not a miss — it is how everybody arrives — so only a path that
+   * names a first segment counts. The name rather than the whole path,
+   * because that is the word somebody would look for in Settings.
+   */
+  const [missing, setMissing] = useState<string | null>(() => {
+    const asked = window.location.pathname
+      .replace(/^\/+|\/+$/g, "")
+      .split("/")[0];
+    if (!asked) return null;
+    return viewFromPath(window.location.pathname, known) ? null : asked;
+  });
 
   // `open` reads the view it is leaving. A ref keeps that out of its dependency
   // list, so the callback stays stable and every screen does not re-render on
@@ -347,6 +372,8 @@ export function NavigationProvider({
     setPending(null);
   }, []);
 
+  const forgetMissing = useCallback(() => setMissing(null), []);
+
   const value = useMemo<Navigation>(
     () => ({
       current,
@@ -360,6 +387,8 @@ export function NavigationProvider({
       backTo,
       setTitle,
       takeIntent,
+      missing,
+      forgetMissing,
     }),
     [
       current,
@@ -373,6 +402,8 @@ export function NavigationProvider({
       backTo,
       setTitle,
       takeIntent,
+      missing,
+      forgetMissing,
     ],
   );
 

@@ -5,7 +5,7 @@ import { FindButton } from "./find";
 import { Icon, type IconName } from "./icons";
 import { useNavigation } from "./navigation";
 import { type Theme, useTheme } from "./theme";
-import { Button, Dialog, muted } from "./ui";
+import { Button, Card, Dialog, muted } from "./ui";
 
 /**
  * The frame every screen sits in.
@@ -767,6 +767,42 @@ function dismissPanelOverlay(focusTab = false) {
 }
 
 /**
+ * "That screen is not on this instance."
+ *
+ * An address naming nothing put the reader on the dashboard and said
+ * nothing about it, so a bookmark to a module that was switched off, a link
+ * in an old email and a mistyped word all looked the same: like the
+ * application ignoring them. Landing on the dashboard is the right thing to
+ * do; doing it in silence was not.
+ *
+ * Named rather than described — "shop" is the word somebody will look for
+ * in Settings, and the one they typed. Dismissed on reading, and gone after
+ * a refresh, because it is about the arrival rather than the screen.
+ */
+function MissingScreen() {
+  const { missing, forgetMissing } = useNavigation();
+  if (!missing) return null;
+  return (
+    <Card className="mb-(--gap-stack)">
+      <p className="text-sm">
+        There is no <strong>{missing}</strong> on this instance. It may be a
+        module that is not installed, or one switched off in Settings → Modules
+        — or the link may simply be out of date. This is your dashboard instead.
+      </p>
+      <div className="mt-(--gap-toolbar)">
+        <button
+          type="button"
+          onClick={forgetMissing}
+          className="text-sm link-muted"
+        >
+          Right you are
+        </button>
+      </div>
+    </Card>
+  );
+}
+
+/**
  * "You have not saved that."
  *
  * Every editor in this product replaces the list in place, so the rail and
@@ -1189,6 +1225,7 @@ export function AppShell({
            * a person who navigates away and finds the same error waiting is
            * being told something untrue about where they are.
            */}
+          <MissingScreen />
           <ErrorBoundary key={current.moduleId} label={label || "This screen"}>
             {children}
           </ErrorBoundary>
