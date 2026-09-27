@@ -123,6 +123,18 @@ export function ImageUpload({
           // Anything up to 5MB, resized on the way in — said in the title
           // rather than in a line of text beside every record.
           title="Add or replace the picture. Anything up to 5MB; it is resized and stored small."
+          /*
+           * A name of its own, because the word under the avatar is "Add"
+           * and there are three other Adds on a contact's page. Read out on
+           * its own it says nothing, and a tablet has no hover to ask the
+           * title with — which is the device somebody photographs a
+           * customer's site from.
+           */
+          aria-label={
+            showing && !remove.isSuccess
+              ? "Change the picture"
+              : "Add a picture"
+          }
           onClick={() => picker.current?.click()}
         >
           {upload.isPending
@@ -142,6 +154,7 @@ export function ImageUpload({
             // every record this component is used on is a CRM record.
             disabled={remove.isPending || !may("crm", "update")}
             title={may("crm", "update") ? undefined : REFUSED}
+            aria-label="Remove the picture"
             onClick={() => remove.mutate()}
           >
             Remove
