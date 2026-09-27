@@ -987,8 +987,15 @@ function Arrange({
             className="border-t pt-3 border-line"
           >
             <div className="flex items-center gap-2">
+              {/*
+                Seven boxes and seven "Remove tab"s on this screen, one per
+                tab, and nothing but position telling them apart. The name
+                is in the box beside each one; it belongs in the controls
+                too, or removing the right tab is a matter of counting.
+              */}
               <Input
                 value={tab.name}
+                aria-label={`Name of the ${tab.name || "new"} tab`}
                 onChange={(e) =>
                   setDraft((d) =>
                     d.map((t, j) =>
@@ -1001,6 +1008,7 @@ function Arrange({
                 type="button"
                 className="text-xs"
                 style={{ color: "var(--text-danger)" }}
+                aria-label={`Remove tab ${tab.name || "with no name"}`}
                 onClick={() => setDraft((d) => d.filter((_, j) => j !== i))}
               >
                 Remove tab
@@ -1009,8 +1017,15 @@ function Arrange({
             <div className="mt-2 flex flex-wrap gap-3 text-sm">
               {widgets.map((widget) => (
                 <label key={widget.id} className="flex items-center gap-1">
+                  {/*
+                    This is a grid: every panel appears once per tab, so
+                    "CRM" names eight different boxes. The label a person
+                    reads is in its row; the one a screen reader or a voice
+                    hears has to carry the row with it.
+                  */}
                   <input
                     type="checkbox"
+                    aria-label={`${widget.label} on ${tab.name || "this tab"}`}
                     checked={tab.widgets.includes(widget.id)}
                     onChange={() => toggle(i, widget.id)}
                   />
