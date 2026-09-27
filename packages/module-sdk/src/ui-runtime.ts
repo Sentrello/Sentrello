@@ -174,6 +174,9 @@ export interface SentrelloUi {
   briefMoney: (cents: number, currency?: string) => string;
   /** A count, grouped in the reader's locale: 12,480 rather than 12480. */
   formatCount: (n: number) => string;
+  /** "2026-08" is a key; an axis wants "Aug". Both dashboards had an axis
+   * of months and only one of them had a formatter. */
+  monthLabel: (key: string) => string;
   formatRate: (basisPoints: number) => string;
   formatDate: (value: string | Date | null | undefined) => string;
   textOn: (colour: string) => string;
@@ -278,6 +281,7 @@ export const UI_MEMBERS = [
   "formatMoney",
   "briefMoney",
   "formatCount",
+  "monthLabel",
   "formatRate",
   "formatDate",
   "textOn",

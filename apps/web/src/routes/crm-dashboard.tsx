@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "../lib/api";
 import { Avatar } from "../lib/avatar";
-import { PairedBars, monthLabel } from "../lib/charts";
+import { PairedBars } from "../lib/charts";
 import { Icon } from "../lib/icons";
 import { useNavigation } from "../lib/navigation";
 import { TaskDialog, TaskRow } from "../lib/tasks";
@@ -13,6 +13,7 @@ import {
   SectionHeading,
   briefMoney,
   formatMoney,
+  monthLabel,
   muted,
 } from "../lib/ui";
 

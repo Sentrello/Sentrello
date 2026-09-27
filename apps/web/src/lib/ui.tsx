@@ -177,6 +177,28 @@ export function formatCount(n: number): string {
   return new Intl.NumberFormat(numberLocale()).format(n);
 }
 
+/**
+ * "2026-08" is a key, not a label. An axis wants "Aug".
+ *
+ * Here rather than beside one chart because two of them had an axis of
+ * months and only one of them had this: Money's read `26/04`, which is a
+ * shape nobody writes and which a British reader takes for the 26th of
+ * April. It came from slicing the key, which is what you do when the
+ * formatter is in another file.
+ *
+ * The reader's own locale for the name, and UTC for the arithmetic — the
+ * key names a month and must not become the one before it on a machine
+ * west of Greenwich.
+ */
+export function monthLabel(key: string): string {
+  const [year, month] = key.split("-").map(Number);
+  if (!year || !month) return key;
+  return new Date(Date.UTC(year, month - 1, 1)).toLocaleString(undefined, {
+    month: "short",
+    timeZone: "UTC",
+  });
+}
+
 /** Basis points to "8.75%". */
 export function formatRate(basisPoints: number): string {
   return `${(basisPoints / 100).toFixed(2).replace(/\.?0+$/, "")}%`;

@@ -18,6 +18,7 @@ import {
   briefMoney,
   formatCount,
   formatMoney,
+  monthLabel,
   muted,
 } from "../lib/ui";
 
@@ -781,8 +782,6 @@ function InsightWidget({
       </Card>
     );
   }
-
-  const monthLabel = (month: string) => month.slice(2).replace("-", "/");
 
   if (id === "revenue-trend") {
     const points: Point[] = insights.months.map((m) => ({

@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api, may } from "../lib/api";
-import { PairedBars, type PairedPoint, monthLabel } from "../lib/charts";
+import { PairedBars, type PairedPoint } from "../lib/charts";
 import { useNavigation } from "../lib/navigation";
 import {
   Card,
@@ -13,6 +13,7 @@ import {
   formatCount,
   formatDate,
   formatMoney,
+  monthLabel,
   muted,
 } from "../lib/ui";
 
