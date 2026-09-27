@@ -787,7 +787,7 @@ function MissingScreen() {
       <p className="text-sm">
         There is no <strong>{missing}</strong> on this instance. It may be a
         module that is not installed, or one switched off in Settings → Modules
-        — or the link may simply be out of date. This is your dashboard instead.
+        — or the link may be out of date. This is your dashboard instead.
       </p>
       <div className="mt-(--gap-toolbar)">
         <button
