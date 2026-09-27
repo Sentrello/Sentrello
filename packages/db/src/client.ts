@@ -68,7 +68,30 @@ if (held && held.key !== poolKey) {
 if (!held) {
   held = {
     key: poolKey,
-    sql: postgres(url, { max: poolSize(), ...(ssl ? { ssl } : {}) }),
+    sql: postgres(url, {
+      max: poolSize(),
+      /*
+       * A transaction that stops doing anything lets go of its connection.
+       *
+       * The pool is ten, and a connection sitting inside an open transaction
+       * is held until somebody commits. If whatever was going to commit has
+       * gone — a request whose client vanished, a handler waiting on
+       * something that will never answer — that slot never comes back, and
+       * ten of them is an instance that answers nothing at all, on every
+       * screen of every module. Postgres stays perfectly healthy throughout,
+       * which is what makes it so hard to read from outside. That shape took
+       * an instance down twice on 27 September 2026, by a different route:
+       * see `deadline` in the SDK's `outbound`.
+       *
+       * Sixty seconds, because no honest transaction in this product sits
+       * idle for a minute — work either continues or it has stopped. This
+       * is not `statement_timeout`, which would cut a *running* query and
+       * needs a figure somebody has measured the slowest report and archive
+       * against.
+       */
+      connection: { idle_in_transaction_session_timeout: 60_000 },
+      ...(ssl ? { ssl } : {}),
+    }),
   };
   holder[POOL] = held;
 }
