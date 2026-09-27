@@ -94,3 +94,34 @@ test("a subject cannot start a second header either", async () => {
   expect(String(body.subject)).toBe("A new enquiry Bcc: everyone@example.test");
   expect(String(body.subject)).not.toContain("\n");
 });
+
+/**
+ * And the plain-text half actually leaves with it.
+ *
+ * `plainText` is tested on its own; this is the wiring, which is the part
+ * that ships. A message that carries no text part is one a spam filter
+ * marks down for being HTML-only, and this product's customers send
+ * invoices from their own domains with no sending reputation at all.
+ */
+test("every message leaves with a plain-text half", async () => {
+  const body = await sent({
+    to: "customer@example.test",
+    subject: "Invoice INV-0007",
+    html: '<p>Amount due: <strong>$1,250.00</strong></p><p><a href="https://example.test/pay">View and pay this invoice</a></p>',
+  });
+  const text = String((body as { text?: string }).text ?? "");
+  expect(text).toContain("$1,250.00");
+  // The address rides along, or the text half is a dead end.
+  expect(text).toContain("https://example.test/pay");
+  expect(text).not.toContain("<p>");
+});
+
+test("a caller that wrote its own text keeps it", async () => {
+  const body = await sent({
+    to: "customer@example.test",
+    subject: "Hello",
+    html: "<p>Something markup-heavy</p>",
+    text: "Something we wrote by hand",
+  });
+  expect((body as { text?: string }).text).toBe("Something we wrote by hand");
+});
