@@ -58,7 +58,9 @@ export function SignIn() {
     // been sent somewhere else.
     if ((data as { twoFactorRedirect?: boolean } | null)?.twoFactorRedirect) {
       setNeedsCode(true);
+      return;
     }
+    landOnTheDashboard();
   }
 
   if (forgot) return <ForgotPassword onBack={() => setForgot(false)} />;
@@ -180,6 +182,28 @@ function SourceOffer() {
  * river is exactly the person who cannot find a second link to click, and the
  * two codes are different enough lengths to tell apart without asking.
  */
+/**
+ * Signing in lands you at the start, wherever you were refused.
+ *
+ * The address bar survives a sign-in: a session that ran out on the invoice
+ * you were reading, or a link somebody sent you, left `/invoicing` in it — so
+ * the first thing after typing a password was a screen chosen by whatever had
+ * happened before it. James, 27 September 2026: it should be the dashboard,
+ * every time.
+ *
+ * `/` rather than `/dashboard`, because the screen somebody lands on is a
+ * preference (`landingPage`, on Your profile) and the root is what reads it.
+ * The default is the first screen the instance offers, which is the
+ * dashboard.
+ *
+ * A whole navigation rather than a router push: everything React was holding
+ * belonged to a signed-out reader, and the cheapest way to be certain none of
+ * it survives is to start the application again.
+ */
+function landOnTheDashboard() {
+  window.location.assign("/");
+}
+
 function TwoFactorPrompt({ onCancel }: { onCancel: () => void }) {
   const [code, setCode] = useState("");
   const [trust, setTrust] = useState(false);
@@ -199,7 +223,11 @@ function TwoFactorPrompt({ onCancel }: { onCancel: () => void }) {
             trustDevice: trust,
           });
     setBusy(false);
-    if (error) setError(error.message ?? "That code was not accepted");
+    if (error) {
+      setError(error.message ?? "That code was not accepted");
+      return;
+    }
+    landOnTheDashboard();
   }
 
   return (
