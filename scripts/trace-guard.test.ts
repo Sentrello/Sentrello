@@ -454,7 +454,7 @@ describe("refuses a named reference product", () => {
   const listPath = `${tmpdir()}/trace-guard-reference-names-${Date.now()}.txt`;
   writeFileSync(
     listPath,
-    "# invented, every one\nQuellstone\nMarrowbight\nab\n",
+    "# invented, every one\nQuellstone\nMarrowbight\nfen\n=Ninety\n",
   );
 
   test("a name on the list is refused wherever it appears", () => {
@@ -471,14 +471,31 @@ describe("refuses a named reference product", () => {
     expect(found?.where).not.toContain("arrowbight");
   });
 
-  test("an entry too short to match safely is skipped", () => {
+  test("a short entry is guarded like any other", () => {
     process.env.SENTRELLO_REFERENCE_NAMES = listPath;
-    // "ab" is on the list and two characters long, so it never becomes a
-    // rule: a short name matches inside ordinary words and a guard that
-    // cries wolf gets turned off.
-    expect(
-      findViolations("ab is a perfectly ordinary pair of letters"),
-    ).toEqual([]);
+    // Three characters, and it counts. An earlier version skipped anything
+    // under four on the theory that a short name matches inside ordinary
+    // words — the word boundary already prevents that, and the rule quietly
+    // excluded a real three-letter reference.
+    expect(findViolations("modelled on fen")).toHaveLength(1);
+    expect(findViolations("fenland, fennel and defend are ordinary")).toEqual(
+      [],
+    );
+  });
+
+  /**
+   * One name on the real list is also an ordinary English word, which is
+   * why the second entry form exists. Matched loosely it fired on
+   * forty-seven commit messages that count things in words.
+   */
+  test("an =entry matches the product and not the English", () => {
+    process.env.SENTRELLO_REFERENCE_NAMES = listPath;
+    expect(findViolations("the way Ninety lays out a record")).toHaveLength(1);
+    // Hyphenated onto a lowercase word, it is a number and nothing else.
+    expect(findViolations("Ninety-seven files lost their filters")).toEqual([]);
+    expect(findViolations("ninety-seven files lost their filters")).toEqual([]);
+    // And the lowercase word on its own is not the product.
+    expect(findViolations("ninety of them, give or take")).toEqual([]);
   });
 
   test("with no list configured the check is silent", () => {

@@ -162,12 +162,26 @@ const RULES: Rule[] = [
  * which is the right behaviour for a fresh clone by somebody who has no such
  * list and is not bound by this rule.
  *
- * Short entries are skipped on purpose. A three-letter name matches inside
- * ordinary words and would fire on every push, and a guard that cries wolf
- * gets disabled — the same reasoning the rules above are tuned by.
+ * Two entry forms, because some of these names are ordinary English words.
+ *
+ *   name          matched whole-word, case-insensitively. The usual case.
+ *   =Name         matched whole-word and case-sensitively, and never when a
+ *                 lowercase word is hyphenated straight onto it.
+ *
+ * The second form exists for a real one on this list that is also a number
+ * word. Matched loosely it fired on forty-seven commit messages that say
+ * things like "twenty-seven files", and a guard that cries wolf gets turned
+ * off — but dropping it would leave a genuine reference unguarded, which is
+ * worse. Exact case plus the hyphen rule keeps the product and lets the
+ * English through. Both halves are tested.
+ *
+ * Nothing is skipped for being short. An earlier version of this ignored
+ * anything under four characters on the theory that a short name matches
+ * inside ordinary words — `\b` already prevents that, and the rule quietly
+ * excluded a three-letter reference that very much needed guarding.
  */
 const REFERENCE_LIST_VAR = "SENTRELLO_REFERENCE_NAMES";
-const SHORTEST_NAME_WORTH_MATCHING = 4;
+const CASE_SENSITIVE_MARK = "=";
 
 /** Keyed on the path, so a test can point it somewhere else and be believed. */
 const referenceRules = new Map<string, Rule[]>();
@@ -188,18 +202,22 @@ function referenceNameRules(): Rule[] {
     process.exit(2);
   }
   const rules = lines
-    .map((l) => l.trim())
-    .filter((l) => l && !l.startsWith("#"))
-    .filter((l) => l.length >= SHORTEST_NAME_WORTH_MATCHING)
-    .map((name) => ({
-      // Named without naming it: the message says which entry, by position,
-      // so this guard's own output cannot become the leak it exists to stop.
-      name: `${REFERENCE_RULE_PREFIX} (entry ${lines.indexOf(name) + 1} of the list)`,
-      pattern: new RegExp(
-        `\\b${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`,
-        "i",
-      ),
-    }));
+    .map((line, index) => ({ entry: index + 1, text: line.trim() }))
+    .filter(({ text }) => text && !text.startsWith("#"))
+    .map(({ entry, text }) => {
+      const exact = text.startsWith(CASE_SENSITIVE_MARK);
+      const name = exact ? text.slice(CASE_SENSITIVE_MARK.length) : text;
+      const quoted = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return {
+        // Named without naming it: the message says which entry, by
+        // position, so this guard's own output cannot become the leak it
+        // exists to stop.
+        name: `${REFERENCE_RULE_PREFIX} (entry ${entry} of the list)`,
+        pattern: exact
+          ? new RegExp(`\\b${quoted}\\b(?!-[a-z])`)
+          : new RegExp(`\\b${quoted}\\b`, "i"),
+      };
+    });
   referenceRules.set(path, rules);
   return rules;
 }
