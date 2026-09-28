@@ -192,9 +192,15 @@ Settings → Tax regimes.
 **If your books are not in euro.** The return is filed in euro, and the rate is
 not yours to choose. It is the European Central Bank's rate for the last day of
 the quarter, or the next day it published. Record that rate under Accounting
-and the figures convert exactly. Until you do, Sentrello shows no figures at
-all rather than converting at whatever rate happens to be on file. A return
-that is plausible and wrong is worse than one that is late.
+and the figures convert exactly, and the screen says it used the prescribed
+one.
+
+With no euro rate recorded at all, no figures are shown — a return that is
+plausible and wrong is worse than one that is late. With an older rate on file
+and none for the quarter's end, the figures are converted at the most recent
+one and the screen says so, in as many words, so what you are looking at is
+an estimate you can act on rather than a blank page. Record the right rate and
+it stops being an estimate.
 
 **Corrections.** A return you have filed cannot be amended. So a credit note
 raised against an earlier quarter's invoice appears in the *corrections* panel
