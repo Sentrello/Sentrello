@@ -2,7 +2,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, eq, schema } from "@sentrello/db";
-import { dropOrganization } from "@sentrello/db/testing";
+import { dropOrganization, makeOrganization } from "@sentrello/db/testing";
 import { registerForTest } from "@sentrello/module-sdk";
 import usersModule from "./index";
 import { cleanDomain } from "./sso";
@@ -230,13 +230,18 @@ test("disconnecting stops sign-ins and keeps the people", async () => {
 });
 
 test("another business's connection is not this one's to delete", async () => {
+  // A real other business, not an invented id: `sso_provider.organization_id`
+  // has a foreign key as of 2026-09-28, the last nullable column the
+  // organization pass had skipped. Dropping the organization takes the
+  // connection with it, which is the point of the key.
+  const theirOrg = await makeOrganization(`sso-theirs-${suffix}`);
   const [theirs] = await db
     .insert(schema.ssoProvider)
     .values({
       id: `theirs-${suffix}`,
       issuer: "https://accounts.google.com",
       providerId: `google-theirs-${suffix}`,
-      organizationId: "some-other-org",
+      organizationId: theirOrg,
       domain: `theirs-${suffix}.example`,
       oidcConfig: "{}",
     })
@@ -248,7 +253,5 @@ test("another business's connection is not this one's to delete", async () => {
   );
   expect(res.status).toBe(404);
 
-  await db
-    .delete(schema.ssoProvider)
-    .where(eq(schema.ssoProvider.id, theirs?.id ?? ""));
+  await dropOrganization(theirOrg);
 });

@@ -510,8 +510,22 @@ export const taggables = pgTable(
   "taggables",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    tagId: uuid("tag_id").notNull(),
+    /**
+     * The tag owns the pairing: remove the tag and the pairing goes with it.
+     *
+     * Until 2026-09-28 there was no key here at all, and a pair whose tag had
+     * gone was a row nothing could read and nothing swept — it carries no
+     * organization, so deleting the business left it in the table for good.
+     */
+    tagId: uuid("tag_id")
+      .notNull()
+      .references(() => tags.id, { onDelete: "cascade" }),
     entityType: text("entity_type").notNull(), // "contact" | "deal"
+    /**
+     * Polymorphic — a contact id or a deal id, told apart by `entityType`.
+     * No foreign key is possible against a column that names a row in
+     * whichever table the tag was put on. Not an oversight.
+     */
     entityId: uuid("entity_id").notNull(),
   },
   (t) => [index("taggables_entity_idx").on(t.entityType, t.entityId)],
@@ -605,7 +619,15 @@ export const quoteInstalments = pgTable(
   "quote_instalments",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    quoteId: uuid("quote_id").notNull(),
+    /** The quote owns the schedule; without the quote there is no stage. */
+    quoteId: uuid("quote_id")
+      .notNull()
+      .references(() => quotes.id, { onDelete: "cascade" }),
+    /**
+     * Which invoice covered this stage, once one was raised. A reference, not
+     * an owner — deliberately no foreign key, so a deleted invoice does not
+     * take the agreed schedule with it.
+     */
     invoiceId: uuid("invoice_id"),
     /** Order on the schedule: 1, 2, 3. */
     seq: integer("seq").notNull(),
@@ -621,7 +643,15 @@ export const quoteLines = pgTable(
   "quote_lines",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    quoteId: uuid("quote_id").notNull(),
+    /**
+     * The quote owns the line. Cascading here is what makes deleting an
+     * organization reach the lines: they carry no `organizationId` of their
+     * own, so before this key existed they outlived the quote and the
+     * business both.
+     */
+    quoteId: uuid("quote_id")
+      .notNull()
+      .references(() => quotes.id, { onDelete: "cascade" }),
     /** What was picked from the catalogue, if anything. Kept for reporting. */
     billableItemId: uuid("billable_item_id"),
     description: text("description").notNull(),
@@ -1669,7 +1699,14 @@ export const invoiceLines = pgTable(
   "invoice_lines",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    invoiceId: uuid("invoice_id").notNull(),
+    /**
+     * The invoice owns the line, and is the only organization a line has.
+     * Before this key, deleting a business removed its invoices and left
+     * every line of every one of them behind, unreachable by any query.
+     */
+    invoiceId: uuid("invoice_id")
+      .notNull()
+      .references(() => invoices.id, { onDelete: "cascade" }),
     /** What was picked from the catalogue, if anything. Kept for reporting. */
     billableItemId: uuid("billable_item_id"),
     description: text("description").notNull(),
@@ -2066,7 +2103,18 @@ export const journalLines = pgTable(
   "journal_lines",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    entryId: uuid("entry_id").notNull(),
+    /**
+     * The entry owns its lines — a half of a posting has no meaning without
+     * the other half. Cascading here is the only route an organization
+     * delete has to the lines, which carry no organization themselves.
+     */
+    entryId: uuid("entry_id")
+      .notNull()
+      .references(() => journalEntries.id, { onDelete: "cascade" }),
+    /**
+     * Which account was debited or credited. A reference, not an owner: no
+     * key, because deleting an account must never quietly rewrite the books.
+     */
     accountId: uuid("account_id").notNull(),
     debitCents: integer("debit_cents").notNull().default(0),
     creditCents: integer("credit_cents").notNull().default(0),
@@ -2168,7 +2216,10 @@ export const billLines = pgTable(
   "bill_lines",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    billId: uuid("bill_id").notNull(),
+    /** The bill owns the line, and is the only organization it has. */
+    billId: uuid("bill_id")
+      .notNull()
+      .references(() => bills.id, { onDelete: "cascade" }),
     description: text("description").notNull(),
     /** Thousandths, as everywhere else a quantity can be a fraction. */
     quantityMilli: integer("quantity_milli").notNull().default(1000),
@@ -2284,7 +2335,11 @@ export const budgetLines = pgTable(
   "budget_lines",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    budgetId: uuid("budget_id").notNull(),
+    /** The budget owns the line, and is the only organization it has. */
+    budgetId: uuid("budget_id")
+      .notNull()
+      .references(() => budgets.id, { onDelete: "cascade" }),
+    /** The account the figure is set against — a reference, so no key. */
     accountId: uuid("account_id").notNull(),
     /** 1–12, or 0 for a figure set across the whole year. */
     month: integer("month").notNull().default(0),

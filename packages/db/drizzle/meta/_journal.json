@@ -708,6 +708,20 @@
       "when": 1790555674562,
       "tag": "0100_every_row_says_whose_it_is",
       "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "7",
+      "when": 1790564667788,
+      "tag": "0101_a_line_goes_with_its_document",
+      "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "7",
+      "when": 1790564979580,
+      "tag": "0102_an_sso_connection_outlives_nobody",
+      "breakpoints": true
     }
   ]
 }

@@ -381,7 +381,18 @@ export const ssoProvider = pgTable(
     userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
     /** How a sign-in names this connection. Unique across the instance. */
     providerId: text("provider_id").notNull().unique(),
-    organizationId: text("organization_id"),
+    /**
+     * Which organization this connection signs people in to. Null is an
+     * instance-wide provider and stays legal.
+     *
+     * Missed by the 2026-09-27 pass that keyed every other `organization_id`,
+     * because this column is nullable. A sign-in connection belonging to a
+     * business that no longer exists is worse than litter: it still matches
+     * on `domain`, which is how an address is routed to a provider.
+     */
+    organizationId: text("organization_id").references(() => organizations.id, {
+      onDelete: "cascade",
+    }),
     /** The email domain that arrives here — `example.com`. */
     domain: text("domain").notNull(),
   },

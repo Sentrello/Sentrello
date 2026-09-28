@@ -28,33 +28,19 @@ import * as schema from "./schema";
  * that has to be extended every time a module adds a table is a list that is
  * always one module out of date.
  *
- * Deliberately not solved with `on delete cascade`. That would be the right
- * shape in a fresh schema and the wrong thing to add here: the constraint
- * cannot be created while a real deployment still holds orphans, and an audit
- * log that disappears with the organization it describes is a decision to take
- * deliberately rather than one to acquire through a test-hygiene fix.
+ * **The schema does most of it now.** This note used to say cascading was the
+ * right shape in a fresh schema and the wrong thing to add here. It was added
+ * anyway, in two passes: every organization-scoped column got a key on
+ * 2026-09-27, and on 2026-09-28 so did the child tables that carry no
+ * organization at all — an invoice's lines, a quote's instalments, a tag's
+ * pairings. Both migrations swept the existing orphans first, which was the
+ * objection. What is left here is a sweep by `organization_id`, kept because
+ * module schemas are created by migrations in other repositories and not all
+ * of them have been through this pass yet.
  *
- * Order matters only for readability — no business table references another —
- * but the children go first so a half-failed call leaves less behind than it
- * found.
+ * Order does not matter: no business table references another, and the
+ * children come away with their documents.
  */
-
-/**
- * The tables that carry no `organizationId` of their own.
- *
- * A line is reached through its document, which is the only organization it
- * has. Nothing here has a foreign key either, so deleting the parent first
- * would leave the child unreachable rather than taking it along.
- */
-const CHILDREN: [child: string, column: string, parent: string][] = [
-  ["invoice_lines", "invoice_id", "invoices"],
-  ["quote_lines", "quote_id", "quotes"],
-  ["quote_instalments", "quote_id", "quotes"],
-  ["bill_lines", "bill_id", "bills"],
-  ["budget_lines", "budget_id", "budgets"],
-  ["journal_lines", "entry_id", "journal_entries"],
-  ["taggables", "tag_id", "tags"],
-];
 
 /**
  * An organization that actually exists, for a test that needs to own rows.
@@ -108,19 +94,16 @@ export async function dropOrganization(...orgIds: string[]): Promise<void> {
   const scoped = new Map(
     tables.filter((t) => t.scoped).map((t) => [t.name, t.schema]),
   );
-  const present = new Set(tables.map((t) => t.name));
 
-  for (const [child, column, parent] of CHILDREN) {
-    if (!present.has(child) || !scoped.has(parent)) continue;
-    await db.execute(sql`
-      delete from ${sql.identifier(child)}
-      where ${sql.identifier(column)} in (
-        select id from ${sql.identifier(parent)}
-        where organization_id in (${ids})
-      )
-    `);
-  }
-
+  /*
+   * The tables carrying no `organizationId` — invoice lines, quote lines and
+   * instalments, bill and budget lines, journal lines, tag pairings — used to
+   * be listed here by hand and deleted first, because they had no foreign key
+   * to the document that owns them. Since 2026-09-28 they do, and it cascades,
+   * so deleting the parent takes them along. A hand-maintained list of table
+   * relationships drifts from the schema; the schema does not drift from
+   * itself.
+   */
   for (const [name, nsp] of scoped) {
     await db.execute(sql`
       delete from ${sql.identifier(nsp)}.${sql.identifier(name)}
