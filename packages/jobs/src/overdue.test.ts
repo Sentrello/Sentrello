@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { db, schema } from "@sentrello/db";
 import { eq, inArray } from "@sentrello/db/orm";
+import { dropOrganization, makeOrganization } from "@sentrello/db/testing";
 import { sendOverdueReminders } from "./overdue";
 
 /**
@@ -26,6 +27,10 @@ const saved = {
 };
 
 beforeAll(async () => {
+  // The invoice and its customer belong to a business that exists: every
+  // business table has named one with a foreign key since 2026-09-27.
+  await makeOrganization(orgId);
+
   const [contact] = await db
     .insert(schema.contacts)
     .values({
@@ -58,12 +63,7 @@ beforeAll(async () => {
 afterAll(async () => {
   process.env.RESEND_API_KEY = saved.resend;
   process.env.SMTP_HOST = saved.smtp;
-  await db
-    .delete(schema.invoices)
-    .where(eq(schema.invoices.organizationId, orgId));
-  await db
-    .delete(schema.contacts)
-    .where(eq(schema.contacts.organizationId, orgId));
+  await dropOrganization(orgId);
 });
 
 test("with no mail configured, nobody is chased and nothing is marked", async () => {

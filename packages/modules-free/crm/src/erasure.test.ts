@@ -2,6 +2,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, schema } from "@sentrello/db";
+import { dropOrganization, makeOrganization } from "@sentrello/db/testing";
 import type { PersonalDataSource, SentrelloEnv } from "@sentrello/module-sdk";
 import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
@@ -75,6 +76,10 @@ beforeAll(async () => {
     body: { organizationId: orgId },
     headers,
   });
+
+  // The business whose copy must survive the erasure is a real one: a feed
+  // row has named an organization that exists since 2026-09-27.
+  await makeOrganization(foreignOrg);
 });
 
 afterAll(async () => {
@@ -92,6 +97,7 @@ afterAll(async () => {
       await db.delete(table).where(eq(column, org));
     }
   }
+  await dropOrganization(foreignOrg);
   await db.delete(schema.member).where(eq(schema.member.organizationId, orgId));
   await db
     .delete(schema.organizations)

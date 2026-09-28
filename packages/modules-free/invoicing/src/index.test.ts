@@ -3,6 +3,7 @@ import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, schema } from "@sentrello/db";
 import { creditBalanceFor } from "@sentrello/db/customer-credit";
+import { dropOrganization, makeOrganization } from "@sentrello/db/testing";
 import type { SentrelloEnv } from "@sentrello/module-sdk";
 import { resetRateLimits } from "@sentrello/module-sdk";
 import { and, eq, inArray } from "drizzle-orm";
@@ -16,6 +17,22 @@ const app = new Hono<SentrelloEnv>();
 let orgId: string;
 let headers: Headers;
 let contactId: string;
+
+/**
+ * The other businesses whose rows these tests plant and then fail to reach.
+ *
+ * Each was a bare string until 2026-09-27: the row went in, the route
+ * refused it, and nothing owned the row afterwards. `organization_id` now
+ * carries a foreign key, so a second business has to be a second business —
+ * which is what these tests were claiming all along.
+ */
+const strangers = [
+  `other-org-${suffix}`,
+  `org_other_${suffix}`,
+  `other-${suffix}`,
+  `someone-else-${suffix}`,
+  `intruder-target-${suffix}`,
+];
 
 /**
  * Sending refuses outright when no mail server is connected, so these tests
@@ -87,11 +104,15 @@ beforeAll(async () => {
     .returning();
   if (!contact) throw new Error("could not create test contact");
   contactId = contact.id;
+
+  for (const stranger of strangers) await makeOrganization(stranger);
 });
 
 afterAll(async () => {
   process.env.RESEND_API_KEY = savedMail.resend;
   globalThis.fetch = realFetch;
+
+  await dropOrganization(...strangers);
 
   const entries = await db
     .select({ id: schema.journalEntries.id })
@@ -2227,9 +2248,10 @@ test("exactly one template is the default, and it is this business's own", async
   expect(templates.find((t) => t.isDefault)?.id).toBe(b.id);
 
   // And somebody else's cannot be made this business's default.
+  const theirOrg = await makeOrganization(crypto.randomUUID());
   const [theirs] = await db
     .insert(schema.documentTemplates)
-    .values({ organizationId: crypto.randomUUID(), name: "Theirs" })
+    .values({ organizationId: theirOrg, name: "Theirs" })
     .returning();
   const stolen = await app.request(
     `http://localhost/api/invoicing/templates/${theirs?.id}/default`,
@@ -2242,9 +2264,7 @@ test("exactly one template is the default, and it is this business's own", async
     .where(eq(schema.documentTemplates.id, theirs?.id ?? ""));
   expect(untouched?.isDefault).toBe(false);
 
-  await db
-    .delete(schema.documentTemplates)
-    .where(eq(schema.documentTemplates.id, theirs?.id ?? ""));
+  await dropOrganization(theirOrg);
 });
 
 test("tax charged with no breakdown behind it is still shown", async () => {
@@ -4991,7 +5011,9 @@ test("a business that quotes gross raises an invoice that asks for the gross", a
  * query would destroy, and the assertion that it is still there.
  */
 test("merging refuses a draft belonging to another business, and destroys none of it", async () => {
-  const other = `other-${crypto.randomUUID().slice(0, 8)}`;
+  const other = await makeOrganization(
+    `other-${crypto.randomUUID().slice(0, 8)}`,
+  );
   const [theirs] = await db
     .insert(schema.invoices)
     .values({
@@ -5064,9 +5086,7 @@ test("merging refuses a draft belonging to another business, and destroys none o
       .where(eq(schema.invoices.id, mine.id));
     expect(merged?.deletedAt).not.toBeNull();
   } finally {
-    await db
-      .delete(schema.invoices)
-      .where(eq(schema.invoices.organizationId, other));
+    await dropOrganization(other);
   }
 });
 
@@ -5081,7 +5101,9 @@ test("merging refuses a draft belonging to another business, and destroys none o
  * customer does not; the reasoning is written out over `ownedTemplateId`.
  */
 test("a letterhead belonging to somebody else is never written onto a document", async () => {
-  const other = `other-${crypto.randomUUID().slice(0, 8)}`;
+  const other = await makeOrganization(
+    `other-${crypto.randomUUID().slice(0, 8)}`,
+  );
   const [theirs] = await db
     .insert(schema.documentTemplates)
     .values({ organizationId: other, name: `Their letterhead ${suffix}` })
@@ -5149,9 +5171,7 @@ test("a letterhead belonging to somebody else is never written onto a document",
     .where(eq(schema.invoices.templateId, theirs.id));
   expect(carrying.length).toBe(0);
 
-  await db
-    .delete(schema.documentTemplates)
-    .where(eq(schema.documentTemplates.organizationId, other));
+  await dropOrganization(other);
 });
 
 /**

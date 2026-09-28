@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { db, schema } from "@sentrello/db";
 import { eq } from "@sentrello/db/orm";
+import { dropOrganization, makeOrganization } from "@sentrello/db/testing";
 import { daysPastDue, lateFeeFor, rulesDue, runReminders } from "./reminders";
 
 /**
@@ -30,6 +31,10 @@ beforeAll(async () => {
   // Nothing leaves the process: the adapter has no real transport in tests.
   // Only so `mailConfigured()` is true; the mailer below is what is used.
   process.env.RESEND_API_KEY = "test-key-for-reminders";
+
+  // The invoice and its customer belong to a business that exists: every
+  // business table has named one with a foreign key since 2026-09-27.
+  await makeOrganization(orgId);
 
   const [contact] = await db
     .insert(schema.contacts)
@@ -63,21 +68,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   process.env.RESEND_API_KEY = saved.resend;
-  await db
-    .delete(schema.reminderLog)
-    .where(eq(schema.reminderLog.organizationId, orgId));
-  await db
-    .delete(schema.reminderRules)
-    .where(eq(schema.reminderRules.organizationId, orgId));
-  await db
-    .delete(schema.invoicingSettings)
-    .where(eq(schema.invoicingSettings.organizationId, orgId));
-  await db
-    .delete(schema.invoices)
-    .where(eq(schema.invoices.organizationId, orgId));
-  await db
-    .delete(schema.contacts)
-    .where(eq(schema.contacts.organizationId, orgId));
+  await dropOrganization(orgId);
 });
 
 // ---------------------------------------------------------------------------
@@ -395,7 +386,11 @@ test("a fee is not charged during the grace period", async () => {
  * business on the instance, and the retry hit the same invoice again.
  */
 test("a chase that will not send loses one invoice, not the whole run", async () => {
-  const failOrg = `reminders-fail-${crypto.randomUUID().slice(0, 8)}`;
+  // A second business, and a real one: the sweep runs across every
+  // organization, and since 2026-09-27 an invented id can own nothing.
+  const failOrg = await makeOrganization(
+    `reminders-fail-${crypto.randomUUID().slice(0, 8)}`,
+  );
   const [gone, fine] = await db
     .insert(schema.contacts)
     .values([
@@ -456,11 +451,6 @@ test("a chase that will not send loses one invoice, not the whole run", async ()
       .where(eq(schema.invoices.number, "INV-BOUNCES"));
     expect(bounced?.lastReminderAt).toBeNull();
   } finally {
-    await db
-      .delete(schema.invoices)
-      .where(eq(schema.invoices.organizationId, failOrg));
-    await db
-      .delete(schema.contacts)
-      .where(eq(schema.contacts.organizationId, failOrg));
+    await dropOrganization(failOrg);
   }
 });

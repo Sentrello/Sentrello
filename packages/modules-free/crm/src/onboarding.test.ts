@@ -1,5 +1,6 @@
-import { afterAll, expect, test } from "bun:test";
+import { afterAll, beforeAll, expect, test } from "bun:test";
 import { db, eq, schema } from "@sentrello/db";
+import { dropOrganization, makeOrganization } from "@sentrello/db/testing";
 import { allOnboarding, clearOnboarding } from "@sentrello/module-sdk";
 import { registerForTest } from "@sentrello/module-sdk";
 import crm from "./index";
@@ -35,12 +36,14 @@ const step = (id: string) => {
   return found.done;
 };
 
+beforeAll(async () => {
+  // The business whose checklist this is has to exist: a company, a deal and
+  // a form have each named a real organization since 2026-09-27.
+  await makeOrganization(orgId);
+});
+
 afterAll(async () => {
-  await db.delete(schema.forms).where(eq(schema.forms.organizationId, orgId));
-  await db.delete(schema.deals).where(eq(schema.deals.organizationId, orgId));
-  await db
-    .delete(schema.companies)
-    .where(eq(schema.companies.organizationId, orgId));
+  await dropOrganization(orgId);
 });
 
 test("every step opens a screen the CRM actually registers", () => {
@@ -87,7 +90,9 @@ test("a company, a deal and a form each tick their own step", async () => {
  * somebody else's data to do it.
  */
 test("a step does not count another business's rows", async () => {
-  const theirs = `org-other-${crypto.randomUUID().slice(0, 8)}`;
+  const theirs = await makeOrganization(
+    `org-other-${crypto.randomUUID().slice(0, 8)}`,
+  );
   await db
     .insert(schema.companies)
     .values({ organizationId: theirs, name: "Somebody Else Ltd" });
@@ -96,8 +101,6 @@ test("a step does not count another business's rows", async () => {
     const fresh = `org-fresh-${crypto.randomUUID().slice(0, 8)}`;
     expect(await step("first-company")(fresh)).toBe(false);
   } finally {
-    await db
-      .delete(schema.companies)
-      .where(eq(schema.companies.organizationId, theirs));
+    await dropOrganization(theirs);
   }
 });

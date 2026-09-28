@@ -1,8 +1,9 @@
-import { afterAll, expect, test } from "bun:test";
+import { afterAll, beforeAll, expect, test } from "bun:test";
 import { eq } from "drizzle-orm";
 import { db } from "./client";
 import { redactPayloads } from "./erasure";
 import { recordEvents } from "./schema";
+import { dropOrganization, makeOrganization } from "./testing";
 
 /**
  * The seam a workflow run log goes through to forget somebody.
@@ -22,10 +23,17 @@ const org = `erasure-${crypto.randomUUID().slice(0, 8)}`;
 const other = `${org}-else`;
 const email = "Deep@Example.test";
 
+beforeAll(async () => {
+  // A run log belongs to a business, and since 2026-09-27 the column says so
+  // with a foreign key. Inventing an id used to write rows nobody owned.
+  await makeOrganization(org);
+  await makeOrganization(other);
+});
+
 afterAll(async () => {
-  for (const id of [org, other]) {
-    await db.delete(recordEvents).where(eq(recordEvents.organizationId, id));
-  }
+  // The feed rows go with the organizations that own them, which is what the
+  // cascade is for; leaving the organization behind fails the leftovers gate.
+  await dropOrganization(org, other);
 });
 
 test("a person nested deep inside a run's context is found and emptied", async () => {

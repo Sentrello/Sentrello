@@ -1,6 +1,7 @@
-import { afterAll, expect, test } from "bun:test";
+import { afterAll, beforeAll, expect, test } from "bun:test";
 import { db, eq, schema } from "@sentrello/db";
 import { recent } from "./security-events";
+import { dropOrganization, makeOrganization } from "./testing";
 
 /**
  * `recent`, and the exclusion `GET /api/users`'s Recent-changes card needs.
@@ -18,10 +19,14 @@ import { recent } from "./security-events";
 
 const orgId = crypto.randomUUID();
 
+beforeAll(async () => {
+  // A security event belongs to a business, and the column has carried a
+  // foreign key since 2026-09-27; a bare uuid owned nothing.
+  await makeOrganization(orgId);
+});
+
 afterAll(async () => {
-  await db
-    .delete(schema.securityEvents)
-    .where(eq(schema.securityEvents.organizationId, orgId));
+  await dropOrganization(orgId);
 });
 
 async function seed() {

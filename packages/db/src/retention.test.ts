@@ -24,6 +24,7 @@ import {
 } from "./retention";
 import * as schema from "./schema";
 import { recordEvents } from "./schema";
+import { makeOrganization } from "./testing";
 
 /**
  * The shared sweep, tested on the change feed.
@@ -34,8 +35,9 @@ import { recordEvents } from "./schema";
  * interrupted sweep resuming, a second organisation untouched, an erased row
  * staying erased — is a property of the facility rather than of this table.
  *
- * `organizationId` is free text on this table, so these tests need no
- * organisation rows except where they exercise the loop over all of them.
+ * `organizationId` on this table carries a foreign key like every other
+ * business column, so each of these tests owns a real organisation — an id
+ * made up on the spot used to write rows belonging to nobody.
  */
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -47,7 +49,8 @@ const suffix = crypto.randomUUID().slice(0, 8);
  * Shared ids made these tests each other's leftovers, which is the same
  * mistake — a log nobody cleans up — one directory down.
  */
-const anOrg = () => `retention-${suffix}-${crypto.randomUUID().slice(0, 8)}`;
+const anOrg = () =>
+  makeOrganization(`retention-${suffix}-${crypto.randomUUID().slice(0, 8)}`);
 
 afterAll(async () => {
   await db
@@ -102,7 +105,7 @@ const read = async (id: string) =>
 // --- the window ------------------------------------------------------------
 
 test("the window is kept to the day, in both directions", async () => {
-  const org = anOrg();
+  const org = await anOrg();
   const gone = await event(org, 401);
   const kept = await event(org, 399);
   const trimmed = await event(org, 91);
@@ -128,7 +131,7 @@ test("the window is kept to the day, in both directions", async () => {
 });
 
 test("a window of zero keeps everything for ever", async () => {
-  const org = anOrg();
+  const org = await anOrg();
   const ancient = await event(org, 4000);
   const result = await sweepRetention(policy({ window: () => ({}) }), org);
   expect(await read(ancient.id)).toBeDefined();
@@ -137,7 +140,7 @@ test("a window of zero keeps everything for ever", async () => {
 });
 
 test("a row that has not finished is live state and is never touched", async () => {
-  const org = anOrg();
+  const org = await anOrg();
   const unfinished = await event(org, 500);
   // `handledAt` is null until something has dispatched the event: the clock
   // says this row is not finished, so age is irrelevant.
@@ -157,7 +160,7 @@ test("a row that has not finished is live state and is never touched", async () 
 });
 
 test("rows a policy spares are never removed, however old", async () => {
-  const org = anOrg();
+  const org = await anOrg();
   const spared = await event(org, 4000);
   const ordinary = await event(org, 4000);
   await sweepRetention(policy({ keep: eq(recordEvents.id, spared.id) }), org);
@@ -169,8 +172,8 @@ test("rows a policy spares are never removed, however old", async () => {
 // --- other organisations ---------------------------------------------------
 
 test("a sweep never reaches another organisation's rows", async () => {
-  const org = anOrg();
-  const other = anOrg();
+  const org = await anOrg();
+  const other = await anOrg();
   const mine = await event(org, 500);
   const theirs = await event(other, 500);
 
@@ -189,7 +192,7 @@ test("a sweep never reaches another organisation's rows", async () => {
 // --- interruption ----------------------------------------------------------
 
 test("a sweep interrupted mid-way resumes with nothing lost or repeated", async () => {
-  const org = anOrg();
+  const org = await anOrg();
   const rows = [];
   for (let i = 0; i < 5; i++) rows.push(await event(org, 500));
 
@@ -222,7 +225,7 @@ test("a sweep interrupted mid-way resumes with nothing lost or repeated", async 
 });
 
 test("an emptying interrupted half way empties the rest and re-empties nothing", async () => {
-  const org = anOrg();
+  const org = await anOrg();
   const rows = [];
   for (let i = 0; i < 5; i++) rows.push(await event(org, 100));
 
@@ -263,7 +266,7 @@ test("an emptying interrupted half way empties the rest and re-empties nothing",
 });
 
 test("a sweep out of budget does nothing and says what is still owed", async () => {
-  const org = anOrg();
+  const org = await anOrg();
   const old = await event(org, 500);
   const result = await sweepRetention(policy(), org, { deadline: Date.now() });
   expect(await read(old.id)).toBeDefined();
@@ -275,7 +278,7 @@ test("a sweep out of budget does nothing and says what is still owed", async () 
 // --- erasure ---------------------------------------------------------------
 
 test("a row an erasure already emptied is not restored and not emptied again", async () => {
-  const org = anOrg();
+  const org = await anOrg();
   const erased = await event(org, 100, { name: "Gone", email: "g@x.test" });
   const cleared = await redactPayloads({
     table: recordEvents,
@@ -300,7 +303,7 @@ test("a row an erasure already emptied is not restored and not emptied again", a
 });
 
 test("a payload emptied key by key is not emptied a second time", async () => {
-  const org = anOrg();
+  const org = await anOrg();
   // The shape the paid bundle's run logs use: one jsonb column with the copy
   // nested under a key, emptied to JSON null rather than to SQL NULL. `is not
   // null` would call that full every night for ever.
@@ -318,18 +321,9 @@ test("a payload emptied key by key is not emptied a second time", async () => {
 // --- failure isolation and visibility --------------------------------------
 
 test("one module's failing policy does not stop another's sweep", async () => {
-  const org = anOrg();
-  const [organization] = await db
-    .insert(schema.organizations)
-    .values({
-      id: org,
-      name: `Retention ${suffix}`,
-      slug: `retention-${suffix}`,
-      createdAt: new Date(),
-    })
-    .returning();
-  if (!organization) throw new Error("no organization");
-
+  // This one sweeps every organisation in the database, so its organisation
+  // has to be a real row — which, since the foreign key, they all are.
+  const org = await anOrg();
   const old = await event(org, 500);
   clearRetention();
   forgetRetentionSweep();

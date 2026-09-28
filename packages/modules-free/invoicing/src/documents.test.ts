@@ -1,5 +1,6 @@
-import { afterAll, expect, test } from "bun:test";
+import { afterAll, beforeAll, expect, test } from "bun:test";
 import { db, eq, inArray, schema } from "@sentrello/db";
+import { dropOrganization, makeOrganization } from "@sentrello/db/testing";
 import { creditedAgainst, writeTaxBands } from "./documents";
 
 /**
@@ -22,13 +23,15 @@ const suffix = crypto.randomUUID().slice(0, 8);
 const alpha = `alpha-${suffix}`;
 const beta = `beta-${suffix}`;
 
+beforeAll(async () => {
+  // Both businesses are real rows. Two invented ids proved nothing once the
+  // foreign key arrived on 2026-09-27 — neither could hold an invoice.
+  await makeOrganization(alpha);
+  await makeOrganization(beta);
+});
+
 afterAll(async () => {
-  await db
-    .delete(schema.documentTaxes)
-    .where(inArray(schema.documentTaxes.organizationId, [alpha, beta]));
-  await db
-    .delete(schema.invoices)
-    .where(inArray(schema.invoices.organizationId, [alpha, beta]));
+  await dropOrganization(alpha, beta);
 });
 
 test("credits against an invoice are one business's credit notes only", async () => {

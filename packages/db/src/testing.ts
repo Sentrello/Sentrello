@@ -56,6 +56,32 @@ const CHILDREN: [child: string, column: string, parent: string][] = [
   ["taggables", "tag_id", "tags"],
 ];
 
+/**
+ * An organization that actually exists, for a test that needs to own rows.
+ *
+ * Every business table has a foreign key to `organizations` as of
+ * 2026-09-27, so a fixture that invents an id — `audit-chain-3f2a` and its
+ * kind — can no longer insert anything. That was the point of the
+ * constraint: a row belonging to nobody is a row no query can reach and no
+ * sweep should find. It does mean a test that wants to own data has to say
+ * whose it is.
+ *
+ * Idempotent, so a file can call it in `beforeAll` without caring whether a
+ * previous run left it behind. Deleting the organization afterwards takes
+ * the test's rows with it, which is what `dropOrganization` below now
+ * mostly relies on.
+ */
+export async function makeOrganization(
+  id: string,
+  name = `Test ${id}`,
+): Promise<string> {
+  await db
+    .insert(schema.organizations)
+    .values({ id, name, slug: id, createdAt: new Date() })
+    .onConflictDoNothing();
+  return id;
+}
+
 export async function dropOrganization(...orgIds: string[]): Promise<void> {
   if (orgIds.length === 0) return;
   const ids = sql.join(

@@ -23,6 +23,12 @@ import {
 // organization plugin is pointed at that name, so there is exactly one
 // organization table and `session.activeOrganizationId` is the id every
 // business table below scopes by.
+/*
+ * Imported as well as re-exported: `export *` makes these available to
+ * everybody who imports this file, and does not put them in this file's
+ * own scope. Every business table below references `organizations`.
+ */
+import { organizations } from "./auth-schema";
 export * from "./auth-schema";
 
 // Cache of the last successfully verified license (for offline boots).
@@ -42,7 +48,9 @@ export const companies = pgTable(
   "companies",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     website: text("website"),
     /** The company's mark, stored exactly as a contact's avatar is. */
@@ -100,7 +108,9 @@ export const contacts = pgTable(
   "contacts",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     companyId: uuid("company_id"),
     kind: text("kind").notNull().default("customer"), // customer|lead|supplier
     /**
@@ -227,7 +237,9 @@ export const deals = pgTable(
   "deals",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     companyId: uuid("company_id"),
     /**
@@ -296,7 +308,9 @@ export const notes = pgTable(
   "notes",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     entityType: text("entity_type").notNull(), // "contact" | "deal"
     entityId: uuid("entity_id").notNull(),
     text: text("text").notNull(),
@@ -322,7 +336,9 @@ export const activities = pgTable(
   "activities",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     contactId: uuid("contact_id"),
     dealId: uuid("deal_id"),
     type: text("type").notNull(), // call|email|note|meeting
@@ -353,7 +369,9 @@ export const tasks = pgTable(
   "tasks",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     title: text("title").notNull(),
     /** What kind of follow-up: call, email, meeting, other. */
     type: text("type"),
@@ -402,7 +420,10 @@ export const tasks = pgTable(
  */
 export const crmSettings = pgTable("crm_settings", {
   id: uuid("id").defaultRandom().primaryKey(),
-  organizationId: text("organization_id").notNull().unique(),
+  organizationId: text("organization_id")
+    .notNull()
+    .unique()
+    .references(() => organizations.id, { onDelete: "cascade" }),
   /**
    * Ordered. The order is the board, left to right, so it is data rather than
    * a sort somebody has to reproduce in three places.
@@ -475,7 +496,9 @@ export const tags = pgTable(
   "tags",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     /** Tags are scanned, not read. Without colour they are just more text. */
     color: text("color").notNull().default("#94a3b8"),
@@ -502,7 +525,9 @@ export const quotes = pgTable(
   "quotes",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     contactId: uuid("contact_id"),
     number: text("number").notNull(),
     status: text("status").notNull().default("draft"), // draft|sent|accepted|declined|expired
@@ -650,7 +675,9 @@ export const invoices = pgTable(
   "invoices",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     contactId: uuid("contact_id"),
     quoteId: uuid("quote_id"), // set when converted from a quote
     number: text("number").notNull(),
@@ -786,7 +813,9 @@ export const documentTaxes = pgTable(
   "document_taxes",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     /** "invoice" | "quote" */
     documentType: text("document_type").notNull(),
     documentId: uuid("document_id").notNull(),
@@ -863,7 +892,9 @@ export const salePlaces = pgTable(
   "sale_places",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     /**
      * The journal entry this places — "invoice:<id>", "shop-order:<id>".
      *
@@ -919,7 +950,9 @@ export const taxDefinitions = pgTable(
   "tax_definitions",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     /** @deprecated Basis points; `ratePpm` is the exact rate when set. */
     rateBp: integer("rate_bp").notNull(),
@@ -988,7 +1021,9 @@ export const exemptionCertificates = pgTable(
   "exemption_certificates",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     companyId: uuid("company_id").notNull(),
     /** The number printed on the certificate, exactly as issued. */
     number: text("number").notNull(),
@@ -1024,7 +1059,9 @@ export const billableItems = pgTable(
   "billable_items",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     description: text("description"),
     sku: text("sku"),
@@ -1065,7 +1102,9 @@ export const documentTemplates = pgTable(
   "document_templates",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     description: text("description"),
     /**
@@ -1147,7 +1186,10 @@ export const documentTemplates = pgTable(
  */
 export const mtdConnections = pgTable("mtd_connections", {
   id: uuid("id").defaultRandom().primaryKey(),
-  organizationId: text("organization_id").notNull().unique(),
+  organizationId: text("organization_id")
+    .notNull()
+    .unique()
+    .references(() => organizations.id, { onDelete: "cascade" }),
 
   /** The VAT registration number the returns are filed against. */
   vrn: text("vrn").notNull(),
@@ -1197,7 +1239,10 @@ export const mtdConnections = pgTable("mtd_connections", {
  */
 export const peppolConnections = pgTable("peppol_connections", {
   id: uuid("id").defaultRandom().primaryKey(),
-  organizationId: text("organization_id").notNull().unique(),
+  organizationId: text("organization_id")
+    .notNull()
+    .unique()
+    .references(() => organizations.id, { onDelete: "cascade" }),
 
   /**
    * Which access point. One value today and a column rather than a constant,
@@ -1260,7 +1305,9 @@ export const peppolSubmissions = pgTable(
   "peppol_submissions",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     invoiceId: uuid("invoice_id").notNull(),
 
     /** What the access point calls this submission, for support. */
@@ -1308,7 +1355,10 @@ export const peppolSubmissions = pgTable(
  */
 export const complianceSettings = pgTable("compliance_settings", {
   id: uuid("id").defaultRandom().primaryKey(),
-  organizationId: text("organization_id").notNull().unique(),
+  organizationId: text("organization_id")
+    .notNull()
+    .unique()
+    .references(() => organizations.id, { onDelete: "cascade" }),
 
   /**
    * Which regimes this business has said apply to it.
@@ -1369,7 +1419,10 @@ export const complianceSettings = pgTable("compliance_settings", {
 
 export const ledgerSettings = pgTable("ledger_settings", {
   id: uuid("id").defaultRandom().primaryKey(),
-  organizationId: text("organization_id").notNull().unique(),
+  organizationId: text("organization_id")
+    .notNull()
+    .unique()
+    .references(() => organizations.id, { onDelete: "cascade" }),
   /** The last day of the closed period. Null is no lock at all. */
   closedThrough: timestamp("closed_through"),
   /**
@@ -1441,7 +1494,10 @@ export const ledgerSettings = pgTable("ledger_settings", {
 
 export const invoicingSettings = pgTable("invoicing_settings", {
   id: uuid("id").defaultRandom().primaryKey(),
-  organizationId: text("organization_id").notNull().unique(),
+  organizationId: text("organization_id")
+    .notNull()
+    .unique()
+    .references(() => organizations.id, { onDelete: "cascade" }),
   /** How long a customer has to pay, when nobody says otherwise. */
   defaultDueDays: integer("default_due_days").notNull().default(30),
   /** Printed at the foot of every document that does not override it. */
@@ -1539,7 +1595,9 @@ export const customerCredits = pgTable(
   "customer_credits",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     contactId: uuid("contact_id").notNull(),
     /** Positive grants, negative spends. In the organization's base currency. */
     cents: integer("cents").notNull(),
@@ -1567,7 +1625,9 @@ export const reminderRules = pgTable(
   "reminder_rules",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     /** Days from the due date. Negative is before it. */
     daysOffset: integer("days_offset").notNull(),
@@ -1590,7 +1650,9 @@ export const reminderLog = pgTable(
   "reminder_log",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     invoiceId: uuid("invoice_id").notNull(),
     ruleId: uuid("rule_id"),
     sentAt: timestamp("sent_at").defaultNow().notNull(),
@@ -1661,7 +1723,9 @@ export const payments = pgTable(
   "payments",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     invoiceId: uuid("invoice_id").notNull(),
     amountCents: integer("amount_cents").notNull(), // supports partial payments
     method: text("method").notNull().default("manual"), // manual|stripe|paypal
@@ -1678,7 +1742,9 @@ export const recurringProfiles = pgTable(
   "recurring_profiles",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     contactId: uuid("contact_id").notNull(),
     name: text("name"),
     /** daily | weekly | monthly | quarterly | yearly */
@@ -1796,7 +1862,9 @@ export const recurringPeriods = pgTable(
   "recurring_periods",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     profileId: uuid("profile_id").notNull(),
     /** The period this invoice pays for. */
     periodStart: timestamp("period_start").notNull(),
@@ -1821,7 +1889,9 @@ export const documentCounters = pgTable(
   "document_counters",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     kind: text("kind").notNull(), // invoice|quote
     lastNumber: integer("last_number").notNull().default(0),
   },
@@ -1848,7 +1918,9 @@ export const accounts = pgTable(
   "accounts",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     code: text("code").notNull(),
     name: text("name").notNull(),
     type: text("type").notNull(), // asset|liability|equity|income|expense
@@ -1909,7 +1981,9 @@ export const transactions = pgTable(
   "transactions",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     kind: text("kind").notNull(), // income|expense
     /** The income or expense account it is booked to — its category. */
     accountId: uuid("account_id"),
@@ -1949,7 +2023,9 @@ export const journalEntries = pgTable(
   "journal_entries",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     memo: text("memo"),
     source: text("source"), // "invoice:<id>" | "payment:<id>" | "manual"
     /**
@@ -2017,7 +2093,9 @@ export const expenses = pgTable(
   "expenses",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     accountId: uuid("account_id"),
     amountCents: integer("amount_cents").notNull(),
     vendor: text("vendor"),
@@ -2041,7 +2119,9 @@ export const bills = pgTable(
   "bills",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     /** Who sent it — a CRM contact, never a second list of suppliers. */
     vendorId: uuid("vendor_id"),
     /**
@@ -2118,7 +2198,9 @@ export const billPayments = pgTable(
   "bill_payments",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     billId: uuid("bill_id").notNull(),
     amountCents: integer("amount_cents").notNull(),
     paidAt: timestamp("paid_at").defaultNow().notNull(),
@@ -2155,7 +2237,9 @@ export const recurringBills = pgTable(
   "recurring_bills",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     vendorId: uuid("vendor_id"),
     name: text("name"),
     /** daily | weekly | monthly | quarterly | yearly */
@@ -2186,7 +2270,9 @@ export const budgets = pgTable(
   "budgets",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     year: integer("year").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -2219,7 +2305,9 @@ export const exchangeRates = pgTable(
   "exchange_rates",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     code: text("code").notNull(),
     rateMicro: integer("rate_micro").notNull(),
     asOf: timestamp("as_of").defaultNow().notNull(),
@@ -2231,7 +2319,9 @@ export const bankImports = pgTable(
   "bank_imports",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     filename: text("filename").notNull(),
     importedAt: timestamp("imported_at").defaultNow().notNull(),
   },
@@ -2242,7 +2332,9 @@ export const bankTransactions = pgTable(
   "bank_transactions",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     /**
      * Which statement it arrived on.
      *
@@ -2305,7 +2397,9 @@ export const payees = pgTable(
   "payees",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     /** The supplier, where they are one the CRM already knows. */
     contactId: uuid("contact_id"),
     name: text("name").notNull(),
@@ -2334,7 +2428,9 @@ export const bankPayments = pgTable(
   "bank_payments",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     payeeId: uuid("payee_id").notNull(),
     /** The bill it settles, where it settles one. */
     billId: uuid("bill_id"),
@@ -2384,7 +2480,9 @@ export const bankPaymentSchedules = pgTable(
   "bank_payment_schedules",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     payeeId: uuid("payee_id").notNull(),
     connectionId: uuid("connection_id").notNull(),
     fromAccountReference: text("from_account_reference").notNull(),
@@ -2428,7 +2526,9 @@ export const contractorTaxDetails = pgTable(
   "contractor_tax_details",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     /** The supplier, which is a contact the CRM owns. */
     contactId: uuid("contact_id").notNull(),
     /** Whether this business files a 1099 for them at all. */
@@ -2476,7 +2576,9 @@ export const dimensions = pgTable(
   "dimensions",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     /** class | location */
     kind: text("kind").notNull(),
     name: text("name").notNull(),
@@ -2514,7 +2616,9 @@ export const vendorCredits = pgTable(
   "vendor_credits",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     /** The supplier, which is a contact the CRM already owns. */
     vendorId: uuid("vendor_id"),
     /** The supplier's own reference for it, as printed. */
@@ -2551,7 +2655,9 @@ export const vendorCreditApplications = pgTable(
   "vendor_credit_applications",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     creditId: uuid("credit_id").notNull(),
     billId: uuid("bill_id").notNull(),
     amountCents: integer("amount_cents").notNull(),
@@ -2583,7 +2689,9 @@ export const bankReconciliations = pgTable(
   "bank_reconciliations",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     /** The bank account being reconciled — an account with `isBank`. */
     accountId: uuid("account_id").notNull(),
     /** The statement's closing date and closing balance, as printed. */
@@ -2629,7 +2737,9 @@ export const fixedAssets = pgTable(
   "fixed_assets",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     description: text("description"),
     /** What it cost, which stays on the books until it is disposed of. */
@@ -2686,7 +2796,9 @@ export const bankRules = pgTable(
   "bank_rules",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     /** What the person called it, for the screen and the audit log. */
     name: text("name").notNull(),
     /** contains | starts | equals — on the description the bank sent. */
@@ -2727,7 +2839,9 @@ export const bankProviderAccounts = pgTable(
   "bank_provider_accounts",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     /** plaid | teller */
     provider: text("provider").notNull(),
     /** The provider's own client identifier, where it has one. Not secret. */
@@ -2768,7 +2882,9 @@ export const bankConnections = pgTable(
   "bank_connections",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     /** plaid | teller */
     provider: text("provider").notNull(),
     /** What the bank is called, so a screen says Chase and not an item id. */
@@ -2811,7 +2927,9 @@ export const forms = pgTable(
   "forms",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     // public identifier, safe to paste into a page's HTML
     key: text("key").notNull().unique(),
     name: text("name").notNull(),
@@ -2872,7 +2990,9 @@ export const formSubmissions = pgTable(
   "form_submissions",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     formId: uuid("form_id").notNull(),
     contactId: uuid("contact_id"),
     quoteId: uuid("quote_id"),
@@ -2923,7 +3043,9 @@ export const organizationRole = pgTable(
   "organization_role",
   {
     id: text("id").primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     role: text("role").notNull(),
     permission: text("permission").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -2951,7 +3073,9 @@ export const userPreferences = pgTable(
   "user_preferences",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     userId: text("user_id").notNull(),
     /** Which preference, e.g. "dashboard". Namespaced by whoever owns it. */
     key: text("key").notNull(),
@@ -2983,7 +3107,9 @@ export const organizationPreferences = pgTable(
   "organization_preferences",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     /** Which preference, e.g. "dashboard". Namespaced by whoever owns it. */
     key: text("key").notNull(),
     value: jsonb("value").notNull(),
@@ -3034,7 +3160,9 @@ export const onboardingDismissals = pgTable(
   "onboarding_dismissals",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     /** `OnboardingGuide.id` — the module SDK's registry key. */
     guideId: text("guide_id").notNull(),
     dismissedAt: timestamp("dismissed_at").defaultNow().notNull(),
@@ -3066,7 +3194,9 @@ export const moduleState = pgTable(
   "module_state",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     /** The module id the loader knows it by — the same string the licence grants. */
     moduleId: text("module_id").notNull(),
     enabled: boolean("enabled").notNull().default(false),
@@ -3119,7 +3249,9 @@ export const securityEvents = pgTable(
      * invalidate every row written before today.
      */
     seq: bigserial("seq", { mode: "number" }).notNull(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     /**
      * The person who did it, where there is one.
      *
@@ -3192,7 +3324,9 @@ export const consentRecords = pgTable(
   "consent_records",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
 
     /**
      * Who agreed, as "contact" | "subscriber" | "user" and their id.
@@ -3280,7 +3414,9 @@ export const paymentAccounts = pgTable(
   "payment_accounts",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     /** stripe | paypal */
     provider: text("provider").notNull(),
     /** test | live */
@@ -3344,7 +3480,9 @@ export const paymentWebhookEvents = pgTable(
   "payment_webhook_events",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     /** stripe | paypal */
     provider: text("provider").notNull(),
     /** The processor's own id for the event — `evt_…` on Stripe. */
@@ -3376,7 +3514,9 @@ export const userGroups = pgTable(
   "user_groups",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     description: text("description"),
     /** Role names, built-in or one the business defined for itself. */
@@ -3396,7 +3536,9 @@ export const userGroupMembers = pgTable(
   {
     groupId: uuid("group_id").notNull(),
     userId: text("user_id").notNull(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     addedAt: timestamp("added_at").defaultNow().notNull(),
     addedBy: text("added_by"),
   },
@@ -3415,7 +3557,9 @@ export const userGroupMembers = pgTable(
  * password may be.
  */
 export const securityPolicy = pgTable("security_policy", {
-  organizationId: text("organization_id").primaryKey(),
+  organizationId: text("organization_id")
+    .primaryKey()
+    .references(() => organizations.id, { onDelete: "cascade" }),
   /**
    * Roles that must have two-factor authentication.
    *
@@ -3489,7 +3633,9 @@ export const recordEvents = pgTable(
   "record_events",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     /** What kind of thing: "deal", "contact", "invoice". */
     entity: text("entity").notNull(),
     entityId: text("entity_id").notNull(),
@@ -3567,7 +3713,9 @@ export const crmWebhooks = pgTable(
   "crm_webhooks",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     url: text("url").notNull(),
     /** Sealed with the instance key, never returned after creation. */
     secret: text("secret").notNull(),
@@ -3595,7 +3743,9 @@ export const crmWebhookDeliveries = pgTable(
   "crm_webhook_deliveries",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     webhookId: uuid("webhook_id").notNull(),
     /** The record_events row this delivery carries. */
     eventId: uuid("event_id").notNull(),
@@ -3637,7 +3787,9 @@ export const savedViews = pgTable(
   "saved_views",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     /** The platform user this view belongs to. */
     userId: text("user_id").notNull(),
     /** Which list it is a view of: "contacts", "companies", "deals". */
@@ -3664,7 +3816,9 @@ export const contactMerges = pgTable(
   "contact_merges",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     /** The contact everything now points at. */
     keptId: uuid("kept_id").notNull(),
     /** The contact that was folded in and deleted. */
@@ -3693,7 +3847,9 @@ export const contactDuplicateDismissals = pgTable(
   "contact_duplicate_dismissals",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     firstId: uuid("first_id").notNull(),
     secondId: uuid("second_id").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -3726,7 +3882,9 @@ export const archiveRuns = pgTable(
   "archive_runs",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: text("organization_id").notNull(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
     /** Which set — "ledger", "documents", "activity", or a module's own. */
     setId: text("set_id").notNull(),
     periodFrom: timestamp("period_from").notNull(),

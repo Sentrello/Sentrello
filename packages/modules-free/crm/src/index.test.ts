@@ -3,6 +3,7 @@ import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, inArray, schema } from "@sentrello/db";
 import { UNPAGED_MAX } from "@sentrello/db/list-query";
+import { dropOrganization, makeOrganization } from "@sentrello/db/testing";
 import type { SentrelloEnv } from "@sentrello/module-sdk";
 import { and, eq, like } from "drizzle-orm";
 import { Hono } from "hono";
@@ -128,9 +129,12 @@ test("list returns rows under a plural key", async () => {
 });
 
 test("a row belonging to another organization is invisible and unpatchable", async () => {
+  // The other business is a row rather than a string: since 2026-09-27 an
+  // organization id that names nobody cannot own a contact at all.
+  const theirs = await makeOrganization(`other-org-${suffix}`);
   const [foreign] = await db
     .insert(schema.contacts)
-    .values({ organizationId: `other-org-${suffix}`, name: "Not Yours" })
+    .values({ organizationId: theirs, name: "Not Yours" })
     .returning();
   if (!foreign) throw new Error("could not create foreign contact");
 
@@ -150,7 +154,7 @@ test("a row belonging to another organization is invisible and unpatchable", asy
     .where(eq(schema.contacts.id, foreign.id));
   expect(after?.name).toBe("Not Yours");
 
-  await db.delete(schema.contacts).where(eq(schema.contacts.id, foreign.id));
+  await dropOrganization(theirs);
 });
 
 test("a patch cannot move a row into another organization", async () => {
@@ -390,10 +394,11 @@ test("postponing by something that is not a day or a week is refused", async () 
 test("task actions cannot reach into another organization", async () => {
   // The whole tenancy rule in one place: a task id is a uuid somebody could
   // hold, and holding it must not be enough.
+  const theirOrg = await makeOrganization(`not-${orgId}`);
   const [theirs] = await db
     .insert(schema.tasks)
     .values({
-      organizationId: `not-${orgId}`,
+      organizationId: theirOrg,
       title: "Someone else's business",
       dueAt: new Date(),
     })
@@ -415,7 +420,7 @@ test("task actions cannot reach into another organization", async () => {
   expect(untouched?.done).toBe(false);
   expect(untouched?.title).toBe("Someone else's business");
 
-  await db.delete(schema.tasks).where(eq(schema.tasks.id, theirs.id));
+  await dropOrganization(theirOrg);
 });
 
 /**
@@ -1794,7 +1799,7 @@ test("a company's history is its people's history", async () => {
 });
 
 test("history never crosses a company boundary", async () => {
-  const theirOrg = crypto.randomUUID();
+  const theirOrg = await makeOrganization(crypto.randomUUID());
   const [theirContact] = await db
     .insert(schema.contacts)
     .values({ organizationId: theirOrg, name: "Not ours" })
@@ -1813,12 +1818,7 @@ test("history never crosses a company boundary", async () => {
   const { history } = (await res.json()) as { history: { title: string }[] };
   expect(history.some((h) => h.title === "Their private note")).toBe(false);
 
-  await db
-    .delete(schema.notes)
-    .where(eq(schema.notes.organizationId, theirOrg));
-  await db
-    .delete(schema.contacts)
-    .where(eq(schema.contacts.organizationId, theirOrg));
+  await dropOrganization(theirOrg);
 });
 
 test("somebody's history holds their deals and nobody else's", async () => {
@@ -2417,7 +2417,7 @@ test("editing one part of a name keeps the other", async () => {
  * later screen would then follow.
  */
 test("a record can never link to another organization's records", async () => {
-  const foreignOrg = `intruder-target-${suffix}`;
+  const foreignOrg = await makeOrganization(`intruder-target-${suffix}`);
   const [theirCompany] = await db
     .insert(schema.companies)
     .values({ organizationId: foreignOrg, name: "Their Company" })
@@ -2473,12 +2473,7 @@ test("a record can never link to another organization's records", async () => {
   expect(taskRes.status).toBe(404);
 
   await db.delete(schema.deals).where(eq(schema.deals.id, deal.id));
-  await db
-    .delete(schema.companies)
-    .where(eq(schema.companies.id, theirCompany.id));
-  await db
-    .delete(schema.contacts)
-    .where(eq(schema.contacts.id, theirContact.id));
+  await dropOrganization(foreignOrg);
 });
 
 /**
@@ -2489,9 +2484,10 @@ test("a record can never link to another organization's records", async () => {
  * show it to strangers.
  */
 test("a note cannot attach to another organization's record", async () => {
+  const foreignOrg = await makeOrganization(`intruder-notes-${suffix}`);
   const [theirContact] = await db
     .insert(schema.contacts)
-    .values({ organizationId: `intruder-notes-${suffix}`, name: "Theirs" })
+    .values({ organizationId: foreignOrg, name: "Theirs" })
     .returning();
   if (!theirContact) throw new Error("seed failed");
 
@@ -2536,9 +2532,7 @@ test("a note cannot attach to another organization's record", async () => {
 
   await db.delete(schema.notes).where(eq(schema.notes.id, note.id));
   await db.delete(schema.contacts).where(eq(schema.contacts.id, mine.id));
-  await db
-    .delete(schema.contacts)
-    .where(eq(schema.contacts.id, theirContact.id));
+  await dropOrganization(foreignOrg);
 });
 
 /**

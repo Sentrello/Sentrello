@@ -2,6 +2,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { and, db, desc, eq, inArray, schema } from "@sentrello/db";
+import { dropOrganization, makeOrganization } from "@sentrello/db/testing";
 import { registerForTest } from "@sentrello/module-sdk";
 import { HONEYPOT_FIELD, resetRateLimits } from "@sentrello/module-sdk";
 import { MAX_SUBMISSION_BYTES, splitName } from "./forms";
@@ -522,7 +523,9 @@ test("sites are stored as hosts, and a typo is refused rather than saved", async
  * for one business shows nothing belonging to another.
  */
 test("another organization's forms and submissions are invisible", async () => {
-  const theirs = `other-org-${crypto.randomUUID().slice(0, 8)}`;
+  const theirs = await makeOrganization(
+    `other-org-${crypto.randomUUID().slice(0, 8)}`,
+  );
 
   const [form] = await db
     .insert(schema.forms)
@@ -553,10 +556,7 @@ test("another organization's forms and submissions are invisible", async () => {
   );
   expect(await direct.text()).not.toContain("Their Private Lead");
 
-  await db
-    .delete(schema.formSubmissions)
-    .where(eq(schema.formSubmissions.organizationId, theirs));
-  await db.delete(schema.forms).where(eq(schema.forms.organizationId, theirs));
+  await dropOrganization(theirs);
 });
 
 /**

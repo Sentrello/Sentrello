@@ -1,8 +1,9 @@
-import { afterAll, expect, test } from "bun:test";
+import { afterAll, beforeAll, expect, test } from "bun:test";
 import { db, schema } from "./client";
 import { consentHistory, recordConsent } from "./consent";
 import { and, eq, inArray } from "./orm";
 import { activePaymentAccount, organizationTakingCards } from "./payments";
+import { dropOrganization, makeOrganization } from "./testing";
 
 /**
  * Shared helpers that take an `organizationId` and are trusted to use it.
@@ -28,13 +29,15 @@ const suffix = crypto.randomUUID().slice(0, 8);
 const alpha = `alpha-${suffix}`;
 const beta = `beta-${suffix}`;
 
+beforeAll(async () => {
+  // Two businesses that exist. Two invented ids proved nothing once the
+  // foreign key arrived on 2026-09-27 — neither could hold a row at all.
+  await makeOrganization(alpha);
+  await makeOrganization(beta);
+});
+
 afterAll(async () => {
-  await db
-    .delete(schema.consentRecords)
-    .where(inArray(schema.consentRecords.organizationId, [alpha, beta]));
-  await db
-    .delete(schema.paymentAccounts)
-    .where(inArray(schema.paymentAccounts.organizationId, [alpha, beta]));
+  await dropOrganization(alpha, beta);
 });
 
 test("a business is handed its own payment account, not another's", async () => {

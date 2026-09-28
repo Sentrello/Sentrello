@@ -8,6 +8,7 @@ import {
   cashAccounts,
   postJournalEntry,
 } from "@sentrello/db/ledger";
+import { dropOrganization, makeOrganization } from "@sentrello/db/testing";
 import type { SentrelloEnv } from "@sentrello/module-sdk";
 import { storeAttachment } from "@sentrello/module-sdk";
 import { and, eq, inArray } from "drizzle-orm";
@@ -285,11 +286,13 @@ test("an expense posts to the account it was given", async () => {
 
 test("an account belonging to someone else is refused", async () => {
   // The id comes from the caller, so it is the obvious way to try to write
-  // into another tenant's ledger.
+  // into another tenant's ledger. The other business is a real row: an
+  // invented id has owned nothing since the foreign key landed on 2026-09-27.
+  const theirs = await makeOrganization(`org_other_${suffix}`);
   const [foreign] = await db
     .insert(schema.accounts)
     .values({
-      organizationId: `org_other_${suffix}`,
+      organizationId: theirs,
       code: "6300",
       name: "Not yours",
       type: "expense",
@@ -310,9 +313,7 @@ test("an account belonging to someone else is refused", async () => {
     .where(eq(schema.journalLines.accountId, foreign?.id ?? ""));
   expect(lines).toHaveLength(0);
 
-  await db
-    .delete(schema.accounts)
-    .where(eq(schema.accounts.id, foreign?.id ?? ""));
+  await dropOrganization(theirs);
 });
 
 /**
@@ -682,7 +683,9 @@ test("a balance sheet as at a date ignores what happened after it", async () => 
  * business another's accounts.
  */
 test("another organization's books are invisible from here", async () => {
-  const theirs = `other-org-${crypto.randomUUID().slice(0, 8)}`;
+  const theirs = await makeOrganization(
+    `other-org-${crypto.randomUUID().slice(0, 8)}`,
+  );
 
   const [account] = await db
     .insert(schema.accounts)
@@ -727,15 +730,7 @@ test("another organization's books are invisible from here", async () => {
   await db
     .delete(schema.journalLines)
     .where(eq(schema.journalLines.entryId, entry.id));
-  await db
-    .delete(schema.journalEntries)
-    .where(eq(schema.journalEntries.organizationId, theirs));
-  await db
-    .delete(schema.transactions)
-    .where(eq(schema.transactions.organizationId, theirs));
-  await db
-    .delete(schema.accounts)
-    .where(eq(schema.accounts.organizationId, theirs));
+  await dropOrganization(theirs);
 });
 
 /**
@@ -851,7 +846,9 @@ test("a receipt can be attached to a transaction and read back", async () => {
 
 test("a receipt on another business's transaction is not readable", async () => {
   process.env.SENTRELLO_DATA_DIR = `/tmp/sentrello-test-${suffix}`;
-  const theirs = `other-org-${crypto.randomUUID().slice(0, 8)}`;
+  const theirs = await makeOrganization(
+    `other-org-${crypto.randomUUID().slice(0, 8)}`,
+  );
 
   /**
    * A file that really is on disk, not a made-up path.
@@ -882,9 +879,7 @@ test("a receipt on another business's transaction is not readable", async () => 
   expect(res.status).toBe(404);
   expect(await res.text()).not.toContain("their private invoice");
 
-  await db
-    .delete(schema.transactions)
-    .where(eq(schema.transactions.organizationId, theirs));
+  await dropOrganization(theirs);
 });
 
 /**

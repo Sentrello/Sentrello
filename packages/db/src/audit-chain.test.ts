@@ -1,6 +1,7 @@
-import { afterEach, beforeAll, expect, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, expect, test } from "bun:test";
 import { asc, db, eq, schema, sql } from "@sentrello/db";
 import { record, verifyChain } from "./security-events";
+import { dropOrganization, makeOrganization } from "./testing";
 
 /**
  * Whether an edit to the audit log can be found afterwards.
@@ -15,12 +16,17 @@ import { record, verifyChain } from "./security-events";
 const orgId = `audit-chain-${crypto.randomUUID().slice(0, 8)}`;
 const other = `audit-other-${crypto.randomUUID().slice(0, 8)}`;
 
-beforeAll(() => {
+beforeAll(async () => {
   // Every assertion below depends on a key existing; without one the chain is
   // never written and each of these would pass by not being checked at all.
   expect(
     Boolean(process.env.SENTRELLO_SECRET_KEY || process.env.BETTER_AUTH_SECRET),
   ).toBe(true);
+
+  // And on the organizations existing: a security event belongs to one, and
+  // the column has said so with a foreign key since 2026-09-27.
+  await makeOrganization(orgId);
+  await makeOrganization(other);
 });
 
 afterEach(async () => {
@@ -29,6 +35,12 @@ afterEach(async () => {
       .delete(schema.securityEvents)
       .where(eq(schema.securityEvents.organizationId, id));
   }
+});
+
+afterAll(async () => {
+  // The two organizations go as well, or every run leaves a pair behind and
+  // the leftovers gate reads the litter as a suite that did not clean up.
+  await dropOrganization(orgId, other);
 });
 
 const write = async (n: number, organizationId = orgId) => {

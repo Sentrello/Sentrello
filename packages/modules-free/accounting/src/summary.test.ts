@@ -1,10 +1,11 @@
-import { afterAll, expect, test } from "bun:test";
+import { afterAll, beforeAll, expect, test } from "bun:test";
 import { db, eq, schema } from "@sentrello/db";
 import {
   CORE_ACCOUNTS,
   ensureAccount,
   postJournalEntry,
 } from "@sentrello/db/ledger";
+import { dropOrganization, makeOrganization } from "@sentrello/db/testing";
 import { accountingFigures } from "./summary";
 
 /**
@@ -40,16 +41,14 @@ const figure = (
   return found;
 };
 
+beforeAll(async () => {
+  // The books belong to a business that exists; the foreign key on every
+  // business table has said so since 2026-09-27.
+  await makeOrganization(orgId);
+});
+
 afterAll(async () => {
-  await db
-    .delete(schema.transactions)
-    .where(eq(schema.transactions.organizationId, orgId));
-  await db
-    .delete(schema.journalEntries)
-    .where(eq(schema.journalEntries.organizationId, orgId));
-  await db
-    .delete(schema.accounts)
-    .where(eq(schema.accounts.organizationId, orgId));
+  await dropOrganization(orgId);
 });
 
 test("an empty business reads as zero rather than as nothing", async () => {
@@ -108,7 +107,9 @@ test("this month is this month, and last year is not in it", async () => {
  * panel said nothing had come in all month.
  */
 test("income that never went through the register is still income", async () => {
-  const solo = `org-invoiced-${crypto.randomUUID().slice(0, 8)}`;
+  const solo = await makeOrganization(
+    `org-invoiced-${crypto.randomUUID().slice(0, 8)}`,
+  );
   try {
     const cash = await ensureAccount(solo, CORE_ACCOUNTS.cash);
     const sales = await ensureAccount(solo, CORE_ACCOUNTS.salesIncome);
@@ -135,12 +136,7 @@ test("income that never went through the register is still income", async () => 
     const figures = await accountingFigures(solo);
     expect(figure(figures, "Income this month").value).toBe(60_000);
   } finally {
-    await db
-      .delete(schema.journalEntries)
-      .where(eq(schema.journalEntries.organizationId, solo));
-    await db
-      .delete(schema.accounts)
-      .where(eq(schema.accounts.organizationId, solo));
+    await dropOrganization(solo);
   }
 });
 

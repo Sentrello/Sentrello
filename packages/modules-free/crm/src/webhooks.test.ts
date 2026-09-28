@@ -3,6 +3,7 @@ import { createHmac } from "node:crypto";
 import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, schema } from "@sentrello/db";
+import { dropOrganization, makeOrganization } from "@sentrello/db/testing";
 import type { SentrelloEnv } from "@sentrello/module-sdk";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
@@ -265,8 +266,11 @@ test("an endpoint asked about companies is told about a company", async () => {
 });
 
 test("another organization's events never reach this endpoint", async () => {
+  // A real second business, because a feed row has named one with a foreign
+  // key since 2026-09-27 — the invented id owned nothing.
+  const foreign = await makeOrganization(`foreign-${suffix}`);
   await db.insert(schema.recordEvents).values({
-    organizationId: `foreign-${suffix}`,
+    organizationId: foreign,
     entity: "contact",
     entityId: crypto.randomUUID(),
     action: "created",
@@ -279,9 +283,7 @@ test("another organization's events never reach this endpoint", async () => {
   await deliverDue(new Date(), send);
   expect(calls).toHaveLength(0);
 
-  await db
-    .delete(schema.recordEvents)
-    .where(eq(schema.recordEvents.organizationId, `foreign-${suffix}`));
+  await dropOrganization(foreign);
 });
 
 test("a URL that now resolves inside is refused again at send time", async () => {

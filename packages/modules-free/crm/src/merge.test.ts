@@ -3,6 +3,7 @@ import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, schema } from "@sentrello/db";
 import { postJournalEntry } from "@sentrello/db/ledger";
+import { dropOrganization, makeOrganization } from "@sentrello/db/testing";
 import type { SentrelloEnv } from "@sentrello/module-sdk";
 import { and, eq, sql } from "drizzle-orm";
 import { Hono } from "hono";
@@ -383,9 +384,12 @@ test("a merge re-points everything, changes no ledger figure, and writes itself 
 
 test("merging refuses a contact from another organization", async () => {
   const kept = await makeContact({ name: "Local" });
+  // The other business exists: the foreign key on `contacts` has refused an
+  // invented organization id since 2026-09-27.
+  const foreignOrg = await makeOrganization(`foreign-${suffix}`);
   const [foreign] = await db
     .insert(schema.contacts)
-    .values({ organizationId: `foreign-${suffix}`, name: "Foreign" })
+    .values({ organizationId: foreignOrg, name: "Foreign" })
     .returning();
   if (!foreign) throw new Error("could not create foreign contact");
 
@@ -403,9 +407,7 @@ test("merging refuses a contact from another organization", async () => {
     .from(schema.contacts)
     .where(eq(schema.contacts.id, foreign.id));
   expect(still).toBeDefined();
-  await db
-    .delete(schema.contacts)
-    .where(eq(schema.contacts.organizationId, `foreign-${suffix}`));
+  await dropOrganization(foreignOrg);
 });
 
 test("a contact cannot be merged into itself", async () => {

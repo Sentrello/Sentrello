@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
-import { db, schema, sql } from "./index";
+import { db, schema } from "./index";
+import { dropOrganization, makeOrganization } from "./testing";
 
 /**
  * A failed sign-in has no actor.
@@ -9,7 +10,9 @@ import { db, schema, sql } from "./index";
  * on a public login page are the ones with no account behind them.
  */
 test("an event can be recorded with no actor", async () => {
-  const orgId = `schema-test-${crypto.randomUUID()}`;
+  // The organization is real because the row has to name one: every business
+  // table has carried a foreign key to it since 2026-09-27.
+  const orgId = await makeOrganization(`schema-test-${crypto.randomUUID()}`);
   try {
     const [row] = await db
       .insert(schema.securityEvents)
@@ -23,14 +26,14 @@ test("an event can be recorded with no actor", async () => {
       .returning();
     expect(row?.actorId).toBeNull();
   } finally {
-    await db.execute(
-      sql`delete from security_events where organization_id = ${orgId}`,
-    );
+    await dropOrganization(orgId);
   }
 });
 
 test("the policy carries lockout and retention settings with safe defaults", async () => {
-  const orgId = `schema-test-${crypto.randomUUID()}`;
+  // The organization is real because the row has to name one: every business
+  // table has carried a foreign key to it since 2026-09-27.
+  const orgId = await makeOrganization(`schema-test-${crypto.randomUUID()}`);
   try {
     const [row] = await db
       .insert(schema.securityPolicy)
@@ -40,8 +43,6 @@ test("the policy carries lockout and retention settings with safe defaults", asy
     expect(row?.lockoutMinutes).toBe(15);
     expect(row?.eventRetentionDays).toBe(365);
   } finally {
-    await db.execute(
-      sql`delete from security_policy where organization_id = ${orgId}`,
-    );
+    await dropOrganization(orgId);
   }
 });

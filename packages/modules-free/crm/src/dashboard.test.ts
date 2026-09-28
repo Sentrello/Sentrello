@@ -2,6 +2,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, eq, schema } from "@sentrello/db";
+import { dropOrganization, makeOrganization } from "@sentrello/db/testing";
 import type { SentrelloEnv } from "@sentrello/module-sdk";
 import { Hono } from "hono";
 import crm from "./index";
@@ -303,7 +304,11 @@ test("tasks come back soonest first, and say which are late", async () => {
 });
 
 test("another organization's CRM never appears on this one's dashboard", async () => {
-  const theirs = `other-${crypto.randomUUID().slice(0, 8)}`;
+  // A real second business: an id nobody owns has not been able to hold a
+  // contact, an activity or a deal since 2026-09-27.
+  const theirs = await makeOrganization(
+    `other-${crypto.randomUUID().slice(0, 8)}`,
+  );
   const [contact] = await db
     .insert(schema.contacts)
     .values({ organizationId: theirs, name: "Their Secret Contact" })
@@ -328,9 +333,7 @@ test("another organization's CRM never appears on this one's dashboard", async (
   expect(text).not.toContain("Their Secret");
   expect(JSON.parse(text).upcoming.totalCents).toBe(250_000);
 
-  for (const table of [schema.activities, schema.deals, schema.contacts]) {
-    await db.delete(table).where(eq(table.organizationId, theirs));
-  }
+  await dropOrganization(theirs);
 });
 
 /**

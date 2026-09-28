@@ -1,8 +1,9 @@
-import { afterAll, expect, test } from "bun:test";
+import { afterAll, beforeAll, expect, test } from "bun:test";
 import { db, eq, schema } from "@sentrello/db";
 import { redactPayloads } from "@sentrello/db/erasure";
 import { RECORD_EVENT_PAYLOADS } from "@sentrello/db/record-events";
 import { sweepRetention } from "@sentrello/db/retention";
+import { dropOrganization, makeOrganization } from "@sentrello/db/testing";
 import type {
   ModuleContext,
   RegisteredRetention,
@@ -29,10 +30,14 @@ const suffix = crypto.randomUUID().slice(0, 8);
 const org = `crm-retention-${suffix}`;
 const policy: RegisteredRetention = { ...RECORD_EVENT_POLICY, moduleId: "crm" };
 
+beforeAll(async () => {
+  // The feed belongs to a business that exists; `record_events` has carried a
+  // foreign key to `organizations` since 2026-09-27.
+  await makeOrganization(org);
+});
+
 afterAll(async () => {
-  await db
-    .delete(schema.recordEvents)
-    .where(eq(schema.recordEvents.organizationId, org));
+  await dropOrganization(org);
   clearRetention();
 });
 

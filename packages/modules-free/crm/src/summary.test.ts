@@ -1,5 +1,6 @@
-import { afterAll, expect, test } from "bun:test";
+import { afterAll, beforeAll, expect, test } from "bun:test";
 import { db, eq, schema } from "@sentrello/db";
+import { dropOrganization, makeOrganization } from "@sentrello/db/testing";
 import { crmFigures } from "./summary";
 
 /**
@@ -24,13 +25,16 @@ const figure = (figures: Awaited<ReturnType<typeof crmFigures>>, l: string) => {
   return found;
 };
 
+beforeAll(async () => {
+  // Two businesses that exist — one keeping the shipped stage names, one
+  // having renamed them. A deal has named a real organization since the
+  // foreign key landed on 2026-09-27.
+  await makeOrganization(orgId);
+  await makeOrganization(renamed);
+});
+
 afterAll(async () => {
-  for (const org of [orgId, renamed]) {
-    await db.delete(schema.deals).where(eq(schema.deals.organizationId, org));
-    await db
-      .delete(schema.crmSettings)
-      .where(eq(schema.crmSettings.organizationId, org));
-  }
+  await dropOrganization(orgId, renamed);
 });
 
 test("an empty business reads as zero rather than as nothing", async () => {
