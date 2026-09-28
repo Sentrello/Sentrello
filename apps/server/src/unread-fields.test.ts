@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { schema } from "@sentrello/db";
 import {
@@ -109,6 +109,22 @@ const FACTORY_TABLES = {
   notes: schema.notes,
 } as unknown as Record<string, Record<string, unknown>>;
 
+/**
+ * Columns nothing writes, and nothing should.
+ *
+ * Separate from the map below because the two say different things. That one
+ * says "somebody else sets this"; this one says "nobody sets this, and here is
+ * why that is right". `portalUserId` was in the wrong one, excused as "the
+ * portal sign-in" — a sentence that describes a real feature and the wrong
+ * column. The portal customers use signs in with `portalToken` and never
+ * touches this; the account-based portal that did was removed, and the column
+ * is a tombstone whose own comment in the schema says so.
+ */
+const TOMBSTONES: Record<string, string> = {
+  portalUserId:
+    "the removed account-based portal; kept one release in case an instance holds hand-entered data",
+};
+
 const SET_BY_THE_SERVER: Record<string, string> = {
   id: "the database",
   organizationId: "the session, never the body",
@@ -116,7 +132,6 @@ const SET_BY_THE_SERVER: Record<string, string> = {
   updatedAt: "the route, on every write",
   deletedAt: "the soft-delete route",
   portalToken: "minted by its own endpoint, and stripped from every read",
-  portalUserId: "the portal sign-in",
   customValues:
     "the custom-fields editor, which writes a map rather than a field",
   decidedAt: "the deal's own won/lost action",
@@ -141,7 +156,7 @@ test("every column the CRM factory writes can be set from a screen", () => {
       if (!col || typeof col !== "object" || typeof col.name !== "string") {
         continue;
       }
-      if (column in SET_BY_THE_SERVER) continue;
+      if (column in SET_BY_THE_SERVER || column in TOMBSTONES) continue;
       if (written.has(column)) continue;
       unreachable.push(`${table}.${column}`);
     }
@@ -150,5 +165,39 @@ test("every column the CRM factory writes can be set from a screen", () => {
   expect(
     unreachable,
     `these columns can be written through the API and set from no screen:\n    ${unreachable.join("\n    ")}`,
+  ).toEqual([]);
+});
+
+/**
+ * And every excuse names a caller that exists.
+ *
+ * The map above is the guard's one soft spot: a line in it silences a column
+ * for good, and a plausible sentence is all it takes. `portalUserId` sat there
+ * for months as "the portal sign-in" while nothing in any repository wrote it.
+ * So each excused name has to appear in code that is not a schema and not a
+ * test — if the writer is gone, the column belongs in `TOMBSTONES` with the
+ * reason, or on the screen it was always meant to have.
+ */
+test("every column excused as server-set is written somewhere", () => {
+  const roots = ["packages", "apps/server/src"].map((d) =>
+    join(import.meta.dir, "../../..", d),
+  );
+  const code = roots
+    .flatMap((root) => sourceFiles(root, [".ts", ".tsx"]))
+    .filter(
+      (f) =>
+        !/schema\.ts$/.test(f) &&
+        !/\.test\.tsx?$/.test(f) &&
+        !f.includes("/dist/"),
+    );
+
+  const unwritten = Object.keys(SET_BY_THE_SERVER).filter((column) => {
+    const word = new RegExp(`\\b${column}\\b`);
+    return !code.some((f) => word.test(readFileSync(f, "utf8")));
+  });
+
+  expect(
+    unwritten,
+    `excused as set by the server, and set by nothing:\n    ${unwritten.join("\n    ")}`,
   ).toEqual([]);
 });
