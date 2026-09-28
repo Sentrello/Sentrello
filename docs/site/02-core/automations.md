@@ -115,11 +115,21 @@ missing.
 
 ### Putting the record into what you write
 
-Anywhere you type text, `{{record.name}}` becomes that record's name.
-`{{record.value}}`, `{{record.contact.firstName}}`, anything the record holds.
-A later step can read an earlier one: `{{steps.chase.id}}`.
+Anywhere you type text, `{{record.name}}` becomes that record's name. The
+record is the row itself, so the names are the ones the product stores: a
+deal's amount is `{{record.amountCents}}`, its stage is `{{record.stage}}`, a
+contact's address is `{{record.email}}`. A later step can read an earlier one:
+`{{steps.chase.id}}`.
 
-A value that is not there leaves a blank rather than the word "undefined".
+**Money is written as money.** `{{record.amountCents}}` produces `2,500.00`
+rather than a count of cents — anything whose name ends in `Cents` is treated
+as an amount, and that is every money column in the product. Say which
+currency in your own words beside it; the automation does not guess.
+
+A value that is not there leaves a blank rather than the word "undefined",
+which means a placeholder naming a field the record does not have sends an
+email with a hole in it and no complaint. Send yourself a test run before you
+point one at a customer.
 
 ### Email and consent
 
@@ -141,7 +151,7 @@ Post to a chat channel, nudge a warehouse, call an app somebody wrote. Give it a
 address, a method, and what to send, with the record in it:
 
 ```json
-{"deal": "{{record.name}}", "worth": "{{record.value}}"}
+{"deal": "{{record.name}}", "worth": "{{record.amountCents}}"}
 ```
 
 Two things it will refuse, and both are deliberate:
