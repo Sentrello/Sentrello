@@ -516,7 +516,24 @@ export function InvoiceDetail() {
                 Void it
               </Button>
             ) : null}
-            {data.paidCents > 0 && !isCredit ? (
+            {/*
+              Offered on any issued invoice, not only a paid one.
+              
+              This asked for `paidCents > 0`, so an issued but unpaid
+              invoice offered Void and no way to credit — while the PATCH
+              route refuses an edit to the same document with the words
+              "Raise a credit note rather than changing it". In the UK and
+              the EU a cancelled issued invoice needs a credit note in the
+              series: the number has been used and the customer holds the
+              document, so a silent reversal leaves them with a bill the
+              business says does not exist.
+              
+              The condition is now exactly the route's own — anything that
+              is not a draft, a void or already a credit note — because a
+              screen stricter than its server is a feature nobody can
+              reach.
+            */}
+            {!isDraft && !isVoid && !isCredit ? (
               <Button
                 variant="secondary"
                 needs={{ invoicing: ["create"] }}

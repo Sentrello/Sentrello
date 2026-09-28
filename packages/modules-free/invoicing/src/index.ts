@@ -38,6 +38,7 @@ import {
   lineTotals,
 } from "@sentrello/db/money";
 import { nextDocumentNumber } from "@sentrello/db/numbering";
+import { canTakeCards } from "@sentrello/db/payments";
 import {
   businessIdentity,
   contactByPortalToken,
@@ -2086,11 +2087,25 @@ export default defineModule({
           theme,
           quotes,
           quotePath: `/portal/${supplied}/quotes`,
-          // Paying online is a Pro feature; a Free instance shows the bill and
-          // leaves the customer to pay however they already do.
-          payPath: ctx.entitled({ tier: "pro" })
-            ? `/portal/${supplied}/pay`
-            : undefined,
+          /*
+           * Paying online is a Pro feature; a Free instance shows the bill
+           * and leaves the customer to pay however they already do.
+           *
+           * And a Pro instance that has connected no payment account
+           * cannot take one either. This asked the licence and not the
+           * account, so a business that had bought Pro and never finished
+           * connecting a processor showed its customers a Pay button that
+           * posted and returned them to the same page with nothing said.
+           *
+           * `canTakeCards` was written for this — its own comment says
+           * "asked before a Pay Now button is drawn", and until 2026-09-28
+           * it had no callers anywhere in the product.
+           */
+          payPath:
+            ctx.entitled({ tier: "pro" }) &&
+            (await canTakeCards(contact.organizationId))
+              ? `/portal/${supplied}/pay`
+              : undefined,
           credit: await creditFor(
             contact.organizationId,
             ctx.entitled({ tier: "pro" }),

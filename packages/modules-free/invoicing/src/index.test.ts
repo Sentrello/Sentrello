@@ -5219,3 +5219,56 @@ test("an invoice with no currency named is the business's own, not the dollar", 
       .where(eq(schema.organizations.id, orgId));
   }
 });
+
+/**
+ * A Pay button is offered only when the business can actually take a card.
+ *
+ * The portal asked the licence and not the account, so a business that had
+ * bought Pro and never finished connecting a processor showed its
+ * customers a Pay button that posted and returned them to the same page
+ * with nothing said. That is the one moment a business cannot afford a
+ * broken screen: the customer has decided to pay and been stopped.
+ *
+ * `canTakeCards` was written for exactly this — its own comment says
+ * "asked before a Pay Now button is drawn" — and until 2026-09-28 it had
+ * no callers anywhere in the product.
+ *
+ * This suite runs entitled, so what it varies is the account.
+ */
+test("the portal offers no Pay button until a payment account is connected", async () => {
+  const created = await app.request("http://localhost/api/invoices", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      contactId,
+      lines: [{ description: "Work", quantity: 1, unitPrice: 5000 }],
+    }),
+  });
+  expect(created.status).toBe(201);
+
+  const minted = await app.request(
+    `http://localhost/api/contacts/${contactId}/portal-link`,
+    { method: "POST", headers },
+  );
+  const { url } = (await minted.json()) as { url: string };
+  const token = url.split("/portal/")[1] ?? "";
+
+  const before = await app.request(`http://localhost/portal/${token}`);
+  expect(before.status).toBe(200);
+  expect(await before.text()).not.toContain(">Pay<");
+
+  await db.insert(schema.paymentAccounts).values({
+    organizationId: orgId,
+    provider: "stripe",
+    enabled: true,
+    secretKey: "sk_test_not_a_real_key",
+  });
+  try {
+    const after = await app.request(`http://localhost/portal/${token}`);
+    expect(await after.text()).toContain(">Pay<");
+  } finally {
+    await db
+      .delete(schema.paymentAccounts)
+      .where(eq(schema.paymentAccounts.organizationId, orgId));
+  }
+});
