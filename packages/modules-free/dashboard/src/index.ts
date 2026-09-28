@@ -132,6 +132,28 @@ export default defineModule({
         const now = new Date();
 
         /*
+         * What this reader may be told, before any of it is worked out.
+         *
+         * `requires` on a widget gated the *list of widgets* and nothing
+         * else: this payload answered every figure to anybody holding
+         * `dashboard: ["read"]`, which the seeded staff, marketing and
+         * customers policies all do and none of which grants bookkeeping. So
+         * a shop assistant — and, with the Customer role's old invoicing
+         * grant, a customer — opened the business's total owed, its total
+         * overdue, its pipeline value and a list naming overdue invoices by
+         * number. The published dashboard page says in as many words that
+         * somebody without access to the books sees no money figures at all.
+         *
+         * Asked once here rather than per figure, because two permission
+         * questions about one screen are two answers waiting to disagree.
+         */
+        const headers = c.req.raw.headers;
+        const [books, crm] = await Promise.all([
+          mayAccess(headers, { bookkeeping: ["read"] }),
+          mayAccess(headers, { crm: ["read"] }),
+        ]);
+
+        /*
          * One row per figure, not one row per invoice.
          *
          * This screen used to read every invoice, every quote, every open
@@ -353,28 +375,44 @@ export default defineModule({
            */
           ad: pro || !(await onboardingComplete(orgId)) ? null : upgradeBlock(),
           health: await readHealth(),
-          money,
-          pipeline: {
-            openCount: openStages.reduce((total, s) => total + s.count, 0),
-            openCents: openStages.reduce(
-              (total, s) => total + s.amountCents,
-              0,
-            ),
-            wonCount: wonRows.reduce((total, s) => total + s.count, 0),
-            /*
-             * What was won, in money.
-             *
-             * The count was here and the amount was not, so the pipeline
-             * panel could say eleven deals were won and never what they were
-             * worth — and it filled the space with the contact count instead,
-             * which is a fact about the book rather than about the pipeline.
-             */
-            wonCents: wonRows.reduce((total, s) => total + s.amountCents, 0),
-          },
-          book: { contacts },
-          // Most urgent first: an overdue invoice is money already earned and
-          // not received, which outranks a quote nobody has answered.
-          attention: attention.slice(0, ATTENTION_MAX),
+          // Omitted rather than zeroed: a zero is an answer, and "the business
+          // is owed nothing" is a different thing to say than "this is not
+          // yours to see". The screen draws neither panel when the field is
+          // absent.
+          money: books ? money : null,
+          pipeline: crm
+            ? {
+                openCount: openStages.reduce((total, s) => total + s.count, 0),
+                openCents: openStages.reduce(
+                  (total, s) => total + s.amountCents,
+                  0,
+                ),
+                wonCount: wonRows.reduce((total, s) => total + s.count, 0),
+                /*
+                 * What was won, in money.
+                 *
+                 * The count was here and the amount was not, so the pipeline
+                 * panel could say eleven deals were won and never what they
+                 * were worth — and it filled the space with the contact count
+                 * instead, which is a fact about the book rather than about
+                 * the pipeline.
+                 */
+                wonCents: wonRows.reduce(
+                  (total, s) => total + s.amountCents,
+                  0,
+                ),
+              }
+            : null,
+          book: crm ? { contacts } : null,
+          /*
+           * Most urgent first: an overdue invoice is money already earned and
+           * not received, which outranks a quote nobody has answered.
+           *
+           * Behind the books, because every row on it names a document and
+           * an amount. A reader who may not see the total owed may certainly
+           * not see the twelve invoices it is made of.
+           */
+          attention: books ? attention.slice(0, ATTENTION_MAX) : [],
         });
       },
     );

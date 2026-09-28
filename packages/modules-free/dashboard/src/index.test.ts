@@ -1555,3 +1555,97 @@ test("a dashboard arranged before panels were keyed by module still resolves", a
       .where(eq(schema.organizationPreferences.organizationId, orgId));
   }
 });
+
+/**
+ * What somebody without the books is told, which was everything.
+ *
+ * `requires` on a widget gated the *list of widgets* and nothing else. This
+ * route answered every figure to anybody holding `dashboard: ["read"]` — which
+ * the seeded staff, marketing and customers policies all do, and none of which
+ * grants bookkeeping. So a shop assistant opened the business's total owed,
+ * its total overdue, its pipeline value and a list naming overdue invoices by
+ * number, and the published dashboard page says in as many words that
+ * somebody without access to the books sees no money figures at all.
+ *
+ * Found 2026-09-28, beside the Customer role that could read the whole
+ * invoice book. Two halves of the same screen.
+ */
+test("a reader with no books is sent no money figures at all", async () => {
+  const shopFloor = `dash-staff-${suffix}@x.test`;
+  const signUp = await signUpAsOwner({
+    email: shopFloor,
+    password: "correct-horse-battery-staple",
+    name: "On the shop floor",
+  });
+  const cookie = signUp.headers.get("set-cookie");
+  if (!cookie) throw new Error("sign-up returned no session cookie");
+  const theirs = new Headers({ cookie, "content-type": "application/json" });
+  const theirId = signUp.response.user.id;
+
+  // The seeded `customers` policy's whole permission, which is the smallest
+  // thing that can open this screen at all.
+  await auth.api.createOrgRole({
+    body: {
+      organizationId: orgId,
+      role: `no-books-${suffix}`,
+      permission: { dashboard: ["read"] },
+    },
+    headers,
+  });
+  await db.insert(schema.member).values({
+    id: crypto.randomUUID(),
+    organizationId: orgId,
+    userId: theirId,
+    role: `no-books-${suffix}`,
+    baseRole: "member",
+    createdAt: new Date(),
+  });
+  await auth.api.setActiveOrganization({
+    body: { organizationId: orgId },
+    headers: theirs,
+  });
+
+  const res = await app.request("http://localhost/api/dashboard", {
+    headers: theirs,
+  });
+  expect(res.status).toBe(200);
+  const seen = (await res.json()) as {
+    money: unknown;
+    pipeline: unknown;
+    book: unknown;
+    attention: unknown[];
+    health: unknown;
+  };
+
+  // Absent rather than zeroed: a zero is an answer, and "the business is owed
+  // nothing" is a different statement from "this is not yours to see".
+  expect(seen.money).toBeNull();
+  expect(seen.pipeline).toBeNull();
+  expect(seen.book).toBeNull();
+  expect(seen.attention).toEqual([]);
+  // And the screen still works. This is not a refusal — a dashboard with no
+  // money on it is the right dashboard for somebody who does not do the money.
+  expect(seen.health).not.toBeNull();
+
+  // The widget list agrees with the payload, so nothing names a panel that
+  // would arrive empty.
+  const offered = await app.request("http://localhost/api/dashboard/widgets", {
+    headers: theirs,
+  });
+  if (offered.status === 200) {
+    const { widgets } = (await offered.json()) as {
+      widgets: { id: string }[];
+    };
+    expect(widgets.map((w) => w.id)).not.toContain("core:money");
+    expect(widgets.map((w) => w.id)).not.toContain("core:attention");
+  }
+
+  // The owner, who does the money, still sees it.
+  const mine = await app.request("http://localhost/api/dashboard", { headers });
+  const full = (await mine.json()) as { money: unknown; book: unknown };
+  expect(full.money).not.toBeNull();
+  expect(full.book).not.toBeNull();
+
+  await db.delete(schema.member).where(eq(schema.member.userId, theirId));
+  await db.delete(schema.user).where(eq(schema.user.id, theirId));
+});

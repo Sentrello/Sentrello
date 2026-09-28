@@ -72,19 +72,29 @@ interface Dashboard {
    */
   ad: { headline: string; body: string; cta: string; url: string } | null;
   health: Health;
+  /*
+   * Null where the reader may not be told.
+   *
+   * The money figures need the books and the two CRM ones need the CRM, and
+   * until 2026-09-28 the route answered all of them to anybody who could open
+   * the dashboard at all — which the seeded staff, marketing and customers
+   * policies can. Absent rather than zeroed, because a zero is an answer and
+   * "the business is owed nothing" is a different statement from "this is not
+   * yours to see".
+   */
   money: {
     owedCents: number;
     overdueCents: number;
     unpaidCount: number;
     overdueCount: number;
-  };
+  } | null;
   pipeline: {
     openCount: number;
     openCents: number;
     wonCount: number;
     wonCents: number;
-  };
-  book: { contacts: number };
+  } | null;
+  book: { contacts: number } | null;
   attention: {
     id: string;
     kind: "invoice" | "quote" | "task";
@@ -459,16 +469,20 @@ function Widget({
             pair that far apart stops reading as a pair.
           */}
           <div className="grid gap-(--gap-toolbar) text-sm sm:grid-cols-2 lg:grid-cols-4">
-            <Stat
-              label="Open"
-              value={formatMoney(data.pipeline.openCents)}
-              hint={`${data.pipeline.openCount} deal${data.pipeline.openCount === 1 ? "" : "s"}`}
-            />
-            <Stat
-              label="Won"
-              value={formatMoney(data.pipeline.wonCents)}
-              hint={`${data.pipeline.wonCount} deal${data.pipeline.wonCount === 1 ? "" : "s"}`}
-            />
+            {data.pipeline ? (
+              <>
+                <Stat
+                  label="Open"
+                  value={formatMoney(data.pipeline.openCents)}
+                  hint={`${data.pipeline.openCount} deal${data.pipeline.openCount === 1 ? "" : "s"}`}
+                />
+                <Stat
+                  label="Won"
+                  value={formatMoney(data.pipeline.wonCents)}
+                  hint={`${data.pipeline.wonCount} deal${data.pipeline.wonCount === 1 ? "" : "s"}`}
+                />
+              </>
+            ) : null}
           </div>
         </Card>
       );
@@ -1090,48 +1104,65 @@ function Arrange({
   );
 }
 
+/*
+ * Four figures, each drawn only if the server sent it.
+ *
+ * Two of them are the books and two are the CRM, and a reader may hold one
+ * permission without the other — a bookkeeper with no CRM, a salesperson with
+ * no books. Each card stands on its own rather than the panel being all or
+ * nothing, so neither of them meets a gap where the other's figures are.
+ */
 function MoneyPanel({ data }: { data: Dashboard }) {
   const { money, pipeline, book } = data;
   return (
     <div className="grid gap-(--gap-toolbar) sm:grid-cols-2 lg:grid-cols-4">
-      <Card>
-        <StatFigure
-          label="Owed to you"
-          value={formatMoney(money.owedCents)}
-          hint={`${money.unpaidCount} unpaid invoice${money.unpaidCount === 1 ? "" : "s"}`}
-        />
-      </Card>
-      <Card>
-        <StatFigure
-          label="Overdue"
-          value={formatMoney(money.overdueCents)}
-          hint={`${money.overdueCount} past ${money.overdueCount === 1 ? "its" : "their"} date`}
-          // The only figure here worth colouring: it is money already earned
-          // and not received, and it is the one somebody should act on today.
-          tone={money.overdueCents > 0 ? "bad" : "plain"}
-        />
-      </Card>
-      <Card>
-        <StatFigure
-          label="In the pipeline"
-          value={formatMoney(pipeline.openCents)}
-          hint={`${pipeline.openCount} open, ${pipeline.wonCount} won`}
-        />
-      </Card>
-      <Card>
-        <StatFigure
-          label="People in the book"
-          // Grouped, like the money beside it. On a business with ten
-          // thousand contacts this row read "$500.00" and "10003" side by
-          // side, which is the one place the difference is impossible to
-          // miss and the last place it was left.
-          value={formatCount(book.contacts)}
-          // No hint. It carried the number of deals won, which is a fact
-          // about the pipeline and not about the people — read together they
-          // said "35 people, of whom 11 deals won", which is not a sentence.
-          // It has moved to the figure it describes.
-        />
-      </Card>
+      {money ? (
+        <>
+          <Card>
+            <StatFigure
+              label="Owed to you"
+              value={formatMoney(money.owedCents)}
+              hint={`${money.unpaidCount} unpaid invoice${money.unpaidCount === 1 ? "" : "s"}`}
+            />
+          </Card>
+          <Card>
+            <StatFigure
+              label="Overdue"
+              value={formatMoney(money.overdueCents)}
+              hint={`${money.overdueCount} past ${money.overdueCount === 1 ? "its" : "their"} date`}
+              // The only figure here worth colouring: it is money already
+              // earned and not received, and it is the one somebody should
+              // act on today.
+              tone={money.overdueCents > 0 ? "bad" : "plain"}
+            />
+          </Card>
+        </>
+      ) : null}
+      {pipeline ? (
+        <Card>
+          <StatFigure
+            label="In the pipeline"
+            value={formatMoney(pipeline.openCents)}
+            hint={`${pipeline.openCount} open, ${pipeline.wonCount} won`}
+          />
+        </Card>
+      ) : null}
+      {book ? (
+        <Card>
+          <StatFigure
+            label="People in the book"
+            // Grouped, like the money beside it. On a business with ten
+            // thousand contacts this row read "$500.00" and "10003" side by
+            // side, which is the one place the difference is impossible to
+            // miss and the last place it was left.
+            value={formatCount(book.contacts)}
+            // No hint. It carried the number of deals won, which is a fact
+            // about the pipeline and not about the people — read together
+            // they said "35 people, of whom 11 deals won", which is not a
+            // sentence. It has moved to the figure it describes.
+          />
+        </Card>
+      ) : null}
     </div>
   );
 }

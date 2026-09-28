@@ -92,18 +92,38 @@ export function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
  */
 const answeredByPro = { tier: "pro" as const };
 const needsReports = { reports: ["read"] };
+/*
+ * The books, for the panels made of money.
+ *
+ * These three carried no `requires` at all, so the seeded `staff`, `marketing`
+ * and `customers` policies — every one of which holds `dashboard: ["read"]`
+ * and no bookkeeping grant — were offered, and answered, the business's total
+ * owed, its total overdue, its pipeline value and an attention list naming
+ * invoices by number. The published dashboard page says the opposite in as
+ * many words: "somebody without access to the books sees no money figures at
+ * all." Found 2026-09-28.
+ */
+const needsBooks = { bookkeeping: ["read"] };
+/** The pipeline is the CRM's money, so it asks the CRM's permission. */
+const needsCrm = { crm: ["read"] };
 export const CORE_WIDGETS: ModuleWidget[] = [
-  { id: "money", label: "Money owed" },
-  { id: "attention", label: "Needs attention" },
-  { id: "pipeline", label: "Pipeline" },
+  { id: "money", label: "Money owed", requires: needsBooks },
+  { id: "attention", label: "Needs attention", requires: needsBooks },
+  { id: "pipeline", label: "Pipeline", requires: needsCrm },
   { id: "health", label: "This server", icon: "gauge" },
   // The twelve-month ledger charts. Free, as of 2026-09-20: every figure in
   // them is computed by Core from tables every instance has.
-  { id: "revenue-trend", label: "Income and expenses" },
-  { id: "cash-position", label: "Profit trend" },
-  { id: "deals-by-stage", label: "Deals by stage" },
-  { id: "top-customers", label: "Top customers" },
-  { id: "invoice-aging", label: "How late the money is" },
+  { id: "revenue-trend", label: "Income and expenses", requires: needsBooks },
+  { id: "cash-position", label: "Profit trend", requires: needsBooks },
+  { id: "deals-by-stage", label: "Deals by stage", requires: needsCrm },
+  // Who spends the most with this business: the CRM's names against the
+  // ledger's figures, so it asks for both.
+  {
+    id: "top-customers",
+    label: "Top customers",
+    requires: { ...needsBooks, ...needsCrm },
+  },
+  { id: "invoice-aging", label: "How late the money is", requires: needsBooks },
   // The reports, drawn from the ledger; a reader needs the books.
   { id: "balance-sheet", label: "Balance sheet", requires: needsReports },
   // Cash flow and the trial balance are answered by Pro's accounting bundle,
