@@ -108,8 +108,13 @@ application, and it never quietly opens something.
 ## Where the state lives
 
 One database. A schema per module, and every business table carries an
-`organizationId` — the scoping lives in the data layer rather than in each
-page's good intentions, which is the difference between a rule and a habit.
+`organizationId`. Every query filters on it, and a test reads the queries
+rather than trusting them: one that would return another organisation's rows
+fails the build. That is the difference between a rule and a habit.
+
+It is not PostgreSQL row-level security, and saying "at the data layer" makes
+people think it is. The filter is in the query; what makes it dependable is
+that the queries are written in one place and checked there.
 
 Jobs run through pg-boss, in that same PostgreSQL. No Redis, no second thing to
 back up, no second thing to be down.

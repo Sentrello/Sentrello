@@ -98,8 +98,15 @@ Markdown, plus:
   copy button.
 - **Diagrams** and **mathematics**.
 
-Everything is rendered on the server. A page is readable before any script
-runs, and it still reads correctly with JavaScript turned off entirely.
+The page itself is rendered on the server: text, headings, tables, code,
+navigation and search are all there before any script runs, and read correctly
+with JavaScript turned off entirely.
+
+Two things are drawn in the browser, because drawing them anywhere else means
+shipping a rendering engine with the module. A diagram falls back to its own
+source, which is readable prose; a formula falls back to what you typed. Both
+are also the only two places this module loads a script — from your own
+server, never somebody else's.
 
 ## Drafts and unlisted pages
 

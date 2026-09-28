@@ -55,8 +55,14 @@ permission to hold. It is scoped by the form's own key and its allow-list
 instead.
 
 A request passes a session check and a permission check before any handler
-runs. Every query is scoped to an organisation at the data layer, rather than
-left to each page to remember.
+runs. Every business table carries an organisation, every query filters on it,
+and a test reads the queries themselves and fails the build on one that does
+not — so the rule is checked by a machine rather than remembered by a person.
+
+To be exact about the mechanism, because "at the data layer" gets read as
+database row-level security and this is not that: the filter is in the query,
+and what makes it reliable is that the queries are built in one place and
+inspected there.
 
 Paid features are gated twice more, and the two gates answer differently on
 purpose:
