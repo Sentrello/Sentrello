@@ -16,6 +16,7 @@ import {
   toUbl,
 } from "./einvoice";
 import { transportFor } from "./einvoice-transport";
+import { issuesEn16931 } from "./eu";
 
 /**
  * Handing over a structured e-invoice.
@@ -293,6 +294,17 @@ export function registerEInvoice(ctx: ModuleContext) {
          */
         addressedTo: input.buyer.name,
         country: input.buyer.countryCode,
+        /*
+         * Whether structured invoicing is this business's subject at all.
+         *
+         * The screen explains an absent button, which is right for a Dutch
+         * business one field away from a valid document and wrong for a US one
+         * that will never issue an EN 16931 invoice: it would read "not yet
+         * sendable" on every invoice it ever raises, about a thing it cannot
+         * do anything about. Sent as its own flag rather than inferred from
+         * the refusal text.
+         */
+        inScope: issuesEn16931(input.seller.countryCode),
       });
     },
   );

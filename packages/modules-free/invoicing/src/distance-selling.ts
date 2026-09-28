@@ -7,6 +7,10 @@ import { and, db, eq, inArray, ne, schema } from "@sentrello/db";
 import type { PostedSale } from "@sentrello/db/sale-place";
 import { postedSales } from "@sentrello/db/sale-place";
 import type { ModuleContext } from "@sentrello/module-sdk";
+import { euCountry } from "./eu";
+
+/** Re-exported: this file was where it lived, and oss-return imports it here. */
+export { euCountry };
 
 /**
  * The EU distance-selling threshold, watched rather than guessed at.
@@ -32,44 +36,6 @@ import type { ModuleContext } from "@sentrello/module-sdk";
  * checked 15 September 2026.
  */
 export const DISTANCE_SELLING_THRESHOLD_CENTS = 1_000_000;
-
-/** The member states, by the atlas codes company records carry. */
-const EU_MEMBERS = new Set([
-  "AT",
-  "BE",
-  "BG",
-  "HR",
-  "CY",
-  "CZ",
-  "DK",
-  "EE",
-  "FI",
-  "FR",
-  "DE",
-  "GR",
-  "EL", // Greece as the VAT register spells it, for the record typed that way
-  "HU",
-  "IE",
-  "IT",
-  "LV",
-  "LT",
-  "LU",
-  "MT",
-  "NL",
-  "PL",
-  "PT",
-  "RO",
-  "SK",
-  "SI",
-  "ES",
-  "SE",
-]);
-
-export const euCountry = (raw: string | null | undefined): string | null => {
-  const code = raw?.trim().toUpperCase() ?? "";
-  if (!EU_MEMBERS.has(code)) return null;
-  return code === "EL" ? "GR" : code;
-};
 
 /**
  * Whether a sale to this customer is B2C — the question both the threshold and

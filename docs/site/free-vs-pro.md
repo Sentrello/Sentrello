@@ -34,7 +34,7 @@ Pro is **per instance, not per person**. Hiring somebody costs nothing.
 | Live bank feeds, CSV import and reconciliation | — | ● |
 | Budgets, fixed assets and depreciation | — | ● |
 | **Tax returns**: UK VAT in the Making Tax Digital boxes, Canadian GST/HST, US sales tax with state nexus thresholds, EU One Stop Shop | ● | ● |
-| **Structured e-invoices**: EN 16931, in the Peppol BIS and XRechnung profiles | ● | ● |
+| **Structured e-invoices**: EN 16931, in the Peppol BIS and XRechnung profiles — for a business selling from the EU or the UK | ● | ● |
 | Tax summary, cash flow and multi-currency | — | ● |
 | **Accounts and access**: nine policies and six groups, all editable; sessions, sign-in providers, two-factor, event log | ● | ● |
 | **Settings**: business details on every document, third-party connections, one-click update and rollback | ● | ● |

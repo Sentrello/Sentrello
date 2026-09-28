@@ -175,6 +175,7 @@ export function InvoiceDetail() {
           missing: string[];
           addressedTo: string;
           country: string | null;
+          inScope: boolean;
         }>(`/api/invoices/${id}/einvoice?profile=${profile}`);
       const [en16931, peppol, xrechnung] = await Promise.all([
         check("en16931"),
@@ -618,10 +619,14 @@ export function InvoiceDetail() {
               and would find out from a rejected submission instead. Shown only
               once somebody has set their own country — a business that has
               never engaged with structured invoicing is not nagged about it on
-              every invoice.
+              every invoice. And only where the standard applies: a US or
+              Canadian business cannot issue one at all, so "not yet sendable"
+              would sit on every invoice it ever raised, about nothing it can
+              act on.
             */}
             {eInvoice.data &&
             !eInvoice.data.en16931.ready &&
+            eInvoice.data.en16931.inScope &&
             eInvoice.data.en16931.country ? (
               <p className="w-full text-xs" style={muted}>
                 Not yet sendable as a structured e-invoice:{" "}

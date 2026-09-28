@@ -14,13 +14,21 @@ const complete = (): EInvoiceInput => ({
   issueDate: new Date("2026-09-09T10:00:00Z"),
   dueDate: new Date("2026-10-09T10:00:00Z"),
   currency: "EUR",
+  /*
+   * An Irish seller, and it was a Denver one until 2026-09-28.
+   *
+   * Every assertion in this file was written against a US business issuing a
+   * European e-invoice — the one document the standard has no way to express,
+   * because there is no VAT registration behind it. The generator refuses it
+   * now, and a fixture that cannot be generated proves nothing about the XML.
+   */
   seller: {
     name: "Foothills Digital",
     street: "1 High Street",
-    city: "Denver",
-    postcode: "80202",
-    countryCode: "US",
-    taxId: "US123456789",
+    city: "Dublin",
+    postcode: "D02 AF30",
+    countryCode: "IE",
+    taxId: "IE1234567T",
   },
   buyer: {
     name: "Fairview SRL",
@@ -149,7 +157,7 @@ test("names that contain XML are escaped", () => {
  */
 test("an invoice that deals in VAT asks for the seller's VAT number", () => {
   const domestic = complete();
-  domestic.buyer.countryCode = "US";
+  domestic.buyer.countryCode = "IE";
   domestic.seller.taxId = null;
   expect(missingForEInvoice(domestic).join(" ")).toContain("VAT number");
 
@@ -686,4 +694,38 @@ test("an export line is category G with a reason, as BR-G-10 demands", () => {
   expect(xml).toContain(
     "<cbc:TaxExemptionReason>Export outside the EU</cbc:TaxExemptionReason>",
   );
+});
+
+/**
+ * The standard is European, and two of the four markets are not.
+ *
+ * A Denver business with an EIN in `taxId` passed every check in this file
+ * until 2026-09-28 and got a document declaring that EIN to be a VAT
+ * registration. The same business with the field empty was told to go and set
+ * "your VAT number", which is not a thing it has. Both are refusals now, and
+ * the refusal says what to send instead.
+ */
+test("a seller outside the EU and the UK is refused, in its own terms", () => {
+  const american = complete();
+  american.seller.countryCode = "US";
+  american.seller.taxId = "12-3456789";
+  const refusal = missingForEInvoice(american);
+  expect(refusal).toHaveLength(1);
+  expect(refusal[0]).toContain("EU or the UK");
+  expect(refusal[0]).toContain("US");
+  // And not a word about a registration the reader does not hold.
+  expect(refusal.join(" ")).not.toContain("VAT number");
+  expect(() => toUbl(american)).toThrow();
+
+  // Canada is market two and has no domestic norm either.
+  const canadian = complete();
+  canadian.seller.countryCode = "ca";
+  expect(missingForEInvoice(canadian)[0]).toContain("registered in CA");
+
+  // The UK kept the standard after leaving, so a British seller is fine.
+  const british = complete();
+  british.seller.countryCode = "GB";
+  british.seller.taxId = "GB123456789";
+  expect(missingForEInvoice(british)).toEqual([]);
+  expect(toUbl(british)).toContain("urn:cen.eu:en16931:2017");
 });

@@ -30,6 +30,7 @@
  */
 
 import { bpToPpm, percentFromPpm } from "@sentrello/db/money";
+import { issuesEn16931 } from "./eu";
 
 /** The profiles this generator can conform to. */
 export type EInvoiceProfile = "en16931" | "peppol" | "xrechnung";
@@ -358,6 +359,32 @@ export function exemptionReasonFor(
 export function missingForEInvoice(input: EInvoiceInput): string[] {
   const missing: string[] = [];
   const profile = input.profile ?? "en16931";
+
+  /*
+   * Where the seller is, before anything else.
+   *
+   * EN 16931 is a European document and Peppol BIS is built on it, so being
+   * asked for one from outside Europe is not a missing field — it is the wrong
+   * instrument, and every other line below would be an answer to a question
+   * that should not have been put.
+   *
+   * There was no test of this at all until 2026-09-28. A Denver business with
+   * an EIN in `taxId` satisfied every check here, and `toUbl` wrote that EIN
+   * into the company id under `<cbc:ID>VAT</cbc:ID>` — a federal employer
+   * number declared to be a VAT registration, on a document filed with a tax
+   * authority. The same business with no `taxId` got something worse than a
+   * wrong document: a refusal about "your VAT number", which is not a thing it
+   * has. The United States is launch market one.
+   *
+   * Returned alone rather than added to the list. Two refusals where one of
+   * them makes no sense in the reader's country is how the second one gets
+   * acted on.
+   */
+  if (input.seller.countryCode && !issuesEn16931(input.seller.countryCode)) {
+    return [
+      `a business in the EU or the UK — the structured e-invoice is a European standard, and yours is registered in ${input.seller.countryCode.trim().toUpperCase()}. Send this invoice as a PDF, which is what your customer is expecting`,
+    ];
+  }
 
   /*
    * A credit note is not a field to fill in, but it rides the same refusal:
