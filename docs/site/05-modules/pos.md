@@ -148,8 +148,10 @@ the same order number series, in the same list under Shop → Orders, posting th
 same double-entry journal to the same accounts. There is no second path from a
 sale to your books.
 
-**Card is not here yet.** It needs a card reader, and the till says so plainly
-rather than offering a button that cannot work. See
+**Card is a tender like any other**, including half on the card and the rest in
+cash on one sale. What the till does not do is drive the machine: the customer
+taps a terminal standing beside it, and the till is told the sale is settled
+rather than asked to settle it. See
 [What is not here yet](#what-is-not-here-yet).
 
 ## The drawer
@@ -280,10 +282,15 @@ of being available to a counter shift. Everything a shift needs is `pos:sell`.
 Said plainly, because a list of what a product cannot do is more useful than a
 list of what it can.
 
-- **Card payment at the counter.** It needs a reader, and a till that pretended
-  otherwise would be a button that takes no money. Planned.
-- **Receipt printing.** A printer is driven by the rebuild that is still in
-  progress, so a sale is recorded without one being printed.
+- **A card reader the till drives.** Card is a tender the till takes and
+  records, and splitting a sale across card and cash works. What is missing is
+  the till talking to the terminal — today somebody taps the machine beside it
+  and the till is told the money arrived. Planned.
+- **A thermal printer, and a drawer that kicks open.** The receipt itself is
+  built: a frozen document with a gapless number, the content each of the four
+  markets requires, a Canadian GST/PST/QST split that reconciles to the cent,
+  refund receipts and a record of every reprint. It goes to the screen, to an
+  email, or to a PDF. What no driver exists for yet is the roll of paper.
 - **Table service, tabs, and kitchen printing.** The till is built for counter
   service first. The rest is planned, and deliberately not dated.
 - **Fiscalisation.** No certified device, no signature, no live link to a tax

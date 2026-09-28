@@ -22,7 +22,7 @@ flowchart LR
   classDef out fill:#f4f0fb,stroke:#6b47c4,color:#31205e
   classDef pub fill:#fff4ec,stroke:#c4470f,color:#5a2207
   REPO["Your repository<br/><small>markdown, in folders</small>"]:::out
-  SYNC["Sync<br/><small>on a push, or on a schedule</small>"]:::own
+  SYNC["Sync<br/><small>every hour, or when you press it</small>"]:::own
   subgraph OWN[" Docs "]
     PAGES["Pages<br/><small>drafts, unlisted, published</small>"]:::own
     NAV["Sidebar and search"]:::own
