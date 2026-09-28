@@ -73,6 +73,8 @@ interface Related {
     id: string;
     text: string;
     createdAt: string;
+    /** Who wrote it, or null on notes written before anybody was recorded. */
+    authorName: string | null;
     attachments: { name: string; path: string; size: number }[] | null;
   }[];
   tasks: {
@@ -358,6 +360,13 @@ export function Notes({
                 style={muted}
               >
                 {formatDate(n.createdAt)}
+                {/*
+                  Who wrote it. The column existed from the first commit and
+                  nothing ever set it, so four notes from four people read as
+                  four notes from nobody — and "who said we would call them
+                  back" is the question the second person on an account asks.
+                */}
+                {n.authorName ? <span>{n.authorName}</span> : null}
                 <Attach noteId={n.id} onDone={settle} />
                 <button
                   type="button"

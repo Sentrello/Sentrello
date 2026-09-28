@@ -2766,3 +2766,56 @@ test("a deal cannot be moved into a stage this business does not have", async ()
     .where(eq(schema.deals.id, deal.id));
   expect(row?.stage).not.toBe("renamed-last-year");
 });
+
+/**
+ * Who wrote a note.
+ *
+ * `notes.author_id` has been a column since the CRM was written and nothing
+ * ever set it, so a shared timeline showed four notes from four people as
+ * four notes from nobody — and "who said we would call them back" is exactly
+ * the question the second person on an account asks.
+ */
+test("a note records who wrote it, and the timeline says so", async () => {
+  const call = (path: string, init?: RequestInit) =>
+    app.request(`http://localhost${path}`, { headers, ...init });
+
+  const [contact] = await db
+    .insert(schema.contacts)
+    .values({ organizationId: orgId, name: `Author test ${suffix}` })
+    .returning();
+  if (!contact) throw new Error("could not create the contact");
+
+  const made = await call("/api/notes", {
+    method: "POST",
+    body: JSON.stringify({
+      entityType: "contact",
+      entityId: contact.id,
+      text: "Rang them back about the quote",
+      // Offered by the browser and ignored: who wrote something is the
+      // session's answer, not the caller's.
+      authorId: "somebody-else-entirely",
+    }),
+  });
+  expect(made.status).toBe(201);
+  const { note } = (await made.json()) as { note: { id: string } };
+
+  const [stored] = await db
+    .select()
+    .from(schema.notes)
+    .where(eq(schema.notes.id, note.id))
+    .limit(1);
+  expect(stored?.authorId).toBeTruthy();
+  expect(stored?.authorId).not.toBe("somebody-else-entirely");
+
+  // And it reaches the screen, which is the half that was missing.
+  const page = (await (
+    await call(`/api/contacts/${contact.id}/related`)
+  ).json()) as {
+    notes: { id: string; authorName: string | null }[];
+  };
+  const shown = page.notes.find((n) => n.id === note.id);
+  expect(shown?.authorName).toBeTruthy();
+
+  await db.delete(schema.notes).where(eq(schema.notes.id, note.id));
+  await db.delete(schema.contacts).where(eq(schema.contacts.id, contact.id));
+});

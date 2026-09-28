@@ -345,6 +345,43 @@ function refusedByTheDatabase(err: unknown): string | null {
   }
 }
 
+/**
+ * The names behind `authorId`, attached to a page of notes.
+ *
+ * One query for the page rather than one per note, and a row whose author has
+ * since been deleted still reads — "somebody who has left" is a true answer
+ * and a blank space is not. Notes written before the column was set carry no
+ * author at all, which is also true and is said as nothing rather than as a
+ * guess.
+ */
+async function withAuthors<T extends { authorId: string | null }>(
+  notes: T[],
+): Promise<(T & { authorName: string | null })[]> {
+  const ids = [...new Set(notes.map((n) => n.authorId).filter(Boolean))];
+  if (ids.length === 0) {
+    return notes.map((n) => ({ ...n, authorName: null }));
+  }
+
+  const people = await db
+    .select({
+      id: schema.user.id,
+      name: schema.user.name,
+      email: schema.user.email,
+    })
+    .from(schema.user)
+    .where(inArray(schema.user.id, ids as string[]));
+  const named = new Map(
+    people.map((p) => [p.id, p.name || p.email || null] as const),
+  );
+
+  return notes.map((n) => ({
+    ...n,
+    authorName: n.authorId
+      ? (named.get(n.authorId) ?? "somebody who has left")
+      : null,
+  }));
+}
+
 function crud<T extends keyof typeof tables>(
   ctx: Parameters<Parameters<typeof defineModule>[0]["register"]>[0],
   resource: T,
@@ -525,6 +562,20 @@ function crud<T extends keyof typeof tables>(
       if (resource === "deals") await withDecidedAt(orgId, parsed.value);
       const refError = await checkLinkedRecords(resource, orgId, parsed.value);
       if (refError) return c.json({ error: refError.error }, refError.status);
+      /**
+       * Who wrote it, on the one record that is somebody's words.
+       *
+       * `notes.author_id` has been a column since the CRM was written and
+       * nothing ever set it, so a shared timeline showed four notes from
+       * four people as four notes from nobody — and "who said we'd call them
+       * back" is exactly the question a second person on the account asks.
+       * Taken from the session rather than the body: the browser does not
+       * get to say who wrote something.
+       */
+      if (resource === "notes") {
+        parsed.value.authorId = c.get("session").user.id;
+      }
+
       let row: Record<string, unknown> | undefined;
       try {
         [row] = await db
@@ -2333,7 +2384,7 @@ function registerCrmScreens(
         deal,
         company: company[0] ?? null,
         contacts: everyone.filter((p) => on.has(p.id)),
-        notes,
+        notes: await withAuthors(notes),
       });
     },
   );
@@ -2414,7 +2465,13 @@ function registerCrmScreens(
           ),
       ]);
 
-      return c.json({ company, contacts: people, deals, notes, tasks });
+      return c.json({
+        company,
+        contacts: people,
+        deals,
+        notes: await withAuthors(notes),
+        tasks,
+      });
     },
   );
 
@@ -2505,7 +2562,7 @@ function registerCrmScreens(
         contact,
         company: company[0] ?? null,
         deals: allDeals.filter((d) => (d.contactIds ?? []).includes(id)),
-        notes,
+        notes: await withAuthors(notes),
         tasks,
         tags: tagRows.map((r) => r.tag),
       });

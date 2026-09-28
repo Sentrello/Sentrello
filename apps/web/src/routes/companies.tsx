@@ -59,6 +59,8 @@ interface Related {
     id: string;
     text: string;
     createdAt: string;
+    /** Who wrote it, or null on notes written before anybody was recorded. */
+    authorName: string | null;
     /** Whatever was attached to it; the panel draws them. */
     attachments: { name: string; path: string; size: number }[] | null;
   }[];

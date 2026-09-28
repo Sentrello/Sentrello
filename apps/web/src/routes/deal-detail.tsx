@@ -43,7 +43,13 @@ interface Related {
   };
   company: { id: string; name: string } | null;
   contacts: { id: string; name: string; title: string | null }[];
-  notes: { id: string; text: string; createdAt: string }[];
+  notes: {
+    id: string;
+    text: string;
+    createdAt: string;
+    /** Who wrote it, or null on notes written before anybody was recorded. */
+    authorName: string | null;
+  }[];
 }
 
 /**
@@ -520,8 +526,11 @@ export function DealDetail() {
               notes.map((n) => (
                 <div key={n.id} className="border-t pt-2 text-sm border-line">
                   <p className="whitespace-pre-wrap">{n.text}</p>
+                  {/* And who wrote it, which the column has always had room
+                      for and nothing ever filled. */}
                   <p className="mt-0.5 text-xs" style={muted}>
                     {formatDate(n.createdAt)}
+                    {n.authorName ? ` · ${n.authorName}` : ""}
                   </p>
                 </div>
               ))
