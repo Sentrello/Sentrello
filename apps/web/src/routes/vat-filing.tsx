@@ -218,9 +218,18 @@ export function VatFiling() {
     queryKey: ["vat-return", chosen?.start, chosen?.end],
     enabled: Boolean(chosen),
     queryFn: () =>
-      api<{ boxes: Record<string, number>; notCovered: string[] }>(
-        `/api/accounting/vat-return?from=${chosen?.start}&to=${chosen?.end}`,
-      ),
+      api<{
+        boxes: Record<string, number>;
+        /**
+         * The same nine boxes in the units HMRC accepts, which is what is
+         * actually sent: boxes 1–5 to the penny, boxes 6–9 as whole pounds
+         * rounded down. This is what the screen shows, because a person is
+         * attesting to what gets submitted rather than to what it was before
+         * it was rounded.
+         */
+        asSubmitted: Record<string, number>;
+        notCovered: string[];
+      }>(`/api/accounting/vat-return?from=${chosen?.start}&to=${chosen?.end}`),
   });
 
   const submit = useMutation({
@@ -441,11 +450,32 @@ export function VatFiling() {
                     <td style={muted}>{box}</td>
                     <td>{label}</td>
                     <td className="money">
-                      {formatMoney(preview.data?.boxes[String(key)] ?? 0)}
+                      {/*
+                        From `asSubmitted`, not `boxes`.
+
+                        The two differ on 6 to 9: HMRC takes those as whole
+                        pounds, rounded down, and the screen was drawing the
+                        unrounded figure. So a business checked £12,345.67 and
+                        declared 12,345 — up to 99p out on four boxes of a
+                        legal declaration, with nothing saying so. The
+                        arithmetic already rounds once, deliberately; this is
+                        the screen reading the rounded answer rather than the
+                        one before it.
+                      */}
+                      {formatMoney(
+                        Math.round(
+                          (preview.data?.asSubmitted[String(key)] ?? 0) * 100,
+                        ),
+                      )}
                     </td>
                   </Row>
                 ))}
               </Table>
+
+              <p className="text-xs" style={muted}>
+                Boxes 6 to 9 are whole pounds, rounded down — HMRC's rule, not
+                ours. These are the figures that will be sent.
+              </p>
 
               {preview.data.notCovered.map((note) => (
                 <p key={note} className="text-xs" style={muted}>

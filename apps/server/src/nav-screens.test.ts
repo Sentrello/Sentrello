@@ -129,3 +129,26 @@ test("the web app only asks for screens the instance says it has", () => {
   // And the component refuses to ask when the answer is already known.
   expect(screen).toMatch(/if \(shipsScreens === false\)/);
 });
+
+/**
+ * The VAT screen shows the figures that will actually be sent.
+ *
+ * Boxes 6 to 9 go to HMRC as whole pounds, rounded down; the screen drew the
+ * unrounded pence. So a business checked £12,345.67 and declared 12,345 — up
+ * to 99p out on four boxes of a legal declaration, with nothing on the page
+ * saying so. `forHmrc`'s own comment says the point of rounding once is that
+ * the figures checked and the figures sent are the same numbers; the screen
+ * was reading the wrong one of the two.
+ */
+test("the VAT return screen reads the submitted figures, not the raw ones", async () => {
+  const screen = await Bun.file(
+    `${import.meta.dir}/../../web/src/routes/vat-filing.tsx`,
+  ).text();
+
+  expect(screen).toContain("asSubmitted: Record<string, number>");
+  expect(screen).toContain("preview.data?.asSubmitted[String(key)]");
+  // And it says why four of the nine look rounder than the books do.
+  expect(screen).toContain("Boxes 6 to 9 are whole pounds");
+  // The raw pence must not be what the table draws.
+  expect(screen).not.toContain("formatMoney(preview.data?.boxes[String(key)]");
+});
