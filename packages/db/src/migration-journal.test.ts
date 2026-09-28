@@ -1,85 +1,162 @@
 import { expect, test } from "bun:test";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 
 /**
- * Every migration in the journal has a snapshot beside it.
+ * Three ways a migration quietly does not happen, all found on one day.
  *
- * Drizzle generates a migration by diffing the schema against the *last
- * snapshot*, not against the last migration. So a migration hand-written
- * into `_journal.json` without its `meta/NNNN_snapshot.json` is invisible
- * to the generator — and the next `db:generate` re-emits everything that
- * migration did, on top of it.
+ * Drizzle keeps two records of the same thing: `_journal.json`, which the
+ * migrator reads, and `meta/NNNN_snapshot.json`, which the *generator*
+ * diffs against. Neither is the directory listing. So a migration can be
+ * on disk and not run, or run and be invisible to the generator, and in
+ * both cases every command reports success.
  *
- * That happened: `0099` was added without a snapshot, and `0100` came out
- * carrying a second `ALTER TABLE security_events ADD COLUMN seq`. Applied
- * in order, the deployment would have stopped on "column already exists",
- * on every instance, with the first migration half-applied.
+ * On 27 September 2026 all three failures were live at once across the
+ * repositories:
  *
- * It was caught by reading the generated SQL. This is so the next one is
- * caught by the build.
+ *  - **A file in no journal never runs.** A migration that nulls a column
+ *    of full referring URLs was written, applied by hand, reported as
+ *    done, and had never run on any instance. A privacy fix that silently
+ *    does not happen is worse than one nobody wrote, because everybody
+ *    believes it.
+ *  - **A schema change with no snapshot gets repeated.** `0099` here added
+ *    a column that way, and the next generated migration carried a second
+ *    `ADD COLUMN seq`. In order that stops on "column already exists", on
+ *    every instance, with the first migration half-applied. The same trap
+ *    was found four more times in the modules.
+ *  - **A journal entry with no file** is a migration list that cannot be
+ *    replayed at all.
  *
- * Only migrations that change the *shape* of the database are held to
- * this. A hand-written data migration — `0038` and `0039` are two, moving
- * staff roles and docs permissions into rows — alters no schema, so the
- * generator has nothing to repeat and a snapshot would say exactly what
- * the one before it said. Requiring one there would be a rule people
- * learn to satisfy rather than a rule that catches anything.
+ * Every repository with migrations carries a copy of this file, and it
+ * walks every journal it can find rather than one — the modules keep nine
+ * between them.
  */
+
+/** Anything holding a `drizzle/meta/_journal.json`, however it is nested. */
+function journals(root: string): string[] {
+  const found: string[] = [];
+  const walk = (dir: string, depth: number) => {
+    if (depth > 6) return;
+    let entries: string[];
+    try {
+      entries = readdirSync(dir);
+    } catch {
+      return;
+    }
+    for (const name of entries) {
+      if (name === "node_modules" || name === ".git" || name === "dist")
+        continue;
+      const full = join(dir, name);
+      let isDir = false;
+      try {
+        isDir = statSync(full).isDirectory();
+      } catch {
+        continue;
+      }
+      if (!isDir) continue;
+      if (name === "meta") {
+        const j = join(full, "_journal.json");
+        try {
+          statSync(j);
+          found.push(j);
+        } catch {
+          /* a meta directory with no journal is not one of ours */
+        }
+      }
+      walk(full, depth + 1);
+    }
+  };
+  walk(root, 0);
+  return found;
+}
+
+const REPO = resolve(import.meta.dir, "../../..");
+const ALL = journals(REPO);
+
+/** A repository that has stopped being scanned is a guard that passes blind. */
+test("there are migration journals to check", () => {
+  expect(ALL.length).toBeGreaterThan(0);
+});
+
 const CHANGES_THE_SCHEMA =
-  /^\s*(ALTER TABLE .*(ADD|DROP|ALTER) COLUMN|CREATE TABLE|DROP TABLE|ALTER TABLE .*ADD CONSTRAINT|CREATE TYPE|ALTER TYPE)/im;
-const DIR = `${import.meta.dir}/../drizzle`;
+  /^\s*(ALTER TABLE .*(ADD|DROP|ALTER) COLUMN|CREATE TABLE|DROP TABLE|ALTER TABLE .*ADD CONSTRAINT|CREATE TYPE|ALTER TYPE|CREATE SCHEMA|ALTER TABLE .*SET SCHEMA)/im;
 
-test("every migration in the journal has a snapshot", () => {
-  const journal = JSON.parse(
-    readFileSync(`${DIR}/meta/_journal.json`, "utf8"),
-  ) as { entries: { idx: number; tag: string }[] };
+interface Entry {
+  idx: number;
+  tag: string;
+}
 
-  const snapshots = new Set(
-    readdirSync(`${DIR}/meta`)
-      .filter((f) => f.endsWith("_snapshot.json"))
-      .map((f) => f.slice(0, 4)),
-  );
+function read(journal: string): { dir: string; entries: Entry[] } {
+  const dir = dirname(dirname(journal));
+  const { entries } = JSON.parse(readFileSync(journal, "utf8")) as {
+    entries: Entry[];
+  };
+  return { dir, entries };
+}
 
-  /*
-   * Only what comes *after* the newest snapshot can be repeated.
-   *
-   * The generator diffs against the latest snapshot, so a schema change
-   * older than that is already described by it — `0099` has no snapshot
-   * of its own, and `0100`'s includes its column, which is why the next
-   * generate is correct again. What is dangerous is a schema change with
-   * nothing after it to fold it in.
-   */
-  const newest = Math.max(
-    ...[...snapshots]
-      .map((i) => Number.parseInt(i, 10))
-      .filter(Number.isFinite),
-  );
+const sqlFiles = (dir: string) =>
+  readdirSync(dir)
+    .filter((f) => f.endsWith(".sql"))
+    .map((f) => f.replace(/\.sql$/, ""));
 
-  const missing = journal.entries
-    .filter((e) => e.idx > newest)
-    .filter((e) =>
-      CHANGES_THE_SCHEMA.test(readFileSync(`${DIR}/${e.tag}.sql`, "utf8")),
-    )
-    .map((e) => e.tag);
-
+test("no migration file is missing from its journal", () => {
+  const orphans: string[] = [];
+  for (const journal of ALL) {
+    const { dir, entries } = read(journal);
+    const named = new Set(entries.map((e) => e.tag));
+    for (const tag of sqlFiles(dir)) {
+      if (!named.has(tag)) orphans.push(`${dir}/${tag}.sql`);
+    }
+  }
   expect(
-    missing,
-    `these migrations have no snapshot, so the next generated migration will repeat what they did:\n    ${missing.join("\n    ")}`,
+    orphans,
+    `on disk and in no journal, so they will never run:\n    ${orphans.join("\n    ")}`,
   ).toEqual([]);
 });
 
-/** And the file each journal entry names is actually there. */
-test("every migration in the journal has its SQL file", () => {
-  const journal = JSON.parse(
-    readFileSync(`${DIR}/meta/_journal.json`, "utf8"),
-  ) as { entries: { tag: string }[] };
+test("every journal entry has its SQL file", () => {
+  const missing: string[] = [];
+  for (const journal of ALL) {
+    const { dir, entries } = read(journal);
+    const present = new Set(sqlFiles(dir));
+    for (const e of entries) {
+      if (!present.has(e.tag)) missing.push(`${dir}/${e.tag}.sql`);
+    }
+  }
+  expect(missing, `named in a journal and not on disk: ${missing}`).toEqual([]);
+});
 
-  const files = new Set(readdirSync(DIR).filter((f) => f.endsWith(".sql")));
-  const missing = journal.entries
-    .map((e) => `${e.tag}.sql`)
-    .filter((f) => !files.has(f));
+test("every schema change newer than the latest snapshot has a snapshot", () => {
+  const missing: string[] = [];
+  for (const journal of ALL) {
+    const { dir, entries } = read(journal);
+    const snapshots = readdirSync(join(dir, "meta"))
+      .filter((f) => f.endsWith("_snapshot.json"))
+      .map((f) => Number.parseInt(f.slice(0, 4), 10))
+      .filter(Number.isFinite);
+    if (snapshots.length === 0) continue;
+    const newest = Math.max(...snapshots);
 
-  expect(missing, `named in the journal and not on disk: ${missing}`).toEqual(
-    [],
-  );
+    /*
+     * Only what comes after the newest snapshot can be repeated: the
+     * generator diffs against that one, so an older change is already
+     * described by it. And only a change of *shape* counts — a data
+     * migration has nothing for the generator to repeat, and a rule that
+     * fires on those is one people learn to satisfy rather than one that
+     * catches anything.
+     */
+    for (const e of entries.filter((x) => x.idx > newest)) {
+      let sql = "";
+      try {
+        sql = readFileSync(join(dir, `${e.tag}.sql`), "utf8");
+      } catch {
+        continue;
+      }
+      if (CHANGES_THE_SCHEMA.test(sql)) missing.push(`${dir}/${e.tag}.sql`);
+    }
+  }
+  expect(
+    missing,
+    `no snapshot, so the next generated migration will repeat them:\n    ${missing.join("\n    ")}`,
+  ).toEqual([]);
 });
