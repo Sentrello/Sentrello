@@ -99,7 +99,11 @@ either way.
 - **Site audits**, with issues grouped by problem rather than by page, so one
   fix closes one row
 - **Backlinks and competitors.** Referring domains as a tracked line, with the
-  full list on demand. Any domain, not only your own
+  full list on demand. Any domain, not only your own — sizing up a rival is
+  the same two questions asked about them
+- **Checks that run without you.** Positions overnight at whatever rhythm each
+  keyword is set to; links and AI visibility monthly or weekly if you switch
+  them on, per site. They are off until you do, because each one is bought
 - **AI visibility**, meaning whether the models answering questions about your
   trade mention you
 - **A connection for your own AI agent**, read-only until you say otherwise
