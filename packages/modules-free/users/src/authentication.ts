@@ -6,7 +6,11 @@ import {
 import { forgetPasswordFloor } from "@sentrello/auth/password-floor";
 import { and, db, eq, schema } from "@sentrello/db";
 import { policyFor } from "@sentrello/db/lockout";
-import { forgetTwoFactorPolicy, record } from "@sentrello/db/security-events";
+import {
+  forgetSessionLength,
+  forgetTwoFactorPolicy,
+  record,
+} from "@sentrello/db/security-events";
 import { mailConfigured } from "@sentrello/email";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import { knownRoles } from "./roles";
@@ -142,11 +146,20 @@ export function registerAuthentication(ctx: ModuleContext) {
         ? Math.min(Math.max(body.minPasswordLength as number, 12), 72)
         : current.minPasswordLength;
 
+      /*
+       * Thirty days at the top, not a year.
+       *
+       * The number is enforced per request now rather than ignored, and the
+       * library's own session ceiling is thirty days — so anything above
+       * that would be a figure on the screen the product could not honour,
+       * which is the mistake this whole setting was an instance of. Null
+       * still means "leave it alone", and the default is thirty minutes.
+       */
       const sessionDays =
         body.sessionDays === null
           ? null
           : Number.isInteger(body.sessionDays)
-            ? Math.min(Math.max(body.sessionDays as number, 1), 365)
+            ? Math.min(Math.max(body.sessionDays as number, 1), 30)
             : current.sessionDays;
 
       /**
@@ -263,6 +276,8 @@ export function registerAuthentication(ctx: ModuleContext) {
       forgetTwoFactorPolicy(orgId);
       // And the password floor, which is read on every sign-up and reset.
       forgetPasswordFloor();
+      // And how long a session may sit idle, read on every request.
+      forgetSessionLength(orgId);
 
       await record({
         organizationId: orgId,

@@ -443,6 +443,47 @@ export function forgetTwoFactorPolicy(organizationId: string): void {
 }
 
 /**
+ * How long this business lets somebody stay signed in while idle.
+ *
+ * In minutes, because that is what the guard compares against; the screen
+ * asks in days, which is the unit a person thinks in for this.
+ *
+ * **Null until 2026-09-28, in the sense that mattered: nothing read the
+ * column.** "Stay signed in for" saved, appeared on the Authentication
+ * screen, and every instance did thirty minutes regardless — so a business
+ * that set thirty days was signed out every half hour and had the number it
+ * chose sitting on the screen in front of it. Third of three found that day,
+ * with the per-role second factor and the minimum password length.
+ *
+ * `null` here means the business has not chosen, and the default below
+ * applies. Thirty minutes is the right default for software holding a
+ * business's books, and the wrong thing to impose on somebody who has
+ * decided otherwise about their own laptop.
+ */
+export const DEFAULT_IDLE_MINUTES = 30;
+
+const idleCache = new Map<string, { at: number; minutes: number }>();
+
+export async function idleMinutesFor(organizationId: string): Promise<number> {
+  const cached = idleCache.get(organizationId);
+  if (cached && Date.now() - cached.at < RULES_TTL_MS) return cached.minutes;
+
+  const [row] = await db
+    .select({ days: schema.securityPolicy.sessionDays })
+    .from(schema.securityPolicy)
+    .where(eq(schema.securityPolicy.organizationId, organizationId))
+    .limit(1);
+  const minutes = row?.days ? row.days * 24 * 60 : DEFAULT_IDLE_MINUTES;
+  idleCache.set(organizationId, { at: Date.now(), minutes });
+  return minutes;
+}
+
+/** So saving the policy from the screen takes effect at once. */
+export function forgetSessionLength(organizationId: string): void {
+  idleCache.delete(organizationId);
+}
+
+/**
  * Somebody opened a record that may hold health information. §164.312(b).
  *
  * The safeguard most systems lack. After a suspected snooping incident — a

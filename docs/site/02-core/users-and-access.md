@@ -158,6 +158,13 @@ Switching it back off is always allowed. Your own address counts as confirmed
 from the moment you claim the instance, since you read the setup token off the
 server, and that proves rather more than a link in an inbox does.
 
+**How long somebody stays signed in** is thirty minutes of inactivity unless
+you say otherwise, and you can say up to thirty days. Half an hour is the
+right default for software holding a business's books and the wrong thing to
+impose on somebody working alone on their own laptop. The clock is idle time,
+not total time: it resets every time you do something, so a day's work is one
+sign-in however long the day is.
+
 **The shortest password this business will accept** starts at twelve
 characters and can be raised, not lowered — twelve is what NIST asks of a
 password standing on its own, and it is not a business's to waive. Whatever

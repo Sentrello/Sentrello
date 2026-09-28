@@ -3,6 +3,11 @@ import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { and, db, desc, eq, schema } from "@sentrello/db";
 import { lockState } from "@sentrello/db/lockout";
+import {
+  DEFAULT_IDLE_MINUTES,
+  forgetSessionLength,
+  idleMinutesFor,
+} from "@sentrello/db/security-events";
 import { dropOrganization } from "@sentrello/db/testing";
 import { registerForTest } from "@sentrello/module-sdk";
 import { seedDefaults } from "./defaults";
@@ -563,4 +568,125 @@ test("a two-factor rule naming an undefined role is refused, not quietly dropped
   };
   expect(policy.requireTwoFactorFor).not.toContain("bookkeepers");
   expect(policy.requireTwoFactorFor).not.toContain("admins");
+});
+
+/**
+ * How long a session may sit idle, which every instance ignored.
+ *
+ * "Stay signed in for" saved, appeared on the Authentication screen and was
+ * read by nothing: the library was configured with a thirty-minute rolling
+ * window and that is what every business got, whatever number was on its own
+ * screen. Third of three found on 2026-09-28, beside the per-role second
+ * factor and the minimum password length — all three saved, displayed, and
+ * applied by no code at all.
+ */
+test("how long a session may sit idle is the business's own number", async () => {
+  // A day, which the guard turns into minutes.
+  const saved = await putPolicy({ sessionDays: 1 });
+  expect(saved.status).toBe(200);
+  forgetSessionLength(orgId);
+  expect(await idleMinutesFor(orgId)).toBe(24 * 60);
+
+  /*
+   * And bounded by what the product can honour.
+   *
+   * The clamp allowed a year, and the library's own session ceiling is
+   * thirty days — so anything above that was a figure on the screen nothing
+   * could deliver, which is the shape of the bug this setting was.
+   */
+  const tooLong = await putPolicy({ sessionDays: 400 });
+  const { policy } = (await tooLong.json()) as {
+    policy: { sessionDays: number | null };
+  };
+  expect(policy.sessionDays).toBe(30);
+
+  // Cleared, and the default returns rather than the last number lingering.
+  const cleared = await putPolicy({ sessionDays: null });
+  expect(cleared.status).toBe(200);
+  forgetSessionLength(orgId);
+  expect(await idleMinutesFor(orgId)).toBe(DEFAULT_IDLE_MINUTES);
+});
+
+/**
+ * And it actually signs somebody out.
+ *
+ * The number being stored and read is half of it; the half that matters is a
+ * request being refused. Driven by ageing the session row rather than by
+ * waiting, which is the only way to test a thirty-minute rule in a suite that
+ * runs in a second.
+ */
+test("a session idle past the business's window is refused", async () => {
+  const [mine] = await db
+    .select({
+      token: schema.session.token,
+      updatedAt: schema.session.updatedAt,
+    })
+    .from(schema.session)
+    .where(eq(schema.session.userId, ownerId))
+    .orderBy(desc(schema.session.createdAt))
+    .limit(1);
+  if (!mine) throw new Error("the owner has no session to age");
+
+  // The default, which is what every instance had whatever it set.
+  await putPolicy({ sessionDays: null });
+  forgetSessionLength(orgId);
+
+  const anHourAgo = new Date(Date.now() - 60 * 60_000);
+  await db
+    .update(schema.session)
+    .set({ updatedAt: anHourAgo })
+    .where(eq(schema.session.token, mine.token));
+
+  const out = await app.request("http://localhost/api/users", { headers });
+  expect(out.status).toBe(401);
+  expect(((await out.json()) as { error: string }).error).toContain(
+    "30 minutes",
+  );
+
+  /*
+   * And there is no special door back, because none is needed.
+   *
+   * The second-factor rule beside this one keeps two routes reachable, since
+   * signing in again does not give somebody a factor they have not set up.
+   * An idle timeout is not that: being signed out is not being locked out,
+   * and the way back is the way in. So the policy screen is refused too while
+   * the session is stale, and answers the moment somebody signs in.
+   */
+  const staleAttempt = await app.request("http://localhost/api/users/policy", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ sessionDays: 7 }),
+  });
+  expect(staleAttempt.status).toBe(401);
+
+  // Signing in again, which is all an idle timeout ever asks of anybody.
+  await db
+    .update(schema.session)
+    .set({ updatedAt: new Date() })
+    .where(eq(schema.session.token, mine.token));
+
+  const widened = await app.request("http://localhost/api/users/policy", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ sessionDays: 7 }),
+  });
+  expect(widened.status).toBe(200);
+  forgetSessionLength(orgId);
+
+  // An hour idle again, and now it is well inside the week they asked for.
+  await db
+    .update(schema.session)
+    .set({ updatedAt: anHourAgo })
+    .where(eq(schema.session.token, mine.token));
+
+  const back = await app.request("http://localhost/api/users", { headers });
+  expect(back.status).toBe(200);
+
+  // Put the clock back, so the tests after this one have a live session.
+  await db
+    .update(schema.session)
+    .set({ updatedAt: new Date() })
+    .where(eq(schema.session.token, mine.token));
+  await putPolicy({ sessionDays: null });
+  forgetSessionLength(orgId);
 });

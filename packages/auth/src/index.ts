@@ -317,7 +317,28 @@ export const auth = betterAuth({
    * itself out from under whoever was using it.
    */
   session: {
-    expiresIn: 30 * 60,
+    /*
+     * The ceiling, not the clock.
+     *
+     * This was thirty minutes, and because the library refreshes a session on
+     * use it *was* the idle window — for every instance, whatever a business
+     * had set on its own Authentication screen. "Stay signed in for" was
+     * saved, displayed and read by nothing.
+     *
+     * One number read once at startup cannot be a business's decision, and
+     * the session cookie's lifetime comes from the same number — so a longer
+     * window set here would hand out a cookie that outlived nothing. The
+     * business's own figure is enforced per request in `requireSession`
+     * (`hono.ts`, `idleRefusal`), which can read it, can be changed without
+     * a restart, and is where HIPAA's own timeout already lives.
+     *
+     * Thirty days because that is the longest the setting allows, so this
+     * never cuts a session shorter than the business asked for. It still
+     * bounds anything that does not pass through our own middleware — the
+     * library's own endpoints under `/api/auth`, which is where a password
+     * is changed — so an abandoned session cannot live for ever.
+     */
+    expiresIn: 30 * 24 * 60 * 60,
     updateAge: 60,
   },
   databaseHooks: {

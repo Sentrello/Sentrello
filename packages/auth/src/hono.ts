@@ -1,6 +1,7 @@
 import { and, asActor, db, eq, schema } from "@sentrello/db";
 import {
   hipaaRulesFor,
+  idleMinutesFor,
   rolesNeedingTwoFactor,
 } from "@sentrello/db/security-events";
 import type { SentrelloEnv, SentrelloSession } from "@sentrello/module-sdk";
@@ -79,12 +80,62 @@ export function requireSession() {
      * do not.
      */
     const refusal =
+      (await idleRefusal(session)) ??
       (await hipaaRefusal(session, c.req.path)) ??
       (await secondFactorRefusal(session, c.req.path));
     if (refusal) return c.json({ error: refusal.error }, refusal.status);
 
     await asActor(session.user.id, () => next());
   });
+}
+
+/**
+ * Signed out after however long this business decided, not after thirty
+ * minutes regardless.
+ *
+ * "Stay signed in for" has been on the Authentication screen, in days, saved
+ * and validated, since the Users module shipped — and nothing read it. The
+ * library was configured with a thirty-minute rolling window and that is what
+ * every instance got, so a business that chose thirty days was signed out
+ * every half hour with the number it picked on the screen in front of it.
+ * Found 2026-09-28.
+ *
+ * It is enforced here rather than in the library's own `expiresIn`, which is
+ * one number read once at startup: it cannot be a business's decision, and
+ * the cookie's lifetime comes from the same number, so a longer session set
+ * that way would outlive the cookie carrying it. The library's number is now
+ * the ceiling — thirty days, the longest this setting allows — and this is
+ * the clock.
+ *
+ * HIPAA mode's own timeout still runs beside this and wins where it is
+ * shorter, because a safeguard a business switched on for its records is not
+ * something a session preference may relax.
+ */
+async function idleRefusal(session: {
+  session: { activeOrganizationId?: string | null; updatedAt?: Date | string };
+}): Promise<{ error: string; status: 401 } | null> {
+  const orgId = session.session.activeOrganizationId;
+  if (!orgId) return null;
+
+  /*
+   * Absent `updatedAt` is not treated as "idle for ever", for the reason the
+   * HIPAA check below gives: a session shape without the field would sign
+   * everybody out on every request, and the failure would look like the
+   * safeguard working.
+   */
+  if (!session.session.updatedAt) return null;
+
+  const minutes = await idleMinutesFor(orgId);
+  const idleMs = Date.now() - new Date(session.session.updatedAt).getTime();
+  if (idleMs <= minutes * 60_000) return null;
+
+  return {
+    error:
+      minutes >= 24 * 60
+        ? `signed out after ${Math.round(minutes / (24 * 60))} day${minutes >= 48 * 60 ? "s" : ""} of inactivity`
+        : `signed out after ${minutes} minutes of inactivity`,
+    status: 401,
+  };
 }
 
 /**
