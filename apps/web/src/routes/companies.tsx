@@ -49,13 +49,19 @@ import {
   muted,
 } from "../lib/ui";
 import { CompanyForm } from "./company-form";
-import { HistoryPanel } from "./contact-detail";
+import { HistoryPanel, Notes } from "./contact-detail";
 
 interface Related {
   company: Company;
   contacts: { id: string; name: string; title: string | null }[];
   deals: { id: string; name: string; stage: string; amountCents: number }[];
-  notes: { id: string; text: string; createdAt: string }[];
+  notes: {
+    id: string;
+    text: string;
+    createdAt: string;
+    /** Whatever was attached to it; the panel draws them. */
+    attachments: { name: string; path: string; size: number }[] | null;
+  }[];
   tasks: Task[];
 }
 
@@ -381,7 +387,7 @@ export function CompanyDetail() {
   if (error) return <ErrorNote error={error} />;
   if (!data) return null;
 
-  const { company, contacts, deals, tasks } = data;
+  const { company, contacts, deals, notes, tasks } = data;
   const open = deals.filter((d) => !CLOSED.has(d.stage));
   const inFlight = open.reduce((sum, d) => sum + d.amountCents, 0);
 
@@ -546,6 +552,16 @@ export function CompanyDetail() {
           emptyText="Nothing outstanding for this company."
         />
       </Card>
+
+      {/*
+       * What somebody wrote about the account.
+       *
+       * Fetched, typed and then dropped at the destructure, so a note
+       * recorded against a company was kept and never shown again — and the
+       * published page says a note can go on a contact or a company. The
+       * routes were general all along; the panel was not.
+       */}
+      <Notes entityType="company" entityId={company.id} notes={notes} />
 
       <CustomValues
         fields={settings.customFields.filter((f) => f.appliesTo === "company")}

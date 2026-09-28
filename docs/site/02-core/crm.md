@@ -79,9 +79,15 @@ the moment they say yes.
 
 ## Notes, activities and tasks
 
-Against any contact or company you can record a **note** (something that
-happened), an **activity** (a call, a meeting, an email) and a **task**
-(something to do, with a date). Overdue tasks show on the dashboard.
+Against any contact you can record a **note** (something that happened), an
+**activity** (a call, a meeting, an email) and a **task** (something to do,
+with a date). Overdue tasks show on the dashboard.
+
+A company takes notes and tasks — "renew the retainer", "chase the PO" — which
+belong to the account rather than to whoever answered the phone that day. An
+activity is a thing that happened with a person, so it hangs off the contact;
+the company page gathers its people's history into one column, which is the
+same question asked the useful way round.
 
 ## Importing
 

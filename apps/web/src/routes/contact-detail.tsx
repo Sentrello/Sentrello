@@ -193,22 +193,41 @@ function Attach({ noteId, onDone }: { noteId: string; onDone: () => void }) {
   );
 }
 
-function Notes({
-  contactId,
+/**
+ * Notes on a record, whichever kind of record it is.
+ *
+ * It took a `contactId` and posted `entityType: "contact"`, so the company
+ * page — which fetches its notes, types them, and receives them — dropped
+ * them on the floor at the destructure and drew nothing. A note somebody
+ * wrote against an account was kept and never shown again, and the published
+ * page says you can record one against a contact *or a company*. Found
+ * 2026-09-28.
+ *
+ * The routes were general all along; only this was not.
+ */
+export function Notes({
+  entityType = "contact",
+  entityId,
   notes,
-}: { contactId: string; notes: Related["notes"] }) {
+}: {
+  entityType?: "contact" | "company";
+  entityId: string;
+  notes: Related["notes"];
+}) {
   const qc = useQueryClient();
   const [text, setText] = useState("");
   const settle = () =>
-    qc.invalidateQueries({ queryKey: ["contact-related", contactId] });
+    qc.invalidateQueries({
+      queryKey: [`${entityType}-related`, entityId],
+    });
 
   const add = useMutation({
     mutationFn: () =>
       api("/api/notes", {
         method: "POST",
         body: JSON.stringify({
-          entityType: "contact",
-          entityId: contactId,
+          entityType,
+          entityId,
           text,
         }),
       }),
@@ -553,7 +572,7 @@ export function ContactDetail() {
             </div>
           </Card>
 
-          <Notes contactId={contact.id} notes={notes} />
+          <Notes entityId={contact.id} notes={notes} />
         </div>
 
         <div className="flex flex-col gap-(--gap-stack)">
