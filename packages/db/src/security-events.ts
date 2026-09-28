@@ -157,6 +157,15 @@ export type SecurityAction =
   | "seo.account.connected"
   | "seo.account.disconnected"
   /**
+   * The key an outside AI agent uses to read a business's search data.
+   *
+   * It is a credential that answers for the whole module without a session
+   * behind it, so both ends of its life are worth a line: when one was made,
+   * and when somebody took it back.
+   */
+  | "seo.agent-key.issued"
+  | "seo.agent-key.revoked"
+  /**
    * A CRM webhook endpoint, added or removed — the same question as the link
    * ones: who sent our customer records there, and when.
    */
@@ -208,6 +217,8 @@ export const ACTION_TEXT: Record<SecurityAction, string> = {
   "links.webhook.deleted": "removed an outbound webhook for link events",
   "seo.account.connected": "connected a search-data account",
   "seo.account.disconnected": "removed the search-data account",
+  "seo.agent-key.issued": "issued a key for an AI agent to read search data",
+  "seo.agent-key.revoked": "revoked the AI agent\u2019s key for search data",
   "crm.webhook.created": "added an outbound webhook for record changes",
   "crm.webhook.deleted": "removed an outbound webhook for record changes",
   "crm.contacts.merged": "merged two contacts into one",

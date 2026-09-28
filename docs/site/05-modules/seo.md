@@ -62,6 +62,32 @@ This earns us nothing. It exists on purpose: an agency large enough to hit a
 provider's minimum deposit is exactly the one that would object to its clients'
 keywords transiting somebody else's server.
 
+## Your own AI agent, reading your own data
+
+There is a third way to use this module, and it is the one people get most out
+of: hand an AI agent a key and let it read everything these screens show.
+
+The module speaks the **Model Context Protocol**, which is what an agent — in
+your editor, in a terminal, wherever you run one — already knows how to talk
+to. Point it at your instance, paste the key, and ask it plainly. *Which
+keywords slipped this month?* *Draft a post about the three we rank fourth for.*
+*What has rank tracking cost me since June?* It has the keywords, the history,
+the last crawl, the AI-visibility answers and the bill, so it answers from your
+data rather than from a guess.
+
+Two decisions are yours, on the Search settings screen:
+
+**The key.** One per business, made with a button and shown exactly once —
+there is nowhere to read it back from, which is the point. Lose it and you make
+another; the old one stops the moment you do. Revoke it and every agent holding
+it stops at its next request.
+
+**Whether it may spend.** Reading costs nothing and is on from the start.
+Looking up brand-new keywords or checking today's positions buys data from the
+provider, and an agent does not pause to look at a price the way a person does
+— so that is off until you turn it on, and your monthly limit still applies
+either way.
+
 ## What the module does
 
 - **Keyword research.** Ideas, volume, difficulty and intent, in a saved
@@ -76,6 +102,7 @@ keywords transiting somebody else's server.
   full list on demand. Any domain, not only your own
 - **AI visibility**, meaning whether the models answering questions about your
   trade mention you
+- **A connection for your own AI agent**, read-only until you say otherwise
 - **White-label client reports**, frozen when made, shared by a revocable link,
   with no account for the client to create
 - **A monthly spending cap.** It refuses before spending rather than erroring
