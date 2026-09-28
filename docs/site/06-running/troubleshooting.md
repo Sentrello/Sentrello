@@ -126,10 +126,21 @@ wrong place entirely.
 
 ## Everything is slow
 
-Look at memory first. Sentrello itself is modest, holding around 100MB, but
-PostgreSQL is sized at install time from the machine it found. Give the server
-less memory afterwards, or add other things to it, and the database is working
-from numbers that no longer describe the machine.
+Look at memory first, and give it more room than feels necessary. Sentrello
+idles at roughly 250MB, and a few screens — the journal, a long activities
+list, a trial balance over several years — read what they are reporting on
+into memory before they answer, so a single request on a business with years
+of history can want several times that for a few seconds. On a 1GB server
+that is what runs out, and the way it shows is the whole instance restarting
+with nothing on screen to say why.
+
+Swap is the cheap insurance: 2GB of it turns an out-of-memory kill into a
+slow page. Past a few hundred orders a month, 2GB of memory is the honest
+recommendation rather than the minimum.
+
+PostgreSQL is a separate matter and is sized at install time from the machine
+it found. Give the server less memory afterwards, or add other things to it,
+and the database is working from numbers that no longer describe the machine.
 
 ## One page says a query took too long
 

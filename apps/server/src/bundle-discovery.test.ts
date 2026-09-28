@@ -345,3 +345,38 @@ test("a module the licence never loaded is not migrated at all", async () => {
   expect(seen).toEqual(["/tmp/shop"]);
   expect(failedBundles).toHaveLength(0);
 });
+
+/**
+ * The shape the documentation promises a third-party module.
+ *
+ * The extensibility page tells somebody to write a module, and until now told
+ * them nothing about what a module *is* on disk or how an instance finds one.
+ * `SENTRELLO_BUNDLES_DIR` appeared in no published page and in no example
+ * environment file, so the only way to learn the contract was to read the
+ * loader — which is not extensibility, it is a puzzle.
+ *
+ * Pinned to the page, so the next change to either is a change to both.
+ */
+test("the published bundle contract is the one the loader implements", async () => {
+  const loader = await Bun.file(
+    `${import.meta.dir}/optional-modules.ts`,
+  ).text();
+  const page = await Bun.file(
+    `${import.meta.dir}/../../../docs/site/03-platform/02-extensible.md`,
+  ).text();
+  const example = await Bun.file(
+    `${import.meta.dir}/../../../.env.example`,
+  ).text();
+
+  // Where bundles come from, named in both published places.
+  expect(loader).toContain("SENTRELLO_BUNDLES_DIR");
+  expect(page).toContain("SENTRELLO_BUNDLES_DIR");
+  expect(example).toContain("SENTRELLO_BUNDLES_DIR");
+
+  // And what one has to contain: an entry point and a manifest that may name
+  // the Core version it needs.
+  expect(loader).toContain("/src/index.ts");
+  expect(page).toContain("src/index.ts");
+  expect(loader).toContain("sentrelloCore");
+  expect(page).toContain("sentrelloCore");
+});

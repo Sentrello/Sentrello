@@ -113,6 +113,34 @@ load it into Core, and license and sell it on whatever terms you like. Core
 stays AGPL, so changes to Core remain copyleft, but the module belongs to
 whoever wrote it.
 
-The SDK is published from the same public repository as the free core, so the
-contract you build against is the contract the free modules use. There is no
-private extension API.
+The SDK lives in the same public repository as the free core, so the contract
+you build against is the contract the free modules use. There is no private
+extension API.
+
+**It is not on a package registry yet.** Today you depend on it from a
+checkout — the free modules in that repository are the worked examples, and
+they import exactly what you would. When it is published, the import in your
+module will not change.
+
+### What a module has to be
+
+A directory. Inside it, a `package.json` and a `src/index.ts` whose default
+export is a `SentrelloModule`:
+
+```
+my-module/
+  package.json      # "sentrelloCore": ">=1.0.0" if it needs a minimum
+  src/index.ts      # export default defineModule({ ... })
+```
+
+Point the instance at the directory that holds it:
+
+```
+SENTRELLO_BUNDLES_DIR=/srv/sentrello/bundles
+```
+
+Every directory in there is loaded at startup. A bundle that names a Core
+version newer than the one running is skipped with that said out loud rather
+than half-loaded, and a bundle that throws on import is named on `/healthz`
+and on the settings screen — so a module that did not load looks like a module
+that did not load, rather than like a missing feature.
