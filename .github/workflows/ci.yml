@@ -1,0 +1,60 @@
+name: ci
+# The same triggers as the other three repositories, which were tidied and
+# this one was not.
+#
+# `push` with no filter beside `pull_request` runs CI twice for every commit
+# on a branch with a pull request open — and again for every tag, over a
+# commit that passed on `main` minutes earlier. Fifty-one runs on
+# 26 September, for about twenty commits. Free on a public repository and
+# still noise: a queue of duplicate runs is a slower answer to the question
+# somebody is actually waiting on.
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["**/*.md", "docs/**", "LICENSE"]
+  pull_request:
+    paths-ignore: ["**/*.md", "docs/**", "LICENSE"]
+  # For asking the question on purpose.
+  workflow_dispatch:
+# One run per branch. A second push supersedes the first rather than
+# paying for both — a 66-minute job left running for a commit nobody
+# will ever look at again is the shape of an Actions bill.
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # A hung job is billed like a working one.
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env: { POSTGRES_USER: sentrello, POSTGRES_PASSWORD: sentrello, POSTGRES_DB: sentrello }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U sentrello" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://sentrello:sentrello@localhost:5432/sentrello
+      BETTER_AUTH_SECRET: ci-secret-not-used-outside-ci-0123456789abcdef
+      SENTRELLO_BASE_URL: http://localhost:3000
+      SENTRELLO_INSTANCE_ID: ci-instance
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with: { bun-version: 1.3.14 }
+      - run: bun install
+      # No licence key or token: nothing here needs one. The suite trusts
+      # only the keys built into the core, and every test that exercises a
+      # signed token generates its own throwaway keypair. This runs on Free.
+      - run: bun run lint
+      - run: bun run typecheck
+      - run: bun run db:migrate
+      - run: bun test
+      # On its own, because these need the organizations table empty and Bun
+      # runs the files at the same time. The reasoning is in the file.
+      - run: bun test ./packages/auth/src/bootstrap-claim.alone.ts
+      - run: bun run build:web

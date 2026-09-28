@@ -1,0 +1,14 @@
+{
+  "name": "@sentrello/module-money",
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@sentrello/module-sdk": "*",
+    "@sentrello/module-invoicing": "*",
+    "@sentrello/module-accounting": "*"
+  },
+  "license": "AGPL-3.0-or-later"
+}

@@ -1,0 +1,50 @@
+{
+  "name": "@sentrello/db",
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./archive": "./src/archive.ts",
+    "./money": "./src/money.ts",
+    "./tax": "./src/tax.ts",
+    "./ca-tax": "./src/ca-tax.ts",
+    "./currency": "./src/currency.ts",
+    "./crm": "./src/crm.ts",
+    "./ledger": "./src/ledger.ts",
+    "./sale-place": "./src/sale-place.ts",
+    "./list-query": "./src/list-query.ts",
+    "./numbering": "./src/numbering.ts",
+    "./orm": "./src/orm.ts",
+    "./testing": "./src/testing.ts",
+    "./ssl": "./src/ssl.ts",
+    "./module-migrations": "./src/module-migrations.ts",
+    "./portal": "./src/portal.ts",
+    "./documents": "./src/documents.ts",
+    "./payments": "./src/payments.ts",
+    "./modules": "./src/modules.ts",
+    "./consent": "./src/consent.ts",
+    "./security-events": "./src/security-events.ts",
+    "./lockout": "./src/lockout.ts",
+    "./record-events": "./src/record-events.ts",
+    "./timezone": "./src/timezone.ts",
+    "./subscriptions": "./src/subscriptions.ts",
+    "./credit": "./src/credit.ts",
+    "./tax-regimes": "./src/tax-regimes.ts",
+    "./customer-credit": "./src/customer-credit.ts",
+    "./erasure": "./src/erasure.ts",
+    "./retention": "./src/retention.ts",
+    "./membership": "./src/membership.ts"
+  },
+  "scripts": {
+    "migrate": "bun run src/migrate.ts"
+  },
+  "dependencies": {
+    "@sentrello/module-sdk": "*",
+    "drizzle-orm": "^0.45.0",
+    "postgres": "^3.4.0"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.30.0"
+  },
+  "license": "AGPL-3.0-or-later"
+}

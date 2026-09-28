@@ -1,0 +1,2 @@
+ALTER TABLE "invoicing_settings" ADD COLUMN "payment_term_options" jsonb DEFAULT '[{"label":"Due on receipt","days":0},{"label":"Net 7","days":7},{"label":"Net 14","days":14},{"label":"Net 30","days":30},{"label":"Net 60","days":60}]'::jsonb NOT NULL;--> statement-breakpoint
+ALTER TABLE "invoicing_settings" ADD COLUMN "units" jsonb DEFAULT '["piece","hour","day","week","month","kg","m","lump sum"]'::jsonb NOT NULL;

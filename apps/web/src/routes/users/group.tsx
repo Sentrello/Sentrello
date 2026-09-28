@@ -1,0 +1,363 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { api, may } from "../../lib/api";
+import { useNavigation, useRecordTitle } from "../../lib/navigation";
+import {
+  Card,
+  ConfirmButton,
+  Empty,
+  ErrorNote,
+  Loading,
+  MenuItem,
+  Page,
+  REFUSED,
+  SectionHeading,
+  Tabs,
+  activeTab,
+  formatDate,
+  muted,
+} from "../../lib/ui";
+import { AccessMatrix, type Grant } from "./access-matrix";
+import type { GroupRow } from "./groups";
+import { tabFromSearch } from "./person";
+import { policyLabel } from "./policy-ui";
+
+/**
+ * One group: who is in it, what it carries, and what has happened to it.
+ *
+ * It has three tabs
+ * — Members, Access, Activity — where the old `Groups` component
+ * (`user-groups.tsx`) drew all of it in one row that expanded in place. No
+ * Details tab: renaming and deleting stayed on `groups.tsx`'s list, the same
+ * place `policies.tsx` keeps deleting a policy.
+ *
+ * There is no `GET /api/users/groups/:id` — the list route is the only one,
+ * so this reads the same `["user-groups"]` list `groups.tsx` already caches
+ * and finds its own row in it, the way the old expanding row did too.
+ */
+
+const TABS = [
+  { id: "members", label: "Members" },
+  { id: "access", label: "Access" },
+  { id: "activity", label: "Activity" },
+];
+
+interface PolicyRow {
+  role: string;
+  builtIn: boolean;
+  kind: "user" | "group" | "custom";
+  allows: Record<string, string[]>;
+}
+
+interface PersonRow {
+  userId: string;
+  name: string;
+  email: string;
+}
+
+interface Event {
+  id: string;
+  at: string;
+  actor: string | null;
+  subject: string | null;
+  says: string;
+}
+
+export function GroupDetail() {
+  const { current } = useNavigation();
+  const id = current.recordId;
+  const [tabId, setTabId] = useState(() =>
+    tabFromSearch(window.location.search),
+  );
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["user-groups"],
+    queryFn: () => api<{ groups: GroupRow[] }>("/api/users/groups"),
+  });
+  const group = data?.groups.find((g) => g.id === id);
+
+  useRecordTitle(group?.name);
+
+  if (!id) return <Empty title="No group selected" />;
+  if (isLoading) return <Loading />;
+  if (error) return <ErrorNote error={error} />;
+  if (!group) return <Empty title="Group not found" />;
+
+  const shown = activeTab(TABS, tabId) ?? TABS[0];
+
+  const changeTab = (next: string) => {
+    setTabId(next);
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", next);
+    window.history.replaceState({}, "", url);
+  };
+
+  return (
+    <Page>
+      <Tabs tabs={TABS} active={tabId} onChange={changeTab} />
+      {shown?.id === "members" ? <Members group={group} /> : null}
+      {shown?.id === "access" ? <Access group={group} /> : null}
+      {shown?.id === "activity" ? <Activity groupId={group.id} /> : null}
+    </Page>
+  );
+}
+
+/** Who is in it, and adding or removing somebody. */
+function Members({ group }: { group: GroupRow }) {
+  const qc = useQueryClient();
+
+  /*
+   * Everybody, for the "add somebody" list.
+   *
+   * Its own request rather than the paged one the People list uses: a picker
+   * that cannot find the two-hundredth person is a picker that cannot put
+   * them in a group. Two hundred is the server's own ceiling, so past it the
+   * comment above was describing a problem this request still had — the
+   * two-hundred-and-first person was absent, with nothing saying so.
+   *
+   * The count comes back too, so the list can at least admit it is short.
+   * `RecordPicker` searching the server is the fuller answer and changes the
+   * control, which is its own change.
+   */
+  const people = useQuery({
+    queryKey: ["users", "for-groups"],
+    queryFn: () =>
+      api<{ people: PersonRow[]; total: number }>("/api/users?perPage=200"),
+  });
+
+  const settle = () => qc.invalidateQueries({ queryKey: ["user-groups"] });
+
+  const join = useMutation({
+    mutationFn: (userId: string) =>
+      api(`/api/users/groups/${group.id}/members`, {
+        method: "POST",
+        body: JSON.stringify({ userId }),
+      }),
+    onSuccess: settle,
+  });
+
+  const leave = useMutation({
+    mutationFn: (userId: string) =>
+      api(`/api/users/groups/${group.id}/members/${userId}`, {
+        method: "DELETE",
+      }),
+    onSuccess: settle,
+  });
+
+  if (people.isLoading) return <Loading />;
+  if (people.error) return <ErrorNote error={people.error} />;
+
+  const everybody = people.data?.people ?? [];
+  const inGroup = new Set(group.members.map((m) => m.userId));
+  const others = everybody.filter((p) => !inGroup.has(p.userId));
+  /** More people exist than were fetched, so "not listed" is not "not here". */
+  const someoneMissing = (people.data?.total ?? 0) > everybody.length;
+
+  return (
+    <div className="flex flex-col gap-(--gap-stack)">
+      <Card>
+        <SectionHeading>In {group.name}</SectionHeading>
+        {group.members.length === 0 ? (
+          <p className="text-sm" style={muted}>
+            Nobody yet.
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-(--gap-tight) text-sm">
+            {group.members.map((m) => (
+              <li key={m.userId} className="flex items-center justify-between">
+                <span>{m.name || m.email}</span>
+                <ConfirmButton
+                  danger
+                  needs={{ settings: ["update"] }}
+                  disabled={leave.isPending}
+                  title={`Take ${m.name || m.email} out of ${group.name}?`}
+                  message="Everything this group grants goes with it. Anything they hold through their own policy, or through another group, stays."
+                  confirmLabel="Take them out"
+                  onConfirm={() => leave.mutate(m.userId)}
+                >
+                  Remove
+                </ConfirmButton>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      {others.length > 0 ? (
+        <Card>
+          <SectionHeading
+            hint={
+              someoneMissing
+                ? `${everybody.length} of ${people.data?.total} shown — somebody further down will not be here yet`
+                : undefined
+            }
+          >
+            Add somebody
+          </SectionHeading>
+          <ul className="flex flex-col gap-(--gap-tight) text-sm">
+            {others.map((p) => (
+              <li key={p.userId} className="flex items-center justify-between">
+                <span>{p.name || p.email}</span>
+                {/* Adding asks nothing: it grants, and the way back is the
+                    Remove beside their name once they are in. */}
+                <MenuItem
+                  className="text-xs link-muted w-auto p-0"
+                  needs={{ settings: ["update"] }}
+                  disabled={join.isPending}
+                  onClick={() => join.mutate(p.userId)}
+                >
+                  Add
+                </MenuItem>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
+
+      {join.error ? <ErrorNote error={join.error} /> : null}
+      {leave.error ? <ErrorNote error={leave.error} /> : null}
+    </div>
+  );
+}
+
+/** What this group carries, and what that resolves to. */
+/**
+ * What the group's policies add up to, resolved by the server.
+ *
+ * This screen used to compute the union in the browser from
+ * `GET /api/users/roles`, which made it a second implementation of what
+ * `resolveAccess` does for a person. The role-precedence rule inside that
+ * union was corrected three separate times on this branch, each time in one
+ * place and not the others, so a copy in a language the server cannot check
+ * was the last place it should live. `GET /api/users/groups/:id/access` is
+ * the same union, asked once.
+ */
+function GroupAccess({ groupId }: { groupId: string }) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["group-access", groupId],
+    queryFn: () =>
+      api<{ grants: Grant[] }>(
+        `/api/users/groups/${encodeURIComponent(groupId)}/access`,
+      ),
+  });
+
+  if (isLoading) return <Loading />;
+  if (error) return <ErrorNote error={error} />;
+  return <AccessMatrix grants={data?.grants ?? []} />;
+}
+
+function Access({ group }: { group: GroupRow }) {
+  const qc = useQueryClient();
+  const maySet = may("settings", "update");
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["users-policies"],
+    queryFn: () => api<{ roles: PolicyRow[] }>("/api/users/roles"),
+  });
+
+  const setRoles = useMutation({
+    mutationFn: (next: string[]) =>
+      api(`/api/users/groups/${group.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ roles: next }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["user-groups"] }),
+  });
+
+  if (isLoading) return <Loading />;
+  if (error) return <ErrorNote error={error} />;
+  const known = data?.roles ?? [];
+
+  return (
+    <div className="flex flex-col gap-(--gap-stack)">
+      <Card>
+        <SectionHeading>What {group.name} carries</SectionHeading>
+        <div className="flex flex-wrap gap-(--gap-toolbar) text-sm">
+          {known.map((policy) => (
+            <label
+              key={policy.role}
+              className="flex items-center gap-(--gap-tight)"
+            >
+              <input
+                type="checkbox"
+                checked={group.roles.includes(policy.role)}
+                // The change is the write, and a checkbox has no kit
+                // primitive to hang `needs` on. Same question, same words.
+                disabled={setRoles.isPending || !maySet}
+                title={maySet ? undefined : REFUSED}
+                onChange={(e) =>
+                  setRoles.mutate(
+                    e.target.checked
+                      ? [...group.roles, policy.role]
+                      : group.roles.filter((r) => r !== policy.role),
+                  )
+                }
+              />
+              {policyLabel(policy.role)}
+            </label>
+          ))}
+        </div>
+        {setRoles.error ? <ErrorNote error={setRoles.error} /> : null}
+      </Card>
+
+      <GroupAccess groupId={group.id} />
+    </div>
+  );
+}
+
+/**
+ * Everything recorded about this group, which is more than everything whose
+ * subject is one.
+ *
+ * `?group=` rather than `?subject=`: a group's own events name it as their
+ * subject, but joining and leaving name the *person*, because a person is who
+ * joined. Filtering on subject alone showed half the history while looking
+ * complete — an administrator would read this tab and conclude nobody had
+ * ever been added to the group.
+ */
+/** How many of a group's events this tab shows before pointing at the log. */
+const RECENT = 50;
+
+function Activity({ groupId }: { groupId: string }) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["group-activity", groupId],
+    queryFn: () =>
+      // Asked for as a page. Unpaged, this route answers with at most a
+      // thousand rows and a `truncated: true` nothing here read — so a group
+      // with a long history showed part of it as though it were all of it.
+      api<{ events: Event[]; total: number }>(
+        `/api/users/events?group=${encodeURIComponent(groupId)}&page=1&perPage=${RECENT}&sort=at&order=desc`,
+      ),
+  });
+
+  if (isLoading) return <Loading />;
+  if (error) return <ErrorNote error={error} />;
+
+  const events = data?.events ?? [];
+  if (events.length === 0) return <Empty title="Nothing recorded yet" />;
+
+  return (
+    <Card>
+      <ul className="flex flex-col gap-(--gap-tight) text-sm">
+        {events.map((e) => (
+          <li key={e.id}>
+            <span style={muted}>{formatDate(e.at)}</span>{" "}
+            <strong>{e.actor ?? "someone"}</strong> {e.says}{" "}
+            {/*
+              The subject, which on this tab is the whole point: the group's
+              own events name the group, and a join or leave names the person.
+              Without it the row reads "Owner added to a group" and never says
+              who, on the one screen where who is the question.
+            */}
+            {e.subject ? <strong>{e.subject}</strong> : null}
+          </li>
+        ))}
+      </ul>
+      {(data?.total ?? 0) > events.length ? (
+        <p className="mt-(--gap-toolbar) text-xs" style={muted}>
+          The {events.length} most recent of {data?.total}. The whole log is
+          under Events.
+        </p>
+      ) : null}
+    </Card>
+  );
+}

@@ -1,0 +1,924 @@
+import { registerBootstrapRoutes } from "@sentrello/auth/bootstrap";
+import {
+  activeOrganizationId,
+  mayAccess,
+  mountAuth,
+  requirePermission,
+  requireSession,
+} from "@sentrello/auth/hono";
+import { db, schema } from "@sentrello/db";
+import { instanceCredit } from "@sentrello/db/credit";
+import { PeriodClosedError } from "@sentrello/db/ledger";
+import { runModuleMigrations } from "@sentrello/db/module-migrations";
+import {
+  isEnabled,
+  moduleStates,
+  setModuleEnabled,
+} from "@sentrello/db/modules";
+import { and, eq, sql } from "@sentrello/db/orm";
+import { lastRetentionSweep } from "@sentrello/db/retention";
+import { NAV_TAX_REGIME, taxRegimesFor } from "@sentrello/db/tax-regimes";
+import { UnreadableDateError } from "@sentrello/db/timezone";
+import { mailConfigured } from "@sentrello/email";
+import { startJobs } from "@sentrello/jobs";
+import account from "@sentrello/module-account";
+import archive from "@sentrello/module-archive";
+import crm from "@sentrello/module-crm";
+import dashboard from "@sentrello/module-dashboard";
+import money from "@sentrello/module-money";
+import profile from "@sentrello/module-profile";
+import type { SentrelloEnv, SentrelloModule } from "@sentrello/module-sdk";
+import {
+  allCrawlable,
+  robotsTxt,
+  searchEverything,
+  searchProviders,
+} from "@sentrello/module-sdk";
+import settings from "@sentrello/module-settings";
+import users, { resolveAccess } from "@sentrello/module-users";
+import { Hono } from "hono";
+import {
+  currentLicenseState,
+  currentTokenPresent,
+  refreshLicenseState,
+  resolveLicense,
+} from "./license";
+import { loadModules } from "./loader";
+import { pursueGainedModules } from "./module-acquisition";
+import { serveModuleUi } from "./module-ui";
+import {
+  discoverOptionalModules,
+  failedBundles,
+  migrateLoadedModules,
+  missingEntitledBundles,
+} from "./optional-modules";
+import { serveWeb } from "./static";
+
+const app = new Hono<SentrelloEnv>();
+
+/**
+ * One place that turns a closed accounting period into an answer a business
+ * can read.
+ *
+ * The lock is enforced deep inside `postJournalEntry`, which is what makes it
+ * bind every module rather than the one caller that prompted it — and that is
+ * a long way from the route somebody pressed. Without this, every one of those
+ * routes would need its own try/catch to avoid answering 500 to a rule working
+ * exactly as intended.
+ *
+ * Only the caller's own mistakes are caught here. Every other failure keeps
+ * the behaviour it had.
+ */
+app.onError((err, c) => {
+  if (err instanceof PeriodClosedError) {
+    return c.json({ error: err.message }, 409);
+  }
+  /*
+   * A date that never existed is the caller's mistake too.
+   *
+   * Dates are read deep inside a request — a list filter, a report period, a
+   * query parameter three functions below the route — and `new Date` rolls an
+   * impossible day forward rather than refusing it, so "2026-02-30" would
+   * otherwise land figures in March without anything saying so. The parser
+   * throws; this is the one place that can turn it into an answer, for every
+   * route at once.
+   */
+  if (err instanceof UnreadableDateError) {
+    return c.json({ error: err.message }, 400);
+  }
+  // A body that is not JSON is the caller's mistake, not a crash. The parse
+  // happens inside `c.req.json()` in whichever route was hit, so this is the
+  // one place that can say so for all of them.
+  if (err instanceof SyntaxError) {
+    return c.json({ error: "the request body is not valid JSON" }, 400);
+  }
+  console.error(err);
+  return c.json({ error: "something went wrong" }, 500);
+});
+
+/**
+ * The headers every response carries, unless it has a reason not to.
+ *
+ * None of these were set. The screens a business signs into could be framed by
+ * any site on the internet, which is the whole of clickjacking: an invisible
+ * frame over a page somebody wants you to click, and the click lands on
+ * "delete" or "pay" in a session you are already holding.
+ *
+ * `nosniff` and the referrer policy are set on everything. Nothing here is
+ * improved by a browser guessing a content type, and a full URL in a referrer
+ * leaks invoice and contact ids to whatever a customer clicks through to.
+ *
+ * **The embed surface is exempt from the framing rules, on purpose.** A form
+ * on somebody's public website is the one part of this product designed to be
+ * used from another origin, and `frame-ancestors 'none'` there would break the
+ * feature rather than protect anybody: the page is a form belonging to a
+ * business that chose to publish it, and it carries no session.
+ *
+ * Set only when absent, so a route that has already said something more
+ * specific keeps it — attachment downloads serve `default-src 'none'`, which
+ * is stricter than anything here.
+ *
+ * **HSTS is deliberately not here.** The application cannot tell whether it is
+ * behind TLS — it sees a plain HTTP request from a proxy either way — and
+ * guessing from `x-forwarded-proto` trusts a header the client can forge when
+ * the proxy is misconfigured. The nginx in front of it owns that header, which
+ * is where that trust decision belongs.
+ */
+app.use("*", async (c, next) => {
+  await next();
+  const set = (name: string, value: string) => {
+    if (!c.res.headers.has(name)) c.res.headers.set(name, value);
+  };
+
+  set("x-content-type-options", "nosniff");
+  set("referrer-policy", "strict-origin-when-cross-origin");
+
+  /*
+   * Told, not asked — because robots.txt can be overruled and this cannot.
+   *
+   * A CDN in front of an instance may prepend its own robots.txt to ours.
+   * Cloudflare's does, with `Allow: /` for every agent, and a crawler
+   * resolving that against our `Disallow: /` takes the permissive one: equal
+   * specificity, and Allow wins. our own instance was crawlable for exactly
+   * that reason on the day the file was written.
+   *
+   * A header travels with the response and nothing prepends to it. So the same
+   * registry decides both: a path under a prefix a module published is left
+   * alone, and everything else says no. `/robots.txt` itself is exempt — a
+   * crawler has to be able to read the thing that tells it what to read.
+   */
+  const requested = new URL(c.req.url).pathname;
+  if (requested !== "/robots.txt") {
+    const published = allCrawlable().some(
+      (surface) =>
+        requested === surface.prefix ||
+        requested.startsWith(`${surface.prefix}/`),
+    );
+    if (!published) set("x-robots-tag", "noindex, nofollow");
+  }
+
+  const path = new URL(c.req.url).pathname;
+  const embeddable = path === "/embed.js" || path.startsWith("/api/embed/");
+  if (!embeddable) {
+    set("x-frame-options", "DENY");
+    // The modern spelling, for browsers that stopped reading the old one.
+    set("content-security-policy", "frame-ancestors 'none'");
+  }
+});
+
+mountAuth(app);
+registerBootstrapRoutes(app);
+
+// `state` here is the boot snapshot: right for the one-time decisions below
+// (which bundles this build shipped with, what tier to log and hand the
+// jobs process). Anything a request or a screen reads goes through
+// `currentLicenseState()`/`gate` instead, which follow the hourly refresh.
+const { state, gate } = await resolveLicense();
+
+// Free modules ship in this repo; commercial bundles are discovered at runtime
+// only if installed. The loader then drops any this instance is not entitled to.
+const modules: SentrelloModule[] = [
+  dashboard,
+  crm,
+  money,
+  settings,
+  profile,
+  users,
+  /*
+   * Taking old records off this server. Free, because the business most likely
+   * to fill a disk is the one on the smallest machine, and a business that
+   * cannot archive safely deletes unsafely instead.
+   */
+  archive,
+  // The unified customer account page: no screens of its own, only the
+  // `/account/:token` surface that arranges whatever this instance's other
+  // modules declared with `registerAccountSection`.
+  account,
+  ...(await discoverOptionalModules()),
+];
+const { nav, navVisibility, navPermissions, tiers, loaded, jobs, unmet } =
+  loadModules(app, gate, modules);
+
+/**
+ * Entitled, installed, and held back by something it depends on.
+ *
+ * Reported beside the bundles that would not import, because from a business's
+ * side they are the same fault: a module that was paid for and is not there.
+ * The loader used to skip these in silence, which hid `pro-core`, the Shop and
+ * the POS for weeks after `invoicing` merged into `money` and stopped being a
+ * module anything could depend on.
+ */
+for (const failure of unmet) {
+  failedBundles.push(failure);
+  console.error(`[modules] ${failure.name} did not load: ${failure.reason}`);
+}
+
+/**
+ * And the bundles the licence pays for that are not on this machine at all.
+ *
+ * The two failures above are bundles that arrived and went wrong. This is the
+ * quieter one: the installer did not unpack a bundle, or unpacked it
+ * somewhere the host is not looking, and until now absence was read as "not
+ * bought" and said nothing — on an instance whose licence says otherwise.
+ * Since the paid half of Bookkeeping lives in `pro-accounting`, that silence
+ * is a customer's recurring invoices not going out, which is revenue quietly
+ * not happening. Reported the same way as a broken bundle — the log, the
+ * health check, the licence screen, the banner — because from the business's
+ * side it is the same fault.
+ */
+for (const failure of missingEntitledBundles(
+  state,
+  modules.map((m) => m.id),
+)) {
+  failedBundles.push(failure);
+  console.error(`[modules] ${failure.name} did not load: ${failure.reason}`);
+}
+
+// A module brings its own tables, and one whose tables will not build is
+// reported as failed rather than left serving. See `migrateLoadedModules`.
+await migrateLoadedModules(modules, loaded, runModuleMigrations);
+
+/**
+ * Baked into the image at build time, so an instance can say what it is
+ * running without anyone needing shell access to the host. "Which version are
+ * you on?" is the first question of every support conversation, and until now
+ * the only way to answer it was `docker inspect`.
+ */
+const VERSION = process.env.SENTRELLO_VERSION ?? "unknown";
+
+/**
+ * Whether the database behind this instance is actually usable.
+ *
+ * /healthz used to answer `ok` without asking the database anything, which is
+ * true right up until it matters. On 2026-08-22 the demo's reset emptied its
+ * database and the migration that should have refilled it was killed part-way
+ * through; /healthz went on answering `ok` for seven hours while every sign-in
+ * returned 500, because nothing it reported had ever read a table.
+ *
+ * `to_regclass` rather than a count: it reads the catalogue, touches no rows,
+ * and distinguishes the two failures worth telling apart — a database that
+ * cannot be reached, and one that answers fine but has nothing in it.
+ */
+async function databaseHealth(): Promise<"ok" | "unmigrated" | "unreachable"> {
+  try {
+    const [row] = await db.execute<{ present: boolean }>(
+      sql`select to_regclass('public.user') is not null as present`,
+    );
+    return row?.present ? "ok" : "unmigrated";
+  } catch {
+    return "unreachable";
+  }
+}
+
+/**
+ * Where to report a vulnerability, at the address a researcher will look.
+ *
+ * RFC 9116. A scanner checks this path, a government procurement questionnaire
+ * asks whether it exists, and a researcher who cannot find a contact address
+ * either gives up or posts publicly — which is the outcome the file prevents.
+ *
+ * Served by the application rather than dropped in a web server's document
+ * root, because every instance of this product is somebody else's server and
+ * none of them will place a file by hand.
+ *
+ * No `Expires` date. RFC 9116 asks for one and it is the field that makes these
+ * files go stale: a date a year out becomes a lie in a year, on thousands of
+ * instances nobody will revisit. The contact address is the part a researcher
+ * needs, and a stale expiry is worse than none because it says the rest cannot
+ * be trusted either.
+ */
+app.get("/.well-known/security.txt", (c) =>
+  c.text(
+    [
+      "Contact: mailto:security@sentrello.com",
+      "Preferred-Languages: en",
+      "Canonical: https://sentrello.com/.well-known/security.txt",
+      "Policy: https://github.com/sentrello/sentrello/blob/main/SECURITY.md",
+      "",
+      "# This is a self-hosted instance. Reports about this particular",
+      "# server should go to whoever runs it; reports about the software",
+      "# itself go to the address above.",
+      "",
+    ].join("\n"),
+    200,
+    { "content-type": "text/plain; charset=utf-8" },
+  ),
+);
+
+/**
+ * What a search engine may take, which on an instance is almost nothing.
+ *
+ * Sentrello is an application behind a sign-in, and until now `/robots.txt`
+ * fell through to the single-page app: a 200 of HTML, which a crawler reads as
+ * *no robots.txt at all* and therefore as permission to index the lot. On our
+ * own hosts nginx sends `X-Robots-Tag` and nothing came of it; a customer
+ * serving their instance on their own domain had no such cover, and the first
+ * they would know is their sign-in page in a search result.
+ *
+ * So everything is refused and the modules that genuinely publish pages — a
+ * storefront, a documentation site — say which prefix. Longest match wins in
+ * robots.txt, so `Disallow: /` with `Allow: /shop` is exactly "the shop and
+ * nothing else".
+ *
+ * The origin comes from the request rather than from configuration, because a
+ * sitemap line has to be absolute and the address nginx used to reach us is
+ * not the one anybody typed.
+ */
+app.get("/robots.txt", (c) => {
+  const host = c.req.header("host");
+  /*
+   * The proxy's word first, then the request's own scheme — not a hardcoded
+   * https. Behind nginx the request arrives over http and the reader is on
+   * https, which is what the forwarded header is for; on an instance served
+   * plainly on a local network there is no proxy and no header, and claiming
+   * https there advertises a sitemap nobody can fetch.
+   */
+  const forwarded = c.req.header("x-forwarded-proto")?.split(",")[0]?.trim();
+  const own = (() => {
+    try {
+      return new URL(c.req.url).protocol.replace(":", "");
+    } catch {
+      return "https";
+    }
+  })();
+  const origin = host ? `${forwarded || own}://${host}` : null;
+  return c.text(robotsTxt(origin), 200, {
+    "content-type": "text/plain; charset=utf-8",
+  });
+});
+
+app.get("/healthz", async (c) => {
+  const database = await databaseHealth();
+  // Read live rather than the boot snapshot, so a licence that lapses shows
+  // up here — where monitoring is watching — within a day, not at restart.
+  const license = currentLicenseState();
+  return c.json({
+    // Monitoring alerts on anything that is not "ok". Still HTTP 200: the
+    // reset script waits on this endpoint before it migrates, so a fresh,
+    // deliberately empty database has to be able to answer.
+    status: database === "ok" ? "ok" : "degraded",
+    database,
+    version: VERSION,
+    tier: license.claims?.tier ?? "free",
+    license_valid: license.valid,
+    modules_loaded: loaded,
+    // Named, not detailed: enough for monitoring to alert on, without
+    // publishing an error message to anyone who can reach /healthz.
+    modules_failed: failedBundles.map((f) => f.name),
+    /*
+     * What the nightly retention sweep last did, because a housekeeping job
+     * that has quietly stopped is how a disk fills anyway — and the person
+     * whose disk it is has no IT department and is not reading logs.
+     *
+     * Counts and an age, never a name from any row: this endpoint is
+     * unauthenticated, the same as `modules_loaded` beside it. Null until a
+     * sweep has run in this process, which after a restart is simply true.
+     * `backlog` at zero is the healthy answer; a number that sits there
+     * across several days, or an `at` that stops moving, is the job not
+     * running.
+     */
+    retention: lastRetentionSweep(),
+  });
+});
+
+const uiModules = serveModuleUi(app, modules, loaded);
+
+/**
+ * `version` is here so the SPA can key module scripts by release.
+ *
+ * A module screen is cached for five minutes with no version in its URL, so
+ * for five minutes after an upgrade a customer can be running the previous
+ * release's screen against the new API. Five minutes of a subtly wrong screen
+ * is a support ticket nobody can reproduce.
+ */
+/**
+ * What this instance is running, for the shell to build itself from.
+ *
+ * Behind a session. It names the version and every module the business
+ * bought, which is the first thing anyone probing an instance wants and none
+ * of it is any use before signing in — the sign-in page reads `/api/_signin`.
+ *
+ * Nav entries a module marked as narrower than the instance are dropped here
+ * rather than hidden in the browser, so an entry somebody is not offered is
+ * genuinely absent from what they are sent.
+ */
+/**
+ * Finding anything, from anywhere.
+ *
+ * One box that asks every module what it can find. Core knows none of them: a
+ * shop's products and a booking's diary reach this list by the same mechanism a
+ * contact does, which is the only way a module in another repository could ever
+ * be searchable at all.
+ *
+ * **Permission is checked before a provider is asked**, not after. Filtering
+ * results afterwards means the rows were read, and the reason somebody may not
+ * see the customer book is usually that they are a contractor with access to
+ * one job.
+ */
+app.get("/api/search", requireSession(), async (c) => {
+  const orgId = activeOrganizationId(c.get("session"));
+  const q = c.req.query("q") ?? "";
+
+  /*
+   * Asked once per distinct requirement rather than once per provider: several
+   * modules want `crm: ["read"]`, and each check is a round trip through the
+   * auth layer. A search box runs on every keystroke.
+   */
+  const answers = new Map<string, Promise<boolean>>();
+  const may = (requires?: Record<string, string[]>) => {
+    if (!requires) return Promise.resolve(true);
+    const key = JSON.stringify(requires);
+    const already = answers.get(key);
+    if (already) return already;
+    const asked = mayAccess(c.req.raw.headers, requires);
+    answers.set(key, asked);
+    return asked;
+  };
+
+  // Resolved first, so the search itself is synchronous about who may see what.
+  const allowed = new Map<string, boolean>();
+  for (const provider of searchProviders()) {
+    const key = JSON.stringify(provider.requires ?? null);
+    if (!allowed.has(key)) allowed.set(key, await may(provider.requires));
+  }
+
+  const hits = await searchEverything({
+    organizationId: orgId,
+    q,
+    limit: 20,
+    may: (requires) => allowed.get(JSON.stringify(requires ?? null)) === true,
+  });
+
+  return c.json({ hits });
+});
+
+app.get("/api/_meta", requireSession(), async (c) => {
+  const session = c.get("session");
+  // Read directly rather than through `activeOrganizationId`, which throws by
+  // design so a business query can never lose its org filter. This is not a
+  // business query: somebody signed in but not yet a member of anything still
+  // needs a shell to look at, and they simply have no modules set up.
+  const orgId = session.session.activeOrganizationId;
+  const states = orgId ? await moduleStates(orgId) : new Map();
+  // Which tax regimes this business operates in, for the nav entries each one
+  // gates below — UK VAT, Canadian tax, US sales tax. Unfiltered, every
+  // business saw every regime's screen regardless of where it traded.
+  const taxRegimes = orgId ? await taxRegimesFor(orgId) : [];
+
+  /**
+   * Whether this person is a member of the organization this session is
+   * pointed at. What they may *do* here is asked of `may` below, not worked
+   * out from this row — see that comment for why reading `member.role` as a
+   * single role name was wrong.
+   */
+  /*
+   * The business's country, for how its figures are punctuated.
+   *
+   * One column, on a route the shell already waits for, rather than a query
+   * of its own on every screen that draws money.
+   */
+  const [business] = orgId
+    ? await db
+        .select({ countryCode: schema.organizations.countryCode })
+        .from(schema.organizations)
+        .where(eq(schema.organizations.id, orgId))
+        .limit(1)
+    : [];
+
+  const [membership] = orgId
+    ? await db
+        .select({ role: schema.member.role })
+        .from(schema.member)
+        .where(
+          and(
+            eq(schema.member.userId, session.user.id),
+            eq(schema.member.organizationId, orgId),
+          ),
+        )
+        .limit(1)
+    : [];
+  /**
+   * Whether this person may open a given screen, asked of the platform's own
+   * permission check rather than worked out here.
+   *
+   * It used to be worked out here: `roles[member.role]` for a compiled role,
+   * and one `organization_role` row looked up by that same string for a
+   * business's own. Both read `member.role` as *one* role name, and it is not
+   * one — `applyRoles` (`packages/modules-free/users/src/roles.ts`) writes it
+   * comma separated the moment somebody is in a group, which on a seeded
+   * instance is most people. `"staff,sales"` matches no compiled role and no
+   * stored row, so both lookups came back empty and the filter fell through
+   * to its "nothing to check against, so the entry stays" branch — which
+   * offered the *whole* sidebar to exactly the people whose roles were
+   * written to keep them out of half of it.
+   *
+   * `hasPermission` splits on the comma and allows a permission any one of
+   * the roles grants (`better-auth/dist/plugins/organization/permission.mjs`),
+   * which is also what `requirePermission` enforces at the route — so the
+   * menu and the route now answer the same question the same way, instead of
+   * two implementations of it drifting apart.
+   *
+   * Asked once per distinct requirement rather than once per entry, the same
+   * memoisation `/api/search` above uses: the nav has a couple of dozen
+   * entries and a handful of distinct requirements between them.
+   */
+  const answers = new Map<string, Promise<boolean>>();
+  const may = (needs: Record<string, string[]>): Promise<boolean> => {
+    const key = JSON.stringify(needs);
+    const already = answers.get(key);
+    if (already) return already;
+    const asked = mayAccess(c.req.raw.headers, needs);
+    answers.set(key, asked);
+    return asked;
+  };
+  /*
+   * With no active organization there is nothing to check a permission
+   * against — `hasPermission` answers false for every question, which would
+   * hand an empty application to the person who has just claimed the
+   * instance. Same rule as the fallback it replaces: hiding a screen from
+   * somebody entitled to it is the worse mistake of the two.
+   */
+  const navAllowed = new Map<string, boolean>();
+  for (const needs of navPermissions.values()) {
+    const key = JSON.stringify(needs);
+    if (!navAllowed.has(key)) {
+      navAllowed.set(key, orgId ? await may(needs) : true);
+    }
+  }
+
+  /**
+   * Somebody signed in who belongs to no business on this instance.
+   *
+   * They are not staff who have lost a permission — they are not staff at all.
+   * sentrello.com creates exactly such an account for every customer who buys
+   * Pro, on the same instance that runs our own books, and the first one of
+   * those was shown the whole sidebar: every screen offered, every route
+   * refusing them after the click.
+   *
+   * So the answer for a member of nothing is nothing, and the shell says so
+   * rather than drawing a menu out of habit.
+   */
+  /**
+   * Any membership at all, not merely one in the active organization: a
+   * session created moments before somebody joined has no active organization
+   * yet, and the first owner's own sign-up is exactly that case. Asking the
+   * narrower question would have shown the person who just claimed the
+   * instance an empty application.
+   */
+  const [anyMembership] = membership
+    ? [membership]
+    : await db
+        .select({ role: schema.member.role })
+        .from(schema.member)
+        .where(eq(schema.member.userId, session.user.id))
+        .limit(1);
+  const belongsHere = Boolean(anyMembership);
+
+  /**
+   * Whether this person is somebody who can act on an instance-level fault.
+   *
+   * The shell shows a banner when a paid module did not start, and it goes to
+   * whoever can open the licence screen it points at. For everyone else it
+   * would be an alarm on every screen, all day, about something they cannot
+   * fix. With no role to check it against, the entry stays — same rule as the
+   * nav above: hiding a fault from somebody entitled to see it is the worse
+   * mistake of the two.
+   */
+  const seesFaults =
+    belongsHere && (!orgId || (await may({ settings: ["read"] })));
+
+  const visible = (belongsHere ? nav : []).filter((item) => {
+    const allowed = navVisibility.get(item.id);
+    if (allowed && !allowed(session)) return false;
+
+    // A tax regime's screen — VAT return, Canadian tax, US sales tax — only
+    // for a business that has said it operates in that regime. The route
+    // behind it is not gated by this: an old filing still computes even after
+    // its regime is turned off, this only decides what the sidebar offers.
+    const regime = NAV_TAX_REGIME.get(item.id);
+    if (regime && !taxRegimes.includes(regime)) return false;
+
+    // A module the licence grants but nobody has set up belongs under Modules
+    // with a way to start, not in the sidebar as a screen that half works.
+    if (
+      tiers.get(item.moduleId) === "module" &&
+      !isEnabled(states, item.moduleId)
+    ) {
+      return false;
+    }
+
+    // And a screen this person cannot open should not be offered. Being
+    // refused after clicking tells somebody twice that they cannot do their
+    // job: once by the error, and once by the menu that suggested otherwise.
+    const needs = navPermissions.get(item.id);
+    if (!needs) return true;
+    return navAllowed.get(JSON.stringify(needs)) === true;
+  });
+
+  /**
+   * What this person may do, for the screens rather than for the menu.
+   *
+   * The sidebar has been permission-aware for a while — every entry above is
+   * filtered by `may`. Inside a screen nothing was: every Delete, every Send,
+   * every Approve was drawn for everybody and the server refused the ones the
+   * policy did not allow. A control that cannot work should not look like one,
+   * which is the same argument as the disabled styling and one level up from
+   * it.
+   *
+   * Resolved in one pass rather than asked per control. `mayAccess` answers
+   * one question and the statement has twenty-one resources with two to five
+   * actions each — eighty questions on every page load, to draw a screen.
+   * `resolveAccess` reads the person's own policy, the roles they hold
+   * unattributed, and every group they are in, and unions the lot once.
+   *
+   * **Two readings of one rule is the shape that has gone wrong here before**,
+   * so `runtime-permissions.test.ts` holds this against `mayAccess` — the
+   * check the routes actually enforce — for every resource and action a
+   * seeded role holds. The fast answer may be fast; it may not be different.
+   */
+  const can: Record<string, string[]> = {};
+  if (orgId && belongsHere) {
+    const { grants } = await resolveAccess(orgId, session.user.id);
+    for (const grant of grants) {
+      const held = can[grant.resource];
+      if (held) held.push(grant.action);
+      else can[grant.resource] = [grant.action];
+    }
+  }
+
+  return c.json({
+    nav: visible,
+    /**
+     * How this business writes a number, which is the whole of the country
+     * code on its settings screen.
+     *
+     * Here rather than with a person's own preferences, because it is not
+     * one: how money is punctuated belongs to the business, the same on
+     * every screen and for everybody signed into it. `en-US` for everybody
+     * wrote a European figure the American way and showed a Canadian
+     * business `CA$` on its own invoices.
+     */
+    countryCode: business?.countryCode ?? "",
+    /**
+     * The actions this person holds, by resource. Absent actions are absent
+     * permissions — a screen reads this to decide what to disable, never to
+     * decide what is safe, which stays the route's job and is enforced there.
+     */
+    can,
+    /**
+     * Paid modules that are not running, for the shell to say so where an
+     * administrator actually looks. A licence screen deep in Settings and a
+     * health endpoint nobody reads were how `pro-core` stayed dark for weeks,
+     * twice. Names only — the same names /healthz already publishes to
+     * anybody; the reasons stay behind the settings permission on
+     * /api/license.
+     */
+    failed: seesFaults ? failedBundles.map((f) => f.name) : [],
+    loaded,
+    /**
+     * Whether this person is part of the business running this instance.
+     *
+     * False for a billing-only account, which exists so somebody can manage
+     * what they pay us and reaches nothing else here. The shell shows them a
+     * way out rather than an empty application.
+     */
+    belongsHere,
+    /**
+     * Where such a person should be instead, when this instance is the one
+     * selling Sentrello. Absent everywhere else, which is every customer's own
+     * server — there is nothing to send them to there.
+     */
+    accountPath: loaded.includes("control-plane") ? "/account" : null,
+    /**
+     * Every optional module this licence allows, and whether it is set up.
+     *
+     * The Modules screen is built from this. It carries the state rather than
+     * only the unused ones, so the screen never has to work out which of the
+     * loaded modules are optional — a guess the browser would get wrong the
+     * first time a Free module was renamed.
+     */
+    modules: loaded
+      .filter((id) => tiers.get(id) === "module")
+      .map((id) => ({
+        id,
+        label: nav.find((n) => n.moduleId === id)?.label ?? id,
+        enabled: isEnabled(states, id),
+      })),
+    ui: uiModules,
+    /**
+     * What this instance is licensed for.
+     *
+     * The screens read it to decide what to offer — Accounting's Pro half, for
+     * one, which is registered on every instance and answered only here. It is
+     * a claim about the instance rather than about the person, so it is safe
+     * for anybody signed in: the routes still gate every request.
+     *
+     * Read live, not from the boot snapshot — a screen still offering a Pro
+     * feature after the licence behind it lapsed is its own bug, distinct
+     * from (and cheaper to avoid than) the 404 the route itself now answers.
+     */
+    tier: currentLicenseState().claims?.tier === "pro" ? "pro" : "free",
+    version: VERSION,
+  });
+});
+
+/**
+ * Turning an optional module on, or putting it away again.
+ *
+ * Turning one off hides it and stops it being offered; it never deletes
+ * anything. A business that switches scheduling off in the winter and back on
+ * in the spring should find its diary where it left it.
+ */
+app.post(
+  "/api/modules/:id",
+  requireSession(),
+  requirePermission({ settings: ["update"] }),
+  async (c) => {
+    const id = c.req.param("id");
+    if (tiers.get(id) !== "module") {
+      // Free modules are the product, not a purchase. A business that could
+      // turn off invoicing would be one support call from an instance that
+      // cannot invoice.
+      return c.json({ error: "that module is not optional" }, 400);
+    }
+    const body = (await c.req.json().catch(() => ({}))) as {
+      enabled?: unknown;
+    };
+    await setModuleEnabled(
+      activeOrganizationId(c.get("session")),
+      id,
+      body.enabled === true,
+    );
+    return c.json({ id, enabled: body.enabled === true });
+  },
+);
+
+/**
+ * What the sign-in page needs before anyone has signed in.
+ *
+ * Only whether mail works, never how it is configured. A password reset on an
+ * instance with no mail set up would tell the only administrator to check an
+ * inbox nothing will arrive in, so the page has to know in advance to offer
+ * the host command instead.
+ *
+ * And the credit at the foot of the page. The sign-in screen is a page a
+ * visitor sees, so it carries the same line every other public page does —
+ * Sentrello's on Free, the business's own or none on Pro. `instanceCredit`
+ * fails safe to ours, so nothing going wrong here can take the branding off
+ * a Free instance's front door.
+ */
+app.get("/api/_signin", async (c) =>
+  c.json({
+    mailConfigured: mailConfigured(),
+    credit: await instanceCredit(gate({ tier: "pro" })),
+  }),
+);
+
+/**
+ * Where to get the source of the thing you are talking to.
+ *
+ * The AGPL's section 13 is the clause that separates it from the GPL: someone
+ * who interacts with this over a network, without ever receiving a copy, is
+ * still owed the corresponding source. Publishing this repository discharges
+ * that for us and for nobody else — **the obligation belongs to whoever is
+ * running the instance**, and a business that has modified it and put it in
+ * front of its customers owes them *its* version, not ours.
+ *
+ * Which is what `SENTRELLO_SOURCE_URL` is for. The default is honest for an
+ * unmodified instance and wrong for a modified one, so the knob is documented
+ * where the operator will meet it rather than left for them to discover they
+ * needed.
+ *
+ * Public on purpose. A clause about people who are not signed in cannot be
+ * satisfied behind a sign-in.
+ */
+app.get("/api/_source", (c) =>
+  c.json({
+    licence: "AGPL-3.0-or-later",
+    source:
+      process.env.SENTRELLO_SOURCE_URL ??
+      "https://github.com/Sentrello/Sentrello",
+    version: process.env.SENTRELLO_VERSION ?? "unknown",
+    modified: Boolean(process.env.SENTRELLO_SOURCE_URL),
+  }),
+);
+
+/**
+ * What this instance is licensed for.
+ *
+ * The first question anyone asks when a feature disappears is "has something
+ * expired?", and until now the only way to answer it was to read a JWT off the
+ * server. Behind a session and the settings permission: it names the licence
+ * and the modules bought, which is not something to hand to the internet.
+ */
+app.get(
+  "/api/license",
+  requireSession(),
+  requirePermission({ settings: ["read"] }),
+  (c) => {
+    // Live, not the boot snapshot: this is the screen somebody opens to ask
+    // "has something expired?", and it must answer for right now.
+    const license = currentLicenseState();
+    const claims = license.claims;
+    const expiresAt =
+      typeof claims?.exp === "number"
+        ? new Date(claims.exp * 1000).toISOString()
+        : null;
+
+    return c.json({
+      tier: claims?.tier ?? "free",
+      valid: license.valid,
+      // A Free instance that never had a token is not a failed verification.
+      // This is what lets the screen keep the warning for the case that
+      // earns one: a token that is present and not verifying.
+      tokenPresent: currentTokenPresent(),
+      // Present when the licence failed to verify, so the screen can say why
+      // rather than only that something is wrong.
+      reason: license.reason ?? null,
+      modules: claims?.modules ?? [],
+      seats: claims?.seats ?? null,
+      instanceId: claims?.instance_id ?? null,
+      // The token is short-lived and refreshed nightly; this is the deadline
+      // for that refresh, not the end of the subscription.
+      tokenExpiresAt: expiresAt,
+      graceUntil: claims?.grace_until ?? null,
+      modulesLoaded: loaded,
+      // Behind the settings permission, so this one carries the reason.
+      failedBundles,
+    });
+  },
+);
+
+// last: everything unclaimed is the SPA
+serveWeb(app);
+
+/**
+ * Whether this process should also run the background queue.
+ *
+ * On by default: an instance that serves screens and never sends an overdue
+ * chase is an instance quietly failing at half its job, and nobody would be
+ * told.
+ *
+ * Off matters when a second process is pointed at a database that already has
+ * one — which is every migration to a new server. The queue itself is safe
+ * under two workers, because a job is claimed atomically and a scheduled job
+ * is a singleton; but a machine being tested before a cutover has no business
+ * sending a customer's email, and "it probably will not" is not the standard
+ * to move production on.
+ */
+const jobsEnabled =
+  (process.env.SENTRELLO_JOBS ?? "on").toLowerCase() !== "off";
+
+// Jobs run only in the real server process, never when a test imports this file.
+if (import.meta.main && jobsEnabled) {
+  // The tier decides whether the overdue chase goes out under Sentrello's name
+  // or the business's own; a job has no request to read the licence from.
+  await startJobs(jobs, {
+    tier: state.claims?.tier === "pro" ? "pro" : "free",
+    // Only reaches anywhere if this instance was asked at install time and
+    // said yes; the job checks that itself.
+    modules: loaded,
+    // After the hourly token refresh (whatever it did or did not fetch), make
+    // the live licence state — and therefore `gate` — reflect what is on
+    // disk now. This is the one line that makes a lapsed licence take effect
+    // without a restart.
+    //
+    // `before` is read first because it is about to become stale: once
+    // `refreshLicenseState` runs, `currentLicenseState()` is `after`. Handing
+    // both to `pursueGainedModules` is what lets a newly bought module fetch
+    // itself — see that file for why comparing the two, rather than asking
+    // what is missing right now, is what keeps it to one request per
+    // purchase.
+    onLicenseRefresh: async () => {
+      const before = currentLicenseState();
+      await refreshLicenseState();
+      await pursueGainedModules(
+        before,
+        currentLicenseState(),
+        modules.map((m) => m.id),
+      );
+    },
+  });
+}
+
+const port = Number(process.env.PORT ?? 3000);
+console.log(
+  `Sentrello on :${port} (tier=${state.claims?.tier ?? "free"}, modules=${loaded.join(",")}${
+    jobsEnabled ? "" : ", jobs=off"
+  })`,
+);
+// On the same line of the log everyone reads first, not only in the errors
+// above it: a bundle that is paid for and absent is the headline, not a detail.
+if (failedBundles.length) {
+  console.error(
+    `Sentrello is MISSING PAID MODULES: ${failedBundles.map((f) => f.name).join(", ")} — see /healthz and Settings -> Licence`,
+  );
+}
+export default { port, fetch: app.fetch };
+
+/**
+ * The assembled application, for tests that need to enumerate what it serves
+ * rather than call one known path. The default export is what Bun wants —
+ * `{ port, fetch }` — and a route table cannot be read from that.
+ */
+export { app };

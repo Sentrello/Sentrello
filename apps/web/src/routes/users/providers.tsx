@@ -1,0 +1,234 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { api } from "../../lib/api";
+import {
+  Button,
+  Card,
+  ConfirmButton,
+  ErrorNote,
+  Field,
+  Input,
+  Loading,
+  Page,
+  SecretInput,
+  SectionHeading,
+  Select,
+  Textarea,
+  muted,
+} from "../../lib/ui";
+
+/**
+ * Signing in with the account a business already has.
+ *
+ * Lifted from `SsoConnections` in `user-sso.tsx`, unchanged: the screen is
+ * arranged around what somebody knows — they know they are "on Google" or
+ * "on Microsoft", and they do not know what OpenID Connect is. The protocol
+ * is a consequence of the choice, not the question.
+ */
+
+interface Connection {
+  id: string;
+  providerId: string;
+  issuer: string;
+  domain: string;
+  protocol: "oidc" | "saml";
+  configured: boolean;
+}
+
+interface Kind {
+  id: string;
+  label: string;
+  protocol: "oidc" | "saml";
+  needsIssuer: boolean;
+}
+
+export function Providers() {
+  const qc = useQueryClient();
+  const [kind, setKind] = useState("google");
+  const [domain, setDomain] = useState("");
+  const [issuer, setIssuer] = useState("");
+  const [clientId, setClientId] = useState("");
+  const [clientSecret, setClientSecret] = useState("");
+  const [entryPoint, setEntryPoint] = useState("");
+  const [certificate, setCertificate] = useState("");
+
+  const list = useQuery({
+    queryKey: ["user-sso"],
+    queryFn: () =>
+      api<{ kinds: Kind[]; connections: Connection[] }>("/api/users/sso"),
+  });
+
+  const connect = useMutation({
+    mutationFn: () =>
+      api("/api/users/sso", {
+        method: "POST",
+        body: JSON.stringify({
+          kind,
+          domain,
+          issuer,
+          clientId,
+          clientSecret,
+          entryPoint,
+          certificate,
+        }),
+      }),
+    onSuccess: () => {
+      setDomain("");
+      setClientId("");
+      setClientSecret("");
+      setEntryPoint("");
+      setCertificate("");
+      qc.invalidateQueries({ queryKey: ["user-sso"] });
+    },
+  });
+
+  const disconnect = useMutation({
+    mutationFn: (id: string) =>
+      api(`/api/users/sso/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["user-sso"] }),
+  });
+
+  if (list.isLoading) return <Loading />;
+  if (list.error) return <ErrorNote error={list.error} />;
+
+  const kinds = list.data?.kinds ?? [];
+  const chosen = kinds.find((k) => k.id === kind);
+  const connections = list.data?.connections ?? [];
+
+  return (
+    <Page width="prose">
+      <Card className="flex flex-col gap-(--gap-toolbar)">
+        <div>
+          <SectionHeading>Signing in with your own accounts</SectionHeading>
+          <p className="text-sm" style={muted}>
+            Connect the place your staff already sign in — Google Workspace,
+            Microsoft 365, or anything that speaks SAML. Anybody with an address
+            at a connected domain is sent there instead of being asked for a
+            password.
+          </p>
+        </div>
+
+        {connections.length > 0 ? (
+          <ul className="flex flex-col gap-(--gap-toolbar) text-sm">
+            {connections.map((connection) => (
+              <li
+                key={connection.id}
+                className="flex flex-wrap items-center justify-between gap-(--gap-toolbar)"
+              >
+                <span>
+                  <strong>{connection.domain}</strong>
+                  <span style={muted}>
+                    {" "}
+                    · {connection.protocol === "saml" ? "SAML" : "OpenID"} ·{" "}
+                    {connection.issuer}
+                  </span>
+                </span>
+                <ConfirmButton
+                  variant="secondary"
+                  disabled={disconnect.isPending}
+                  title="Disconnect this provider?"
+                  message={`Nobody with an address at ${connection.domain} will be able to sign in through it. If that is how your staff sign in, they will be locked out until somebody with a password gets back in — so check at least one administrator has one first. Everybody keeps their account, their policy and their work.`}
+                  confirmLabel="Disconnect it"
+                  needs={{ settings: ["update"] }}
+                  onConfirm={() => disconnect.mutate(connection.id)}
+                >
+                  Disconnect
+                </ConfirmButton>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {disconnect.error ? <ErrorNote error={disconnect.error} /> : null}
+        <p className="text-xs" style={muted}>
+          Disconnecting stops sign-ins from that domain. Everybody who arrived
+          through it keeps their account and their roles.
+        </p>
+
+        <div className="grid gap-(--gap-toolbar) sm:grid-cols-2">
+          <Field label="Where your staff sign in">
+            <Select value={kind} onChange={(e) => setKind(e.target.value)}>
+              {kinds.map((k) => (
+                <option key={k.id} value={k.id}>
+                  {k.label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field
+            label="Email domain"
+            hint="Everybody with an address here is sent to your provider."
+          >
+            <Input
+              value={domain}
+              placeholder="example.com"
+              onChange={(e) => setDomain(e.target.value)}
+            />
+          </Field>
+
+          {chosen?.needsIssuer ? (
+            <Field
+              label="Issuer URL"
+              hint="Your provider gives you this — it is where its configuration lives."
+            >
+              <Input
+                value={issuer}
+                onChange={(e) => setIssuer(e.target.value)}
+              />
+            </Field>
+          ) : null}
+
+          {chosen?.protocol === "oidc" ? (
+            <>
+              <Field label="Client id">
+                <Input
+                  value={clientId}
+                  onChange={(e) => setClientId(e.target.value)}
+                />
+              </Field>
+              <Field label="Client secret">
+                <SecretInput
+                  value={clientSecret}
+                  onChange={(e) => setClientSecret(e.target.value)}
+                />
+              </Field>
+            </>
+          ) : (
+            <>
+              <Field label="Sign-in URL" hint="Your provider's SAML endpoint.">
+                <Input
+                  value={entryPoint}
+                  onChange={(e) => setEntryPoint(e.target.value)}
+                />
+              </Field>
+              <Field
+                label="Certificate"
+                hint="The signing certificate, pasted whole."
+              >
+                <Textarea
+                  value={certificate}
+                  onChange={(e) => setCertificate(e.target.value)}
+                />
+              </Field>
+            </>
+          )}
+        </div>
+
+        {connect.error ? <ErrorNote error={connect.error} /> : null}
+        <div>
+          <Button
+            needs={{ settings: ["update"] }}
+            onClick={() => connect.mutate()}
+            disabled={connect.isPending || !domain.trim()}
+          >
+            {connect.isPending ? "Connecting…" : "Connect"}
+          </Button>
+          <p className="mt-(--gap-toolbar) text-xs" style={muted}>
+            People who sign in this way join as members. Give them a role here
+            afterwards — an identity provider says who somebody is, not what
+            they may do in your books.
+          </p>
+        </div>
+      </Card>
+    </Page>
+  );
+}

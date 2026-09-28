@@ -1,0 +1,1202 @@
+@import "tailwindcss";
+
+/*
+ * The sizes, from the one file a module compiles them from too.
+ *
+ * They lived here, which meant they were Core's — and a module runs its own
+ * Tailwind pass that never reads this file. `rounded-md` meant 0.5rem on a
+ * Core screen and Tailwind's default 0.375rem on a module screen, with no
+ * error anywhere: the same class name, two corner radii, in a product being
+ * swept for exactly that.
+ */
+@import "@sentrello/module-sdk/theme.css";
+
+/*
+ * Design tokens: one confident brand hue, warm neutrals,
+ * semantic status colors. Light and dark from day one — every component reads
+ * these variables, so the whole app themes from one place.
+ */
+@theme {
+  /*
+   * The brand is the one on sentrello.com: a warm orange on a near-black
+   * ground, not the teal this started with. James, 2026-09-13 — the app and
+   * the site should be unmistakably the same product.
+   *
+   * The names are unchanged on purpose. Every screen already reads
+   * `--color-brand-*`, and renaming a token across a hundred files to change
+   * a hue is a large diff that says nothing. Only the values move.
+   *
+   * Taken from the site's own stylesheet rather than sampled by eye: `#ff8a3d`
+   * is what it uses on dark and `#c4470f` on light, converted here.
+   */
+  --color-brand-50: oklch(0.97 0.025 45);
+  --color-brand-100: oklch(0.93 0.05 45);
+  /** The site's dark accent exactly. 7.89:1 on the dark ground. */
+  --color-brand-300: oklch(0.75 0.167 51);
+  /** The site's light accent exactly. White on it measures 4.93:1. */
+  --color-brand-500: oklch(0.564 0.171 40);
+  /**
+   * The brand colour, dark enough to put white text on.
+   *
+   * brand-500 with neutral-50 on it measures 3.77:1, under the 4.5:1 AA asks —
+   * which put the selected nav item and the account avatar, the two most
+   * prominent brand moments in the product, below the line on every screen.
+   *
+   * Rather than darken the brand itself, which is an identity decision and
+   * changes every place it appears, this is the shade used *behind white text*.
+   * It measures 5.17:1. Everything else keeps brand-500.
+   */
+  /**
+   * The shade used where the brand is *text*, which is a different job.
+   *
+   * The site's light accent measures 4.42:1 on its own paper ground — under
+   * the 4.5:1 AA asks for body text, and this token is on every link and every
+   * brand-coloured label in the product. Darkening the identity itself would
+   * change every fill as well, so the fill keeps `brand-500` and text gets
+   * this: 5.33:1 on the surface, 5.95:1 on white, with enough margin that a
+   * later tweak to the ground does not silently drop back under.
+   *
+   * The same reasoning that produced this token when the brand was teal. The
+   * hue changed; the problem did not.
+   */
+  --brand-on-white-text: var(--color-brand-600);
+  --color-brand-600: oklch(0.52 0.171 40);
+  --color-brand-700: oklch(0.44 0.16 40);
+
+  --color-neutral-50: oklch(0.98 0.004 80);
+  --color-neutral-100: oklch(0.96 0.005 80);
+  --color-neutral-200: oklch(0.92 0.006 80);
+  --color-neutral-500: oklch(0.62 0.008 80);
+  /**
+   * Muted text, dark enough to read.
+   *
+   * neutral-500 on the light surface measures 3.34:1, and WCAG AA asks 4.5:1
+   * for text this size — so every muted line in the product failed, which is
+   * most of the sidebar, every hint under a field and every secondary figure.
+   * It was 63 of 97 screens, one token.
+   *
+   * 0.54 measures 4.64:1: past the line with enough margin that a future tweak
+   * to the surface does not silently drop back under it. Dark mode already
+   * measured 6.41:1 and is left alone — the same value there would be a change
+   * made to look consistent in a stylesheet rather than to help anybody.
+   */
+  --color-neutral-550: oklch(0.54 0.008 80);
+  --color-neutral-700: oklch(0.42 0.008 80);
+  --color-neutral-900: oklch(0.24 0.008 80);
+
+  /*
+   * Dark enough to read as text, which is what they are used as.
+   *
+   * The amber measured 2.26:1 and the green 3.42:1 against the 4.5:1 AA asks —
+   * so "overdue", "paid" and every other status word in the product was below
+   * the line, and the amber badly. These are 5.15:1 and 4.74:1 on the tinted
+   * surface, which is the worst case of the two backgrounds they appear on.
+   *
+   * A colour used as a *background* with dark text on it would want the
+   * opposite treatment. Nothing here does that today; if the redesign does, it
+   * needs its own token rather than reusing these.
+   */
+  --color-success: oklch(0.52 0.14 150);
+  --color-warning: oklch(0.52 0.14 75);
+  /*
+   * Darkened from 0.6, which measured 4.31:1 with white on it — just under the
+   * 4.5:1 line, and this is the colour on every Delete button in the product.
+   * 0.55 measures 5.33:1 and is still unmistakably red.
+   *
+   * Moved from hue 25 to 20 when the brand became orange. At 25 it was
+   * `#c53637` against a brand of `#b53800` — fifteen degrees apart, which on a
+   * screen is a Delete button that looks like a link. This is a money
+   * application and those two must never be told apart by effort. The lightness
+   * and chroma are unchanged, so the contrast above still holds.
+   */
+  --color-danger: oklch(0.55 0.18 20);
+  /*
+   * Darkened from 0.62 for the same reason as the two above, and missed when
+   * they were done: it measured 3.43:1 on the light surface, which is under
+   * the 4.5:1 line for text. It is the colour of the status chip on every
+   * bill, and it only failed once there were bills to look at.
+   */
+  --color-info: oklch(0.52 0.12 250);
+}
+
+/*
+ * The grounds are sentrello.com's own, converted from its stylesheet rather
+ * than sampled: a warm paper on light and a near-black with a blue cast on
+ * dark. The site is dark-first by choice — a visitor lands on dark and light
+ * is opt-in — and the app deliberately is not: this is read for eight hours by
+ * somebody who did not choose to be here, so it still follows the reader's
+ * system preference with a toggle over the top.
+ *
+ * Measured before adopting. Muted text is 5.16:1 on the light ground and
+ * 6.36:1 on the dark; body text is 16.6:1 and 16.3:1. The contrast work
+ * recorded above this was not undone to change a colour.
+ */
+:root {
+  --surface: oklch(0.962 0.007 81);
+  --surface-raised: white;
+  --surface-sunken: oklch(0.927 0.012 80);
+  --border: oklch(0.869 0.017 79);
+  --text: oklch(0.189 0.01 248);
+  --text-muted: oklch(0.509 0.023 251);
+  --link: var(--color-brand-600);
+  --link-hover: var(--color-brand-700);
+  /*
+   * The status colours where they are *words* — "Paid", "Overdue", the error
+   * under a field — as distinct from where they are fills.
+   *
+   * One token cannot do both jobs. A green dark enough to read on light
+   * paper measured 3.17:1 as text on the dark theme's card, and every status
+   * word in the product sat between 2.76:1 and 3.58:1 against the 4.5:1 AA
+   * line — the dark theme failed on every screen that showed a status. So:
+   * `--color-*` stays the fill (chart bars, the danger button, borders, all
+   * of which measure over 3:1 on both grounds), and text reads these, which
+   * each theme sets to a value measured against its own surfaces.
+   * `theme-contrast.test.ts` holds every pairing to the line.
+   *
+   * On light they *are* the fills — those were already tuned as text on
+   * paper, and light must not change. Dark lightens each without leaving its
+   * hue, 6.1:1 or better on the raised card, margin included.
+   */
+  --text-success: var(--color-success);
+  --text-warning: var(--color-warning);
+  --text-danger: var(--color-danger);
+  --text-info: var(--color-info);
+  --text-brand: var(--color-brand-600);
+
+  /*
+   * Elevation — how the product says one surface is on top of another.
+   *
+   * **Light lifts with a shadow. Dark lifts with the surface.** That is the
+   * whole rule, and every raised thing inherits it rather than choosing.
+   *
+   * A black shadow is the only kind most component libraries ship, and on a
+   * near-black ground it does nothing: measured in the browser at 390px, a
+   * sheet lifted by `rgb(0 0 0 / 28%)` over `oklch(0.189)` reads as a faint
+   * dark haze, and all the separation a person actually perceives comes from
+   * the panel being lighter than the page and from its top border. So dark
+   * stops pretending: `--surface-overlay` steps up in lightness above
+   * `--surface-raised`, which is itself above `--surface`, and the shadow
+   * becomes a deeper, more opaque well under the panel whose job is to darken
+   * the ground rather than to lift the panel. Light keeps the soft, low-alpha
+   * shadow it has always had, because on paper that is what lifting looks
+   * like.
+   *
+   * Two steps, not five. `--shadow-raised` is a thing sitting on the page —
+   * a tooltip, a chart readout. `--shadow-overlay` is a thing over the whole
+   * page — a menu, a dropdown, a dialog, a bottom sheet, the command
+   * palette — and it goes with `--surface-overlay`; the pair is what a
+   * floating panel wears, and neither works alone. `--scrim` is what goes
+   * behind a modal, tinted with the theme's own ink on light so it does not
+   * go grey-on-grey, and plain black on dark where there is nothing to tint.
+   *
+   * The shadow colours are not tokens themselves on purpose: a shadow is
+   * ink-on-ground, not a surface anything is read against, so there is
+   * nothing for `theme-contrast.test.ts` to measure. What it does measure is
+   * `--surface-overlay`, because text sits on it.
+   */
+  --surface-overlay: white;
+  --scrim: oklch(0.189 0.01 248 / 0.45);
+  --shadow-raised: 0 1px 2px oklch(0.189 0.01 248 / 0.1), 0 2px 6px
+    oklch(0.189 0.01 248 / 0.07);
+  --shadow-overlay: 0 4px 10px oklch(0.189 0.01 248 / 0.1), 0 14px 34px
+    oklch(0.189 0.01 248 / 0.14);
+}
+
+/*
+ * Dark comes from three places, in this order: the system, then an explicit
+ * choice, then the account's saved preference once it loads.
+ *
+ * The attribute selectors have to beat the media query in both directions —
+ * somebody on a dark system who picks light must actually get light — so both
+ * are spelled out rather than relying on the media query alone.
+ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface: oklch(0.189 0.01 248);
+    --surface-raised: oklch(0.241 0.016 252);
+    --surface-sunken: oklch(0.162 0.008 248);
+    --border: oklch(0.317 0.022 251);
+    --text: oklch(0.956 0.007 248);
+    --text-muted: oklch(0.677 0.027 250);
+    --link: var(--color-brand-300);
+    --link-hover: var(--color-brand-100);
+    --text-success: oklch(0.72 0.14 150);
+    --text-warning: oklch(0.75 0.13 75);
+    --text-danger: oklch(0.72 0.16 20);
+    --text-info: oklch(0.72 0.1 250);
+    --text-brand: var(--color-brand-300);
+    --surface-overlay: oklch(0.285 0.018 252);
+    --scrim: oklch(0 0 0 / 0.66);
+    --shadow-raised: 0 1px 2px oklch(0 0 0 / 0.45), 0 2px 6px
+      oklch(0 0 0 / 0.35);
+    --shadow-overlay: 0 4px 10px oklch(0 0 0 / 0.55), 0 14px 34px
+      oklch(0 0 0 / 0.45);
+  }
+}
+
+:root[data-theme="dark"] {
+  --surface: oklch(0.189 0.01 248);
+  --surface-raised: oklch(0.241 0.016 252);
+  --surface-sunken: oklch(0.162 0.008 248);
+  --border: oklch(0.317 0.022 251);
+  --text: oklch(0.956 0.007 248);
+  --text-muted: oklch(0.677 0.027 250);
+  --link: var(--color-brand-300);
+  --link-hover: var(--color-brand-100);
+  --text-success: oklch(0.72 0.14 150);
+  --text-warning: oklch(0.75 0.13 75);
+  --text-danger: oklch(0.72 0.16 20);
+  --text-info: oklch(0.72 0.1 250);
+  --text-brand: var(--color-brand-300);
+  --surface-overlay: oklch(0.285 0.018 252);
+  --scrim: oklch(0 0 0 / 0.66);
+  --shadow-raised: 0 1px 2px oklch(0 0 0 / 0.45), 0 2px 6px oklch(0 0 0 / 0.35);
+  --shadow-overlay: 0 4px 10px oklch(0 0 0 / 0.55), 0 14px 34px
+    oklch(0 0 0 / 0.45);
+}
+
+:root[data-theme="light"] {
+  --surface: oklch(0.962 0.007 81);
+  --surface-raised: white;
+  --surface-sunken: oklch(0.927 0.012 80);
+  --border: oklch(0.869 0.017 79);
+  --text: oklch(0.189 0.01 248);
+  --text-muted: oklch(0.509 0.023 251);
+  --link: var(--color-brand-600);
+  --link-hover: var(--color-brand-700);
+  --text-success: var(--color-success);
+  --text-warning: var(--color-warning);
+  --text-danger: var(--color-danger);
+  --text-info: var(--color-info);
+  --text-brand: var(--color-brand-600);
+  --surface-overlay: white;
+  --scrim: oklch(0.189 0.01 248 / 0.45);
+  --shadow-raised: 0 1px 2px oklch(0.189 0.01 248 / 0.1), 0 2px 6px
+    oklch(0.189 0.01 248 / 0.07);
+  --shadow-overlay: 0 4px 10px oklch(0.189 0.01 248 / 0.1), 0 14px 34px
+    oklch(0.189 0.01 248 / 0.14);
+}
+
+/*
+ * A hand over anything you can click.
+ *
+ * Tailwind v4's preflight sets `cursor: default` on buttons, and this app
+ * navigates with buttons rather than anchors — so every link in the product
+ * showed an arrow, which reads as "not clickable" to anyone who has used a
+ * browser. `:disabled` is excluded: a hand over a control that will not
+ * respond is a worse lie than an arrow over one that will.
+ */
+button:not(:disabled),
+[role="button"],
+summary,
+a,
+label:has(input[type="checkbox"]),
+label:has(input[type="radio"]) {
+  cursor: pointer;
+}
+
+/*
+ * A tick box a finger can hit.
+ *
+ * A browser draws one at thirteen pixels, which is right for a mouse in a
+ * dense table and half the size WCAG 2.2 asks of a touch target. Selecting
+ * rows is how this product does anything in bulk — tag these, delete
+ * these, send these — so on a tablet the commonest gesture in the product
+ * was aimed at thirteen pixels.
+ *
+ * `pointer: coarse` rather than a width, because it is the finger that is
+ * the problem and not the screen: a laptop with a mouse keeps the box the
+ * table was drawn around, and anything being touched gets the full
+ * twenty-four.
+ */
+@media (pointer: coarse) {
+  input[type="checkbox"],
+  input[type="radio"] {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+}
+
+/*
+ * And a control that will not respond should look like one.
+ *
+ * Nothing in the app said so. 163 controls carry `disabled` and every one of
+ * them was drawn identically to a live control — same colour, same weight,
+ * same border. The only difference was the cursor, which needs a pointer
+ * device and a hover to notice and does not exist on a phone at all.
+ *
+ * This is the whole of the form builder complaint restated. The first
+ * question's ↑ was pressable and did nothing; disabling it stopped the lie
+ * that something had happened, and left a button that still looks ready.
+ *
+ * Opacity rather than a colour, so it works on every control at once and on
+ * whatever is inside one — an icon, a count, a coloured word — without each
+ * needing its own disabled colour. 0.45 is dim enough to read as off and
+ * still legible, which matters because a disabled field is often the one
+ * carrying the value you are trying to read.
+ */
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled,
+[aria-disabled="true"] {
+  opacity: 0.45;
+}
+
+/*
+ * Links in body text: colour, never a rule under the word.
+ *
+ * An underline in a dense table or a card of contact details is visual noise
+ * on every row; the colour already says the word is a link, and the change on
+ * hover says which one you are about to follow. Applied through `.link`
+ * rather than a bare `a` selector because most of this app's links are
+ * buttons — there is no URL routing yet — and both have to look the same.
+ */
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+.link {
+  color: var(--link);
+  text-decoration: none;
+}
+.link:hover {
+  color: var(--link-hover);
+}
+
+/*
+ * The record link in a table row, given the height of a target.
+ *
+ * It is the link somebody presses to open an invoice, a quote or a person,
+ * and at its own text size it measured 22px tall — two under WCAG 2.2's 24px
+ * minimum. The inline exception does not obviously cover it: it is alone in
+ * its cell rather than sitting in a sentence, so nothing else's line height
+ * is constraining it.
+ *
+ * Vertical padding on an inline box grows what a pointer can hit without
+ * growing the line box, so the rows are exactly as tall as they were and the
+ * target clears 24.
+ */
+td .link {
+  padding-block: 0.125rem;
+}
+
+/*
+ * Secondary actions written as text — Cancel, Done, Remove, Export.
+ *
+ * They are not links to anywhere, so they keep the muted weight that stops a
+ * form looking like a page of hyperlinks. They still have to answer the
+ * pointer: quiet until hovered, full text colour once it is.
+ */
+.link-muted {
+  color: var(--text-muted);
+  text-decoration: none;
+  /*
+   * A tap target somebody can actually hit. WCAG 2.2 asks for 24px, and these
+   * are the Edit and Remove links at the end of a table row — small text, close
+   * together, on the row a person is trying to act on. The height is added
+   * without changing the text size, so the rows do not grow.
+   */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* Width as well as height: a "×" is a 7px target without it. */
+  min-height: 24px;
+  min-width: 24px;
+}
+.link-muted:hover {
+  color: var(--text);
+}
+
+/* The same, for the ones that delete something. */
+.link-danger {
+  color: var(--text-danger);
+  text-decoration: none;
+  /* Same 24px target as .link-muted; these sit beside each other in a row. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* Width as well as height: a "×" is a 7px target without it. */
+  min-height: 24px;
+  min-width: 24px;
+}
+/*
+ * An underline, not `filter: brightness(1.25)`. Brightening red text on the
+ * light surface pushed it from 4.77:1 to under the 4.5:1 line — a control
+ * that failed AA precisely while somebody was about to use it. The underline
+ * answers the pointer without moving the colour at all.
+ */
+.link-danger:hover {
+  text-decoration: underline;
+}
+
+/*
+ * The shell. A header that stays put, and everything else scrolling under it —
+ * so the way back is always on screen. In a system where a contact leads to a
+ * deal leads to an invoice, being three records deep with no visible way out is
+ * how people end up lost.
+ */
+/*
+ * The shell owns the window, and the screen inside it is what scrolls.
+ *
+ * Everything in the frame is already clipped to it — measured, at 1280x400
+ * and at 390x844 — and the window still had 299 pixels of scroll to give,
+ * which carried the header, the rail and the footer up off the top and put
+ * blank paper underneath them. So the document is told plainly that it does
+ * not scroll. On `html`, because that is the element whose overflow the
+ * viewport takes.
+ *
+ * `:has`, so it applies only where the shell is. Sign-in, the payment
+ * portal, a shared invoice and the shop are the same application and none of
+ * them has a frame — they are ordinary pages and they scroll like one.
+ */
+html:has(.app-shell-frame) {
+  overflow: hidden;
+}
+
+/*
+ * And the screen is a containing block, which is what actually clips it.
+ *
+ * `overflow: auto` does not clip an absolutely positioned descendant whose
+ * containing block is further out — the box scrolls, and the same content
+ * also hangs out of the bottom of the window as scrollable overflow nobody
+ * asked for. Measured at 1280x400: everything on screen was correctly
+ * clipped to 400 pixels and the document still reported 699, so the wheel
+ * carried the whole frame up and left blank paper under the footer. One
+ * `position: relative` on the box that scrolls, and the anchor for anything
+ * absolute inside a screen is the screen.
+ */
+.app-screen {
+  position: relative;
+}
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--surface-raised);
+  border-bottom: 1px solid var(--border);
+}
+
+/*
+ * And the same bar at the bottom.
+ *
+ * The header's own language — raised surface, one hairline against the
+ * screen — turned over. It needs no `position` of its own: the shell is a
+ * fixed-height frame and this is the last row of it, so it is at the foot
+ * of the window wherever the screen above it has been scrolled to. That is
+ * also what lets the rail and the panel run all the way down to it, which
+ * is the thing that was wrong when the footer first arrived.
+ *
+ * 2.75rem against the header's 3.25rem. Six per cent of a phone, which is
+ * the price of the two of them being somewhere rather than somewhere that
+ * moves.
+ */
+.app-footer {
+  background: var(--surface-raised);
+  border-top: 1px solid var(--border);
+}
+
+/*
+ * How wide the rail is, in one place.
+ *
+ * The panel has to know it on a phone, where it stops taking room from the
+ * screen and sits over it instead, offset by exactly this.
+ */
+:root {
+  --rail-width: 4.25rem;
+}
+
+/* The rail: sections as icons, always visible, so switching part of the
+   business is one click from anywhere rather than a scroll.
+
+   Widened on 22 September 2026 from 4rem and 24px icons, which could not be
+   read. Brought back to 4.25rem on 23 September: legible was the point, and
+   the version that fixed it overshot into taking a slice of every screen. */
+.app-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  width: var(--rail-width);
+  flex-shrink: 0;
+  padding: 0.5rem 0;
+  border-right: 1px solid var(--border);
+  background: var(--surface-sunken);
+  /*
+   * The full height between the two bars, at every scroll position.
+   *
+   * Nothing here is sticky any more, and that is the point. A sticky
+   * element is pushed up once its container's bottom edge reaches it, so
+   * a rail as tall as the window below the header slid under the header
+   * at the foot of a long page, and a rail short enough not to do that
+   * stopped a footer's height above the bottom of the window — 45 pixels
+   * of nothing between the rail and the edge of the screen on every
+   * screen long enough to scroll. Two spellings of one bug.
+   *
+   * The shell is a fixed-height frame now and the *screen* scrolls, so
+   * the row between the bars is exactly the space between them and this
+   * simply fills it. `min-height: 0` because a flex item's minimum is its
+   * content, which is what would otherwise push a long menu past the
+   * bottom rather than scrolling it.
+   */
+  align-self: stretch;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/*
+ * The icon is the only thing naming a section, so it is drawn at full
+ * strength rather than muted. Muted is right for a hint beside a label and
+ * wrong for the label itself — and an icon reads weaker than text at the
+ * same contrast, because a 1px stroke covers a fraction of the area a
+ * letterform does. In the dark these were four grey outlines on near-black
+ * with nothing to say which was which.
+ */
+/*
+ * Why a toolbar aligns from the top, and what that costs.
+ *
+ * It aligned from the bottom, so a button carrying no label sat level with
+ * the inputs beside it. That is right until one of those fields has a hint:
+ * the hint is part of the field's box, so aligning the bottoms pushes that
+ * field's *input* up by the height of the hint. One hinted field in a row
+ * lifted its own control out of line and left the button below every other
+ * control on the line — which is what the exemption-certificate form looked
+ * like, and the filing period beside it, and half the settings screens.
+ *
+ * Aligning from the top instead lines up the labels, and since a label is
+ * one line the controls line up under them. Hints then hang below their own
+ * field and reach nothing else. The first attempt took the hint out of the
+ * flow instead, which aligned everything and then dropped three hints on top
+ * of the controls in the row beneath — a toolbar wraps, and a flex line
+ * sizes to its tallest item, which an absolutely positioned hint is not.
+ *
+ * The cost is the button: with no label above it, it needs the label's own
+ * height to sit level with the inputs. One rule rather than a class on
+ * forty-six toolbars, and the number is the label's line height plus the
+ * margin under it.
+ */
+.app-toolbar > :not(label) {
+  margin-top: calc(1.25rem + 0.25rem);
+}
+
+/*
+ * A toolbar group wraps inside itself, not only between its neighbours.
+ *
+ * The toolbar wraps its children; each child is a little flex row of its own
+ * — a label, a select, a button — and those did not. Set the browser's font
+ * to its largest and "View / All contacts / Save view" was one unbreakable
+ * line 182 pixels wider than the window, which is WCAG 1.4.4 and a page that
+ * scrolls sideways to reach a control.
+ *
+ * Measured at the normal size on seven screens before it went in: every
+ * toolbar child lands on the same pixel. It only does anything once there is
+ * nothing left to give.
+ */
+.app-toolbar > * {
+  flex-wrap: wrap;
+}
+
+/*
+ * The months, or the range they cover, depending on the room.
+ *
+ * Six three-letter labels under a chart about 130 pixels wide get fifteen
+ * pixels each, and `truncate` eats them: at 320px every month on the CRM
+ * dashboard rendered as "Ap…". Ten pixels is already the floor for type
+ * nobody should have to squint at, and widening three of them by hiding the
+ * others puts a label between two bars instead of under one.
+ *
+ * So the row of months goes and "Apr – Sep" takes its place. The series
+ * itself, month by month, is in the description the chart carries above it,
+ * which is what a screen reader has been reading all along.
+ */
+.chart-range {
+  display: none;
+}
+
+@media (max-width: 25rem) {
+  .chart-months {
+    display: none;
+  }
+
+  .chart-range {
+    display: block;
+    margin-top: 0.25rem;
+    text-align: center;
+  }
+}
+
+.rail-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.875rem;
+  height: 2.875rem;
+  /*
+   * Never squeezed, only scrolled.
+   *
+   * The rail stretches to the row it sits in, and a flex child's default is
+   * to shrink when the line is short — so on a screen with little on it the
+   * buttons compressed: 46 pixels became 35 on a short window here, and on
+   * a Pro instance, which has more sections in the rail, axe reported them
+   * under the 24 that WCAG 2.5.8 asks of anything a finger has to hit.
+   *
+   * The rail already scrolls. Scrolling is the right answer to "more
+   * sections than room"; shrinking the target is not.
+   */
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  color: var(--text);
+}
+
+/*
+ * The tab that pulls the panel back out.
+ *
+ * It only exists while the panel is away, which is the whole idea: the
+ * control that puts the panel away travels with the panel, and something has
+ * to be left on screen to bring it back. A short wide tab at the top of the
+ * rail, rather than another full icon button, so it reads as an edge to pull
+ * and not as a sixth section.
+ */
+.panel-tab {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.875rem;
+  height: 1.375rem;
+  margin-bottom: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  background: var(--surface-raised);
+}
+.panel-tab:hover {
+  color: var(--text);
+  background: var(--surface);
+}
+[data-panel-hidden] .panel-tab {
+  display: flex;
+}
+
+/* The section's name and the control that puts it away, on one line. */
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.panel-collapse {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  flex: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+}
+.panel-collapse:hover {
+  color: var(--text);
+  background: var(--surface);
+}
+.rail-button:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+.rail-button[aria-current="true"] {
+  background: var(--brand-on-white-text);
+  color: var(--color-neutral-50);
+}
+
+.panel-title {
+  padding: 0.35rem 0.7rem 0.5rem;
+  font-size: var(--text-base);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/*
+ * A section's name, which is not one of the things under it.
+ *
+ * The heading rows were drawn exactly like the pages — same size, same
+ * weight, same colour — and the only thing saying "this is a group" was the
+ * indent of the rows beneath it and a caret at the end. Seven of them down
+ * one panel read as a list of twenty-six equal things, which is the problem
+ * the headings were added to solve.
+ *
+ * Weight and full-strength text, not uppercase micro-type: these fold, so
+ * they are controls somebody presses, and shrinking a control to eleven
+ * pixels of capitals to make it look like a label is a poor trade at any
+ * reading size. A little air above each one does the rest.
+ */
+.app-sidebar .nav-link.nav-section {
+  margin-top: 0.4rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* A module's own pages, indented under it and hung off a line so the
+   relationship is visible without a second colour. */
+.nav-children {
+  margin: 0.1rem 0 0.35rem 1.15rem;
+  padding-left: 0.6rem;
+  border-left: 1px solid var(--border);
+}
+
+/* Both selectors are equally specific and `.app-sidebar .nav-link` comes
+   later, so it won and stacked the icon above the label. Naming both classes
+   settles it without moving code around. */
+.app-sidebar .nav-link.nav-parent {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+/* Sidebar. Fixed width, its own scroll, so a long module list never pushes the
+   work off screen. */
+.app-sidebar {
+  width: 15rem;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  background: var(--surface-raised);
+  /*
+   * The full height between the two bars, at every scroll position.
+   *
+   * Nothing here is sticky any more, and that is the point. A sticky
+   * element is pushed up once its container's bottom edge reaches it, so
+   * a rail as tall as the window below the header slid under the header
+   * at the foot of a long page, and a rail short enough not to do that
+   * stopped a footer's height above the bottom of the window — 45 pixels
+   * of nothing between the rail and the edge of the screen on every
+   * screen long enough to scroll. Two spellings of one bug.
+   *
+   * The shell is a fixed-height frame now and the *screen* scrolls, so
+   * the row between the bars is exactly the space between them and this
+   * simply fills it. `min-height: 0` because a flex item's minimum is its
+   * content, which is what would otherwise push a long menu past the
+   * bottom rather than scrolling it.
+   */
+  align-self: stretch;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/*
+ * Collapsing the section panel.
+ *
+ * One attribute on the shell, set by either of the two controls that flip it:
+ * the button at the top of the panel, and the tab at the top of the rail that
+ * takes its place once the panel is gone. It was a visually-hidden checkbox
+ * and a sibling selector — no JavaScript, and no way for a keyboard user to
+ * see where focus was, since the focusable element was clipped to a pixel and
+ * the icon sat on a label that cannot take focus.
+ *
+ * Width and padding animate; `visibility` is what actually takes the panel's
+ * contents out of the tab order, which `width: 0` alone does not do.
+ */
+.app-sidebar {
+  transition: width 150ms ease, padding 150ms ease;
+}
+
+[data-panel-hidden] .app-sidebar {
+  width: 0;
+  padding-left: 0;
+  padding-right: 0;
+  border-right-width: 0;
+  overflow: hidden;
+  visibility: hidden;
+}
+
+.nav-group-label {
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.nav-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--radius-sm);
+}
+.nav-group-toggle:hover {
+  background: var(--surface);
+}
+/*
+ * The disclosure caret, drawn here rather than pulled from the icon set.
+ *
+ * It was an icon, and an icon set is drawn for icons: a chevron in one reads
+ * as a picture of an arrow sitting next to a label, at whatever weight the
+ * set's own hand gives it. A caret is not a picture of anything. It is two
+ * hairlines meeting at a corner, and it should be the same weight as the rule
+ * under the row beside it.
+ *
+ * Two borders on an empty box, turned 45 degrees. It costs no glyph, inherits
+ * `currentColor`, scales with the text it sits beside, and the open state is
+ * the same corner turned a quarter further — so the rotation animates the mark
+ * itself rather than swapping one drawing for another.
+ */
+.nav-caret {
+  display: block;
+  flex: none;
+  width: 0.375rem;
+  height: 0.375rem;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  /* -45 points it right; the extra 1px back up sits it on the text's centre
+     rather than half a stroke below it, which is where a square rotated about
+     its own middle lands. */
+  transform: translateY(-1px) rotate(-45deg);
+  transition: transform 120ms ease;
+  color: var(--text-muted);
+}
+.nav-caret[data-open="true"] {
+  transform: translateY(-2px) rotate(45deg);
+}
+
+.nav-link {
+  border-radius: var(--radius-md);
+  padding: 0.4rem 0.7rem;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.nav-link:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+.nav-link[aria-current="page"] {
+  background: var(--brand-on-white-text);
+  color: var(--color-neutral-50);
+}
+
+.app-sidebar .nav-link {
+  display: block;
+  width: 100%;
+  text-align: left;
+}
+
+.app-sidebar .nav-child {
+  padding-left: 0.7rem;
+  font-size: var(--text-xs);
+}
+
+/*
+ * The two classes anything floating wears, so a raised thing inherits the
+ * elevation rule above rather than picking a shadow.
+ *
+ * Written here rather than as Tailwind `shadow-*` utilities because those
+ * compile the colour into the class — a literal black, fixed at build time,
+ * which is exactly the defect this replaces. `.overlay-panel` carries the
+ * surface as well as the shadow: on dark the surface *is* the lift, and a
+ * panel that took the shadow without the surface would be the same flat
+ * rectangle as before.
+ */
+.raised-panel {
+  box-shadow: var(--shadow-raised);
+}
+
+.overlay-panel {
+  background: var(--surface-overlay);
+  box-shadow: var(--shadow-overlay);
+}
+
+.menu-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.4rem);
+  min-width: 13rem;
+  background: var(--surface-overlay);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-overlay);
+  overflow: hidden;
+}
+.menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  font-size: var(--text-sm);
+}
+.menu-item:hover {
+  background: var(--surface);
+}
+
+/* Where a record came from, shown above it. */
+.breadcrumb {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+.breadcrumb button:hover {
+  color: var(--link-hover);
+}
+
+body {
+  background: var(--surface);
+  color: var(--text);
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+}
+
+/*
+ * Headings, set the way the site sets them.
+ *
+ * sentrello.com's most visible type decision is its headings: tight tracking,
+ * a line height just above the cap height, and balanced wrapping so a
+ * two-line title does not leave one word alone on the second. That treatment
+ * is most of what makes a heading there look like a heading there, and none
+ * of it costs a webfont.
+ *
+ * The site also sets body copy in monospace. That is not brought over: it is a
+ * landing page somebody reads for ninety seconds, and this is a screen a
+ * business reads all day.
+ */
+h1,
+h2,
+h3 {
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+h1 {
+  letter-spacing: -0.03em;
+}
+
+/*
+ * Room between columns.
+ *
+ * There was none: cells sat flush against each other, so "Henderson Roofing"
+ * and the email beside it read as one string, and a phone number ran into the
+ * status dot after it. One rule here rather than padding classes on every
+ * `<td>` in the product — there are hundreds of them, and the next screen
+ * somebody writes would start the problem again.
+ */
+.app-table th,
+.app-table td {
+  padding-right: 1.25rem;
+  vertical-align: middle;
+}
+.app-table th:last-child,
+.app-table td:last-child {
+  padding-right: 0;
+}
+
+/*
+ * A table given the whole width of its card.
+ *
+ * Three screens put their line items in a `Card` with the padding taken off,
+ * so the rule between two rows runs the full width of the card rather than
+ * stopping short of it. That is the right look and it left the cells with
+ * nothing between them and the border: on the invoice, "Amount" and the
+ * figure under it sat hard against the card's right edge and read as a
+ * column that had been cut off.
+ *
+ * The padding moves to the cells, which is where it belongs when the card
+ * has given its own away. The separators still span the card.
+ */
+.table-inset .app-table th:first-child,
+.table-inset .app-table td:first-child {
+  padding-left: var(--pad-panel);
+}
+.table-inset .app-table th:last-child,
+.table-inset .app-table td:last-child {
+  padding-right: var(--pad-panel);
+}
+
+/* Non-negotiable for an accounting product: money lines up in columns. */
+.money,
+td.money,
+th.money {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/*
+ * A focus ring on the date and time fields, which the browser does not draw.
+ *
+ * Chromium tabs between the segments of `<input type="date">` — month, day,
+ * year — and highlights the segment rather than outlining the control, so the
+ * field itself shows nothing on the stop that lands in it. Every other control
+ * gets the browser's own ring for free; these are the exception, and the
+ * keyboard walk found one sitting in the middle of the subscribers screen with
+ * no indication at all.
+ *
+ * `:focus-within` rather than `:focus-visible`: focus is on a segment inside
+ * the control, and only the control can be outlined.
+ */
+input[type="date"]:focus-within,
+input[type="datetime-local"]:focus-within,
+input[type="month"]:focus-within,
+input[type="time"]:focus-within,
+input[type="week"]:focus-within {
+  outline: 2px solid var(--brand-on-white-text);
+  outline-offset: 2px;
+}
+
+/*
+ * The link past the header, the rail and the section panel.
+ *
+ * Off the top of the screen until it is focused, which makes it the first
+ * Tab on every page and invisible to everybody else. It cannot be
+ * `display: none` or `visibility: hidden` — either one takes it out of the
+ * tab order, which is the one thing it exists to be in.
+ *
+ * `#screen` holds focus only because it is given `tabindex="-1"`; the
+ * outline is inset so a full-width content area doesn't draw a ring
+ * hanging off the edge of the window.
+ */
+.skip-link {
+  position: absolute;
+  top: -3rem;
+  left: 0.5rem;
+  z-index: 60;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.25rem;
+  background: var(--brand-on-white-text);
+  color: var(--color-neutral-50);
+  font-size: 0.875rem;
+}
+
+.skip-link:focus {
+  top: 0.5rem;
+}
+
+#screen:focus-visible {
+  outline: 2px solid var(--brand-on-white-text);
+  outline-offset: -2px;
+}
+
+/*
+ * A row-menu line used outside a row menu.
+ *
+ * Eighty-eight of them, because `MenuItem` is the only primitive that takes
+ * a permission without drawing a full button — so it became the shape of
+ * every small inline action. `.menu-item` above is a menu line: full width,
+ * its own line, left-aligned. In a table's last cell, which is right-aligned
+ * and often holds two actions, all three of those are wrong.
+ *
+ * The minimum that makes it an inline action again, plus the 24px target
+ * WCAG 2.2 asks for — which the menu line had from its padding and a bare
+ * `<button className="text-xs">` never did.
+ */
+.menu-item-inline {
+  display: inline-block;
+  min-height: 24px;
+  padding: 0.25rem 0;
+  line-height: 1.5;
+}
+
+/*
+ * A thing with no spaces in it.
+ *
+ * A URL, an API key, a webhook endpoint, a company called
+ * `Llanfairpwllgwyngyll…`, or the seventy-two-character name somebody pastes
+ * in by accident: one word, and a word that does not fit its line does not
+ * wrap — it runs on. Two module screens pushed the page sideways at 390px
+ * that way, a link on the forms list and a `<code>` block of an endpoint.
+ * Worse, on a desktop the contact list drew a long name straight **through**
+ * the activity and status beside it, because the text overflowed its column
+ * and painted over the next one.
+ *
+ * Everywhere rather than on `a` and `code`, which is where this started: a
+ * name is neither, and a business's own records are exactly where the long
+ * unbroken strings come from. `break-word`, not `anywhere` — a word breaks
+ * only when the word alone will not fit, so ordinary prose wraps between
+ * words as it always did. In the host's stylesheet, so a module's screens
+ * get it without every module having to know.
+ */
+body {
+  overflow-wrap: break-word;
+}
+
+/*
+ * Why a table is left alone here, having been tried the other way.
+ *
+ * `break-word` above lets a long word wrap and does nothing else: a word it
+ * breaks does **not** count towards a column's min-content width, so a table
+ * still sizes a column to the longest unbroken token in it. `anywhere` is the
+ * one that counts — and applied to a table it broke `$1,250.00` across three
+ * lines and the heading `Qty` across two, which is a worse thing to do to an
+ * invoice than making it scroll.
+ *
+ * So a table with a pathological token scrolls sideways inside its own card,
+ * which is what `Table`'s `overflow-x-auto` wrapper is for. The page itself
+ * stays put, which is the part that matters.
+ */
+
+/*
+ * Somebody who has asked their machine for less movement gets less.
+ *
+ * Two things move in this product: the section panel slides its width away,
+ * and a caret turns. Neither is decoration — both say what just happened —
+ * but the whole navigation panel sliding is exactly what that preference
+ * exists for, and the state it lands in is the same either way. So the
+ * change still happens, it just stops being a journey.
+ *
+ * `reduce` rather than a blanket "no-preference" check: the setting is
+ * three-valued, and a machine that has never been asked must keep the
+ * motion it has always had.
+ *
+ * Last in the file on purpose. Declared beside the panel it undid the
+ * panel's transition and not the caret's, because the caret's own rule
+ * comes later and wins at equal specificity.
+ */
+/*
+ * On paper the frame is not a frame.
+ *
+ * The shell is a fixed-height box with the screen scrolling inside it, which
+ * is right on a display and wrong on a sheet: a printer has no scrollbar, so
+ * everything below the first page's worth would simply be cut off. An invoice
+ * is the document this product is most often asked to print, and a printed
+ * invoice missing its last four lines is worse than no print stylesheet at
+ * all. Height and overflow go back to the browser's own defaults here, and the
+ * page flows.
+ */
+/*
+ * On a phone the panel is a drawer, and a drawer covers the room.
+ *
+ * It starts away below 900px — the rail is 68 pixels and the panel 240, so
+ * the two of them took 308 of a 390-pixel screen and left 82. But opening
+ * it did the same thing: the panel pushed the screen down to those 82
+ * pixels, and "Billed by month" came out one letter per line. Somebody
+ * opening a menu wants to read the menu; taking the screen away and
+ * shredding it at the same time is the worst of both.
+ *
+ * Over the screen rather than beside it, offset by the rail so the rail is
+ * still there to close it with. Nothing changes on a desktop, where there
+ * is room for both and the panel is part of the furniture rather than
+ * something you open.
+ */
+@media (max-width: 899px) {
+  .app-sidebar {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: var(--rail-width);
+    z-index: 30;
+    box-shadow: var(--shadow-overlay);
+  }
+}
+
+@media print {
+  html:has(.app-shell-frame),
+  .app-shell-frame,
+  .app-screen {
+    height: auto;
+    overflow: visible;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-sidebar,
+  .nav-caret {
+    transition: none;
+  }
+}

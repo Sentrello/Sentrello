@@ -1,0 +1,413 @@
+import { useMutation } from "@tanstack/react-query";
+import { useState } from "react";
+import { ApiError, COMPANY_SIZES, type Company, api } from "../lib/api";
+import { postcodeLabel, regionLabel } from "../lib/country-data";
+import {
+  type CrmSettings,
+  managerName,
+  useCrmManagers,
+} from "../lib/crm-settings";
+import { CustomFields } from "../lib/custom-fields";
+import { Icon } from "../lib/icons";
+import { CountrySelect } from "../lib/ui";
+import {
+  Button,
+  Card,
+  ErrorNote,
+  Field,
+  Input,
+  MenuItem,
+  Page,
+  Select,
+  Textarea,
+  Toolbar,
+  border,
+  muted,
+} from "../lib/ui";
+
+/**
+ * Creating and editing a company, with every field the record has.
+ *
+ * Creating one used to ask for a name and a sector, which meant a company was
+ * always half-entered and had to be opened and corrected straight afterwards.
+ * The groups here are the reference's — who they are, what they do, where they are,
+ * and background — because a company record is read in that order.
+ */
+
+/** Links to anywhere else this company exists. */
+function ContextLinks({
+  values,
+  onChange,
+}: {
+  values: string[];
+  onChange: (next: string[]) => void;
+}) {
+  return (
+    <fieldset className="flex flex-col gap-(--gap-toolbar)">
+      <legend className="mb-(--gap-tight) block text-sm">Links</legend>
+      {values.map((value, i) => (
+        // No stable id before saving, and two blank rows are legitimately equal.
+        // biome-ignore lint/suspicious/noArrayIndexKey: rows have no id until saved
+        <div key={i} className="flex gap-(--gap-toolbar)">
+          <Input
+            value={value}
+            placeholder="https://…"
+            onChange={(e) =>
+              onChange(values.map((v, at) => (at === i ? e.target.value : v)))
+            }
+          />
+          <button
+            type="button"
+            className="link-muted px-1"
+            aria-label="Remove this link"
+            onClick={() => onChange(values.filter((_, at) => at !== i))}
+          >
+            <Icon name="close" size={15} />
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        className="text-sm link"
+        onClick={() => onChange([...values, ""])}
+      >
+        Add a link
+      </button>
+    </fieldset>
+  );
+}
+
+/**
+ * The VIES check, and what the last one said.
+ *
+ * A validated VAT number is what justifies zero-rating a cross-border B2B
+ * sale, so the answer is recorded — status, date, registered name — rather
+ * than flashed on screen and lost. The register is regularly down per member
+ * state; when it is, the server says so and changes nothing, and this shows
+ * that message instead of pretending the number went bad.
+ */
+function ViesStatus({
+  company,
+  taxIdentifier,
+}: {
+  company: Company;
+  taxIdentifier: string;
+}) {
+  const [checked, setChecked] = useState<Company>(company);
+  const [problem, setProblem] = useState<string | null>(null);
+  const edited = taxIdentifier.trim() !== (company.taxIdentifier ?? "");
+
+  const check = useMutation({
+    mutationFn: () =>
+      api<{ status: string; company: Company }>(
+        `/api/companies/${company.id}/vat-check`,
+        { method: "POST" },
+      ),
+    onSuccess: (result) => {
+      setChecked(result.company);
+      setProblem(null);
+    },
+    onError: (err) => {
+      setProblem(
+        err instanceof ApiError && err.serverMessage
+          ? err.serverMessage
+          : "The check could not be made.",
+      );
+    },
+  });
+
+  const on = checked.taxIdentifierCheckedAt
+    ? new Date(checked.taxIdentifierCheckedAt).toLocaleDateString()
+    : null;
+
+  return (
+    <div className="mt-(--gap-tight) text-xs" style={muted}>
+      {on &&
+        (checked.taxIdentifierValid ? (
+          <p>
+            Confirmed on VIES, {on}
+            {checked.taxIdentifierCheckedName
+              ? ` — registered as ${checked.taxIdentifierCheckedName}`
+              : ""}
+            .
+          </p>
+        ) : (
+          <p>VIES did not recognise this number when checked on {on}.</p>
+        ))}
+      {problem && <p>{problem}</p>}
+      <MenuItem
+        needs={{ crm: ["update"] }}
+        className="link"
+        disabled={edited || check.isPending}
+        title={
+          edited
+            ? "Save the company first — the saved number is what gets checked."
+            : undefined
+        }
+        onClick={() => check.mutate()}
+      >
+        {check.isPending ? "Checking…" : "Check with VIES"}
+      </MenuItem>
+    </div>
+  );
+}
+
+export function CompanyForm({
+  company,
+  settings,
+  onDone,
+}: {
+  /** Absent when creating. */
+  company?: Company;
+  settings: CrmSettings;
+  onDone: (saved?: Company) => void;
+}) {
+  const [name, setName] = useState(company?.name ?? "");
+  const [sector, setSector] = useState(company?.sector ?? "");
+  const [size, setSize] = useState(company?.size ? String(company.size) : "");
+  const [website, setWebsite] = useState(company?.website ?? "");
+  const [linkedinUrl, setLinkedinUrl] = useState(company?.linkedinUrl ?? "");
+  const [phone, setPhone] = useState(company?.phone ?? "");
+  const [revenue, setRevenue] = useState(company?.revenue ?? "");
+  const [taxIdentifier, setTaxIdentifier] = useState(
+    company?.taxIdentifier ?? "",
+  );
+  const [address, setAddress] = useState(company?.address ?? "");
+  const [city, setCity] = useState(company?.city ?? "");
+  const [postcode, setPostcode] = useState(company?.postcode ?? "");
+  const [stateName, setStateName] = useState(company?.state ?? "");
+  const [country, setCountry] = useState(company?.country ?? "");
+  const [description, setDescription] = useState(company?.description ?? "");
+  const [contextLinks, setContextLinks] = useState<string[]>(
+    company?.contextLinks ?? [],
+  );
+  const [ownerId, setOwnerId] = useState(company?.ownerId ?? "");
+  const [customValues, setCustomValues] = useState<
+    Record<string, string | number | boolean | null>
+  >(company?.customValues ?? {});
+  const managers = useCrmManagers();
+
+  const save = useMutation({
+    mutationFn: async () => {
+      const body = {
+        name: name.trim(),
+        sector: sector || null,
+        // The band's top value, so the column sorts the way the labels read.
+        size: size ? Number(size) : null,
+        website: website.trim() || null,
+        linkedinUrl: linkedinUrl.trim() || null,
+        phone: phone.trim() || null,
+        revenue: revenue.trim() || null,
+        taxIdentifier: taxIdentifier.trim() || null,
+        address: address.trim() || null,
+        city: city.trim() || null,
+        postcode: postcode.trim() || null,
+        state: stateName.trim() || null,
+        country: country.trim() || null,
+        description: description.trim() || null,
+        contextLinks: contextLinks.map((l) => l.trim()).filter(Boolean),
+        ownerId: ownerId || null,
+        customValues,
+      };
+      const res = await api<{ company: Company }>(
+        company ? `/api/companies/${company.id}` : "/api/companies",
+        { method: company ? "PATCH" : "POST", body: JSON.stringify(body) },
+      );
+      return res.company;
+    },
+    onSuccess: (saved) => onDone(saved),
+  });
+
+  return (
+    <Page width="prose">
+      <Card>
+        <form
+          className="flex flex-col gap-(--gap-stack)"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (name.trim()) save.mutate();
+          }}
+        >
+          <div className="grid gap-(--gap-toolbar) sm:grid-cols-2">
+            <Field label="Name">
+              <Input
+                value={name}
+                autoFocus
+                onChange={(e) => setName(e.target.value)}
+              />
+            </Field>
+            <Field label="Sector">
+              <Select
+                value={sector}
+                onChange={(e) => setSector(e.target.value)}
+              >
+                <option value="">Not stated</option>
+                {settings.companySectors.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+
+          <div className="grid gap-(--gap-toolbar) sm:grid-cols-3">
+            <Field label="Size">
+              <Select value={size} onChange={(e) => setSize(e.target.value)}>
+                <option value="">Not stated</option>
+                {COMPANY_SIZES.map((band) => (
+                  <option key={band.id} value={band.id}>
+                    {band.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Revenue" hint="However this business talks about it.">
+              <Input
+                value={revenue}
+                onChange={(e) => setRevenue(e.target.value)}
+              />
+            </Field>
+            <Field
+              label="Tax identifier"
+              hint="VAT number, EIN, GST/HST — whatever applies."
+            >
+              <Input
+                value={taxIdentifier}
+                onChange={(e) => setTaxIdentifier(e.target.value)}
+              />
+              {company && (
+                <ViesStatus company={company} taxIdentifier={taxIdentifier} />
+              )}
+            </Field>
+          </div>
+
+          <div
+            className="grid gap-(--gap-toolbar) border-t pt-(--gap-stack) sm:grid-cols-4"
+            style={border}
+          >
+            <Field label="Website">
+              <Input
+                value={website}
+                placeholder="https://…"
+                onChange={(e) => setWebsite(e.target.value)}
+              />
+            </Field>
+            <Field label="LinkedIn">
+              <Input
+                value={linkedinUrl}
+                placeholder="https://linkedin.com/company/…"
+                onChange={(e) => setLinkedinUrl(e.target.value)}
+              />
+            </Field>
+            <Field label="Phone">
+              <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
+            </Field>
+            <Field label="Account manager" hint="Whose account this is.">
+              <Select
+                value={ownerId}
+                onChange={(e) => setOwnerId(e.target.value)}
+              >
+                <option value="">Nobody yet</option>
+                {managers.map((manager) => (
+                  <option key={manager.userId} value={manager.userId}>
+                    {managerName(manager)}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+
+          <div
+            className="grid gap-(--gap-toolbar) border-t pt-(--gap-stack) sm:grid-cols-2"
+            style={border}
+          >
+            <Field label="Address">
+              <Input
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+              />
+            </Field>
+            <Field label="City">
+              <Input value={city} onChange={(e) => setCity(e.target.value)} />
+            </Field>
+            {/*
+              Above the two fields whose labels it decides, and ahead of them
+              for a second reason: typed by hand this decided VAT, because
+              `euCountry` reads a two-letter code — a customer entered as
+              "Germany" was not an EU customer at all and the reverse charge
+              never applied to them.
+            */}
+            <Field label="Country">
+              <CountrySelect value={country} onChange={setCountry} anywhere />
+            </Field>
+            <Field label={postcodeLabel(country)}>
+              <Input
+                value={postcode}
+                onChange={(e) => setPostcode(e.target.value)}
+              />
+            </Field>
+            <Field label={regionLabel(country)}>
+              <Input
+                value={stateName}
+                onChange={(e) => setStateName(e.target.value)}
+              />
+            </Field>
+          </div>
+
+          <div
+            className="grid grid-cols-1 gap-(--gap-stack) border-t pt-(--gap-stack) sm:grid-cols-2"
+            style={border}
+          >
+            <Field label="Description">
+              <Textarea
+                value={description}
+                placeholder="What they do, and what the relationship is"
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </Field>
+            <ContextLinks values={contextLinks} onChange={setContextLinks} />
+          </div>
+
+          {/* This business's own fields, from its settings rather than here. */}
+          <div className="grid gap-(--gap-toolbar) sm:grid-cols-2">
+            <CustomFields
+              fields={settings.customFields.filter(
+                (f) => f.appliesTo === "company",
+              )}
+              values={customValues}
+              onChange={setCustomValues}
+            />
+          </div>
+
+          <Toolbar>
+            {/* Same shape as the contact form, and missed for the same two
+                reasons: the mutation fires from the form, and the route it
+                posts to is generated. */}
+            <Button
+              type="submit"
+              needs={{ crm: [company ? "update" : "create"] }}
+              disabled={save.isPending || !name.trim()}
+            >
+              {save.isPending
+                ? "Saving…"
+                : company
+                  ? "Save changes"
+                  : "Create company"}
+            </Button>
+            <Button variant="secondary" onClick={() => onDone()}>
+              Cancel
+            </Button>
+            {!name.trim() ? (
+              <span className="text-sm" style={muted}>
+                A name is needed.
+              </span>
+            ) : null}
+          </Toolbar>
+
+          {save.error ? <ErrorNote error={save.error} /> : null}
+        </form>
+      </Card>
+    </Page>
+  );
+}

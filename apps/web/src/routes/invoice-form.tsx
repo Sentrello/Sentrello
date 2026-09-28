@@ -1,0 +1,985 @@
+import { documentTotals } from "@sentrello/db/money";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { type Contact, api } from "../lib/api";
+import { Icon } from "../lib/icons";
+import { RecordPicker } from "../lib/record-picker";
+import {
+  Button,
+  Card,
+  ErrorNote,
+  Field,
+  Input,
+  Loading,
+  Page,
+  SectionHeading,
+  Select,
+  Textarea,
+  Toolbar,
+  border,
+  formatMoney,
+  muted,
+} from "../lib/ui";
+
+/**
+ * Writing an invoice.
+ *
+ * Three cards, in the order the reference puts them and for the reason it does:
+ * who it is for and when it is due; what is on it; and what it comes to. The
+ * middle one is where all the time goes, so it gets the width.
+ *
+ * The totals are worked out here as somebody types **and** on the server when
+ * it saves. That is a deliberate second copy: a form that cannot show a
+ * running total is a form people check on a calculator, and a total the
+ * browser decides is a total a customer could edit. The screen's figure is a
+ * preview; the server's is the invoice.
+ */
+
+interface TaxDefinition {
+  id: string;
+  name: string;
+  /** Millionths — null on rows saved before the finer unit. */
+  ratePpm: number | null;
+  /** Basis points; the exact figure when `ratePpm` is null. */
+  rateBp: number;
+  categoryCode: string;
+  compound: boolean;
+  isDefault: boolean;
+  active: boolean;
+}
+
+interface BillableItem {
+  id: string;
+  name: string;
+  description: string | null;
+  unitPriceCents: number;
+  unit: string;
+  taxDefinitionId: string | null;
+  active: boolean;
+}
+
+/** Only the fields the editor puts back into its boxes. */
+interface DocumentShape {
+  contactId: string | null;
+  notes: string | null;
+  templateId: string | null;
+  discountType: string | null;
+  discountValue: number | null;
+  dueDate?: string | null;
+  paymentTerms?: string | null;
+  buyerReference?: string | null;
+  validUntil?: string | null;
+  exemptionCertificateId?: string | null;
+  /** The prices on this document already contain the tax. */
+  pricesIncludeTax?: boolean;
+}
+
+interface LineDraft {
+  /**
+   * A client-side identity, so React can tell two blank rows apart.
+   *
+   * Given at creation rather than using the array index: removing the second
+   * of three lines with an index key makes React reuse the third row's DOM
+   * for the second, and whatever was half-typed in it moves up a row.
+   */
+  key: string;
+  billableItemId: string | null;
+  description: string;
+  /** What the box holds, as typed. Parsed on save, not on every keystroke. */
+  quantity: string;
+  unitPrice: string;
+  unit: string;
+  /**
+   * Every tax on the line, in charging order.
+   *
+   * A list because Canada needs one: GST beside a provincial PST is two
+   * taxes on the same line. One entry is the ordinary case everywhere else.
+   */
+  taxDefinitionIds: string[];
+}
+
+const blankLine = (unit = "piece"): LineDraft => ({
+  key: crypto.randomUUID(),
+  billableItemId: null,
+  description: "",
+  quantity: "1",
+  unitPrice: "",
+  // Whatever the business sells by first, so the common case needs no press.
+  unit,
+  taxDefinitionIds: [],
+});
+
+/** "12.50" → 1250. Money is typed in units and stored in cents. */
+function toCents(typed: string): number {
+  const value = Number.parseFloat(typed.replace(/,/g, ""));
+  return Number.isFinite(value) ? Math.round(value * 100) : 0;
+}
+
+/** "1.5" → 1500. Quantity is thousandths, so half a day survives. */
+function toMilli(typed: string): number {
+  const value = Number.parseFloat(typed.replace(/,/g, ""));
+  return Number.isFinite(value) ? Math.round(value * 1000) : 0;
+}
+
+export function InvoiceForm({
+  documentId,
+  asQuote = false,
+  onDone,
+}: {
+  /**
+   * Absent when raising a new one; the quote's id when `asQuote`.
+   *
+   * It used to be called `invoiceId`, was accepted, and was then used for
+   * nothing but the heading: the form opened blank under "Edit invoice" and
+   * saving POSTed, so editing a draft raised a second invoice and left the
+   * first alone. It now loads the document and PATCHes it.
+   */
+  documentId?: string;
+  /**
+   * Writes a quote instead.
+   *
+   * One form, because a quote is the same document before it is owed — same
+   * lines, same discount, same tax. Two forms would be two places to add a
+   * field and one place to forget.
+   */
+  asQuote?: boolean;
+  onDone: (saved?: { id: string; number: string }) => void;
+}) {
+  const taxes = useQuery({
+    queryKey: ["invoicing-taxes"],
+    queryFn: () => api<{ taxes: TaxDefinition[] }>("/api/invoicing/taxes"),
+  });
+  const items = useQuery({
+    queryKey: ["invoicing-items"],
+    queryFn: () => api<{ items: BillableItem[] }>("/api/invoicing/items"),
+  });
+  /**
+   * The customer, chosen by searching rather than by scrolling.
+   *
+   * This was a `<select>` filled from the whole contacts table. That list is
+   * capped at a thousand rows, and nothing here read the flag saying so — so a
+   * business with more customers than that had some of them simply missing
+   * from the picker, always the same ones, with nothing on screen to say why.
+   * `RecordPicker` searches the server as somebody types.
+   */
+  const [customer, setCustomer] = useState<{
+    id: string;
+    name: string;
+    companyId?: string | null;
+  } | null>(null);
+  /**
+   * The rates this customer's own jurisdictions charge, if any.
+   *
+   * This used to be worked out here: fetch every company, find the one on the
+   * chosen contact, read its country and state, and offer the lookup if both
+   * looked American. `/api/companies` is capped at a thousand rows and says
+   * `truncated: true` when it has cut — which nothing here read, so at a
+   * business with more companies than that the customer's address was simply
+   * not found. No error, no empty state: the offer just never appeared and
+   * the invoice went out with no tax on it. That is worse than a row going
+   * missing, because the document looks finished.
+   *
+   * So the question goes to the server as "who is this for", and the server
+   * reads the address. It also answers before anybody clicks, which means the
+   * offer appears only when there is something to apply — the old button
+   * showed itself on any US address and then quietly did nothing when no rate
+   * matched.
+   */
+  const localRates = useQuery({
+    queryKey: ["us-taxes", customer?.id],
+    enabled: Boolean(customer?.id) && !asQuote,
+    queryFn: () =>
+      api<{ taxes: { id: string }[] }>(
+        `/api/invoicing/us-taxes?contactId=${encodeURIComponent(customer?.id ?? "")}`,
+      ),
+  });
+  /**
+   * The terms and the units this business offers.
+   *
+   * Both were free-text boxes, which is how one business ends up with "hour",
+   * "hours", "hr" and "Hrs" on four invoices, and with payment terms that say
+   * thirty days beside a due date somebody set to next Tuesday.
+   */
+  const letterheads = useQuery({
+    queryKey: ["invoicing-templates"],
+    queryFn: () =>
+      api<{ templates: { id: string; name: string; isDefault: boolean }[] }>(
+        "/api/invoicing/templates",
+      ),
+  });
+  /**
+   * The customer's exemption certificates, for the US sales-tax case.
+   *
+   * Fetched once and filtered to the chosen customer's company: a reseller
+   * or a non-profit is invoiced under a recorded certificate, and choosing
+   * it here is what makes the sale exempt — and defensible later.
+   */
+  const exemptions = useQuery({
+    queryKey: ["invoicing-exemptions"],
+    queryFn: () =>
+      api<{
+        certificates: {
+          id: string;
+          companyId: string;
+          number: string;
+          state: string;
+          status: string;
+        }[];
+      }>("/api/invoicing/exemptions"),
+  });
+  const billing = useQuery({
+    queryKey: ["invoicing-billing"],
+    queryFn: () =>
+      api<{
+        settings: {
+          paymentTermOptions: { label: string; days: number }[];
+          units: string[];
+          pricesIncludeTax?: boolean;
+        };
+      }>("/api/invoicing/settings"),
+  });
+
+  const [dueDate, setDueDate] = useState("");
+  const [validUntil, setValidUntil] = useState("");
+  const [paymentTerms, setPaymentTerms] = useState("");
+  const [buyerReference, setBuyerReference] = useState("");
+  const [notes, setNotes] = useState("");
+  /** Which letterhead this one goes out on. Empty means the business's own. */
+  const [templateId, setTemplateId] = useState("");
+  const [discountType, setDiscountType] = useState("");
+  const [discountValue, setDiscountValue] = useState("");
+  // Pay early, pay less. An invoice thing only — a quote is not owed yet.
+  const [earlyType, setEarlyType] = useState("");
+  const [earlyValue, setEarlyValue] = useState("");
+  const [earlyDays, setEarlyDays] = useState("10");
+  // The certificate this sale is exempt under, or nothing. Invoices only.
+  const [exemptionCertificateId, setExemptionCertificateId] = useState("");
+  const [lines, setLines] = useState<LineDraft[]>([blankLine()]);
+
+  /**
+   * What is already on the document, when one is being edited.
+   *
+   * Fetched rather than passed in: the list rows carry totals and a customer
+   * name, not the lines, and an editor opened from a row that only knows the
+   * summary is exactly how this came to open blank.
+   */
+  const existing = useQuery({
+    queryKey: [asQuote ? "quote" : "invoice", documentId],
+    enabled: Boolean(documentId),
+    queryFn: () =>
+      api<{
+        quote?: DocumentShape;
+        invoice?: DocumentShape;
+        /** The document's customer, so the picker needs no lookup of its own. */
+        contact?: { id: string; name: string; companyId: string | null } | null;
+        lines: {
+          description: string;
+          quantityMilli: number;
+          unitPriceCents: number;
+          unit: string | null;
+          taxDefinitionId: string | null;
+          taxes: { taxDefinitionId: string | null }[] | null;
+        }[];
+      }>(`/api/${asQuote ? "quotes" : "invoices"}/${documentId}`),
+  });
+
+  /**
+   * Filled in once, when the document arrives.
+   *
+   * `loaded` rather than an effect on the data: react-query refetches, and a
+   * refetch that overwrote the boxes would take back whatever had been typed
+   * since.
+   */
+  const [loaded, setLoaded] = useState(false);
+  if (documentId && !loaded && existing.data) {
+    const doc = existing.data.quote ?? existing.data.invoice;
+    if (doc) {
+      setLoaded(true);
+      setCustomer(existing.data.contact ?? null);
+      setNotes(doc.notes ?? "");
+      setTemplateId(doc.templateId ?? "");
+      setDiscountType(doc.discountType ?? "");
+      setDiscountValue(doc.discountValue ? String(doc.discountValue) : "");
+      if (asQuote) {
+        setValidUntil(doc.validUntil ? doc.validUntil.slice(0, 10) : "");
+      } else {
+        setDueDate(doc.dueDate ? doc.dueDate.slice(0, 10) : "");
+        setPaymentTerms(doc.paymentTerms ?? "");
+        setBuyerReference(doc.buyerReference ?? "");
+        setExemptionCertificateId(doc.exemptionCertificateId ?? "");
+      }
+      setLines(
+        existing.data.lines.length
+          ? existing.data.lines.map((l) => ({
+              key: crypto.randomUUID(),
+              billableItemId: null,
+              description: l.description,
+              quantity: String(l.quantityMilli / 1000),
+              unitPrice: (l.unitPriceCents / 100).toFixed(2),
+              unit: l.unit ?? "piece",
+              taxDefinitionIds: l.taxes?.length
+                ? l.taxes
+                    .map((t) => t.taxDefinitionId)
+                    .filter((t): t is string => t !== null)
+                : l.taxDefinitionId
+                  ? [l.taxDefinitionId]
+                  : [],
+            }))
+          : [blankLine()],
+      );
+    }
+  }
+
+  const rates = (taxes.data?.taxes ?? []).filter((t) => t.active);
+  const catalogue = (items.data?.items ?? []).filter((i) => i.active);
+  const terms = billing.data?.settings.paymentTermOptions ?? [];
+  const units = billing.data?.settings.units ?? [];
+
+  /**
+   * Choosing terms sets the date they follow from.
+   *
+   * "Net 30" and a due date three days out is the contradiction the free-text
+   * box invited, and the customer reads whichever suits them.
+   */
+  const chooseTerms = (label: string) => {
+    setPaymentTerms(label);
+    const found = terms.find((t) => t.label === label);
+    if (!found) return;
+    const due = new Date();
+    due.setDate(due.getDate() + found.days);
+    setDueDate(due.toISOString().slice(0, 10));
+  };
+
+  const taxFor = (id: string) => rates.find((r) => r.id === id);
+
+  /**
+   * Whether the prices being typed already contain the tax.
+   *
+   * A document already raised answers for itself; a new one takes the
+   * business's setting, which is the same order the server decides it in. The
+   * two must agree or the running total on the screen is not the total that
+   * gets saved.
+   */
+  const pricesIncludeTax =
+    (existing.data?.quote ?? existing.data?.invoice)?.pricesIncludeTax ??
+    billing.data?.settings.pricesIncludeTax ??
+    false;
+
+  /**
+   * The running total, from the same function the server uses.
+   *
+   * Not a second implementation. The screen and the invoice have to agree
+   * exactly — including how a discount is apportioned across tax rates, which
+   * is the part nobody would notice drifting — and the only way to guarantee
+   * that is for both to call the same code. `documentTotals` lives in the db
+   * package and touches no database, so the browser can have it.
+   *
+   * A line still being typed is worth nothing rather than throwing: the
+   * preview updates on every keystroke, and half a number is not an error.
+   */
+  let preview = { subtotal: 0, discount: 0, tax: 0, total: 0 };
+  try {
+    preview = documentTotals(
+      lines.map((l) => ({
+        quantity: toMilli(l.quantity) / 1000,
+        unitPrice: toCents(l.unitPrice),
+        taxRateBp: 0,
+        taxes: l.taxDefinitionIds.map((id) => ({
+          taxDefinitionId: id,
+          ratePpm: taxFor(id)?.ratePpm ?? (taxFor(id)?.rateBp ?? 0) * 100,
+          compound: taxFor(id)?.compound ?? false,
+        })),
+      })),
+      discountType === "percent"
+        ? {
+            type: "percent",
+            value: Math.round(Number.parseFloat(discountValue || "0") * 100),
+          }
+        : discountType === "amount"
+          ? { type: "amount", value: toCents(discountValue) }
+          : null,
+      { pricesIncludeTax },
+    );
+  } catch {
+    // Mid-keystroke. The buttons are disabled until the lines are usable.
+  }
+
+  const setLine = (index: number, patch: Partial<LineDraft>) =>
+    setLines((current) =>
+      current.map((l, i) => (i === index ? { ...l, ...patch } : l)),
+    );
+
+  /** Picking from the catalogue fills the line in, and stays editable. */
+  const pickItem = (index: number, itemId: string) => {
+    const item = catalogue.find((i) => i.id === itemId);
+    if (!item) return setLine(index, { billableItemId: null });
+    setLine(index, {
+      billableItemId: item.id,
+      description: item.description?.trim() || item.name,
+      unitPrice: (item.unitPriceCents / 100).toFixed(2),
+      unit: item.unit,
+      taxDefinitionIds: item.taxDefinitionId ? [item.taxDefinitionId] : [],
+    });
+  };
+
+  const save = useMutation({
+    mutationFn: async (status: "draft" | "open") => {
+      const body = {
+        contactId: customer?.id ?? null,
+        currency: "USD",
+        status,
+        ...(asQuote
+          ? { validUntil: validUntil || undefined }
+          : {
+              dueDate: dueDate || undefined,
+              buyerReference: buyerReference.trim() || null,
+            }),
+        paymentTerms: paymentTerms.trim() || null,
+        templateId: templateId || null,
+        notes: notes.trim() || null,
+        ...(discountType
+          ? {
+              discountType,
+              discountValue:
+                discountType === "percent"
+                  ? Math.round(Number.parseFloat(discountValue || "0") * 100)
+                  : toCents(discountValue),
+            }
+          : {}),
+        ...(!asQuote && earlyType
+          ? {
+              earlyDiscountType: earlyType,
+              earlyDiscountValue:
+                earlyType === "percent"
+                  ? Math.round(Number.parseFloat(earlyValue || "0") * 100)
+                  : toCents(earlyValue),
+              earlyDiscountDays: Number.parseInt(earlyDays || "0", 10),
+            }
+          : {}),
+        ...(asQuote
+          ? {}
+          : { exemptionCertificateId: exemptionCertificateId || null }),
+        lines: lines
+          .filter((l) => l.description.trim())
+          .map((l) => ({
+            billableItemId: l.billableItemId,
+            description: l.description.trim(),
+            quantityMilli: toMilli(l.quantity),
+            unitPriceCents: toCents(l.unitPrice),
+            unit: l.unit,
+            ...(l.taxDefinitionIds.length
+              ? { taxDefinitionIds: l.taxDefinitionIds }
+              : {}),
+          })),
+      };
+      // PATCH when there is a document, POST when there is not. Sending a
+      // POST with an id in hand is what raised a second invoice every time
+      // somebody pressed Edit.
+      const path = asQuote ? "/api/quotes" : "/api/invoices";
+      const url = documentId ? `${path}/${documentId}` : path;
+      const method = documentId ? "PATCH" : "POST";
+
+      if (asQuote) {
+        const res = await api<{ quote: { id: string; number: string } }>(url, {
+          method,
+          body: JSON.stringify(body),
+        });
+        return res.quote;
+      }
+      const res = await api<{ invoice: { id: string; number: string } }>(url, {
+        method,
+        body: JSON.stringify(body),
+      });
+      return res.invoice;
+    },
+    onSuccess: (saved) => onDone(saved),
+  });
+
+  if (taxes.isLoading) return <Loading />;
+  /*
+   * Before the boxes, because a blank one is a statement too.
+   *
+   * Nothing below tells a document that failed to load apart from a document
+   * with nothing on it, so a fetch that broke drew the editor empty — no
+   * customer, no notes, one blank row — for an invoice that has all three.
+   * Press Save from there and the PATCH makes the screen true.
+   */
+  if (existing.error) return <ErrorNote error={existing.error} />;
+
+  const usable = lines.some(
+    (l) => l.description.trim() && toCents(l.unitPrice) >= 0,
+  );
+
+  return (
+    <Page>
+      <Toolbar>
+        {/* the form's own title, not a section within it — matches invoice-detail.tsx's <p>, not SectionHeading */}
+        <p className="font-semibold text-lg">
+          {documentId
+            ? asQuote
+              ? "Edit quote"
+              : "Edit invoice"
+            : asQuote
+              ? "New quote"
+              : "New invoice"}
+        </p>
+        <button
+          type="button"
+          className="ml-auto text-sm link-muted"
+          onClick={() => onDone()}
+        >
+          Cancel
+        </button>
+      </Toolbar>
+
+      <Card>
+        <SectionHeading>
+          {asQuote ? "Quote details" : "Invoice details"}
+        </SectionHeading>
+        <div className="grid gap-(--gap-toolbar) sm:grid-cols-3">
+          <Field label="Customer">
+            <RecordPicker<Contact>
+              path="/api/contacts"
+              resource="contacts"
+              value={customer}
+              onChange={setCustomer}
+              placeholder="Choose a customer"
+              clearLabel="No customer"
+              noun="customer"
+            />
+          </Field>
+          {!asQuote &&
+            (() => {
+              const company = customer?.companyId;
+              const usable = (exemptions.data?.certificates ?? []).filter(
+                (cert) =>
+                  cert.companyId === company &&
+                  (cert.status === "valid" || cert.status === "expiring-soon"),
+              );
+              // No certificates, no field: the café never sees this.
+              if (!company || usable.length === 0) return null;
+              return (
+                <Field
+                  label="Tax exemption"
+                  hint="Charged at nothing, with the certificate recorded on the invoice as evidence."
+                >
+                  <Select
+                    value={exemptionCertificateId}
+                    onChange={(e) => setExemptionCertificateId(e.target.value)}
+                  >
+                    <option value="">Not exempt</option>
+                    {usable.map((cert) => (
+                      <option key={cert.id} value={cert.id}>
+                        {cert.state} · {cert.number}
+                        {cert.status === "expiring-soon"
+                          ? " (expiring soon)"
+                          : ""}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              );
+            })()}
+          {asQuote ? (
+            <Field
+              label="Valid until"
+              hint="After this the price is no longer promised."
+            >
+              <Input
+                type="date"
+                value={validUntil}
+                onChange={(e) => setValidUntil(e.target.value)}
+              />
+            </Field>
+          ) : (
+            <Field
+              label="Due"
+              hint="Left blank, it defaults to thirty days — an invoice with no due date is never chased."
+            >
+              <Input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+              />
+            </Field>
+          )}
+          <Field
+            label="Payment terms"
+            hint="Choosing one sets the due date to match."
+          >
+            <Select
+              value={
+                terms.some((t) => t.label === paymentTerms) ? paymentTerms : ""
+              }
+              onChange={(e) => chooseTerms(e.target.value)}
+            >
+              <option value="">Something else…</option>
+              {terms.map((term) => (
+                <option key={term.label} value={term.label}>
+                  {term.label}
+                </option>
+              ))}
+            </Select>
+            {/* A business with an arrangement nobody else has still needs to
+                write it down. */}
+            {terms.some((t) => t.label === paymentTerms) ? null : (
+              <Input
+                className="mt-(--gap-tight)"
+                value={paymentTerms}
+                placeholder="Half on delivery, half in 30 days"
+                aria-label="Payment terms in your own words"
+                onChange={(e) => setPaymentTerms(e.target.value)}
+              />
+            )}
+          </Field>
+          {/* The reference the customer files this under — their PO number,
+              or a German public body's Leitweg-ID. A structured e-invoice
+              cannot travel the network without one. */}
+          {asQuote ? null : (
+            <Field
+              label="Customer's reference"
+              hint="Their PO number or reference. Required on e-invoices."
+            >
+              <Input
+                value={buyerReference}
+                onChange={(e) => setBuyerReference(e.target.value)}
+              />
+            </Field>
+          )}
+          {/* One business, usually one letterhead — but a trade that bills
+              two names out of one company needs to say which. */}
+          {(letterheads.data?.templates ?? []).length > 1 ? (
+            <Field label="Letterhead">
+              <Select
+                value={templateId}
+                onChange={(e) => setTemplateId(e.target.value)}
+              >
+                <option value="">The usual one</option>
+                {(letterheads.data?.templates ?? []).map((letterhead) => (
+                  <option key={letterhead.id} value={letterhead.id}>
+                    {letterhead.name}
+                    {letterhead.isDefault ? " (default)" : ""}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          ) : null}
+        </div>
+      </Card>
+
+      <Card>
+        <SectionHeading
+          trailing={(() => {
+            const local = localRates.data?.taxes ?? [];
+            // Nothing to apply, or the sale is exempt under a certificate —
+            // in which case offering to put tax on it is the wrong suggestion.
+            if (local.length === 0 || exemptionCertificateId) return null;
+            return (
+              <button
+                type="button"
+                className="text-sm link-muted"
+                title="Puts the rates for this customer's own state and city on every line."
+                onClick={() =>
+                  setLines((current) =>
+                    current.map((l) => ({
+                      ...l,
+                      taxDefinitionIds: local.map((t) => t.id),
+                    })),
+                  )
+                }
+              >
+                Use the customer's local rates
+              </button>
+            );
+          })()}
+        >
+          Line items
+        </SectionHeading>
+        <div className="flex flex-col gap-(--gap-toolbar)">
+          {lines.map((line, i) => (
+            <div
+              key={line.key}
+              className="grid gap-(--gap-toolbar) sm:grid-cols-[minmax(0,1fr)_minmax(0,5rem)_minmax(0,6rem)_minmax(0,7rem)_minmax(0,8rem)_minmax(0,2rem)]"
+            >
+              <span className="flex flex-col gap-(--gap-tight)">
+                <Input
+                  value={line.description}
+                  placeholder="What was done"
+                  aria-label={`Line ${i + 1} description`}
+                  onChange={(e) => setLine(i, { description: e.target.value })}
+                />
+                {catalogue.length > 0 ? (
+                  <Select
+                    value={line.billableItemId ?? ""}
+                    aria-label={`Line ${i + 1} from the catalogue`}
+                    className="w-full text-xs"
+                    onChange={(e) => pickItem(i, e.target.value)}
+                  >
+                    <option value="">Or pick from your list…</option>
+                    {catalogue.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name} — {formatMoney(item.unitPriceCents)}
+                      </option>
+                    ))}
+                  </Select>
+                ) : null}
+              </span>
+              <Input
+                value={line.quantity}
+                inputMode="decimal"
+                aria-label={`Line ${i + 1} quantity`}
+                onChange={(e) => setLine(i, { quantity: e.target.value })}
+              />
+              {/* The line keeps whatever unit it arrived with, even if the
+                  business has since dropped it from the list — an invoice
+                  that silently changes "cubic yard" to "piece" is worse than
+                  a stale option. */}
+              <Select
+                value={line.unit}
+                aria-label={`Line ${i + 1} unit`}
+                onChange={(e) => setLine(i, { unit: e.target.value })}
+              >
+                {(units.includes(line.unit)
+                  ? units
+                  : [line.unit, ...units].filter(Boolean)
+                ).map((unit) => (
+                  <option key={unit} value={unit}>
+                    {unit}
+                  </option>
+                ))}
+              </Select>
+              <Input
+                value={line.unitPrice}
+                inputMode="decimal"
+                placeholder="0.00"
+                aria-label={
+                  pricesIncludeTax
+                    ? `Line ${i + 1} unit price including tax`
+                    : `Line ${i + 1} unit price`
+                }
+                onChange={(e) => setLine(i, { unitPrice: e.target.value })}
+              />
+              {/* One select per tax on the line, plus one to add another —
+                  Canada charges GST beside a provincial tax on the same
+                  line. Clearing a select takes that tax off the line. */}
+              <span className="flex flex-col gap-(--gap-tight)">
+                {[...line.taxDefinitionIds, ""].map((chosen, at) => (
+                  <Select
+                    key={`${line.key}-tax-${chosen || "add"}`}
+                    value={chosen}
+                    className="w-full"
+                    aria-label={
+                      chosen
+                        ? `Line ${i + 1} tax ${at + 1}`
+                        : line.taxDefinitionIds.length
+                          ? `Line ${i + 1}: add another tax`
+                          : `Line ${i + 1} tax`
+                    }
+                    onChange={(e) => {
+                      const next = [...line.taxDefinitionIds];
+                      if (e.target.value) next.splice(at, 1, e.target.value);
+                      else next.splice(at, 1);
+                      setLine(i, { taxDefinitionIds: [...new Set(next)] });
+                    }}
+                  >
+                    <option value="">
+                      {chosen || !line.taxDefinitionIds.length
+                        ? "No tax"
+                        : "Add tax…"}
+                    </option>
+                    {rates
+                      .filter(
+                        (rate) =>
+                          rate.id === chosen ||
+                          !line.taxDefinitionIds.includes(rate.id),
+                      )
+                      .map((rate) => (
+                        <option key={rate.id} value={rate.id}>
+                          {rate.name}
+                        </option>
+                      ))}
+                  </Select>
+                ))}
+              </span>
+              <button
+                type="button"
+                className="link-muted"
+                aria-label={`Remove line ${i + 1}`}
+                disabled={lines.length === 1}
+                onClick={() =>
+                  setLines((current) => current.filter((_, at) => at !== i))
+                }
+              >
+                <Icon name="close" size={15} />
+              </button>
+            </div>
+          ))}
+        </div>
+        <div className="mt-(--gap-toolbar)">
+          <Button
+            variant="secondary"
+            onClick={() =>
+              setLines((current) => [...current, blankLine(units[0])])
+            }
+          >
+            Add a line
+          </Button>
+        </div>
+      </Card>
+
+      <div className="grid grid-cols-1 gap-(--gap-stack) lg:grid-cols-2">
+        <Card>
+          <SectionHeading>Notes</SectionHeading>
+          <Textarea
+            value={notes}
+            rows={5}
+            placeholder="Anything the customer should read on the invoice"
+            aria-label="Notes"
+            onChange={(e) => setNotes(e.target.value)}
+          />
+        </Card>
+
+        <Card>
+          <SectionHeading>Total</SectionHeading>
+
+          <Toolbar className="mb-(--gap-toolbar)">
+            <Field label="Discount">
+              <Select
+                value={discountType}
+                onChange={(e) => setDiscountType(e.target.value)}
+              >
+                <option value="">None</option>
+                <option value="percent">A percentage</option>
+                <option value="amount">A fixed amount</option>
+              </Select>
+            </Field>
+            {discountType ? (
+              <Field label={discountType === "percent" ? "%" : "Amount"}>
+                <Input
+                  value={discountValue}
+                  inputMode="decimal"
+                  onChange={(e) => setDiscountValue(e.target.value)}
+                />
+              </Field>
+            ) : null}
+          </Toolbar>
+
+          {/*
+            Pay early, pay less. Not offered on a quote: nothing is owed yet,
+            so there is nothing to settle sooner.
+          */}
+          {!asQuote ? (
+            <Toolbar className="mb-(--gap-toolbar)">
+              <Field label="Pay early, pay less">
+                <Select
+                  value={earlyType}
+                  onChange={(e) => setEarlyType(e.target.value)}
+                >
+                  <option value="">Not offered</option>
+                  <option value="percent">A percentage off</option>
+                  <option value="amount">A fixed amount off</option>
+                </Select>
+              </Field>
+              {earlyType ? (
+                <>
+                  <Field label={earlyType === "percent" ? "%" : "Amount"}>
+                    <Input
+                      value={earlyValue}
+                      inputMode="decimal"
+                      className="w-24"
+                      onChange={(e) => setEarlyValue(e.target.value)}
+                    />
+                  </Field>
+                  <Field label="Within (days)">
+                    <Input
+                      value={earlyDays}
+                      inputMode="numeric"
+                      className="w-24"
+                      onChange={(e) => setEarlyDays(e.target.value)}
+                    />
+                  </Field>
+                </>
+              ) : null}
+            </Toolbar>
+          ) : null}
+
+          <table className="w-full text-sm">
+            <tbody>
+              <tr>
+                <td style={muted}>Subtotal</td>
+                <td className="money">{formatMoney(preview.subtotal)}</td>
+              </tr>
+              {preview.discount > 0 ? (
+                <tr>
+                  <td style={muted}>Discount</td>
+                  <td className="money">−{formatMoney(preview.discount)}</td>
+                </tr>
+              ) : null}
+              <tr>
+                <td style={muted}>Tax</td>
+                <td className="money">{formatMoney(preview.tax)}</td>
+              </tr>
+              <tr className="border-t font-semibold" style={border}>
+                <td className="pt-1">Total</td>
+                <td className="money pt-1">{formatMoney(preview.total)}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          {/*
+            Tax on what is left after the discount, not before it — the order
+            every tax authority expects, and the one the server uses.
+          */}
+          <p className="mt-(--gap-toolbar) text-xs" style={muted}>
+            {pricesIncludeTax
+              ? "Prices include tax, so the total is what you typed. The tax is shown separately above because the document has to state it."
+              : "Worked out with the same code the invoice is saved with."}
+          </p>
+        </Card>
+      </div>
+
+      <Toolbar>
+        {/* One button when editing, two when raising.
+            Editing does not change a document's status — a PATCH that quietly
+            issued a draft because somebody pressed the wrong one of two
+            buttons would be a surprise with a journal entry behind it — so
+            offering "Save as a draft" beside "Raise it" here would be two
+            labels for the same thing. */}
+        {documentId ? (
+          <Button
+            needs={{ invoicing: ["update"] }}
+            onClick={() => save.mutate("draft")}
+            disabled={save.isPending || !usable}
+          >
+            {save.isPending ? "Saving…" : "Save changes"}
+          </Button>
+        ) : (
+          <>
+            <Button
+              needs={{ invoicing: ["create"] }}
+              onClick={() => save.mutate("draft")}
+              disabled={save.isPending || !usable}
+              variant="secondary"
+            >
+              {save.isPending ? "Saving…" : "Save as a draft"}
+            </Button>
+            <Button
+              needs={{ invoicing: ["create"] }}
+              onClick={() => save.mutate("open")}
+              disabled={save.isPending || !usable}
+            >
+              {asQuote ? "Save the quote" : "Raise it"}
+            </Button>
+          </>
+        )}
+        {!usable ? (
+          <span className="text-sm" style={muted}>
+            At least one line with a description.
+          </span>
+        ) : null}
+      </Toolbar>
+
+      {save.error ? <ErrorNote error={save.error} /> : null}
+    </Page>
+  );
+}

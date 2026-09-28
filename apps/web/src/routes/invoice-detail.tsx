@@ -1,0 +1,924 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { announce } from "../lib/announce";
+import { type Meta, api } from "../lib/api";
+import { RelatedLink, useNavigation, useRecordTitle } from "../lib/navigation";
+import { type TagChip, TagChips } from "../lib/tags";
+import {
+  Button,
+  Card,
+  Empty,
+  ErrorNote,
+  Field,
+  Input,
+  Loading,
+  Row,
+  SectionHeading,
+  Select,
+  Table,
+  border,
+  formatDate,
+  formatMoney,
+  muted,
+} from "../lib/ui";
+
+/**
+ * One invoice, and everything that has happened to it.
+ *
+ * The reference puts three things on this screen and it is right about all
+ * three: the document as the customer will see it, the money against it, and
+ * the actions that make sense from here. What it does not do — and neither
+ * does this — is let somebody quietly edit an invoice that has been issued.
+ * That is a void or a credit note, because an issued document is a thing that
+ * happened.
+ */
+
+interface Detail {
+  invoice: {
+    id: string;
+    number: string;
+    kind: string;
+    status: string;
+    currency: string;
+    contactId: string | null;
+    issueDate: string;
+    dueDate: string | null;
+    subtotalCents: number;
+    discountCents: number;
+    discountType: string | null;
+    taxCents: number;
+    totalCents: number;
+    notes: string | null;
+    paymentTerms: string | null;
+    published: boolean;
+    shareToken: string | null;
+    viewCount: number;
+    firstViewedAt: string | null;
+    lastViewedAt: string | null;
+    referenceInvoiceId: string | null;
+  };
+  /** The early-payment offer as the server sees it today, or none. */
+  earlyPayment: {
+    deadline: string | null;
+    savingCents: number;
+    discountedTotalCents: number;
+    open: boolean;
+  };
+  earlyDiscountTakenCents: number;
+  lines: {
+    id: string;
+    description: string;
+    quantityMilli: number;
+    unit: string;
+    unitPriceCents: number;
+    taxRateBp: number;
+  }[];
+  payments: {
+    id: string;
+    amountCents: number;
+    method: string;
+    receivedAt: string;
+  }[];
+  bands: { id: string; name: string; rateBp: number; taxCents: number }[];
+  contact: { id: string; name: string; email: string | null } | null;
+  /** What it has been labelled, for finding it again among four hundred. */
+  tags: TagChip[];
+  paidCents: number;
+  /** Settled by credit note rather than by money. */
+  creditedCents: number;
+  balanceDue: number;
+  computedStatus: string;
+  /** What this customer could apply here, if anything. */
+  availableCreditCents: number;
+}
+
+/** "1.5" reads better than "1.500". Quantity is stored in thousandths. */
+function quantity(milli: number): string {
+  const value = milli / 1000;
+  return Number.isInteger(value) ? String(value) : value.toFixed(2);
+}
+
+export function InvoiceDetail() {
+  const qc = useQueryClient();
+  const { current, go } = useNavigation();
+  const id = current.recordId;
+  const [copied, setCopied] = useState(false);
+  const [portalCopied, setPortalCopied] = useState(false);
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["invoice", id],
+    queryFn: () => api<Detail>(`/api/invoices/${id}`),
+    enabled: Boolean(id),
+  });
+
+  // Already in the cache from the shell's own fetch, so this costs no request.
+  const tier = useQuery({
+    queryKey: ["meta"],
+    queryFn: () => api<Meta>("/api/_meta"),
+  }).data?.tier;
+
+  // The document's own number, so a refreshed page still says INV-0023.
+  useRecordTitle(data?.invoice.number);
+
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ["invoice", id] });
+    qc.invalidateQueries({ queryKey: ["invoices"] });
+    qc.invalidateQueries({ queryKey: ["invoice-counts"] });
+  };
+
+  const act = useMutation({
+    mutationFn: (path: string) =>
+      api<Record<string, unknown>>(`/api/invoices/${id}/${path}`, {
+        method: "POST",
+      }),
+    onSuccess: refresh,
+  });
+
+  const share = useMutation({
+    mutationFn: () =>
+      api<{ url: string }>(`/api/invoices/${id}/share`, { method: "POST" }),
+    onSuccess: (result) => {
+      navigator.clipboard?.writeText(result.url);
+      setCopied(true);
+      refresh();
+    },
+  });
+
+  /**
+   * Everything this customer owes, on one link.
+   *
+   * The endpoint has existed since the portal was built and nothing called it,
+   * so the portal could only be reached from an emailed invoice. This is where
+   * somebody is standing when a customer asks "can you send me everything".
+   */
+  /**
+   * Whether this invoice could be sent as a structured e-invoice, and what is
+   * stopping it.
+   *
+   * Asked before the button is offered rather than discovered by pressing it.
+   * In Italy, France, Germany and Poland a PDF is not an invoice any more, and
+   * the first a business should hear of a missing country is not a failed
+   * download at the moment they need to issue.
+   */
+  const eInvoice = useQuery({
+    queryKey: ["einvoice", id],
+    queryFn: async () => {
+      /*
+       * All three rulebooks at once: the bare norm, the Peppol network's
+       * profile, and Germany's. Readiness differs — a document fine as bare
+       * EN 16931 may still lack the buyer reference Peppol demands — so each
+       * download button answers for itself.
+       */
+      const check = (profile: string) =>
+        api<{
+          ready: boolean;
+          missing: string[];
+          addressedTo: string;
+          country: string | null;
+        }>(`/api/invoices/${id}/einvoice?profile=${profile}`);
+      const [en16931, peppol, xrechnung] = await Promise.all([
+        check("en16931"),
+        check("peppol"),
+        check("xrechnung"),
+      ]);
+      return { en16931, peppol, xrechnung };
+    },
+  });
+
+  /*
+   * Whether this business can put an invoice on the network at all.
+   *
+   * The download buttons above need nobody's permission — the file is ours.
+   * Sending needs an access point, which is an account the business holds,
+   * so the send button appears only once one is connected. Asked here rather
+   * than discovered by pressing, for the same reason the readiness check
+   * above is.
+   */
+  const peppol = useQuery({
+    queryKey: ["peppol-connection"],
+    queryFn: () =>
+      api<{ connection: { sandbox: boolean } | null }>(
+        "/api/einvoice/connection",
+      ),
+  });
+
+  const submissions = useQuery({
+    queryKey: ["peppol-submissions", id],
+    queryFn: () =>
+      api<{
+        submissions: {
+          id: string;
+          status: string;
+          recipient: string | null;
+          detail: string | null;
+          sandbox: boolean;
+          createdAt: string;
+        }[];
+      }>(`/api/invoices/${id}/einvoice/submissions`),
+    enabled: Boolean(id),
+  });
+
+  const sendOverPeppol = useMutation({
+    mutationFn: () =>
+      api(`/api/invoices/${id}/einvoice/send`, { method: "POST" }),
+    onSuccess: () => {
+      announce("Sent over Peppol");
+      submissions.refetch();
+    },
+  });
+
+  const portalLink = useMutation({
+    mutationFn: (contactId: string) =>
+      api<{ url: string }>(`/api/contacts/${contactId}/portal-link`, {
+        method: "POST",
+      }),
+    onSuccess: (result) => {
+      navigator.clipboard?.writeText(result.url);
+      setPortalCopied(true);
+    },
+  });
+
+  if (!id) return <Empty title="No invoice selected" />;
+  if (isLoading) return <Loading />;
+  if (error) return <ErrorNote error={error} />;
+  if (!data) return null;
+
+  const { invoice, lines, payments, bands, contact } = data;
+  const isDraft = invoice.status === "draft";
+  const isVoid = invoice.status === "void";
+  const isCredit = invoice.kind === "credit_note";
+
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,20rem)]">
+      <div className="flex flex-col gap-(--gap-stack)">
+        <Card>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="font-semibold text-lg">
+                {isCredit ? "Credit note" : "Invoice"} {invoice.number}
+              </p>
+              <p className="text-sm" style={muted}>
+                Issued {formatDate(invoice.issueDate)}
+                {invoice.dueDate ? ` · due ${formatDate(invoice.dueDate)}` : ""}
+              </p>
+              {contact ? (
+                <p className="mt-1 text-sm">
+                  <span style={muted}>For </span>
+                  <RelatedLink
+                    to={{
+                      moduleId: "contacts",
+                      recordId: contact.id,
+                      title: contact.name,
+                    }}
+                  >
+                    {contact.name}
+                  </RelatedLink>
+                  {/* Their whole account, not just this document — the thing
+                      asked for on the phone when somebody queries one bill.
+                      Pro, so the link is not offered on Free: an endpoint that
+                      answers 404 is the enforcement, and a link that leads to
+                      one is just a dead end somebody reports as a bug. */}
+                  {tier === "pro" ? (
+                    <a
+                      className="link ml-2 text-xs"
+                      href={`/api/invoicing/statements/${contact.id}?format=html`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Statement of account
+                    </a>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="link ml-2 text-xs"
+                    onClick={() => portalLink.mutate(contact.id)}
+                    disabled={portalLink.isPending}
+                  >
+                    {portalCopied ? "Portal link copied" : "Copy portal link"}
+                  </button>
+                </p>
+              ) : null}
+              {portalLink.error ? <ErrorNote error={portalLink.error} /> : null}
+              {/* Labels, on the document rather than only on the customer: a
+                  business chases "disputed" and "with the accountant", and
+                  those are true of one invoice, not of everything they buy. */}
+              <div className="mt-2">
+                <TagChips
+                  path={`/api/invoices/${invoice.id}`}
+                  attached={data.tags ?? []}
+                  onChanged={refresh}
+                />
+              </div>
+            </div>
+
+            {/*
+              Whether the customer has opened it.
+
+              A business chasing an unpaid invoice is in a completely different
+              conversation depending on the answer, and "I never received it"
+              is the most common thing said on that call.
+            */}
+            <div className="text-right text-sm" style={muted}>
+              {invoice.firstViewedAt ? (
+                <>
+                  <p>Opened {formatDate(invoice.firstViewedAt)}</p>
+                  <p className="text-xs">
+                    {invoice.viewCount} time{invoice.viewCount === 1 ? "" : "s"}
+                  </p>
+                </>
+              ) : invoice.published ? (
+                <p>Not opened yet</p>
+              ) : (
+                <p>No link sent</p>
+              )}
+            </div>
+          </div>
+        </Card>
+
+        <Card className="table-inset p-0">
+          <Table
+            headers={[
+              "Description",
+              { label: "Qty", money: true },
+              { label: "Unit price", money: true },
+              { label: "Amount", money: true },
+            ]}
+          >
+            {lines.map((line) => (
+              <Row key={line.id}>
+                <td className="py-2">{line.description}</td>
+                <td className="money">
+                  {quantity(line.quantityMilli)}
+                  {line.unit && line.unit !== "piece" ? (
+                    <span className="ml-1 text-xs" style={muted}>
+                      {line.unit}
+                    </span>
+                  ) : null}
+                </td>
+                <td className="money">{formatMoney(line.unitPriceCents)}</td>
+                <td className="money">
+                  {formatMoney(
+                    Math.round(
+                      (line.quantityMilli / 1000) * line.unitPriceCents,
+                    ),
+                  )}
+                </td>
+              </Row>
+            ))}
+          </Table>
+        </Card>
+
+        {invoice.notes || invoice.paymentTerms ? (
+          <Card>
+            {invoice.paymentTerms ? (
+              <p className="text-sm" style={muted}>
+                {invoice.paymentTerms}
+              </p>
+            ) : null}
+            {invoice.notes ? (
+              <p className="mt-1 whitespace-pre-line text-sm">
+                {invoice.notes}
+              </p>
+            ) : null}
+          </Card>
+        ) : null}
+      </div>
+
+      <div className="flex flex-col gap-(--gap-stack)">
+        <Card>
+          <table className="w-full text-sm">
+            <tbody>
+              <tr>
+                <td style={muted}>Subtotal</td>
+                <td className="money">{formatMoney(invoice.subtotalCents)}</td>
+              </tr>
+              {invoice.discountCents > 0 ? (
+                <tr>
+                  <td style={muted}>Discount</td>
+                  <td className="money">
+                    −{formatMoney(invoice.discountCents)}
+                  </td>
+                </tr>
+              ) : null}
+              {/*
+                The tax as it was banded when the document was issued. Not
+                recomputed: a rate that changed afterwards must not change what
+                an invoice already said.
+              */}
+              {bands
+                .filter((b) => b.taxCents !== 0)
+                .map((band) => (
+                  <tr key={band.id}>
+                    <td style={muted}>{band.name}</td>
+                    <td className="money">{formatMoney(band.taxCents)}</td>
+                  </tr>
+                ))}
+              <tr className="border-t font-semibold" style={border}>
+                <td className="pt-1">Total</td>
+                <td className="money pt-1">
+                  {formatMoney(invoice.totalCents)}
+                </td>
+              </tr>
+              {data.paidCents > 0 ? (
+                <tr>
+                  <td style={muted}>Paid</td>
+                  <td className="money">−{formatMoney(data.paidCents)}</td>
+                </tr>
+              ) : null}
+              {/* Apart from the payments on purpose: a credit is debt given
+                  up, not money that arrived, and the split is the only place
+                  a part-paid-then-credited invoice tells its whole story. */}
+              {data.creditedCents > 0 && !isCredit ? (
+                <tr>
+                  <td style={muted}>Credited</td>
+                  <td className="money">−{formatMoney(data.creditedCents)}</td>
+                </tr>
+              ) : null}
+              {!isDraft && !isVoid ? (
+                <tr className="font-semibold">
+                  <td>{data.balanceDue > 0 ? "Still due" : "Settled"}</td>
+                  <td className="money">{formatMoney(data.balanceDue)}</td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+
+          {/*
+            The stored status against what the payments actually say.
+
+            Shown rather than believed: a stored status that has drifted from
+            the money is the kind of thing nobody notices until a customer
+            asks why they were chased for something they paid.
+          */}
+          {!isDraft && data.computedStatus !== invoice.status ? (
+            <p
+              className="mt-2 text-xs"
+              style={{ color: "var(--text-warning)" }}
+            >
+              Stored as “{invoice.status}”, but the payments say “
+              {data.computedStatus}”.
+            </p>
+          ) : null}
+        </Card>
+
+        <Card>
+          <SectionHeading>What can be done</SectionHeading>
+          <div className="flex flex-wrap gap-2">
+            {isDraft ? (
+              <Button
+                needs={{ invoicing: ["update"] }}
+                onClick={() => act.mutate("issue")}
+                disabled={act.isPending}
+              >
+                Issue it
+              </Button>
+            ) : null}
+            <Button
+              variant="secondary"
+              needs={{ invoicing: ["send"] }}
+              onClick={() => share.mutate()}
+              disabled={share.isPending}
+            >
+              {copied ? "Link copied" : "Copy a link"}
+            </Button>
+            {/*
+              Taking it back offline. A document could be published to a link
+              anybody holding it can open, and never withdrawn — the route to
+              do so has existed since sharing did, called by nothing, and only
+              looked reached because a generic action caller beside it matches
+              any word in that position.
+            */}
+            {invoice.published ? (
+              <Button
+                variant="secondary"
+                needs={{ invoicing: ["send"] }}
+                onClick={() => act.mutate("unshare")}
+                disabled={act.isPending}
+              >
+                Stop sharing
+              </Button>
+            ) : null}
+            <Button
+              variant="secondary"
+              needs={{ invoicing: ["create"] }}
+              onClick={() => act.mutate("duplicate")}
+              disabled={act.isPending}
+            >
+              Duplicate
+            </Button>
+            {!isVoid && data.paidCents === 0 && data.creditedCents === 0 ? (
+              <Button
+                variant="danger"
+                needs={{ invoicing: ["update"] }}
+                onClick={() => act.mutate("void")}
+                disabled={act.isPending}
+              >
+                Void it
+              </Button>
+            ) : null}
+            {data.paidCents > 0 && !isCredit ? (
+              <Button
+                variant="secondary"
+                needs={{ invoicing: ["create"] }}
+                onClick={() => act.mutate("credit")}
+                disabled={act.isPending}
+              >
+                Credit note
+              </Button>
+            ) : null}
+            {/*
+              A structured e-invoice, where the data allows one. Offered only
+              when it would actually validate: a download that fails is worse
+              than a button that explains itself.
+            */}
+            {eInvoice.data?.en16931.ready ? (
+              <Button
+                variant="secondary"
+                onClick={() =>
+                  window.open(
+                    `/api/invoices/${id}/einvoice.xml`,
+                    "_blank",
+                    "noopener",
+                  )
+                }
+              >
+                E-invoice (XML)
+              </Button>
+            ) : null}
+            {eInvoice.data?.peppol.ready ? (
+              <Button
+                variant="secondary"
+                onClick={() =>
+                  window.open(
+                    `/api/invoices/${id}/einvoice.xml?profile=peppol`,
+                    "_blank",
+                    "noopener",
+                  )
+                }
+              >
+                Peppol XML
+              </Button>
+            ) : null}
+            {eInvoice.data?.xrechnung.ready ? (
+              <Button
+                variant="secondary"
+                onClick={() =>
+                  window.open(
+                    `/api/invoices/${id}/einvoice.xml?profile=xrechnung`,
+                    "_blank",
+                    "noopener",
+                  )
+                }
+              >
+                XRechnung
+              </Button>
+            ) : null}
+            {/*
+              And putting it on the network, which is a different act from
+              downloading it. Offered only when there is an access point to
+              send through and a document Peppol would accept — the two
+              failures a business would otherwise meet one after the other.
+            */}
+            {peppol.data?.connection && eInvoice.data?.peppol.ready ? (
+              <Button
+                needs={{ invoicing: ["send"] }}
+                variant="secondary"
+                disabled={sendOverPeppol.isPending}
+                onClick={() => sendOverPeppol.mutate()}
+              >
+                {sendOverPeppol.isPending
+                  ? "Sending…"
+                  : peppol.data.connection.sandbox
+                    ? "Send over Peppol (sandbox)"
+                    : "Send over Peppol"}
+              </Button>
+            ) : null}
+            {/*
+              Why the button above is absent, when it is.
+
+              Silence would be the wrong answer here: a business in the EU that
+              needs a structured invoice would never learn the feature exists,
+              and would find out from a rejected submission instead. Shown only
+              once somebody has set their own country — a business that has
+              never engaged with structured invoicing is not nagged about it on
+              every invoice.
+            */}
+            {eInvoice.data &&
+            !eInvoice.data.en16931.ready &&
+            eInvoice.data.en16931.country ? (
+              <p className="w-full text-xs" style={muted}>
+                Not yet sendable as a structured e-invoice:{" "}
+                {eInvoice.data.en16931.missing.join("; ")}.
+              </p>
+            ) : null}
+            {/*
+              The stricter rulebooks, once the floor is met. The extra asks —
+              a buyer reference, an IBAN — belong to the network or to
+              Germany, and saying which spares a business fixing them one
+              rejection at a time.
+            */}
+            {eInvoice.data?.en16931.ready && !eInvoice.data.peppol.ready ? (
+              <p className="w-full text-xs" style={muted}>
+                For the Peppol network it still needs:{" "}
+                {eInvoice.data.peppol.missing.join("; ")}.
+              </p>
+            ) : null}
+            {eInvoice.data?.en16931.ready &&
+            !eInvoice.data.xrechnung.ready &&
+            eInvoice.data.xrechnung.country === "DE" ? (
+              <p className="w-full text-xs" style={muted}>
+                As a German XRechnung it still needs:{" "}
+                {eInvoice.data.xrechnung.missing.join("; ")}.
+              </p>
+            ) : null}
+            <button
+              type="button"
+              className="text-sm link-muted"
+              onClick={() => go("invoicing", "Invoices")}
+            >
+              Back to the list
+            </button>
+          </div>
+          {act.error ? <ErrorNote error={act.error} /> : null}
+          {share.error ? <ErrorNote error={share.error} /> : null}
+          {sendOverPeppol.error ? (
+            <ErrorNote error={sendOverPeppol.error} />
+          ) : null}
+
+          {/*
+            What has been put on the network, and what came back.
+            
+            "We never received it" is the conversation this answers, and the
+            access point's own reference is what a support desk asks for.
+            Failures are listed too — an attempt that was refused is the
+            thing somebody most needs to see, and it is the one a status
+            column on the invoice would have overwritten.
+          */}
+          {submissions.data?.submissions.length ? (
+            <div className="mt-3 flex flex-col gap-(--gap-tight)">
+              {submissions.data.submissions.map((sent) => (
+                <p key={sent.id} className="text-xs" style={muted}>
+                  {sent.status === "failed"
+                    ? "Refused by the access point"
+                    : `Sent to ${sent.recipient ?? "the network"}`}
+                  {sent.sandbox ? " (sandbox)" : ""} ·{" "}
+                  {formatDate(sent.createdAt)}
+                  {sent.detail ? ` — ${sent.detail}` : ""}
+                </p>
+              ))}
+            </div>
+          ) : null}
+        </Card>
+
+        {!isDraft && !isVoid ? (
+          <Payments
+            invoiceId={invoice.id}
+            payments={payments}
+            balanceDue={data.balanceDue}
+            earlyPayment={data.earlyPayment}
+            alreadyTaken={data.earlyDiscountTakenCents > 0}
+            availableCreditCents={data.availableCreditCents}
+            onDone={refresh}
+          />
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The money actually received, and a way to record more of it.
+ *
+ * Partial payments are the normal case, not the exception — a deposit and a
+ * balance is how most trades are paid — so the box is prefilled with what is
+ * still owed rather than with the invoice total.
+ */
+function Payments({
+  invoiceId,
+  payments,
+  balanceDue,
+  earlyPayment,
+  alreadyTaken,
+  availableCreditCents,
+  onDone,
+}: {
+  invoiceId: string;
+  payments: Detail["payments"];
+  balanceDue: number;
+  earlyPayment: Detail["earlyPayment"];
+  alreadyTaken: boolean;
+  availableCreditCents: number;
+  onDone: () => void;
+}) {
+  const [amount, setAmount] = useState("");
+  const [method, setMethod] = useState("manual");
+  const [receivedAt, setReceivedAt] = useState("");
+  const [takeDiscount, setTakeDiscount] = useState(false);
+  const [gatewayRef, setGatewayRef] = useState("");
+  // What the last payment held back as credit, said once rather than left
+  // silent — silence on exactly this is the bug this whole thing replaces.
+  const [creditNotice, setCreditNotice] = useState<number | null>(null);
+
+  /**
+   * Whether there is a discount to take right now.
+   *
+   * The server decides: it computes the same terms this reads, and it refuses
+   * a discount whose window has closed rather than settling the invoice for
+   * less than it asks. Deciding it here as well would be two clocks.
+   */
+  const canTakeDiscount =
+    Boolean(earlyPayment.deadline) && earlyPayment.open && !alreadyTaken;
+
+  const record = useMutation({
+    mutationFn: () =>
+      api<{ creditGrantedCents: number }>(
+        `/api/invoices/${invoiceId}/payments`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            amountCents: Math.round(
+              Number.parseFloat(amount.replace(/,/g, "") || "0") * 100,
+            ),
+            method,
+            // Blank means today, which is the common case; a cheque that
+            // cleared on Friday and is entered on Monday belongs to Friday.
+            receivedAt: receivedAt || null,
+            applyEarlyDiscount: takeDiscount,
+            gatewayRef: gatewayRef.trim() || null,
+          }),
+        },
+      ),
+    onSuccess: (result) => {
+      setAmount("");
+      setReceivedAt("");
+      setTakeDiscount(false);
+      setGatewayRef("");
+      setCreditNotice(
+        result.creditGrantedCents > 0 ? result.creditGrantedCents : null,
+      );
+      onDone();
+    },
+  });
+
+  const applyCredit = useMutation({
+    mutationFn: () =>
+      api(`/api/invoices/${invoiceId}/apply-credit`, { method: "POST" }),
+    onSuccess: onDone,
+  });
+
+  return (
+    <Card>
+      <SectionHeading>Payments</SectionHeading>
+
+      {payments.length === 0 ? (
+        <p className="text-sm" style={muted}>
+          Nothing received yet.
+        </p>
+      ) : (
+        <ul className="mb-3 flex flex-col gap-(--gap-tight) text-sm">
+          {payments.map((payment) => (
+            <li
+              key={payment.id}
+              className="flex items-baseline justify-between gap-2"
+            >
+              <span style={muted}>
+                {formatDate(payment.receivedAt)}
+                <span className="ml-1.5 text-xs">{payment.method}</span>
+              </span>
+              <span className="money">{formatMoney(payment.amountCents)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {creditNotice ? (
+        <p className="mb-3 text-sm" style={{ color: "var(--text-success)" }}>
+          {formatMoney(creditNotice)} more than owed — held as credit on this
+          customer's account.
+        </p>
+      ) : null}
+
+      {balanceDue > 0 && availableCreditCents > 0 ? (
+        <div
+          className="mb-3 flex items-center justify-between gap-2 rounded border p-2 text-sm"
+          style={border}
+        >
+          <span>
+            This customer has {formatMoney(availableCreditCents)} of credit
+            available.
+          </span>
+          <Button
+            variant="secondary"
+            needs={{ invoicing: ["update"] }}
+            onClick={() => applyCredit.mutate()}
+            disabled={applyCredit.isPending}
+          >
+            {applyCredit.isPending ? "Applying…" : "Apply it"}
+          </Button>
+        </div>
+      ) : null}
+      {applyCredit.error ? <ErrorNote error={applyCredit.error} /> : null}
+
+      {balanceDue > 0 ? (
+        <div
+          className="flex flex-col gap-(--gap-toolbar) border-t pt-3"
+          style={border}
+        >
+          <div className="grid gap-2 sm:grid-cols-3">
+            <Field label="Record a payment">
+              <Input
+                value={amount}
+                inputMode="decimal"
+                placeholder={(balanceDue / 100).toFixed(2)}
+                aria-label="Amount received"
+                onChange={(e) => setAmount(e.target.value)}
+              />
+            </Field>
+            <Field label="How">
+              {/* Recorded because a business reconciling a bank statement
+                  needs to know which payments to look for in it. */}
+              <Select
+                value={method}
+                aria-label="Payment method"
+                onChange={(e) => setMethod(e.target.value)}
+              >
+                <option value="manual">Bank transfer</option>
+                <option value="cash">Cash</option>
+                <option value="card">Card</option>
+                <option value="cheque">Cheque</option>
+                <option value="other">Something else</option>
+              </Select>
+            </Field>
+            <Field label="When">
+              <Input
+                type="date"
+                value={receivedAt}
+                aria-label="Date received"
+                onChange={(e) => setReceivedAt(e.target.value)}
+              />
+            </Field>
+          </div>
+          <Field
+            label="Reference"
+            hint="What it says on the statement. Stored, never shown to the customer."
+          >
+            <Input
+              value={gatewayRef}
+              placeholder="FT24091200123"
+              aria-label="Payment reference"
+              onChange={(e) => setGatewayRef(e.target.value)}
+            />
+          </Field>
+          {canTakeDiscount ? (
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={takeDiscount}
+                onChange={(e) => {
+                  setTakeDiscount(e.target.checked);
+                  // The discounted total is what they owe if they are taking
+                  // it, so offering the old figure would invite a short
+                  // payment that leaves a balance nobody owes.
+                  if (e.target.checked) {
+                    setAmount(
+                      (earlyPayment.discountedTotalCents / 100).toFixed(2),
+                    );
+                  }
+                }}
+              />
+              <span>
+                They paid early — take {formatMoney(earlyPayment.savingCents)}{" "}
+                off
+                {earlyPayment.deadline ? (
+                  <span style={muted}>
+                    {" "}
+                    (offer stands until {formatDate(earlyPayment.deadline)})
+                  </span>
+                ) : null}
+              </span>
+            </label>
+          ) : null}
+
+          <div className="flex items-center gap-2">
+            <Button
+              needs={{ invoicing: ["update"] }}
+              onClick={() => record.mutate()}
+              disabled={record.isPending || !amount.trim()}
+            >
+              {record.isPending ? "Recording…" : "Record it"}
+            </Button>
+            <button
+              type="button"
+              className="text-sm link-muted"
+              onClick={() => setAmount((balanceDue / 100).toFixed(2))}
+            >
+              Paid in full
+            </button>
+          </div>
+          {record.error ? <ErrorNote error={record.error} /> : null}
+        </div>
+      ) : null}
+    </Card>
+  );
+}

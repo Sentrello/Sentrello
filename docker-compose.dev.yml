@@ -1,0 +1,12 @@
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: sentrello
+      POSTGRES_PASSWORD: sentrello
+      POSTGRES_DB: sentrello
+    # host port is overridable: some machines already run Postgres on 5432
+    ports: ["${POSTGRES_PORT:-5432}:5432"]
+    volumes: ["sentrello_pgdata:/var/lib/postgresql/data"]
+volumes:
+  sentrello_pgdata:

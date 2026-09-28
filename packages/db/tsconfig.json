@@ -1,0 +1,6 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "outDir": "dist", "rootDir": "." },
+  "include": ["src", "drizzle.config.ts"],
+  "references": [{ "path": "../module-sdk" }]
+}

@@ -1,0 +1,361 @@
+import { expect, test } from "bun:test";
+import {
+  invitationEmail,
+  invoiceEmail,
+  orderDespatchedEmail,
+  orderPaidEmail,
+  overdueReminderEmail,
+  portalLinkEmail,
+  receiptEmail,
+} from "./templates";
+
+/**
+ * An invoice email is often the only copy a customer files, so it carries the
+ * same identity as the portal page: the seller's address, because an invoice
+ * without one is not a valid document in the UK or the EU, and how to pay,
+ * because a business paid by transfer otherwise fields "where do I send this?"
+ * on every invoice it raises.
+ */
+const seller = {
+  name: "Wierzbicki Tiling",
+  address: "Unit 4, Tanners Yard\nLeeds LS9 8AB",
+  taxId: "GB 412 7749 02",
+  taxIdLabel: "VAT number",
+  paymentInstructions: "Bank transfer to 20-45-11, account 8842 3901.",
+};
+
+test("an invoice email carries the seller's details and how to pay", () => {
+  const mail = invoiceEmail({
+    number: "INV-0001",
+    totalCents: 222000,
+    currency: "GBP",
+    businessName: seller.name,
+    business: seller,
+  });
+  expect(mail.html).toContain("Unit 4, Tanners Yard<br>Leeds LS9 8AB");
+  expect(mail.html).toContain("VAT number: GB 412 7749 02");
+  expect(mail.html).toContain("How to pay");
+  expect(mail.html).toContain("20-45-11");
+});
+
+test("the overdue chase carries them too, since it gets forwarded", () => {
+  const mail = overdueReminderEmail({
+    number: "INV-0001",
+    balanceDueCents: 222000,
+    currency: "GBP",
+    business: seller,
+  });
+  expect(mail.html).toContain("Leeds LS9 8AB");
+  expect(mail.html).toContain("20-45-11");
+});
+
+test("a business with nothing filled in gets no empty block", () => {
+  const mail = invoiceEmail({
+    number: "INV-0002",
+    totalCents: 1000,
+    currency: "GBP",
+    business: { name: "Nothing Filled In" },
+  });
+  expect(mail.html).not.toContain("How to pay");
+  expect(mail.html).not.toContain("<hr");
+});
+
+test("the seller's details cannot inject markup into an email", () => {
+  const mail = invoiceEmail({
+    number: "INV-0003",
+    totalCents: 1000,
+    currency: "GBP",
+    business: { name: "X", address: "<script>alert(1)</script>" },
+  });
+  expect(mail.html).not.toContain("<script>");
+  expect(mail.html).toContain("&lt;script&gt;");
+});
+
+/**
+ * "Sent by Sentrello" on a business's own invoice is the product's name where
+ * the customer expects the seller's. Free carries it; Pro is paid for.
+ */
+test("a Free instance credits the product", () => {
+  const mail = invoiceEmail({
+    number: "INV-0001",
+    totalCents: 1000,
+    currency: "GBP",
+    business: seller,
+    sentrelloCredit: true,
+  });
+  expect(mail.html).toContain("Sent by Sentrello");
+});
+
+test("Pro sends under the business's own name", () => {
+  const mail = invoiceEmail({
+    number: "INV-0001",
+    totalCents: 1000,
+    currency: "GBP",
+    business: seller,
+    sentrelloCredit: false,
+  });
+  expect(mail.html).not.toContain("Sentrello");
+  // The seller is still named — white-labelled, not anonymous.
+  expect(mail.html).toContain("Wierzbicki Tiling");
+});
+
+test("a sender that forgets to ask credits the product", () => {
+  // Defaulting the other way would silently white-label every Free instance.
+  const mail = invoiceEmail({
+    number: "INV-1",
+    totalCents: 1,
+    currency: "GBP",
+  });
+  expect(mail.html).toContain("Sent by Sentrello");
+});
+
+/**
+ * A receipt asks nothing further of the customer, so it is the one place
+ * among the transactional mails that offers the wider account alongside its
+ * own "see your invoices" link, rather than competing with a pay/accept CTA.
+ */
+test("a receipt offers the wider account, not only this invoice", () => {
+  const mail = receiptEmail({
+    number: "INV-0004",
+    amountCents: 5000,
+    currency: "GBP",
+    balanceCents: 0,
+    portalUrl: "https://acme.example/portal/tok123",
+    accountUrl: "https://acme.example/account/tok123",
+  });
+  expect(mail.html).toContain('href="https://acme.example/portal/tok123"');
+  expect(mail.html).toContain('href="https://acme.example/account/tok123"');
+  expect(mail.html).toContain("See everything you have with us");
+});
+
+test("a receipt with no account url offers no such link", () => {
+  const mail = receiptEmail({
+    number: "INV-0005",
+    amountCents: 5000,
+    currency: "GBP",
+    balanceCents: 0,
+    portalUrl: "https://acme.example/portal/tok123",
+  });
+  expect(mail.html).not.toContain("See everything you have with us");
+});
+
+/**
+ * The two a shop buyer gets. They go to somebody who may have no account here
+ * at all, so the link in them is the credential — which is exactly why the
+ * escaping matters as much as it does on the invoice above.
+ */
+test("a paid order tells the buyer what was taken and what happens next", () => {
+  const mail = orderPaidEmail({
+    number: "SO-1042",
+    totalCents: 4550,
+    currency: "GBP",
+    businessName: "Wierzbicki Tiling",
+    orderUrl: "https://shop.example/orders/abc123",
+  });
+  expect(mail.subject).toContain("SO-1042");
+  expect(mail.html).toContain("£45.50");
+  expect(mail.html).toContain("https://shop.example/orders/abc123");
+  // The promise that a second email follows, so nobody waits wondering.
+  expect(mail.html).toContain("on its way");
+});
+
+test("a despatch without a tracking number still goes", () => {
+  // Plenty of small businesses post things without one, and an email that
+  // insists on a reference it does not have is an email that never goes.
+  const mail = orderDespatchedEmail({ number: "SO-1042" });
+  expect(mail.subject).toContain("on its way");
+  expect(mail.html).not.toContain("Tracking reference");
+});
+
+test("a despatch with one names the carrier and the reference", () => {
+  const mail = orderDespatchedEmail({
+    number: "SO-1042",
+    carrier: "Royal Mail",
+    tracking: "AB123456789GB",
+  });
+  expect(mail.html).toContain("Royal Mail");
+  expect(mail.html).toContain("AB123456789GB");
+});
+
+test("a buyer's order link cannot inject markup", () => {
+  const mail = orderPaidEmail({
+    number: "SO-1",
+    totalCents: 100,
+    currency: "GBP",
+    orderUrl: 'https://x/"><script>alert(1)</script>',
+  });
+  expect(mail.html).not.toContain("<script>");
+});
+
+test("an invitation names the business, carries the link, and cannot inject markup", () => {
+  const mail = invitationEmail({
+    url: "https://books.example/accept-invitation?token=abc",
+    organizationName: 'Whitcombe & Sons <img src=x onerror="alert(1)">',
+    inviterName: "Avery",
+    expiresAt: new Date("2026-09-18T12:00:00Z"),
+  });
+  expect(mail.html).toContain("accept-invitation?token=abc");
+  expect(mail.html).toContain("Avery has invited you");
+  expect(mail.html).toContain("expires on");
+  expect(mail.html).not.toContain("<img");
+});
+
+/**
+ * The shell every one of these is sent in.
+ *
+ * An email is not a web page: there is no stylesheet to inherit, no viewport
+ * unless it is stated, and a client in dark mode will darken whatever
+ * background it is given. The body carried `color:#111` and no background at
+ * all — dark text on a background the client had just made dark, which is an
+ * invoice reminder nobody can read on the phone they read their mail on.
+ */
+test("every email declares a background beside its text colour", () => {
+  const { html } = invoiceEmail({
+    number: "INV-0001",
+    totalCents: 1000,
+    currency: "USD",
+    dueDate: new Date("2026-10-25T00:00:00Z"),
+    portalUrl: "https://example.test/portal/x",
+  });
+  // The pair, together: either alone is the bug.
+  expect(html).toContain("color:#111");
+  expect(html).toContain("background:#ffffff");
+  expect(html).toContain('name="color-scheme" content="light"');
+});
+
+test("an email opened on a phone is not zoomed out", () => {
+  const { html } = invoiceEmail({
+    number: "INV-0001",
+    totalCents: 1000,
+    currency: "USD",
+    dueDate: new Date("2026-10-25T00:00:00Z"),
+    portalUrl: "https://example.test/portal/x",
+  });
+  expect(html).toContain('name="viewport" content="width=device-width');
+  // And a line long enough to read to the end of on a desktop client.
+  expect(html).toContain("max-width:37.5rem");
+});
+
+/**
+ * The same date, in the same envelope, twice.
+ *
+ * The invoice email said `Due 2026-10-25` while the invoice document it links
+ * to said `due 25 Oct 2026`. The machine-written one is the copy that lands
+ * in the inbox, and it was the only ISO date in any of these templates — an
+ * outlier rather than a convention, since the one beside it already formats.
+ */
+test("a customer is told a date they read, not one a machine wrote", () => {
+  const { html } = invoiceEmail({
+    number: "INV-0001",
+    totalCents: 1000,
+    currency: "GBP",
+    dueDate: new Date("2026-10-25T00:00:00Z"),
+  });
+  expect(html).toContain("Due 25 Oct 2026");
+  expect(html).not.toContain("2026-10-25");
+});
+
+/**
+ * The month as a word, because this product sells into the US, Canada, the UK
+ * and the EU — and `10/25` and `25/10` are the same four characters meaning
+ * two different days to those readers. A due date read a month out is an
+ * invoice paid a month late.
+ */
+test("the month is never a number a reader has to guess at", () => {
+  const { html } = invoiceEmail({
+    number: "INV-0001",
+    totalCents: 1000,
+    currency: "GBP",
+    dueDate: new Date("2026-03-04T00:00:00Z"),
+  });
+  expect(html).toContain("4 Mar 2026");
+  for (const ambiguous of ["03/04", "04/03", "3/4", "4/3"]) {
+    expect([ambiguous, html.includes(ambiguous)]).toEqual([ambiguous, false]);
+  }
+});
+
+/**
+ * Midnight UTC is how a calendar date is stored here, and formatting it west
+ * of UTC shows the day before — an invoice said to be due a day early, for
+ * every customer in the first market this ships to.
+ */
+test("a due date does not slip a day west of UTC", () => {
+  const { html } = invoiceEmail({
+    number: "INV-0001",
+    totalCents: 1000,
+    currency: "GBP",
+    dueDate: new Date("2026-10-25T00:00:00Z"),
+  });
+  expect(html).toContain("25 Oct 2026");
+});
+
+/**
+ * The one email that could not look like the business sending it.
+ *
+ * `portalLinkEmail` took a name and nothing else, so a business paying for
+ * Pro sent its customer a message about money it is owed — signed by us, with
+ * no address to reply to and no word on how to pay. Its own invoice emails do
+ * the opposite, which is the part that makes it a bug rather than a choice.
+ */
+test("the portal link carries the seller, like every other message", () => {
+  const { html } = portalLinkEmail({
+    businessName: "Barker & Pawski",
+    url: "https://example.test/portal/x",
+    business: {
+      name: "Barker & Pawski",
+      address: "17 Quarry Road, Anglesey",
+      taxId: "GB 123 4567 89",
+      paymentInstructions: "Bank transfer to 12-34-56",
+    },
+    sentrelloCredit: false,
+  });
+  expect(html).toContain("17 Quarry Road, Anglesey");
+  expect(html).toContain("Bank transfer to 12-34-56");
+  expect(html).not.toContain("Sent by Sentrello");
+});
+
+/** And the safe default is unchanged: a caller that forgets credits us. */
+test("a portal link sent without asking still credits the product", () => {
+  const { html } = portalLinkEmail({
+    businessName: "Barker & Pawski",
+    url: "https://example.test/portal/x",
+  });
+  expect(html).toContain("Sent by Sentrello");
+});
+
+/**
+ * The business's own way of writing a number, in the message as on the
+ * invoice it links to.
+ *
+ * `en-US` for everybody wrote a European figure the American way — Germany
+ * reads `1.279,97 €` — and showed a Canadian business's own customers the
+ * `CA$` form you use when you are not in Canada.
+ */
+test("an email writes money the way the business that sent it does", () => {
+  const german = invoiceEmail({
+    number: "INV-0001",
+    totalCents: 127997,
+    currency: "EUR",
+    business: { name: "Möbelwerk", countryCode: "DE" },
+  });
+  expect(german.html.replace(/\p{Zs}/gu, " ")).toContain("1.279,97 €");
+
+  const canadian = invoiceEmail({
+    number: "INV-0002",
+    totalCents: 127997,
+    currency: "CAD",
+    business: { name: "Northfield", countryCode: "CA" },
+  });
+  expect(canadian.html).toContain("$1,279.97");
+  expect(canadian.html).not.toContain("CA$");
+});
+
+/** And a sender who never said keeps exactly what it had. */
+test("no country means the figure is written as it always was", () => {
+  const { html } = invoiceEmail({
+    number: "INV-0003",
+    totalCents: 127997,
+    currency: "USD",
+  });
+  expect(html).toContain("$1,279.97");
+});

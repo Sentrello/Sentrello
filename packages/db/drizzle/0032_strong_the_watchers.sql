@@ -1,0 +1,1 @@
+ALTER TABLE "invoice_lines" ADD COLUMN "source_number" text;

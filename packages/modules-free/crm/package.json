@@ -1,0 +1,21 @@
+{
+  "name": "@sentrello/module-crm",
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./entities": "./src/entities.ts"
+  },
+  "dependencies": {
+    "@sentrello/module-sdk": "*",
+    "@sentrello/auth": "*",
+    "@sentrello/db": "*",
+    "@sentrello/email": "*",
+    "drizzle-orm": "^0.45.0",
+    "hono": "^4.13.5"
+  },
+  "devDependencies": {
+    "@happy-dom/global-registrator": "^20.14.5"
+  },
+  "license": "AGPL-3.0-or-later"
+}

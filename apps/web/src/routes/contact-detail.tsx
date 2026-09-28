@@ -1,0 +1,893 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { type Contact, type Meta, api, may } from "../lib/api";
+import { useCrmSettings } from "../lib/crm-settings";
+import { CustomValues } from "../lib/custom-fields";
+import { Icon } from "../lib/icons";
+import { ImageUpload } from "../lib/image-upload";
+import {
+  LabelledList,
+  type Labelled as ListRow,
+  tidy,
+  withBlank,
+} from "../lib/labelled-list";
+import { RelatedLink, useNavigation, useRecordTitle } from "../lib/navigation";
+import { TagChips } from "../lib/tags";
+import { TaskList } from "../lib/tasks";
+import { type TimelineEntry, mergeTimeline } from "../lib/timeline";
+import {
+  Button,
+  Card,
+  ConfirmButton,
+  Empty,
+  ErrorNote,
+  Field,
+  Input,
+  Loading,
+  Page,
+  REFUSED,
+  SectionHeading,
+  Select,
+  Textarea,
+  Toolbar,
+  border,
+  formatDate,
+  formatMoney,
+  muted,
+} from "../lib/ui";
+import { ContactForm } from "./contact-form";
+import { StatusLabel } from "./contacts";
+
+/**
+ * One contact, and everything attached to it.
+ *
+ * This screen is the answer to "you cannot tell what connects to what". A
+ * contact is not a row in a table — it is a company, a pile of deals, the
+ * notes somebody wrote after a phone call, and the task nobody has done
+ * yet. Showing those together is the difference between a database with a form
+ * on it and a CRM.
+ */
+
+interface Labelled {
+  label: string;
+  value: string;
+}
+
+interface Related {
+  /**
+   * The shared type, not a second copy of it.
+   *
+   * This screen kept its own idea of what a contact is, and it fell behind
+   * the moment the record grew a status and a background — the fields existed
+   * on the server and were invisible here.
+   */
+  contact: Contact;
+  company: { id: string; name: string } | null;
+  deals: {
+    id: string;
+    name: string;
+    stage: string;
+    amountCents: number;
+    expectedCloseOn: string | null;
+  }[];
+  notes: {
+    id: string;
+    text: string;
+    createdAt: string;
+    attachments: { name: string; path: string; size: number }[] | null;
+  }[];
+  tasks: {
+    id: string;
+    title: string;
+    description: string | null;
+    type: string | null;
+    dueAt: string | null;
+    done: boolean;
+  }[];
+  tags: { id: string; name: string; color: string }[];
+}
+
+/** Every way to reach somebody, first-class column and labelled list together. */
+function ways(primary: string | null, rest: Labelled[] | null): Labelled[] {
+  const out: Labelled[] = primary ? [{ label: "main", value: primary }] : [];
+  for (const item of rest ?? []) {
+    // The primary is often repeated in the list; showing it twice looks like
+    // a data problem to the person reading it.
+    if (item.value && item.value !== primary) out.push(item);
+  }
+  return out;
+}
+
+/**
+ * The contact's tags, from the editor every tagged thing uses.
+ *
+ * It lived here first and was then wanted on invoices and quotes. One editor
+ * with the document's path passed in beats three copies of it.
+ */
+function Tags({
+  contactId,
+  attached,
+}: {
+  contactId: string;
+  attached: Related["tags"];
+}) {
+  const qc = useQueryClient();
+  return (
+    <TagChips
+      path={`/api/contacts/${contactId}`}
+      attached={attached}
+      onChanged={() =>
+        qc.invalidateQueries({ queryKey: ["contact-related", contactId] })
+      }
+    />
+  );
+}
+
+/**
+ * What still has to be done about this person.
+ *
+ * The list, the four actions and the form are all the shared task component
+ * now — the same one the CRM dashboard and the company page draw. It used to
+ * be its own copy here, which is how this page came to have edit and delete
+ * but no way to postpone anything, while the dashboard had the reverse.
+ */
+function Tasks({
+  contactId,
+  tasks,
+  taskTypes,
+}: {
+  contactId: string;
+  tasks: Related["tasks"];
+  taskTypes: string[];
+}) {
+  return (
+    <Card>
+      <TaskList
+        tasks={tasks}
+        taskTypes={taskTypes}
+        subject={{ contactId }}
+        invalidate={[["contact-related", contactId], ["crm-dashboard"]]}
+      />
+    </Card>
+  );
+}
+
+/** Attaching a file to a note that already exists. */
+function Attach({ noteId, onDone }: { noteId: string; onDone: () => void }) {
+  const upload = useMutation({
+    mutationFn: async (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      // No content-type header: FormData sets its own with the boundary, and
+      // overriding it makes the body unparseable at the other end.
+      const res = await fetch(`/api/notes/${noteId}/attachments`, {
+        method: "POST",
+        body: form,
+        credentials: "same-origin",
+      });
+      if (!res.ok) {
+        throw new Error(
+          ((await res.json().catch(() => ({}))) as { error?: string }).error ??
+            "That file could not be attached.",
+        );
+      }
+    },
+    onSuccess: onDone,
+  });
+
+  return (
+    <>
+      <label className="cursor-pointer text-xs link-muted">
+        {upload.isPending ? "Attaching…" : "Attach a file"}
+        <input
+          type="file"
+          className="hidden"
+          disabled={!may("crm", "update")}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) upload.mutate(file);
+          }}
+        />
+      </label>
+      {upload.error ? <ErrorNote error={upload.error} /> : null}
+    </>
+  );
+}
+
+function Notes({
+  contactId,
+  notes,
+}: { contactId: string; notes: Related["notes"] }) {
+  const qc = useQueryClient();
+  const [text, setText] = useState("");
+  const settle = () =>
+    qc.invalidateQueries({ queryKey: ["contact-related", contactId] });
+
+  const add = useMutation({
+    mutationFn: () =>
+      api("/api/notes", {
+        method: "POST",
+        body: JSON.stringify({
+          entityType: "contact",
+          entityId: contactId,
+          text,
+        }),
+      }),
+    onSuccess: () => {
+      setText("");
+      settle();
+    },
+  });
+
+  /**
+   * Putting a note right, and taking one back.
+   *
+   * A note could be written and never touched again — no correction, no
+   * removal — so a name spelled wrong or a line meant for another customer
+   * stayed on the record for good. Both routes were registered by the CRM's
+   * generic helper and called by nothing, which is how they went unnoticed:
+   * the sweep that finds this could not read a route built from a template
+   * until today.
+   */
+  const [editing, setEditing] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
+
+  const amend = useMutation({
+    mutationFn: (input: { id: string; text: string }) =>
+      api(`/api/notes/${input.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ text: input.text }),
+      }),
+    onSuccess: () => {
+      setEditing(null);
+      settle();
+    },
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: string) => api(`/api/notes/${id}`, { method: "DELETE" }),
+    onSuccess: settle,
+  });
+
+  return (
+    <Card>
+      <SectionHeading>Notes</SectionHeading>
+      {/*
+       * Labelled, like the activity box further down this page.
+       *
+       * It had a placeholder and nothing else — and a placeholder disappears
+       * the moment somebody types, so a screen reader announced an unnamed
+       * box and a returning reader had nothing to say what the text they were
+       * mid-way through writing was for.
+       */}
+      <Field label="Add a note">
+        <Textarea
+          rows={2}
+          value={text}
+          placeholder="What was said?"
+          onChange={(e) => setText(e.target.value)}
+        />
+      </Field>
+      <div className="mt-(--gap-toolbar)">
+        <Button
+          needs={{ crm: ["create"] }}
+          onClick={() => add.mutate()}
+          disabled={!text.trim() || add.isPending}
+        >
+          {add.isPending ? "Saving…" : "Add note"}
+        </Button>
+      </div>
+      {add.error ? <ErrorNote error={add.error} /> : null}
+      {amend.error ? <ErrorNote error={amend.error} /> : null}
+      {remove.error ? <ErrorNote error={remove.error} /> : null}
+
+      <div className="mt-(--gap-toolbar) flex flex-col gap-(--gap-toolbar)">
+        {notes.length === 0 ? (
+          <p className="text-sm" style={muted}>
+            Nothing written down yet.
+          </p>
+        ) : (
+          notes.map((n) => (
+            <div key={n.id} className="border-t pt-2 text-sm border-line">
+              {editing === n.id ? (
+                <>
+                  <Textarea
+                    rows={2}
+                    value={draft}
+                    aria-label="Correct this note"
+                    onChange={(e) => setDraft(e.target.value)}
+                  />
+                  <Toolbar className="mt-(--gap-tight)">
+                    <Button
+                      needs={{ crm: ["update"] }}
+                      disabled={!draft.trim() || amend.isPending}
+                      onClick={() => amend.mutate({ id: n.id, text: draft })}
+                    >
+                      Save
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => setEditing(null)}
+                    >
+                      Cancel
+                    </Button>
+                  </Toolbar>
+                </>
+              ) : (
+                <p className="whitespace-pre-wrap">{n.text}</p>
+              )}
+
+              {n.attachments?.length ? (
+                <ul className="mt-(--gap-tight) flex flex-col gap-(--gap-tight)">
+                  {n.attachments.map((a, i) => (
+                    <li key={a.path} className="text-xs">
+                      <a
+                        href={`/api/notes/${n.id}/attachments/${i}`}
+                        className="link"
+                      >
+                        {a.name}
+                      </a>
+                      <span className="ml-1" style={muted}>
+                        {Math.max(1, Math.round(a.size / 1024))} KB
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+
+              <p
+                className="mt-(--gap-tight) flex items-center gap-(--gap-toolbar) text-xs"
+                style={muted}
+              >
+                {formatDate(n.createdAt)}
+                <Attach noteId={n.id} onDone={settle} />
+                <button
+                  type="button"
+                  className="link-muted"
+                  onClick={() => {
+                    setEditing(n.id);
+                    setDraft(n.text);
+                  }}
+                >
+                  Correct
+                </button>
+                <ConfirmButton
+                  title="Delete this note?"
+                  message="The note goes, and any file attached to it goes with it. Nothing here keeps a copy."
+                  confirmLabel="Delete it"
+                  danger
+                  className="link-muted"
+                  needs={{ crm: ["delete"] }}
+                  onConfirm={() => remove.mutate(n.id)}
+                >
+                  Delete
+                </ConfirmButton>
+              </p>
+            </div>
+          ))
+        )}
+      </div>
+    </Card>
+  );
+}
+
+export function ContactDetail() {
+  const qc = useQueryClient();
+  const { current } = useNavigation();
+  const settings = useCrmSettings();
+  const id = current.recordId;
+  const [editing, setEditing] = useState(false);
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["contact-related", id],
+    queryFn: () => api<Related>(`/api/contacts/${id}/related`),
+    enabled: Boolean(id),
+  });
+
+  // So a link somebody was sent shows the person's name, not "Contacts".
+  useRecordTitle(data?.contact.name);
+
+  if (!id) return <Empty title="No contact selected" />;
+  if (isLoading) return <Loading />;
+  if (error) return <ErrorNote error={error} />;
+  if (!data) return null;
+
+  const { contact, company, deals, notes, tasks, tags } = data;
+  const emails = ways(contact.email, contact.emails);
+  const phones = ways(contact.phone, contact.phones);
+  const open = deals.filter((d) => d.stage !== "won" && d.stage !== "lost");
+
+  if (editing) {
+    // The same form as creating one, so status, background, the extra emails
+    // and the extra phones are editable in both places. Two forms over one
+    // record is how a field ends up editable in one and not the other — the
+    // reason a second email could only be added after the contact existed.
+    return (
+      <ContactForm
+        // The name comes from the related payload, which already resolved it
+        // — the form's picker needs it to show what is chosen before anybody
+        // searches.
+        contact={{ ...contact, companyName: company?.name ?? null }}
+        settings={settings}
+        onDone={() => {
+          setEditing(false);
+          qc.invalidateQueries({ queryKey: ["contact-related", id] });
+          qc.invalidateQueries({ queryKey: ["contacts"] });
+        }}
+      />
+    );
+  }
+
+  return (
+    <Page>
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-(--gap-stack) lg:grid-cols-[minmax(0,1fr)_minmax(0,20rem)]">
+        <div className="flex flex-col gap-(--gap-stack)">
+          <Card>
+            <div className="flex flex-wrap items-baseline justify-between gap-(--gap-toolbar)">
+              {/* `min-w-0` down the chain, because a flex item is never
+                  narrower than its content until it is told otherwise — and
+                  a contact's name is whatever the business typed. One with
+                  no spaces in it made this row 947px wide in a 390px phone. */}
+              <div className="flex min-w-0 items-center gap-(--gap-toolbar)">
+                <ImageUpload
+                  subject="contacts"
+                  id={contact.id}
+                  name={contact.name}
+                  hasImage={Boolean(contact.avatarPath)}
+                />
+                <div className="min-w-0">
+                  <p className="flex min-w-0 flex-wrap items-center gap-(--gap-toolbar) text-lg font-semibold">
+                    {/*
+                      A span, not a bare text node. Text sitting directly in a
+                      flex container becomes an *anonymous* flex item, and an
+                      anonymous item cannot be given `min-width: 0` — it sizes
+                      to its longest word and nothing can talk it down. A
+                      company called Llanfairpwllgwyngyll… made this page 702px
+                      wide in a 390px phone, and every `min-w-0` above it was
+                      doing its job perfectly.
+                    */}
+                    <span className="min-w-0">{contact.name}</span>
+                    {/* How warm the relationship is, where the name is — it is
+                      the first thing somebody wants to know on opening a
+                      contact, and it was only visible in the list. */}
+                    <StatusLabel status={contact.status} settings={settings} />
+                  </p>
+                  <p className="text-sm" style={muted}>
+                    {[contact.title, company?.name]
+                      .filter(Boolean)
+                      .join(" at ") || "No job title"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-(--gap-toolbar)">
+                <Tags contactId={contact.id} attached={tags} />
+                <button
+                  type="button"
+                  className="text-sm link-muted"
+                  onClick={() => setEditing(true)}
+                >
+                  Edit
+                </button>
+              </div>
+            </div>
+
+            {/*
+            How they were met, who introduced them, what they care about.
+
+            The one thing a CRM holds that a spreadsheet does not, so it sits
+            on the record rather than buried in a note somebody has to find.
+          */}
+            {contact.background ? (
+              <p className="mt-(--gap-toolbar) whitespace-pre-line text-sm">
+                <span style={muted}>Background: </span>
+                {contact.background}
+              </p>
+            ) : null}
+
+            {/* The company is a record, not a label — following it is the point. */}
+            {company ? (
+              <p className="mt-(--gap-toolbar) text-sm">
+                <span style={muted}>Company: </span>
+                <RelatedLink
+                  to={{
+                    moduleId: "companies",
+                    recordId: company.id,
+                    title: company.name,
+                  }}
+                >
+                  {company.name}
+                </RelatedLink>
+              </p>
+            ) : null}
+
+            <CustomValues
+              fields={settings.customFields.filter(
+                (f) => f.appliesTo === "contact",
+              )}
+              values={contact.customValues}
+            />
+
+            <div className="mt-(--gap-toolbar) grid gap-(--gap-toolbar) sm:grid-cols-2">
+              <div>
+                <p className="text-xs" style={muted}>
+                  Email
+                </p>
+                {emails.length ? (
+                  emails.map((e) => (
+                    <p key={e.value} className="text-sm">
+                      <a href={`mailto:${e.value}`} className="link">
+                        {e.value}
+                      </a>
+                      <span className="ml-1 text-xs" style={muted}>
+                        {e.label}
+                      </span>
+                    </p>
+                  ))
+                ) : (
+                  <p className="text-sm" style={muted}>
+                    None
+                  </p>
+                )}
+              </div>
+              <div>
+                <p className="text-xs" style={muted}>
+                  Phone
+                </p>
+                {phones.length ? (
+                  phones.map((p) => (
+                    <p key={p.value} className="text-sm">
+                      <a href={`tel:${p.value}`} className="link">
+                        {p.value}
+                      </a>
+                      <span className="ml-1 text-xs" style={muted}>
+                        {p.label}
+                      </span>
+                    </p>
+                  ))
+                ) : (
+                  <p className="text-sm" style={muted}>
+                    None
+                  </p>
+                )}
+              </div>
+            </div>
+          </Card>
+
+          <Notes contactId={contact.id} notes={notes} />
+        </div>
+
+        <div className="flex flex-col gap-(--gap-stack)">
+          <Card>
+            <SectionHeading hint={`(${open.length} open)`}>
+              Deals
+            </SectionHeading>
+            {deals.length === 0 ? (
+              <p className="text-sm" style={muted}>
+                Not on any deals.
+              </p>
+            ) : (
+              <div className="flex flex-col gap-(--gap-toolbar)">
+                {deals.map((d) => (
+                  <div key={d.id} className="text-sm">
+                    <RelatedLink
+                      to={{ moduleId: "deals", recordId: d.id, title: d.name }}
+                    >
+                      {d.name}
+                    </RelatedLink>
+                    <div className="text-xs" style={muted}>
+                      {d.stage} · {formatMoney(d.amountCents)}
+                      {d.expectedCloseOn
+                        ? ` · closes ${formatDate(d.expectedCloseOn)}`
+                        : ""}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+
+          <Tasks
+            contactId={contact.id}
+            tasks={tasks}
+            taskTypes={settings.taskTypes}
+          />
+
+          <HistoryPanel contactId={contact.id} />
+        </div>
+      </div>
+    </Page>
+  );
+}
+
+/**
+ * Everything that happened, in one column.
+ *
+ * Notes, emails captured off the mail somebody already sent, tasks done, deals
+ * opened and filed away. It is the panel that answers "what has gone on with
+ * these people", which is the question a CRM exists for and the one the
+ * separate panels could not answer between them.
+ */
+export function HistoryPanel({
+  contactId,
+  companyId,
+}: {
+  contactId?: string;
+  companyId?: string;
+}) {
+  const query = contactId
+    ? `contactId=${contactId}`
+    : companyId
+      ? `companyId=${companyId}`
+      : "";
+
+  const qc = useQueryClient();
+  const [logging, setLogging] = useState(false);
+  const [kind, setKind] = useState("call");
+  const [said, setSaid] = useState("");
+
+  /**
+   * Putting right what somebody typed, and taking it back.
+   *
+   * Only what a person logged: everything else in this stream is the platform
+   * recording what happened, and a history somebody can edit is not a history.
+   * That is why the entry carries an id at all — nothing else in it does.
+   */
+  const [correcting, setCorrecting] = useState<string | null>(null);
+  const [correction, setCorrection] = useState("");
+
+  const amendLog = useMutation({
+    mutationFn: (input: { id: string; body: string }) =>
+      api(`/api/activities/${input.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ body: input.body }),
+      }),
+    onSuccess: () => {
+      setCorrecting(null);
+      qc.invalidateQueries({ queryKey: ["crm-history"] });
+    },
+  });
+
+  const dropLog = useMutation({
+    mutationFn: (id: string) =>
+      api(`/api/activities/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["crm-history"] }),
+  });
+
+  const log = useMutation({
+    mutationFn: () =>
+      api("/api/activities", {
+        method: "POST",
+        body: JSON.stringify({ contactId, type: kind, body: said }),
+      }),
+    onSuccess: () => {
+      setSaid("");
+      setLogging(false);
+      qc.invalidateQueries({ queryKey: ["crm-history"] });
+    },
+  });
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["crm-history", query],
+    queryFn: () =>
+      api<{
+        history: {
+          at: string;
+          kind: string;
+          title: string;
+          detail: string | null;
+          /** Present where a person wrote it, and only then. */
+          activityId?: string;
+          /**
+           * What this line is about, where the server says.
+           *
+           * Read by the merge below to recognise a deal the richer timeline
+           * also sends, so the same deal is not drawn twice.
+           */
+          link?: { moduleId: string; recordId: string; title: string } | null;
+        }[];
+      }>(`/api/crm/history?${query}`),
+    enabled: query !== "",
+  });
+
+  // Already in the cache from the shell's own fetch, so this costs no request.
+  const tier = useQuery({
+    queryKey: ["meta"],
+    queryFn: () => api<Meta>("/api/_meta"),
+  }).data?.tier;
+
+  /**
+   * The money half, which the Free history does not have.
+   *
+   * `/api/crm/history` reads notes, activities, tasks and deals. What the
+   * person was billed and what they paid is the other half of a full
+   * 360° timeline, and it lives behind a Pro route that nothing has
+   * ever called — so the panel has been three-quarters of itself since it was
+   * written, on instances paying for the other quarter.
+   *
+   * Asked for only on Pro, and only for a contact: the route is per contact,
+   * and on Free there is nothing behind it but a 404 on every contact opened.
+   */
+  const money = useQuery({
+    queryKey: ["contact-timeline", contactId],
+    queryFn: () =>
+      api<{
+        timeline: TimelineEntry[];
+      }>(`/api/contacts/${contactId}/timeline`),
+    enabled: Boolean(contactId) && tier === "pro",
+  });
+
+  /**
+   * Merged into one column rather than shown beside it, because "what has gone
+   * on with these people" is one question and an invoice raised the day after
+   * a call is the answer to it.
+   *
+   * The merge itself is in `lib/timeline.ts` and is tested there. It used to
+   * be a whitelist here, which dropped every kind of entry it had not been
+   * told about — see that file for what that cost.
+   */
+  const entries = mergeTimeline(
+    data?.history,
+    money.data?.timeline,
+    formatMoney,
+  );
+
+  const icon: Record<string, string> = {
+    note: "clipboard",
+    email: "mail",
+    call: "phone",
+    meeting: "calendar",
+    task: "check-square",
+    deal: "handshake",
+    contact: "contact",
+    invoice: "file-text",
+    payment: "wallet",
+    // A tick has no history; this is the record of it, so it reads on the
+    // timeline beside the call that prompted it.
+    consent: "shield",
+  };
+
+  return (
+    <Card>
+      <SectionHeading
+        trailing={
+          contactId ? (
+            <Button
+              variant="secondary"
+              onClick={() => setLogging((was) => !was)}
+            >
+              {logging ? "Close" : "Log a call"}
+            </Button>
+          ) : null
+        }
+      >
+        History
+      </SectionHeading>
+
+      {/*
+        What the person actually did, written by the person who did it.
+        Everything else on this panel is written by the platform — a form
+        submitted, an invoice sent — and there was no way to add "rang them on
+        Tuesday, calling back Friday" to a customer's record at all. The route
+        has always been there, registered by the CRM's generic helper and
+        called by nothing.
+      */}
+      {logging && contactId ? (
+        <div className="mb-(--gap-toolbar) grid gap-(--gap-toolbar) sm:grid-cols-[minmax(0,9rem)_minmax(0,1fr)_auto] items-end">
+          <Field label="What it was">
+            <Select
+              value={kind}
+              onChange={(e) => setKind(e.currentTarget.value)}
+            >
+              <option value="call">A call</option>
+              <option value="meeting">A meeting</option>
+              <option value="email">An email</option>
+            </Select>
+          </Field>
+          <Field label="What happened">
+            <Input
+              value={said}
+              placeholder="Rang about the quote; calling back Friday"
+              onChange={(e) => setSaid(e.currentTarget.value)}
+            />
+          </Field>
+          <Button
+            needs={{ crm: ["create"] }}
+            disabled={!said.trim() || log.isPending}
+            onClick={() => log.mutate()}
+          >
+            Save it
+          </Button>
+          {log.error ? <ErrorNote error={log.error} /> : null}
+        </div>
+      ) : null}
+      {amendLog.error ? <ErrorNote error={amendLog.error} /> : null}
+      {dropLog.error ? <ErrorNote error={dropLog.error} /> : null}
+
+      {isLoading ? (
+        <Loading />
+      ) : entries.length === 0 ? (
+        <p className="text-sm" style={muted}>
+          Nothing yet. Notes, emails and finished tasks all land here.
+        </p>
+      ) : (
+        <ul className="flex flex-col gap-(--gap-toolbar)">
+          {entries.map((entry) => (
+            <li
+              key={`${entry.at}-${entry.title}`}
+              className="flex gap-(--gap-toolbar) text-sm"
+            >
+              <span className="min-w-0 flex-1">
+                {correcting && correcting === entry.activityId ? (
+                  <span className="flex items-center gap-(--gap-toolbar)">
+                    <Input
+                      value={correction}
+                      aria-label="Correct this entry"
+                      onChange={(e) => setCorrection(e.currentTarget.value)}
+                    />
+                    <Button
+                      needs={{ crm: ["update"] }}
+                      disabled={!correction.trim() || amendLog.isPending}
+                      onClick={() =>
+                        amendLog.mutate({
+                          id: entry.activityId as string,
+                          body: correction,
+                        })
+                      }
+                    >
+                      Save
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => setCorrecting(null)}
+                    >
+                      Cancel
+                    </Button>
+                  </span>
+                ) : (
+                  <span className="block whitespace-pre-line">
+                    {entry.title}
+                  </span>
+                )}
+                <span
+                  className="text-xs flex items-center gap-(--gap-toolbar)"
+                  style={muted}
+                >
+                  {formatDate(entry.at)}
+                  {entry.detail ? ` · ${entry.detail}` : ""}
+                  {/* Only what a person typed can be changed. */}
+                  {entry.activityId && correcting !== entry.activityId ? (
+                    <>
+                      <button
+                        type="button"
+                        className="link-muted"
+                        onClick={() => {
+                          setCorrecting(entry.activityId as string);
+                          setCorrection(entry.title);
+                        }}
+                      >
+                        Correct
+                      </button>
+                      <ConfirmButton
+                        title="Delete this entry?"
+                        message="The record of that call or meeting leaves the history for good — what was typed about it is not kept anywhere else."
+                        confirmLabel="Delete it"
+                        danger
+                        needs={{ crm: ["delete"] }}
+                        className="link-muted"
+                        onConfirm={() =>
+                          dropLog.mutate(entry.activityId as string)
+                        }
+                      >
+                        Delete
+                      </ConfirmButton>
+                    </>
+                  ) : null}
+                </span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}

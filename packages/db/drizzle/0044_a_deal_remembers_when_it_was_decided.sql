@@ -1,0 +1,1 @@
+ALTER TABLE "deals" ADD COLUMN "decided_at" timestamp;

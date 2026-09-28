@@ -1,0 +1,24 @@
+{
+  "name": "@sentrello/module-sdk",
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./custom-fields": "./src/custom-fields.ts",
+    "./ui-runtime": "./src/ui-runtime.ts",
+    "./ui-drift": "./src/ui-drift.ts",
+    "./list-invalidation": "./src/list-invalidation.ts",
+    "./theme.css": "./src/theme.css",
+    "./nav-screens": "./src/nav-screens.ts",
+    "./control-permissions": "./src/control-permissions.ts",
+    "./copied-helpers": "./src/copied-helpers.ts",
+    "./money-locale": "./src/money-locale.ts"
+  },
+  "dependencies": {
+    "hono": "^4.13.5"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0"
+  },
+  "license": "AGPL-3.0-or-later"
+}

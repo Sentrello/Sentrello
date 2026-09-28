@@ -1,0 +1,91 @@
+---
+title: SEO
+sidebar_position: 9
+description: Be found, and know whether you are — and the one thing this module does differently.
+tags: [module, seo]
+---
+
+# SEO
+
+Keyword research, rank tracking, site audits, backlinks and competitors, with
+client reports you can hand over.
+
+The module's whole argument is the arrow on the right: a position, joined to
+the money it actually brought in.
+
+```mermaid
+flowchart LR
+  classDef screen fill:#eef4ff,stroke:#3b6fd4,color:#16305e
+  classDef own fill:#eefaf1,stroke:#219653,color:#10442a
+  classDef out fill:#f4f0fb,stroke:#6b47c4,color:#31205e
+  classDef pub fill:#fff4ec,stroke:#c4470f,color:#5a2207
+  subgraph OWN[" SEO "]
+    K["Keywords"]:::own
+    A["Site audit"]:::own
+    R["Reports"]:::own
+  end
+  PROV["A search data provider<br/><small>ours, or your own account</small>"]:::out
+  DEAL["Deals and invoices<br/><small>CRM and Invoicing</small>"]:::out
+
+  PROV --> K --> R
+  A --> R
+  DEAL -->|"which phrase brought them"| R
+  style OWN fill:#fbfdfc,stroke:#cfe4d8,color:#10442a
+```
+
+## The one thing it does differently
+
+Every other module runs entirely on your server. **SEO cannot.** Keyword
+volumes, rankings and backlink graphs come from a search-data provider, because
+nobody self-hosts a search index.
+
+So this is the one module with **two ways to buy the data**, chosen in a single
+setting. Nothing else in the module knows which you picked, and changing your
+mind later costs you nothing.
+
+### Sentrello SEO Cloud
+
+Your instance asks ours, ours asks the provider, and the usage turns up on the
+bill you already have. Nothing to sign up for, no minimum deposit, no second
+password.
+
+Priced at the provider's cost **+40%**, with an allowance included in the
+module price. A single business tracking its own site typically spends less
+than the allowance and pays nothing extra.
+
+### Your own provider account
+
+Paste your credentials and your instance talks to the provider directly.
+Nothing about your work passes through us, and you pay the provider at cost.
+
+This earns us nothing. It exists on purpose: an agency large enough to hit a
+provider's minimum deposit is exactly the one that would object to its clients'
+keywords transiting somebody else's server.
+
+## What the module does
+
+- **Keyword research.** Ideas, volume, difficulty and intent, in a saved
+  workspace, because saved and tracked are two different decisions
+- **Rank tracking**, daily, weekly or monthly per keyword, with the history
+  drawn as a line rather than a number
+- **Clustering**, which groups keywords by the results they share. It costs
+  nothing extra, because it reads results already bought for tracking
+- **Site audits**, with issues grouped by problem rather than by page, so one
+  fix closes one row
+- **Backlinks and competitors.** Referring domains as a tracked line, with the
+  full list on demand. Any domain, not only your own
+- **AI visibility**, meaning whether the models answering questions about your
+  trade mention you
+- **White-label client reports**, frozen when made, shared by a revocable link,
+  with no account for the client to create
+- **A monthly spending cap.** It refuses before spending rather than erroring
+  once the credits are gone, and it shows what it is spending by kind, which is
+  the question everybody asks in the second week
+
+## What it needs
+
+Pro underneath it, like every module. Choose Sentrello SEO Cloud and your
+instance needs to reach sentrello.com; bring your own provider account and it
+needs to reach the provider instead. Either way the rest of your instance keeps
+working when it cannot. An SEO module that could not refresh a ranking has
+stale rankings, not a broken business.

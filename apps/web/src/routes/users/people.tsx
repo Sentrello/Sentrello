@@ -1,0 +1,680 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { api } from "../../lib/api";
+import { useNavigation } from "../../lib/navigation";
+import {
+  Button,
+  Card,
+  ConfirmButton,
+  Empty,
+  ErrorNote,
+  Field,
+  Input,
+  Loading,
+  Page,
+  Row,
+  RowMenu,
+  SectionHeading,
+  Select,
+  Table,
+  Toolbar,
+  formatDate,
+  muted,
+} from "../../lib/ui";
+import { policyLabel } from "./policy-ui";
+
+/**
+ * Who is on this instance.
+ *
+ * Lifted out of the old do-everything `users.tsx` screen, unchanged apart from
+ * one thing: a row used to go nowhere, and now opens the person — everything
+ * this screen could already do to somebody (reset their password, sign them
+ * out, remove them) plus everything a person is now that they have their own
+ * six-tab screen (`person.tsx`) lives one click away instead of only here.
+ *
+ * People are searched and paged on the server. Most instances have twenty-five
+ * of them and some have five hundred, and this screen used to load every one
+ * with their sessions and their groups to draw a list nobody could read.
+ */
+
+interface Person {
+  userId: string;
+  memberId: string;
+  name: string;
+  email: string;
+  /** Everything they hold: their own role and the roles of their groups. */
+  role: string;
+  /** The role given to them directly, which is the one a screen may change. */
+  baseRole: string;
+  groups: string[];
+  twoFactorEnabled: boolean;
+  twoFactorRequired: boolean;
+  lastSeenAt: string | null;
+  you: boolean;
+}
+
+interface Invitation {
+  id: string;
+  email: string;
+  role: string;
+  expiresAt: string;
+}
+
+interface Change {
+  at: string;
+  actor: string;
+  subject: string | null;
+  says: string;
+  detail: Record<string, unknown> | null;
+}
+
+/** The subset of a policy this screen needs, to fill the invite-role picker. */
+interface Policy {
+  role: string;
+  kind: "user" | "group" | "custom";
+}
+
+/**
+ * The people, and everything an administrator has to be able to do to them.
+ *
+ * Each destructive action asks first, and says what it will do rather than
+ * "are you sure" — somebody removing a person at half past four should not
+ * have to guess whether their invoices go with them.
+ */
+export function People() {
+  const qc = useQueryClient();
+  const { open } = useNavigation();
+  const [invitee, setInvitee] = useState("");
+  const [inviteRole, setInviteRole] = useState("staff");
+  /**
+   * Searched and paged on the server.
+   *
+   * Most instances have twenty-five people and some have five hundred. The
+   * screen used to load every one of them, with their sessions and their
+   * groups, to draw a list nobody could read.
+   */
+  /**
+   * Staff, or the people who buy from this business.
+   *
+   * A shop's customers are members of the organization — that is how the
+   * portal gives somebody their own invoices and nothing else — so they were
+   * in this list beside the people who work here. At five hundred customers
+   * that is not a list with some noise in it; it is a customer list with the
+   * staff hidden inside.
+   */
+  const [audience, setAudience] = useState<"staff" | "customers">("staff");
+  const [q, setQ] = useState("");
+  /**
+   * What is actually asked of the server, a beat behind what is typed.
+   *
+   * Without this every keystroke was a request: "Samantha" asked eight times
+   * and threw seven answers away. The list already stays on screen while a
+   * request is in flight, so the only thing the delay costs is the request.
+   */
+  const [search, setSearch] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => setSearch(q), 250);
+    return () => clearTimeout(timer);
+  }, [q]);
+  // Plain state rather than the shared list machinery: sort and filters go
+  // unused here, and the screen already resets its own page on every search
+  // and audience change below, so a counter is all this needs.
+  // ui-drift-ignore: page resets on every search and audience change below
+  const [page, setPage] = useState(1);
+  const [issued, setIssued] = useState<{
+    email: string;
+    password: string;
+  } | null>(null);
+  /**
+   * The invitation link, shown once, like the password above it.
+   *
+   * The token in it is stored only as a hash, so this is the one moment the
+   * link exists to copy — and on a fresh instance with no mail server it is
+   * the only way the invitation reaches anybody at all.
+   */
+  const [issuedInvite, setIssuedInvite] = useState<{
+    email: string;
+    link: string;
+    emailSent: boolean;
+    expiresAt: string;
+  } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const data = useQuery({
+    queryKey: ["users", audience, search, page],
+    queryFn: () =>
+      api<{
+        people: Person[];
+        total: number;
+        perPage: number;
+        invitations: Invitation[];
+        history: Change[];
+        otherTotal: number;
+      }>(
+        `/api/users?page=${page}&audience=${audience}${search.trim() ? `&q=${encodeURIComponent(search.trim())}` : ""}`,
+      ),
+    // The list stays on screen while the next page loads, so a keystroke in
+    // the search box does not blank the table to a spinner.
+    placeholderData: (previous) => previous,
+  });
+
+  const refresh = () => qc.invalidateQueries({ queryKey: ["users"] });
+  /**
+   * What somebody can be invited as.
+   *
+   * The user policies plus anything the business wrote for itself. It used to
+   * be three names typed here, so the five defaults and every custom policy
+   * were invisible at the one moment they matter — the moment somebody is
+   * given access.
+   */
+  const policies = useQuery({
+    queryKey: ["users-policies"],
+    queryFn: () => api<{ roles: Policy[] }>("/api/users/roles"),
+  });
+  const roleNames = (policies.data?.roles ?? [])
+    .filter((r) => r.kind === "user" || r.kind === "custom")
+    .map((r) => r.role);
+  /*
+   * A business that renamed or deleted the default policy would see a picker
+   * showing its first entry while this still said "staff" — and the invitation
+   * would go out as a policy that does not exist. The select can only ever
+   * offer what came back, so the value follows it.
+   */
+  useEffect(() => {
+    if (roleNames.length > 0 && !roleNames.includes(inviteRole)) {
+      setInviteRole(roleNames[0] as string);
+    }
+  }, [roleNames, inviteRole]);
+
+  const setRole = useMutation({
+    mutationFn: (input: { userId: string; role: string }) =>
+      api(`/api/users/${input.userId}/role`, {
+        method: "POST",
+        body: JSON.stringify({ role: input.role }),
+      }),
+    onSuccess: refresh,
+  });
+
+  const invite = useMutation({
+    mutationFn: () =>
+      api<{
+        email: string;
+        link: string;
+        emailSent: boolean;
+        expiresAt: string;
+      }>("/api/users/invitations", {
+        method: "POST",
+        body: JSON.stringify({ email: invitee.trim(), role: inviteRole }),
+      }),
+    onSuccess: (result) => {
+      setIssuedInvite(result);
+      setCopied(false);
+      setInvitee("");
+      refresh();
+    },
+  });
+
+  const remove = useMutation({
+    mutationFn: (userId: string) =>
+      api(`/api/users/${userId}`, { method: "DELETE" }),
+    onSuccess: refresh,
+  });
+
+  const cancelInvite = useMutation({
+    mutationFn: (id: string) =>
+      api(`/api/users/invitations/${id}`, { method: "DELETE" }),
+    onSuccess: refresh,
+  });
+
+  const resetPassword = useMutation({
+    mutationFn: (person: Person) =>
+      api<{ password: string }>(`/api/users/${person.userId}/password`, {
+        method: "POST",
+      }).then((r) => ({ email: person.email, password: r.password })),
+    onSuccess: (result) => {
+      // Shown once, here, because it is never stored anywhere it could be
+      // read again — and because the administrator is usually standing next
+      // to the person who is locked out.
+      setIssued(result);
+      refresh();
+    },
+  });
+
+  const revokeTwoFactor = useMutation({
+    mutationFn: (userId: string) =>
+      api(`/api/users/${userId}/two-factor/revoke`, { method: "POST" }),
+    onSuccess: refresh,
+  });
+
+  const signOut = useMutation({
+    mutationFn: (userId: string) =>
+      api(`/api/users/${userId}/sessions/revoke`, { method: "POST" }),
+    onSuccess: refresh,
+  });
+
+  if (data.isLoading) return <Loading />;
+  if (data.error) return <ErrorNote error={data.error} />;
+
+  const people = data.data?.people ?? [];
+  const invitations = data.data?.invitations ?? [];
+  const total = data.data?.total ?? people.length;
+  const pages = Math.max(1, Math.ceil(total / (data.data?.perPage ?? 50)));
+
+  return (
+    <Page>
+      {/*
+        Inviting is for people who work here. A customer account is created by
+        the person themselves, in the shop, so an invite box on that list would
+        offer something that does not happen.
+      */}
+      {audience === "staff" ? (
+        <Card>
+          <SectionHeading>Invite somebody</SectionHeading>
+          <Toolbar>
+            <Field label="Email">
+              <Input
+                type="email"
+                value={invitee}
+                placeholder="sam@yourbusiness.com"
+                onChange={(e) => setInvitee(e.target.value)}
+              />
+            </Field>
+            <Field label="Policy">
+              <Select
+                value={inviteRole}
+                onChange={(e) => setInviteRole(e.target.value)}
+              >
+                {roleNames.map((r) => (
+                  <option key={r} value={r}>
+                    {policyLabel(r)}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Button
+              needs={{ settings: ["update"] }}
+              onClick={() => invite.mutate()}
+              disabled={invite.isPending || !invitee.trim()}
+            >
+              {invite.isPending ? "Inviting…" : "Send invitation"}
+            </Button>
+          </Toolbar>
+          {invite.error ? <ErrorNote error={invite.error} /> : null}
+          {invitations.length > 0 ? (
+            <div className="mt-(--gap-toolbar)">
+              <SectionHeading level={3}>Waiting to be accepted</SectionHeading>
+              <p className="text-xs" style={muted}>
+                Only the person invited can accept — the link only works for
+                their address. Until they do, you can withdraw it, and inviting
+                them again makes a fresh link and retires the old one.
+              </p>
+              <ul className="mt-(--gap-tight) flex flex-col gap-(--gap-tight) text-sm">
+                {invitations.map((i) => (
+                  <li
+                    key={i.id}
+                    className="flex flex-wrap items-baseline justify-between gap-(--gap-toolbar) border-t pt-(--gap-tight) border-line"
+                  >
+                    <span>
+                      {i.email}{" "}
+                      <span className="text-xs" style={muted}>
+                        as {i.role} · expires {formatDate(i.expiresAt)}
+                      </span>
+                    </span>
+                    <ConfirmButton
+                      title="Withdraw this invitation?"
+                      message={`The link sent to ${i.email} stops working. You can invite them again at any time.`}
+                      confirmLabel="Withdraw it"
+                      danger
+                      disabled={cancelInvite.isPending}
+                      className="text-xs"
+                      needs={{ settings: ["update"] }}
+                      onConfirm={() => cancelInvite.mutate(i.id)}
+                    >
+                      Withdraw
+                    </ConfirmButton>
+                  </li>
+                ))}
+              </ul>
+              {cancelInvite.error ? (
+                <ErrorNote error={cancelInvite.error} />
+              ) : null}
+            </div>
+          ) : null}
+        </Card>
+      ) : null}
+
+      {issuedInvite ? (
+        <Card>
+          <SectionHeading>Invitation for {issuedInvite.email}</SectionHeading>
+          <Toolbar>
+            <Input
+              readOnly
+              className="min-w-0 flex-1"
+              value={issuedInvite.link}
+              onFocus={(e) => e.currentTarget.select()}
+            />
+            <Button
+              variant="secondary"
+              onClick={() => {
+                navigator.clipboard
+                  .writeText(issuedInvite.link)
+                  .then(() => setCopied(true))
+                  .catch(() => setCopied(false));
+              }}
+            >
+              {copied ? "Copied" : "Copy link"}
+            </Button>
+          </Toolbar>
+          <p className="mt-(--gap-tight) text-sm" style={muted}>
+            {issuedInvite.emailSent
+              ? "An email with this link is on its way to them. You can also copy it and send it yourself."
+              : "No mail server is connected, so nothing was emailed — copy the link and send it to them yourself. Connect one in Settings → Connections to have this sent for you."}{" "}
+            The link is shown once, works once, and expires on{" "}
+            {formatDate(issuedInvite.expiresAt)}. Withdrawing the invitation
+            below stops it working.
+          </p>
+          <div className="mt-(--gap-toolbar)">
+            <Button variant="secondary" onClick={() => setIssuedInvite(null)}>
+              Done
+            </Button>
+          </div>
+        </Card>
+      ) : null}
+
+      {issued ? (
+        <Card>
+          <SectionHeading>New password for {issued.email}</SectionHeading>
+          <p className="money text-lg tracking-wide">{issued.password}</p>
+          <p className="mt-(--gap-tight) text-sm" style={muted}>
+            Shown once and stored nowhere. Read it to them, and have them change
+            it. They have been signed out everywhere.
+          </p>
+          <div className="mt-(--gap-toolbar)">
+            <Button variant="secondary" onClick={() => setIssued(null)}>
+              Done
+            </Button>
+          </div>
+        </Card>
+      ) : null}
+
+      <Toolbar className="text-sm">
+        {(["staff", "customers"] as const).map((which) => (
+          <button
+            key={which}
+            type="button"
+            className={audience === which ? "nav-link nav-child" : "link-muted"}
+            aria-current={audience === which ? "page" : undefined}
+            onClick={() => {
+              setAudience(which);
+              setPage(1);
+              setQ("");
+            }}
+          >
+            {which === "staff" ? "People who work here" : "Customers"}
+            {audience === which
+              ? ` (${total})`
+              : ` (${data.data?.otherTotal ?? 0})`}
+          </button>
+        ))}
+      </Toolbar>
+
+      {/* A name or an email. At five hundred people the list is not something
+          anybody reads down. */}
+      <Toolbar>
+        <Input
+          value={q}
+          className="w-64"
+          placeholder="Search people"
+          aria-label="Search people"
+          onChange={(e) => {
+            setQ(e.target.value);
+            setPage(1);
+          }}
+        />
+        <span className="text-sm" style={muted}>
+          {total} {total === 1 ? "person" : "people"}
+        </span>
+        {pages > 1 ? (
+          <span className="ml-auto flex flex-wrap items-center gap-(--gap-toolbar) text-sm">
+            <button
+              type="button"
+              className="link-muted"
+              disabled={page <= 1}
+              onClick={() => setPage((n) => Math.max(1, n - 1))}
+            >
+              Previous
+            </button>
+            <span style={muted}>
+              {page} of {pages}
+            </span>
+            <button
+              type="button"
+              className="link-muted"
+              disabled={page >= pages}
+              onClick={() => setPage((n) => Math.min(pages, n + 1))}
+            >
+              Next
+            </button>
+          </span>
+        ) : null}
+      </Toolbar>
+
+      {/* "Policy", because that is what the nav, the person record and the
+          Policies screen all call it. This table said "Role" — the word the
+          reference used and the one the console deliberately moved away from. */}
+      {people.length === 0 ? (
+        <Empty title="Nobody matches that">
+          Clear the search, or the filters beside it, to see everyone again.
+        </Empty>
+      ) : null}
+      <Table
+        headers={["Name", "Email", "Policy", "Two-factor", "Last seen", ""]}
+      >
+        {people.map((p) => (
+          <Row key={p.userId}>
+            <td className="py-2 font-medium">
+              <button
+                type="button"
+                className="link"
+                onClick={() =>
+                  open({
+                    moduleId: "users",
+                    recordId: p.userId,
+                    title: p.name || p.email,
+                  })
+                }
+              >
+                {p.name || "—"}
+              </button>
+              {p.you ? (
+                <span className="ml-2 text-xs" style={muted}>
+                  you
+                </span>
+              ) : null}
+            </td>
+            <td style={muted}>{p.email}</td>
+            <td>
+              {p.you || audience === "customers" ? (
+                // Changing your own policy is how an owner locks the business
+                // out of its own instance, and nobody else can undo it. A
+                // customer's is not chosen from a list either — the shop's
+                // portal assigns it when they create the account.
+                <span style={muted}>{policyLabel(p.baseRole)}</span>
+              ) : (
+                <Select
+                  needs={{ settings: ["update"] }}
+                  value={p.baseRole}
+                  // A column heading is not a label. One of these per row, all
+                  // announced as "combo box" and nothing else, on the screen
+                  // that decides what everybody can do.
+                  aria-label={`Policy for ${p.name || p.email}`}
+                  onChange={(e) =>
+                    setRole.mutate({ userId: p.userId, role: e.target.value })
+                  }
+                >
+                  {[...new Set([p.baseRole, ...roleNames])].map((r) => (
+                    <option key={r} value={r}>
+                      {policyLabel(r)}
+                    </option>
+                  ))}
+                </Select>
+              )}
+              {p.groups.length > 0 ? (
+                // What a group grants is not editable here on purpose: it is
+                // changed for the group, not for one person inside it.
+                <div className="text-xs" style={muted}>
+                  and, through {p.groups.join(", ")}:{" "}
+                  {p.role
+                    .split(",")
+                    .filter((r) => r && r !== p.baseRole)
+                    .map(policyLabel)
+                    .join(", ") || "nothing extra"}
+                </div>
+              ) : null}
+            </td>
+            <td>
+              {p.twoFactorEnabled ? (
+                <ConfirmButton
+                  title="Turn off two-factor?"
+                  message={`${p.email} will be signed out everywhere and can set two-factor up again themselves. Do this when somebody has lost the device that generates their codes.`}
+                  confirmLabel="Turn it off"
+                  needs={{ settings: ["update"] }}
+                  onConfirm={() => revokeTwoFactor.mutate(p.userId)}
+                >
+                  on — turn off
+                </ConfirmButton>
+              ) : p.twoFactorRequired ? (
+                // The rules say somebody with their roles must have one. Said
+                // here so an administrator can see who is still without it.
+                <span style={{ color: "var(--text-warning)" }}>
+                  off — required
+                </span>
+              ) : (
+                <span style={muted}>off</span>
+              )}
+            </td>
+            <td style={muted}>
+              {p.lastSeenAt ? formatDate(p.lastSeenAt) : "never"}
+            </td>
+            {/*
+              Three text buttons wrapped across two lines here, at every width
+              — "Reset password" and "Sign out" on one, "Remove" dropped under
+              them and right-aligned against nothing. Every other list in the
+              product puts its row actions behind one menu, and this screen
+              was written before that primitive existed.
+
+              The confirmations stay as they are. Each one says what actually
+              happens — who gets signed out, what survives a removal — and a
+              menu item that reads "Really?" would be a worse question on the
+              screen that hands out access.
+            */}
+            <td className="text-right">
+              <RowMenu label={p.name || p.email}>
+                {() => (
+                  <>
+                    <ConfirmButton
+                      title="Issue a new password?"
+                      message={`The password ${p.email} has now stops working immediately, and they are signed out everywhere. The new one is shown once, on this screen, and stored nowhere.`}
+                      confirmLabel="Issue one"
+                      needs={{ settings: ["update"] }}
+                      onConfirm={() => resetPassword.mutate(p)}
+                    >
+                      Reset password
+                    </ConfirmButton>
+                    {p.you ? null : (
+                      <>
+                        <ConfirmButton
+                          title="Sign them out everywhere?"
+                          message={`${p.email} is signed out on every device and will have to sign in again. Anything they were part-way through typing is lost.`}
+                          confirmLabel="Sign them out"
+                          needs={{ settings: ["update"] }}
+                          onConfirm={() => signOut.mutate(p.userId)}
+                        >
+                          Sign out
+                        </ConfirmButton>
+                        <ConfirmButton
+                          title="Remove them from the business?"
+                          message={`${p.email} loses access immediately. The invoices they raised, the notes they wrote and everything they did stay exactly where they are — this removes the person, not their work.`}
+                          confirmLabel="Remove them"
+                          danger
+                          needs={{ settings: ["update"] }}
+                          onConfirm={() => remove.mutate(p.userId)}
+                        >
+                          Remove
+                        </ConfirmButton>
+                      </>
+                    )}
+                  </>
+                )}
+              </RowMenu>
+            </td>
+          </Row>
+        ))}
+      </Table>
+
+      {/*
+        Under the table, not under the page, and one line each.
+
+        These were a map over an array of the five mutations, sitting below the
+        audit log: on a screen listing five hundred people that puts a refused
+        password reset a long scroll from the button that asked for it, and the
+        array hid every one of them from the guard that looks for a mutation
+        nobody reports.
+      */}
+      {setRole.error ? <ErrorNote error={setRole.error} /> : null}
+      {remove.error ? <ErrorNote error={remove.error} /> : null}
+      {resetPassword.error ? <ErrorNote error={resetPassword.error} /> : null}
+      {revokeTwoFactor.error ? (
+        <ErrorNote error={revokeTwoFactor.error} />
+      ) : null}
+      {signOut.error ? <ErrorNote error={signOut.error} /> : null}
+
+      {(data.data?.history ?? []).length > 0 ? (
+        <Card>
+          <SectionHeading>Recent changes</SectionHeading>
+          <p className="text-xs" style={muted}>
+            Everything on this screen hands access around, so it is written
+            down. Nothing here can be edited or deleted.
+          </p>
+          <ul className="mt-(--gap-toolbar) flex flex-col gap-(--gap-tight) text-sm">
+            {(data.data?.history ?? []).map((change) => (
+              <li key={`${change.at}-${change.says}-${change.subject ?? ""}`}>
+                <span style={muted}>{formatDate(change.at)}</span>{" "}
+                {/*
+                  No actor means nobody was signed in: `sentrello
+                  reset-password`, `sentrello unlock`, or a scheduled prune.
+                  Sign-in attempts, where "nobody" would instead mean an
+                  unknown person, are excluded from this list — so naming the
+                  server here is accurate rather than a guess. It read as
+                  "issued a new password for Owner", a sentence with no
+                  subject at all.
+                */}
+                <strong>{change.actor ?? "The server"}</strong> {change.says}
+                {/*
+                  Nothing at all when there is no subject, where this used to
+                  print an em dash. Most of these are done *to* somebody —
+                  "unlocked the account of Dana Reyes" — but some are not:
+                  "Owner closed the year —" ended on a dash with nothing after
+                  it, which reads as a name that failed to load rather than as
+                  a sentence that never needed one.
+                */}
+                {change.subject ? (
+                  <>
+                    {" "}
+                    <strong>{change.subject}</strong>
+                  </>
+                ) : null}
+                {change.detail && "from" in change.detail ? (
+                  <span style={muted}>
+                    {" "}
+                    ({String(change.detail.from)} → {String(change.detail.to)})
+                  </span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
+    </Page>
+  );
+}

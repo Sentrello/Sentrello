@@ -1,0 +1,152 @@
+import { expect, test } from "bun:test";
+import { readdirSync } from "node:fs";
+import { join } from "node:path";
+import { sourceFiles, unreachableRoutes } from "@sentrello/module-sdk";
+
+/**
+ * Every route a person is meant to use has something that calls it.
+ *
+ * The gates test asks whether a route refuses the wrong person. This asks the
+ * question underneath it: whether anybody can get to the route at all. A route
+ * is written, tested, gated correctly, and marked done — and
+ * no screen ever calls it. Every test passes, because every test talks to the
+ * API, and the API is right. The feature does not exist, because a customer
+ * cannot reach it, and the notes say it is done so nobody looks again.
+ *
+ * Found by hand in four of the commercial modules before it was worth
+ * automating, and the first run here found seven more in Free. The matching
+ * itself lives in `@sentrello/module-sdk` so that both repositories use one
+ * implementation: a second copy is a copy that gets the comparison subtly
+ * wrong in one repository only.
+ */
+
+const root = join(import.meta.dir, "../../..");
+const screens = sourceFiles(join(root, "apps/web/src"), [".ts", ".tsx"]);
+
+const modules = readdirSync(join(root, "packages/modules-free")).filter(
+  (name) => {
+    try {
+      return readdirSync(join(root, "packages/modules-free", name)).includes(
+        "src",
+      );
+    } catch {
+      return false;
+    }
+  },
+);
+
+/**
+ * Routes something other than a screen reaches.
+ *
+ * Each entry says what does call it. Excusing a route falsely is how a module
+ * comes back clean with a dead feature in it, which is the one way this test
+ * can do harm.
+ */
+const CALLED_BY_SOMETHING_ELSE: Record<string, string> = {
+  // Kept working on purpose. Its own comment: the endpoint predates the
+  // module and is what a customer's own scripts call, so it stays rather than
+  // becoming a second way to write the books. The screens use
+  // `/api/transactions`.
+  "/api/expenses": "a customer's own scripts, from before the module",
+  // A Free-half route whose control is a paid one: locking the books through
+  // a date sits on the Tax and currency page, which ships in the
+  // pro-accounting bundle — so its caller is real and not in this repository.
+  // Verified against the bundle's screens, which read and write it.
+  "/api/accounting/period":
+    "the pro-accounting bundle's Tax and currency screen",
+  // The three below were never reached by a screen and never reported either:
+  // each was matched by an unrelated path with a variable in it, back when a
+  // wildcard could face a wildcard at every segment that carried meaning. They
+  // are excused here because each is genuinely called, and now they say by
+  // what.
+  //
+  // A payment processor's servers post here. The address is registered with
+  // the provider by the Connect step on the Payments settings screen, which
+  // builds it as `${base}/api/payments/webhook/${provider}` — nothing in the
+  // browser ever asks for it.
+  "/api/payments/webhook/:provider": "the payment processor's servers",
+  // The embed script on a customer's own site, served from `/embed.js`: it
+  // reads the form's definition and posts the visitor's answers back. Both
+  // ends live in the module; neither is an admin screen.
+  "/api/embed/forms/:key": "the embed script served from /embed.js",
+  // The tag chips beside a contact, a company, a deal, an invoice or a quote.
+  // The component takes the document's own path as a prop and appends to it —
+  // `api(\`${path}/tags/${tagId}\`, { method: "DELETE" })` — so the path it
+  // asks for is assembled from a value that arrives from another file, and no
+  // sweep that reads source as text can see it. The Remove button is on the
+  // screen: `TagChips` in `apps/web/src/lib/tags.tsx`, mounted by
+  // `contact-detail.tsx` and `invoice-detail.tsx`.
+  "DELETE /api/*/:id/tags/:tagId": "the tag chips' Remove button, via a prop",
+};
+
+/**
+ * Built, reachable from nothing, and not yet fixed.
+ *
+ * Asserted **exactly**, so it is a ratchet rather than an excuse: a newly
+ * unreachable route fails this test, and so does fixing one of these without
+ * deleting its line. A list that only ever grows is a list nobody reads.
+ *
+ * These twelve appeared the day the sweep learned to read routes registered
+ * from a **template**. `ctx.app.get(`/api/${path}`, …)` inside a generic CRUD
+ * helper, and `/api/${kind}/:id/share` inside a loop over two kinds: forty
+ * routes across the CRM, accounting and invoicing that no sweep had ever
+ * looked at, and nothing said so.
+ *
+ * Like the five before them, almost all are a **delete** — screens get built
+ * for the happy path and the destructive half is left as a route with no
+ * button.
+ */
+const KNOWN_GAPS: Record<string, string[]> = {
+  // Sorted, because that is how they come back. The reasons are grouped in
+  // the comment rather than beside each line, so the order can stay.
+  //
+  // What is left after the screens were written, and why each stays.
+  //
+  // `DELETE /api/tags/:id` is the generic helper's delete, superseded by
+  // `/api/crm/tags/:id` — which is what the settings screen calls, because it
+  // answers with how many records the tag came off. Two ways to delete a tag
+  // is one more than anybody needs.
+  //
+  // The two whole-business lists are `crud()` registering `GET /api/<resource>`
+  // for everything in its table. For these two the record's own history is the
+  // screen: an unordered, unpaged list of every note in the business answers
+  // no question anybody has. Making the helper skip them was tried and
+  // reverted — the sweep reads source text and cannot see a runtime `if`, so
+  // the route would have vanished from the product and stayed in this list,
+  // which is worse than an honest gap.
+  //
+  // Nothing else is left: what a person logs on a contact's history can be
+  // written, corrected and removed, and the entry carries an id for exactly
+  // that reason — nothing else in that stream does, because everything else
+  // in it is the platform recording what happened, and a history somebody can
+  // edit is not a history.
+  crm: ["DELETE /api/tags/:id", "GET /api/activities", "GET /api/notes"],
+};
+
+/**
+ * Every tree that registers an `/api/…` route, not only the modules.
+ *
+ * The host and the auth package were never swept. Nothing was wrong in either
+ * — all eight of their routes have a caller — but "nothing was wrong" was not
+ * something anybody could have known, and a route added to the host tomorrow
+ * would have had no check at all. The sweep is cheap; leaving a tree out of it
+ * is how the next unreachable feature gets written.
+ */
+const trees: [string, string][] = [
+  ...modules.map((name): [string, string] => [
+    name,
+    join(root, "packages/modules-free", name, "src"),
+  ]),
+  ["host", join(root, "apps/server/src")],
+  ["auth", join(root, "packages/auth/src")],
+];
+
+test.each(trees)("%s: every route has a caller", (name, dir) => {
+  const unreachable = unreachableRoutes({
+    routeFiles: sourceFiles(dir, [".ts"]),
+    screenFiles: screens,
+    calledByOther: CALLED_BY_SOMETHING_ELSE,
+  });
+
+  expect(unreachable).toEqual(KNOWN_GAPS[name] ?? []);
+});

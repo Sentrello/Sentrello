@@ -1,0 +1,491 @@
+import { verifyStripeSignature } from "../stripe-signature";
+import type {
+  CheckoutRequest,
+  ConnectionResult,
+  Credentials,
+  HostedCheckout,
+  OnSitePayment,
+  PaymentEvent,
+  PaymentProvider,
+} from "./provider";
+
+/**
+ * Stripe, with the shop owner's own keys.
+ *
+ * Card details never reach this instance either way — Stripe hosts the payment
+ * page, or Stripe's own frame sits inside the shop's page —
+ * which is the difference between a business that has to think about PCI and
+ * one that does not.
+ *
+ * The REST API directly rather than the SDK: this runs inside a module bundle
+ * that links a fixed short list of packages, and the calls are four.
+ */
+
+/**
+ * Overridable so a test can point at a local server, and for no other reason —
+ * unset everywhere real. Without it the only way to exercise this file is to
+ * talk to Stripe, which means the paths that matter get tested by hand or not
+ * at all.
+ */
+/**
+ * Read per call rather than once at import, so a test can point it somewhere
+ * after this module is already loaded — which is every test, since the module
+ * is imported long before one runs.
+ */
+const api = () => process.env.STRIPE_API_BASE ?? "https://api.stripe.com/v1";
+
+function form(values: Record<string, string | undefined>): URLSearchParams {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(values)) {
+    if (value !== undefined) params.set(key, value);
+  }
+  return params;
+}
+
+/**
+ * The processing fee out of an expanded Checkout Session, or undefined.
+ *
+ * Undefined in two cases that both matter. Stripe creates the balance
+ * transaction **asynchronously**, so a webhook arriving promptly may find
+ * nothing there yet. And the fee is denominated in the account's settlement
+ * currency, which for a euro sale into a dollar account is not the currency of
+ * the order — posting that number beside the order total would be adding two
+ * different currencies together. In both cases the sale posts exactly as one
+ * with no fee, which understates costs rather than misstating cash.
+ */
+function feeFrom(session: Record<string, unknown>): number | undefined {
+  const intent = session.payment_intent as
+    | { latest_charge?: { balance_transaction?: Record<string, unknown> } }
+    | undefined;
+  const balance = intent?.latest_charge?.balance_transaction;
+  if (!balance || typeof balance.fee !== "number") return undefined;
+
+  const settled = balance.currency;
+  const ordered = session.currency;
+  if (
+    typeof settled === "string" &&
+    typeof ordered === "string" &&
+    settled.toLowerCase() !== ordered.toLowerCase()
+  ) {
+    return undefined;
+  }
+  return balance.fee;
+}
+
+export function stripeProvider(credentials: Credentials): PaymentProvider {
+  const { secretKey, webhookSecret } = credentials;
+
+  async function call(
+    path: string,
+    init: { method?: string; body?: URLSearchParams } = {},
+  ): Promise<{ ok: boolean; status: number; body: Record<string, unknown> }> {
+    const res = await fetch(`${api()}${path}`, {
+      method: init.method ?? "GET",
+      headers: {
+        authorization: `Bearer ${secretKey}`,
+        "content-type": "application/x-www-form-urlencoded",
+      },
+      body: init.body,
+      // A payment processor that has stopped answering must not hold a
+      // customer's checkout open indefinitely.
+      signal: AbortSignal.timeout(15_000),
+    });
+    const body = (await res.json().catch(() => ({}))) as Record<
+      string,
+      unknown
+    >;
+    return { ok: res.ok, status: res.status, body };
+  }
+
+  return {
+    id: "stripe",
+
+    async testConnection(): Promise<ConnectionResult> {
+      if (!secretKey) return { ok: false, message: "no secret key is stored" };
+
+      // A live key on a shop set to test mode, or the reverse, is the mistake
+      // this catches before a customer does.
+      const looksLive = secretKey.startsWith("sk_live");
+      if (looksLive === credentials.test) {
+        return {
+          ok: false,
+          message: credentials.test
+            ? "that is a live key, and this is the sandbox connection"
+            : "that is a test key, and this is the live connection",
+        };
+      }
+
+      const account = await call("/account");
+      if (!account.ok) {
+        const error = account.body.error as { message?: string } | undefined;
+        return {
+          ok: false,
+          message:
+            error?.message ?? `Stripe refused the key (${account.status})`,
+        };
+      }
+
+      const label =
+        (account.body.business_profile as { name?: string } | undefined)
+          ?.name ??
+        (account.body.email as string | undefined) ??
+        (account.body.id as string);
+      return { ok: true, message: `connected to ${label}`, label };
+    },
+
+    async createCheckout(req: CheckoutRequest): Promise<HostedCheckout> {
+      if (!Number.isInteger(req.amountCents) || req.amountCents <= 0) {
+        throw new Error("amountCents must be a positive integer");
+      }
+
+      const body = form({
+        mode: "payment",
+        success_url: req.successUrl,
+        cancel_url: req.cancelUrl,
+        "line_items[0][quantity]": "1",
+        "line_items[0][price_data][currency]": req.currency.toLowerCase(),
+        "line_items[0][price_data][unit_amount]": String(req.amountCents),
+        "line_items[0][price_data][product_data][name]": req.description,
+        // One line for the order total rather than a line per product: the
+        // shop's own arithmetic has already decided what is owed, including
+        // tax and delivery, and sending it twice invites the two to disagree.
+        "metadata[order_id]": req.orderId,
+        "metadata[order_number]": req.orderNumber,
+        client_reference_id: req.orderId,
+        customer_email: req.customerEmail ?? undefined,
+      });
+
+      const res = await call("/checkout/sessions", { method: "POST", body });
+      if (!res.ok) {
+        const error = res.body.error as { message?: string } | undefined;
+        throw new Error(
+          `stripe checkout failed: ${error?.message ?? res.status}`,
+        );
+      }
+      return {
+        url: res.body.url as string,
+        reference: res.body.id as string,
+      };
+    },
+
+    /**
+     * The same payment, taken in the shop's own page.
+     *
+     * A payment intent rather than a checkout session: a session owns a page on
+     * Stripe's domain, and the whole point here is that there is no such page.
+     * What comes back is a secret the shop's own page hands to Stripe's script,
+     * which puts the card fields into the page inside its own iframe.
+     *
+     * **The card never reaches this software.** It is typed into Stripe's
+     * frame, which is what keeps the shop's PCI obligation exactly where the
+     * redirect leaves it — and is the reason this is worth doing rather than
+     * building a card form.
+     *
+     * `automatic_payment_methods` so a shop gets whatever Stripe has enabled
+     * for it — cards, wallets, and whatever is normal wherever the buyer is —
+     * without this code learning about each one.
+     */
+    async startOnSite(req: CheckoutRequest): Promise<OnSitePayment> {
+      if (!Number.isInteger(req.amountCents) || req.amountCents <= 0) {
+        throw new Error("amountCents must be a positive integer");
+      }
+      if (!credentials.publicKey) {
+        // The browser cannot start without it, and finding that out in the page
+        // is finding it out in front of a customer.
+        throw new Error(
+          "a publishable key is needed to take payment in a page",
+        );
+      }
+
+      const body = form({
+        amount: String(req.amountCents),
+        currency: req.currency.toLowerCase(),
+        description: req.description,
+        "automatic_payment_methods[enabled]": "true",
+        // The same names the session flow uses, so one webhook handler reads
+        // both and an order can be found from either kind of event.
+        "metadata[order_id]": req.orderId,
+        "metadata[order_number]": req.orderNumber,
+        receipt_email: req.customerEmail ?? undefined,
+      });
+
+      const res = await call("/payment_intents", { method: "POST", body });
+      if (!res.ok) {
+        const error = res.body.error as { message?: string } | undefined;
+        throw new Error(
+          `stripe payment could not be started: ${error?.message ?? res.status}`,
+        );
+      }
+      return {
+        clientSecret: res.body.client_secret as string,
+        publicKey: credentials.publicKey,
+        reference: res.body.id as string,
+      };
+    },
+
+    /**
+     * Registers the endpoint with Stripe and returns its signing secret.
+     *
+     * Stripe only ever discloses a signing secret when the endpoint is
+     * created, so an endpoint that already exists for this URL is deleted and
+     * remade rather than reused — there is no way to read the old secret back,
+     * and an instance that cannot verify events is one taking money it never
+     * confirms.
+     *
+     * Only the three events this product acts on are subscribed. Subscribing
+     * to everything works and is worse: it doubles a busy shop's webhook
+     * traffic and buries the events that matter among ones nothing reads.
+     */
+    /**
+     * Every endpoint this account sends to, so a caller can check its own is
+     * among them. Failure is an empty list rather than a throw: not being
+     * able to ask is not evidence of absence, and the caller says so.
+     */
+    async webhookTargets() {
+      const res = await call("/webhook_endpoints?limit=100");
+      if (!res.ok) return [];
+      return ((res.body.data ?? []) as { url: string; status: string }[]).map(
+        (endpoint) => ({ url: endpoint.url, status: endpoint.status }),
+      );
+    },
+
+    async ensureWebhook(url: string) {
+      /*
+       * A processor cannot reach a private address, and a development instance
+       * is the ordinary case rather than a mistake. Null means "ask the person
+       * to paste one", which is what the screen does.
+       */
+      if (
+        !/^https:\/\//.test(url) ||
+        /localhost|127\.0\.0\.1|\.local/.test(url)
+      ) {
+        return null;
+      }
+
+      const existing = await call("/webhook_endpoints?limit=100");
+      if (existing.ok) {
+        const endpoints = (existing.body.data ?? []) as {
+          id: string;
+          url: string;
+        }[];
+        for (const endpoint of endpoints) {
+          if (endpoint.url === url) {
+            await call(`/webhook_endpoints/${endpoint.id}`, {
+              method: "DELETE",
+            });
+          }
+        }
+      }
+
+      const body = new URLSearchParams({ url });
+      for (const event of [
+        "checkout.session.completed",
+        "checkout.session.async_payment_failed",
+        // A payment taken in the shop's own page reports as an intent rather
+        // than a session. Both are subscribed because a shop can be taking both
+        // at once — an old link finishing on Stripe's page while the new
+        // checkout runs in the shop's — and an unsubscribed event is a payment
+        // taken and an order never confirmed.
+        "payment_intent.succeeded",
+        "payment_intent.payment_failed",
+        "charge.refunded",
+      ]) {
+        body.append("enabled_events[]", event);
+      }
+
+      const made = await call("/webhook_endpoints", { method: "POST", body });
+      if (!made.ok) {
+        const error = made.body.error as { message?: string } | undefined;
+        throw new Error(
+          `stripe would not create the webhook: ${error?.message ?? made.status}`,
+        );
+      }
+
+      const secret = made.body.secret as string | undefined;
+      if (!secret) return null;
+      return { secret, id: made.body.id as string };
+    },
+
+    async verifyWebhook(raw: string, headers: Headers): Promise<boolean> {
+      if (!webhookSecret) return false;
+      return verifyStripeSignature(
+        raw,
+        headers.get("stripe-signature"),
+        webhookSecret,
+      );
+    },
+
+    parseEvent(raw: string): PaymentEvent | null {
+      const event = JSON.parse(raw) as {
+        id?: string;
+        type?: string;
+        data?: { object?: Record<string, unknown> };
+      };
+      const object = event.data?.object ?? {};
+      const eventId = event.id ?? "";
+
+      if (event.type === "checkout.session.completed") {
+        // `paid` rather than "the buyer came back": Stripe says whether the
+        // money moved, and for a bank debit it may not have yet.
+        if (object.payment_status !== "paid") return null;
+        return {
+          reference:
+            (object.client_reference_id as string) ?? (object.id as string),
+          status: "paid",
+          eventId,
+          amountCents:
+            typeof object.amount_total === "number"
+              ? object.amount_total
+              : undefined,
+        };
+      }
+
+      if (event.type === "checkout.session.async_payment_failed") {
+        return {
+          reference:
+            (object.client_reference_id as string) ?? (object.id as string),
+          status: "failed",
+          eventId,
+        };
+      }
+
+      /*
+       * A payment taken in the shop's own page.
+       *
+       * The order is found by the metadata written when the intent was made,
+       * because there is no `client_reference_id` on an intent. Falling back to
+       * the intent's own id keeps the same shape as the session events above.
+       */
+      if (event.type === "payment_intent.succeeded") {
+        const metadata = (object.metadata ?? {}) as Record<string, string>;
+        return {
+          reference: metadata.order_id ?? (object.id as string),
+          status: "paid",
+          eventId,
+          amountCents:
+            typeof object.amount_received === "number"
+              ? object.amount_received
+              : undefined,
+        };
+      }
+
+      if (event.type === "payment_intent.payment_failed") {
+        const metadata = (object.metadata ?? {}) as Record<string, string>;
+        return {
+          reference: metadata.order_id ?? (object.id as string),
+          status: "failed",
+          eventId,
+        };
+      }
+
+      if (event.type === "charge.refunded") {
+        const metadata = (object.metadata ?? {}) as Record<string, string>;
+        return {
+          reference: metadata.order_id ?? (object.payment_intent as string),
+          status: "refunded",
+          eventId,
+          amountCents:
+            typeof object.amount_refunded === "number"
+              ? object.amount_refunded
+              : undefined,
+        };
+      }
+
+      // Everything else Stripe sends is somebody else's business.
+      return null;
+    },
+
+    /**
+     * Which kind of thing a reference points at.
+     *
+     * Stripe prefixes its ids, and a shop now stores one of two: `cs_…` for a
+     * payment made on Stripe's own page, `pi_…` for one made in the shop's.
+     * Asking the wrong endpoint answers 404, and a payment that cannot be
+     * confirmed is one the shop refuses to mark paid — correctly, and for
+     * entirely the wrong reason.
+     */
+    async confirmPaid(reference: string) {
+      if (reference.startsWith("pi_")) {
+        const res = await call(
+          `/payment_intents/${reference}?expand[]=latest_charge.balance_transaction`,
+        );
+        if (!res.ok) return { paid: false };
+        return {
+          paid: res.body.status === "succeeded",
+          amountCents:
+            typeof res.body.amount_received === "number"
+              ? res.body.amount_received
+              : undefined,
+          /*
+           * The currency travels with it. `feeFrom` refuses a fee settled in a
+           * different currency from the one the sale was priced in, and without
+           * this it had nothing to compare against — so a converted fee would
+           * have gone into the books as if it were the same money.
+           */
+          feeCents: feeFrom({
+            payment_intent: res.body,
+            currency: res.body.currency,
+          }),
+        };
+      }
+
+      // The fee is not on the session, nor on the webhook that announced it:
+      // it lives on the balance transaction behind the charge. Expanded onto
+      // the call the shop already makes rather than fetched separately, so
+      // confirming a payment stays one round trip.
+      const res = await call(
+        `/checkout/sessions/${reference}?expand[]=payment_intent.latest_charge.balance_transaction`,
+      );
+      if (!res.ok) return { paid: false };
+      return {
+        paid: res.body.payment_status === "paid",
+        amountCents:
+          typeof res.body.amount_total === "number"
+            ? res.body.amount_total
+            : undefined,
+        feeCents: feeFrom(res.body),
+      };
+    },
+
+    async refund(reference: string, amountCents: number, _currency: string) {
+      /*
+       * A refund is against the payment intent. A shop that took the money in
+       * its own page already holds one; a shop that sent the buyer to Stripe
+       * holds the session, which names it — one call more, and the shop only
+       * ever has to store the one reference it was given.
+       */
+      let intent: string | undefined;
+      if (reference.startsWith("pi_")) {
+        intent = reference;
+      } else {
+        const session = await call(`/checkout/sessions/${reference}`);
+        intent = session.body.payment_intent as string | undefined;
+        if (!session.ok) intent = undefined;
+      }
+      if (!intent) {
+        return { ok: false, amountCents: 0, message: "no payment to refund" };
+      }
+
+      const res = await call("/refunds", {
+        method: "POST",
+        body: form({
+          payment_intent: intent,
+          amount: String(amountCents),
+        }),
+      });
+      if (!res.ok) {
+        const error = res.body.error as { message?: string } | undefined;
+        return {
+          ok: false,
+          amountCents: 0,
+          message: error?.message ?? "Stripe refused the refund",
+        };
+      }
+      return {
+        ok: true,
+        amountCents:
+          typeof res.body.amount === "number" ? res.body.amount : amountCents,
+      };
+    },
+  };
+}

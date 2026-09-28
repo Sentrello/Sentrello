@@ -1,0 +1,143 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { api } from "../../lib/api";
+import {
+  ConfirmButton,
+  Empty,
+  ErrorNote,
+  Loading,
+  MenuItem,
+  Page,
+  Row,
+  Table,
+  Toolbar,
+  formatDate,
+  muted,
+} from "../../lib/ui";
+
+/**
+ * Every live session across the organization, with who each belongs to.
+ *
+ * `person.tsx`'s own Sessions tab already does this for one person at a
+ * time; this is the aggregate an administrator wants when a foreman has
+ * been dismissed and every device of theirs has to go, or when checking who
+ * is signed in at all — `GET /api/users/sessions`, which already carries
+ * whose session each row is.
+ */
+
+interface SessionRow {
+  id: string;
+  userId: string;
+  name: string | null;
+  email: string | null;
+  device: string;
+  ipAddress: string | null;
+  createdAt: string;
+  expiresAt: string;
+  updatedAt: string;
+  current: boolean;
+}
+
+export function Sessions() {
+  const qc = useQueryClient();
+  const key = ["users-sessions"];
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: key,
+    queryFn: () => api<{ sessions: SessionRow[] }>("/api/users/sessions"),
+  });
+
+  const settle = () => qc.invalidateQueries({ queryKey: key });
+
+  const revokeOne = useMutation({
+    mutationFn: (s: SessionRow) =>
+      api(`/api/users/${s.userId}/sessions/${s.id}`, { method: "DELETE" }),
+    onSuccess: settle,
+  });
+
+  // No bulk route exists for this — `POST /api/users/:userId/sessions/revoke`
+  // is per person. Ending every live session is that route's DELETE sibling
+  // called once per row rather than a new server endpoint for a button this
+  // screen alone needs.
+  const revokeAll = useMutation({
+    mutationFn: async () => {
+      const rows = data?.sessions ?? [];
+      await Promise.all(
+        rows.map((s) =>
+          api(`/api/users/${s.userId}/sessions/${s.id}`, { method: "DELETE" }),
+        ),
+      );
+    },
+    onSuccess: settle,
+  });
+
+  if (isLoading) return <Loading />;
+  if (error) return <ErrorNote error={error} />;
+
+  const sessions = data?.sessions ?? [];
+
+  return (
+    <Page>
+      <Toolbar className="justify-between">
+        <span className="text-sm" style={muted}>
+          {sessions.length} live{" "}
+          {sessions.length === 1 ? "session" : "sessions"}
+        </span>
+        {sessions.length > 0 ? (
+          <ConfirmButton
+            title="Sign everybody out?"
+            message={`${sessions.length} ${
+              sessions.length === 1 ? "session ends" : "sessions end"
+            } immediately — including yours, if you are signed in on this list. Everybody will have to sign in again.`}
+            confirmLabel="Sign everybody out"
+            danger
+            className="text-xs"
+            needs={{ settings: ["update"] }}
+            disabled={revokeAll.isPending}
+            onConfirm={() => revokeAll.mutate()}
+          >
+            Sign everybody out
+          </ConfirmButton>
+        ) : null}
+      </Toolbar>
+
+      {sessions.length === 0 ? (
+        <Empty title="Nobody is signed in" />
+      ) : (
+        <Table headers={["Person", "Device", "IP", "Last active", ""]}>
+          {sessions.map((s) => (
+            <Row key={s.id}>
+              <td className="py-2 font-medium">
+                {s.name || s.email || "—"}
+                {s.current ? (
+                  <span className="ml-2 text-xs" style={muted}>
+                    this device
+                  </span>
+                ) : null}
+              </td>
+              <td style={muted}>{s.device}</td>
+              {/* `||`, not `??` — Better Auth writes an empty string, not
+                  null, when nothing set the trusted header, and `??` never
+                  catches that: it drew a blank cell instead of "—". */}
+              <td style={muted}>{s.ipAddress || "—"}</td>
+              <td style={muted}>{formatDate(s.updatedAt)}</td>
+              <td className="text-right">
+                {/* Nothing asked first, unlike Sign everybody out above it:
+                    one device signs in again and nothing is lost. */}
+                <MenuItem
+                  className="text-xs link-muted w-auto p-0"
+                  needs={{ settings: ["update"] }}
+                  disabled={revokeOne.isPending}
+                  onClick={() => revokeOne.mutate(s)}
+                >
+                  Sign out
+                </MenuItem>
+              </td>
+            </Row>
+          ))}
+        </Table>
+      )}
+      {revokeOne.error ? <ErrorNote error={revokeOne.error} /> : null}
+      {revokeAll.error ? <ErrorNote error={revokeAll.error} /> : null}
+    </Page>
+  );
+}

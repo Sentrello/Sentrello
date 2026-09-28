@@ -1,0 +1,50 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "./packages/module-sdk"
+    },
+    {
+      "path": "./packages/licensing-client"
+    },
+    {
+      "path": "./packages/db"
+    },
+    {
+      "path": "./packages/modules-free/crm"
+    },
+    {
+      "path": "./packages/modules-free/invoicing"
+    },
+    {
+      "path": "./packages/modules-free/accounting"
+    },
+    {
+      "path": "./packages/auth"
+    },
+    {
+      "path": "./packages/email"
+    },
+    {
+      "path": "./packages/jobs"
+    },
+    {
+      "path": "./apps/server"
+    },
+    {
+      "path": "./apps/web"
+    },
+    {
+      "path": "./scripts"
+    },
+    {
+      "path": "./packages/modules-free/settings"
+    },
+    {
+      "path": "./packages/modules-free/money"
+    },
+    {
+      "path": "./packages/modules-free/archive"
+    }
+  ]
+}

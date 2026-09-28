@@ -1,0 +1,1 @@
+ALTER TABLE "organizations" ADD COLUMN "access_seeded_at" timestamp;

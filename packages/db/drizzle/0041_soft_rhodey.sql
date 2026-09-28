@@ -1,0 +1,1 @@
+ALTER TABLE "security_policy" ADD COLUMN "require_email_verified" boolean DEFAULT false NOT NULL;

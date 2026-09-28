@@ -1,0 +1,35 @@
+{
+  "name": "@sentrello/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@better-auth/sso": "1.6.26",
+    "@sentrello/auth": "*",
+    "@tanstack/react-query": "^5.62.0",
+    "better-auth": "^1.6.0",
+    "qrcode-generator": "2.0.4",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zod": "4.4.3",
+    "@sentrello/module-sdk": "*"
+  },
+  "devDependencies": {
+    "@happy-dom/global-registrator": "^20.14.5",
+    "@sentrello/db": "*",
+    "@sentrello/module-crm": "*",
+    "@sentrello/module-sdk": "*",
+    "@tailwindcss/vite": "^4.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "tailwindcss": "^4.0.0",
+    "vite": "^6.0.0"
+  },
+  "license": "AGPL-3.0-or-later"
+}

@@ -1,0 +1,118 @@
+---
+title: Extending Sentrello
+sidebar_position: 2
+description: One module contract for every feature, and the licence exception that lets you sell modules of your own.
+tags: [platform, modules, sdk]
+---
+
+# Extending Sentrello
+
+Sentrello is one deployable service that discovers its feature modules at
+startup. One container to run, one database to back up. For a business with no
+operations team, that is the right trade.
+
+Every feature implements the same contract, free and paid alike. The CRM in the
+free core and a commercial module bought years later are the same kind of
+object to the host.
+
+```mermaid
+flowchart TD
+  classDef screen fill:#eef4ff,stroke:#3b6fd4,color:#16305e
+  classDef own fill:#eefaf1,stroke:#219653,color:#10442a
+  classDef out fill:#f4f0fb,stroke:#6b47c4,color:#31205e
+  classDef gate fill:#fdeaea,stroke:#c0392b,color:#6b1a12
+  classDef aside fill:#f7f7f8,stroke:#9aa3ad,color:#444c55
+  MOD["A module<br/><small>SentrelloModule</small>"]:::screen
+
+  subgraph DEC[" What it declares — about itself "]
+    ID["id and name"]:::own
+    NEED["what it needs<br/><small>a tier, or a purchase</small>"]:::own
+    MIG["its migrations"]:::own
+  end
+
+  GATE{{"entitled?<br/><small>the host asks before anything else</small>"}}:::gate
+  NO["Not loaded<br/><small>nothing below ever happens</small>"]:::aside
+
+  subgraph REG[" What it registers — into somebody's instance "]
+    NAV["nav entries"]:::out
+    PERM["permissions"]:::out
+    ROUTE["API routes"]:::out
+    PANEL["a dashboard panel"]:::out
+    SEARCH["what the search box finds"]:::out
+  end
+
+  MOD --> DEC --> GATE
+  GATE -->|"no"| NO
+  GATE -->|"yes"| REG
+
+  style DEC fill:#fbfdfc,stroke:#cfe4d8,color:#10442a
+  style REG fill:#faf8fe,stroke:#ddd2f2,color:#31205e
+```
+
+Read the two columns as two different promises. What a module **declares** is
+about itself, and the host uses it to decide whether to load the module at all.
+What a module **registers** is everything it adds to somebody's instance — nav,
+permissions, a dashboard panel, what the search box finds.
+
+The gate underneath applies to both. A module nobody has paid for is not loaded,
+so nothing it would have registered exists — and its screens are never served,
+rather than served and hidden.
+
+## The module contract
+
+```ts
+import { requirePermission, requireSession } from "@sentrello/auth/hono";
+import { defineModule } from "@sentrello/module-sdk";
+
+export default defineModule({
+  id: "crm",
+  tier: "free",
+  register(ctx) {
+    ctx.registerNav({ id: "crm", label: "Contacts", order: 10 });
+
+    ctx.app.get(
+      "/api/contacts",
+      requireSession(),
+      requirePermission({ crm: ["read"] }),
+      async (c) => c.json({ contacts: [] }),
+    );
+  },
+});
+```
+
+Three things are worth reading off that:
+
+- **`id` and `tier` are what the host loads against.** A module whose tier the
+  licence does not cover is never registered. Its routes do not exist and its
+  screens are never served, as opposed to being served and then hidden.
+- **`register` receives the application**, so a module owns its own routes
+  instead of asking the host to add them.
+- **The route still checks its own permissions.** Entitlement says the business
+  bought the module; permission says this account may use it. Both are
+  required, and they answer differently. An unentitled request gets a 404,
+  because the feature genuinely is not there. An unpermitted one gets a 403.
+
+Beyond routes and navigation, a module can register dashboard widgets, account
+sections, summary figures, computed columns, payment webhooks, background jobs,
+retention rules and a personal-data reader. That last one is why a subject
+access request can answer across every installed module at once. See
+[Compliance](/platform/compliance).
+
+## Modules combine
+
+Each module is a whole application rather than a feature, and is built so
+another module can consume what it produces. The Shop's orders reach
+Accounting. A booking becomes an invoice. An admin connects them; neither
+module was written knowing about the other.
+
+## Write a module of your own
+
+The licence carves this out deliberately. The **module linking exception** at
+the top of `LICENSE` lets you write a module against `@sentrello/module-sdk`,
+load it into Core, and license and sell it on whatever terms you like. Core
+stays AGPL, so changes to Core remain copyleft, but the module belongs to
+whoever wrote it.
+
+The SDK is published from the same public repository as the free core, so the
+contract you build against is the contract the free modules use. There is no
+private extension API.

@@ -1,0 +1,32 @@
+{
+  "name": "@sentrello/server",
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --hot src/index.ts",
+    "start": "bun run src/index.ts"
+  },
+  "dependencies": {
+    "@sentrello/auth": "*",
+    "@sentrello/db": "*",
+    "@sentrello/email": "*",
+    "@sentrello/jobs": "*",
+    "@sentrello/licensing-client": "*",
+    "@sentrello/module-account": "*",
+    "@sentrello/module-accounting": "*",
+    "@sentrello/module-archive": "*",
+    "@sentrello/module-crm": "*",
+    "@sentrello/module-dashboard": "*",
+    "@sentrello/module-invoicing": "*",
+    "@sentrello/module-money": "*",
+    "@sentrello/module-profile": "*",
+    "@sentrello/module-sdk": "*",
+    "@sentrello/module-settings": "*",
+    "@sentrello/module-users": "*",
+    "hono": "^4.13.5"
+  },
+  "devDependencies": {
+    "jose": "^6.0.0"
+  },
+  "license": "AGPL-3.0-or-later"
+}
