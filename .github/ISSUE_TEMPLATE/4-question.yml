@@ -1,0 +1,32 @@
+name: A question about running it
+description: Installing, upgrading, backups, moving to another server — anything where you are not sure whether it is a bug.
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        There is no wrong question here. If it turns out to be a bug we will relabel it ourselves, and if the answer should have been in the documentation we will put it there.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: What are you trying to do?
+      description: What you are trying to get to, and where it stopped. Commands and output help more than a description of them.
+      placeholder: |
+        I am moving an instance from one server to another. The restore runs, the app starts, and every sign-in is refused.
+    validations:
+      required: true
+
+  - type: textarea
+    id: status
+    attributes:
+      label: The output of `sentrello status`
+      description: Version, tier, which modules loaded. Optional, but it answers half the questions before they are asked.
+      render: text
+    validations:
+      required: false
+
+  - type: markdown
+    attributes:
+      value: |
+        **If this is about a licence, a paid module or an invoice**, email is quicker — this repository is the free core, and the people who can look at an account are not the ones reading issues here.

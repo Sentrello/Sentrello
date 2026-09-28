@@ -1,0 +1,57 @@
+name: Something should work differently
+description: A feature, a change, or a rough edge worth arguing about.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Open this before writing code for anything larger than a fix — not as bureaucracy, but so nobody spends a weekend on something that turns out to belong in a paid module, or that we have already tried and rejected for a reason worth knowing.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you stuck with?
+      description: |
+        The problem, not the solution. A feature described as a solution is hard to discuss; the same thing described as "a business with two vans cannot tell which invoices are unpaid" is easy — and often has a better answer than the one either of us thought of first.
+      placeholder: |
+        I invoice in two currencies. Every report totals them as though they were one, so the month figure on the dashboard is meaningless to me.
+    validations:
+      required: true
+
+  - type: textarea
+    id: today
+    attributes:
+      label: What do you do about it today?
+      description: The workaround, the spreadsheet, the thing you gave up on. This is usually the part that shows how much it matters.
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What did you have in mind?
+      description: If you have a shape in mind, say it. If you do not, leave this empty — the problem above is the valuable half.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: where
+    attributes:
+      label: Which part of it
+      options:
+        - CRM — contacts, companies, deals, forms
+        - Invoicing, quotes and payments
+        - Bookkeeping and the ledger
+        - Users, roles and access
+        - The dashboard
+        - Settings, backups, upgrading, the installer
+        - The module system or the SDK
+        - A paid module (Shop, Booking, POS, Links, Newsletter, Documents, Docs, SEO, Subscriptions)
+        - Something else, or more than one
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        **One thing worth knowing.** This repository is the free core, under the AGPLv3. Pro features and the paid modules are not here and cannot be merged here whatever the quality of the code — so if the idea clearly belongs in one of those, say so and we will talk about it anyway. Plenty of what is in the core arrived that way.

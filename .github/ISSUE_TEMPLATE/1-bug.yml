@@ -1,0 +1,76 @@
+name: Something is broken
+description: A screen, a route, a job or a number that does not do what it says.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time. A good report is worth as much to us as a pull request.
+
+        One thing first: if a screen is missing rather than broken, check `modules_failed` in `/healthz`. An instance can be perfectly healthy and still have a module that did not load, and the log says why.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what happened, and what you expected instead. Screenshots welcome.
+      placeholder: |
+        I marked invoice INV-0042 as paid. The list still shows it as open.
+        I expected it to move to Paid, the way the one before it did.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to see it again
+      description: The shortest path from a fresh instance to the wrong result. If it only happens with particular data, say what is particular about it.
+      placeholder: |
+        1. Invoicing → New invoice, one line, £100
+        2. Send it
+        3. Record a payment for the full amount
+        4. Back to the list — still Open
+    validations:
+      required: true
+
+  - type: textarea
+    id: status
+    attributes:
+      label: The output of `sentrello status`
+      description: Version, tier, and which modules loaded. This is the single most useful thing in the report — most of what looks like a bug is a version or a module that is not there.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Anything relevant from `sentrello logs`
+      description: Only what is around the moment it went wrong. **Read it before pasting** — logs can carry customer names, email addresses and invoice numbers, and an issue is public forever.
+      render: text
+    validations:
+      required: false
+
+  - type: dropdown
+    id: how-installed
+    attributes:
+      label: How it is installed
+      options:
+        - The installer at get.sentrello.com
+        - Docker Compose, my own file
+        - From source
+        - Something else — described above
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you send it
+      options:
+        - label: I am on the latest release, or I have said above which one I am on and why.
+          required: true
+        - label: This is not a security vulnerability. (Those go to security@sentrello.com — a public report is a public exploit for everyone who has not updated yet.)
+          required: true
+        - label: I have looked over what I pasted for anything private.
+          required: true

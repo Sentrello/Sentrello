@@ -1,0 +1,39 @@
+name: The documentation is wrong
+description: A page that says something the product does not do, or does not say something it should.
+labels: ["documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        These are worth reporting and quick to fix. A page that describes a button which is not there costs somebody an afternoon before they conclude it is them.
+
+  - type: input
+    id: page
+    attributes:
+      label: Which page
+      description: The address, or the file under `docs/` if you found it here.
+      placeholder: https://docs.sentrello.com/docs/running/backups
+    validations:
+      required: true
+
+  - type: textarea
+    id: wrong
+    attributes:
+      label: What it says, and what is actually true
+      description: Quote the line if you can. If you found it by doing the thing and getting a different result, say what you did.
+      placeholder: |
+        It says the nightly backup keeps the last three of each kind. Mine has 41 files going back to July, all of them kept.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Which kind of wrong
+      options:
+        - It describes something that does not exist
+        - It is out of date — it was true of an older version
+        - It is missing a step, and the thing cannot be done by following it
+        - It is right but unfindable, or ambiguous enough to be read backwards
+    validations:
+      required: true

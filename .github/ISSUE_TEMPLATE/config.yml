@@ -1,0 +1,19 @@
+# Blank issues are off, and the forms are short.
+#
+# Not to make anyone jump through hoops — the four things the bug form asks for
+# are the four things we would otherwise have to ask for in a reply, a day
+# later, while the person who hit the problem has moved on to something else.
+blank_issues_enabled: false
+
+contact_links:
+  - name: A security vulnerability
+    url: https://github.com/Sentrello/Sentrello/security/policy
+    about: Please email security@sentrello.com instead of opening an issue. A public report is a public exploit for everyone who has not updated yet.
+
+  - name: Documentation
+    url: https://docs.sentrello.com/docs/running/troubleshooting
+    about: Installing, upgrading, backups, and what each module does. The troubleshooting page covers most of what goes wrong on a first install.
+
+  - name: Commercial support, Pro and the paid modules
+    url: https://sentrello.com/contact/
+    about: This repository is the free core. Anything about a licence, a paid module or an invoice is quicker by email than by issue.
