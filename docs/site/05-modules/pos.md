@@ -61,7 +61,9 @@ Three things, in this order:
 2. **Add your products** under Shop → Products, and publish them. Anything not
    published does not appear on the till, on purpose: the till shows what is
    for sale, and a draft product is not.
-3. **Set a price.** A product with no price cannot be rung up.
+3. **Set a price.** Every product has one — it is asked for when the product is
+   created and cannot be left empty — so there is nothing here that can be rung
+   up at nothing by accident.
 
 Stock is optional. A product with a stock count is limited by it. A product
 with no count is sold without limit, which is right for a coffee made to order
@@ -86,7 +88,8 @@ menu to keep in step.
 ### More than one sale at once
 
 A counter serves more than one person at a time. Tickets sit in a row above the
-products, `T1-6`, `T1-7`, and tapping one brings it back. Take a coffee order,
+products — each one named for the terminal, the day and its place in the day,
+like `front-260928-6` — and tapping one brings it back. Take a coffee order,
 start a second while the first is being made, come back and take the money.
 
 A ticket stays open until it is paid for. Nothing expires it while somebody is
@@ -171,8 +174,17 @@ Everything that moves is written down as it happens:
 |---|---|
 | **Float put in** | What you started the shift with |
 | **Cash taken** | Every cash sale on this drawer |
-| **Paid out** | Money out for something that is not a sale |
-| **Should be in the drawer** | The three above, added up |
+| **Refunded** | Cash handed back |
+| **Paid out** | Money spent — milk from the corner shop |
+| **Dropped to the safe** | Money moved out of the drawer, still the business's |
+| **Should be in the drawer** | All of the above, added up |
+
+**Whether you can see that last line depends on who you are.** A shift holding
+only `pos:sell` counts the drawer without being told what to expect — a blind
+count, which is the point of counting at all: a figure on the screen is a
+number to reconcile towards rather than a check on anybody. A manager, holding
+`pos:manage`, sees the expectation. Both of them see the variance once the
+count is in, and it is written down against that shift either way.
 
 **Money out needs a reason.** "Where did forty pounds go" is the question a
 variance produces, and a note written at the time is the only answer anybody
@@ -236,17 +248,25 @@ A sale can still be rung up and cash can still be taken. Each change is written
 down as an instruction, *add a flat white to ticket 7*, and sent in order when
 the connection comes back.
 
-You will see **Offline · 3 changes waiting to send** at the top of the till. A
-sale paid while the line is down is confirmed with the terminal's own name for
-it, `T1-260910-4`, rather than an order number, because the order number is
-minted when it reaches the server.
+On a wide screen you will see **Offline · 3 changes waiting to send** across the
+top of the till. On a phone, where there is no room for a status bar, the
+message arrives where it matters — under the sale that was just paid for, as
+**front-260910-4 paid — waiting to send**, with a line saying the money is taken
+and the sale is kept on this terminal.
+
+Either way a sale paid while the line is down is confirmed with the terminal's
+own name for it rather than an order number, because the order number is minted
+when it reaches the server.
 
 Some things to know, because they are true rather than because they are
 comfortable:
 
-- **Only cash.** A card needs an authorisation from somebody who is not there.
-  A till that took a card offline would be handing goods over against a payment
-  that might be declined an hour later.
+- **The till will not authorise a card itself.** A card taken on a terminal
+  standing beside it queues like any other sale: the machine authorised it, in
+  front of the customer, without asking us. What would be wrong is the till
+  approving a card on its own while it cannot reach anything — handing goods
+  over against a payment that might be declined an hour later — and that is not
+  what this is.
 - **Totals shown offline are advisory.** The server works them out again when
   the queue arrives, and its figures are the ones that reach your books. They
   differ only if a price changed elsewhere while this terminal was dark.

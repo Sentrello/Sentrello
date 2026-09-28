@@ -44,9 +44,20 @@ so there is nothing to configure on the page.
 <sentrello-shop-cart-button label="Basket"></sentrello-shop-cart-button>
 ```
 
-Shows the count, goes to the checkout. Put it in your header partial and leave
-it in every layout; it defines itself once however many times the script is
-included.
+Shows the count, and tells your page it was pressed. Put it in your header
+partial and leave it in every layout; it defines itself once however many times
+the script is included.
+
+It deliberately opens nothing itself — where a basket appears is your site's
+decision, and a panel fighting your own header would be worse than none. Listen
+for the event and do whatever suits the design:
+
+```js
+document.addEventListener('sentrello-shop:open-cart', (e) => {
+  // e.detail is the basket: lines, quantities and totals.
+  document.querySelector('#my-drawer').showModal();
+});
+```
 
 ### A grid of products
 
@@ -78,8 +89,23 @@ the thing it sells.
 <sentrello-shop-cart></sentrello-shop-cart>
 ```
 
-Lines, total, and a link to the checkout. Add the same thing twice and you get
-a quantity of two rather than a second line.
+Lines, total, and the way out. Add the same thing twice and you get a quantity
+of two rather than a second line.
+
+Where the hosted storefront is switched on, Checkout is a link to it. Where it
+is off — which is the arrangement this page is about — there is no page for it
+to link to, so the button raises an event instead and your own checkout takes
+it from there:
+
+```js
+document.addEventListener('sentrello-shop:checkout', (e) => {
+  // e.detail is the basket, with its token. Send them wherever you take money.
+});
+```
+
+The button used to link to the hosted basket page either way, which meant the
+combination this page recommends sent somebody to a 404 on the one button that
+matters. Fixed on 28 September 2026.
 
 ## How it looks
 
