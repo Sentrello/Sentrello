@@ -163,6 +163,26 @@ Store them somewhere other than the machine you sign in from. Losing both the
 device and the codes means an administrator has to reset the account.
 :::
 
+:::warning[Keep the server's clock right, or nobody gets in]
+An authenticator code is a number derived from the time, worked out twice —
+once on the phone, once on your server — and the two have to agree to within
+about half a minute. So a server whose clock has drifted refuses **everybody's**
+code at once, and the screen says the code was not accepted, because from where
+it is standing that is what happened.
+
+Any Linux host keeps its clock right on its own as long as the time service is
+running. On Rocky, AlmaLinux and RHEL that is `chronyd`:
+
+```bash
+timedatectl                  # "System clock synchronized: yes" is what you want
+sudo systemctl enable --now chronyd
+```
+
+A virtual machine that has been suspended and resumed is the usual culprit, and
+a container inherits its host's clock rather than keeping one of its own — so
+this is fixed on the machine, never inside Sentrello.
+:::
+
 :::info[New in 0.19]
 Requiring confirmed email addresses arrives in **0.19**. Everything else on
 this page is in 0.18.

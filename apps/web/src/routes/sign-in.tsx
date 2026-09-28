@@ -209,6 +209,17 @@ function TwoFactorPrompt({ onCancel }: { onCancel: () => void }) {
   const [trust, setTrust] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /*
+   * How many authenticator codes have been turned away.
+   *
+   * One is a typo and needs no explanation. Two in a row, on a product
+   * somebody runs on their own machine, has a cause worth naming: a code is
+   * derived from the time on both sides, so a server whose clock has drifted
+   * refuses everybody's code at once and says only that the code was wrong.
+   * Whoever is standing at this screen concludes their phone is broken, and
+   * every other account is locked out behind them.
+   */
+  const [misses, setMisses] = useState(0);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -225,6 +236,7 @@ function TwoFactorPrompt({ onCancel }: { onCancel: () => void }) {
     setBusy(false);
     if (error) {
       setError(error.message ?? "That code was not accepted");
+      if (trimmed.length <= 6) setMisses((n) => n + 1);
       return;
     }
     landOnTheDashboard();
@@ -257,6 +269,14 @@ function TwoFactorPrompt({ onCancel }: { onCancel: () => void }) {
         </label>
 
         {error ? <Warning>{error}</Warning> : null}
+
+        {misses >= 2 ? (
+          <p className="text-sm" style={muted}>
+            Still refused? Check the clock on the machine Sentrello runs on. A
+            code is worked out from the time at both ends, so a server that has
+            drifted by more than half a minute turns down every code there is.
+          </p>
+        ) : null}
 
         <Button type="submit" disabled={busy} className="w-full">
           {busy ? "Checking…" : "Continue"}
