@@ -148,9 +148,13 @@ export default defineModule({
          * questions about one screen are two answers waiting to disagree.
          */
         const headers = c.req.raw.headers;
-        const [books, crm] = await Promise.all([
+        const [books, crm, runsIt] = await Promise.all([
           mayAccess(headers, { bookkeeping: ["read"] }),
           mayAccess(headers, { crm: ["read"] }),
+          // The server's own condition: the version it runs and how much disk
+          // is left. No money and no personal data, and still nobody's
+          // business but whoever runs the instance.
+          mayAccess(headers, { settings: ["read"] }),
         ]);
 
         /*
@@ -374,7 +378,7 @@ export default defineModule({
            * broken rather than polite.
            */
           ad: pro || !(await onboardingComplete(orgId)) ? null : upgradeBlock(),
-          health: await readHealth(),
+          health: runsIt ? await readHealth() : null,
           // Omitted rather than zeroed: a zero is an answer, and "the business
           // is owed nothing" is a different thing to say than "this is not
           // yours to see". The screen draws neither panel when the field is
@@ -692,8 +696,42 @@ export default defineModule({
       "/api/dashboard/insights",
       requireSession(),
       requirePermission({ dashboard: ["read"] }),
-      async (c) =>
-        c.json(await readInsights(activeOrganizationId(c.get("session")))),
+      async (c) => {
+        /*
+         * The same two questions `/api/dashboard` asks, for the same reason.
+         *
+         * This route was `dashboard: ["read"]` and nothing else, and it
+         * answers with twelve months of profit and loss straight off the
+         * ledger, the deal pipeline by stage and value, the aged debt, and
+         * the top five customers **by name, against what each has spent**.
+         * That is more than the route above it leaked and it was missed when
+         * that one was fixed, four hours earlier on the same day — the panels
+         * were gated and the feed behind them was not.
+         *
+         * Omitted rather than emptied, as above: an empty chart is a claim
+         * that a business earned nothing.
+         */
+        const headers = c.req.raw.headers;
+        const [books, crm] = await Promise.all([
+          mayAccess(headers, { bookkeeping: ["read"] }),
+          mayAccess(headers, { crm: ["read"] }),
+        ]);
+
+        const insights = await readInsights(
+          activeOrganizationId(c.get("session")),
+        );
+        return c.json({
+          months: books ? insights.months : [],
+          aging: books ? insights.aging : [],
+          dealsByStage: crm ? insights.dealsByStage : [],
+          /*
+           * Both, because it is both: the names are the CRM's and the figures
+           * beside them are the ledger's. A reader holding one and not the
+           * other is being handed half of something they may not have.
+           */
+          topCustomers: books && crm ? insights.topCustomers : [],
+        });
+      },
     );
 
     /*

@@ -586,6 +586,8 @@ export function ContactDetail() {
             )}
           </Card>
 
+          <PortalLink contactId={contact.id} />
+
           <Tasks
             contactId={contact.id}
             tasks={tasks}
@@ -888,6 +890,86 @@ export function HistoryPanel({
           ))}
         </ul>
       )}
+    </Card>
+  );
+}
+
+/**
+ * The link this customer opens, and the way to stop an old one working.
+ *
+ * A portal link is a bearer credential: thirty-two random bytes, no account,
+ * no password, and whoever holds it sees that customer's quotes and invoices.
+ * So the interesting half is not handing one out — the invoice page already
+ * copies one — it is taking one back when it has been forwarded to the wrong
+ * address or left in a shared inbox.
+ *
+ * `?rotate=1` has done that since the route was written and **nothing ever
+ * called it**, so a business that shared a link by mistake had no way to
+ * withdraw it from any screen in the product. Found 2026-09-28.
+ *
+ * On the contact rather than on an invoice, because the link belongs to the
+ * person and not to the document: rotating it stops every old link working,
+ * which is a fact about them.
+ */
+function PortalLink({ contactId }: { contactId: string }) {
+  const [copied, setCopied] = useState(false);
+  const [reissued, setReissued] = useState(false);
+
+  const link = useMutation({
+    mutationFn: (rotate: boolean) =>
+      api<{ url: string }>(
+        `/api/contacts/${contactId}/portal-link${rotate ? "?rotate=1" : ""}`,
+        { method: "POST" },
+      ),
+    onSuccess: (result, rotate) => {
+      navigator.clipboard?.writeText(result.url);
+      setCopied(true);
+      setReissued(rotate);
+    },
+  });
+
+  return (
+    <Card>
+      <SectionHeading>Their portal link</SectionHeading>
+      <p className="text-sm" style={muted}>
+        The page this customer opens to see their own quotes and invoices. There
+        is no account and no password — the link is the credential, so anybody
+        it is forwarded to can open it.
+      </p>
+      <Toolbar className="mt-(--gap-toolbar)">
+        <Button
+          needs={{ invoicing: ["read"] }}
+          variant="secondary"
+          onClick={() => link.mutate(false)}
+          disabled={link.isPending}
+        >
+          Copy the link
+        </Button>
+        {/*
+          Confirmed, because it is not undoable and it breaks whatever the
+          customer has bookmarked. That is the point of it, and it is still
+          worth being sure about.
+        */}
+        <ConfirmButton
+          title="Issue a new link?"
+          message="Every link this customer already has stops working, including one in an email you sent them. They will need the new one."
+          confirmLabel="Issue a new one"
+          needs={{ invoicing: ["read"] }}
+          variant="secondary"
+          onConfirm={() => link.mutate(true)}
+          disabled={link.isPending}
+        >
+          Issue a new one
+        </ConfirmButton>
+      </Toolbar>
+      {copied ? (
+        <p className="mt-(--gap-toolbar) text-sm" style={muted}>
+          {reissued
+            ? "Copied. The old link no longer works."
+            : "Copied to the clipboard."}
+        </p>
+      ) : null}
+      {link.error ? <ErrorNote error={link.error} /> : null}
     </Card>
   );
 }

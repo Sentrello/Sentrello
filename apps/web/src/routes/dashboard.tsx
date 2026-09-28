@@ -71,7 +71,8 @@ interface Dashboard {
    * removed on 21 September so that a free instance fetches nothing at all.
    */
   ad: { headline: string; body: string; cta: string; url: string } | null;
-  health: Health;
+  /** Null where the reader may not be told what the server is doing. */
+  health: Health | null;
   /*
    * Null where the reader may not be told.
    *
@@ -438,7 +439,7 @@ function Widget({
     case "attention":
       return <AttentionPanel data={data} />;
     case "health":
-      return <HealthPanel health={data.health} />;
+      return data.health ? <HealthPanel health={data.health} /> : null;
     case "balance-sheet":
       return <BalanceSheetPanel />;
     case "cash-flow":

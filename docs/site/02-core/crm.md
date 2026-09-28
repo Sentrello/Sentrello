@@ -91,6 +91,23 @@ read are listed rather than quietly skipped.
 
 ## The customer portal
 
-Give a contact portal access and they can sign in to see their own quotes and
-invoices, and pay them. They see their own records and nothing else, through
-the same permission system as everybody else.
+Every invoice and quote you send carries a link to a page holding that
+customer's own documents. There is no account and no password: the link is the
+credential, thirty-two random bytes of it, and it resolves to exactly one
+contact. That is the whole design — asking somebody who buys from you twice a
+year to make an account is asking them to reset a password instead of paying
+you.
+
+So nothing has to be switched on, and there is nothing to switch off. A
+contact gets a link the first time one is sent to them, and it keeps working.
+If a link goes somewhere it should not have, issue a new one from the
+contact's own page and the old one stops resolving.
+
+They see their own quotes and invoices, and nothing else — not because a
+permission is checked, but because the link is only ever about them.
+
+**Paying from that page needs Pro and a connected card processor.** On a free
+instance, or before Settings → Connections has a processor in it, the page
+shows the documents and your payment instructions and offers no Pay button —
+which is the right outcome, since a button that cannot take money is worse
+than no button.

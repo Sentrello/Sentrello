@@ -106,11 +106,27 @@ const needsReports = { reports: ["read"] };
 const needsBooks = { bookkeeping: ["read"] };
 /** The pipeline is the CRM's money, so it asks the CRM's permission. */
 const needsCrm = { crm: ["read"] };
+/** The server's own condition, which is whoever runs the instance's business. */
+const needsSettings = { settings: ["read"] };
 export const CORE_WIDGETS: ModuleWidget[] = [
   { id: "money", label: "Money owed", requires: needsBooks },
   { id: "attention", label: "Needs attention", requires: needsBooks },
   { id: "pipeline", label: "Pipeline", requires: needsCrm },
-  { id: "health", label: "This server", icon: "gauge" },
+  /*
+   * The machine, which is the owner's business and nobody else's.
+   *
+   * Version, uptime, how big the database is, how much disk is left. No money
+   * and no personal data, so it was not part of the gating that went on the
+   * panels beside it — and it is still the server's own headroom and the
+   * exact release it runs, handed to a shop assistant or a customer. Somebody
+   * deciding whether this instance is worth attacking reads it first.
+   */
+  {
+    id: "health",
+    label: "This server",
+    icon: "gauge",
+    requires: needsSettings,
+  },
   // The twelve-month ledger charts. Free, as of 2026-09-20: every figure in
   // them is computed by Core from tables every instance has.
   { id: "revenue-trend", label: "Income and expenses", requires: needsBooks },

@@ -33,22 +33,44 @@ deliberately are yours, and nothing here deletes them.
 :::danger[The dump is not encrypted, and it does not leave the machine]
 `sentrello backup` writes a plain gzipped SQL file next to the instance it
 came from. It holds every customer, every invoice and every email address
-your business has. **Nothing copies it off the server, nothing encrypts it,
-and nothing runs it on a schedule.** A server that catches fire takes the
-database and every backup of it at the same moment.
+your business has. **Nothing copies it off the server and nothing encrypts
+it.** A server that catches fire takes the database and every backup of it at
+the same moment.
 
-Getting it somewhere else, on a schedule, is yours to arrange. It is one
-cron line and worth doing today:
+Getting it somewhere else is yours to arrange, and it is one cron line:
 
 ```
-15 2 * * * cd /opt/sentrello && ./sentrello backup && \
-  rclone copy backups remote:sentrello-backups
+15 2 * * * cd /opt/sentrello && rclone copy backups remote:sentrello-backups
 ```
 
 Anything that moves files will do — `rclone`, `restic`, `borg`, your
 provider's object storage, a second machine. If what you use encrypts at
 rest, so much the better; `restic` and `borg` do.
 :::
+
+## What runs on its own
+
+The installer sets up a nightly backup and turns it on: a systemd timer,
+`sentrello-backup.timer`, which runs `sentrello backup scheduled` once a day
+at a randomised time and keeps the last fourteen. You do not have to arrange
+that part, and the installer says so as it finishes.
+
+```bash
+systemctl status sentrello-backup.timer
+systemctl list-timers sentrello-backup.timer
+```
+
+If you installed some other way, or the timer failed to enable — the
+installer prints a line in red when it does — the cron equivalent is the same
+one command:
+
+```
+15 2 * * * cd /opt/sentrello && ./sentrello backup scheduled
+```
+
+What still has nobody doing it for you is getting those files off the
+machine. That is the paragraph above, and it is the one that matters on the
+day the disk goes.
 
 Your provider's nightly snapshot of the whole disk is a reasonable second
 line, and it covers the uploaded files as well. It is not a substitute for a

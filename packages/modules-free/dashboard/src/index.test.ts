@@ -1623,9 +1623,16 @@ test("a reader with no books is sent no money figures at all", async () => {
   expect(seen.pipeline).toBeNull();
   expect(seen.book).toBeNull();
   expect(seen.attention).toEqual([]);
-  // And the screen still works. This is not a refusal — a dashboard with no
-  // money on it is the right dashboard for somebody who does not do the money.
-  expect(seen.health).not.toBeNull();
+  /*
+   * The server's own condition goes too, and for a different reason.
+   *
+   * No money and no personal data in it — the version, the uptime, how much
+   * disk is left — which is why it survived the first pass. It is still the
+   * exact release this instance runs and how much headroom it has, handed to
+   * a shop assistant or a customer, and somebody deciding whether an instance
+   * is worth attacking reads that first.
+   */
+  expect(seen.health).toBeNull();
 
   // The widget list agrees with the payload, so nothing names a panel that
   // would arrive empty.
@@ -1640,11 +1647,37 @@ test("a reader with no books is sent no money figures at all", async () => {
     expect(widgets.map((w) => w.id)).not.toContain("core:attention");
   }
 
-  // The owner, who does the money, still sees it.
+  /*
+   * And the feed the charts are drawn from, which was missed when the panels
+   * were gated four hours earlier and leaks more than they did: twelve months
+   * of profit and loss off the ledger, the pipeline by stage and value, the
+   * aged debt, and the top five customers **by name against what each spent**.
+   */
+  const charts = await app.request("http://localhost/api/dashboard/insights", {
+    headers: theirs,
+  });
+  expect(charts.status).toBe(200);
+  const drawn = (await charts.json()) as {
+    months: unknown[];
+    aging: unknown[];
+    dealsByStage: unknown[];
+    topCustomers: unknown[];
+  };
+  expect(drawn.months).toEqual([]);
+  expect(drawn.aging).toEqual([]);
+  expect(drawn.dealsByStage).toEqual([]);
+  expect(drawn.topCustomers).toEqual([]);
+
+  // The owner, who does the money, still sees all of it.
   const mine = await app.request("http://localhost/api/dashboard", { headers });
-  const full = (await mine.json()) as { money: unknown; book: unknown };
+  const full = (await mine.json()) as {
+    money: unknown;
+    book: unknown;
+    health: unknown;
+  };
   expect(full.money).not.toBeNull();
   expect(full.book).not.toBeNull();
+  expect(full.health).not.toBeNull();
 
   await db.delete(schema.member).where(eq(schema.member.userId, theirId));
   await db.delete(schema.user).where(eq(schema.user.id, theirId));
