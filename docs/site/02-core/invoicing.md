@@ -23,7 +23,7 @@ flowchart LR
     PM["Payments"]:::own
   end
   C["A contact or company<br/><small>CRM</small>"]:::out
-  PAY(["Stripe or PayPal<br/><small>their page, not your server</small>"]):::pub
+  PAY(["Stripe<br/><small>their page, not your server</small>"]):::pub
   LED["postJournalEntry<br/><small>Accounting</small>"]:::out
 
   C --> QU -->|"accepted"| IN
@@ -73,7 +73,11 @@ to entering it. That is what keeps a month's figures right when you catch up on
 a Friday.
 
 Connect a card processor and an invoice can carry a payment link, then
-reconcile itself the moment the customer pays.
+reconcile itself the moment the customer pays. That pair is **Pro**, and the
+processor is Stripe — PayPal serves the Shop and Subscriptions, never an
+invoice. On a free instance the shareable page still shows the document and
+your payment instructions, and offers no button, which is better than one that
+cannot take money.
 
 ## Chasing
 
@@ -240,9 +244,11 @@ Connect one under **Invoice settings → Sending over Peppol**:
 2. Paste the API key and the legal entity id from their dashboard. The key is
    encrypted before it is stored, and is never shown again — only its last
    few characters, so you can tell which key it is.
-3. Leave **This is a sandbox key** ticked while you try it. A sandbox key
-   cannot reach the real network, which is how you walk the whole path
-   without a customer receiving anything.
+3. Leave **This is a sandbox key** ticked while you try it. The tick is a
+   label rather than a barrier: it is how the screen tells you which key is in
+   there, and it changes no address — your access point's own sandbox key is
+   what cannot reach the live network, and that is their rule, not ours. Walk
+   the whole path on it, then come back and untick.
 4. Press **Test the connection**. It answers with the registered name of the
    business the key belongs to, which is also how you know the key and the
    entity id are the pair you meant.

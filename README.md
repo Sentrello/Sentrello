@@ -300,11 +300,13 @@ Live bank feeds arrived in Pro: a business connects its bank through a data
 provider and transactions arrive on their own, alongside the CSV import that is
 still there for anyone who would rather not connect anything.
 
-E-invoices are **compliant, not connected**. The documents this produces pass
-the network's own validator against EN 16931, Peppol BIS 3.15 and XRechnung
-3.0.2 — but sending one over the Peppol network needs an access point, and that
-is not live here and will not be on 1 October. You get a valid document to hand
-over; we do not hand it over for you.
+E-invoices are **built, not proven**. The documents this produces carry the EN
+16931, Peppol BIS Billing 3.0 and XRechnung 3.0 customisation identifiers, and
+the shapes that matter were put through the official validator by hand and
+passed — a run on a day, not a step in every build. The network leg exists too:
+connect an access point of your own, test it from the settings screen, and an
+invoice has a control for it. What has not happened yet is one document making
+the round trip on the live network, so that is not claimed until it has.
 
 Not yet available, and not promised on any date: QuickBooks or Xero sync,
 mobile apps, and the POS.
