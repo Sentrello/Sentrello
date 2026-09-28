@@ -218,6 +218,113 @@ test("a late fee is applied once, after the grace period", async () => {
     .from(schema.invoices)
     .where(eq(schema.invoices.id, invoiceId));
   expect(unchanged?.totalCents).toBe(after?.totalCents);
+
+  /*
+   * And the ledger agrees with the invoice, which it did not until
+   * 2026-09-28. The fee was added to `totalCents` and posted nowhere, so
+   * the invoice asked for more than Accounts Receivable said was owed —
+   * for ever, because nothing ever reconciled it. A breach of the rule
+   * that every financial event posts a balanced entry, sitting behind a
+   * feature that is off by default, which is why no customer found it.
+   */
+  const fee = after?.lateFeeCents ?? 0;
+  const entry = await db
+    .select()
+    .from(schema.journalEntries)
+    .where(eq(schema.journalEntries.source, `late-fee:${invoiceId}`));
+  expect(entry).toHaveLength(1);
+
+  const lines = await db
+    .select()
+    .from(schema.journalLines)
+    .where(eq(schema.journalLines.entryId, String(entry[0]?.id)));
+  const debits = lines.reduce((n, l) => n + (l.debitCents ?? 0), 0);
+  const credits = lines.reduce((n, l) => n + (l.creditCents ?? 0), 0);
+  expect(debits).toBe(fee);
+  expect(credits).toBe(fee);
+
+  // Posted once, however many times the sweep runs.
+  const afterRerun = await db
+    .select()
+    .from(schema.journalEntries)
+    .where(eq(schema.journalEntries.source, `late-fee:${invoiceId}`));
+  expect(afterRerun).toHaveLength(1);
+});
+
+/**
+ * The chase asks for the fee once, not once per run.
+ *
+ * `balanceDue` is worked out from `totalCents`, and applying the fee
+ * raises it — so adding `lateFeeCents` on top was right on the single run
+ * that applied it, and wrong on every run after: the next chase asked for
+ * the fee twice, the one after for three times.
+ *
+ * Asserted on its own invoice and its own rule, because the fee and the
+ * settings are per organization and a test that edits them underneath the
+ * others is a test that breaks them. This one restores what it changed.
+ */
+test("a later chase does not ask for the late fee again", async () => {
+  const [before] = await db
+    .select()
+    .from(schema.invoicingSettings)
+    .where(eq(schema.invoicingSettings.organizationId, orgId));
+
+  try {
+    await db
+      .update(schema.invoicingSettings)
+      .set({ lateFeeType: "amount", lateFeeValue: 5_000, lateFeeGraceDays: 1 })
+      .where(eq(schema.invoicingSettings.organizationId, orgId));
+
+    // A fresh invoice, so nothing already charged on the shared one counts.
+    const [own] = await db
+      .insert(schema.invoices)
+      .values({
+        organizationId: orgId,
+        contactId,
+        number: `LATE-${crypto.randomUUID().slice(0, 6)}`,
+        status: "open",
+        currency: "GBP",
+        issueDate: new Date(Date.now() - 60 * 24 * 3600 * 1000),
+        dueDate: new Date(Date.now() - 40 * 24 * 3600 * 1000),
+        subtotalCents: 100_000,
+        taxCents: 0,
+        totalCents: 100_000,
+      })
+      .returning();
+    const id = String(own?.id);
+
+    await runReminders(new Date(), { mailer });
+    const [charged] = await db
+      .select()
+      .from(schema.invoices)
+      .where(eq(schema.invoices.id, id));
+    expect(charged?.lateFeeCents).toBe(5_000);
+    expect(charged?.totalCents).toBe(105_000);
+
+    // Chase it again: the rule log is what stops a second send, so clearing
+    // it is how a later rule on the same invoice behaves.
+    await db
+      .delete(schema.reminderLog)
+      .where(eq(schema.reminderLog.invoiceId, id));
+    outbox.length = 0;
+    await runReminders(new Date(), { mailer });
+
+    const asked = outbox.at(-1)?.html ?? "";
+    expect(asked).toContain("1,050.00");
+    // The fee counted twice would read 1,100.00.
+    expect(asked).not.toContain("1,100.00");
+
+    await db.delete(schema.invoices).where(eq(schema.invoices.id, id));
+  } finally {
+    await db
+      .update(schema.invoicingSettings)
+      .set({
+        lateFeeType: before?.lateFeeType ?? null,
+        lateFeeValue: before?.lateFeeValue ?? 0,
+        lateFeeGraceDays: before?.lateFeeGraceDays ?? 0,
+      })
+      .where(eq(schema.invoicingSettings.organizationId, orgId));
+  }
 });
 
 test("a paid invoice is neither chased nor charged", async () => {

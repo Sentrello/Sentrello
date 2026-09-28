@@ -66,6 +66,24 @@ export const CORE_ACCOUNTS = {
    * were worth running.
    */
   salesDiscounts: { code: "4100", name: "Sales Discounts", type: "expense" },
+  /**
+   * Earned, but not by selling anything. Where a late fee lands.
+   *
+   * The starter chart has had this account since the beginning and nothing
+   * in code named it — so the one thing that needed it, the late fee,
+   * posted nowhere at all and the invoice asked for more than Accounts
+   * Receivable said was owed.
+   *
+   * Named here rather than given an account of its own on 2026-09-28: a
+   * charge for being paid late is other income, and a business that never
+   * turns the feature on should not carry a line in its chart for it.
+   *
+   * The posting is Dr Accounts Receivable, Cr here, and nothing to Tax
+   * Payable — in the United Kingdom and the EU a late-payment charge is
+   * compensation for being kept out of your money, which is outside the
+   * scope of VAT.
+   */
+  otherIncome: { code: "4200", name: "Other Income", type: "income" },
   taxPayable: { code: "2200", name: "Tax Payable", type: "liability" },
   /** Where an expense lands when it has not been given an account of its own. */
   generalExpense: { code: "6000", name: "General Expenses", type: "expense" },

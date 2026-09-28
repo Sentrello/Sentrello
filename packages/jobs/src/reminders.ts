@@ -1,5 +1,10 @@
 import { db, schema } from "@sentrello/db";
 import { creditedAgainst } from "@sentrello/db/documents";
+import {
+  CORE_ACCOUNTS,
+  ensureAccount,
+  postJournalEntry,
+} from "@sentrello/db/ledger";
 import { invoiceState } from "@sentrello/db/money";
 import {
   businessIdentity,
@@ -231,6 +236,16 @@ export async function runReminders(
     // The late fee, before any chasing: the reminder should say the
     // figure the customer will actually be asked for.
     // ---------------------------------------------------------------
+    /*
+     * What this run added, and nothing the runs before it added.
+     *
+     * `balanceDue` above was worked out from the invoice as it was read,
+     * so on the run that applies a fee it does not include it yet — and on
+     * every run afterwards it does, because the fee is in `totalCents`.
+     * One number, set in one place, so the chase cannot charge a fee twice.
+     */
+    let appliedNow = 0;
+
     if (
       settings?.lateFeeType &&
       !invoice.lateFeeAppliedAt &&
@@ -238,18 +253,69 @@ export async function runReminders(
     ) {
       const fee = lateFeeFor(settings, balanceDue);
       if (fee > 0) {
-        await db
-          .update(schema.invoices)
-          .set({
-            lateFeeCents: fee,
-            lateFeeAppliedAt: now,
-            totalCents: invoice.totalCents + fee,
-            updatedAt: now,
-          })
-          .where(eq(schema.invoices.id, invoice.id));
+        /*
+         * The fee is money the business is now owed, so it is posted.
+         *
+         * Until 2026-09-28 this raised `totalCents` and told the ledger
+         * nothing. The invoice then asked for more than Accounts Receivable
+         * said was owed, for ever, and no report could see the fee at all —
+         * a straight breach of the rule that every financial event posts a
+         * balanced entry. It was found by a parity walk rather than by
+         * anybody's books, because the feature is off by default and nobody
+         * had turned it on.
+         *
+         * Dr Accounts Receivable, Cr Other Income, and nothing to Tax
+         * Payable: in the United Kingdom and the EU a late-payment charge is
+         * compensation for being kept out of your money, which is outside
+         * the scope of VAT.
+         *
+         * In one transaction with the invoice, so a failure to post cannot
+         * leave a total nobody can explain. `postJournalEntry` refuses a
+         * date inside a closed period, and that refusal should stop the fee
+         * rather than strand it.
+         */
+        /*
+         * The accounts are found before the transaction opens, not inside
+         * it. `ensureAccount` uses the pool, and a transaction that calls a
+         * pool helper needs a second connection to finish the first — ten
+         * of those at once and the pool is gone, which is how this instance
+         * was lost twice in September. Creating an account is idempotent
+         * and has nothing to gain from being in here.
+         */
+        const [receivable, otherIncome] = await Promise.all([
+          ensureAccount(orgId, CORE_ACCOUNTS.accountsReceivable),
+          ensureAccount(orgId, CORE_ACCOUNTS.otherIncome),
+        ]);
+
+        await db.transaction(async (tx) => {
+          await tx
+            .update(schema.invoices)
+            .set({
+              lateFeeCents: fee,
+              lateFeeAppliedAt: now,
+              totalCents: invoice.totalCents + fee,
+              updatedAt: now,
+            })
+            .where(eq(schema.invoices.id, invoice.id));
+
+          await postJournalEntry(
+            orgId,
+            `Late fee on ${invoice.number}`,
+            `late-fee:${invoice.id}`,
+            [
+              { accountId: receivable, debitCents: fee },
+              { accountId: otherIncome, creditCents: fee },
+            ],
+            now,
+            { tx },
+          );
+        });
         feesApplied += 1;
+        appliedNow = fee;
       }
     }
+
+    const owedNow = balanceDue + appliedNow;
 
     const [contact] = invoice.contactId
       ? await db
@@ -313,7 +379,16 @@ export async function runReminders(
           to: contact.email,
           ...overdueReminderEmail({
             number: invoice.number,
-            balanceDueCents: balanceDue + (invoice.lateFeeCents ?? 0),
+            /*
+             * `balanceDue` already contains the fee.
+             *
+             * It is derived from `totalCents`, and applying the fee raises
+             * that. Adding `lateFeeCents` on top was right on the single run
+             * that applied it — the invoice in hand was read before the
+             * update — and wrong on every run after, where it charged the
+             * customer the fee twice, then three times, then four.
+             */
+            balanceDueCents: owedNow,
             currency: invoice.currency,
             portalUrl,
             business,
@@ -369,7 +444,7 @@ export async function runReminders(
       continue;
     }
 
-    const owed = balanceDue + (invoice.lateFeeCents ?? 0);
+    const owed = owedNow;
 
     /*
      * The same figures the rest of the product writes, in the same words.

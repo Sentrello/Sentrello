@@ -281,6 +281,16 @@ function documentPage(args: {
   discountCents: number;
   taxCents: number;
   totalCents: number;
+  /**
+   * Charged for paying late, and shown as its own line.
+   *
+   * It is inside `totalCents`, so without a line of its own the totals
+   * jump from subtotal to total with the difference unexplained — the same
+   * fault the unbanded-tax row below exists to prevent, and the one thing
+   * a customer checking an invoice always queries. It was exactly that
+   * until 2026-09-28.
+   */
+  lateFeeCents?: number;
   /** The unit prices in `lines` already contain the tax — UK/EU gross quoting. */
   pricesIncludeTax: boolean;
   paidCents: number;
@@ -432,6 +442,12 @@ function documentPage(args: {
    * difference unexplained — which is the one thing a customer checking an
    * invoice will always query.
    */
+  /** Charged for being paid late. Inside the total, so it has to be shown. */
+  const lateFee =
+    (args.lateFeeCents ?? 0) > 0
+      ? `<tr><td>Late payment fee</td><td class="num">${money(args.lateFeeCents ?? 0, args.currency, args.locale)}</td></tr>`
+      : "";
+
   const unbanded =
     args.taxCents !== 0 && shown.reduce((sum, b) => sum + b.taxCents, 0) === 0
       ? `<tr><td>Tax</td><td class="num">${money(args.taxCents, args.currency, args.locale)}</td></tr>`
@@ -494,7 +510,7 @@ ${brand.header}
       ? `<tr><td>Discount</td><td class="num">−${money(args.discountCents, args.currency, args.locale)}</td></tr>`
       : ""
   }
-  ${bandRows}${unbanded}
+  ${bandRows}${unbanded}${lateFee}
   <tr><td>Total</td><td class="num">${money(args.totalCents, args.currency, args.locale)}</td></tr>
   ${
     args.kind === "invoice" && args.paidCents > 0
@@ -754,6 +770,7 @@ export function registerShare(ctx: ModuleContext) {
           discountCents: row.discountCents,
           taxCents: row.taxCents,
           totalCents: row.totalCents,
+          lateFeeCents: kind === "invoice" ? (invoiceRow.lateFeeCents ?? 0) : 0,
           pricesIncludeTax: row.pricesIncludeTax,
           paidCents,
           creditedCents,
