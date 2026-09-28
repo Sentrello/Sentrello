@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { db, eq, schema } from "@sentrello/db";
 import {
+  DEFAULT_GROUPS,
   DEFAULT_GROUP_POLICIES,
   DEFAULT_USER_POLICIES,
   seedDefaults,
@@ -276,4 +277,47 @@ test("a customer's policy grants nothing but the page they land on", () => {
   const customers = DEFAULT_USER_POLICIES.find((p) => p.name === "customers");
   expect(customers).toBeDefined();
   expect(customers?.permission).toEqual({ dashboard: ["read"] });
+});
+
+/**
+ * What the documentation tells somebody they will find on first run.
+ *
+ * Two published pages described these wrongly at once and differently: one
+ * named three policies out of five and promoted a group policy to a role, the
+ * other counted the groups as four when six are seeded. Nobody notices,
+ * because the page is read by people who have not installed it yet and the
+ * code is read by people who have.
+ *
+ * So the counts are pinned against the documentation rather than against a
+ * comment. A seventh group is a fine thing to add; adding it without touching
+ * the page that promises six is not.
+ */
+test("the seeded defaults are the ones the documentation promises", async () => {
+  expect(DEFAULT_USER_POLICIES.map((p) => p.name)).toEqual([
+    "admins",
+    "executives",
+    "managers",
+    "staff",
+    "customers",
+  ]);
+  expect(DEFAULT_GROUP_POLICIES.map((p) => p.name)).toEqual([
+    "sales",
+    "marketing",
+    "accounting",
+    "customer service",
+  ]);
+  expect(DEFAULT_GROUPS.map((g) => g.name)).toEqual([
+    "Admins",
+    "Sales",
+    "Marketing",
+    "Accounting",
+    "Customer Service",
+    "Customers",
+  ]);
+
+  const page = await Bun.file(
+    `${import.meta.dir}/../../../../docs/site/01-getting-started/what-it-looks-like.md`,
+  ).text();
+  expect(page).toContain("Five policies out of the box");
+  expect(page).toContain("Six groups as well");
 });

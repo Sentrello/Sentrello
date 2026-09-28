@@ -376,7 +376,7 @@ const CORE_SETS: ArchiveSet[] = [
     id: "ledger",
     label: "A closed period's journal",
     description:
-      "The journal entries and lines of a period that is closed and out of the retention window. What is removed is replaced by one balanced summary per account per month, so every report over that period reads exactly as it did before.",
+      "The journal entries and lines of a period that is closed and out of the retention window. What is removed is replaced by one balanced summary entry a month, carrying a line per account, so every report over that period reads exactly as it did before.",
     statutory: true,
     requiresClosedBooks: true,
     carriesForward: true,

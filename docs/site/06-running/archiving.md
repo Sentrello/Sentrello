@@ -99,8 +99,9 @@ must always be able to name its customer.
 
 Archiving a closed period **does not move your trial balance, your profit and
 loss, or your balance sheet.** When the detail goes, Sentrello posts one
-balanced summary entry per account per month in its place, so every report over
-that period reads exactly as it did before.
+balanced summary entry for each month in its place, carrying a line for every
+account that moved, so every report over that period reads exactly as it did
+before.
 
 Nothing is unposted or reversed. The summaries are ordinary journal entries and
 they balance. This is also why a period has to be **whole calendar months**: a
