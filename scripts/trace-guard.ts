@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 // Pre-push guard against traces of how the code was written.
 //
 // Two distinct leaks are in scope, and only these:
@@ -204,7 +206,17 @@ function referenceNameRules(): Rule[] {
   if (already) return already;
   let lines: string[];
   try {
-    lines = require("node:fs").readFileSync(path, "utf8").split("\n");
+    /*
+     * A static import rather than `require`.
+     *
+     * This file is read by two runtimes: one that provides `require` inside
+     * a module and one that does not. Under the second the call threw a
+     * ReferenceError, the catch below swallowed it, and every push was
+     * refused with "the list cannot be read" about a file that was sitting
+     * right there and perfectly readable. Which meant the reference check
+     * had never once run in the repository that carries the most names.
+     */
+    lines = readFileSync(path, "utf8").split("\n");
   } catch {
     // A missing list is not a clean push: say so rather than pass silently.
     console.error(
