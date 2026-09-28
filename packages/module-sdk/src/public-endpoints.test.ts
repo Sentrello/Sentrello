@@ -123,3 +123,31 @@ test("the methods a storefront needs are all advertised", () => {
   // allow, and an allow-list handed out unasked is one somebody relies on.
   expect(corsHeaders(undefined)).toEqual({});
 });
+
+/**
+ * A request with no Origin does not walk past the list.
+ *
+ * The public form key is visible in anybody's page source, and the origin list
+ * is what the docs say makes the key worth something. A header-less request was
+ * allowed unconditionally — "same-origin, or a non-browser client" — and the
+ * second half of that is a script with curl posting to any form on any instance
+ * whose key it has read. Found 2026-09-28.
+ *
+ * Browsers have sent `Origin` on cross-origin form posts and on every `fetch`
+ * for years, so this refuses scripts rather than customers.
+ */
+test("no Origin is refused once a form has named where it lives", () => {
+  expect(originAllowed(undefined, ["acme.com"]).allowed).toBe(false);
+  expect(originAllowed("", ["acme.com"]).allowed).toBe(false);
+
+  /*
+   * And nothing changes where no list is configured, because there is no
+   * statement to contradict. A form that has not said where it lives is
+   * same-origin only, and a header-less request is as likely to be that as
+   * anything else.
+   */
+  expect(originAllowed(undefined, []).allowed).toBe(true);
+
+  // The named place still works, which is the case this must never break.
+  expect(originAllowed("https://acme.com", ["acme.com"]).allowed).toBe(true);
+});

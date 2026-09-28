@@ -19,6 +19,7 @@ import {
   FilterToggle,
   Pagination,
   SortMenu,
+  listQueryString,
   useListQuery,
   useListState,
 } from "../lib/list-ui";
@@ -173,9 +174,12 @@ export function Companies() {
 
             {/* A plain link, not a fetch: the browser downloads it with the
                 filename the server sends, and the session cookie goes along.
-                The filters travel with it, so the file matches the screen. */}
+                Everything on screen travels with it — the filters and the
+                search term — so the file matches what was being looked at.
+                It used to send the filters alone, so searching for one name and
+                pressing Export downloaded every company. */}
             <a
-              href={`/api/companies/export.csv?${new URLSearchParams(state.filters).toString()}`}
+              href={`/api/companies/export.csv?${listQueryString(state, false)}`}
               className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-line px-3 py-1.5 text-sm"
             >
               Export

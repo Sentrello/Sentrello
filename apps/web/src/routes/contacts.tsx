@@ -20,6 +20,7 @@ import {
   FilterToggle,
   Pagination,
   SortMenu,
+  listQueryString,
   useLastSeenRanges,
   useListQuery,
   useListState,
@@ -282,9 +283,17 @@ export function Contacts() {
                 Import
               </Button>
               {/* A plain link, not a fetch: the browser downloads it with the
-                  filename the server sends, and the session cookie goes along. */}
+                  filename the server sends, and the session cookie goes along.
+
+                  `listQueryString`, not the filters alone. This built the URL
+                  from `state.filters` and dropped whatever was typed in the
+                  search box, so a business that searched for one name and
+                  pressed Export got the whole book — the published page says
+                  the file honours whatever filters are on screen, and the
+                  search term is the one people use most. Deals always got this
+                  right. Found 2026-09-28. */}
               <a
-                href={`/api/contacts/export.csv?${new URLSearchParams(state.filters).toString()}`}
+                href={`/api/contacts/export.csv?${listQueryString(state, false)}`}
                 className="inline-flex items-center gap-1.5 rounded-md border border-line px-3 py-1.5 text-sm"
               >
                 Export

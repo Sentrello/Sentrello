@@ -28,6 +28,14 @@ type FormRow = FormDefinition & {
   allowedOrigins: string[];
   /** How many have come in. The only question anybody has about an embed. */
   submissionCount: number;
+  /**
+   * Whether it is taking anything.
+   *
+   * The routes have honoured this since the module shipped and no screen ever
+   * sent it, so the published page's "a form that is being abused can be
+   * paused" described a column. Found 2026-09-28.
+   */
+  active: boolean;
 };
 
 /**
@@ -160,7 +168,17 @@ export function Forms() {
         >
           {rows.map((f) => (
             <Row key={f.id}>
-              <td className="py-2 font-medium">{f.name}</td>
+              <td className="py-2 font-medium">
+                {f.name}
+                {/* A paused form still sits on somebody's website, so the
+                    list has to say it is not taking anything — otherwise the
+                    only symptom is submissions stopping. */}
+                {f.active ? null : (
+                  <span className="ml-2 text-xs font-normal" style={muted}>
+                    paused
+                  </span>
+                )}
+              </td>
               <td style={muted}>
                 {KINDS[f.kind] ?? f.kind}
                 {f.tag ? <span className="ml-1 text-xs">· {f.tag}</span> : null}
@@ -305,8 +323,28 @@ function FormActions({
     onSuccess: () => onDeleted(),
   });
 
+  /*
+   * Stop taking submissions, without losing the form or its history.
+   *
+   * The thing somebody reaches for at four in the afternoon when a bot has
+   * found the contact form: deleting it takes the submissions with it and
+   * un-embeds it from their website, and neither is what they want. The route
+   * has honoured `active` all along; nothing ever sent it.
+   */
+  const pause = useMutation({
+    mutationFn: () =>
+      api(`/api/forms/${form.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ active: !form.active }),
+      }),
+    onSuccess: () => onDeleted(),
+  });
+
   return (
     <>
+      {/* Pausing is one press from a menu that closes behind it, so a refusal
+          has nowhere to appear unless it is drawn out here. */}
+      {pause.error ? <ErrorNote error={pause.error} /> : null}
       <RowMenu label={form.name}>
         {(close) => (
           <>
@@ -337,6 +375,15 @@ function FormActions({
               }}
             >
               Allowed sites
+            </MenuItem>
+            <MenuItem
+              needs={{ crm: ["update"] }}
+              onClick={() => {
+                close();
+                pause.mutate();
+              }}
+            >
+              {form.active ? "Pause it" : "Take submissions again"}
             </MenuItem>
             {/* menu-item-ignore: the tag to paste; the form is public */}
             <button

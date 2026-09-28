@@ -21,12 +21,26 @@ export interface OriginDecision {
  *
  * An empty list means same-origin only — a form that has not been told where it
  * will live should not accept cross-site posts.
+ *
+ * **A request with no `Origin` header is refused once a list exists.** It used
+ * to be allowed unconditionally, on the reasoning that it is either a
+ * same-origin browser or a non-browser client — and the second half of that is
+ * the whole problem. The public key is visible in anybody's page source, and
+ * the origin list is what the docs say makes the key worth something; a script
+ * that simply omits a header walked past it. Naming the places a form is
+ * posted from is a statement, and a request from nowhere is not one of them.
+ *
+ * Where no list is configured nothing changes, because there is no statement
+ * to contradict: a form that has not said where it lives is same-origin only,
+ * and a header-less request is as likely to be that as anything else. Browsers
+ * have sent `Origin` on cross-origin form posts and on every `fetch` for years,
+ * so this refuses scripts and not customers. Found 2026-09-28.
  */
 export function originAllowed(
   origin: string | undefined,
   allowedOrigins: string[],
 ): OriginDecision {
-  if (!origin) return { allowed: true }; // same-origin or a non-browser client
+  if (!origin) return { allowed: allowedOrigins.length === 0 };
   if (allowedOrigins.length === 0) return { allowed: false };
 
   let host: string;

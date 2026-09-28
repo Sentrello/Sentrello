@@ -13,7 +13,7 @@ or an enquiry rather than as an email you have to retype.
 Forms live inside the CRM, at **CRM → Forms**. What they collect ends up there,
 so that is where they are set up.
 
-![The forms list, with where each one is embedded, how many submissions it has taken, and how much spam was blocked](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/forms.png)
+![The forms list, with where each one is embedded and how many submissions it has taken](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/forms.png)
 
 A form on somebody else's website, and the one gate that decides whether it
 is allowed to be there.
@@ -87,6 +87,13 @@ is sent afterwards, and who is notified.
 Each form gives you a snippet to paste into your website. It works on any site,
 including ones that are nothing to do with Sentrello.
 
+**Name the sites it may be posted from.** The key in that snippet is visible in
+anybody's page source, so the list of allowed sites is what makes it worth
+having: a form with a list takes submissions from those places and nowhere
+else, including from something that is not a browser at all. Leave the list
+empty and the form accepts only its own instance, which is the right default
+for one nobody has told where it will live.
+
 ## What arrives
 
 A submission can create a contact, or attach itself to one that already exists
@@ -100,6 +107,17 @@ column. Answers to a question you have since deleted are still in the file.
 
 ## Spam
 
-Forms carry basic protection against automated submission. A form that is being
-abused can be paused rather than deleted, which keeps the address valid and
-leaves the submissions you already have where they are.
+Forms carry basic protection against automated submission: a field a person
+never sees and a robot fills in, a limit on how fast one address may post, and
+the allowed-sites list.
+
+Nothing counts what any of them turned away. A blocked submission is answered
+and forgotten — writing down every robot that found a public form would be a
+table that grows for ever and tells nobody anything.
+
+**A form that is being abused can be paused rather than deleted**, from the row
+menu on the forms list. The tag stays on the customer's website, the address
+stays valid, the submissions you already have stay where they are, and the form
+simply stops taking anything. The list says *paused* beside its name, because
+otherwise the only symptom is submissions quietly stopping. Press it again to
+start taking them.
