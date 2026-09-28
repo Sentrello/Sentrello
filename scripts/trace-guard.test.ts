@@ -491,11 +491,58 @@ describe("refuses a named reference product", () => {
   test("an =entry matches the product and not the English", () => {
     process.env.SENTRELLO_REFERENCE_NAMES = listPath;
     expect(findViolations("the way Ninety lays out a record")).toHaveLength(1);
+    // After a comma is still inside the sentence.
+    expect(findViolations("compared with, Ninety is tidier")).toHaveLength(1);
     // Hyphenated onto a lowercase word, it is a number and nothing else.
     expect(findViolations("Ninety-seven files lost their filters")).toEqual([]);
     expect(findViolations("ninety-seven files lost their filters")).toEqual([]);
     // And the lowercase word on its own is not the product.
     expect(findViolations("ninety of them, give or take")).toEqual([]);
+  });
+
+  /**
+   * Case alone was not enough, and a push of a whole history is what found
+   * it. English capitalises that word too — starting a sentence, a comment,
+   * a heading, a table cell — and each of those read as the product. The
+   * rule that holds is positional: a product gets named in the middle of a
+   * sentence, and a quantity capitalised because something started does not.
+   */
+  test("a capital at the start of something is a number, not the product", () => {
+    process.env.SENTRELLO_REFERENCE_NAMES = listPath;
+    for (const english of [
+      "Ninety of twelve hundred, said in words",
+      "  // Ninety of twelve hundred, said in words",
+      "## Ninety-four buttons called \u00d7",
+      "| Ninety issue types | **gap** |",
+      "* Ninety minutes rather than five",
+    ]) {
+      expect(findViolations(english), english).toEqual([]);
+    }
+  });
+
+  /**
+   * The two files that publish a comparison by name, with attribution.
+   *
+   * Exempt by exact path, and only those two. A file named like one of them,
+   * or one sitting somewhere else, is an ordinary file and is scanned — which
+   * is what stops this exemption from growing quietly into a hole.
+   */
+  test("a published comparison names vendors and is not a leak", () => {
+    process.env.SENTRELLO_REFERENCE_NAMES = listPath;
+    const diff = [
+      "+++ b/src/config/competitors.ts",
+      "+  { name: 'Quellstone', source: 'https://quellstone.test/pricing' },",
+      "+++ b/src/components/pricing/CutCosts.astro",
+      "+ * Several vendors publish one term only — Quellstone and another",
+    ].join("\n");
+    expect(scanAddedLines(diff)).toEqual([]);
+
+    // The same line anywhere else is exactly what this guard is for.
+    const elsewhere = [
+      "+++ b/src/config/competitors-notes.ts",
+      "+  { name: 'Quellstone' },",
+    ].join("\n");
+    expect(scanAddedLines(elsewhere)).toHaveLength(1);
   });
 
   test("with no list configured the check is silent", () => {

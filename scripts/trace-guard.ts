@@ -165,15 +165,26 @@ const RULES: Rule[] = [
  * Two entry forms, because some of these names are ordinary English words.
  *
  *   name          matched whole-word, case-insensitively. The usual case.
- *   =Name         matched whole-word and case-sensitively, and never when a
- *                 lowercase word is hyphenated straight onto it.
+ *   =Name         matched whole-word, case-sensitively, and only where it
+ *                 sits inside a running sentence — after a lowercase word or
+ *                 a comma. Never when a lowercase word is hyphenated onto it.
  *
  * The second form exists for a real one on this list that is also a number
  * word. Matched loosely it fired on forty-seven commit messages that say
  * things like "twenty-seven files", and a guard that cries wolf gets turned
  * off — but dropping it would leave a genuine reference unguarded, which is
- * worse. Exact case plus the hyphen rule keeps the product and lets the
- * English through. Both halves are tested.
+ * worse.
+ *
+ * Case alone is not enough, and it took a push of a whole history to find
+ * out. English capitalises that word too — at the start of a sentence, a
+ * comment, a heading, a table cell — and every one of those read as the
+ * product: "Twenty of twelve hundred", "## Twenty-four buttons". The
+ * distinction that actually holds is **position**. A product is named in the
+ * middle of a sentence, after an ordinary word: "the way Ninety lays out a
+ * record". A quantity capitalised only because something started is not the
+ * product, whatever it looks like. Over five repositories and the whole of
+ * their history, the positional rule fires zero times on English and still
+ * catches every shape a real mention takes. All of it is tested.
  *
  * Nothing is skipped for being short. An earlier version of this ignored
  * anything under four characters on the theory that a short name matches
@@ -214,7 +225,7 @@ function referenceNameRules(): Rule[] {
         // exists to stop.
         name: `${REFERENCE_RULE_PREFIX} (entry ${entry} of the list)`,
         pattern: exact
-          ? new RegExp(`\\b${quoted}\\b(?!-[a-z])`)
+          ? new RegExp(`(?<=[a-z,]\\s)${quoted}\\b(?!-[a-z])`)
           : new RegExp(`\\b${quoted}\\b`, "i"),
       };
     });
@@ -283,8 +294,31 @@ const SELF_PATHS = new Set([
   "scripts/trace-guard.test.ts",
 ]);
 
+/**
+ * Two files in one sibling repository whose entire job is to publish a
+ * comparison, by name, with attribution and a link to each vendor's own
+ * price page.
+ *
+ * The rule this guard enforces is that we never say which product a module
+ * was studied from. It is not a rule against a company existing: a published
+ * comparison naming two dozen vendors reveals nothing about which of them we
+ * read, and one of them being on the list is a coincidence of a crowded
+ * market rather than a leak. Refusing them would mean either deleting a page
+ * the product needs or pushing with the guard switched off, and the second is
+ * how a guard stops being believed.
+ *
+ * Exact paths, both of which only exist in that one repository, so this is
+ * inert everywhere else. It exempts the content of these two files and
+ * nothing else — not a file named like them, not a directory beside them.
+ */
+const ATTRIBUTED_COMPARISON_PATHS = new Set([
+  "src/config/competitors.ts",
+  "src/components/pricing/CutCosts.astro",
+]);
+
 export function isExcludedPath(path: string): boolean {
   if (SELF_PATHS.has(path)) return true;
+  if (ATTRIBUTED_COMPARISON_PATHS.has(path)) return true;
   const segments = path.split("/");
   const base = segments[segments.length - 1] ?? "";
   if (base.toLowerCase() === INSTRUCTIONS_FILE_NAME.toLowerCase()) return true;
