@@ -3076,11 +3076,27 @@ export const formSubmissions = pgTable(
       .default([]),
     origin: text("origin"),
     userAgent: text("user_agent"),
+    /**
+     * The click that brought them, when a short link did.
+     *
+     * The redirect puts `sr_id` on the destination URL, and the embedded form
+     * carries it back. Opaque here on purpose: Core knows nothing about the
+     * Links module and must not — it stores the string, and the module that
+     * minted it joins on it.
+     *
+     * Added 2026-09-28, because the Links post's whole argument is that our
+     * own form carries the link that produced the contact, and it did not:
+     * what shipped was an API a business's *external* back end had to call,
+     * so the one form we control was the one that could not answer.
+     */
+    clickId: text("click_id"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (t) => [
     index("form_submissions_org_idx").on(t.organizationId),
     index("form_submissions_form_idx").on(t.formId),
+    // The join the funnel report makes: every submission a click produced.
+    index("form_submissions_click_idx").on(t.organizationId, t.clickId),
     // Retention sweeps read by age across every organization on the instance.
     index("form_submissions_created_idx").on(t.createdAt),
   ],

@@ -327,6 +327,30 @@ const SCRIPT = String.raw`(function () {
          * the boundary and the instance receives a body it cannot parse.
          */
         var data = new FormData(el);
+
+        /*
+         * The click that brought them, if a short link did.
+         *
+         * The Links module's redirect puts sr_id on the destination URL, so
+         * it is in the address bar of the page this form sits on — and gone
+         * the moment they click through to another page of the site. Stashed
+         * on first sight so a visitor who reads two pages before filling
+         * anything in is still attributed to the link that brought them.
+         *
+         * sessionStorage, not a cookie: it is this visit's own business, it
+         * expires when the tab closes, and it never travels to another site.
+         * Wrapped, because a browser with storage switched off must still be
+         * able to send the form.
+         */
+        try {
+          var seen = new URLSearchParams(location.search).get("sr_id");
+          if (seen) sessionStorage.setItem("sentrello.sr_id", seen);
+          var brought = seen || sessionStorage.getItem("sentrello.sr_id");
+          if (brought && !data.get("sr_id")) data.append("sr_id", brought);
+        } catch (e) {
+          /* no storage, or none allowed. The form still sends. */
+        }
+
         var carrying = false;
         data.forEach(function (v) {
           if (typeof v !== "string" && v && v.size > 0) carrying = true;

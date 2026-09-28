@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
-import { and, db, desc, eq, inArray, schema } from "@sentrello/db";
+import { and, db, desc, eq, inArray, isNull, schema } from "@sentrello/db";
 import { dropOrganization, makeOrganization } from "@sentrello/db/testing";
 import { registerForTest } from "@sentrello/module-sdk";
 import { HONEYPOT_FIELD, resetRateLimits } from "@sentrello/module-sdk";
@@ -1009,4 +1009,65 @@ test("a submission with a great many fields keeps only a form's worth", async ()
     (submission?.payload ?? {}) as Record<string, unknown>,
   );
   expect(kept.length).toBeLessThanOrEqual(100);
+});
+
+/**
+ * Which link produced this contact.
+ *
+ * The Links module mints a click id on every redirect and puts it on the
+ * destination URL as `sr_id`. What it could not do was hear about a lead: the
+ * only route in was an API a business's own external back end had to call
+ * with a tracking key — so the one form the platform controls, embedded on
+ * the customer's site, was the one that could not answer the question the
+ * whole funnel report is about.
+ *
+ * The embed reads `sr_id` off the page it sits on, remembers it for the visit,
+ * and sends it back. Found and wired 2026-09-28.
+ */
+test("a submission carries the click that brought them, out of the answers", async () => {
+  const brought = await submit(contactFormKey, {
+    name: "Came From A Link",
+    email: `link-${suffix}@example.test`,
+    message: "I saw your post",
+    sr_id: "Zm9vYmFyYmF6cXV1eA",
+  });
+  expect(brought.status).toBe(201);
+
+  const [row] = await db
+    .select()
+    .from(schema.formSubmissions)
+    .where(
+      and(
+        eq(schema.formSubmissions.organizationId, orgId),
+        eq(schema.formSubmissions.clickId, "Zm9vYmFyYmF6cXV1eA"),
+      ),
+    );
+  expect(row).toBeDefined();
+
+  /*
+   * And out of the payload, because it is not something the visitor said.
+   * A salesperson opening the submission should read the message, not a
+   * tracking token sitting among the answers like a field somebody filled in.
+   */
+  expect(row?.payload.sr_id).toBeUndefined();
+  expect(row?.payload.message).toBe("I saw your post");
+
+  // A submission that arrived by any other route keeps a null rather than the
+  // nearest link, which is the honest answer.
+  const direct = await submit(contactFormKey, {
+    name: "Came Straight Here",
+    email: `direct-${suffix}@example.test`,
+    message: "Found you myself",
+  });
+  expect(direct.status).toBe(201);
+  const withNoLink = await db
+    .select({ clickId: schema.formSubmissions.clickId })
+    .from(schema.formSubmissions)
+    .where(
+      and(
+        eq(schema.formSubmissions.organizationId, orgId),
+        isNull(schema.formSubmissions.clickId),
+      ),
+    );
+  expect(withNoLink.length).toBeGreaterThan(0);
 });

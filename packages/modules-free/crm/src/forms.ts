@@ -887,6 +887,24 @@ export function registerForms(ctx: ModuleContext) {
       });
     }
 
+    /*
+     * The click that brought them, taken out of the answers.
+     *
+     * The Links module's redirect puts `sr_id` on the destination URL and the
+     * embed carries it back. It is lifted into its own column rather than
+     * left among the payload for two reasons: it is not something the visitor
+     * said, so it has no business on the submission a salesperson reads, and
+     * a column is what a report can join on.
+     *
+     * Core knows nothing about Links and must not — this stores an opaque
+     * string, and the module that minted it is the one that can resolve it.
+     */
+    const clickId =
+      String(payload.sr_id ?? payload.clickId ?? "")
+        .trim()
+        .slice(0, 64) || null;
+    for (const key of ["sr_id", "clickId"]) delete payload[key];
+
     const contactId = await upsertContact(orgId, name, email, payload);
 
     let quoteId: string | undefined;
@@ -905,6 +923,7 @@ export function registerForms(ctx: ModuleContext) {
         attachments: kept,
         origin,
         userAgent: c.req.header("user-agent"),
+        clickId,
       })
       .returning();
 
