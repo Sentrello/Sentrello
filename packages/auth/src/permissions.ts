@@ -197,11 +197,29 @@ export const admin = ac.newRole({
   projects: ["read", "create", "update", "delete", "log-time", "budget"],
 });
 
-// External portal users — RBAC is intentionally tiny; row-level scoping to their
-// OWN records is enforced in the module routes, not by RBAC alone.
+/**
+ * Somebody outside the business, holding a login and nothing else.
+ *
+ * It granted `invoicing: ["read"]` until 2026-09-28, on the reasoning that
+ * seeing only your own invoices is row-level and the portal enforced it by
+ * resolving the account to a contact. The first half is true; the second
+ * described a door that does not exist. The portal and the account page are
+ * reached by a 32-byte token with no session and no permission check, so the
+ * grant did nothing for them — while `GET /api/invoices` scopes by
+ * organization and takes `contactId` as a filter the *caller* supplies. A
+ * member on this role could therefore read the whole business's invoice book,
+ * which is the opposite of what three published pages say it can do.
+ *
+ * The users module's `customers` policy lost the same grant the same day
+ * (`modules-free/users/src/defaults.ts`); this is the compiled half of it,
+ * and the half Better Auth actually resolves when a member's role is
+ * `customer`.
+ *
+ * A customer's door is the token. A member who needs to read invoices in the
+ * product is a member of staff, which is a different role.
+ */
 export const customer = ac.newRole({
   dashboard: ["read"],
-  invoicing: ["read"],
 });
 
 /**

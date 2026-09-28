@@ -967,7 +967,12 @@ test("nav entries declare what they need, and the roles agree", () => {
   expect(roles.customer.authorize({ bookkeeping: ["read"] }).success).toBe(
     false,
   );
-  expect(roles.customer.authorize({ invoicing: ["read"] }).success).toBe(true);
+  // And `customer` answers no to everything but the page it lands on. It held
+  // `invoicing: ["read"]` until 2026-09-28, which put five entries in the
+  // sidebar of somebody outside the business — the exact fault this test is
+  // about, on the one role that should have had the fewest of them.
+  expect(roles.customer.authorize({ dashboard: ["read"] }).success).toBe(true);
+  expect(roles.customer.authorize({ invoicing: ["read"] }).success).toBe(false);
 });
 
 /**

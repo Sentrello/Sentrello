@@ -2,7 +2,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { db, schema } from "@sentrello/db";
 import { eq, sql } from "drizzle-orm";
 import { auth } from "./index";
-import { admin, customer } from "./permissions";
+import { admin, customer, statement } from "./permissions";
 import { signUpAsOwner } from "./testing";
 
 // --- the matrix itself, no database needed -------------------------------
@@ -19,10 +19,24 @@ test("admin keeps the built-in org powers on top of the Sentrello resources", ()
   expect(admin.authorize({ settings: ["update"] }).success).toBe(true);
 });
 
-test("customer may only read invoices — row scoping is the routes' job", () => {
-  expect(customer.authorize({ invoicing: ["read"] }).success).toBe(true);
-  expect(customer.authorize({ invoicing: ["create"] }).success).toBe(false);
-  expect(customer.authorize({ crm: ["read"] }).success).toBe(false);
+/*
+ * The role three published pages describe as seeing "its own invoices and
+ * nothing else". It held `invoicing: ["read"]` until 2026-09-28, and that
+ * grant was not row-scoped anywhere: `GET /api/invoices` filters by
+ * organization and reads `contactId` from the query string, so a member on
+ * this role read the whole book. The customer's real door is the portal
+ * token, which carries no session and no role at all.
+ */
+test("customer reads the dashboard and no business data at all", () => {
+  expect(customer.authorize({ dashboard: ["read"] }).success).toBe(true);
+  // Every other resource the product has, not a chosen three: a grant added
+  // here later is a grant a published page does not describe.
+  for (const resource of Object.keys(statement)) {
+    if (resource === "dashboard") continue;
+    for (const action of statement[resource as keyof typeof statement]) {
+      expect(customer.authorize({ [resource]: [action] }).success).toBe(false);
+    }
+  }
 });
 
 // --- end to end through real sessions ------------------------------------
