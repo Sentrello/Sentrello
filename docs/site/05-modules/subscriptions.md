@@ -179,7 +179,18 @@ payment** setting above.
 
 ## If the module lapses
 
-You keep every subscription you sold. The records are the platform's own and
-the schedule goes on raising invoices. What you lose is the screens for
-changing one, which you then manage as recurring invoices, the way it worked
-before.
+You keep every subscription you sold. The records are the platform's own,
+and nothing is deleted or altered — but **billing stops**. The run that
+turns a subscription into an invoice belongs to this module, so when the
+module goes, the invoices stop being raised.
+
+That is the honest answer and it is worth saying plainly, because this page
+said the opposite until 28 September 2026: a business whose licence lapsed
+would quietly stop billing every subscriber it had, and find out when
+somebody noticed the money had not arrived.
+
+Nothing is lost by it. Every subscription stands, with its price, its
+discount and its next date, and the day the licence comes back the run
+picks them up and carries on from where it stopped. If you would rather
+keep billing without the module, each one can be re-made as a recurring
+invoice before you let it go.
