@@ -132,7 +132,25 @@ export function registerPrivacy(ctx: ModuleContext) {
         actor: { id: session?.user?.id ?? "", name: session?.user?.name },
         subject: { email: subject.email ?? null, name: named(subject) },
         action: "privacy.exported",
-        detail: { records: found.reduce((n, f) => n + f.records.length, 0) },
+        /*
+         * Which modules answered, and how much each held.
+         *
+         * A bare total said an export happened and could not say what it
+         * covered — so a business asked six months later which systems were
+         * searched had only the number. The records themselves stay out of
+         * the log deliberately: this is an audit trail, not a second copy of
+         * somebody's personal data sitting in a table with a long retention.
+         */
+        detail: {
+          records: found.reduce((n, f) => n + f.records.length, 0),
+          sources: found.map((entry) => ({
+            source: entry.source,
+            label: entry.label,
+            records: entry.records.length,
+            ...(entry.error ? { error: entry.error } : {}),
+          })),
+          incomplete: found.some((entry) => entry.error),
+        },
       });
 
       return c.json({
@@ -230,9 +248,41 @@ export function registerPrivacy(ctx: ModuleContext) {
         actor: { id: session?.user?.id ?? "", name: session?.user?.name },
         subject: { email: subject.email ?? null, name: named(subject) },
         action: "privacy.erased",
-        // How they checked it was really them, kept with the act itself. This
-        // is the line a regulator asks about afterwards.
-        detail: { verifiedBy: note },
+        /*
+         * What was actually done, not only that it was asked for.
+         *
+         * This kept `verifiedBy` and nothing else, so the record of an
+         * erasure said a request had been honoured and could not say what
+         * had gone or what had been kept. The list existed — it is what the
+         * screen renders — and it existed only as the HTTP response: refresh
+         * the page and it was gone. The published compliance page promises
+         * "a written record of both, including what was kept and why", and
+         * there was no artefact to hand anybody. Found 2026-09-28.
+         *
+         * Written per source, in the words each source chose, because "why
+         * this was kept" is the sentence a regulator reads and a summary of
+         * it is somebody's paraphrase of a legal position.
+         */
+        detail: {
+          // How they checked it was really them, kept with the act itself.
+          // This is the line a regulator asks about first.
+          verifiedBy: note,
+          sources: done.map((entry) => ({
+            source: entry.source,
+            label: entry.label,
+            removed: entry.removed,
+            kept: entry.kept,
+            ...(entry.error ? { error: entry.error } : {}),
+          })),
+          /*
+           * A module that threw is named rather than folded into the rest.
+           *
+           * An erasure where one source failed is an erasure that is not
+           * finished, and a record that reads as complete when it is not is
+           * the worst thing this log could hold.
+           */
+          incomplete: done.some((entry) => entry.error),
+        },
       });
 
       return c.json({ subject: named(subject), sources: done });

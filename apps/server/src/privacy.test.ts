@@ -216,4 +216,50 @@ test("what was done is written down, because it will be asked about", async () =
 
   const erasure = requests.find((r) => r.action === "privacy.erased");
   expect(erasure?.detail?.verifiedBy).toBe("replied from the address on file");
+
+  /*
+   * And what was actually done, which the record could not say until
+   * 2026-09-28.
+   *
+   * It kept `verifiedBy` and nothing else. The list of what went and what was
+   * kept existed only as the HTTP response the screen rendered — refresh the
+   * page and it was gone — while the published compliance page promises "a
+   * written record of both, including what was kept and why". There was no
+   * artefact to hand anybody.
+   */
+  const sources = erasure?.detail?.sources as
+    | {
+        source: string;
+        removed: string[];
+        kept: { what: string; why: string }[];
+      }[]
+    | undefined;
+  expect(Array.isArray(sources)).toBe(true);
+  expect((sources ?? []).length).toBeGreaterThan(0);
+
+  // Every source says something: either what it removed, or what it kept and
+  // why. A source that answers with two empty lists has said nothing.
+  for (const entry of sources ?? []) {
+    expect(
+      entry.removed.length + entry.kept.length,
+      `${entry.source} recorded neither what it removed nor what it kept`,
+    ).toBeGreaterThan(0);
+  }
+
+  // And the reasons are the sources' own words, not a summary of them.
+  const why = (sources ?? []).flatMap((entry) => entry.kept.map((k) => k.why));
+  expect(why.join(" ").length).toBeGreaterThan(20);
+
+  // An erasure where a module threw is an erasure that is not finished, and
+  // the record says so rather than reading as complete.
+  expect(erasure?.detail?.incomplete).toBe(false);
+
+  const exported = requests.find((r) => r.action === "privacy.exported");
+  const searched = exported?.detail?.sources as
+    | { source: string; records: number }[]
+    | undefined;
+  expect(Array.isArray(searched)).toBe(true);
+  // Which systems were searched, not only how many rows came back — the
+  // question a business is asked six months later.
+  expect((searched ?? []).length).toBeGreaterThan(0);
 });
