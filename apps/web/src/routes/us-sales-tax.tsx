@@ -110,13 +110,15 @@ function NexusCard() {
                   </span>
                 ) : null}
               </td>
-              <td className="whitespace-nowrap">{formatMoney(s.yearCents)}</td>
+              <td className="whitespace-nowrap">
+                {formatMoney(s.yearCents, "USD")}
+              </td>
               <td className="whitespace-nowrap" style={muted}>
-                {formatMoney(s.priorYearCents)}
+                {formatMoney(s.priorYearCents, "USD")}
               </td>
               <td style={muted}>{s.yearTransactions}</td>
               <td className="whitespace-nowrap" style={muted}>
-                {s.threshold ? formatMoney(s.threshold.salesCents) : "—"}
+                {s.threshold ? formatMoney(s.threshold.salesCents, "USD") : "—"}
                 {s.threshold?.transactions
                   ? ` / ${s.threshold.transactions} sales`
                   : ""}
@@ -137,9 +139,9 @@ function NexusCard() {
       )}
       {(nexus.data?.unattributedCents ?? 0) !== 0 ? (
         <p className="text-sm" style={muted}>
-          {formatMoney(nexus.data?.unattributedCents ?? 0)} of US sales could
-          not be placed in a state — customers without a company record, or with
-          a state that could not be read. Every column above is a floor.
+          {formatMoney(nexus.data?.unattributedCents ?? 0, "USD")} of US sales
+          could not be placed in a state — customers without a company record,
+          or with a state that could not be read. Every column above is a floor.
         </p>
       ) : null}
       <p className="text-xs" style={muted}>
@@ -230,9 +232,11 @@ function FilingCard() {
                 <td className="py-2">{j.jurisdiction}</td>
                 <td style={muted}>{j.names.join(", ")}</td>
                 <td className="whitespace-nowrap">
-                  {formatMoney(j.taxableCents)}
+                  {formatMoney(j.taxableCents, "USD")}
                 </td>
-                <td className="whitespace-nowrap">{formatMoney(j.taxCents)}</td>
+                <td className="whitespace-nowrap">
+                  {formatMoney(j.taxCents, "USD")}
+                </td>
                 <td
                   className="whitespace-nowrap"
                   style={
@@ -246,7 +250,7 @@ function FilingCard() {
                       : "The documents and the ledger disagree — check before filing."
                   }
                 >
-                  {formatMoney(j.ledgerTaxCents)}
+                  {formatMoney(j.ledgerTaxCents, "USD")}
                 </td>
               </Row>
             ))}
@@ -261,7 +265,7 @@ function FilingCard() {
               <Row key={e.state}>
                 <td className="py-2">{e.state}</td>
                 <td className="whitespace-nowrap">
-                  {formatMoney(e.exemptCents)}
+                  {formatMoney(e.exemptCents, "USD")}
                 </td>
                 <td style={muted}>{e.invoices}</td>
               </Row>
@@ -283,9 +287,9 @@ function FilingCard() {
       {report.data && report.data.unbandedCents !== 0 ? (
         <Warning>
           <p>
-            <strong>{formatMoney(report.data.unbandedCents)}</strong> of sales
-            tax was collected in this period against no state. It is not in any
-            figure above.
+            <strong>{formatMoney(report.data.unbandedCents, "USD")}</strong> of
+            sales tax was collected in this period against no state. It is not
+            in any figure above.
           </p>
           <p className="mt-2">
             Shop orders carry one combined rate rather than a named tax, so

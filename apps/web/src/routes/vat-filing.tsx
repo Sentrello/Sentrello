@@ -466,6 +466,11 @@ export function VatFiling() {
                         Math.round(
                           (preview.data?.asSubmitted[String(key)] ?? 0) * 100,
                         ),
+                        // Sterling, whatever currency the books are kept in:
+                        // a UK VAT return is in pounds by definition, and the
+                        // notes under this table have always said £ while the
+                        // table itself followed the instance's own currency.
+                        "GBP",
                       )}
                     </td>
                   </Row>

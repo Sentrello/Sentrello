@@ -84,7 +84,7 @@ function FormLines({ lines }: { lines: [string, number][] }) {
       {lines.map(([label, cents]) => (
         <Row key={label}>
           <td className="py-2">{label}</td>
-          <td className="whitespace-nowrap">{formatMoney(cents)}</td>
+          <td className="whitespace-nowrap">{formatMoney(cents, "CAD")}</td>
         </Row>
       ))}
     </Table>
@@ -115,10 +115,10 @@ function Reconciliation({ taxes }: { taxes: ReturnLine[] }) {
           <Row key={t.definitionId}>
             <td className="py-2">{t.name}</td>
             <td className="whitespace-nowrap" style={muted}>
-              {formatMoney(t.documentTaxableCents)}
+              {formatMoney(t.documentTaxableCents, "CAD")}
             </td>
             <td className="whitespace-nowrap">
-              {formatMoney(t.collectedCents)}
+              {formatMoney(t.collectedCents, "CAD")}
             </td>
             <td
               className="whitespace-nowrap"
@@ -133,7 +133,7 @@ function Reconciliation({ taxes }: { taxes: ReturnLine[] }) {
                   : "The documents and the ledger disagree — check before filing."
               }
             >
-              {formatMoney(t.documentTaxCents)}
+              {formatMoney(t.documentTaxCents, "CAD")}
             </td>
           </Row>
         ))}
@@ -272,9 +272,9 @@ export function CanadianTax() {
       {data && data.unbandedCents !== 0 ? (
         <Warning>
           <p>
-            <strong>{formatMoney(data.unbandedCents)}</strong> of sales tax was
-            collected in this period against no named tax. It is in none of the
-            figures above.
+            <strong>{formatMoney(data.unbandedCents, "CAD")}</strong> of sales
+            tax was collected in this period against no named tax. It is in none
+            of the figures above.
           </p>
           <p className="mt-2">
             Shop orders carry one combined rate rather than a named GST, PST or

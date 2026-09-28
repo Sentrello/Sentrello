@@ -152,3 +152,51 @@ test("the VAT return screen reads the submitted figures, not the raw ones", asyn
   // The raw pence must not be what the table draws.
   expect(screen).not.toContain("formatMoney(preview.data?.boxes[String(key)]");
 });
+
+/**
+ * A tax return is in its jurisdiction's currency, not the instance's.
+ *
+ * The EU One Stop Shop screen has always said EUR. The other three followed
+ * whatever the business keeps its books in, so a Canadian company with US
+ * nexus saw its US sales tax in dollars that were not the dollars owed, and
+ * the UK VAT table could render euros beside notes that say £ — two
+ * currencies on one legal declaration.
+ *
+ * `omission.` figures are the exception and are meant to be in the books'
+ * currency: they are sales that are *not* on the return, quoted from the
+ * documents themselves before any conversion, and converting them would
+ * claim a precision the return does not have for them.
+ *
+ * Read as source, because the defect is a missing argument and the thing
+ * worth preventing is the next figure being added without one.
+ */
+test.each([
+  ["vat-filing.tsx", "GBP"],
+  ["ca-tax.tsx", "CAD"],
+  ["us-sales-tax.tsx", "USD"],
+  ["oss-return.tsx", "EUR"],
+])("%s prints its figures in %s", async (file, currency) => {
+  const screen = await Bun.file(
+    `${import.meta.dir}/../../web/src/routes/${file}`,
+  ).text();
+
+  /** Each `formatMoney(...)` call, to its own closing bracket. */
+  const calls: string[] = [];
+  for (let at = screen.indexOf("formatMoney("); at !== -1; ) {
+    let depth = 0;
+    let end = at + "formatMoney".length;
+    do {
+      if (screen[end] === "(") depth += 1;
+      if (screen[end] === ")") depth -= 1;
+      end += 1;
+    } while (depth > 0 && end < screen.length);
+    calls.push(screen.slice(at, end));
+    at = screen.indexOf("formatMoney(", end);
+  }
+  expect(calls.length).toBeGreaterThan(0);
+
+  const unnamed = calls.filter(
+    (call) => !call.includes(`"${currency}"`) && !call.includes("omission."),
+  );
+  expect(unnamed.map((c) => c.replace(/\s+/g, " ").slice(0, 70))).toEqual([]);
+});
