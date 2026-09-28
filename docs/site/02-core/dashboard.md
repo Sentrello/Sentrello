@@ -10,17 +10,33 @@ tags: [core]
 The screen you land on. It answers what needs attention today, without opening
 anything.
 
-![The dashboard: what is owed, what is overdue, what is quoted, the invoices waiting on payment, and how the server itself slept](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/dashboard.png)
+![The dashboard: what is owed, what is overdue, what is in the pipeline, and the invoices waiting on payment](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/dashboard.png)
 
-Every module adds its own panel here. A free instance shows the four above; a
-module you have not bought contributes nothing, rather than an advertisement
-for itself.
+Every module adds its own panel here, and a module you have not bought
+contributes nothing rather than an advertisement for itself. The panels are
+arranged into tabs, and you can rearrange them — which panel you look at first
+is not something to charge for.
 
 ## What is on it
 
-- **Money**: what is owed to you, what is overdue, what came in this month.
-- **Work**: deals in progress, tasks due, anything already late.
-- **Whatever your modules add.**
+A free instance starts with these, across four tabs:
+
+- **Overview** — what is owed to you and what is overdue, the list of things
+  needing attention, what is in the pipeline, and how late the money is.
+- **Performance** — income against expenses over twelve months, the profit
+  trend, and who spends the most with you.
+- **Sales** — deals by stage, and the pipeline beside them.
+- **Reports** — who owes you, the balance sheet, cash in and out, and the
+  trial balance.
+
+**You see the panels your permissions cover.** The money figures need access
+to the books and the pipeline needs the CRM, so somebody who does neither is
+not offered either — and what they are not offered is absent rather than
+empty, because a panel showing nothing is a different statement from a panel
+that is not yours.
+
+Whoever runs the instance also gets **System**: the version, how long it has
+been up, and how much room is left on the disk.
 
 That last one is the useful one. There is no separate reporting module here;
 each module puts its own figures on this screen. Install Booking and your

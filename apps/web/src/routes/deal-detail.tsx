@@ -317,6 +317,27 @@ export function DealDetail() {
    * Worth revisiting the day a quote gets a screen of its own; today it would
    * be a link to nowhere.
    */
+  /**
+   * Off the board, without being gone.
+   *
+   * A deal that went quiet is neither won nor lost, and both of those stages
+   * are statements somebody will read later. `archivedAt` has been on the
+   * table and honoured by the list — the board hides archived deals, and
+   * `?archived=1` brings them back — with **no control anywhere** to set it.
+   * The site sold "ordering, archiving" on the strength of it. Found
+   * 2026-09-28.
+   */
+  const archive = useMutation({
+    mutationFn: (archived: boolean) =>
+      api(`/api/deals/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          archivedAt: archived ? new Date().toISOString() : null,
+        }),
+      }),
+    onSuccess: refresh,
+  });
+
   const quote = useMutation({
     mutationFn: () =>
       api<{ quote: { id: string; number: string } }>(`/api/deals/${id}/quote`, {
@@ -398,6 +419,14 @@ export function DealDetail() {
               >
                 {quote.isPending ? "Quoting…" : "Create quote"}
               </MenuItem>
+              <MenuItem
+                needs={{ crm: ["update"] }}
+                className="text-sm link-muted"
+                onClick={() => archive.mutate(!deal.archivedAt)}
+                disabled={archive.isPending}
+              >
+                {deal.archivedAt ? "Put it back" : "Archive"}
+              </MenuItem>
               <button
                 type="button"
                 className="text-sm link-muted"
@@ -409,6 +438,7 @@ export function DealDetail() {
           </div>
 
           {quote.error ? <ErrorNote error={quote.error} /> : null}
+          {archive.error ? <ErrorNote error={archive.error} /> : null}
 
           <div className="mt-3 flex items-center gap-2">
             <span className="text-sm" style={muted}>

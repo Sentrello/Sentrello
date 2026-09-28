@@ -59,8 +59,8 @@ On companies, search reads the sector, city, website and description.
 ## Deals
 
 A **deal** is a piece of work you might win, moving through stages you define.
-The board shows the pipeline, what each stage is worth, and which deals have
-sat untouched too long.
+The board shows the pipeline and what each stage is worth, with every deal's
+amount and its expected close date on the card.
 
 **A deal can become a quote.** The customer, the description and the figure
 come across with it: three things somebody would otherwise retype, and three
