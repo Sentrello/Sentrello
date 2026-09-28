@@ -115,6 +115,12 @@ shipped. Anti-spam law draws the same line; if you use a transactional
 template for marketing, you have moved it to the wrong side of that line
 yourself.
 
+Once somebody has gone, the page asks — optionally, and after the fact —
+whether they would say why. It is one box, skipping it costs them nothing,
+and what they write appears beside them on your subscribers list. A question
+in the way of unsubscribing is a dark pattern; a question after it is the only
+feedback you will ever get from somebody leaving.
+
 ## Subscribers are not customers
 
 They are kept separately, and linked to a CRM contact where the address already
