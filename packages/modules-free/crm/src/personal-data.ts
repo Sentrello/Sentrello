@@ -110,6 +110,16 @@ export function registerCrmPersonalData(ctx: ModuleContext) {
           kind: p.kind,
           status: p.status,
           createdAt: p.createdAt,
+          /*
+           * The opt-out and its date, in the answer to a subject access
+           * request.
+           *
+           * "When did I tell you not to sell my data" is exactly the sort of
+           * thing this request is for, and the record existed while the one
+           * document that has to contain everything left it out.
+           */
+          doNotSell: p.doNotSell,
+          doNotSellOn: p.doNotSellOn,
         },
       }));
 

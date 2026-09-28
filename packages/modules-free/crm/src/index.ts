@@ -1746,6 +1746,17 @@ export const EXPORT_COLUMNS = [
    * to, not the business knowing who they are.
    */
   "Do not sell or share",
+  /**
+   * And when they said so.
+   *
+   * The flag alone answers "may we share this row"; the date answers "since
+   * when", which is the question a regulator asks and the one a business
+   * cannot reconstruct from a spreadsheet. It is recorded the moment the
+   * choice is made and was then dropped at the one point the record leaves
+   * the product — the published page has said it is carried into every
+   * contact export since before it was.
+   */
+  "Do not sell recorded on",
 ] as const;
 
 export function displayName(body: Record<string, unknown>): string | undefined {
@@ -1931,6 +1942,10 @@ function registerCrmScreens(
           // Words rather than a boolean: this row is read by a person deciding
           // what to do with the file, and "true" in a column is easy to miss.
           r.doNotSell ? "DO NOT SELL OR SHARE" : "",
+          // The day, not the instant. A spreadsheet column of timestamps to
+          // the millisecond is a column nobody reads, and the obligation is
+          // dated in days.
+          r.doNotSellOn ? r.doNotSellOn.toISOString().slice(0, 10) : "",
         ]),
       );
 

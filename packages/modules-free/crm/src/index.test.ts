@@ -2102,9 +2102,17 @@ test("a contact who opted out is marked in the export, not removed from it", asy
 
   const csv = await (await call("/api/contacts/export.csv")).text();
   expect(csv).toContain("Do not sell or share");
+  expect(csv).toContain("Do not sell recorded on");
   const row = csv.split("\n").find((l) => l.includes(`Optout${suffix}`));
   expect(row).toBeTruthy();
   expect(row).toContain("DO NOT SELL OR SHARE");
+  /*
+   * And the date beside it. The flag answers "may we share this row"; the
+   * date answers "since when", which is the question a regulator asks and the
+   * one nobody can reconstruct from a spreadsheet. The published page has
+   * said it is carried into every export since before it was.
+   */
+  expect(row).toContain(new Date().toISOString().slice(0, 10));
 
   // Reversing it clears the date, so the field never describes a request that
   // is no longer in force.
