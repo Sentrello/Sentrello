@@ -108,6 +108,24 @@ taxes, each banded and reported separately. Splitting them in the shop is on
 the roadmap, as it is for Subscriptions.
 :::
 
+:::caution[One US rate per state]
+A shop order resolves the buyer's address to a **state** — the fifty, DC and the
+five territories — and charges the rate written against it. Counties, cities and
+special districts have no key of their own here, so a business collecting
+Austin's tax enters the combined Texas-plus-Austin figure as its Texas rate. The
+customer is charged exactly what they owe, to the cent, and that figure reaches
+the books.
+
+What it cannot do afterwards is say which part of it was the state's and which
+the city's. The US filing report reads a shop order back by state, so a business
+filing with a city as well as a state does that split by hand.
+
+Invoicing has no such limit: a named rate there carries its own jurisdiction —
+`US-TX` and `US-TX-Austin` are two rates, banded and reported separately, and
+several can sit on one line. Raise the invoice there when the split has to come
+out of the software rather than out of a spreadsheet.
+:::
+
 :::info[New in 0.19]
 The processor's fee is recorded too, so Cash matches the bank. A card sale of
 $100.00 puts about $96.80 in your account. From 0.19 the books say $96.80 and
