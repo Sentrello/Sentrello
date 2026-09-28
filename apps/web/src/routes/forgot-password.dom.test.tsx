@@ -11,6 +11,7 @@ GlobalRegistrator.register({ url: "http://localhost/" });
 import { afterAll, afterEach, beforeEach, expect, mock, test } from "bun:test";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
+import { type } from "../lib/typing";
 
 /**
  * `authClient.resetPassword`/`requestPasswordReset` are replaced module-wide,
@@ -139,17 +140,6 @@ function submitForm(host: HTMLElement) {
   });
 }
 
-function type(input: HTMLInputElement, value: string) {
-  const setter = Object.getOwnPropertyDescriptor(
-    HTMLInputElement.prototype,
-    "value",
-  )?.set;
-  act(() => {
-    setter?.call(input, value);
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-  });
-}
-
 /**
  * A dead link — expired or already used — used to leave the customer with an
  * error and no way forward. The server-refused case now offers the same
@@ -207,7 +197,11 @@ test("a link missing its token also offers a way to get a new one", async () => 
  */
 test("a successful reset explains where signing in leads, and the link stays safe for both kinds of account", async () => {
   setUrl("/reset-password?token=good-token");
-  resetPasswordImpl = async () => ({});
+  const asked: { token?: string; newPassword?: string } = {};
+  resetPasswordImpl = async (args) => {
+    Object.assign(asked, args);
+    return {};
+  };
 
   const host = mount(<ResetPassword />);
   const password = host.querySelector(
@@ -216,6 +210,20 @@ test("a successful reset explains where signing in leads, and the link stays saf
   type(password, "a-perfectly-fine-password");
   submitForm(host);
   await flush();
+
+  /*
+   * The password that was typed, and the token from the link.
+   *
+   * Asserted because until 2026-09-28 nothing here was: React's `onChange`
+   * does not fire for a text input under happy-dom, so the box stayed empty
+   * and the form submitted nothing — and every test in this file passed
+   * anyway, because each one stubs an answer that does not depend on what
+   * was sent. See `../lib/typing`.
+   */
+  expect(asked).toEqual({
+    token: "good-token",
+    newPassword: "a-perfectly-fine-password",
+  });
 
   expect(host.textContent).toContain("Done.");
   const signIn = host.querySelector("a") as HTMLAnchorElement;

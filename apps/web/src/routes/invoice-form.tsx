@@ -62,6 +62,8 @@ interface BillableItem {
 /** Only the fields the editor puts back into its boxes. */
 interface DocumentShape {
   contactId: string | null;
+  /** Fixed when the document was raised, with the rate of that day. */
+  currency?: string;
   notes: string | null;
   templateId: string | null;
   discountType: string | null;
@@ -242,6 +244,9 @@ export function InvoiceForm({
     queryKey: ["invoicing-billing"],
     queryFn: () =>
       api<{
+        baseCurrency: string;
+        /** The business's own, then every one it has recorded a rate for. */
+        currencies: string[];
         settings: {
           paymentTermOptions: { label: string; days: number }[];
           units: string[];
@@ -252,6 +257,14 @@ export function InvoiceForm({
 
   const [dueDate, setDueDate] = useState("");
   const [validUntil, setValidUntil] = useState("");
+  /**
+   * What this one is priced in. Empty means the business's own currency.
+   *
+   * A choice rather than a constant, and only among the currencies a rate has
+   * been recorded for — the route refuses the rest, so offering them would be
+   * offering a document that cannot be saved.
+   */
+  const [currency, setCurrency] = useState("");
   const [paymentTerms, setPaymentTerms] = useState("");
   const [buyerReference, setBuyerReference] = useState("");
   const [notes, setNotes] = useState("");
@@ -307,6 +320,7 @@ export function InvoiceForm({
     if (doc) {
       setLoaded(true);
       setCustomer(existing.data.contact ?? null);
+      setCurrency(doc.currency ?? "");
       setNotes(doc.notes ?? "");
       setTemplateId(doc.templateId ?? "");
       setDiscountType(doc.discountType ?? "");
@@ -415,6 +429,17 @@ export function InvoiceForm({
     // Mid-keystroke. The buttons are disabled until the lines are usable.
   }
 
+  /**
+   * The currency the document's own figures are in.
+   *
+   * Undefined falls back to the instance's formatting default, which is what
+   * every screen did before a document could be in anything else. The
+   * catalogue's prices are deliberately left alone: those are what the
+   * business charges in its own money, and relabelling them with the
+   * customer's symbol would be a conversion nobody performed.
+   */
+  const shown = currency || billing.data?.baseCurrency || undefined;
+
   const setLine = (index: number, patch: Partial<LineDraft>) =>
     setLines((current) =>
       current.map((l, i) => (i === index ? { ...l, ...patch } : l)),
@@ -438,7 +463,7 @@ export function InvoiceForm({
       const body = {
         contactId: customer?.id ?? null,
         /*
-         * No currency: the server uses the business's own.
+         * The currency, only when it is not the business's own.
          *
          * This said `"USD"` on every create and every edit, so a business
          * based in the UK or the EU sent an American invoice from its own
@@ -448,11 +473,15 @@ export function InvoiceForm({
          * stored rate, settlement gain and loss, period-end revaluation —
          * had worked the whole time. The form simply never asked.
          *
-         * Omitted rather than fetched, so there is one answer to "what
-         * currency is this" and it lives on the server. A document in
-         * another currency is a thing to add here deliberately, with a
-         * picker and a rate, not a constant.
+         * Left off when it matches the base, so there is one answer to "what
+         * currency is this" and it stays on the server. The field only
+         * appears once a rate has been recorded for something, which is why
+         * the great majority of businesses never see it and every one of
+         * them keeps sending invoices in their own money.
          */
+        ...(currency && currency !== billing.data?.baseCurrency
+          ? { currency }
+          : {}),
         status,
         ...(asQuote
           ? { validUntil: validUntil || undefined }
@@ -675,6 +704,45 @@ export function InvoiceForm({
               />
             </Field>
           )}
+          {/*
+           * Which money this one is in.
+           *
+           * Hidden until there is a second answer. A business that has never
+           * recorded a rate sells in one currency, and a picker with one
+           * option in it is a question with no question in it.
+           *
+           * Fixed once the document exists: the rate of the day it was
+           * raised is stamped on it, and re-pricing an invoice by changing a
+           * dropdown would restate a figure a customer has already been
+           * given. Change it by raising another one.
+           */}
+          {(billing.data?.currencies ?? []).length > 1 ? (
+            <Field
+              label="Currency"
+              hint={
+                documentId
+                  ? "Fixed at the rate of the day this was raised."
+                  : "Converted into the books at today's recorded rate."
+              }
+            >
+              {documentId ? (
+                <p className="py-2 font-medium">
+                  {currency || billing.data?.baseCurrency}
+                </p>
+              ) : (
+                <Select
+                  value={currency || (billing.data?.baseCurrency ?? "")}
+                  onChange={(e) => setCurrency(e.target.value)}
+                >
+                  {(billing.data?.currencies ?? []).map((code) => (
+                    <option key={code} value={code}>
+                      {code}
+                    </option>
+                  ))}
+                </Select>
+              )}
+            </Field>
+          ) : null}
           {/* One business, usually one letterhead — but a trade that bills
               two names out of one company needs to say which. */}
           {(letterheads.data?.templates ?? []).length > 1 ? (
@@ -936,21 +1004,27 @@ export function InvoiceForm({
             <tbody>
               <tr>
                 <td style={muted}>Subtotal</td>
-                <td className="money">{formatMoney(preview.subtotal)}</td>
+                <td className="money">
+                  {formatMoney(preview.subtotal, shown)}
+                </td>
               </tr>
               {preview.discount > 0 ? (
                 <tr>
                   <td style={muted}>Discount</td>
-                  <td className="money">−{formatMoney(preview.discount)}</td>
+                  <td className="money">
+                    −{formatMoney(preview.discount, shown)}
+                  </td>
                 </tr>
               ) : null}
               <tr>
                 <td style={muted}>Tax</td>
-                <td className="money">{formatMoney(preview.tax)}</td>
+                <td className="money">{formatMoney(preview.tax, shown)}</td>
               </tr>
               <tr className="border-t font-semibold" style={border}>
                 <td className="pt-1">Total</td>
-                <td className="money pt-1">{formatMoney(preview.total)}</td>
+                <td className="money pt-1">
+                  {formatMoney(preview.total, shown)}
+                </td>
               </tr>
             </tbody>
           </table>

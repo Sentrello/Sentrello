@@ -5272,3 +5272,151 @@ test("the portal offers no Pay button until a payment account is connected", asy
       .where(eq(schema.paymentAccounts.organizationId, orgId));
   }
 });
+
+/**
+ * A document in the customer's money, from the form that raises it.
+ *
+ * Everything under this worked from the day it was written — the rate stored
+ * on the document, the conversion into the ledger, settlement gain and loss,
+ * period-end revaluation, a screen to record a rate on. What was missing was
+ * a list: the invoice form had no way to know which currencies this business
+ * could price in, so it never asked, so a feature the price list sells could
+ * not be reached from the product. Found 2026-09-28.
+ *
+ * The list has to be exactly the set `POST /api/invoices` accepts, or the
+ * form offers a choice the route then refuses.
+ */
+test("the form is offered the currencies this business can actually invoice in", async () => {
+  const bare = (await (
+    await app.request("http://localhost/api/invoicing/settings", { headers })
+  ).json()) as { baseCurrency: string; currencies: string[] };
+
+  // Nothing recorded, one answer, and the form shows no picker at all.
+  expect(bare.currencies).toEqual([bare.baseCurrency]);
+
+  await db.insert(schema.exchangeRates).values([
+    {
+      organizationId: orgId,
+      code: "EUR",
+      rateMicro: 1_085_000,
+      asOf: new Date("2026-01-01"),
+    },
+    // A second rate for the same currency is a later day's rate, not a
+    // second currency: the picker must not list EUR twice.
+    {
+      organizationId: orgId,
+      code: "EUR",
+      rateMicro: 1_090_000,
+      asOf: new Date("2026-06-01"),
+    },
+    {
+      organizationId: orgId,
+      code: "CAD",
+      rateMicro: 730_000,
+      asOf: new Date("2026-01-01"),
+    },
+  ]);
+
+  const priced = (await (
+    await app.request("http://localhost/api/invoicing/settings", { headers })
+  ).json()) as { baseCurrency: string; currencies: string[] };
+
+  // The business's own first — it is the answer for nearly every document.
+  expect(priced.currencies[0]).toBe(priced.baseCurrency);
+  expect(priced.currencies).toEqual([priced.baseCurrency, "CAD", "EUR"]);
+
+  // And every one of them is a currency the route will take.
+  for (const code of priced.currencies) {
+    const res = await app.request("http://localhost/api/invoices", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        contactId,
+        currency: code,
+        status: "draft",
+        lines: [{ description: `in ${code}`, quantity: 1, unitPrice: 5000 }],
+      }),
+    });
+    expect(res.status, `${code} was offered and then refused`).toBe(201);
+    const { invoice } = (await res.json()) as { invoice: { currency: string } };
+    expect(invoice.currency).toBe(code);
+  }
+
+  // The other direction: one the form does not offer is one the route
+  // declines, rather than posting at a rate nobody recorded.
+  const guess = await app.request("http://localhost/api/invoices", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      contactId,
+      currency: "JPY",
+      status: "draft",
+      lines: [{ description: "yen", quantity: 1, unitPrice: 5000 }],
+    }),
+  });
+  expect(guess.status).toBe(400);
+
+  await db
+    .delete(schema.exchangeRates)
+    .where(eq(schema.exchangeRates.organizationId, orgId));
+});
+
+/**
+ * A quote is written in the same money as the invoice it becomes.
+ *
+ * `quotes.currency` defaults to USD and this route passed the field straight
+ * through, so every quote raised on a GBP or EUR instance said dollars — on
+ * the copy the customer read — and then failed at Convert, because no dollar
+ * rate had ever been recorded. The invoice route was fixed on 2026-09-27 and
+ * its twin was missed.
+ */
+test("a quote is raised in the business's own currency, not the dollar", async () => {
+  // A business that is not American, which is where the default was wrong
+  // and where a suite that runs entirely in dollars cannot see it.
+  await db
+    .update(schema.organizations)
+    .set({ baseCurrency: "GBP" })
+    .where(eq(schema.organizations.id, orgId));
+
+  const res = await app.request("http://localhost/api/quotes", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      contactId,
+      lines: [{ description: "Roof survey", quantity: 1, unitPrice: 10_000 }],
+    }),
+  });
+  expect(res.status).toBe(201);
+  const { quote } = (await res.json()) as {
+    quote: { id: string; currency: string };
+  };
+
+  expect(quote.currency).toBe("GBP");
+
+  // And the quote converts, which is the thing the old default made
+  // impossible on three of our four markets.
+  const converted = await app.request(
+    `http://localhost/api/quotes/${quote.id}/convert`,
+    { method: "POST", headers },
+  );
+  expect(converted.status).toBe(201);
+
+  // A currency nobody has priced is refused while the quote is still a
+  // draft, rather than at the moment the customer has already agreed to it.
+  const guess = await app.request("http://localhost/api/quotes", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      contactId,
+      currency: "JPY",
+      lines: [{ description: "Roof survey", quantity: 1, unitPrice: 10_000 }],
+    }),
+  });
+  expect(guess.status).toBe(400);
+  expect(((await guess.json()) as { error: string }).error).toContain("JPY");
+
+  await db
+    .update(schema.organizations)
+    .set({ baseCurrency: "USD" })
+    .where(eq(schema.organizations.id, orgId));
+});

@@ -1196,6 +1196,33 @@ export default defineModule({
           return c.json({ error: "no such customer" }, 404);
         }
 
+        /*
+         * And the same answer to "which money is this".
+         *
+         * The column defaults to USD, and this route passed `currency`
+         * straight through — so a quote raised on a GBP or EUR instance was
+         * written in dollars, priced in dollars on the copy the customer
+         * read, and refused at the moment somebody pressed Convert, because
+         * no dollar rate had ever been recorded. The invoice beside it was
+         * fixed on 2026-09-27 and this one was not.
+         *
+         * Refused here rather than at conversion, for the same reason the
+         * invoice refuses: a quote that cannot become an invoice is a
+         * promise the business cannot keep, and finding that out after the
+         * customer has agreed to it is the worst moment to find it out.
+         */
+        const documentCurrency = String(
+          currency ?? (await baseCurrency(orgId)),
+        );
+        if ((await rateOn(orgId, documentCurrency, new Date())) === null) {
+          return c.json(
+            {
+              error: `no exchange rate recorded for ${documentCurrency} — set one under Accounting first`,
+            },
+            400,
+          );
+        }
+
         // The same path an invoice takes. A quote is the same document before
         // it is owed, and two sets of arithmetic is two answers.
         const pricesIncludeTax = await quotesGross(orgId);
@@ -1220,7 +1247,7 @@ export default defineModule({
             .values({
               organizationId: orgId,
               contactId,
-              currency,
+              currency: documentCurrency,
               number: await nextDocumentNumber(tx, orgId, "quote"),
               validUntil: validUntil ? new Date(validUntil) : null,
               pricesIncludeTax,

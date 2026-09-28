@@ -4,6 +4,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { and, asc, db, eq, schema } from "@sentrello/db";
+import { baseCurrency } from "@sentrello/db/currency";
 import type { ModuleContext } from "@sentrello/module-sdk";
 
 /**
@@ -609,7 +610,32 @@ export function registerBillingRules(ctx: ModuleContext) {
         .where(eq(schema.reminderRules.organizationId, orgId))
         .orderBy(asc(schema.reminderRules.daysOffset));
 
+      /*
+       * What this business can raise a document in.
+       *
+       * Its own currency, plus every one it has recorded a rate for — which
+       * is the same test `/api/invoices` applies on the way in, so the form
+       * cannot offer a currency the route will then refuse.
+       *
+       * Sent from here rather than from Accounting's own currency route,
+       * because that route is Pro and this form is not: an invoice in a
+       * customer's currency is free-tier work, and only *recording* the rate
+       * is paid. A business with no rates gets a list of one and the form
+       * shows no picker at all.
+       */
+      const base = await baseCurrency(orgId);
+      const priced = await db
+        .selectDistinct({ code: schema.exchangeRates.code })
+        .from(schema.exchangeRates)
+        .where(eq(schema.exchangeRates.organizationId, orgId))
+        .orderBy(asc(schema.exchangeRates.code));
+
       return c.json({
+        baseCurrency: base,
+        currencies: [
+          base,
+          ...priced.map((r) => r.code).filter((code) => code !== base),
+        ],
         settings: row ?? {
           defaultDueDays: 30,
           defaultPaymentTerms: null,

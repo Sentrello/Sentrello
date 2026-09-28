@@ -103,6 +103,26 @@ const invoice = {
 };
 
 let asked: string[] = [];
+/** What the last save sent, so a test can read the body rather than infer it. */
+let sent: Record<string, unknown> | null = null;
+/**
+ * What the settings route says about currency.
+ *
+ * Null is an instance that has never recorded a rate, which is nearly all of
+ * them — and the answer the two tax tests above run against, so the picker
+ * has to be absent for them to keep passing.
+ */
+let money: { baseCurrency: string; currencies: string[] } | null = null;
+/** What the business sells, which is also the only way to fill a line in. */
+let catalogue: {
+  id: string;
+  name: string;
+  description: string;
+  unitPriceCents: number;
+  unit: string;
+  taxDefinitionId: string | null;
+  active: boolean;
+}[] = [];
 
 function serve(url: string): unknown {
   asked.push(url);
@@ -145,13 +165,18 @@ function serve(url: string): unknown {
     case "/api/invoicing/taxes":
       return { taxes, categories: [] };
     case "/api/invoicing/items":
-      return { items: [] };
+      return { items: catalogue };
     case "/api/invoicing/templates":
       return { templates: [] };
     case "/api/invoicing/exemptions":
       return { certificates: [] };
     case "/api/invoicing/settings":
-      return { settings: { paymentTermOptions: [], units: ["piece"] } };
+      return {
+        ...(money ?? {}),
+        settings: { paymentTermOptions: [], units: ["piece"] },
+      };
+    case "/api/invoices":
+      return { invoice: { id: "inv-new", number: "INV-002" } };
     default:
       throw new Error(`the form asked for ${url}, which nothing here serves`);
   }
@@ -170,10 +195,15 @@ function serve(url: string): unknown {
  */
 const realFetch = globalThis.fetch;
 beforeEach(() => {
-  globalThis.fetch = (async (input: RequestInfo | URL) =>
-    new Response(JSON.stringify(serve(String(input))), {
+  money = null;
+  sent = null;
+  catalogue = [];
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (init?.body) sent = JSON.parse(String(init.body));
+    return new Response(JSON.stringify(serve(String(input))), {
       headers: { "content-type": "application/json" },
-    })) as typeof fetch;
+    });
+  }) as typeof fetch;
 });
 afterEach(() => {
   globalThis.fetch = realFetch;
@@ -273,4 +303,135 @@ test("the tax that lands on the invoice is that state's, in cents", async () => 
   expect(host.textContent).toContain("$106.25");
   expect(host.textContent).not.toContain("$7.25");
   expect(asked.some((url) => url.startsWith("/api/companies"))).toBe(false);
+});
+
+function choose(el: HTMLSelectElement, value: string) {
+  act(() => {
+    el.value = value;
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+}
+
+/** The currency picker, or nothing when the form drew none. */
+function currencyPicker(host: HTMLElement): HTMLSelectElement | undefined {
+  return [...host.querySelectorAll("select")].find((s) =>
+    [...s.options].some((o) => o.value === "EUR"),
+  );
+}
+
+/**
+ * An invoice in the customer's money, raised from the form that raises one.
+ *
+ * All of the machinery shipped and none of it could be reached. A rate is
+ * stored per document, converted into the ledger at that rate, carried
+ * through settlement gain and loss and period-end revaluation, and Pro has a
+ * screen to record a rate on. The form hard-coded `"USD"`, then omitted the
+ * field entirely — so the only currency a business could invoice in was its
+ * own, while multi-currency sat on the price list the whole time. Found
+ * 2026-09-28.
+ *
+ * Driven through the catalogue rather than by typing: React's `onChange`
+ * never fires for a text input under happy-dom, so a test that types into
+ * one and then asserts on the result is asserting on an empty form. Every
+ * control touched below is a `select`, which does work.
+ */
+test("a business with no rates recorded is never asked which currency", async () => {
+  const host = mount(<InvoiceForm onDone={() => {}} />);
+  await settle();
+
+  // One answer is not a question. `money` is null here, which is the shape of
+  // an instance that has never opened the currency screen — nearly all of
+  // them, and none of them should meet this field.
+  expect(currencyPicker(host)).toBeUndefined();
+  expect(host.textContent).not.toContain("Currency");
+});
+
+test("an invoice can be raised in a currency the business has priced", async () => {
+  money = { baseCurrency: "GBP", currencies: ["GBP", "EUR"] };
+  catalogue = [
+    {
+      id: "item-1",
+      name: "Roof survey",
+      description: "Roof survey",
+      unitPriceCents: 10_000,
+      unit: "piece",
+      taxDefinitionId: null,
+      active: true,
+    },
+  ];
+  const host = mount(<InvoiceForm onDone={() => {}} />);
+  await settle();
+
+  const picker = currencyPicker(host);
+  if (!picker) throw new Error("the form offered no currency to choose from");
+
+  // The business's own is what it starts on, and the one below it is the one
+  // a rate was recorded for. Nothing else: a currency with no rate is a
+  // document the route refuses, so offering it would be offering a dead end.
+  expect(picker.value).toBe("GBP");
+  expect([...picker.options].map((o) => o.value)).toEqual(["GBP", "EUR"]);
+
+  choose(
+    labelled<HTMLSelectElement>(host, "Line 1 from the catalogue"),
+    "item-1",
+  );
+  await settle();
+  expect(host.textContent).toContain("£100.00");
+
+  choose(picker, "EUR");
+  await settle();
+
+  // The totals are what the customer will be asked for, so they are in the
+  // customer's money. A euro invoice showing a pound sign is a figure nobody
+  // can act on, and it is the figure this screen is for.
+  expect(host.textContent).toContain("€100.00");
+  expect(host.textContent).not.toContain("£100.00");
+
+  const raise = [...host.querySelectorAll("button")].find(
+    (b) => b.textContent === "Raise it",
+  );
+  if (!raise) throw new Error("the form offered no way to raise the invoice");
+  click(raise);
+  await settle();
+
+  expect(sent?.currency).toBe("EUR");
+});
+
+test("the currency the business keeps its books in is not sent", async () => {
+  money = { baseCurrency: "GBP", currencies: ["GBP", "EUR"] };
+  catalogue = [
+    {
+      id: "item-1",
+      name: "Roof survey",
+      description: "Roof survey",
+      unitPriceCents: 10_000,
+      unit: "piece",
+      taxDefinitionId: null,
+      active: true,
+    },
+  ];
+  const host = mount(<InvoiceForm onDone={() => {}} />);
+  await settle();
+
+  choose(
+    labelled<HTMLSelectElement>(host, "Line 1 from the catalogue"),
+    "item-1",
+  );
+  await settle();
+
+  const raise = [...host.querySelectorAll("button")].find(
+    (b) => b.textContent === "Raise it",
+  );
+  if (!raise) throw new Error("the form offered no way to raise the invoice");
+  click(raise);
+  await settle();
+
+  /*
+   * Omitted rather than stated, so there is one answer to "what currency is
+   * this" and it stays on the server. A form that names the base currency on
+   * every document keeps sending last week's answer after a business changes
+   * it.
+   */
+  expect(sent).not.toBeNull();
+  expect("currency" in (sent ?? {})).toBe(false);
 });
