@@ -10,6 +10,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useId, useState } from "react";
 import { api, may } from "./api";
+import { managerName, useCrmManagers } from "./crm-settings";
 import { Icon } from "./icons";
 import {
   Button,
@@ -34,6 +35,9 @@ export interface Task {
   contactId?: string | null;
   companyId?: string | null;
   dealId?: string | null;
+  /** The member it belongs to. A column since the beginning, offered by no
+   *  screen until 2026-09-28, so every task in the product was nobody's. */
+  assigneeId?: string | null;
 }
 
 /** What the reference offers, and what a CRM task actually is. */
@@ -300,6 +304,18 @@ export function TaskDialog({
   const [description, setDescription] = useState(task?.description ?? "");
   const [contactId, setContactId] = useState(task?.contactId ?? "");
   const [type, setType] = useState(task?.type ?? "");
+  /*
+   * Who it is for.
+   *
+   * `assigneeId` is a column, the API accepts it, and the server checks
+   * the person is a member of this business before it writes one —
+   * carefully, refusing rather than quietly emptying, because nobody
+   * means "give it to somebody we do not employ". And no screen has ever
+   * offered it, so every task in the product belongs to nobody. Found
+   * 2026-09-27.
+   */
+  const [assigneeId, setAssigneeId] = useState(task?.assigneeId ?? "");
+  const managers = useCrmManagers();
   const [dueAt, setDueAt] = useState(
     task?.dueAt
       ? task.dueAt.slice(0, 10)
@@ -315,6 +331,9 @@ export function TaskDialog({
         title: title.trim(),
         description: description.trim() || null,
         type: type || null,
+        // Empty means nobody, which the route allows: unassigning is a
+        // real thing to do, and is not the same as leaving it alone.
+        assigneeId: assigneeId || null,
         // Midday, for the same reason a backdated invoice is stamped at
         // midday: a bare date read as midnight puts somebody west of UTC on
         // the day before the one they picked.
@@ -364,6 +383,20 @@ export function TaskDialog({
               color: "var(--text)",
             }}
           />
+        </Field>
+
+        <Field label="Assigned to">
+          <Select
+            value={assigneeId}
+            onChange={(e) => setAssigneeId(e.target.value)}
+          >
+            <option value="">Nobody yet</option>
+            {managers.map((m) => (
+              <option key={m.userId} value={m.userId}>
+                {managerName(m)}
+              </option>
+            ))}
+          </Select>
         </Field>
 
         {subjects ? (

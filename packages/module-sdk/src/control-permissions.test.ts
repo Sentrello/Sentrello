@@ -211,3 +211,48 @@ test("a write that fires on blur is a control", () => {
   expect(only?.gated).toBe(false);
   expect(only?.method).toBe("PATCH");
 });
+
+/**
+ * An element inside a prop value is not the tag the control belongs to.
+ *
+ * The search for the opening tag walked back to the nearest line that
+ * opens an element, and a JSX element passed as a prop matches that — so
+ * the window began *below* the `needs` above it and five gated buttons
+ * were reported bare on 2026-09-27. The person who hit it flattened their
+ * props to satisfy the guard, which is the wrong way round: a guard that
+ * invents a gap is one somebody switches off, and it takes the real
+ * findings with it.
+ */
+test("a needs prop above a nested element still counts as gated", () => {
+  const source = [
+    "const ask = useMutation({",
+    '  mutationFn: () => api("/api/seo/ai", { method: "POST" }),',
+    "});",
+    "<ConfirmButton",
+    '  needs={{ seo: ["create"] }}',
+    "  message={",
+    "    <SpendMessage estimate={estimate} />",
+    "  }",
+    "  onConfirm={() => ask.mutate()}",
+    ">Ask</ConfirmButton>",
+  ].join("\n");
+  const found = controlsFiringMutations(source);
+  expect(found).toHaveLength(1);
+  expect(found[0]?.gated).toBe(true);
+});
+
+/** And a genuinely bare control is still reported, nested prop or not. */
+test("a nested element does not hide a control that has no prop", () => {
+  const source = [
+    "const ask = useMutation({",
+    '  mutationFn: () => api("/api/seo/ai", { method: "POST" }),',
+    "});",
+    "<ConfirmButton",
+    "  message={",
+    "    <SpendMessage estimate={estimate} />",
+    "  }",
+    "  onConfirm={() => ask.mutate()}",
+    ">Ask</ConfirmButton>",
+  ].join("\n");
+  expect(controlsFiringMutations(source)[0]?.gated).toBe(false);
+});

@@ -270,9 +270,45 @@ export function controlsFiringMutations(source: string): Control[] {
      * gap where there is none is worse than no guard: it gets suppressed, and
      * takes the real findings with it.
      */
+    const opensElement = (k: number) => /^\s*<[A-Za-z]/.test(lines[k] ?? "");
+    /*
+     * An element inside a *prop value* is not the tag this control belongs
+     * to, and stopping at one hides the prop above it.
+     *
+     *     <ConfirmButton
+     *       needs={{ seo: ["create"] }}      <- invisible
+     *       message={
+     *         <SpendMessage ... />           <- looked like the tag start
+     *       }
+     *       onConfirm={() => ask.mutate()}
+     *
+     * Five buttons carrying `needs` were reported bare that way on
+     * 2026-09-27, and the person who hit it worked around the guard by
+     * flattening their props — which is the wrong way round. A guard that
+     * reports a gap where there is none gets suppressed, and takes the real
+     * findings with it.
+     *
+     * The tell is the line above: a prop value opens with `={`, so an
+     * element on the next line belongs to the prop and the search carries
+     * on past it.
+     */
+    const isPropValue = (k: number) => {
+      for (let j = k - 1; j >= 0; j -= 1) {
+        const above = (lines[j] ?? "").trim();
+        if (above === "") continue;
+        return above.endsWith("={") || above.endsWith("=");
+      }
+      return false;
+    };
+
     let tagStart = i;
-    while (tagStart > 0 && !/^\s*<[A-Za-z]/.test(lines[tagStart] ?? "")) {
-      tagStart -= 1;
+    while (tagStart > 0) {
+      while (tagStart > 0 && !opensElement(tagStart)) tagStart -= 1;
+      if (tagStart > 0 && isPropValue(tagStart)) {
+        tagStart -= 1;
+        continue;
+      }
+      break;
     }
     /*
      * A few lines past the handler, because a keyboard shortcut asks inside

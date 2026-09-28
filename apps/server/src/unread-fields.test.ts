@@ -1,7 +1,12 @@
 import { expect, test } from "bun:test";
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { sourceFiles, unreadFields } from "@sentrello/module-sdk";
+import { schema } from "@sentrello/db";
+import {
+  fieldsWritten,
+  sourceFiles,
+  unreadFields,
+} from "@sentrello/module-sdk";
 
 /**
  * Every field a free module accepts can be set from a screen.
@@ -73,3 +78,77 @@ for (const name of readdirSync(modules, { withFileTypes: true })
     ).toEqual(KNOWN_GAPS[name] ?? []);
   });
 }
+
+/**
+ * And the tables the CRM's generic resource factory serves, which the sweep
+ * above cannot see at all.
+ *
+ * `fieldsRead` finds what a route accepts by looking for `body.x`. The
+ * factory in `crm/src/index.ts` does neither: it destructures the body,
+ * spreads the rest into the update, and never names a field. So contacts,
+ * companies, deals, tasks and notes — seven tables and most of the CRM —
+ * are invisible to a guard whose whole job is noticing an unreachable
+ * field, and it passes on them by seeing nothing.
+ *
+ * That is not theoretical. `tasks.assigneeId` had a column, an API that
+ * accepted it, and a server check refusing anybody who is not a member of
+ * the business — and no screen offered it, so every task in the product
+ * belonged to nobody. It was found by reading, on 2026-09-27, and this
+ * would have found it on the day it was written.
+ *
+ * Where the body is opaque the accepted fields are the table's own
+ * columns, so that is what this compares. Each excused name says who sets
+ * it, and "find the caller before adding a line here" applies twice over:
+ * a wrong excuse here hides a whole column.
+ */
+const FACTORY_TABLES = {
+  contacts: schema.contacts,
+  companies: schema.companies,
+  deals: schema.deals,
+  tasks: schema.tasks,
+  notes: schema.notes,
+} as unknown as Record<string, Record<string, unknown>>;
+
+const SET_BY_THE_SERVER: Record<string, string> = {
+  id: "the database",
+  organizationId: "the session, never the body",
+  createdAt: "the database",
+  updatedAt: "the route, on every write",
+  deletedAt: "the soft-delete route",
+  portalToken: "minted by its own endpoint, and stripped from every read",
+  portalUserId: "the portal sign-in",
+  customValues:
+    "the custom-fields editor, which writes a map rather than a field",
+  decidedAt: "the deal's own won/lost action",
+  doneAt: "completing a task",
+  authorId: "the session that wrote the note",
+  sourceSubmissionId: "the public form pipeline",
+  taxIdentifierValid: "the VAT-number check",
+  taxIdentifierCheckedAt: "the VAT-number check",
+  taxIdentifierCheckedName: "the VAT-number check",
+  dealId: "the task composer, through its `subject` prop rather than by name",
+};
+
+test("every column the CRM factory writes can be set from a screen", () => {
+  const written = fieldsWritten(screens);
+  const unreachable: string[] = [];
+
+  for (const [table, columns] of Object.entries(FACTORY_TABLES)) {
+    for (const column of Object.keys(columns)) {
+      // Drizzle hangs helpers off the table object; only real columns have
+      // a `name`, which is what distinguishes them from `enableRLS`.
+      const col = columns[column] as { name?: unknown } | undefined;
+      if (!col || typeof col !== "object" || typeof col.name !== "string") {
+        continue;
+      }
+      if (column in SET_BY_THE_SERVER) continue;
+      if (written.has(column)) continue;
+      unreachable.push(`${table}.${column}`);
+    }
+  }
+
+  expect(
+    unreachable,
+    `these columns can be written through the API and set from no screen:\n    ${unreachable.join("\n    ")}`,
+  ).toEqual([]);
+});
