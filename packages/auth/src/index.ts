@@ -17,20 +17,22 @@ import type { Context } from "hono";
 import { getConnInfo } from "hono/bun";
 import { passwordFloorGuard } from "./password-floor";
 import { ac, roles } from "./permissions";
+import { googleProvider } from "./providers";
 import { signInEventsPlugin, signInLockGuard } from "./sign-in-events";
 import { signUpGuard } from "./signup-policy";
 import { weakPasswordReason } from "./weak-passwords";
 
-// BYO Google OAuth: only enabled if the instance owner configured it.
-const google =
-  process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
-    ? {
-        google: {
-          clientId: process.env.GOOGLE_CLIENT_ID,
-          clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-        },
-      }
-    : undefined;
+/**
+ * BYO Google sign-in, configured on a screen rather than in a file.
+ *
+ * A function rather than an object, which the library resolves once while it
+ * builds itself: `null` means the provider does not exist and is filtered
+ * out, so an instance nobody has configured offers no Google button instead
+ * of a broken one. `providers.ts` reads the database first and the
+ * environment second — the second path is what keeps Google sign-in working
+ * on instances that already had it.
+ */
+const socialProviders = { google: googleProvider };
 
 /**
  * Which header carries the caller's real address.
@@ -267,7 +269,7 @@ export const auth = betterAuth({
       },
     },
   },
-  ...(google ? { socialProviders: google } : {}),
+  socialProviders,
   // Closed by default: first-run owner, invitation, or an explicit opt-in.
   // What is tried at the front door is recorded by `signInEventsPlugin` in
   // the `plugins` array below, not here — it has to run after the

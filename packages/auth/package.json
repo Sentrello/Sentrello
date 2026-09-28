@@ -11,7 +11,8 @@
     "./reset-password": "./src/reset-password.ts",
     "./unlock": "./src/unlock.ts",
     "./signup-policy": "./src/signup-policy.ts",
-    "./password-floor": "./src/password-floor.ts"
+    "./password-floor": "./src/password-floor.ts",
+    "./providers": "./src/providers.ts"
   },
   "dependencies": {
     "@better-auth/sso": "1.6.26",

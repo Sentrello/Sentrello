@@ -163,6 +163,16 @@ export type SecurityAction =
    * behind it, so both ends of its life are worth a line: when one was made,
    * and when somebody took it back.
    */
+  /**
+   * Google sign-in, connected or disconnected.
+   *
+   * It decides who can get in and through whose identity provider, which is
+   * the shape of thing this log exists for — and until the screen existed the
+   * change was made by editing a file on a server, where nothing recorded it
+   * at all.
+   */
+  | "auth.google.connected"
+  | "auth.google.disconnected"
   | "seo.agent-key.issued"
   | "seo.agent-key.revoked"
   /**
@@ -217,6 +227,8 @@ export const ACTION_TEXT: Record<SecurityAction, string> = {
   "links.webhook.deleted": "removed an outbound webhook for link events",
   "seo.account.connected": "connected a search-data account",
   "seo.account.disconnected": "removed the search-data account",
+  "auth.google.connected": "connected Google sign-in",
+  "auth.google.disconnected": "disconnected Google sign-in",
   "seo.agent-key.issued": "issued a key for an AI agent to read search data",
   "seo.agent-key.revoked": "revoked the AI agent\u2019s key for search data",
   "crm.webhook.created": "added an outbound webhook for record changes",

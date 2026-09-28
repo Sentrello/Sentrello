@@ -129,6 +129,23 @@ something compiled into the product.
 
 **Users → Authentication** holds the rules.
 
+### With a Google account
+
+Optional, and off until you switch it on. With it on, people use the Google
+account they already have instead of remembering another password.
+
+Create an OAuth client in the Google Cloud console, paste its client ID and
+secret into **Users → Authentication**, and give Google the redirect URI the
+screen shows you — it refuses anything it was not told about in advance. The
+details are checked against Google before they are stored, so wrong ones are
+refused here rather than at the moment somebody tries to sign in. The secret
+is sealed and never shown again.
+
+**Restart the instance afterwards.** Which sign-in methods exist is decided
+when the server starts, so the button appears at the next `docker compose up
+-d` rather than immediately. Disconnecting works the same way, and nobody
+loses their account: people who signed up through Google keep it.
+
 **Two-factor authentication** can be turned on by anybody from their own
 profile, and required by policy. Per role, that is, rather than for everybody:
 the person who can move money is not the person clocking in on a shared

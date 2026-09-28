@@ -64,6 +64,12 @@ export const NON_STATUTORY_TABLES = [
   "account",
   "activities",
   "archive_runs",
+  /*
+   * Configuration for signing in through somebody else's identity provider.
+   * Losing it means reconnecting Google on a screen; no auditor has ever
+   * asked for the history of an OAuth client id.
+   */
+  "auth_providers",
   "bank_connections",
   "bank_provider_accounts",
   "companies",

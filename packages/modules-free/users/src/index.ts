@@ -9,6 +9,7 @@ import { registerPeople } from "./people";
 import { registerEventRetention } from "./retention";
 import { registerRolePolicy } from "./roles";
 import { registerSessions } from "./sessions";
+import { registerSocialSignIn } from "./social-sign-in";
 import { registerSso } from "./sso";
 
 /**
@@ -124,6 +125,9 @@ export default defineModule({
     // ahead of `registerPeople`, exactly as it had to when it lived in
     // `registerGroups` above, which this call replaces for that route.
     registerAuthentication(ctx);
+    // Google sign-in, which was two environment variables and no screen at
+    // all until build rule 6 was applied to it like every other integration.
+    registerSocialSignIn(ctx);
     // `registerEvents` registers `GET /api/users/events` — two segments,
     // static, and shadowed by `registerPeople`'s `GET /api/users/:userId` if
     // it were registered after it: `events` would never reach here, because

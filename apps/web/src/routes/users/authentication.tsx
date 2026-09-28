@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useId } from "react";
+import { useId, useState } from "react";
 import { api, may } from "../../lib/api";
 import {
+  Button,
   Card,
   ErrorNote,
   Field,
@@ -9,6 +10,7 @@ import {
   Loading,
   Page,
   REFUSED,
+  SecretInput,
   SectionHeading,
   muted,
 } from "../../lib/ui";
@@ -71,8 +73,172 @@ export function Authentication() {
   return (
     <Page width="prose">
       <SignInRules />
+      <GoogleSignIn />
       <Diagnostics />
     </Page>
+  );
+}
+
+/**
+ * Google sign-in, connected from here rather than from a file on the server.
+ *
+ * It was `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` and nothing else, so
+ * an owner who wanted it needed shell access to the machine running their
+ * business. The details are checked against Google before they are stored —
+ * credentials saved and wrong fail later, on the sign-in page, in front of
+ * whoever the owner was trying to let in.
+ */
+function GoogleSignIn() {
+  const qc = useQueryClient();
+  const [clientId, setClientId] = useState("");
+  const [clientSecret, setClientSecret] = useState("");
+  const [restart, setRestart] = useState(false);
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["social-sign-in"],
+    queryFn: () =>
+      api<{
+        google: {
+          clientId: string | null;
+          connected: boolean;
+          fromEnvironment: boolean;
+          enabled: boolean;
+          verifiedAt: string | null;
+        };
+        redirectUri: string;
+        canStoreSecrets: boolean;
+      }>("/api/users/social-sign-in"),
+  });
+
+  const connect = useMutation({
+    mutationFn: () =>
+      api("/api/users/social-sign-in/google", {
+        method: "PUT",
+        body: JSON.stringify({ clientId, clientSecret }),
+      }),
+    onSuccess: () => {
+      setClientSecret("");
+      setRestart(true);
+      qc.invalidateQueries({ queryKey: ["social-sign-in"] });
+    },
+  });
+
+  const disconnect = useMutation({
+    mutationFn: () =>
+      api("/api/users/social-sign-in/google", { method: "DELETE" }),
+    onSuccess: () => {
+      setRestart(true);
+      qc.invalidateQueries({ queryKey: ["social-sign-in"] });
+    },
+  });
+
+  if (isLoading) return <Loading />;
+  if (error) return <ErrorNote error={error} />;
+  if (!data) return null;
+  const google = data.google;
+
+  return (
+    <Card className="flex flex-col gap-(--gap-toolbar)">
+      <SectionHeading>Signing in with Google</SectionHeading>
+      <p className="text-sm" style={muted}>
+        Optional. With it on, people can use the Google account they already
+        have instead of another password. Create an OAuth client in the Google
+        Cloud console, paste its two values here, and give it the address below
+        as an authorised redirect URI — Google refuses anything it was not told
+        about in advance.
+      </p>
+
+      <Field label="Authorised redirect URI">
+        <Input readOnly value={data.redirectUri} />
+      </Field>
+
+      {google.fromEnvironment ? (
+        <p className="text-sm" style={muted}>
+          Connected through <code>GOOGLE_CLIENT_ID</code> and{" "}
+          <code>GOOGLE_CLIENT_SECRET</code> on this server, which is why the
+          boxes below are empty. Saving details here replaces them.
+        </p>
+      ) : google.connected ? (
+        <p className="text-sm" style={muted}>
+          Connected as <code>{google.clientId}</code>
+          {google.verifiedAt
+            ? `, checked against Google on ${new Date(google.verifiedAt).toISOString().slice(0, 10)}`
+            : ""}
+          .
+        </p>
+      ) : null}
+
+      {!data.canStoreSecrets ? (
+        <p className="text-sm" style={warning}>
+          This instance has no secret key, so it cannot store a credential. Set{" "}
+          <code>SENTRELLO_SECRET_KEY</code> and restart before connecting
+          anything here.
+        </p>
+      ) : null}
+
+      <Field label="Client ID">
+        <Input
+          value={clientId}
+          placeholder={google.clientId ?? "…apps.googleusercontent.com"}
+          onChange={(e) => setClientId(e.target.value)}
+        />
+      </Field>
+      <Field
+        label="Client secret"
+        hint="Stored sealed, and never shown again after you save it."
+      >
+        {/*
+          `SecretInput`, not a bare password box. A browser that sees
+          `type="password"` concludes it has found a credential worth keeping,
+          saves it, and autofills it into the next password box it meets —
+          which is the sign-in screen, and which locked an owner out of his
+          own business the first time it happened.
+        */}
+        <SecretInput
+          value={clientSecret}
+          placeholder="GOCSPX-…"
+          onChange={(e) => setClientSecret(e.target.value)}
+        />
+      </Field>
+
+      <div className="flex gap-(--gap-toolbar)">
+        <Button
+          disabled={
+            connect.isPending ||
+            !clientId.trim() ||
+            !clientSecret.trim() ||
+            !may("settings", "update")
+          }
+          onClick={() => connect.mutate()}
+        >
+          {connect.isPending ? "Checking with Google…" : "Check and connect"}
+        </Button>
+        {google.connected && !google.fromEnvironment ? (
+          <Button
+            variant="secondary"
+            disabled={disconnect.isPending || !may("settings", "update")}
+            onClick={() => disconnect.mutate()}
+          >
+            Disconnect
+          </Button>
+        ) : null}
+      </div>
+
+      {connect.error ? <ErrorNote error={connect.error} /> : null}
+      {disconnect.error ? <ErrorNote error={disconnect.error} /> : null}
+
+      {/*
+        The one surprising thing here, said plainly. Which providers exist is
+        decided when the server starts, so a change made now is a change the
+        sign-in page shows after a restart.
+      */}
+      {restart ? (
+        <p className="text-sm" style={warning}>
+          Saved. Restart the instance for the sign-in page to catch up —{" "}
+          <code>docker compose up -d</code> on the host.
+        </p>
+      ) : null}
+    </Card>
   );
 }
 

@@ -3627,6 +3627,46 @@ export const userGroupMembers = pgTable(
  * must have a second factor, how long a session lasts, and how short a
  * password may be.
  */
+/**
+ * Credentials for signing in with somebody else's identity provider.
+ *
+ * **Instance configuration, not business data**, which is why this is the one
+ * table here with no `organizationId`. There is one authentication instance
+ * per server and it is built before any request arrives, so there is no
+ * business to scope it to — and picking one by age, the way an ambiguous
+ * lookup would have to, is exactly the bug that has bitten this project
+ * before.
+ *
+ * It exists because build rule 6 is not negotiable: a third-party integration
+ * is set up in a screen, tested, and stored — never by editing a file on a
+ * server. Google sign-in was configured by two environment variables and
+ * nothing else, so an owner who wanted it had to have shell access to the
+ * machine, and the published page promising that anything configurable has a
+ * screen was wrong about it.
+ *
+ * The secret is sealed with the same key every other stored credential uses.
+ * The client id is not: it is public by design — it travels in the address
+ * bar of every sign-in — and storing it readable means the screen can show
+ * which account is connected without opening anything.
+ *
+ * Changing these takes effect when the instance restarts. The provider list
+ * is resolved once, when authentication is built, and rebuilding it under a
+ * live process would mean tearing down sessions in flight to save a
+ * `docker compose up -d`.
+ */
+export const authProviders = pgTable("auth_providers", {
+  /** `google` today. One row per provider this instance can offer. */
+  provider: text("provider").primaryKey(),
+  clientId: text("client_id").notNull(),
+  clientSecret: text("client_secret").notNull(),
+  /** Whether it is offered on the sign-in page at all. */
+  enabled: boolean("enabled").notNull().default(true),
+  /** When the details were last proved to work against the provider. */
+  verifiedAt: timestamp("verified_at"),
+  updatedBy: text("updated_by"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const securityPolicy = pgTable("security_policy", {
   organizationId: text("organization_id")
     .primaryKey()
