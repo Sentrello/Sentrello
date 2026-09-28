@@ -1,4 +1,5 @@
 import { db, schema } from "@sentrello/db";
+import { baseCurrency } from "@sentrello/db/currency";
 import { invoiceState } from "@sentrello/db/money";
 import { ensurePortalToken } from "@sentrello/db/portal";
 import type { ModuleContext, SummaryFigure } from "@sentrello/module-sdk";
@@ -83,7 +84,14 @@ export async function customerBalance(
     .from(schema.invoices)
     .where(invoiceScope(organizationId, contactId));
 
-  const currency = invoices[0]?.currency ?? "USD";
+  /*
+   * The business's own money when there is nothing to read one off.
+   *
+   * `?? "USD"` showed a customer with no invoices a dollar-signed zero on
+   * an instance that has never invoiced in dollars.
+   */
+  const currency =
+    invoices[0]?.currency ?? (await baseCurrency(organizationId));
   if (invoices.length === 0) {
     return {
       owedCents: 0,

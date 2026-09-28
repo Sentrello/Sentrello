@@ -261,6 +261,15 @@ export function portalPage(args: {
    * built from a token that never existed.
    */
   accountPath?: string;
+  /**
+   * What the business keeps its books in, for a customer who owes nothing.
+   *
+   * There is no invoice to read a currency off when the list is empty, and
+   * the fallback was the dollar — so the customer-facing page of a business
+   * that has never invoiced in dollars opened on "$0.00", which is the first
+   * thing a new customer sees and the only figure on the page.
+   */
+  baseCurrency?: string;
   /** This page's own address and the reader's colours, for the switch. */
   path?: string;
   theme?: CustomerTheme;
@@ -277,6 +286,7 @@ export function portalPage(args: {
     payPath,
     credit = SENTRELLO_CREDIT,
     accountPath,
+    baseCurrency,
     path,
     theme,
     now = new Date(),
@@ -289,7 +299,7 @@ export function portalPage(args: {
     (sum, i) => sum + (states.get(i.id)?.balanceDue ?? 0),
     0,
   );
-  const currency = invoices[0]?.currency ?? "USD";
+  const currency = invoices[0]?.currency ?? baseCurrency ?? "USD";
 
   const rows =
     invoices.length === 0

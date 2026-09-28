@@ -2104,6 +2104,8 @@ export default defineModule({
             paymentInstructions: org?.paymentInstructions,
           },
           customerName: contact.name,
+          // What they owe nothing in, when they owe nothing.
+          baseCurrency: org?.baseCurrency,
           // The seller's own way of writing a number, from the country on
           // their settings screen — the same as the document this links to.
           locale: moneyLocale(org?.countryCode),

@@ -183,6 +183,12 @@ export const plaid: BankProvider = {
       name: account.name,
       last4: account.mask,
       kind: account.subtype ?? "other",
+      /*
+       * dollar-default: the provider states the currency and this adapter
+       * has no organization in hand to ask. The field is null only for a
+       * currency the provider does not officially support, which is not a
+       * currency a business in our four markets banks in.
+       */
       currency: account.balances.iso_currency_code ?? "USD",
       balanceCents:
         account.balances.current === null
@@ -228,6 +234,8 @@ export const plaid: BankProvider = {
          * worth having.
          */
         amountCents: -cents(t.amount),
+        // dollar-default: as above — the provider's own field, and no
+        // organization in scope to fall back to.
         currency: t.iso_currency_code ?? "USD",
         description: t.merchant_name ?? t.name,
         postedAt: new Date(`${t.date}T00:00:00Z`),

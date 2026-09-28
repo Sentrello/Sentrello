@@ -4,7 +4,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { and, db, eq, inArray, schema } from "@sentrello/db";
-import { rateOn } from "@sentrello/db/currency";
+import { baseCurrency, rateOn } from "@sentrello/db/currency";
 import { defaultDueDate } from "@sentrello/db/documents";
 import { ownedContact } from "@sentrello/db/ledger";
 import { MoneyError } from "@sentrello/db/money";
@@ -213,7 +213,7 @@ export function registerConsolidate(ctx: ModuleContext) {
        * than guessed where the business has never priced the currency — the
        * refusal the create route, the copy and the purchase side all make.
        */
-      const currency = sources[0]?.currency ?? "USD";
+      const currency = sources[0]?.currency ?? (await baseCurrency(orgId));
       const rateMicro = await rateOn(orgId, currency, new Date());
       if (rateMicro === null) {
         return c.json(

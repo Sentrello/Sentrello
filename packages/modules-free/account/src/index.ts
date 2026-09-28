@@ -65,11 +65,22 @@ const esc = (s: string) =>
  * which is the American way of writing a European figure, on a page summing
  * up what they have with a German business.
  */
-function figureText(f: SummaryFigure, locale: string): string {
+/*
+ * `fallback` is the business's own currency, and it matters because a module
+ * may hand over a money figure without one — a count of nothing owed has no
+ * invoice to read a currency off. The dollar used to stand in, which put a
+ * dollar sign on the account page of a business that has never invoiced in
+ * dollars. Found 2026-09-28.
+ */
+function figureText(
+  f: SummaryFigure,
+  locale: string,
+  fallback: string,
+): string {
   if (f.kind === "money" && typeof f.value === "number") {
     return new Intl.NumberFormat(locale, {
       style: "currency",
-      currency: f.currency ?? "USD",
+      currency: f.currency ?? fallback,
     }).format(f.value / 100);
   }
   return String(f.value);
@@ -268,6 +279,8 @@ function accountPage(args: {
   single?: boolean;
   /** How the business writes money — `moneyLocale(countryCode)`. */
   locale?: string;
+  /** What this business keeps its books in, for a figure that names none. */
+  baseCurrency?: string;
 }): string {
   const {
     businessName,
@@ -278,6 +291,7 @@ function accountPage(args: {
     printing,
     single,
     locale = "en-US",
+    baseCurrency = "USD",
   } = args;
 
   const body =
@@ -292,7 +306,7 @@ function accountPage(args: {
       (f) =>
         `<div class="figure"><div class="label">${esc(f.label)}</div><div class="value${
           f.tone === "bad" ? " bad" : ""
-        }">${esc(figureText(f, locale))}</div></div>`,
+        }">${esc(figureText(f, locale, baseCurrency))}</div></div>`,
     )
     .join("")}</div>
   ${
@@ -404,6 +418,7 @@ export default defineModule({
           .select({
             name: schema.organizations.name,
             countryCode: schema.organizations.countryCode,
+            baseCurrency: schema.organizations.baseCurrency,
           })
           .from(schema.organizations)
           .where(eq(schema.organizations.id, contact.organizationId))
@@ -447,6 +462,7 @@ export default defineModule({
           printing,
           single: Boolean(only),
           locale: moneyLocale(org?.countryCode),
+          baseCurrency: org?.baseCurrency,
         }),
       );
     };

@@ -136,6 +136,8 @@ export const teller: BankProvider = {
           name: account.name,
           last4: account.last_four ?? null,
           kind: account.subtype ?? account.type ?? "other",
+          // dollar-default: this provider serves United States banks only,
+          // so a missing currency is a dollar one.
           currency: account.currency ?? "USD",
           balanceCents,
         };
@@ -180,6 +182,8 @@ export const teller: BankProvider = {
           accountReference: account.id,
           // Already signed the way this product reads: negative is money out.
           amountCents: Math.round(Number.parseFloat(row.amount) * 100),
+          // dollar-default: this provider serves United States banks only,
+          // so a missing currency is a dollar one.
           currency: account.currency ?? "USD",
           description: row.description,
           postedAt: new Date(`${row.date}T00:00:00Z`),

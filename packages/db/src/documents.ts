@@ -10,7 +10,7 @@ import {
 } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { type DbTx, db } from "./client";
-import { rateOn } from "./currency";
+import { baseCurrency, rateOn } from "./currency";
 import { postInvoiceIssued } from "./ledger";
 import { MoneyError, bpToPpm, documentTotals, sumCents } from "./money";
 import { nextDocumentNumber } from "./numbering";
@@ -438,7 +438,21 @@ export async function raiseInvoice(
 ): Promise<typeof schema.invoices.$inferSelect | null> {
   if (input.lines.length === 0) return null;
 
-  const currency = input.currency ?? "USD";
+  /*
+   * The business's own money when the caller does not say.
+   *
+   * This read `?? "USD"`, and a caller that leaves the field off is the
+   * normal case — a booking turning into an invoice says what was booked and
+   * nothing about currency. On a GBP or EUR instance that fallback asked for
+   * a dollar rate, no such rate is ever recorded on a business that does not
+   * trade in dollars, and the refusal below fired: **booking could not raise
+   * an invoice at all on three of our four markets.** Silent, too, until
+   * somebody looked for the invoice that never appeared.
+   *
+   * Found 2026-09-28, in the same sweep as the invoice form, quotes and
+   * subscriptions. Same fallback, four places, one shape of consequence.
+   */
+  const currency = input.currency ?? (await baseCurrency(organizationId));
   /**
    * Refused rather than guessed.
    *
