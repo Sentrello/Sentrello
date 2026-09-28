@@ -148,6 +148,25 @@ millionths so it survives the arithmetic unrounded to the final cent. UK and EU
 VAT is adjusted in the period the change is made — output VAT on an upgrade's
 extra consideration, and a reversal on the days a downgrade never supplied.
 
+:::caution[Two Canadian taxes, one rate]
+A subscription carries **one** tax rate. So a business in British Columbia or
+Quebec enters the combined figure — 12% for BC, 14.975% for Quebec — and the
+money is right to the cent: that is what the customer is charged and what
+reaches the books.
+
+What the platform cannot yet do is tell those two taxes apart afterwards. GST
+and the provincial tax go to different authorities and want different returns,
+and a subscription's tax is one number. The split is arithmetic a bookkeeper
+can do — both are percentages of the same consideration, so BC's 12% is five
+twelfths GST and seven twelfths PST — but it is not a figure this produces for
+you.
+
+Invoicing itself has no such limit: raise the invoice there and a line can
+carry GST and PST as two named taxes, each banded and reported separately.
+Splitting them inside a subscription is on the roadmap. The Shop has the same
+single rate for the same reason.
+:::
+
 ## Chasing a failed card
 
 A subscription business loses more money to failed cards than to cancellations,

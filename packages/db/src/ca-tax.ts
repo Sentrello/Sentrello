@@ -1,7 +1,7 @@
 import { and, eq, gte, inArray, like, lte, or } from "drizzle-orm";
 import { db } from "./client";
 import { RATE_SCALE, toBaseCents } from "./currency";
-import { type LedgerRow, ledgerRows } from "./ledger";
+import { type LedgerRow, ledgerRows, unbandedSalesTaxCents } from "./ledger";
 import * as schema from "./schema";
 
 /**
@@ -251,6 +251,20 @@ export interface CaReturns {
   gstHst: GstHstReturn | null;
   qst: QstReturn | null;
   pst: PstReturn[];
+  /**
+   * Sales tax collected in the period that belongs to no authority here.
+   *
+   * Every figure above is read from a definition's own account, because
+   * Canada is three returns and a cent has to know which one it is on. The
+   * Shop has no tax definitions — one blended rate per place — so its tax
+   * posts to the shared account and none of these returns can see it.
+   *
+   * Stated rather than distributed: the platform genuinely cannot say
+   * whether a blended 12% is five points federal and seven provincial or
+   * something else, and splitting it on a guess would put a wrong number on
+   * a signed return. Found 2026-09-28.
+   */
+  unbandedCents: number;
 }
 
 export interface CaDocumentFigures {
@@ -385,7 +399,13 @@ export function caReturns(
     })
     .sort((a, b) => a.jurisdiction.localeCompare(b.jurisdiction));
 
-  return { currency, gstHst, qst, pst };
+  return {
+    currency,
+    gstHst,
+    qst,
+    pst,
+    unbandedCents: unbandedSalesTaxCents(rows),
+  };
 }
 
 /**
@@ -417,7 +437,13 @@ export async function caReturnsFor(
       ),
     );
   if (definitionRows.length === 0) {
-    return { currency: "CAD", gstHst: null, qst: null, pst: [] };
+    return {
+      currency: "CAD",
+      gstHst: null,
+      qst: null,
+      pst: [],
+      unbandedCents: 0,
+    };
   }
 
   const [org] = await db

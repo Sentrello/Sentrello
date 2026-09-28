@@ -492,3 +492,83 @@ test("a period bounds the return: last year's sale is not on this quarter's form
   expect(out.gstHst?.line105CollectedCents).toBe(0);
   expect(out.gstHst?.line101SalesCents).toBe(0);
 });
+
+/**
+ * Tax the returns cannot place, named rather than dropped.
+ *
+ * Every figure on a Canadian return is read from a tax definition's own
+ * account — `2200-<definition>` — because Canada is three returns and a cent
+ * has to know which one it belongs on. The Shop has no tax definitions: one
+ * blended rate per place, so `postSale` credits the shared `2200` and none of
+ * the returns can see it.
+ *
+ * A British Columbian or Quebec business selling through the Shop therefore
+ * filed short, with nothing saying so. An understated return is worse than a
+ * refused one, because it gets filed. Found 2026-09-28.
+ *
+ * The figure is stated and deliberately not distributed: the platform cannot
+ * know whether a blended 12% is five points federal and seven provincial, and
+ * splitting it on a guess would put a wrong number on a signed declaration.
+ */
+test("tax collected against no named tax is reported as unplaced", async () => {
+  const before = await caReturnsFor(orgId);
+
+  /*
+   * A shop-shaped sale: income and the shared tax account, no document and no
+   * definition. Exactly what `postSale` writes.
+   */
+  const [income] = await db
+    .select({ id: schema.accounts.id })
+    .from(schema.accounts)
+    .where(
+      and(
+        eq(schema.accounts.organizationId, orgId),
+        eq(schema.accounts.code, "4000"),
+      ),
+    )
+    .limit(1);
+  const [shared] = await db
+    .select({ id: schema.accounts.id })
+    .from(schema.accounts)
+    .where(
+      and(
+        eq(schema.accounts.organizationId, orgId),
+        eq(schema.accounts.code, "2200"),
+      ),
+    )
+    .limit(1);
+  const [cash] = await db
+    .select({ id: schema.accounts.id })
+    .from(schema.accounts)
+    .where(
+      and(
+        eq(schema.accounts.organizationId, orgId),
+        eq(schema.accounts.code, "1000"),
+      ),
+    )
+    .limit(1);
+  if (!income || !shared || !cash) throw new Error("no starter chart");
+
+  // $100 of goods and $12 of British Columbia's blended rate.
+  await postJournalEntry(orgId, "Shop order", `shop-order:${suffix}`, [
+    { accountId: cash.id, debitCents: 11_200 },
+    { accountId: income.id, creditCents: 10_000 },
+    { accountId: shared.id, creditCents: 1_200 },
+  ]);
+
+  const after = await caReturnsFor(orgId);
+
+  // Named, to the cent.
+  expect(after.unbandedCents - before.unbandedCents).toBe(1_200);
+
+  /*
+   * And in none of the returns, which is the whole point: it is reported as
+   * missing rather than folded into a figure somebody signs.
+   */
+  expect(after.gstHst?.line105CollectedCents).toBe(
+    before.gstHst?.line105CollectedCents,
+  );
+  expect(after.qst?.line205CollectedCents).toBe(
+    before.qst?.line205CollectedCents,
+  );
+});

@@ -11,6 +11,7 @@ import {
   Row,
   SectionHeading,
   Table,
+  Warning,
   formatMoney,
   muted,
 } from "../lib/ui";
@@ -52,6 +53,8 @@ interface CaReturnsPayload {
     line209NetTaxCents: number;
     taxes: ReturnLine[];
   } | null;
+  /** Collected tax that belongs to no named Canadian tax — the Shop's. */
+  unbandedCents: number;
   pst: {
     jurisdiction: string;
     salesCents: number;
@@ -259,6 +262,28 @@ export function CanadianTax() {
           <Reconciliation taxes={p.taxes} />
         </Card>
       ))}
+
+      {/*
+        Tax these returns cannot place, said before the notes rather than in
+        them. Canada is three returns and a cent has to know which it is on;
+        the Shop's blended rate names none, so it posts to the shared account
+        and appears in no figure above.
+      */}
+      {data && data.unbandedCents !== 0 ? (
+        <Warning>
+          <p>
+            <strong>{formatMoney(data.unbandedCents)}</strong> of sales tax was
+            collected in this period against no named tax. It is in none of the
+            figures above.
+          </p>
+          <p className="mt-2">
+            Shop orders carry one combined rate rather than a named GST, PST or
+            QST, so nothing here can say which return it belongs on. Work the
+            split out from your shop's own rates and add it by hand before you
+            file.
+          </p>
+        </Warning>
+      ) : null}
 
       {data && !nothing ? (
         <Card>

@@ -16,7 +16,11 @@ import {
   schema,
 } from "@sentrello/db";
 import { RATE_SCALE, toBaseCents } from "@sentrello/db/currency";
-import { periodFrom } from "@sentrello/db/ledger";
+import {
+  ledgerRows,
+  periodFrom,
+  unbandedSalesTaxCents,
+} from "@sentrello/db/ledger";
 import type { ModuleContext } from "@sentrello/module-sdk";
 
 /**
@@ -65,6 +69,15 @@ export interface UsFilingReport {
   jurisdictions: JurisdictionFigures[];
   /** Sales excused by certificate — the "exempt sales" line on the return. */
   exempt: ExemptFigures[];
+  /**
+   * Sales tax collected in the period that names no jurisdiction.
+   *
+   * The Shop's, in practice: one blended rate per place and no tax
+   * definition, so it posts to the shared account and none of the figures
+   * above can see it. Stated so a business adds it by hand rather than
+   * filing short.
+   */
+  unbandedCents: number;
 }
 
 export async function usFilingReport(
@@ -246,6 +259,24 @@ export async function usFilingReport(
     exemptByState.set(row.state, entry);
   }
 
+  /*
+   * Tax this return cannot see, stated rather than dropped.
+   *
+   * Every figure above comes from a tax definition's own account, because a
+   * filing needs to know which jurisdiction a cent belongs to. The Shop has
+   * no tax definitions — one blended rate per place — so its tax posts to the
+   * shared account and appears in none of the numbers above, in either
+   * column. The ledger cross-check agreed with the bands because both were
+   * short by the same amount.
+   *
+   * So it is read separately and named. Not folded into a jurisdiction: the
+   * platform genuinely cannot say which one it belongs to, and guessing would
+   * be worse than saying so. Found 2026-09-28.
+   */
+  const unbandedCents = unbandedSalesTaxCents(
+    await ledgerRows(orgId, { from, to }),
+  );
+
   return {
     from,
     to,
@@ -256,6 +287,8 @@ export async function usFilingReport(
     exempt: [...exemptByState.values()].sort((a, b) =>
       a.state.localeCompare(b.state),
     ),
+    /** Sales tax on the shared account, which names no jurisdiction. */
+    unbandedCents,
   };
 }
 

@@ -51,6 +51,21 @@ export function caReturnNotes(out: CaReturns): string[] {
     );
   }
 
+  /*
+   * Tax these returns cannot place, named before anything else.
+   *
+   * Every figure above is read from a tax definition's own account, because
+   * Canada is three returns and a cent has to know which one it belongs on.
+   * The Shop has no tax definitions — one blended rate per place — so its tax
+   * posts to the shared account and none of these returns can see it. Found
+   * 2026-09-28. First in the list on purpose: it changes what somebody signs.
+   */
+  if (out.unbandedCents !== 0) {
+    notes.unshift(
+      `${(out.unbandedCents / 100).toFixed(2)} of sales tax was collected in this period against no named tax, and is in none of the figures above. Shop orders carry one combined rate rather than a named GST, PST or QST, so nothing here can say which return it belongs on. Work the split out from your shop's own rates and add it by hand before you file.`,
+    );
+  }
+
   notes.push(
     "Which province's tax a sale should carry is decided by the place-of-supply rules, not by where you sit: goods take the province they are delivered to, and services generally take the customer's address (CRA technical bulletin B-103, checked 15 September 2026). These returns report the tax your documents actually charged; the right rate is chosen on the document.",
     "Beside each ledger figure is the same period's total from the tax bands frozen on your invoices and credit notes. The two agreeing is the check to run before filing; if they disagree, something was posted by hand or outside the documents, and it deserves a look first.",

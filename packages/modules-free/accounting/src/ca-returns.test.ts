@@ -7,6 +7,7 @@ import { postJournalEntry } from "@sentrello/db/ledger";
 import type { SentrelloEnv } from "@sentrello/module-sdk";
 import { eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
+import { caReturnNotes } from "./ca-returns";
 import ledgerModule from "./index";
 
 /**
@@ -196,4 +197,40 @@ test("the returns the definitions call for appear, dated notes beside them", asy
   expect(notes).toContain("recover nothing");
   expect(notes).toContain("15 September 2026");
   expect(notes).not.toContain("FPZ-500");
+});
+
+/**
+ * The note that changes what somebody signs comes first.
+ *
+ * Canadian returns are read from each tax definition's own account, because
+ * the country is three returns and a cent has to know which it belongs on.
+ * The Shop has no tax definitions — one blended rate per place — so its tax
+ * lands on the shared account and no return can see it. Found 2026-09-28.
+ *
+ * Reported rather than distributed: nothing here can know whether a blended
+ * 12% is five points federal and seven provincial, and a guess would put a
+ * wrong figure on a legal declaration.
+ */
+test("unplaced tax is the first thing the notes say", () => {
+  const silent = caReturnNotes({
+    currency: "CAD",
+    gstHst: null,
+    qst: null,
+    pst: [],
+    unbandedCents: 0,
+  });
+  expect(silent.some((n) => n.includes("no named tax"))).toBe(false);
+
+  const short = caReturnNotes({
+    currency: "CAD",
+    gstHst: null,
+    qst: null,
+    pst: [],
+    unbandedCents: 1_200,
+  });
+  // First, not buried: a reader who stops after one line has read this one.
+  expect(short[0]).toContain("no named tax");
+  expect(short[0]).toContain("12.00");
+  // And it says what to do about it rather than only that it happened.
+  expect(short[0]).toContain("before you file");
 });

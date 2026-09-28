@@ -16,6 +16,7 @@ import {
   Select,
   Table,
   Toolbar,
+  Warning,
   formatDate,
   formatMoney,
   muted,
@@ -175,6 +176,8 @@ function FilingCard() {
           ledgerTaxCents: number;
         }[];
         exempt: { state: string; exemptCents: number; invoices: number }[];
+        /** Collected tax that names no state — the Shop's, in practice. */
+        unbandedCents: number;
       }>(`/api/invoicing/us-filing?from=${from}&to=${to}`),
   });
 
@@ -265,6 +268,31 @@ function FilingCard() {
             ))}
           </Table>
         </div>
+      ) : null}
+      {/*
+        Tax this return cannot place, said out loud.
+
+        Every figure above comes from a tax definition's own account, because
+        a filing has to know which state a cent belongs to. The Shop has no
+        tax definitions — one blended rate per place — so its tax posts to the
+        shared account and appears in none of the numbers above, in either
+        column. The ledger cross-check agreed with the bands because both were
+        short by the same amount, which is the worst way for a figure to be
+        wrong: it looked checked.
+      */}
+      {report.data && report.data.unbandedCents !== 0 ? (
+        <Warning>
+          <p>
+            <strong>{formatMoney(report.data.unbandedCents)}</strong> of sales
+            tax was collected in this period against no state. It is not in any
+            figure above.
+          </p>
+          <p className="mt-2">
+            Shop orders carry one combined rate rather than a named tax, so
+            nothing here can say which state to file them in. Work out the split
+            from your shop's own rates and add it by hand before you file.
+          </p>
+        </Warning>
       ) : null}
     </Card>
   );

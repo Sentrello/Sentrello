@@ -304,6 +304,61 @@ export class PeriodClosedError extends Error {
  * One predicate, so a reader cannot be written that knows about the shared
  * account and not about the authorities' own.
  */
+/**
+ * Tax a return cannot see, because it never reached an authority's account.
+ *
+ * The Canadian and United States returns read the **per-definition** accounts
+ * — `2200-<definition>` — because each filing needs its own figure and the
+ * shared account cannot say which authority a cent belongs to. Anything that
+ * posts tax to the bare `2200` is therefore invisible to them.
+ *
+ * Which is fine for a UK business, whose return matches both codes, and is
+ * not fine for the Shop. A shop order carries one blended rate and no tax
+ * definition, so `postSale` credits the shared account — and a Canadian or
+ * American business selling through the Shop had those sales missing from its
+ * return with nothing saying so. An understated return is worse than a
+ * refused one: it is filed.
+ *
+ * So the figure is computed and shown. Not folded into a box — the platform
+ * genuinely cannot say which authority it belongs to, and inventing a split
+ * would be worse than naming the gap — but stated on the screen, in money, so
+ * a business adds it by hand rather than under-declaring by it.
+ *
+ * Sales only. Tax on the shared account inside an entry that touches expenses
+ * is a purchase, which a return's recovery side reads from elsewhere, and
+ * counting it here would name a shortfall that is not one.
+ *
+ * Found 2026-09-28. The full answer is for the Shop's rates to name a tax
+ * definition, which is a change to the module's money path and not one to
+ * make in the week of a launch.
+ */
+export function unbandedSalesTaxCents(rows: LedgerRow[]): number {
+  const entries = new Map<
+    string,
+    { sale: boolean; purchase: boolean; cents: number }
+  >();
+  for (const row of rows) {
+    const entry = entries.get(row.entryId) ?? {
+      sale: false,
+      purchase: false,
+      cents: 0,
+    };
+    if (row.type === "income") entry.sale = true;
+    if (row.type === "expense") entry.purchase = true;
+    // The shared account exactly, never an authority's own.
+    if (row.code === CORE_ACCOUNTS.taxPayable.code) {
+      entry.cents += row.creditCents - row.debitCents;
+    }
+    entries.set(row.entryId, entry);
+  }
+
+  let total = 0;
+  for (const entry of entries.values()) {
+    if (entry.sale && !entry.purchase) total += entry.cents;
+  }
+  return total;
+}
+
 export function isTaxPayableCode(code: string): boolean {
   return (
     code === CORE_ACCOUNTS.taxPayable.code ||

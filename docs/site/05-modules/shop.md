@@ -91,6 +91,23 @@ A paid order posts to the ledger like any other income: the sale, the tax, the
 money received. Your books include the shop without anyone entering anything
 twice.
 
+:::caution[Two Canadian taxes, one rate]
+A shop's tax is one rate per place — a country, and a region inside it where
+you have named one. In British Columbia or Quebec that means entering the
+combined figure, 12% or 14.975%, and the money is right to the cent: it is
+what the customer pays and what reaches the books.
+
+What the shop cannot yet do is tell the two taxes apart afterwards. GST and
+the provincial tax answer to different authorities, and a shop rate is one
+number. Both are percentages of the same consideration, so a bookkeeper can
+split it — BC's 12% is five twelfths GST and seven twelfths PST — but it is
+not a figure the shop produces.
+
+Invoicing has no such limit: a line there can carry GST and PST as two named
+taxes, each banded and reported separately. Splitting them in the shop is on
+the roadmap, as it is for Subscriptions.
+:::
+
 :::info[New in 0.19]
 The processor's fee is recorded too, so Cash matches the bank. A card sale of
 $100.00 puts about $96.80 in your account. From 0.19 the books say $96.80 and
