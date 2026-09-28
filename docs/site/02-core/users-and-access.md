@@ -22,11 +22,17 @@ straight away, with the access they already have.
 **Users** is its own section in the sidebar, with seven screens: People,
 Groups, Policies, Sessions, Authentication, Providers and Events.
 
-![Users → Policies: four roles against what each may open, with the Customer role able to see its own invoices and nothing else](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/roles.png)
+![Users → Policies: four roles against what each may open, with the Customer role able to open the dashboard and nothing else](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/roles.png)
 
 The **Customer** row is the one worth looking at twice. It is how you hand
 somebody outside the business a login without handing them the business: it
-sees its own invoices, and there is no setting that widens it.
+opens the dashboard and nothing else.
+
+Their invoices do not come through a login at all. A customer follows the
+link you send them, and that link is the whole credential — no account, no
+password, and nothing to widen, because there is no role behind it to
+widen. It shows that customer's own documents and there is no address that
+shows anybody else's.
 
 One set of accounts, and two questions asked about every request.
 

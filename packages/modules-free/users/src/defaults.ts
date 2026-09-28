@@ -148,14 +148,28 @@ export const DEFAULT_USER_POLICIES: DefaultPolicy[] = [
     /**
      * Somebody who buys from this business, not somebody who works in it.
      *
-     * Deliberately tiny. Seeing only *their own* invoices is not something a
-     * role can express — it is row-level, and the portal routes enforce it by
-     * resolving the account to a contact and filtering to that contact.
+     * Deliberately tiny, and it holds **no invoicing permission at all**.
+     *
+     * It granted `invoicing: ["read"]` until 2026-09-28, on the reasoning
+     * written here — that seeing only your own invoices is row-level and
+     * the portal enforces it by resolving the account to a contact. The
+     * first half is true and the second described the wrong door. The
+     * portal and the account page are reached by a 32-byte token with no
+     * session and no permission check, so this grant did nothing for them.
+     * What it did do was let anybody holding this policy call
+     * `GET /api/invoices`, which scopes by organization and takes
+     * `contactId` as a filter the *caller* supplies — so the role three
+     * published pages describe as "their own invoices, nothing else" read
+     * the whole business's invoice book.
+     *
+     * Nothing is lost by removing it. A customer's door is the token, and
+     * a member who needs to read invoices in the product is a member of
+     * staff, which is a different policy.
      */
     name: "customers",
     description:
-      "A customer of the business: their own invoices, nothing else.",
-    permission: { ...LANDS, invoicing: ["read"] },
+      "A customer of the business. Their own invoices, through the link they were sent — nothing in the product itself.",
+    permission: { ...LANDS },
   },
 ];
 

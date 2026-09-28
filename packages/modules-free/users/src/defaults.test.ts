@@ -256,3 +256,24 @@ test("a seed that could write nothing is not marked as done", async () => {
       .where(eq(schema.organizations.id, org.id));
   }
 });
+
+/**
+ * The customer policy opens nothing in the product.
+ *
+ * It granted `invoicing: ["read"]` until 2026-09-28, on the reasoning that
+ * the portal would narrow it to that person's own invoices. The portal is
+ * reached by a 32-byte token with no session and no permission check, so
+ * the grant did nothing there — and `GET /api/invoices` scopes by
+ * organization and takes `contactId` as a filter the caller supplies. So
+ * a login holding this policy could read the whole business's invoice
+ * book, while three published pages promised "their own invoices, nothing
+ * else, and there is no setting that widens it".
+ *
+ * Asserted as an exact set rather than "does not include invoicing", so
+ * that anything added here has to be argued for.
+ */
+test("a customer's policy grants nothing but the page they land on", () => {
+  const customers = DEFAULT_USER_POLICIES.find((p) => p.name === "customers");
+  expect(customers).toBeDefined();
+  expect(customers?.permission).toEqual({ dashboard: ["read"] });
+});

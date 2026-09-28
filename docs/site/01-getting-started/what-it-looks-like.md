@@ -72,7 +72,9 @@ internet by design.
 ## Accounts and roles
 
 Five policies out of the box: Admins, Executives, Managers, Staff, and an
-external Customers policy that only ever sees its own invoices. Four groups as
+external Customers policy that opens the dashboard and nothing else — a
+customer reads their own invoices through the link you send them, which
+needs no account at all. Four groups as
 well, for Sales, Marketing, Accounting and Customer Service. All of it is data
 you can edit, copy or throw away.
 
