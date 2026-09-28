@@ -26,7 +26,7 @@ Pro is **per instance, not per person**. Hiring somebody costs nothing.
 | **Quotes and invoices**: per-line tax, partial payments, sequential numbering, quote-to-invoice, early-payment discount, merge drafts, price list, CSV export | ● | ● |
 | Shareable invoice page the customer opens without an account | ● | ● |
 | Recurring invoices | — | ● |
-| Credit notes | — | ● |
+| Credit notes | ● | ● |
 | Online payments: card checkout straight from the invoice | — | ● |
 | Customer statements and AR aging | — | ● |
 | **Accounting**: chart of accounts, money in and out, double-entry journal, profit & loss, balance sheet, cash *or* accrual basis | ● | ● |

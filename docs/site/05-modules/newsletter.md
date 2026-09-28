@@ -86,11 +86,17 @@ Somebody on three of a campaign's lists receives one email.
 
 ## Counting
 
-Opens and clicks are counted **only if you turn them on**. There is a third
-setting as well, which keeps the counts without recording who made them.
+Opens and clicks are counted from the first send. How many people opened a
+campaign and how many followed a link is what makes the next one better, and a
+setting you have to find before you learn anything is a setting nobody finds.
+Either can be switched off, and off means nothing is written down at all.
 
-Both carry obligations in the markets this is sold into. That is why neither is
-on by default.
+What is **not** on is tying a read or a click to the person who made it. The
+counts are kept and the identity is not, which is the difference between a
+measurement and a record about somebody — and in every market this is sold
+into, that second thing is the business's decision rather than ours. Turn it on
+in Privacy if the business wants it, and read the obligations that come with it
+first.
 
 ## Unsubscribing
 

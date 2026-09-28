@@ -23,9 +23,16 @@ minutes.
 3. **Fetches your modules** at that same version. Modules and Core move
    together, because a module several versions behind its Core is a screen
    missing whatever changed.
-4. **Runs migrations** *before* restarting. They are additive, so the version
-   still serving is unaffected while they run.
-5. **Restarts** and waits for the instance to answer.
+4. **Starts the new version**, then runs migrations against it, then restarts
+   the app so it picks up the schema it just got.
+5. **Waits for the instance to answer**, and says so when it does.
+
+The order matters if something goes wrong, so it is worth being plain about
+it: the new image is running before the migrations do. Migrations are
+additive, so the schema itself is never left half-formed — but between `up`
+and the end of the migration step, what is serving is the new release against
+the old schema. That window is seconds long, and the way out of it is the
+backup taken in step 1, not waiting.
 
 ## Checking it worked
 
@@ -67,6 +74,21 @@ would rather not open a terminal. Same code path.
 
 ## If an update fails
 
-Nothing is lost. Migrations run before the restart, so a failure leaves the
-previous version serving. Read `sentrello logs`, fix what it names, and run the
-update again. Updates are safe to repeat.
+**Go back, rather than waiting it out.**
+
+```bash
+sentrello rollback
+```
+
+The rollback target is recorded before anything is pulled, and the database
+dump from step 1 is on disk, so both halves of the way back exist from the
+first second of the update. Use them.
+
+The reason to go back rather than retry in place: the new image is already
+running by the time migrations run, so a failed migration leaves the new
+release serving against a schema it does not expect. That is not a version
+quietly carrying on — it is a version that will behave oddly until it is
+either migrated or replaced. `sentrello rollback` puts the previous one back.
+
+Then read `sentrello logs`, fix what it names, and run the update again.
+Updates are safe to repeat.

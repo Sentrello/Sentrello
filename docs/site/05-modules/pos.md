@@ -7,13 +7,34 @@ tags: [module, pos, shop]
 
 # POS
 
-:::caution In development — not for sale
+:::caution[In development — not for sale]
 
 The POS was withdrawn from the catalogue on 15 September 2026 and cannot be
 bought today. Its cash controls are in place. The rebuild for the screens it is
 actually used on, card readers and receipt printers are not. There is no date,
 deliberately. This page describes how it works, not something you can subscribe
 to yet.
+
+:::
+
+:::danger[Where this till cannot lawfully be used at all]
+
+Separate from the delay above, and permanent.
+
+Some places require every sale to pass through certified hardware or a live
+link to the tax authority, and a well-formed receipt does not satisfy that.
+**Quebec has required it of every restaurant, bar and café in the province
+since 31 May 2025** — the WEB-SRM regime. Germany's TSE signature, France's
+certified-software rule, Italy's transmission to the Agenzia delle Entrate and
+Portugal's ATCUD all work the same way.
+
+This till has no fiscal device and no link to a tax authority, and there is no
+plan to build one. If you trade somewhere that requires either, **you cannot
+use this till for those sales**, whatever else the page below describes. That
+is a limit on the markets it is sold into rather than a feature that is coming.
+
+Everywhere else in the United States, Canada, the United Kingdom and the EU, a
+receipt is a document and this prints a correct one.
 
 :::
 
@@ -265,6 +286,9 @@ list of what it can.
   progress, so a sale is recorded without one being printed.
 - **Table service, tabs, and kitchen printing.** The till is built for counter
   service first. The rest is planned, and deliberately not dated.
+- **Fiscalisation.** No certified device, no signature, no live link to a tax
+  authority — and none planned. See the notice at the top of this page: where
+  a jurisdiction requires one, this till cannot be used for those sales.
 
 ## How it fits with everything else
 
