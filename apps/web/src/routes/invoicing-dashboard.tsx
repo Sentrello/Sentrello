@@ -168,13 +168,22 @@ export function InvoicingDashboard() {
           <Warning>{distance.data.warning}</Warning>
         </Card>
       )}
-      {distance.data?.applies &&
-        distance.data.exceeded &&
-        distance.data.advice && (
-          <Card>
-            <p className="text-sm">{distance.data.advice}</p>
-          </Card>
-        )}
+      {/*
+       * Which side of the threshold this business is on, whichever side that
+       * is.
+       *
+       * The server composes three sentences — over it, under it, and "your
+       * books are not in euro, so compare in your own currency" — and this
+       * drew only the first. A business under €10,000 could not tell being
+       * under it from the panel not running, which is the difference between
+       * a fact and a blank space, and the published page says this is where
+       * you find out. One `&&`. Found 2026-09-28.
+       */}
+      {distance.data?.applies && distance.data.advice && (
+        <Card>
+          <p className="text-sm">{distance.data.advice}</p>
+        </Card>
+      )}
       {nexusWarnings.length > 0 && (
         <Card>
           {nexusWarnings.map((s) => (
