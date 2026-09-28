@@ -57,8 +57,17 @@ latest="$(
 
 IFS=$'\t' read -r conclusion workflow sha url <<<"$latest"
 
+# A repository with no runs at all answers `null` in every field rather than
+# a bare `null`, because the interpolation happens per field — so the check
+# above sees "null\tnull\tnull\tnull", which is neither empty nor "null",
+# and the guard refuses a push it has nothing to say about.
+#
+# Found the first time a repository was pushed to from empty, which is the
+# one case the comment at the top of this file promises is silent. A guard
+# that blocks a push because there is nothing to report is the failure this
+# was written against, in its own words.
 case "$conclusion" in
-  success | skipped | cancelled | neutral) exit 0 ;;
+  "" | null | success | skipped | cancelled | neutral) exit 0 ;;
 esac
 
 # `%s` on a `printf` with colour, rather than `echo -e`, because the hook runs
