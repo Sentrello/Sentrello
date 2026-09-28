@@ -50,6 +50,15 @@ Give a file an **expiry date** and a category: insurance, certificate, licence,
 contract. Anything approaching its date appears on the dashboard. Anything past
 it appears in red.
 
+**And you are emailed about it**, which matters more than either, because the
+document you have forgotten is the one you are not going to see on a screen.
+A digest goes out while anything is inside thirty days or already lapsed — to
+whoever filed it and to the administrators, since the person who uploaded a
+certificate two years ago may well have left. The same document is mentioned
+once a week at most: thirty emails about one certificate is how somebody
+learns to filter mail from their own software, and then misses the one that
+mattered.
+
 :::warning[This is the failure that costs real money]
 A lapsed insurance certificate or trade licence can mean a business is not
 legally able to work. It is a date nobody was looking at, on a document nobody

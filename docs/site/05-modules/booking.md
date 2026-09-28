@@ -49,8 +49,10 @@ and the bookings already made against it stay where they are.
 
 ## Availability
 
-Set your working hours per day, add breaks, block out holidays. The booking
-page then offers only what is genuinely free, because it reads your existing
+Set your working hours per day — several stretches where you want them, so
+nine to twelve and two to five is a lunch break rather than a compromise —
+and block out holidays. The booking page then offers only what is genuinely
+free, because it reads your existing
 bookings before it draws the grid. Two people cannot take the same slot.
 
 ## The booking page
