@@ -61,7 +61,9 @@ The usual way anybody joins a mailing list is a form on your own website. Build
 one, choose the lists a signup joins, paste the snippet into any page, even a
 page on a site that has nothing else to do with Sentrello.
 
-A form asks for an email address, plus a name if you want one. Lists set to
+A form asks for an email address, and for a name if you want one — that is a
+setting per list, and a one-field form is the one people finish. Tick several
+lists and you get one form that joins all of them. Lists set to
 double opt-in still send their confirmation email, so a signup here joins on
 exactly the terms the list already has.
 
@@ -69,7 +71,8 @@ exactly the terms the list already has.
 you turn it on. Whether that is worth turning on depends on what the form asks
 for. An address on its own makes a contact with no name against it, which is a
 record somebody has to tidy later; an address and a name makes one worth
-keeping. The builder tells you which of the two you have. It needs the CRM
+keeping. The builder tells you which of the two you have, and a list that
+feeds the CRM asks for a name whatever else you have set. It needs the CRM
 installed, and without it the switch does nothing.
 
 ## Campaigns
@@ -100,9 +103,17 @@ first.
 
 ## Unsubscribing
 
-Every message carries an unsubscribe link that works from a phone, in any mail
-client, with no account and no JavaScript. An unsubscribe link that only
+Every campaign carries an unsubscribe link that works from a phone, in any mail
+client, with no account and no JavaScript, plus the header that lets Gmail and
+Outlook offer their own one-click button. An unsubscribe link that only
 sometimes works will cost you a fine rather than a bug report.
+
+**Transactional messages do not**, deliberately. A receipt, a booking
+confirmation or a password reset is not marketing, and an unsubscribe link on
+one is an invitation to switch off the email that tells somebody their order
+shipped. Anti-spam law draws the same line; if you use a transactional
+template for marketing, you have moved it to the wrong side of that line
+yourself.
 
 ## Subscribers are not customers
 
