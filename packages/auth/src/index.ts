@@ -15,6 +15,7 @@ import { hashPassword as defaultHashPassword } from "better-auth/crypto";
 import { organization, twoFactor } from "better-auth/plugins";
 import type { Context } from "hono";
 import { getConnInfo } from "hono/bun";
+import { passwordFloorGuard } from "./password-floor";
 import { ac, roles } from "./permissions";
 import { signInEventsPlugin, signInLockGuard } from "./sign-in-events";
 import { signUpGuard } from "./signup-policy";
@@ -283,6 +284,8 @@ export const auth = betterAuth({
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
       await signUpGuard(ctx);
+      // The business's own minimum, which nothing read until 2026-09-28.
+      await passwordFloorGuard(ctx);
       // `await`, never `return`. A `before` hook that resolves to any object
       // other than `{ context }` short-circuits the request and is sent as
       // the response (`runBeforeHooks`, dispatch.mjs:91-102) — and a guard

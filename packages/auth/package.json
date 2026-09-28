@@ -10,7 +10,8 @@
     "./testing": "./src/testing.ts",
     "./reset-password": "./src/reset-password.ts",
     "./unlock": "./src/unlock.ts",
-    "./signup-policy": "./src/signup-policy.ts"
+    "./signup-policy": "./src/signup-policy.ts",
+    "./password-floor": "./src/password-floor.ts"
   },
   "dependencies": {
     "@better-auth/sso": "1.6.26",

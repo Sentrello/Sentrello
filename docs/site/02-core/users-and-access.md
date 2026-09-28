@@ -135,6 +135,12 @@ the person who can move money is not the person clocking in on a shared
 tablet, and a business forced to require both will require neither. Recovery
 codes are shown once, at the moment it is enabled.
 
+Required means refused. Somebody holding a named role and no second factor is
+told so on their profile and turned away from everything else until they set
+one up — two doors stay open, the profile page itself and, for whoever can
+edit the policy, the screen that would unname the role. Nobody can lock the
+business out of undoing it.
+
 :::warning[Recovery codes are shown once]
 Store them somewhere other than the machine you sign in from. Losing both the
 device and the codes means an administrator has to reset the account.
@@ -151,6 +157,13 @@ configured email; otherwise nobody could confirm an address, yourself included.
 Switching it back off is always allowed. Your own address counts as confirmed
 from the moment you claim the instance, since you read the setup token off the
 server, and that proves rather more than a link in an inbox does.
+
+**The shortest password this business will accept** starts at twelve
+characters and can be raised, not lowered — twelve is what NIST asks of a
+password standing on its own, and it is not a business's to waive. Whatever
+you set applies everywhere a password is chosen: creating an account, changing
+your own, and setting one from a reset link. A rule enforced on one screen is
+a rule the API does not have.
 
 **Repeated wrong passwords lock an address.** Five in a row by default, for
 fifteen minutes. The lock lifts itself. An administrator can clear it from the

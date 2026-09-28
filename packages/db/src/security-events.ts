@@ -404,6 +404,45 @@ export function forgetHipaaRules(organizationId: string): void {
 }
 
 /**
+ * Which roles this business insists carry a second factor, and who holds them.
+ *
+ * Beside the HIPAA rules because it is the same shape of question asked at the
+ * same moment, and because the session guard cannot reach into a module: the
+ * users module owns the screen that writes this, and the guard that has to
+ * honour it runs under every route in the product.
+ *
+ * **It was written down, shown on two screens, and enforced by nothing.** The
+ * checkbox saved, the person's profile told them "until you set it up you will
+ * be refused the things it protects", and no guard anywhere read the column.
+ * A security control that is displayed and not applied is worse than one that
+ * is absent, because the business believes it is covered. Found 2026-09-28.
+ *
+ * Cached on the same ten seconds and for the same reasons.
+ */
+const twoFactorCache = new Map<string, { at: number; roles: string[] }>();
+
+export async function rolesNeedingTwoFactor(
+  organizationId: string,
+): Promise<string[]> {
+  const cached = twoFactorCache.get(organizationId);
+  if (cached && Date.now() - cached.at < RULES_TTL_MS) return cached.roles;
+
+  const [row] = await db
+    .select({ roles: schema.securityPolicy.requireTwoFactorFor })
+    .from(schema.securityPolicy)
+    .where(eq(schema.securityPolicy.organizationId, organizationId))
+    .limit(1);
+  const roles = row?.roles ?? [];
+  twoFactorCache.set(organizationId, { at: Date.now(), roles });
+  return roles;
+}
+
+/** So saving the policy from the screen takes effect at once. */
+export function forgetTwoFactorPolicy(organizationId: string): void {
+  twoFactorCache.delete(organizationId);
+}
+
+/**
  * Somebody opened a record that may hold health information. §164.312(b).
  *
  * The safeguard most systems lack. After a suspected snooping incident — a

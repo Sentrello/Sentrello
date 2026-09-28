@@ -3,9 +3,10 @@ import {
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
+import { forgetPasswordFloor } from "@sentrello/auth/password-floor";
 import { and, db, eq, schema } from "@sentrello/db";
 import { policyFor } from "@sentrello/db/lockout";
-import { record } from "@sentrello/db/security-events";
+import { forgetTwoFactorPolicy, record } from "@sentrello/db/security-events";
 import { mailConfigured } from "@sentrello/email";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import { knownRoles } from "./roles";
@@ -127,8 +128,18 @@ export function registerAuthentication(ctx: ModuleContext) {
       const requireTwoFactorFor =
         wantedTwoFactor ?? current.requireTwoFactorFor;
 
+      /*
+       * Twelve at the bottom, not eight.
+       *
+       * The clamp said eight and the thing that enforces passwords has always
+       * asked for twelve, so a business that set eight was shown eight,
+       * stored eight, and had twelve. Two floors that disagree is one of them
+       * lying to somebody, and the number on the screen is the one people
+       * make decisions from. Twelve is also what 800-63B asks of a memorised
+       * secret standing on its own, which is not a business's to waive.
+       */
       const minPasswordLength = Number.isInteger(body.minPasswordLength)
-        ? Math.min(Math.max(body.minPasswordLength as number, 8), 72)
+        ? Math.min(Math.max(body.minPasswordLength as number, 12), 72)
         : current.minPasswordLength;
 
       const sessionDays =
@@ -240,6 +251,18 @@ export function registerAuthentication(ctx: ModuleContext) {
         })
         .where(eq(schema.securityPolicy.organizationId, orgId))
         .returning();
+
+      /*
+       * So the session guard sees it now rather than in ten seconds.
+       *
+       * The same arrangement the compliance screen has with its own rules: a
+       * safeguard switched on and not in force for the next ten seconds is
+       * the sort of gap somebody notices while testing it and concludes the
+       * feature is broken.
+       */
+      forgetTwoFactorPolicy(orgId);
+      // And the password floor, which is read on every sign-up and reset.
+      forgetPasswordFloor();
 
       await record({
         organizationId: orgId,

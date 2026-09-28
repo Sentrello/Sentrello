@@ -159,6 +159,41 @@ test("the rules say who must have a second factor, and the person is told", asyn
   expect(mine.twoFactorRequired).toBe(true);
   expect(mine.twoFactorEnabled).toBe(false);
   expect(mine.minPasswordLength).toBe(14);
+
+  /*
+   * And they are actually refused, which until 2026-09-28 they were not.
+   *
+   * The checkbox saved, the line above appeared on the profile screen, and no
+   * guard anywhere read the column — so the business believed it was covered
+   * and the person believed they were blocked, and neither was true. A
+   * security control that is displayed and not applied is worse than one that
+   * is absent.
+   */
+  const refused = await app.request("http://localhost/api/users", { headers });
+  expect(refused.status).toBe(403);
+  expect(((await refused.json()) as { error: string }).error).toContain(
+    "second factor",
+  );
+
+  /*
+   * Two doors stay open. Complying is one — enabling a factor is served
+   * without this guard — and undoing it is the other, because an
+   * administrator who names their own role by mistake must not be locked out
+   * of the screen that would unname it.
+   */
+  const stillOpen = await app.request(
+    "http://localhost/api/users/me/security",
+    { headers },
+  );
+  expect(stillOpen.status).toBe(200);
+
+  const undone = await putPolicy({ requireTwoFactorFor: [] });
+  expect(undone.status).toBe(200);
+
+  // And with the rule gone, everything answers again.
+  expect(
+    (await app.request("http://localhost/api/users", { headers })).status,
+  ).toBe(200);
 });
 
 test("a password minimum is kept inside what the platform can enforce", async () => {
@@ -166,9 +201,15 @@ test("a password minimum is kept inside what the platform can enforce", async ()
   const { policy } = (await res.json()) as {
     policy: { minPasswordLength: number };
   };
-  // Eight is the floor. A business that sets four has not made a decision
-  // anybody should honour.
-  expect(policy.minPasswordLength).toBe(8);
+  /*
+   * Twelve is the floor, and it used to say eight.
+   *
+   * The thing that enforces passwords has always asked for twelve, so a
+   * business that set eight was shown eight and had twelve — two floors
+   * disagreeing, with the screen holding the wrong one. A business that sets
+   * two has not made a decision anybody should honour either way.
+   */
+  expect(policy.minPasswordLength).toBe(12);
 });
 
 // Lockout and retention settings, writable for the first

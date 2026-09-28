@@ -1,5 +1,8 @@
-import { asActor } from "@sentrello/db";
-import { hipaaRulesFor } from "@sentrello/db/security-events";
+import { and, asActor, db, eq, schema } from "@sentrello/db";
+import {
+  hipaaRulesFor,
+  rolesNeedingTwoFactor,
+} from "@sentrello/db/security-events";
 import type { SentrelloEnv, SentrelloSession } from "@sentrello/module-sdk";
 import type { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
@@ -75,7 +78,9 @@ export function requireSession() {
      * on organisations that have the row, and nothing at all on the ones that
      * do not.
      */
-    const refusal = await hipaaRefusal(session, c.req.path);
+    const refusal =
+      (await hipaaRefusal(session, c.req.path)) ??
+      (await secondFactorRefusal(session, c.req.path));
     if (refusal) return c.json({ error: refusal.error }, refusal.status);
 
     await asActor(session.user.id, () => next());
@@ -104,6 +109,86 @@ export function requireSession() {
  * this is an administrator with a password, not the public.
  */
 const ALWAYS_REACHABLE = ["/api/compliance", "/api/users/me/security"];
+
+/**
+ * A second factor, where the business requires it of this person's roles.
+ *
+ * Separate from the HIPAA rule above and enforced identically, because they
+ * answer different questions: HIPAA mode requires one of everybody, and this
+ * requires one of the people who can do the things the business decided need
+ * it — the person who moves money, not the person who clocks in on a shared
+ * tablet.
+ *
+ * **It was written down and enforced by nothing.** The checkbox saved, two
+ * screens read it back, one of them told the person "until you set it up you
+ * will be refused the things it protects", and no guard anywhere asked. A
+ * control that is displayed and not applied is worse than one that is absent:
+ * the business believes it is covered and the person believes they are
+ * blocked, and neither is true. Found 2026-09-28.
+ *
+ * Two doors stay open, for the reason the HIPAA list above gives. Complying
+ * is always possible — enabling a second factor goes to `/api/auth/*`, which
+ * `mountAuth` serves without this middleware — and so is undoing it: an
+ * administrator who names their own role by mistake can still reach the
+ * policy screen. Without that second door the mistake is unrecoverable from
+ * inside the product, which is the failure this rule's neighbour already
+ * made once.
+ */
+const STILL_REACHABLE_WITHOUT_A_FACTOR = [
+  ...ALWAYS_REACHABLE,
+  "/api/users/policy",
+  "/api/users/me",
+];
+async function secondFactorRefusal(
+  session: {
+    session: { activeOrganizationId?: string | null };
+    user: { id: string; twoFactorEnabled?: boolean | null };
+  },
+  path: string,
+): Promise<{ error: string; status: 403 } | null> {
+  const orgId = session.session.activeOrganizationId;
+  if (!orgId) return null;
+  if (session.user.twoFactorEnabled) return null;
+  if (STILL_REACHABLE_WITHOUT_A_FACTOR.some((p) => path.startsWith(p)))
+    return null;
+
+  const required = await rolesNeedingTwoFactor(orgId);
+  if (required.length === 0) return null;
+
+  /*
+   * Every role this person holds, their own and their groups'.
+   *
+   * Read straight from the row rather than through the users module's own
+   * `effectiveRoles`: this runs under every request in the product and the
+   * auth package cannot import a module that imports it. `member.role` is
+   * where that function writes the union it derives, which is the field to
+   * ask — and a member whose role has not been recomputed since groups
+   * arrived still carries their own role in it.
+   */
+  const [member] = await db
+    .select({ role: schema.member.role })
+    .from(schema.member)
+    .where(
+      and(
+        eq(schema.member.organizationId, orgId),
+        eq(schema.member.userId, session.user.id),
+      ),
+    )
+    .limit(1);
+  if (!member) return null;
+
+  const held = member.role
+    .split(",")
+    .map((role) => role.trim())
+    .filter(Boolean);
+  if (!held.some((role) => required.includes(role))) return null;
+
+  return {
+    error:
+      "this business requires a second factor for your role. Set one up in your profile.",
+    status: 403,
+  };
+}
 
 async function hipaaRefusal(
   session: {

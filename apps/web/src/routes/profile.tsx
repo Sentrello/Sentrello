@@ -564,19 +564,25 @@ function TwoFactor() {
       {/*
         Whether this person has to have it, and has not got it.
 
-        The route saying so has existed since the module was written with
-        nothing calling it, and the whole point of it — in its own words — is
-        that somebody whose role requires a second factor is told plainly and
-        sent to set one up, rather than refused at some later moment with an
-        error about permissions. Nobody was ever told.
+        The route saying so existed since the module was written with nothing
+        calling it, and the whole point of it — in its own words — is that
+        somebody whose role requires a second factor is told plainly and sent
+        to set one up, rather than refused at some later moment with an error
+        about permissions.
+
+        The refusal itself only started on 2026-09-28. Until then the setting
+        saved, this line appeared, and nothing anywhere enforced it: the
+        business believed it was covered and the person believed they were
+        blocked. The wording now says what actually happens, which is that
+        this page answers and nothing else does.
       */}
       {security.data?.twoFactorRequired && !enabled ? (
         <p
           className="mb-(--gap-toolbar) text-sm font-medium"
           style={{ color: "var(--text-warning)" }}
         >
-          Your role requires this. Until you set it up you will be refused the
-          things it protects.
+          Your role requires this. Until you set it up, this page is the only
+          one that will answer you.
         </p>
       ) : null}
 
