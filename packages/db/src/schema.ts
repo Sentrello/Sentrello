@@ -31,7 +31,20 @@ import {
 import { organizations } from "./auth-schema";
 export * from "./auth-schema";
 
-// Cache of the last successfully verified license (for offline boots).
+/**
+ * Empty, and left standing on purpose.
+ *
+ * It was the cache of the last verified licence, for booting without a
+ * network. There is nothing to cache any more: a token is verified against a
+ * public key embedded in the core, offline, with no call to anybody — so an
+ * instance that has never been online verifies exactly as well as one that
+ * has. Nothing reads or writes this table.
+ *
+ * Kept rather than dropped because dropping a table is destructive and is
+ * James's call, and because a table nobody touches costs nothing. Recorded
+ * here so the next sweep for dead columns stops at this comment instead of
+ * working out the same thing again.
+ */
 export const licenseCache = pgTable("license_cache", {
   id: integer("id").primaryKey().default(1), // singleton row
   tier: text("tier").notNull().default("free"),
