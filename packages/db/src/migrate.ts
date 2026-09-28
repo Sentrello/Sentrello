@@ -11,6 +11,10 @@ const ssl = dbSsl();
 const sql = postgres(url, {
   max: 1,
   onnotice: logMigrationNotice,
+  // Named, so a migration holding a lock is not mistaken for the
+  // application holding one. Everything else this instance connects with
+  // says `sentrello-app`; see the pool in `client.ts`.
+  connection: { application_name: "sentrello-migrate" },
   ...(ssl ? { ssl } : {}),
 });
 // resolved against this file, not the cwd, so `bun run db:migrate` works from

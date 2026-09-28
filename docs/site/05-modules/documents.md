@@ -36,9 +36,11 @@ flowchart LR
 ## Folders and files
 
 A normal folder tree. Upload anything. Whatever the browser can preview, it
-previews, so you are not downloading a file to find out what it is. Attach a
-file to a contact or a company and a customer's paperwork sits with the
-customer.
+previews, so you are not downloading a file to find out what it is.
+
+Folders are how you find things again, not how you keep them apart: anybody
+with access to Storage can open every file in it. Access is granted once, for
+the whole module, on the person's role.
 
 ## Expiry
 
@@ -60,9 +62,11 @@ Any file can be shared by link, password-protected or not, expiring or not. The
 recipient needs no account. Useful for sending a customer something too large
 to email.
 
-## Downloading in bulk
+## Downloading a folder
 
-Select several files, or a whole folder, and download them as one archive.
+Download a whole folder and it arrives as a single zip with the folder tree
+intact. Individual files download one at a time; there is no way to tick five
+and get one archive.
 
 ## Where the files actually live
 

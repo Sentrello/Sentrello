@@ -123,6 +123,21 @@ if (!held) {
       connection: {
         idle_in_transaction_session_timeout: 60_000,
         statement_timeout: statementTimeout(),
+        /**
+         * Who is holding this connection, in the one place anybody will look.
+         *
+         * `postgres.js` sets no `application_name`, so the API, the job
+         * workers and a migration all appear in `pg_stat_activity` as the
+         * same nameless client from the same host. On an instance where the
+         * customer is the operator and nobody has a shell, "ten connections
+         * are busy" then has no next question. Naming them costs nothing and
+         * makes every future incident readable.
+         *
+         * `SENTRELLO_ROLE` is set by whatever started the process — the
+         * migration runner sets its own — and the default is the thing that
+         * holds connections most of the time.
+         */
+        application_name: process.env.SENTRELLO_ROLE ?? "sentrello-app",
       },
       ...(ssl ? { ssl } : {}),
     }),
