@@ -219,8 +219,6 @@ placed, paid and fulfilled in one action.
 
 This is why the Inventory screen has three numbers rather than one:
 
-![Inventory: on the shelf, claimed by orders, free to sell](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/shop-inventory.png)
-
 | Column | What it means |
 |---|---|
 | **On the shelf** | What is physically there, whoever it belongs to |
