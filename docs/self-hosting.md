@@ -255,7 +255,11 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    client_max_body_size 10m;
+    # nginx refuses a larger request before Sentrello sees it, so this has to
+    # cover the biggest thing you will ever send. Reading an archive back is an
+    # upload and archives run to 512MB; Storage takes 100MB files; an invoice
+    # attachment stops at 10MB. A ceiling is not an allocation.
+    client_max_body_size 520m;
 }
 ```
 

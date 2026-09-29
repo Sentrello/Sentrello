@@ -56,10 +56,22 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        client_max_body_size 26m;
+        client_max_body_size 520m;
     }
 }
 ```
+
+:::info[Size it for the largest thing you will ever send]
+`client_max_body_size` is nginx's ceiling and it refuses the request **before
+Sentrello sees it** — so anything over it fails with nginx's own 413, and
+nothing in the product can explain why, because nothing in the product was
+asked.
+
+520m covers everything: reading an archive back is a file upload and archives
+run to 512MB, Storage takes files up to 100MB, and an invoice attachment stops
+at 10MB. A ceiling is not an allocation, so a generous one costs you nothing —
+and a short one costs you a restore, on the day you are doing a restore.
+:::
 
 Then issue a certificate:
 
