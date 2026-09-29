@@ -94,10 +94,16 @@ interface SettingsResponse {
     city: string;
     postcode: string;
     countryCode: string;
-    /** What the books are kept in, and whether that can still be said. */
-    baseCurrency: string;
-    baseCurrencyLocked: boolean;
-    currencyChoices: string[];
+    /**
+     * What the books are kept in, and whether that can still be said.
+     *
+     * Optional in the type as well as guarded in the code: a server older than
+     * 2026-09-29 does not send any of the three, and a browser holding a cached
+     * bundle across an update is the ordinary way to meet one.
+     */
+    baseCurrency?: string;
+    baseCurrencyLocked?: boolean;
+    currencyChoices?: string[];
     email: string;
     phone: string;
     iban: string;
@@ -276,7 +282,9 @@ export function Settings() {
     city: data.business.city,
     postcode: data.business.postcode,
     countryCode: data.business.countryCode,
-    baseCurrency: data.business.baseCurrency,
+    // Same reason as `currencyChoices` below: an older server does not send it,
+    // and an empty string here would offer a blank option rather than crash.
+    baseCurrency: data.business.baseCurrency ?? "",
     email: data.business.email,
     phone: data.business.phone,
     iban: data.business.iban,
@@ -408,14 +416,26 @@ export function Settings() {
                 {/* The one in use first, in case it is not one of the four. */}
                 {[
                   form.baseCurrency,
-                  ...data.business.currencyChoices.filter(
+                  /*
+                   * `?? []`, because a browser and a server are not always the
+                   * same age. A bundle cached across an update — or a reload in
+                   * the seconds while the container restarts — talks to a
+                   * server that has never heard of this field, and
+                   * `undefined.filter` takes the whole screen down with
+                   * "Your business stopped working". Found by opening the page
+                   * against a server started before the field existed, which is
+                   * exactly the shape of that minute.
+                   */
+                  ...(data.business.currencyChoices ?? []).filter(
                     (code) => code !== form.baseCurrency,
                   ),
-                ].map((code) => (
-                  <option key={code} value={code}>
-                    {code}
-                  </option>
-                ))}
+                ]
+                  .filter(Boolean)
+                  .map((code) => (
+                    <option key={code} value={code}>
+                      {code}
+                    </option>
+                  ))}
               </Select>
             </Field>
             <Field label={postcodeLabel(form.countryCode)}>
