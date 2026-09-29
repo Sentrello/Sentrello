@@ -436,12 +436,20 @@ rm -rf /opt/sentrello /usr/local/bin/sentrello
 
 ```bash
 sentrello status     # what you are running, and whether anything is newer
-sentrello update     # takes a backup, pulls, migrates, restarts
+sentrello update     # backs up, pulls, starts the new version, migrates
 sentrello rollback   # the previous version, if the new one is wrong
 ```
 
 Both are also buttons in Settings, applied by a small agent on the host so the
 app never has to touch the container engine itself.
+
+**The order matters if an update goes wrong**, and it is not the order people
+assume. The new version is started *before* the migrations are run against it,
+because the migrations run inside it. So a migration that fails leaves the new
+release running without the schema it expects — not the old one still safely
+up. The way out is `sentrello rollback`, which the update itself tells you, and
+the rollback target was recorded before any of it began. Waiting it out is the
+one thing that does not help.
 
 Rollback puts the previous release back **against the newer database**, which
 works because migrations here are additive: an older release ignores columns it

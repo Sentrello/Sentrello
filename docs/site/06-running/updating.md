@@ -31,8 +31,11 @@ The order matters if something goes wrong, so it is worth being plain about
 it: the new image is running before the migrations do. Migrations are
 additive, so the schema itself is never left half-formed — but between `up`
 and the end of the migration step, what is serving is the new release against
-the old schema. That window is seconds long, and the way out of it is the
-backup taken in step 1, not waiting.
+the old schema. That window is seconds long, and the way out of it is
+`sentrello rollback` — which is what the update itself tells you if the
+migration step fails, and what the section below is about. Not waiting, and not
+the backup: the backup is for the case where you want the *data* back as it
+was, which a rollback deliberately does not do.
 
 ## Checking it worked
 
