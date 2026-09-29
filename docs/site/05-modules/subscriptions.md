@@ -231,3 +231,9 @@ discount and its next date, and the day the licence comes back the run
 picks them up and carries on from where it stopped. If you would rather
 keep billing without the module, each one can be re-made as a recurring
 invoice before you let it go.
+
+**The subscriber's own page goes too**, and that is the part worth acting on
+before rather than after. Pause, resume and cancel reach a subscriber through a
+link this module serves, so when the module stops loading the link stops
+answering and somebody wanting to cancel has to ask you instead. End the ones
+that should end while the screens are still there.
