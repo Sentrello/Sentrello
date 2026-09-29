@@ -151,3 +151,32 @@ test("no Origin is refused once a form has named where it lives", () => {
   // The named place still works, which is the case this must never break.
   expect(originAllowed("https://acme.com", ["acme.com"]).allowed).toBe(true);
 });
+
+/**
+ * The documented integration, which the rule above had closed.
+ *
+ * Booking's own screen tells a customer to call `GET /api/booking/services` and
+ * `GET /api/booking/slots` from their website's build step. That is a server-side
+ * request with no `Origin`, so listing the website — the thing the product asks
+ * for in the same breath — made the path answer 404. A same-origin GET from a
+ * browser carries no `Origin` either.
+ *
+ * Reads are let through; writes are not, because a write is a state-changing call
+ * with a key anybody can lift out of a page's source.
+ */
+test("a read with no Origin is allowed, and a write is not", () => {
+  expect(originAllowed(undefined, ["acme.com"], "read").allowed).toBe(true);
+  expect(originAllowed(undefined, ["acme.com"], "write").allowed).toBe(false);
+  // The default is the strict one, so an endpoint has to ask for the exception.
+  expect(originAllowed(undefined, ["acme.com"]).allowed).toBe(false);
+});
+
+test("and a read from the wrong website is still refused", () => {
+  // The exception is about the *absence* of a header, not about trusting one.
+  expect(
+    originAllowed("https://evil.example", ["acme.com"], "read").allowed,
+  ).toBe(false);
+  expect(originAllowed("https://acme.com", ["acme.com"], "read").allowed).toBe(
+    true,
+  );
+});

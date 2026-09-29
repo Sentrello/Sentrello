@@ -35,12 +35,30 @@ export interface OriginDecision {
  * and a header-less request is as likely to be that as anything else. Browsers
  * have sent `Origin` on cross-origin form posts and on every `fetch` for years,
  * so this refuses scripts and not customers. Found 2026-09-28.
+ *
+ * **`kind: "read"` is the exception, and it exists because the rule above broke
+ * a documented integration.** Booking publishes two GETs — what can be booked
+ * and which times are free — and the product's own screen tells a customer to
+ * call them from their website's build step, which is a server-side request with
+ * no `Origin` at all. So the moment a business listed its website, the path the
+ * product had just told it to use answered 404. A same-origin GET from a browser
+ * sends no `Origin` either: the header goes on cross-origin requests and on
+ * writes, not on a same-origin read.
+ *
+ * Nothing is protected by refusing those: they answer what the public booking
+ * page shows to anybody, and a script can send any `Origin` it likes. A write
+ * stays strict — that is a state-changing call with a key out of somebody's page
+ * source, which is what the paragraph above is about. Found 2026-09-29, when the
+ * demo's own reseed could not read its own services.
  */
 export function originAllowed(
   origin: string | undefined,
   allowedOrigins: string[],
+  kind: "read" | "write" = "write",
 ): OriginDecision {
-  if (!origin) return { allowed: allowedOrigins.length === 0 };
+  if (!origin) {
+    return { allowed: kind === "read" || allowedOrigins.length === 0 };
+  }
   if (allowedOrigins.length === 0) return { allowed: false };
 
   let host: string;
