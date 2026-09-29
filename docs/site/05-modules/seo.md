@@ -25,11 +25,11 @@ flowchart LR
     R["Reports"]:::own
   end
   PROV["A search data provider<br/><small>ours, or your own account</small>"]:::out
-  DEAL["Deals and invoices<br/><small>CRM and Invoicing</small>"]:::out
+  CRM["The client it is for<br/><small>a contact, when you work for others</small>"]:::out
 
   PROV --> K --> R
   A --> R
-  DEAL -->|"which phrase brought them"| R
+  CRM -->|"whose site this is"| R
   style OWN fill:#fbfdfc,stroke:#cfe4d8,color:#10442a
 ```
 

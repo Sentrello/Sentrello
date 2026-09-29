@@ -42,6 +42,12 @@ Folders are how you find things again, not how you keep them apart: anybody
 with access to Storage can open every file in it. Access is granted once, for
 the whole module, on the person's role.
 
+A file can also say **which customer it is about**, picked from your CRM on the
+way in or added afterwards — most filing happens later, when somebody goes
+looking for the contract rather than on the day it was signed. The row then
+reads "For Ridgeline Roofing", and an erasure request for that customer reaches
+the file with it.
+
 ## Expiry
 
 This is the point of the module.

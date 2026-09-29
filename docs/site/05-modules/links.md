@@ -26,12 +26,12 @@ flowchart LR
   end
   DOM(["Your own short domain"]):::pub
   CLICK["Clicks<br/><small>and what is kept about them</small>"]:::own
-  CRM["Contacts and invoices"]:::out
+  CONV["Signups and sales<br/><small>reported by your own server</small>"]:::own
 
   LK --> DOM --> CLICK
   QR --> DOM
   CLICK --> WH
-  CLICK --> CRM
+  CLICK --> CONV
   style OWN fill:#fbfdfc,stroke:#cfe4d8,color:#10442a
 ```
 
@@ -92,14 +92,15 @@ flowchart LR
   R["Redirect<br/><small>and the click is recorded</small>"]:::step
   D(["yours.example/offer"]):::url
   F["A form is filled in"]:::step
-  C["A contact in the CRM<br/><small>carrying the link that made it</small>"]:::end2
-  I["An invoice<br/><small>joined back to the same link</small>"]:::end2
+  C["A signup<br/><small>recorded against the link that earned it</small>"]:::end2
+  I["The sale<br/><small>and what it was worth, on the same link</small>"]:::end2
 
   S --> R --> D --> F --> C --> I
 ```
 
-That last join is the part other link shorteners cannot do. They stop at the
-click, because the click is all they have.
+That last step is the part other link shorteners cannot do. They stop at the
+click, because the click is all they have — the money is in a system they have
+no access to. Yours is on the same machine.
 
 This is the part a shortener does not do.
 

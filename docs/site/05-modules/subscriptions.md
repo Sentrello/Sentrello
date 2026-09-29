@@ -113,8 +113,11 @@ happen: your own screen, and the subscriber's.
 
 Run the Shop as well and a subscriber can sign in to your storefront to cancel
 their own subscription without emailing you about it, or pause it if you allow
-pausing. This works whether or not the Shop is installed. The Shop reads the
-subscription rows; nothing flows the other way.
+pausing. This works whether or not the Shop is installed. What the storefront can change
+it asks Subscriptions to change — a seat count goes through the proration policy
+you set here, and the customer sees the figure before agreeing to it. Without
+Subscriptions the Shop cannot quote or collect anything: the new count simply
+lands on the next invoice, which is the platform's default anyway.
 
 ## Permissions
 

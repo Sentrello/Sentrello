@@ -102,8 +102,9 @@ access request can answer across every installed module at once. See
 
 Each module is a whole application rather than a feature, and is built so
 another module can consume what it produces. The Shop's orders reach
-Accounting. A booking becomes an invoice. An admin connects them; neither
-module was written knowing about the other.
+Accounting. A booking becomes an invoice. Neither module was written knowing
+about the other, and there is nothing to wire up: install both and the join is
+already there.
 
 ## Write a module of your own
 
