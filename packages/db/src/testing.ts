@@ -69,9 +69,19 @@ export async function makeOrganization(
 }
 
 export async function dropOrganization(...orgIds: string[]): Promise<void> {
-  if (orgIds.length === 0) return;
-  const ids = sql.join(
-    orgIds.map((id) => sql`${id}`),
+  /*
+   * Whatever of them actually exists.
+   *
+   * A suite whose `beforeAll` fails part-way calls this with `undefined` for
+   * the business it never got to — and an undefined id made the whole teardown
+   * throw, so the businesses it *had* created stayed behind. One leftover
+   * organisation is eighty failures in three other modules the next time the
+   * suite runs, none of them naming why.
+   */
+  const ids = orgIds.filter((id): id is string => Boolean(id));
+  if (ids.length === 0) return;
+  const list = sql.join(
+    ids.map((id) => sql`${id}`),
     sql`, `,
   );
 
@@ -107,12 +117,12 @@ export async function dropOrganization(...orgIds: string[]): Promise<void> {
   for (const [name, nsp] of scoped) {
     await db.execute(sql`
       delete from ${sql.identifier(nsp)}.${sql.identifier(name)}
-      where organization_id in (${ids})
+      where organization_id in (${list})
     `);
   }
 
   await db.execute(sql`
-    delete from ${sql.identifier("organizations")} where id in (${ids})
+    delete from ${sql.identifier("organizations")} where id in (${list})
   `);
 }
 

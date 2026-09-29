@@ -94,7 +94,7 @@ test("a second business says what it switched off", () => {
   expect(alert?.textContent).toContain("holds 2 businesses");
   expect(alert?.textContent).toContain("public pages are switched off");
   expect(host.querySelector("a")?.getAttribute("href")).toBe(
-    "/settings-business",
+    "mailto:support@sentrello.com",
   );
 });
 

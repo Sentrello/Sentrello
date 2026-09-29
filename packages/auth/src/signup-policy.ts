@@ -11,6 +11,11 @@ import { APIError, createAuthMiddleware } from "better-auth/api";
  */
 let bootstrapping = false;
 
+/** Whether the bootstrap route is claiming this instance right now. */
+export function duringBootstrapNow(): boolean {
+  return bootstrapping;
+}
+
 export function duringBootstrap<T>(fn: () => Promise<T>): Promise<T> {
   bootstrapping = true;
   return fn().finally(() => {

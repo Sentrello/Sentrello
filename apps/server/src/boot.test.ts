@@ -923,6 +923,40 @@ test("an address with a bad escape is a 404, not a 500", async () => {
  * by asking every route in the product for wrong things, on a freshly
  * installed instance with every module on it.
  */
+/**
+ * A second business cannot be made from a browser.
+ *
+ * `POST /api/auth/organization/create` is Better Auth's own endpoint and
+ * anybody signed in could call it. Two organisations switch off every public
+ * page in the product — a storefront, a booking page, a signup form all arrive
+ * with no session and nothing can tell the two apart — and the accident is not
+ * undoable from inside the product, because deleting an organisation is refused.
+ * So the second one is refused instead, with the reason.
+ */
+test("a second business is refused at the door", async () => {
+  process.env.SENTRELLO_LICENSE_TOKEN_PATH = "secrets/does-not-exist.jwt";
+  const server = (await import("./index")).default;
+  const { headers, cleanUp } = await signedIn();
+  try {
+    headers.set("content-type", "application/json");
+    headers.set("origin", process.env.SENTRELLO_BASE_URL ?? "http://localhost");
+    const res = await server.fetch(
+      new Request("http://localhost/api/auth/organization/create", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          name: "Second Ltd",
+          slug: `second-${Date.now()}`,
+        }),
+      }),
+    );
+    expect(res.status).toBe(403);
+    expect(JSON.stringify(await res.json())).toContain("built for one");
+  } finally {
+    await cleanUp();
+  }
+});
+
 test("a patch with nothing in it is a 400, not a 500", async () => {
   process.env.SENTRELLO_LICENSE_TOKEN_PATH = "secrets/does-not-exist.jwt";
   const server = (await import("./index")).default;

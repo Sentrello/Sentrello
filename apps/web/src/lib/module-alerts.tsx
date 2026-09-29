@@ -145,11 +145,13 @@ export function PublicPagesOff({ organizations }: { organizations?: number }) {
       </strong>{" "}
       Your public pages are switched off while that is true — a shop, a booking
       page and a signup form all arrive without a sign-in, and nothing can tell
-      the two apart. Remove the one you did not mean to create in{" "}
-      <a className="link" href="/settings-business">
-        Settings &rarr; Business
-      </a>
-      , or ask support which is which.
+      the two apart. A second one cannot be made from a browser any more, so
+      this is one from before that — email{" "}
+      <a className="link" href="mailto:support@sentrello.com">
+        support@sentrello.com
+      </a>{" "}
+      and we will take the spare one out; removing a business is not something
+      the product will do on its own, because the wrong choice is unrecoverable.
     </div>
   );
 }

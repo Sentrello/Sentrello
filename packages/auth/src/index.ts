@@ -15,6 +15,7 @@ import { hashPassword as defaultHashPassword } from "better-auth/crypto";
 import { organization, twoFactor } from "better-auth/plugins";
 import type { Context } from "hono";
 import { getConnInfo } from "hono/bun";
+import { organizationGuard } from "./organization-policy";
 import { passwordFloorGuard } from "./password-floor";
 import { ac, roles } from "./permissions";
 import { googleProvider } from "./providers";
@@ -286,6 +287,9 @@ export const auth = betterAuth({
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
       await signUpGuard(ctx);
+      // One business per instance, because every public page answers for "the
+      // organisation here" and a second one takes all of them down in silence.
+      await organizationGuard(ctx);
       // The business's own minimum, which nothing read until 2026-09-28.
       await passwordFloorGuard(ctx);
       // `await`, never `return`. A `before` hook that resolves to any object
