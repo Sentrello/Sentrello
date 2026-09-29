@@ -1605,6 +1605,28 @@ export function SettingsLicence() {
                     {enterKey.isPending ? "Checking…" : "Activate"}
                   </Button>
                 </div>
+                {/*
+                  Where to get the key again.
+
+                  The ordinary case is somebody who no longer has the email, and
+                  the page that will send it back has existed as long as the
+                  control plane with nothing linking to it. This is the screen
+                  they are standing on when they need it.
+                */}
+                {licence.data.manageUrl ? (
+                  <p className="mt-2 text-sm" style={muted}>
+                    Lost it?{" "}
+                    <a
+                      href={licence.data.manageUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="link"
+                    >
+                      Look it up or have it emailed again
+                    </a>
+                    .
+                  </p>
+                ) : null}
                 {enterKey.error ? <ErrorNote error={enterKey.error} /> : null}
                 {enterKey.data ? (
                   <LicenseSyncNote syncing={enterKey.data.syncing} />
