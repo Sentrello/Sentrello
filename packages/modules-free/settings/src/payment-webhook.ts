@@ -129,10 +129,26 @@ export function registerPaymentWebhookEndpoint(ctx: ModuleContext) {
       return c.json({ error: "invalid signature" }, 401);
     }
 
-    // And the reassuring half, so "when did one last land" is answerable.
+    /*
+     * And the reassuring half, so "when did one last land" is answerable — plus
+     * the refusals, which an acceptance settles.
+     *
+     * The count was never cleared. Connecting a processor normally means the
+     * endpoint exists before the secret is stored, so the very first delivery is
+     * refused — and that one refusal left the connection check saying, for ever,
+     * "the stored signing secret does not belong to the endpoint sending them.
+     * Clear it and connect again." On a connection that was working perfectly,
+     * on the screen a business opens when money has not arrived.
+     *
+     * An accepted event is proof the secret is right *now*, which is the only
+     * thing the warning was ever trying to say. Cleared here, so the count means
+     * "refused since the last one that worked" and the check fires on that.
+     * `webhookRejectedAt` is left standing: it is the record of when, and it is
+     * what the message names.
+     */
     await db
       .update(schema.paymentAccounts)
-      .set({ webhookAcceptedAt: new Date() })
+      .set({ webhookAcceptedAt: new Date(), webhookRejectedCount: 0 })
       .where(eq(schema.paymentAccounts.id, account.id));
 
     const { eventId, eventType } = identifyPaymentEvent(raw);

@@ -482,3 +482,60 @@ test("a refused event is counted, so somebody can be told", async () => {
   expect(after?.refused).toBe((before?.refused ?? 0) + 1);
   expect(after?.at).not.toBeNull();
 });
+
+/**
+ * And an event that is accepted settles the refusals before it.
+ *
+ * The count was never cleared, and connecting a processor normally means the
+ * endpoint exists before the signing secret is stored — so the very first
+ * delivery is refused. That one refusal left the connection check saying, for
+ * ever, "the stored signing secret does not belong to the endpoint sending them.
+ * Clear it and connect again", on a connection that was working perfectly, on
+ * the screen a business opens when money has not arrived.
+ *
+ * An accepted event is proof the secret is right *now*, which is the only thing
+ * that warning was ever trying to say.
+ */
+test("an accepted event settles the refusals before it", async () => {
+  const state = async () => {
+    const [row] = await db
+      .select({
+        refused: schema.paymentAccounts.webhookRejectedCount,
+        refusedAt: schema.paymentAccounts.webhookRejectedAt,
+        acceptedAt: schema.paymentAccounts.webhookAcceptedAt,
+      })
+      .from(schema.paymentAccounts)
+      .where(eq(schema.paymentAccounts.organizationId, orgId));
+    return row;
+  };
+
+  // One refusal, the way a processor's first delivery meets an instance that
+  // has not been given the secret yet.
+  await app.request("http://localhost/api/payments/webhook/stripe", {
+    method: "POST",
+    headers: new Headers({
+      "content-type": "application/json",
+      "stripe-signature": "t=1,v1=nonsense",
+    }),
+    body: JSON.stringify({
+      id: "evt_settles",
+      type: "payment_intent.succeeded",
+    }),
+  });
+  const refused = await state();
+  expect(refused?.refused ?? 0).toBeGreaterThan(0);
+
+  const raw = paidEvent("evt_settles_ok", 1_000);
+  const accepted = await app.request(
+    "http://localhost/api/payments/webhook/stripe",
+    { method: "POST", headers: await signed(raw), body: raw },
+  );
+  expect(accepted.status).toBe(200);
+
+  const after = await state();
+  expect(after?.refused).toBe(0);
+  // The record of when stays: it is what the message names, and losing it would
+  // turn "this happened in March" into "this is happening".
+  expect(after?.refusedAt).not.toBeNull();
+  expect(after?.acceptedAt).not.toBeNull();
+});

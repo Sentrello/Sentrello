@@ -458,14 +458,27 @@ export function registerPaymentAccounts(ctx: ModuleContext) {
        * answers 401, every payment is taken and never confirmed. The webhook
        * route counts those refusals; this is where somebody is told.
        */
+      /*
+       * Refused *since the last one that worked*, which is what the count means
+       * now that an acceptance clears it.
+       *
+       * It used to mean "refused, ever". Connecting a processor normally means
+       * the endpoint exists before the secret is stored, so the first delivery
+       * is refused — and this then told a business with a working connection to
+       * clear it and start again, for ever, on the screen they open when money
+       * has not arrived.
+       */
       if (account.webhookRejectedCount > 0) {
-        const since = account.webhookAcceptedAt;
+        const when = account.webhookRejectedAt;
+        const lastGood = account.webhookAcceptedAt;
         steps.push({
           step: "checked the events that arrived",
           ok: false,
           detail: `${account.webhookRejectedCount} event(s) were refused as unsigned or wrongly signed${
-            since
-              ? `, the last one accepted ${since.toDateString()}`
+            when ? `, the last ${when.toDateString()}` : ""
+          }${
+            lastGood
+              ? `, and none has been accepted since ${lastGood.toDateString()}`
               : " and none has ever been accepted"
           } — the stored signing secret does not belong to the endpoint sending them. Clear it and connect again.`,
         });
