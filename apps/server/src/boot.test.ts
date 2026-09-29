@@ -874,6 +874,37 @@ test("an impossible date is a 400 that names it, not a 500", async () => {
   }
 });
 
+/**
+ * An address whose escapes are not readable is not a broken instance.
+ *
+ * `%ff` is a percent escape that is not valid UTF-8, so `decodeURIComponent`
+ * throws inside `c.req.param()` — and ten routes answered 500 and "something
+ * went wrong" to it, as did the public short-link redirect, which anybody on the
+ * internet can reach. Found on 29 September by asking a Free instance for wrong
+ * things, which nothing had done before: a crawler or a mistyped link is not a
+ * fault to report as a crash.
+ */
+test("an address with a bad escape is a 404, not a 500", async () => {
+  process.env.SENTRELLO_LICENSE_TOKEN_PATH = "secrets/does-not-exist.jwt";
+  const server = (await import("./index")).default;
+  const { headers, cleanUp } = await signedIn();
+  try {
+    for (const path of [
+      "/api/contacts/%ff",
+      "/api/invoices/%ff",
+      "/api/accounting/transactions/%ff",
+    ]) {
+      const res = await server.fetch(
+        new Request(`http://localhost${path}`, { headers }),
+      );
+      expect(res.status, `${path} should not be a 500`).toBe(404);
+      expect(await res.json()).toEqual({ error: "not found" });
+    }
+  } finally {
+    await cleanUp();
+  }
+});
+
 test("a body that is not JSON is a 400, not a crash", async () => {
   // Routes parse with `c.req.json()`; before the onError mapping, a stray
   // byte in the body answered "something went wrong" with a 500 and a stack

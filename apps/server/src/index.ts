@@ -113,6 +113,21 @@ app.onError((err, c) => {
     return c.json({ error: "not found" }, 404);
   }
   /*
+   * An address whose escapes are not readable, for every route at once.
+   *
+   * `/api/contacts/%ff` — a percent escape that is not valid UTF-8 — made
+   * `decodeURIComponent` throw a `URIError` inside `c.req.param()`, which came
+   * back as 500 and "something went wrong" from ten routes at the last count,
+   * and from the public short-link redirect, which anybody on the internet can
+   * reach. A crawler, a mistyped link or a scanner is not a broken instance.
+   *
+   * 404, like a malformed uuid above it: the address does not name anything,
+   * which is both true and the answer that says least about what exists.
+   */
+  if (err instanceof URIError) {
+    return c.json({ error: "not found" }, 404);
+  }
+  /*
    * A statement Postgres cut for running too long.
    *
    * Not the caller's mistake and not a crash: it is the instance saying this
