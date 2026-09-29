@@ -1156,45 +1156,100 @@ const tables = {
      * Their invoices would keep working but stop naming anyone, and the ledger
      * would still carry the money — the business would be left with revenue it
      * cannot attribute. Refusing is recoverable; deleting is not.
+     *
+     * **Every table that carries a `contactId`, not the two that were thought
+     * of first.** This asked about invoices and quotes until 2026-09-28, while
+     * `merge.ts` — the other end of the same problem — knew about nine. None of
+     * those columns is a foreign key, so nothing in the database refused
+     * either: a contact with a live subscription deleted cleanly and left the
+     * scheduler raising invoices every month for a customer that no longer
+     * exists. Bookkeeping entries, a payee and a contractor's 1099 details went
+     * the same way, the last of them a record the IRS asks for by name.
+     *
+     * The four that are *not* here are deliberate: tasks, activities, form
+     * submissions and notes are a record of dealing with somebody rather than
+     * of money, and a business tidying up its contacts should not be stopped by
+     * a note it wrote in March.
      */
     async blocksDelete(orgId: string, id: string) {
-      const [invoices, quotes] = await Promise.all([
-        db
-          .select({ id: schema.invoices.id })
-          .from(schema.invoices)
-          .where(
-            and(
-              eq(schema.invoices.organizationId, orgId),
-              eq(schema.invoices.contactId, id),
-            ),
-          ),
-        db
-          .select({ id: schema.quotes.id })
-          .from(schema.quotes)
-          .where(
-            and(
-              eq(schema.quotes.organizationId, orgId),
-              eq(schema.quotes.contactId, id),
-            ),
-          ),
-      ]);
-
-      const parts: string[] = [];
-      if (invoices.length) {
-        parts.push(
-          `${invoices.length} invoice${invoices.length > 1 ? "s" : ""}`,
+      const mine = <T extends { organizationId: unknown; contactId: unknown }>(
+        table: T,
+      ) =>
+        and(
+          eq(table.organizationId as never, orgId),
+          eq(table.contactId as never, id),
         );
-      }
-      if (quotes.length) {
-        parts.push(`${quotes.length} quote${quotes.length > 1 ? "s" : ""}`);
-      }
+
+      const [invoices, quotes, recurring, entries, payees, taxDetails] =
+        await Promise.all([
+          db
+            .select({ id: schema.invoices.id })
+            .from(schema.invoices)
+            .where(mine(schema.invoices)),
+          db
+            .select({ id: schema.quotes.id })
+            .from(schema.quotes)
+            .where(mine(schema.quotes)),
+          // Read by kind: "2 subscriptions" and "2 recurring invoices" are
+          // different things to the business, and the same row holds both.
+          db
+            .select({ kind: schema.recurringProfiles.kind })
+            .from(schema.recurringProfiles)
+            .where(mine(schema.recurringProfiles)),
+          db
+            .select({ id: schema.transactions.id })
+            .from(schema.transactions)
+            .where(mine(schema.transactions)),
+          db
+            .select({ id: schema.payees.id })
+            .from(schema.payees)
+            .where(mine(schema.payees)),
+          db
+            .select({ id: schema.contractorTaxDetails.id })
+            .from(schema.contractorTaxDetails)
+            .where(mine(schema.contractorTaxDetails)),
+        ]);
+
+      const subscriptions = recurring.filter(
+        (r) => r.kind === "subscription",
+      ).length;
+      const schedules = recurring.length - subscriptions;
+
+      /** "3 invoices", "1 quote" — the count and its noun agreeing. */
+      const some = (n: number, one: string, many = `${one}s`) =>
+        n ? `${n} ${n === 1 ? one : many}` : null;
+
+      const parts = [
+        some(invoices.length, "invoice"),
+        some(quotes.length, "quote"),
+        some(subscriptions, "subscription"),
+        some(schedules, "recurring invoice"),
+        some(entries.length, "bookkeeping entry", "bookkeeping entries"),
+        some(payees.length, "payee record"),
+        some(
+          taxDetails.length,
+          "set of contractor tax details",
+          "sets of contractor tax details",
+        ),
+      ].filter((part): part is string => part !== null);
+
+      if (!parts.length) return null;
+
       // "1 invoice … would leave those without a customer" is the plural
       // agreeing with nothing. One document is "it"; two or more, or one of
       // each kind, are "those".
-      const many = invoices.length + quotes.length > 1;
-      return parts.length
-        ? `This customer has ${parts.join(" and ")}. Deleting them would leave ${many ? "those" : "it"} without a customer.`
-        : null;
+      const total =
+        invoices.length +
+        quotes.length +
+        recurring.length +
+        entries.length +
+        payees.length +
+        taxDetails.length;
+      const listed =
+        parts.length > 1
+          ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`
+          : parts[0];
+      return `This customer has ${listed}. Deleting them would leave ${total > 1 ? "those" : "it"} without a customer.`;
     },
     /**
      * What the list row needs beyond the contact's own columns: its tags, and
