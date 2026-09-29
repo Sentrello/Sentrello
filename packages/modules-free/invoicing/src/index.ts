@@ -16,6 +16,7 @@ import {
   creditBalanceFor,
   recordCreditMovement,
 } from "@sentrello/db/customer-credit";
+import { dayIn, dayOf } from "@sentrello/db/day";
 import {
   convertQuoteToInstalments,
   convertQuoteToInvoice,
@@ -46,7 +47,7 @@ import {
   ensurePortalToken,
   moneyLocale,
 } from "@sentrello/db/portal";
-import { dateFrom, demandDate } from "@sentrello/db/timezone";
+import { dayFrom, demandDay } from "@sentrello/db/timezone";
 import { timezoneFor } from "@sentrello/db/timezone";
 import { NO_MAIL_SERVER, emailAdapter, mailConfigured } from "@sentrello/email";
 import {
@@ -421,11 +422,21 @@ export default defineModule({
         // The 30th of February is unreadable too, however plainly it reads:
         // `new Date` rolls it to the 2nd of March, and the issue date is the
         // month this sale is booked into.
-        const issued = body.issueDate ? dateFrom(String(body.issueDate)) : null;
+        const issued = body.issueDate ? dayFrom(String(body.issueDate)) : null;
         if (body.issueDate && !issued) {
           return c.json({ error: "unreadable issue date" }, 400);
         }
-        if (issued && issued.getTime() > Date.now() + 86_400_000) {
+        /*
+         * Days, and the business's own — the same question the issue route
+         * asks, asked the same way.
+         *
+         * This allowed anything up to a day ahead, which is what you write when
+         * a date is midnight and the clock is UTC and you are trying not to
+         * refuse today. With the business's day there is nothing to tolerate:
+         * today is today at any hour, and tomorrow is refused.
+         */
+        const today = dayIn(new Date(), await timezoneFor(orgId));
+        if (issued && dayOf(issued).getTime() > today.getTime()) {
           return c.json(
             { error: "an invoice cannot be issued in the future" },
             400,
@@ -486,7 +497,17 @@ export default defineModule({
               // request value: those two disagreeing is a document priced in
               // one currency and converted from another.
               currency: documentCurrency,
-              ...(issued ? { issueDate: issued } : {}),
+              /*
+               * Always set, never left to the column's `defaultNow()`.
+               *
+               * An issue date is a day: it is printed on the document and it
+               * decides which period the journal entry lands in. Defaulted in
+               * the database it was the instant the row was written, so an
+               * invoice raised at nine in the evening in New York was dated the
+               * first of the next month in UTC — a sale booked into a month the
+               * business had not traded in.
+               */
+              issueDate: issued ?? today,
               // Defaulted rather than left null: overdue chasing skips an
               // invoice with no due date, so one created without a date is
               // money the business is never reminded to ask for.
@@ -1250,7 +1271,10 @@ export default defineModule({
               contactId,
               currency: documentCurrency,
               number: await nextDocumentNumber(tx, orgId, "quote"),
-              validUntil: validUntil ? new Date(validUntil) : null,
+              issueDate: dayIn(new Date(), await timezoneFor(orgId)),
+              // The day they typed, like every other date column. `new Date`
+              // here took a timestamp at its word and stored the instant.
+              validUntil: validUntil ? demandDay(validUntil) : null,
               pricesIncludeTax,
               notes: String(body.notes ?? "").trim() || null,
               templateId: await ownedTemplateId(orgId, body.templateId),
@@ -1368,6 +1392,7 @@ export default defineModule({
               contactId,
               dealId: deal.id,
               number: await nextDocumentNumber(tx, orgId, "quote"),
+              issueDate: dayIn(new Date(), await timezoneFor(orgId)),
               pricesIncludeTax,
               notes: deal.description,
               subtotalCents: prepared.subtotalCents,
@@ -1528,7 +1553,7 @@ export default defineModule({
             // bucket two days out. It throws, which also unwinds this
             // transaction rather than leaving half an edit behind.
             values.dueDate = body.dueDate
-              ? demandDate(String(body.dueDate))
+              ? demandDay(String(body.dueDate))
               : null;
           }
           if (body.paymentTerms !== undefined) {
@@ -1753,7 +1778,7 @@ export default defineModule({
           }
           if (body.validUntil !== undefined) {
             values.validUntil = body.validUntil
-              ? demandDate(String(body.validUntil))
+              ? demandDay(String(body.validUntil))
               : null;
           }
           if (typeof body.templateId === "string") {

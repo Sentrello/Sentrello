@@ -7,8 +7,10 @@ import {
 import { and, asc, db, eq, lt, schema, sql } from "@sentrello/db";
 import { creditFor } from "@sentrello/db/credit";
 import { contactHasEmail } from "@sentrello/db/crm";
+import { dayIn } from "@sentrello/db/day";
 import { lineTotals } from "@sentrello/db/money";
 import { nextDocumentNumber } from "@sentrello/db/numbering";
+import { timezoneFor } from "@sentrello/db/timezone";
 import { emailAdapter, systemFrom } from "@sentrello/email";
 import type { ModuleContext } from "@sentrello/module-sdk";
 import {
@@ -1215,6 +1217,9 @@ async function draftQuote(
         organizationId: orgId,
         contactId,
         number: await nextDocumentNumber(tx, orgId, "quote"),
+        // The business's day, not the instant the form was submitted: a quote
+        // sent at eight in the evening in New York is dated that evening.
+        issueDate: dayIn(new Date(), await timezoneFor(orgId)),
         status: "draft",
         subtotalCents: totals.subtotal,
         taxCents: totals.tax,

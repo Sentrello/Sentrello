@@ -4,6 +4,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { and, db, desc, eq, gte, ilike, lte, schema, sql } from "@sentrello/db";
+import { dayIn } from "@sentrello/db/day";
 import {
   CORE_ACCOUNTS,
   accountingValues,
@@ -14,7 +15,7 @@ import {
   taggingFrom,
 } from "@sentrello/db/ledger";
 import { sumCents } from "@sentrello/db/money";
-import { dateFrom, demandDate } from "@sentrello/db/timezone";
+import { dayFrom, demandDate, timezoneFor } from "@sentrello/db/timezone";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import type { AccountType } from "./chart";
 import { isUuid, ownedAccount, ownedAccountOfType } from "./chart";
@@ -87,16 +88,22 @@ export function sourceOf(kind: TransactionKind, id: string): string {
 }
 
 /**
- * A date the caller supplied, or now. Rejects nonsense rather than storing it.
+ * A date the caller supplied, or the business's today. Nonsense is refused.
  *
  * "Nonsense" includes the 30th of February, which `new Date` rolls forward to
  * the 2nd of March rather than refusing — and the date on a transaction is the
  * date its journal entry is posted under, so a rolled day books the money into
  * a month nobody chose and every report after it agrees.
+ *
+ * A *day*, both ways. Nothing supplied used to mean `new Date()`, the instant
+ * the row was written: money spent at seven in the evening in New York was
+ * posted on the following day, and on the last evening of a month it landed in
+ * a month the business had not traded in. `today` is the business's, from
+ * `dayIn` — the caller knows which business, this does not.
  */
-export function parseDate(value: unknown): Date | null {
-  if (value === undefined || value === null || value === "") return new Date();
-  return dateFrom(String(value));
+export function parseDate(value: unknown, today: Date): Date | null {
+  if (value === undefined || value === null || value === "") return today;
+  return dayFrom(String(value));
 }
 
 async function defaultCategory(
@@ -191,7 +198,10 @@ export async function createTransaction(
         "That amount is larger than a single transaction can hold — check the units.",
     };
   }
-  const occurredAt = parseDate(body.occurredAt ?? body.spentAt);
+  const occurredAt = parseDate(
+    body.occurredAt ?? body.spentAt,
+    dayIn(new Date(), await timezoneFor(orgId)),
+  );
   if (!occurredAt) return { error: "unreadable date" };
 
   /**
@@ -471,7 +481,10 @@ export function registerTransactions(ctx: ModuleContext) {
       const occurredAt =
         body.occurredAt === undefined
           ? existing.occurredAt
-          : parseDate(body.occurredAt);
+          : parseDate(
+              body.occurredAt,
+              dayIn(new Date(), await timezoneFor(orgId)),
+            );
       if (!occurredAt) return c.json({ error: "unreadable date" }, 400);
 
       const amountCents = body.amountCents ?? existing.amountCents;

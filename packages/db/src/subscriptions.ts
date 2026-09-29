@@ -12,6 +12,8 @@
  * there is no second path to a row either.
  */
 
+import { dayIn, dayOf } from "./day";
+
 export const BILLING_INTERVALS = [
   "weekly",
   "monthly",
@@ -55,6 +57,28 @@ export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
  */
 export function firstRun(startsOn: Date, trialEndsAt: Date | null): Date {
   return trialEndsAt && trialEndsAt > startsOn ? trialEndsAt : startsOn;
+}
+
+/**
+ * Is this still a trial, on the business's day?
+ *
+ * Four places asked it — the billing sweep, the resume action, and twice in the
+ * subscriber's own portal — and all four asked `trialEndsAt > now`. A trial ends
+ * on a *day*, stored as midnight UTC, so that answer flipped at one second past
+ * midnight in Greenwich: at eight the evening before in New York, where the
+ * nightly sweep would then raise the first invoice a day early, and the portal
+ * would tell the customer their trial was over while it still had a day in it.
+ *
+ * It bills *on* the day the trial ends — the rule `firstRun` above sets — so the
+ * trial covers the days before it and not that one.
+ */
+export function inTrial(
+  trialEndsAt: Date | null,
+  now: Date,
+  zone: string | null,
+): boolean {
+  if (!trialEndsAt) return false;
+  return dayOf(trialEndsAt).getTime() > dayIn(now, zone).getTime();
 }
 
 /**

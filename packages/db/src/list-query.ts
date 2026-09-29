@@ -132,21 +132,27 @@ export function orderBy(spec: ListSpec, params: ListParams): SQL {
 }
 
 /**
- * The same ordering, with a column to break ties on.
+ * The same ordering, with columns to break ties on.
  *
  * Every paged list needs one. Without it the database is free to return two
  * rows sharing a sort value in either order, and it does — so a row can sit
  * on page one, then on page two after the next request, and never be read.
+ *
+ * More than one is worth passing where the tie means something. A list sorted
+ * by issue date ties on every document raised the same day, because a date is
+ * a day: breaking that tie on the id alone puts this morning's five invoices
+ * in the order their uuids happen to fall. `createdAt, id` reads as the day's
+ * work in the order it was done, and still lands every row on one page.
  */
 export function orderByWith(
   spec: ListSpec,
   params: ListParams,
-  tiebreaker: PgColumn,
+  ...tiebreakers: PgColumn[]
 ): SQL[] {
   const direction = orderDirection(spec, params);
   return [
     orderBy(spec, params),
-    direction === "asc" ? asc(tiebreaker) : desc(tiebreaker),
+    ...tiebreakers.map((c) => (direction === "asc" ? asc(c) : desc(c))),
   ];
 }
 

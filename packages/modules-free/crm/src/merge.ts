@@ -4,8 +4,10 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { db, schema } from "@sentrello/db";
+import { dayIn } from "@sentrello/db/day";
 import { recordChanged } from "@sentrello/db/record-events";
 import { record } from "@sentrello/db/security-events";
+import { timezoneFor } from "@sentrello/db/timezone";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import { and, eq, inArray, sql } from "drizzle-orm";
 
@@ -419,7 +421,16 @@ export function registerMerge(ctx: ModuleContext) {
         }
         if (merged.doNotSell && !kept.doNotSell) {
           fill.doNotSell = true;
-          fill.doNotSellOn = merged.doNotSellOn ?? new Date();
+          /*
+           * The day the objection carries over, not the moment of the merge.
+           *
+           * `doNotSellOn` is the date a CCPA opt-out was made, which is what an
+           * audit asks for and what the retention window counts from. Stamped as
+           * an instant it reads as the day after in UTC for a business in
+           * California — where this rule comes from.
+           */
+          fill.doNotSellOn =
+            merged.doNotSellOn ?? dayIn(new Date(), await timezoneFor(orgId));
         }
         if (merged.hasNewsletter && !kept.hasNewsletter) {
           fill.hasNewsletter = true;

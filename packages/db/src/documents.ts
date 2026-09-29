@@ -16,6 +16,7 @@ import { postInvoiceIssued } from "./ledger";
 import { MoneyError, bpToPpm, documentTotals, sumCents } from "./money";
 import { nextDocumentNumber } from "./numbering";
 import * as schema from "./schema";
+import { timezoneFor } from "./timezone";
 
 /**
  * A quote becomes an invoice.
@@ -111,6 +112,9 @@ export async function convertQuoteToInvoice(
         rateMicro,
         number: await nextDocumentNumber(tx, organizationId, "invoice"),
         status: "open",
+        // The day the invoice is raised, where the business is — not the instant
+        // the row was written, which the column default would have stored.
+        issueDate: dayIn(new Date(), await timezoneFor(organizationId)),
         // The letterhead the customer was quoted on, so the invoice for the
         // same work does not arrive looking like it came from somewhere else.
         templateId: quote.templateId,
@@ -300,7 +304,17 @@ export async function copyInvoice(
     );
   }
 
-  const issueDate = overrides.issueDate ?? new Date();
+  /*
+   * A day, not the moment the copy was made.
+   *
+   * The issue date is printed on the document and decides which period its
+   * journal entry lands in, so a copy raised at nine in the evening in New York
+   * was dated the first of the next month in UTC — a sale booked into a month
+   * the business had not traded in. The business's own day, and UTC when it has
+   * not said where it is.
+   */
+  const issueDate =
+    overrides.issueDate ?? dayIn(new Date(), await timezoneFor(organizationId));
   const rateMicro =
     overrides.rateMicro ??
     (await rateOn(organizationId, source.currency, issueDate));
@@ -694,7 +708,9 @@ export async function convertQuoteToInstalments(
     taxes: apportion(part.tax, shares),
   }));
 
-  const today = new Date();
+  // One day for the whole plan, where the business is: the instalments are
+  // dated from it, and the first one is dated *on* it.
+  const today = dayIn(new Date(), await timezoneFor(organizationId));
   const made = await db.transaction(async (tx) => {
     const invoices: (typeof schema.invoices.$inferSelect)[] = [];
 
@@ -710,7 +726,7 @@ export async function convertQuoteToInstalments(
 
       // A date, for the reason `defaultDueDate` is one.
       const due = new Date(
-        dayOf(today).getTime() + Math.max(0, part.dueInDays) * 86_400_000,
+        today.getTime() + Math.max(0, part.dueInDays) * 86_400_000,
       );
 
       const [invoice] = await tx
@@ -723,6 +739,7 @@ export async function convertQuoteToInstalments(
           rateMicro,
           number: await nextDocumentNumber(tx, organizationId, "invoice"),
           status: "draft",
+          issueDate: today,
           // Quoted gross stays quoted gross, on its own letterhead — the same
           // two fields the single conversion carries.
           pricesIncludeTax: quote.pricesIncludeTax,

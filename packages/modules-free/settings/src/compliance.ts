@@ -8,7 +8,7 @@ import {
   forgetHipaaRules,
   record as recordSecurityEvent,
 } from "@sentrello/db/security-events";
-import { dateFrom } from "@sentrello/db/timezone";
+import { dayFrom } from "@sentrello/db/timezone";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import { REGIMES, suggestedRegimes } from "./regimes";
 
@@ -253,7 +253,7 @@ export function registerCompliance(ctx: ModuleContext) {
          * assessment was and when the next one is due.
          */
         const on = body.riskAssessmentOn
-          ? dateFrom(body.riskAssessmentOn)
+          ? dayFrom(body.riskAssessmentOn)
           : null;
         if (body.riskAssessmentOn && !on) {
           return c.json({ error: "a date looks like 2026-03-31" }, 400);

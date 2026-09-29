@@ -253,6 +253,7 @@ export function registerLists(ctx: ModuleContext) {
               ...orderByWith(
                 kind === "invoices" ? invoiceList : quoteList,
                 listParams(query),
+                table.createdAt,
                 table.id,
               ),
             ),
@@ -348,7 +349,14 @@ export function registerLists(ctx: ModuleContext) {
         .select()
         .from(schema.invoices)
         .where(where)
-        .orderBy(...orderByWith(invoiceList, params, schema.invoices.id))
+        .orderBy(
+          ...orderByWith(
+            invoiceList,
+            params,
+            schema.invoices.createdAt,
+            schema.invoices.id,
+          ),
+        )
         .limit(window ? window.limit : UNPAGED_MAX + 1)
         .offset(window ? window.offset : 0);
       const { rows, truncated } = window
@@ -481,7 +489,14 @@ export function registerLists(ctx: ModuleContext) {
         .select()
         .from(schema.quotes)
         .where(where)
-        .orderBy(...orderByWith(quoteList, params, schema.quotes.id))
+        .orderBy(
+          ...orderByWith(
+            quoteList,
+            params,
+            schema.quotes.createdAt,
+            schema.quotes.id,
+          ),
+        )
         .limit(window ? window.limit : UNPAGED_MAX + 1)
         .offset(window ? window.offset : 0);
       const { rows, truncated } = window

@@ -168,10 +168,32 @@ export function momentAt(
  * function — this one is start-of-day everywhere it is used.
  */
 export function dayFrom(value: unknown): Date | null {
-  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return null;
+  /*
+   * The day *named* at the front, so a full timestamp gives up its date rather
+   * than being refused — `2026-10-15T20:00:00-05:00` is the 15th to whoever
+   * typed it, and stored as the instant it would be the 16th in UTC, which is
+   * the day the aging buckets and every comparison would then read.
+   */
+  const named =
+    typeof value === "string"
+      ? /^(\d{4}-\d{2}-\d{2})(?:[T ]|$)/.exec(value.trim())?.[1]
+      : undefined;
+  if (!named) return null;
+  return dateFrom(`${named}T00:00:00.000Z`);
+}
+
+/**
+ * `dayFrom`, insisting — a 400 through `app.onError`, like `demandDate`.
+ *
+ * Reach for this wherever a *day* is being stored: a due date, a validity, an
+ * expiry, the date on a journal entry. `demandDate` is for a moment.
+ */
+export function demandDay(value: unknown): Date {
+  const day = dayFrom(value);
+  if (!day) {
+    throw new UnreadableDateError(`"${String(value)}" is not a real date`);
   }
-  return dateFrom(`${value}T00:00:00.000Z`);
+  return day;
 }
 
 /**

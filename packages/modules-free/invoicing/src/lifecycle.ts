@@ -4,6 +4,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { and, db, eq, isNull, schema } from "@sentrello/db";
+import { dayIn, dayOf } from "@sentrello/db/day";
 import { copyInvoice } from "@sentrello/db/documents";
 import {
   postCreditNoteIssued,
@@ -12,7 +13,7 @@ import {
 } from "@sentrello/db/ledger";
 import { MoneyError, invoiceStatus } from "@sentrello/db/money";
 import { nextDocumentNumber } from "@sentrello/db/numbering";
-import { dateFrom } from "@sentrello/db/timezone";
+import { dayFrom, timezoneFor } from "@sentrello/db/timezone";
 import type { ModuleContext } from "@sentrello/module-sdk";
 import { creditedAgainst, shareToken, writeTaxBands } from "./documents";
 import { ExemptionError, exemptionForInvoice } from "./exemptions";
@@ -49,18 +50,38 @@ async function invoiceIn(orgId: string, id: string) {
 /**
  * The date an invoice is being issued on, or why it will not be accepted.
  *
- * Absent means now, which is what nearly every caller means. A date is read as
- * plain calendar input and anchored at midday UTC, so a business anywhere in
- * the markets this product sells into gets the day it typed rather than the
- * day before it — parsing "2026-06-15" as midnight puts a business in Denver
- * on the fourteenth.
+ * An issue date is a **day**: it is printed on the document, it decides which
+ * period the journal entry lands in, and nobody has ever meant a time by it. So
+ * a typed date is midnight UTC — the shape every other date in this product
+ * has, and the one `calendarDay` renders as the day it says wherever it is read.
+ *
+ * It was anchored at midday, from before that helper existed, to stop a date
+ * rendering as the day before west of Greenwich. Two things came of that:
+ *
+ * **A business could not issue an invoice dated today before noon UTC.** The
+ * check below compared midday against the clock, so until 8am in New York, 5am
+ * in Los Angeles, 1pm in London and 2pm in Berlin, dating an invoice today was
+ * answered with "an invoice cannot be issued with a date in the future". The
+ * whole morning, on the one thing a trade business does with this screen.
+ *
+ * **And absent meant `new Date()`** — an instant. An invoice raised at nine in
+ * the evening in New York is the first of the next month in UTC, so its journal
+ * entry landed in a month the business had not traded in yet.
+ *
+ * Both are the same rule the rest of the product now follows: compare days.
+ *
+ * `today` is the business's own day where the caller knows it, and UTC where it
+ * does not — never the server's clock.
  *
  * Returns an Error rather than throwing so the route can answer 400 with the
  * reason on it, which is the difference between a form somebody can correct
  * and one that appears to be broken.
  */
-export function requestedIssueDate(value: unknown): Date | Error {
-  if (value === undefined || value === null || value === "") return new Date();
+export function requestedIssueDate(
+  value: unknown,
+  today: Date = dayIn(new Date(), null),
+): Date | Error {
+  if (value === undefined || value === null || value === "") return today;
   if (typeof value !== "string") {
     return new Error("the issue date has to be a date");
   }
@@ -72,18 +93,15 @@ export function requestedIssueDate(value: unknown): Date | Error {
    * rolled day books the sale into a month nobody chose, and every report
    * after it agrees with itself.
    */
-  const plain = /^\d{4}-\d{2}-\d{2}$/.test(value.trim());
-  const parsed = dateFrom(
-    plain ? `${value.trim()}T12:00:00.000Z` : value.trim(),
-  );
+  const parsed = dayFrom(value.trim());
   if (!parsed) {
     return new Error("that is not a date we can read");
   }
 
   // Revenue that has not happened yet would sit in every report downstream —
   // the income chart, the profit and loss, the tax summary — as money the
-  // business does not have.
-  if (parsed.getTime() > Date.now()) {
+  // business does not have. Tomorrow is the future; today is not, at any hour.
+  if (dayOf(parsed).getTime() > today.getTime()) {
     return new Error("an invoice cannot be issued with a date in the future");
   }
 
@@ -125,7 +143,12 @@ export function registerLifecycle(ctx: ModuleContext) {
       const body = (await c.req.json().catch(() => ({}))) as {
         issueDate?: unknown;
       };
-      const issuedOn = requestedIssueDate(body.issueDate);
+      // The business's own day, so "today" means their today and an invoice
+      // raised in the evening does not land in tomorrow's books.
+      const issuedOn = requestedIssueDate(
+        body.issueDate,
+        dayIn(new Date(), await timezoneFor(orgId)),
+      );
       if (issuedOn instanceof Error) {
         return c.json({ error: issuedOn.message }, 400);
       }
@@ -204,7 +227,9 @@ export function registerLifecycle(ctx: ModuleContext) {
       try {
         const copy = await copyInvoice(orgId, c.req.param("id"), {
           status: "draft",
-          issueDate: new Date(),
+          // The business's day: an issue date is a day, and a copy made in the
+          // evening should not be dated tomorrow.
+          issueDate: dayIn(new Date(), await timezoneFor(orgId)),
         });
         if (!copy) return c.json({ error: "not found" }, 404);
 
@@ -443,7 +468,9 @@ export function registerLifecycle(ctx: ModuleContext) {
             referenceInvoiceId: source.id,
             number: await nextDocumentNumber(tx, orgId, "invoice"),
             status: "open",
-            issueDate: new Date(),
+            // As above: a credit note is dated the day it was raised, and the
+            // day is the business's.
+            issueDate: dayIn(new Date(), await timezoneFor(orgId)),
             notes: String(body.reason ?? "").trim() || null,
             subtotalCents: netCents,
             taxCents,

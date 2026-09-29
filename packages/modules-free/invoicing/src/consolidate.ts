@@ -5,10 +5,12 @@ import {
 } from "@sentrello/auth/hono";
 import { and, db, eq, inArray, schema } from "@sentrello/db";
 import { baseCurrency, rateOn } from "@sentrello/db/currency";
+import { dayIn } from "@sentrello/db/day";
 import { defaultDueDate } from "@sentrello/db/documents";
 import { ownedContact } from "@sentrello/db/ledger";
 import { MoneyError } from "@sentrello/db/money";
 import { nextDocumentNumber } from "@sentrello/db/numbering";
+import { timezoneFor } from "@sentrello/db/timezone";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import {
   type IncomingLine,
@@ -143,9 +145,15 @@ export function registerConsolidate(ctx: ModuleContext) {
       /**
        * In the order they were raised, so the merged document reads
        * chronologically rather than in whatever order the ids arrived.
+       *
+       * An issue date is a day, so every draft raised today ties on it — and
+       * the tie is broken by when it was written, not by whichever order the
+       * rows came back in.
        */
       const ordered = [...sources].sort(
-        (a, b) => a.issueDate.getTime() - b.issueDate.getTime(),
+        (a, b) =>
+          a.issueDate.getTime() - b.issueDate.getTime() ||
+          a.createdAt.getTime() - b.createdAt.getTime(),
       );
 
       const lines = await db
@@ -214,6 +222,7 @@ export function registerConsolidate(ctx: ModuleContext) {
        * refusal the create route, the copy and the purchase side all make.
        */
       const currency = sources[0]?.currency ?? (await baseCurrency(orgId));
+      const zone = await timezoneFor(orgId);
       const rateMicro = await rateOn(orgId, currency, new Date());
       if (rateMicro === null) {
         return c.json(
@@ -235,7 +244,8 @@ export function registerConsolidate(ctx: ModuleContext) {
             pricesIncludeTax,
             number: await nextDocumentNumber(tx, orgId, "invoice"),
             status: "draft",
-            issueDate: new Date(),
+            // A day, like every other issue date.
+            issueDate: dayIn(new Date(), zone),
             dueDate: defaultDueDate(),
             discountType:
               (body.discountType as string) === "percent" ||
