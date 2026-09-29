@@ -28,7 +28,7 @@
 </p>
 <div align="center">
 
-### **One Server, One Price, Unlimited Users**
+### **One Server, One Price, No Per-Person Charge**
 
 </div>
 
@@ -119,8 +119,8 @@ settings, screen by screen.
 ---
 ## Free vs Pro
 
-The **free core** is this repository: AGPLv3, unlimited users, no licence key,
-no expiry. It is a real product, not a trial.
+The **free core** is this repository: AGPLv3, no licence key, no expiry, and no
+per-person charge on any tier. It is a real product, not a trial.
 
 **Pro** is a subscription that unlocks the paid half of the modules already in
 the core — the same screens, opened up — and gives you access to buy the
