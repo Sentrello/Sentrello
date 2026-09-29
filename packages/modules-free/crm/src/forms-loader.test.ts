@@ -156,6 +156,9 @@ test("label and control are wrapped together", () => {
 test("an optional field says so, rather than every other one shouting", () => {
   expect(js).toContain("sentrello-optional");
   expect(js).toContain("Optional");
+  // And the required ones stay quiet. Both marks were rendered until
+  // 2026-09-28, which is the thing `forms.md` says this does not do.
+  expect(js).not.toContain('? " *"');
 });
 
 test("the submit button is its own width", () => {

@@ -278,8 +278,19 @@ const SCRIPT = String.raw`(function () {
             ? '<span class="sentrello-group" id="' + id + '">'
             : '<label for="' + id + '">') +
           esc(f.label || f.name) +
+          /*
+           * The exception is marked, not the rule.
+           *
+           * A required field carried a star as well until 2026-09-28, so a form
+           * where four of five are required wore four stars and one Optional —
+           * twice the ink to say one thing, and the opposite of what the
+           * published page describes. Every required control already carries
+           * the required attribute itself, which is what a browser and a screen
+           * reader read; the star was only ever for the sighted visitor, who
+           * can see the one word beside the one field that does not need them.
+           */
           (f.required
-            ? " *"
+            ? ""
             : '<span class="sentrello-optional">Optional</span>') +
           (type === "radio" ? "</span>" : "</label>");
         html += '<div class="sentrello-field' + half + '">' + heading + control + "</div>";

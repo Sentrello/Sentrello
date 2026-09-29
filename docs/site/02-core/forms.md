@@ -34,7 +34,7 @@ flowchart LR
   CT["A contact<br/><small>CRM, tagged by form</small>"]:::out
 
   SITE --> EMB --> ALLOW
-  ALLOW -->|"no"| X["Refused<br/><small>the form renders; nothing sends</small>"]:::pub
+  ALLOW -->|"no"| X["Refused<br/><small>the questions never arrive, so nothing is drawn</small>"]:::pub
   ALLOW -->|"yes"| DEF --> SUBM --> CT
   style OWN fill:#fbfdfc,stroke:#cfe4d8,color:#10442a
 ```
