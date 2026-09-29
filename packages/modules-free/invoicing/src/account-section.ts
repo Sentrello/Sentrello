@@ -2,6 +2,7 @@ import { db, schema } from "@sentrello/db";
 import { baseCurrency } from "@sentrello/db/currency";
 import { invoiceState } from "@sentrello/db/money";
 import { ensurePortalToken } from "@sentrello/db/portal";
+import { timezoneFor } from "@sentrello/db/timezone";
 import type { ModuleContext, SummaryFigure } from "@sentrello/module-sdk";
 import { and, eq, inArray, isNull, notInArray } from "drizzle-orm";
 import { creditedAgainst } from "./documents";
@@ -120,6 +121,8 @@ export async function customerBalance(
   ]);
 
   const now = new Date();
+  // The business's own day decides who is late, here as everywhere else.
+  const zone = await timezoneFor(organizationId);
   let owedCents = 0;
   let paidCents = 0;
   let overdueCents = 0;
@@ -134,6 +137,7 @@ export async function customerBalance(
       paid,
       credited.get(invoice.id) ?? 0,
       now,
+      zone,
     );
     owedCents += balanceDue;
     // "Overdue" here and "overdue" on the portal badge are the same word about

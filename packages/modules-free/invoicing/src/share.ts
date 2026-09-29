@@ -9,6 +9,7 @@ import { creditedAgainst } from "@sentrello/db/documents";
 import { earlyPaymentTerms, invoiceState } from "@sentrello/db/money";
 import { deadLinkPage } from "@sentrello/db/portal";
 import { businessIdentity, moneyLocale } from "@sentrello/db/portal";
+import { timezoneFor } from "@sentrello/db/timezone";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import { calendarDay, rateLimit } from "@sentrello/module-sdk";
 import { exemptionReasonFor } from "./einvoice";
@@ -727,13 +728,19 @@ export function registerShare(ctx: ModuleContext) {
        */
       const terms =
         kind === "invoice"
-          ? earlyPaymentTerms({
-              type: invoiceRow.earlyDiscountType,
-              value: invoiceRow.earlyDiscountValue,
-              days: invoiceRow.earlyDiscountDays,
-              issueDate: new Date(invoiceRow.issueDate),
-              totalCents: invoiceRow.totalCents,
-            })
+          ? earlyPaymentTerms(
+              {
+                type: invoiceRow.earlyDiscountType,
+                value: invoiceRow.earlyDiscountValue,
+                days: invoiceRow.earlyDiscountDays,
+                issueDate: new Date(invoiceRow.issueDate),
+                totalCents: invoiceRow.totalCents,
+              },
+              new Date(),
+              // The business's day, not the reader's: a customer opening this
+              // in Tokyo is not a day later than the business that sent it.
+              await timezoneFor(row.organizationId),
+            )
           : null;
 
       return c.html(

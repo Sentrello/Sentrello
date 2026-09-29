@@ -1,8 +1,9 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { db, schema } from "@sentrello/db";
+import { daysLate } from "@sentrello/db/day";
 import { eq } from "@sentrello/db/orm";
 import { dropOrganization, makeOrganization } from "@sentrello/db/testing";
-import { daysPastDue, lateFeeFor, rulesDue, runReminders } from "./reminders";
+import { lateFeeFor, rulesDue, runReminders } from "./reminders";
 
 /**
  * Chasing by rule, and charging for being late.
@@ -107,10 +108,27 @@ test("a late fee is never bigger than the debt", () => {
   );
 });
 
-test("days past due is whole days, and negative before the date", () => {
+test("days late is whole days, counted where the business is", () => {
   const due = new Date("2026-08-20T00:00:00Z");
-  expect(daysPastDue(due, new Date("2026-08-25T00:00:00Z"))).toBe(5);
-  expect(daysPastDue(due, new Date("2026-08-18T00:00:00Z"))).toBe(-2);
+  expect(daysLate(due, new Date("2026-08-25T00:00:00Z"), null)).toBe(5);
+  expect(daysLate(due, new Date("2026-08-18T00:00:00Z"), null)).toBe(-2);
+
+  /*
+   * The whole of the due day is 0, and the evening of the day before is -1.
+   *
+   * This is the arithmetic the chase rules are read in, so an offset of 0 has
+   * to mean the day the invoice says — not the moment the clock passed it. On
+   * a host keeping UTC, nine in the evening in New York on the 19th is already
+   * the 20th in UTC, and a "chase on the due date" rule went out a day early
+   * for every American business.
+   */
+  expect(daysLate(due, new Date("2026-08-20T23:30:00Z"), null)).toBe(0);
+  expect(
+    daysLate(due, new Date("2026-08-20T01:00:00Z"), "America/New_York"),
+  ).toBe(-1);
+  expect(
+    daysLate(due, new Date("2026-08-21T03:00:00Z"), "America/New_York"),
+  ).toBe(0);
 });
 
 // ---------------------------------------------------------------------------

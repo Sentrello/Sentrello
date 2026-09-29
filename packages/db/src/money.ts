@@ -1,4 +1,5 @@
 import { type SQL, type SQLWrapper, sql } from "drizzle-orm";
+import { dayIn, dayOf } from "./day";
 
 /**
  * Tax rates are integer millionths of the base — parts per million.
@@ -155,7 +156,7 @@ export function invoiceStatus(
 }
 
 /**
- * Late is strictly past the moment it was due, and only while money is owed.
+ * Late once the due day is over, and only while money is owed.
  *
  * One definition, because three had grown: the portal said `dueDate < now`,
  * the customer's account page `dueDate <= now`, and the invoice list's
@@ -163,17 +164,25 @@ export function invoiceStatus(
  * nobody would ever have seen it, which is exactly why it would have stayed —
  * and a rule about whether somebody is late should not have three readings.
  *
- * Strictly past is the kinder reading and the one the chase job already used:
- * at the instant a bill falls due, it is due, not late.
+ * That single definition was still a day early. `dueDate < now` is true at one
+ * second past midnight, so an invoice due on the 29th was late for the whole
+ * of the 29th — and for a business in New York, from eight o'clock on the
+ * 28th, because a due date is stored as midnight UTC. A due date names a day
+ * and the customer has that day. See `./day`.
+ *
+ * `zone` is the business's own, from its settings. Left out it is UTC, which
+ * is right for a business that has not said and never the server's clock.
  */
 export function isOverdue(
   dueDate: Date | string | null | undefined,
   balanceDueCents: number,
   now: Date = new Date(),
+  zone: string | null = null,
 ): boolean {
   if (balanceDueCents <= 0 || !dueDate) return false;
   const due = dueDate instanceof Date ? dueDate : new Date(dueDate);
-  return !Number.isNaN(due.getTime()) && due.getTime() < now.getTime();
+  if (Number.isNaN(due.getTime())) return false;
+  return dayOf(due).getTime() < dayIn(now, zone).getTime();
 }
 
 /** What a customer is shown. Not the stored column, which is a filter key. */
@@ -224,6 +233,7 @@ export function invoiceState(
   paidCents: number,
   creditedCents = 0,
   now: Date = new Date(),
+  zone: string | null = null,
 ): { balanceDue: number; status: string; badge: InvoiceBadge } {
   if (invoice.status === "draft" || invoice.status === "void") {
     return {
@@ -247,7 +257,7 @@ export function invoiceState(
         ? "paid"
         : status === "credited"
           ? "credited"
-          : isOverdue(invoice.dueDate, owed, now)
+          : isOverdue(invoice.dueDate, owed, now, zone)
             ? "overdue"
             : status === "partial"
               ? "part paid"
@@ -291,6 +301,7 @@ export interface EarlyPaymentTerms {
 export function earlyPaymentTerms(
   offer: EarlyPaymentOffer,
   on: Date = new Date(),
+  zone: string | null = null,
 ): EarlyPaymentTerms {
   const none: EarlyPaymentTerms = {
     deadline: null,
@@ -305,15 +316,21 @@ export function earlyPaymentTerms(
   if (Number.isNaN(offer.issueDate.getTime())) return none;
 
   /**
-   * The end of the day, not the moment of issue plus n×24h.
+   * The day, not the moment of issue plus n×24h — and the whole of it.
    *
    * "Within 10 days" means the tenth day counts, all of it. Somebody paying at
    * four in the afternoon on the last day has met the terms, and an invoice
    * that says otherwise is one nobody trusts twice.
+   *
+   * It used to end at 23:59:59.999 on the *server's* day, which is how a
+   * discount offered to a business in New York closed at eight in the evening
+   * on a machine keeping UTC. The deadline is a date the customer is given, so
+   * it is held as one, and whether the offer is still open is a comparison of
+   * days in the business's own zone.
    */
-  const deadline = new Date(offer.issueDate);
-  deadline.setDate(deadline.getDate() + offer.days);
-  deadline.setHours(23, 59, 59, 999);
+  const deadline = new Date(
+    dayOf(offer.issueDate).getTime() + offer.days * 86_400_000,
+  );
 
   const raw =
     offer.type === "percent"
@@ -327,7 +344,7 @@ export function earlyPaymentTerms(
     deadline,
     savingCents,
     discountedTotalCents: offer.totalCents - savingCents,
-    open: on.getTime() <= deadline.getTime(),
+    open: dayIn(on, zone).getTime() <= deadline.getTime(),
   };
 }
 

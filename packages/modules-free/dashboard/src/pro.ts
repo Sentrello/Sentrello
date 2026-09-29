@@ -1,5 +1,7 @@
 import { db, schema } from "@sentrello/db";
+import { daysLate } from "@sentrello/db/day";
 import { creditedAgainst } from "@sentrello/db/documents";
+import { timezoneFor } from "@sentrello/db/timezone";
 import { and, eq, gte, isNull } from "drizzle-orm";
 
 /**
@@ -34,6 +36,7 @@ function monthKey(d: Date): string {
 
 export async function readInsights(organizationId: string): Promise<Insights> {
   const now = new Date();
+  const zone = await timezoneFor(organizationId);
   const from = new Date(
     Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 11, 1),
   );
@@ -212,11 +215,9 @@ export async function readInsights(organizationId: string): Promise<Insights> {
       continue;
     const owed = owedOn(inv);
     if (owed <= 0) continue;
-    const days = inv.dueDate
-      ? Math.floor(
-          (now.getTime() - new Date(inv.dueDate).getTime()) / 86_400_000,
-        )
-      : 0;
+    // Whole days, counted as the business counts them: an invoice due today
+    // sits in "not yet due", not in the first late bucket.
+    const days = inv.dueDate ? daysLate(new Date(inv.dueDate), now, zone) : 0;
     const slot =
       days <= 0 ? 0 : days <= 30 ? 1 : days <= 60 ? 2 : days <= 90 ? 3 : 4;
     const bucket = aging[slot];

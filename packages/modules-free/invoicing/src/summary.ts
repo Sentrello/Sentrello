@@ -16,12 +16,14 @@ import {
   schema,
   sql,
 } from "@sentrello/db";
+import { dayIn, daysLate } from "@sentrello/db/day";
 import {
   creditedAgainst,
   isOverdueSql,
   owingInvoices,
 } from "@sentrello/db/documents";
 import { sumCents } from "@sentrello/db/money";
+import { timezoneFor } from "@sentrello/db/timezone";
 import type { ModuleContext, SummaryFigure } from "@sentrello/module-sdk";
 import { scoreFor } from "@sentrello/module-sdk";
 import { sixMonthsFrom } from "./months";
@@ -95,7 +97,7 @@ export async function invoicingFigures(
    * invoice because there is one definition of "owed" and both read it.
    */
   const owing = owingInvoices(organizationId);
-  const overdue = isOverdueSql(owing, now);
+  const overdue = isOverdueSql(owing, now, await timezoneFor(organizationId));
   const [outstanding] = await db
     .select({
       owedCents: sumCents(owing.owedCents),
@@ -281,6 +283,11 @@ export function registerInvoicingSummary(ctx: ModuleContext) {
  */
 export async function invoicingDashboard(organizationId: string) {
   const now = new Date();
+  const zone = await timezoneFor(organizationId);
+  // The business's own day, because "late" is a question about days. Read
+  // against the instant the request arrived, this panel listed an invoice due
+  // today as late — and did it from the previous evening on a US host.
+  const today = dayIn(now, zone);
   // UTC, with the month boundary above and the rest of the reporting stack.
   const since = new Date(
     Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5, 1),
@@ -340,7 +347,7 @@ export async function invoicingDashboard(organizationId: string) {
           eq(schema.invoices.organizationId, organizationId),
           isNull(schema.invoices.deletedAt),
           sql`${schema.invoices.status} in ('open', 'partial', 'overdue')`,
-          sql`${schema.invoices.dueDate} is not null and ${schema.invoices.dueDate} < ${at(now)}`,
+          sql`${schema.invoices.dueDate} is not null and ${schema.invoices.dueDate} < ${at(today)}`,
         ),
       )
       .orderBy(schema.invoices.dueDate)
@@ -374,15 +381,15 @@ export async function invoicingDashboard(organizationId: string) {
       .limit(10),
   ]);
 
-  const day = 24 * 60 * 60 * 1000;
   return {
     figures: await invoicingFigures(organizationId),
     months: sixMonthsFrom(since, months),
     late: late.map((row) => ({
       ...row,
-      daysLate: row.dueDate
-        ? Math.floor((now.getTime() - row.dueDate.getTime()) / day)
-        : 0,
+      // As the business counts days: 0 is the day it is due, 1 is the morning
+      // after. It read the difference between two instants, so an invoice due
+      // today was already "0 days late" in a column headed by the word late.
+      daysLate: row.dueDate ? daysLate(row.dueDate, now, zone) : 0,
     })),
     drafts,
   };

@@ -27,6 +27,7 @@
     "./lockout": "./src/lockout.ts",
     "./record-events": "./src/record-events.ts",
     "./timezone": "./src/timezone.ts",
+    "./day": "./src/day.ts",
     "./subscriptions": "./src/subscriptions.ts",
     "./credit": "./src/credit.ts",
     "./tax-regimes": "./src/tax-regimes.ts",

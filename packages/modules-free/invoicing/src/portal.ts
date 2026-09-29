@@ -171,12 +171,13 @@ invoice. Nothing is charged until you pay it.</p>`;
  * "due" above "Nothing outstanding", and one settled for less because the
  * customer paid early read "paid" above a figure they no longer owed.
  */
-function state(invoice: PortalInvoice, now: Date) {
+function state(invoice: PortalInvoice, now: Date, zone: string | null) {
   return invoiceState(
     invoice,
     invoice.paidCents,
     invoice.creditedCents ?? 0,
     now,
+    zone,
   );
 }
 
@@ -274,6 +275,13 @@ export function portalPage(args: {
   path?: string;
   theme?: CustomerTheme;
   now?: Date;
+  /**
+   * The business's timezone, which decides what day it is and so who is late.
+   *
+   * Absent is UTC. A customer reading this page anywhere in the world sees the
+   * same badge as the business does on its own list, which is the point.
+   */
+  zone?: string | null;
 }): string {
   const {
     businessName,
@@ -290,11 +298,12 @@ export function portalPage(args: {
     path,
     theme,
     now = new Date(),
+    zone = null,
   } = args;
 
   // Worked out once per invoice and then read from, so the badge in a row and
   // the figure under the table can never be answers to two different sums.
-  const states = new Map(invoices.map((i) => [i.id, state(i, now)]));
+  const states = new Map(invoices.map((i) => [i.id, state(i, now, zone)]));
   const owed = invoices.reduce(
     (sum, i) => sum + (states.get(i.id)?.balanceDue ?? 0),
     0,
@@ -307,7 +316,7 @@ export function portalPage(args: {
       : invoices
           .map((i) => {
             const { badge, balanceDue: balance } =
-              states.get(i.id) ?? state(i, now);
+              states.get(i.id) ?? state(i, now, zone);
             const cls =
               badge === "paid" || badge === "credited"
                 ? "paid"

@@ -11,6 +11,7 @@ import {
 import { alias } from "drizzle-orm/pg-core";
 import { type DbTx, db } from "./client";
 import { baseCurrency, rateOn } from "./currency";
+import { dayIn, dayOf } from "./day";
 import { postInvoiceIssued } from "./ledger";
 import { MoneyError, bpToPpm, documentTotals, sumCents } from "./money";
 import { nextDocumentNumber } from "./numbering";
@@ -41,7 +42,11 @@ import * as schema from "./schema";
  * terms.
  */
 export function defaultDueDate(from = new Date()): Date {
-  return new Date(from.getTime() + 30 * 24 * 60 * 60 * 1000);
+  // A date, not an instant: midnight UTC thirty days on. Every due date a
+  // person types is stored that way, and one carrying a time of day renders in
+  // the reader's own zone — so the same invoice could be due on two different
+  // days depending on who was looking at it.
+  return new Date(dayOf(from).getTime() + 30 * 24 * 60 * 60 * 1000);
 }
 
 export async function convertQuoteToInvoice(
@@ -703,8 +708,10 @@ export async function convertQuoteToInstalments(
         0,
       );
 
-      const due = new Date(today);
-      due.setDate(due.getDate() + Math.max(0, part.dueInDays));
+      // A date, for the reason `defaultDueDate` is one.
+      const due = new Date(
+        dayOf(today).getTime() + Math.max(0, part.dueInDays) * 86_400_000,
+      );
 
       const [invoice] = await tx
         .insert(schema.invoices)
@@ -952,9 +959,13 @@ export function owingInvoices(orgId: string) {
 }
 
 /**
- * Late is strictly past the moment it was due, and only while money is owed —
- * `isOverdue`'s rule, said in SQL so the figure and the list agree with the
- * rest of the product about who is late.
+ * Late once the due day is over, and only while money is owed — `isOverdue`'s
+ * rule, said in SQL so the figure and the list agree with the rest of the
+ * product about who is late.
+ *
+ * The boundary is the first instant of the business's today, so an invoice due
+ * today is not late today. `zone` is the business's own timezone; left out it
+ * is UTC, and never the server's clock.
  *
  * The instant goes in as text rather than as a `Date`. A due date is stored
  * without a time zone and read back as though it were UTC, which is what
@@ -966,7 +977,8 @@ export function owingInvoices(orgId: string) {
 export function isOverdueSql(
   owing: ReturnType<typeof owingInvoices>,
   now: Date,
+  zone: string | null = null,
 ): SQL<boolean> {
-  const at = now.toISOString();
+  const at = dayIn(now, zone).toISOString();
   return sql<boolean>`${owing.owedCents} > 0 and ${owing.dueDate} is not null and ${owing.dueDate} < ${at}`;
 }

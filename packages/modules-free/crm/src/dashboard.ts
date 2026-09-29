@@ -17,6 +17,8 @@ import {
 } from "@sentrello/auth/hono";
 import { and, db, desc, eq, gte, inArray, isNull, schema } from "@sentrello/db";
 import { decidedStages } from "@sentrello/db/crm";
+import { dayIn, dayOf } from "@sentrello/db/day";
+import { timezoneFor } from "@sentrello/db/timezone";
 import type { ModuleContext } from "@sentrello/module-sdk";
 
 /** Long enough that a quiet fortnight is not an alarm, short enough to act on. */
@@ -118,6 +120,16 @@ export function registerCrmDashboard(ctx: ModuleContext) {
     async (c) => {
       const orgId = activeOrganizationId(c.get("session"));
       const now = new Date();
+      /*
+       * What day it is where the business is.
+       *
+       * Late is a question about days, and the product already says so on the
+       * screen this feeds: "nobody thinks their two o'clock is overdue at one."
+       * The API disagreed with it — `dueAt < now` marks a task due this
+       * afternoon as late by lunchtime, and a deal expected to close today as a
+       * conversation somebody has been avoiding.
+       */
+      const today = dayIn(now, await timezoneFor(orgId));
 
       /*
        * The activity first, because it decides which contacts matter.
@@ -274,7 +286,9 @@ export function registerCrmDashboard(ctx: ModuleContext) {
        * hides exactly the thing worth seeing.
        */
       const overdue = openDeals.filter(
-        (deal) => deal.expectedCloseOn && new Date(deal.expectedCloseOn) < now,
+        (deal) =>
+          deal.expectedCloseOn &&
+          dayOf(new Date(deal.expectedCloseOn)).getTime() < today.getTime(),
       );
 
       const sum = (rows: typeof openDeals) =>
@@ -293,7 +307,7 @@ export function registerCrmDashboard(ctx: ModuleContext) {
           dueAt: task.dueAt,
           contactId: task.contactId,
           dealId: task.dealId,
-          overdue: (task.dueAt as Date) < now,
+          overdue: dayOf(task.dueAt as Date).getTime() < today.getTime(),
         }));
 
       return c.json({

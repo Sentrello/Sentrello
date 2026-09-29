@@ -371,7 +371,7 @@ async function forgetOrphanedSchedules(
 }
 
 export { sendOverdueReminders, refreshLicenseToken };
-export { runReminders, daysPastDue, lateFeeFor, rulesDue } from "./reminders";
+export { runReminders, lateFeeFor, rulesDue } from "./reminders";
 export {
   sendTelemetry,
   setTelemetryEnabled,

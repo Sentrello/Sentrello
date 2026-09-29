@@ -6,9 +6,11 @@ import {
 } from "@sentrello/auth/hono";
 import { db, schema } from "@sentrello/db";
 import { decidedStages } from "@sentrello/db/crm";
+import { dayIn } from "@sentrello/db/day";
 import { isOverdueSql, owingInvoices } from "@sentrello/db/documents";
 import { countExpression } from "@sentrello/db/list-query";
 import { centsFromDriver, sumCents } from "@sentrello/db/money";
+import { timezoneFor } from "@sentrello/db/timezone";
 import {
   type RegisteredWidget,
   allOnboarding,
@@ -169,7 +171,7 @@ export default defineModule({
          * happens where the rows already are.
          */
         const owing = owingInvoices(orgId);
-        const overdue = isOverdueSql(owing, now);
+        const overdue = isOverdueSql(owing, now, await timezoneFor(orgId));
 
         const [
           [money],

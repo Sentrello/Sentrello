@@ -1,4 +1,5 @@
 import { db, schema } from "@sentrello/db";
+import { daysLate } from "@sentrello/db/day";
 import { creditedAgainst } from "@sentrello/db/documents";
 import {
   CORE_ACCOUNTS,
@@ -11,6 +12,7 @@ import {
   ensurePortalToken,
   moneyLocale,
 } from "@sentrello/db/portal";
+import { timezoneFor } from "@sentrello/db/timezone";
 import { emailAdapter, mailConfigured } from "@sentrello/email";
 import {
   escapeHtml,
@@ -42,13 +44,6 @@ import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 
 /** With no rules configured, this is the fallback: one chase a week. */
 const FALLBACK_INTERVAL_HOURS = 24 * 7;
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-/** Whole days from the due date to now. Negative means it is not due yet. */
-export function daysPastDue(dueDate: Date, now: Date): number {
-  return Math.floor((now.getTime() - dueDate.getTime()) / DAY_MS);
-}
 
 /**
  * Which rules apply to an invoice at this moment.
@@ -157,6 +152,8 @@ export async function runReminders(
     string,
     typeof schema.invoicingSettings.$inferSelect | null
   >();
+  /** And where the business is, which decides what day it is for them. */
+  const zoneByOrg = new Map<string, string | null>();
 
   /**
    * What has already been sent, for every invoice at once.
@@ -210,6 +207,7 @@ export async function runReminders(
         .where(eq(schema.invoicingSettings.organizationId, orgId))
         .limit(1);
       settingsByOrg.set(orgId, found ?? null);
+      zoneByOrg.set(orgId, await timezoneFor(orgId));
     }
 
     const paid = await db
@@ -228,7 +226,20 @@ export async function runReminders(
     const { balanceDue } = invoiceState(invoice, paidCents, creditedCents);
     if (balanceDue <= 0) continue;
 
-    const overdueBy = daysPastDue(invoice.dueDate, now);
+    /*
+     * Days as the business counts them, in its own timezone.
+     *
+     * The offsets on the rules are read off a calendar — "three days before",
+     * "on the day", "fourteen days after" — so the arithmetic has to be days
+     * and not the difference between two instants. Against instants, a chase
+     * set for the due date went out in the evening of the day before on every
+     * host west of Greenwich.
+     */
+    const overdueBy = daysLate(
+      invoice.dueDate,
+      now,
+      zoneByOrg.get(orgId) ?? null,
+    );
     const rules = rulesByOrg.get(orgId) ?? [];
     const settings = settingsByOrg.get(orgId) ?? null;
 

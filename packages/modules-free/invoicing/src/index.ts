@@ -47,6 +47,7 @@ import {
   moneyLocale,
 } from "@sentrello/db/portal";
 import { dateFrom, demandDate } from "@sentrello/db/timezone";
+import { timezoneFor } from "@sentrello/db/timezone";
 import { NO_MAIL_SERVER, emailAdapter, mailConfigured } from "@sentrello/email";
 import {
   invoiceEmail,
@@ -649,6 +650,7 @@ export default defineModule({
             totalCents: invoice.totalCents,
           },
           received,
+          await timezoneFor(orgId),
         );
         const takingIt = applyEarlyDiscount === true;
         if (takingIt && !terms.deadline) {
@@ -2091,6 +2093,7 @@ export default defineModule({
 
       return c.html(
         portalPage({
+          zone: await timezoneFor(contact.organizationId),
           businessName: org?.name ?? "Invoices",
           // On a Free instance with no card payments this footer is the only
           // thing telling the customer where to send the money.
@@ -2251,10 +2254,14 @@ export default defineModule({
         // surface uses — including the early-payment saving, which is debt
         // given up rather than money received. Without it this screen showed a
         // discounted invoice as still owing the saving for ever.
+        // The same day the list and the customer's own page are read against.
+        const zone = await timezoneFor(orgId);
         const { balanceDue, status } = invoiceState(
           invoice,
           paidCents,
           creditedCents,
+          new Date(),
+          zone,
         );
 
         return c.json({
@@ -2276,13 +2283,17 @@ export default defineModule({
            * offering 2/10 net 30 either lost the discount or was short-paid
            * and left showing a balance for ever.
            */
-          earlyPayment: earlyPaymentTerms({
-            type: invoice.earlyDiscountType,
-            value: invoice.earlyDiscountValue,
-            days: invoice.earlyDiscountDays,
-            issueDate: invoice.issueDate,
-            totalCents: invoice.totalCents,
-          }),
+          earlyPayment: earlyPaymentTerms(
+            {
+              type: invoice.earlyDiscountType,
+              value: invoice.earlyDiscountValue,
+              days: invoice.earlyDiscountDays,
+              issueDate: invoice.issueDate,
+              totalCents: invoice.totalCents,
+            },
+            new Date(),
+            zone,
+          ),
           earlyDiscountTakenCents: invoice.earlyDiscountTakenCents,
           // The labels on it, so the detail screen can show and change them
           // without a second request per invoice opened.

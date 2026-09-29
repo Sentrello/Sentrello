@@ -17,6 +17,7 @@ import {
   sql,
 } from "@sentrello/db";
 import { contactNames } from "@sentrello/db/crm";
+import { dayIn, dayOf } from "@sentrello/db/day";
 import { periodFrom } from "@sentrello/db/ledger";
 import {
   type ListSpec,
@@ -30,6 +31,7 @@ import {
   searchCondition,
 } from "@sentrello/db/list-query";
 import { invoiceState, sumCents } from "@sentrello/db/money";
+import { timezoneFor } from "@sentrello/db/timezone";
 import { type ModuleContext, csvDownload, toCsv } from "@sentrello/module-sdk";
 import type { SQL } from "drizzle-orm";
 import { creditedAgainst } from "./documents";
@@ -123,8 +125,16 @@ export const QUOTE_TABS = [
   "deleted",
 ] as const;
 
-/** What a tab means, as a condition. */
-function invoiceTab(tab: string, now: Date): (SQL | undefined)[] {
+/**
+ * What a tab means, as a condition.
+ *
+ * `today` is the first instant of the business's own day, not the moment the
+ * request arrived. Overdue and expired are questions about days: an invoice
+ * due today is not late today, and a quote good until today can still be
+ * accepted today. Compared against `now`, both flipped at midnight UTC — which
+ * for a business in New York is the previous evening.
+ */
+function invoiceTab(tab: string, today: Date): (SQL | undefined)[] {
   const live = isNull(schema.invoices.deletedAt);
   const isInvoice = eq(schema.invoices.kind, "invoice");
 
@@ -154,15 +164,14 @@ function invoiceTab(tab: string, now: Date): (SQL | undefined)[] {
         inArray(schema.invoices.status, ["open", "partial"]),
       ];
     case "overdue":
-      // Strictly past, matching `isOverdue` and so the badge on every screen:
-      // at the instant a bill falls due it is due, not late. This read `<=`,
-      // which disagreed with the customer's own page by a single instant.
+      // Past its day, matching `isOverdue` and so the badge on every screen:
+      // the customer has the whole of the day the invoice names.
       return [
         live,
         isInvoice,
         inArray(schema.invoices.status, ["open", "partial"]),
         isNotNull(schema.invoices.dueDate),
-        lt(schema.invoices.dueDate, now),
+        lt(schema.invoices.dueDate, today),
       ];
     default:
       // "All" still hides what was deleted and what is a credit note: both
@@ -172,7 +181,7 @@ function invoiceTab(tab: string, now: Date): (SQL | undefined)[] {
   }
 }
 
-function quoteTab(tab: string, now: Date): (SQL | undefined)[] {
+function quoteTab(tab: string, today: Date): (SQL | undefined)[] {
   const live = isNull(schema.quotes.deletedAt);
   switch (tab) {
     case "deleted":
@@ -184,7 +193,7 @@ function quoteTab(tab: string, now: Date): (SQL | undefined)[] {
         live,
         inArray(schema.quotes.status, ["draft", "sent"]),
         isNotNull(schema.quotes.validUntil),
-        lte(schema.quotes.validUntil, now),
+        lt(schema.quotes.validUntil, today),
       ];
     case "draft":
     case "sent":
@@ -217,6 +226,7 @@ export function registerLists(ctx: ModuleContext) {
         const orgId = activeOrganizationId(c.get("session"));
         const query = c.req.query();
         const now = new Date();
+        const today = dayIn(now, await timezoneFor(orgId));
         const table = kind === "invoices" ? schema.invoices : schema.quotes;
 
         const where = allConditions([
@@ -226,8 +236,8 @@ export function registerLists(ctx: ModuleContext) {
             listParams(query).q,
           ),
           ...(kind === "invoices"
-            ? invoiceTab(query.tab ?? "all", now)
-            : quoteTab(query.tab ?? "all", now)),
+            ? invoiceTab(query.tab ?? "all", today)
+            : quoteTab(query.tab ?? "all", today)),
           query.contactId ? eq(table.contactId, query.contactId) : undefined,
           // A bare "to" date means the whole of that day: read as midnight,
           // the filter hid everything raised on the last day it named.
@@ -301,11 +311,13 @@ export function registerLists(ctx: ModuleContext) {
       const query = c.req.query();
       const params = listParams(query);
       const now = new Date();
+      const zone = await timezoneFor(orgId);
+      const today = dayIn(now, zone);
 
       const where = allConditions([
         eq(schema.invoices.organizationId, orgId),
         searchCondition(invoiceList, params.q),
-        ...invoiceTab(query.tab ?? "all", now),
+        ...invoiceTab(query.tab ?? "all", today),
         query.contactId
           ? eq(schema.invoices.contactId, query.contactId)
           : undefined,
@@ -417,6 +429,7 @@ export function registerLists(ctx: ModuleContext) {
             paidCents,
             creditedCents,
             now,
+            zone,
           );
           return {
             ...r,
@@ -449,11 +462,12 @@ export function registerLists(ctx: ModuleContext) {
       const query = c.req.query();
       const params = listParams(query);
       const now = new Date();
+      const today = dayIn(now, await timezoneFor(orgId));
 
       const where = allConditions([
         eq(schema.quotes.organizationId, orgId),
         searchCondition(quoteList, params.q),
-        ...quoteTab(query.tab ?? "all", now),
+        ...quoteTab(query.tab ?? "all", today),
         query.contactId
           ? eq(schema.quotes.contactId, query.contactId)
           : undefined,
@@ -498,7 +512,7 @@ export function registerLists(ctx: ModuleContext) {
           expired:
             (r.status === "draft" || r.status === "sent") &&
             !!r.validUntil &&
-            new Date(r.validUntil) < now,
+            dayOf(new Date(r.validUntil)).getTime() < today.getTime(),
         })),
         total: counted?.total ?? 0,
         ...(window ? { page: params.page, perPage: params.perPage } : {}),
@@ -520,6 +534,7 @@ export function registerLists(ctx: ModuleContext) {
     async (c) => {
       const orgId = activeOrganizationId(c.get("session"));
       const now = new Date();
+      const today = dayIn(now, await timezoneFor(orgId));
       const counts: Record<string, number> = {};
       for (const tab of INVOICE_TABS) {
         const [row] = await db
@@ -528,7 +543,7 @@ export function registerLists(ctx: ModuleContext) {
           .where(
             allConditions([
               eq(schema.invoices.organizationId, orgId),
-              ...invoiceTab(tab, now),
+              ...invoiceTab(tab, today),
             ]),
           );
         counts[tab] = row?.total ?? 0;
@@ -544,6 +559,7 @@ export function registerLists(ctx: ModuleContext) {
     async (c) => {
       const orgId = activeOrganizationId(c.get("session"));
       const now = new Date();
+      const today = dayIn(now, await timezoneFor(orgId));
       const counts: Record<string, number> = {};
       for (const tab of QUOTE_TABS) {
         const [row] = await db
@@ -552,7 +568,7 @@ export function registerLists(ctx: ModuleContext) {
           .where(
             allConditions([
               eq(schema.quotes.organizationId, orgId),
-              ...quoteTab(tab, now),
+              ...quoteTab(tab, today),
             ]),
           );
         counts[tab] = row?.total ?? 0;

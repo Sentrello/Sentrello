@@ -113,20 +113,52 @@ test("a zero-total invoice with no credits stays paid", () => {
 });
 
 /**
- * The instant a bill falls due.
+ * The day a bill falls due, and the whole of it.
  *
- * Unobservable through any page — the clock has moved on by the time HTML is
- * rendered — and that is why it went unnoticed that three places read it
- * differently: the portal `<`, the account summary `<=`, the list's overdue
- * tab `<=` again in SQL. Pinned here, where the clock can be held still.
+ * Three places once read the instant differently — the portal `<`, the account
+ * summary `<=`, the list's overdue tab `<=` again in SQL — and settling that
+ * argument left all four agreeing on something still wrong: a due date is
+ * stored as midnight UTC, so `dueDate < now` made an invoice late for the whole
+ * of the day it was due. Pinned here, where the clock can be held still.
  */
-test("at the instant it falls due, a bill is due and not yet late", () => {
+test("a bill is due all day, and late the morning after", () => {
   const due = new Date("2026-09-17T00:00:00Z");
   expect(isOverdue(due, 10_000, due)).toBe(false);
-  expect(isOverdue(due, 10_000, new Date(due.getTime() + 1))).toBe(true);
+  expect(isOverdue(due, 10_000, new Date(due.getTime() + 1))).toBe(false);
+  expect(isOverdue(due, 10_000, new Date("2026-09-17T23:59:59Z"))).toBe(false);
+  expect(isOverdue(due, 10_000, new Date("2026-09-18T00:00:00Z"))).toBe(true);
   // Nothing owed is never late, however long ago it was due.
-  expect(isOverdue(due, 0, new Date(due.getTime() + 86_400_000))).toBe(false);
+  expect(isOverdue(due, 0, new Date("2026-09-30T00:00:00Z"))).toBe(false);
   expect(isOverdue(null, 10_000, due)).toBe(false);
+});
+
+/**
+ * And the day is the business's own.
+ *
+ * Midnight UTC is eight in the evening in New York, so every American business
+ * watched an invoice turn red on the evening of the day *before* it was due.
+ * The timezone in Settings is what decides it; with none set the answer is UTC,
+ * never the clock of whatever machine happens to be running the instance.
+ */
+test("late is decided where the business is, not where the server is", () => {
+  const due = new Date("2026-09-17T00:00:00Z");
+  const nineOnTheSeventeenth = new Date("2026-09-18T01:00:00Z");
+  expect(isOverdue(due, 10_000, nineOnTheSeventeenth, "America/New_York")).toBe(
+    false,
+  );
+  expect(isOverdue(due, 10_000, nineOnTheSeventeenth, "Europe/London")).toBe(
+    true,
+  );
+  expect(isOverdue(due, 10_000, nineOnTheSeventeenth)).toBe(true);
+  // And a business in Auckland, whose 18th starts first, is late first.
+  expect(
+    isOverdue(
+      due,
+      10_000,
+      new Date("2026-09-17T12:30:00Z"),
+      "Pacific/Auckland",
+    ),
+  ).toBe(true);
 });
 
 test("invoiceState reads a draft and a void off the column, and nothing else", () => {
