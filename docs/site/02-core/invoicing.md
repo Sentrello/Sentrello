@@ -85,6 +85,11 @@ Overdue invoices are listed on the dashboard, and they can be chased on a
 schedule you set: how many days before or after the due date, and what each
 reminder says. All of that is in the free tier.
 
+**An invoice due today is not late today.** Your customer has the whole of the
+day the invoice names; it turns overdue the morning after, and the days counted
+in your chase rules are counted the same way — on a calendar, in the timezone
+under Settings → Your business.
+
 Reminders sent on the free tier carry a small Sentrello credit at the foot.
 [Pro](/pro) removes it, so the reminder goes out under your business's name
 alone.

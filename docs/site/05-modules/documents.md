@@ -54,7 +54,8 @@ This is the point of the module.
 
 Give a file an **expiry date** and a category: insurance, certificate, licence,
 contract. Anything approaching its date appears on the dashboard. Anything past
-it appears in red.
+it appears in red — and a certificate expiring *today* is still good today, in
+your own timezone, so it reads as expiring rather than expired.
 
 **And you are emailed about it**, which matters more than either, because the
 document you have forgotten is the one you are not going to see on a screen.
