@@ -161,7 +161,14 @@ function StageMenu({
 }) {
   return (
     <div className="shrink-0">
-      <RowMenu label={`Move ${deal.name}`}>
+      {/*
+        Named for the deal, not for one of the things the menu does.
+
+        `RowMenu` builds "More for <label>", so a label of "Move Walk A" read
+        as "More for Move Walk A" — and the menu stopped being only about
+        moving when ordering went into it.
+      */}
+      <RowMenu label={deal.name}>
         {(close) => [
           /*
            * Order inside the column, which the board could not do at all until
