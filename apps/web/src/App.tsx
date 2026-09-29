@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { type Meta, api, setGrants, setLoadedModules } from "./lib/api";
 import { AppShell } from "./lib/app-shell";
 import { signOut, useSession } from "./lib/auth";
-import { ModuleFailures } from "./lib/module-alerts";
+import { BillingWarning, ModuleFailures } from "./lib/module-alerts";
 import { setModuleRelease } from "./lib/module-ui";
 import {
   Breadcrumb,
@@ -668,6 +668,9 @@ export default function App() {
             to whoever can fix it — not only on /healthz and the licence
             screen, which both require somebody to go and look. */}
         <ModuleFailures names={data?.failed ?? []} />
+        {/* And a card that did not go through, for the same reason: fourteen
+            days of grace are no use to somebody who never hears about them. */}
+        <BillingWarning until={data?.billingGraceUntil ?? null} />
         <CurrentScreen nav={nav} withScreens={data?.ui ?? []} />
       </AppShell>
     </NavigationProvider>

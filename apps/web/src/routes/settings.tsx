@@ -1697,8 +1697,24 @@ export function SettingsLicence() {
                 className="mt-1 text-sm"
                 style={{ color: "var(--text-warning)" }}
               >
-                Billing needs attention. Paid features keep working until{" "}
-                {new Date(licence.data.graceUntil).toLocaleDateString()}.
+                A payment did not go through. Paid features stop on{" "}
+                {new Date(licence.data.graceUntil).toLocaleDateString()}.{" "}
+                {/*
+                  Somewhere to act, which this said nothing about: a warning
+                  with a deadline and no remedy is a warning that reads as
+                  somebody else's problem. The billing page is where the card
+                  is changed.
+                */}
+                {licence.data.manageUrl ? (
+                  <a
+                    href={licence.data.manageUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="link"
+                  >
+                    Update the card
+                  </a>
+                ) : null}
               </p>
             ) : null}
           </>

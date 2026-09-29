@@ -27,8 +27,55 @@ export function ModuleFailures({ names }: { names: string[] }) {
     >
       <strong>A paid module is not running:</strong> {names.join(", ")}.
       Everything it provides is unavailable — including work it does on its own,
-      like sending recurring invoices. Settings &rarr; Licence has the reason
-      and the remedy.
+      like sending recurring invoices.{" "}
+      {/* Linked, not merely named: the screen with the reason on it is four
+          clicks away and this banner already knows which one it is. */}
+      <a className="link" href="/settings-licence">
+        Settings &rarr; Licence and updates
+      </a>{" "}
+      has the reason and the remedy.
+    </div>
+  );
+}
+
+/**
+ * The banner for a card that did not go through.
+ *
+ * A failed payment gives fourteen days in which everything keeps working, and
+ * the only place that said so was one line on the licence screen. A business
+ * that does not go and look therefore learns about it the way it is worst
+ * learned: paid features gone, on a Tuesday morning, with no idea why.
+ *
+ * Said here instead, on every screen, with the day it stops and where to fix
+ * it. Same audience as `ModuleFailures` — `/api/_meta` sends the date only to
+ * somebody whose role can open the licence screen — and nothing at all for a
+ * business whose billing is fine, which is all of them nearly all of the time.
+ */
+export function BillingWarning({ until }: { until: string | null }) {
+  if (!until) return null;
+  const when = new Date(until);
+  if (Number.isNaN(when.getTime())) return null;
+  return (
+    <div
+      role="alert"
+      className="mb-4 rounded-md border px-3 py-2 text-sm"
+      style={{
+        borderColor: "var(--text-warning)",
+        color: "var(--text-warning)",
+      }}
+    >
+      {/*
+        The date is the *deadline* — the first moment Pro stops — so it is said
+        as the day features stop rather than the day they keep working until.
+        "Keeps working until the 16th" from a window that ends at midnight on
+        the 16th is a day the product promised and would not have delivered.
+      */}
+      <strong>A payment did not go through.</strong> Paid features stop on{" "}
+      {when.toLocaleDateString()} unless the card is updated.{" "}
+      <a className="link" href="/settings-licence">
+        Settings &rarr; Licence and updates
+      </a>{" "}
+      has the card details and the remedy.
     </div>
   );
 }

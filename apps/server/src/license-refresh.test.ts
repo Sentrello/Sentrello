@@ -3,6 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { refreshLicenseToken } from "@sentrello/jobs/license-refresh";
+import { billingGraceUntil } from "@sentrello/licensing-client";
 import { type SentrelloEnv, defineModule } from "@sentrello/module-sdk";
 import { Hono } from "hono";
 import {
@@ -337,4 +338,32 @@ test("/api/_meta's tier and `gate` never disagree, before or after a refresh", a
   await refreshLicenseState(publicKeyPem);
   expect(metaTier() === "pro").toBe(gate({ tier: "pro" }));
   expect(gate({ tier: "pro" })).toBe(false);
+});
+
+/**
+ * A grace window belongs to a licence that still works.
+ *
+ * The banner and the licence screen both say "everything keeps working until the
+ * 14th" from this value. Read off the claims alone it survives the token going
+ * bad — so an instance that has *already* lost Pro would reassure somebody that
+ * it has not, which is the one thing the warning must never do.
+ */
+test("grace is offered while the token verifies, and not after", async () => {
+  const until = new Date(Date.now() + 10 * 86_400_000).toISOString();
+
+  await writeToken({ tier: "pro", modules: [], grace_until: until }, "1h");
+  await resolveLicense(publicKeyPem);
+  expect(billingGraceUntil(currentLicenseState())).toBe(until);
+
+  // Proof the assertion has teeth: the claim is there in both cases, and the
+  // only difference is whether the token still verifies.
+  await writeToken({ tier: "pro", modules: [], grace_until: until }, "-1s");
+  await refreshLicenseState(publicKeyPem);
+  expect(gate({ tier: "pro" })).toBe(false);
+  expect(billingGraceUntil(currentLicenseState())).toBeNull();
+
+  // And a business whose billing is fine has none of this to read.
+  await writeToken({ tier: "pro", modules: [] }, "1h");
+  await refreshLicenseState(publicKeyPem);
+  expect(billingGraceUntil(currentLicenseState())).toBeNull();
 });

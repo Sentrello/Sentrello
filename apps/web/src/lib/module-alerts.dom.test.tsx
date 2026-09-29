@@ -8,7 +8,7 @@ GlobalRegistrator.register();
 import { afterAll, afterEach, expect, test } from "bun:test";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { ModuleFailures } from "./module-alerts";
+import { BillingWarning, ModuleFailures } from "./module-alerts";
 
 afterAll(() => GlobalRegistrator.unregister());
 
@@ -43,4 +43,28 @@ test("a missing paid module is named on screen", () => {
 test("nothing wrong draws nothing at all", () => {
   const host = mount(<ModuleFailures names={[]} />);
   expect(host.textContent).toBe("");
+});
+
+/**
+ * The fourteen days a failed payment buys are only worth having if somebody
+ * hears about them. A business that never opens the licence screen used to
+ * learn about a declined card by losing Pro.
+ */
+test("a failed payment says so, with the day it stops", () => {
+  const host = mount(<BillingWarning until="2026-10-14T00:00:00Z" />);
+  const alert = host.querySelector('[role="alert"]');
+  expect(alert?.textContent).toContain("A payment did not go through");
+  expect(alert?.textContent).toContain("Paid features stop on");
+  expect(alert?.textContent).toContain(
+    new Date("2026-10-14T00:00:00Z").toLocaleDateString(),
+  );
+  expect(host.querySelector("a")?.getAttribute("href")).toBe(
+    "/settings-licence",
+  );
+});
+
+test("a business whose billing is fine sees nothing", () => {
+  expect(mount(<BillingWarning until={null} />).innerHTML).toBe("");
+  // And a date nobody can read is not a banner saying "Invalid Date".
+  expect(mount(<BillingWarning until="not a date" />).innerHTML).toBe("");
 });

@@ -21,6 +21,7 @@ import { NAV_TAX_REGIME, taxRegimesFor } from "@sentrello/db/tax-regimes";
 import { UnreadableDateError } from "@sentrello/db/timezone";
 import { mailConfigured } from "@sentrello/email";
 import { lastLicenseRefresh, startJobs, unusableJobs } from "@sentrello/jobs";
+import { billingGraceUntil } from "@sentrello/licensing-client";
 import account from "@sentrello/module-account";
 import archive from "@sentrello/module-archive";
 import crm from "@sentrello/module-crm";
@@ -722,6 +723,19 @@ app.get("/api/_meta", requireSession(), async (c) => {
      * /api/license.
      */
     failed: seesFaults ? failedBundles.map((f) => f.name) : [],
+    /**
+     * A payment that did not go through, on every screen while it matters.
+     *
+     * The licence carries `grace_until` when the card failed: fourteen days in
+     * which everything keeps working and then Pro stops. Until now it was said
+     * on one line of Settings → Licence and updates, so the whole of the warning period
+     * could pass with nobody looking and the first anyone knew of it was
+     * features disappearing. Same audience as `failed` above — somebody who can
+     * act on it — and absent entirely when there is nothing wrong.
+     */
+    billingGraceUntil: seesFaults
+      ? billingGraceUntil(currentLicenseState())
+      : null,
     loaded,
     /**
      * Whether this person is part of the business running this instance.
@@ -889,7 +903,7 @@ app.get(
       // The token is short-lived and refreshed nightly; this is the deadline
       // for that refresh, not the end of the subscription.
       tokenExpiresAt: expiresAt,
-      graceUntil: claims?.grace_until ?? null,
+      graceUntil: billingGraceUntil(license),
       modulesLoaded: loaded,
       // Behind the settings permission, so this one carries the reason.
       failedBundles,

@@ -93,3 +93,19 @@ export function makeEntitlementGate(state: LicenseState) {
     return true;
   };
 }
+
+/**
+ * The day paid features stop after a failed payment, or nothing.
+ *
+ * `grace_until` is set by the licence server while a subscription is `past_due`:
+ * fourteen days in which everything keeps working. Two screens and a banner say
+ * so, and each of them used to read the claim itself — which answers a stale
+ * "keeps working until the 14th" from a token that no longer verifies, when the
+ * truth is that paid features have already stopped. A token that does not check
+ * out has no grace to offer, the same rule `makeEntitlementGate` applies one
+ * line above.
+ */
+export function billingGraceUntil(state: LicenseState): string | null {
+  const until = (state.valid ? state.claims?.grace_until : null) ?? null;
+  return until && !Number.isNaN(new Date(until).getTime()) ? until : null;
+}

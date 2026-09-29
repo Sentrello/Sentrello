@@ -75,6 +75,12 @@ export type Meta = {
    * healthy instance, and on every Free one.
    */
   failed?: string[];
+  /**
+   * The day paid features stop, when a payment has failed and not been fixed.
+   *
+   * Same audience as `failed`, and absent for a business whose billing is fine.
+   */
+  billingGraceUntil?: string | null;
   /** What this instance is licensed for, so a screen can offer its Pro half. */
   tier?: "free" | "pro";
   /**
