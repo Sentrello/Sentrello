@@ -5,6 +5,7 @@ import {
   SCHEDULES,
   jitteredMinuteCron,
   startJobs,
+  unusableJobs,
   withoutSslMode,
 } from "./index";
 import { refreshLicenseToken } from "./license-refresh";
@@ -405,3 +406,54 @@ test("a module's unusable job does not take the other jobs with it", async () =>
   // never reached different from one it reached and could not schedule.
   expect(await boss.getQueue("good:nightly")).not.toBeNull();
 });
+
+/**
+ * A job the queue would not have, said out loud where monitoring can hear it.
+ *
+ * A module hands its cron over as free text — `registerJob({ cron })` — and one
+ * pg-boss will not parse throws. The loop around that is right and stays: one
+ * module's bad job must cost only that job, not every job registered after it.
+ * What was missing is the other half. The boot logged a line, and from then on
+ * an instance whose nightly work had stopped was indistinguishable from a
+ * healthy one: `/healthz` said `ok`, the module was loaded, its screens worked,
+ * and the thing it was bought for never happened again.
+ *
+ * `modules_failed` has been on `/healthz` for exactly this reason one layer up,
+ * and `monitor.sh` alerts on it. This is the same fault one process further in.
+ */
+test("a job with a cron the queue refuses is named, and the rest still run", async () => {
+  const withBad = await startJobs([
+    {
+      name: "test:bad-cron",
+      cron: "every other tuesday",
+      handler: async () => {},
+    },
+  ]);
+  try {
+    expect(unusableJobs()).toContain("test:bad-cron");
+
+    // The half that matters more: everything else was still set up. This used
+    // to throw out of the loop, and `startJobs` is awaited at module scope in
+    // the server's boot with nothing catching it — so one module's typo was not
+    // one missing job, it was no instance at all.
+    const byName = new Map(
+      (await withBad.getSchedules()).map((s) => [s.name, s.cron]),
+    );
+    for (const queue of Object.values(QUEUES)) {
+      expect(byName.get(queue)).toBe(SCHEDULES[queue]);
+    }
+  } finally {
+    await withBad.stop({ graceful: false });
+  }
+
+  // And a restart that fixes the cron clears the report, rather than leaving an
+  // alert that can only be cleared by editing a file.
+  const fixed = await startJobs([
+    { name: "test:bad-cron", cron: "0 4 * * *", handler: async () => {} },
+  ]);
+  try {
+    expect(unusableJobs()).toEqual([]);
+  } finally {
+    await fixed.stop({ graceful: false });
+  }
+}, 60_000);

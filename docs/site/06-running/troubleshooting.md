@@ -27,7 +27,8 @@ Most problems announce themselves in one of those three.
   "tier": "pro",
   "license_valid": true,
   "modules_loaded": ["dashboard", "crm", "invoicing"],
-  "modules_failed": []
+  "modules_failed": [],
+  "jobs_unusable": []
 }
 ```
 
@@ -35,6 +36,13 @@ The field people miss is **`modules_failed`**. An instance can be perfectly
 healthy and still have a module that did not load: the application answers,
 `status` says `ok`, and the screen is just not there. If that list is not
 empty, the log says why.
+
+**`jobs_unusable`** is the same thing for the work nobody watches. A module
+schedules its own background work, and a schedule this instance could not accept
+means that job never runs — while the module loads and every screen it owns
+behaves. Overdue chasing that stopped, a retention sweep that never runs, a
+tidy-up somebody switched on months ago: they all look like nothing happening.
+A name in that list is the reason.
 
 ## A module is missing from the sidebar
 

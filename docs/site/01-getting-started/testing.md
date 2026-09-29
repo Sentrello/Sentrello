@@ -24,13 +24,16 @@ curl -s https://example.com/healthz
   "tier": "pro",
   "license_valid": true,
   "modules_loaded": ["dashboard", "crm", "invoicing", "accounting"],
-  "modules_failed": []
+  "modules_failed": [],
+  "jobs_unusable": []
 }
 ```
 
 The field to read is **`modules_failed`**. An instance can be perfectly healthy
 and still be missing a module: the application answers, the screen is not
-there. When that list is not empty, `sentrello logs` says why.
+there. When that list is not empty, `sentrello logs` says why. `jobs_unusable`
+is the same for scheduled work: empty is what you want, and a name in it is a
+nightly job that will not run.
 
 ## Walk one job through
 

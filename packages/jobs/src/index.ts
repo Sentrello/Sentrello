@@ -245,6 +245,8 @@ export async function startJobs(
 
   /** Jobs that could not be set up at all, so nothing tries to tidy them. */
   const unusable = new Set<string>();
+  // Emptied on every start, so a restart that fixes a job also clears the alert.
+  UNUSABLE_JOBS.length = 0;
   for (const job of all) {
     /*
      * One module's bad job costs only that job.
@@ -270,12 +272,34 @@ export async function startJobs(
     }
   }
 
+  UNUSABLE_JOBS.push(...unusable);
+
   await forgetOrphanedSchedules(
     boss,
     new Set(all.filter((job) => !unusable.has(job.name)).map((j) => j.name)),
   );
 
   return boss;
+}
+
+/**
+ * Jobs this process could not set up, for anything that is watching.
+ *
+ * A module hands over a cron as free text, and one pg-boss will not parse means
+ * that job never runs again on that instance. The boot logs a line and then the
+ * instance is indistinguishable from a healthy one: `/healthz` said `ok`, the
+ * module loaded, its screens work, and the nightly thing it was bought for
+ * simply does not happen. `modules_failed` is already on `/healthz` for exactly
+ * this reason one layer up; this is the same fault one process further in.
+ *
+ * A module-scope array rather than a return value, because the reader is the
+ * health endpoint and there is one queue per process — the same shape
+ * `failedBundles` uses.
+ */
+const UNUSABLE_JOBS: string[] = [];
+
+export function unusableJobs(): string[] {
+  return [...UNUSABLE_JOBS];
 }
 
 /** One job's queue, worker and schedule. Throws if pg-boss will not have it. */

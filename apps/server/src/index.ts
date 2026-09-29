@@ -20,7 +20,7 @@ import { lastRetentionSweep } from "@sentrello/db/retention";
 import { NAV_TAX_REGIME, taxRegimesFor } from "@sentrello/db/tax-regimes";
 import { UnreadableDateError } from "@sentrello/db/timezone";
 import { mailConfigured } from "@sentrello/email";
-import { startJobs } from "@sentrello/jobs";
+import { startJobs, unusableJobs } from "@sentrello/jobs";
 import account from "@sentrello/module-account";
 import archive from "@sentrello/module-archive";
 import crm from "@sentrello/module-crm";
@@ -402,6 +402,17 @@ app.get("/healthz", async (c) => {
     // Named, not detailed: enough for monitoring to alert on, without
     // publishing an error message to anyone who can reach /healthz.
     modules_failed: failedBundles.map((f) => f.name),
+    /*
+     * And the same fault one process further in.
+     *
+     * A module hands its cron over as free text, and one the queue will not
+     * parse means that job never runs on this instance again. The boot logs a
+     * line, and after that a box whose nightly work has stopped looks exactly
+     * like a healthy one — the module loaded, its screens work, and the thing
+     * it was bought for does not happen. `modules_failed` is here for the same
+     * reason a layer up.
+     */
+    jobs_unusable: unusableJobs(),
     /*
      * What the nightly retention sweep last did, because a housekeeping job
      * that has quietly stopped is how a disk fills anyway — and the person

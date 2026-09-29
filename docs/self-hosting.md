@@ -472,7 +472,10 @@ sentrello logs
 `healthz` answers without a login and tells you the version, whether the
 licence is valid, which modules loaded, and — importantly — which ones
 **failed**. A module that will not load takes all of its features with it, so
-`modules_failed` being empty is the first thing to check.
+`modules_failed` being empty is the first thing to check — and `jobs_unusable`
+beside it, which is the same fault for scheduled work: a job this instance could
+not accept a schedule for never runs again, while everything you can see goes on
+working.
 
 The dashboard shows the same machine from the inside: disk free, database size,
 how long it has been up. A self-hosted business owns the server and nobody else
@@ -485,6 +488,7 @@ silently stopped working.
 | Customers cannot open the portal | the same |
 | A password reset email never arrives | no mail configured — see above |
 | `modules_failed` is not empty | that module's bundle is broken; the message says why |
+| `jobs_unusable` is not empty | that named job will never run — nothing else is affected |
 | The app will not start after an update | `sentrello rollback`, then tell us what happened |
 
 ---
