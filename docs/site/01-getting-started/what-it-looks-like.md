@@ -71,11 +71,12 @@ internet by design.
 
 ## Accounts and roles
 
-Five policies out of the box: Admins, Executives, Managers, Staff, and an
+Five policies you give to a person: Admins, Executives, Managers, Staff, and an
 external Customers policy that opens the dashboard and nothing else — a
-customer reads their own invoices through the link you send them, which
-needs no account at all. Six groups as well: Sales, Marketing, Accounting and
-Customer Service, plus an Admins group and a Customers one. All of it is data
+customer reads their own invoices through the link you send them, which needs
+no account at all. Six groups as well: Sales, Marketing, Accounting and
+Customer Service, plus an Admins group and a Customers one, each backed by a
+policy of its own. Nine policies and six groups in total, and all of it is data
 you can edit, copy or throw away.
 
 A **policy** is how senior somebody is, given to a person directly. A **group**

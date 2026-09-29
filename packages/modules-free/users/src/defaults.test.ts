@@ -6,6 +6,7 @@ import {
   DEFAULT_GROUPS,
   DEFAULT_GROUP_POLICIES,
   DEFAULT_USER_POLICIES,
+  policyLabel,
   seedDefaults,
 } from "./defaults";
 import { BUILT_IN } from "./roles";
@@ -315,9 +316,29 @@ test("the seeded defaults are the ones the documentation promises", async () => 
     "Customers",
   ]);
 
+  /*
+   * And the tour names every one of them.
+   *
+   * By name rather than by sentence. This used to pin the exact words "Five
+   * policies out of the box" and "Six groups as well", which made improving the
+   * paragraph a failing test — and the cheapest way out of a failing test about
+   * prose is to edit the test. What matters is that a reader is told the same
+   * set the product seeds, whatever the sentence around it.
+   */
   const page = await Bun.file(
     `${import.meta.dir}/../../../../docs/site/01-getting-started/what-it-looks-like.md`,
   ).text();
-  expect(page).toContain("Five policies out of the box");
-  expect(page).toContain("Six groups as well");
+  const named = page.toLowerCase();
+  for (const policy of DEFAULT_USER_POLICIES) {
+    expect(named).toContain(policyLabel(policy.name).toLowerCase());
+  }
+  for (const group of DEFAULT_GROUPS) {
+    expect(named).toContain(group.name.toLowerCase());
+  }
+  // And the totals, because a page can list them all and still miscount out
+  // loud — the Free-versus-Pro table says nine and six, and the two pages
+  // disagreeing about one number is the fault this pins.
+  expect(named).toContain("five policies");
+  expect(named).toContain("six groups");
+  expect(named).toContain("nine policies and six groups");
 });
