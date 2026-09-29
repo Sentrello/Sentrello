@@ -59,7 +59,7 @@ filter.
 ## Check the backup
 
 ```bash
-sentrello backup
+sudo sentrello backup
 ```
 
 Then confirm the file is a real dump rather than an error page in a gzip:
@@ -79,8 +79,8 @@ long it takes and that it works.
 ## Check the update path
 
 ```bash
-sentrello update
-sentrello status
+sudo sentrello update
+sudo sentrello status
 ```
 
 `status` must report the new version. Then `sentrello rollback` and confirm it

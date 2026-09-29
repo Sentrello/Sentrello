@@ -14,7 +14,7 @@ cannot do for you is the part that matters most.
 ## Taking one
 
 ```bash
-sentrello backup
+sudo sentrello backup
 ```
 
 That writes `backups/sentrello-<stamp>.sql.gz` in your installation
@@ -105,7 +105,7 @@ time to discover that is now.
 ## Restoring
 
 ```bash
-sentrello restore backups/sentrello-<stamp>.sql.gz
+sudo sentrello restore backups/sentrello-<stamp>.sql.gz
 ```
 
 This stops the app, clears the database, puts the backup in its place, and

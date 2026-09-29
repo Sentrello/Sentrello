@@ -10,10 +10,14 @@ tags: [operations, support]
 ## Start here
 
 ```bash
-sentrello status          # version, tier, modules, licence
-sentrello logs            # what the application is actually saying
+sudo sentrello status     # version, tier, modules, licence
+sudo sentrello logs       # what the application is actually saying
 curl -s localhost:3000/healthz
 ```
+
+`sudo`, because these read the instance's secrets file. If sudo answers
+*command not found*, your distribution leaves `/usr/local/bin` out of its own
+PATH — run `sudo /usr/local/bin/sentrello status` instead.
 
 Most problems announce themselves in one of those three.
 
@@ -98,7 +102,7 @@ not have.
 **A forgotten password**, when no reset email can be sent:
 
 ```bash
-sentrello reset-password you@yourbusiness.com
+sudo sentrello reset-password you@yourbusiness.com
 ```
 
 It prints a password once, ends every session that account had open, and clears
@@ -112,7 +116,7 @@ half-remembered password locks themselves out, and on a small business that
 person is often the only administrator:
 
 ```bash
-sentrello unlock you@yourbusiness.com
+sudo sentrello unlock you@yourbusiness.com
 ```
 
 Both are recorded in **Users → Events**, the same as if an administrator had

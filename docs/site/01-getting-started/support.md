@@ -10,8 +10,8 @@ tags: [support]
 ## Look here first
 
 ```bash
-sentrello status      # version, tier, modules, licence state
-sentrello logs        # what the application is actually saying
+sudo sentrello status      # version, tier, modules, licence state
+sudo sentrello logs        # what the application is actually saying
 curl -s localhost:3000/healthz
 ```
 
@@ -47,8 +47,8 @@ You own the machine, so there is always a way back in — and it does not requir
 signing in first, which is the point. Both of these run on the server.
 
 ```bash
-sentrello unlock <email>                 # repeated failures locked the address
-sentrello reset-password <email> [new]   # when no mail is configured to send a link
+sudo sentrello unlock <email>                 # repeated failures locked the address
+sudo sentrello reset-password <email> [new]   # when no mail is configured to send a link
 ```
 
 A self-hosted instance often has no mail server and exactly one administrator,
@@ -60,8 +60,8 @@ recorded as having come from the host.
 ## After you buy something
 
 ```bash
-sentrello activate        # sync with whatever the subscription now covers
-sentrello add <module>    # fetch one module you have just bought
+sudo sentrello activate        # sync with whatever the subscription now covers
+sudo sentrello add <module>    # fetch one module you have just bought
 ```
 
 Pro's code is already in the image, so a Pro key needs nothing fetched. An

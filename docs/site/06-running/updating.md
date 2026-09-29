@@ -8,7 +8,7 @@ tags: [operations]
 # Updating
 
 ```bash
-sentrello update
+sudo sentrello update
 ```
 
 That takes a backup, pulls the new version, fetches any modules your licence
@@ -40,7 +40,7 @@ was, which a rollback deliberately does not do.
 ## Checking it worked
 
 ```bash
-sentrello status
+sudo sentrello status
 ```
 
 The version it reports must be the one you expected. Ask the instance rather
@@ -51,7 +51,7 @@ this catches.
 ## Going back
 
 ```bash
-sentrello rollback
+sudo sentrello rollback
 ```
 
 Back to the previous version, with the bundles that shipped with it. **Your
@@ -61,7 +61,7 @@ If the new version migrated something you need undone as well, restore the
 backup the update took:
 
 ```bash
-sentrello restore backups/sentrello-pre-update-<stamp>.sql.gz
+sudo sentrello restore backups/sentrello-pre-update-<stamp>.sql.gz
 ```
 
 :::tip[Exercise it before you need it]
@@ -80,7 +80,7 @@ would rather not open a terminal. Same code path.
 **Go back, rather than waiting it out.**
 
 ```bash
-sentrello rollback
+sudo sentrello rollback
 ```
 
 The rollback target is recorded before anything is pulled, and the database
