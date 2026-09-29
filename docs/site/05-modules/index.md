@@ -35,6 +35,13 @@ up when you are ready for it; nothing is lost by leaving it until then, and
 putting one away hides it without deleting anything — switch the diary off for
 the winter and it is where you left it in the spring.
 
+Putting one away shuts its front door as well as hiding its screens. A shop
+switched off stops selling, a diary stops taking appointments, a signup form
+stops collecting addresses — otherwise the orders keep arriving somewhere you
+can no longer see. Links you have already sent out are untouched: a receipt
+still opens, a booking can still be moved or cancelled, and an unsubscribe
+link still works.
+
 Stopping one is the same in reverse. Take it off your subscription and it
 disappears from that list on the next licence check, taking its screens with
 it. **Your records stay in your database.** They are still in your backups,

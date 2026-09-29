@@ -93,3 +93,40 @@ export async function setModuleEnabled(
  * `hasData` and this file grows the loop. Until then, a module waiting under
  * Modules with a button is a fair place to find one.
  */
+
+/**
+ * Whether a business has deliberately put a module away.
+ *
+ * Not the same question as `isEnabled`, and the difference is the whole point.
+ * No row means nobody has been asked yet — the module is waiting under Modules
+ * with a button — and a `false` row means somebody pressed the button the other
+ * way. Only the second is a decision, so only the second closes a door.
+ *
+ * What it closes is the doors a *stranger* comes through: a storefront that
+ * takes an order, a booking page that takes an appointment, a signup form that
+ * takes an address. A business that switches the shop off for the winter and
+ * finds it still selling has no way to read that except as the switch not
+ * working — the sidebar hid the screen where the orders arrive, which made it
+ * worse rather than better.
+ *
+ * What it must never close is a link somebody has already been sent:
+ * unsubscribe, a privacy request, managing a booking that exists, a receipt.
+ * Those belong to the customer rather than to the module, and answering 404 to
+ * an unsubscribe link is both rude and, in three of our four markets, unlawful.
+ */
+export async function putAway(
+  organizationId: string,
+  moduleId: string,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ enabled: moduleState.enabled })
+    .from(moduleState)
+    .where(
+      and(
+        eq(moduleState.organizationId, organizationId),
+        eq(moduleState.moduleId, moduleId),
+      ),
+    )
+    .limit(1);
+  return row ? !row.enabled : false;
+}

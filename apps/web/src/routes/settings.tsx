@@ -2085,6 +2085,17 @@ export function Modules() {
         it. Its records stay in your database and come back the day the module
         does.
       </p>
+      {/*
+        And what "put away" does to the public side, which nothing said.
+
+        Switching a module off hid its screens and left its front door open —
+        a shop still selling, a diary still taking appointments — so the
+        orders arrived in the one place their owner could no longer reach.
+      */}
+      <p className="mt-1 text-sm" style={muted}>
+        Putting one away shuts its front door too: a shop stops selling, a diary
+        stops taking appointments. Links you have already sent out keep working.
+      </p>
 
       <ul className="mt-3 flex flex-col gap-(--gap-toolbar)">
         {available.map((m) => (

@@ -821,6 +821,11 @@ app.get("/api/_meta", requireSession(), async (c) => {
  * Turning one off hides it and stops it being offered; it never deletes
  * anything. A business that switches scheduling off in the winter and back on
  * in the spring should find its diary where it left it.
+ *
+ * It also shuts the module's public doors — see `putAway` in
+ * `@sentrello/db/modules`, which each module's own storefront, booking page and
+ * signup form asks. Hiding the screens and leaving the doors open sent the
+ * orders somewhere their owner could no longer look.
  */
 app.post(
   "/api/modules/:id",
