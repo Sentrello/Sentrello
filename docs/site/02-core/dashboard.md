@@ -26,8 +26,9 @@ A free instance starts with these, across four tabs:
 - **Performance** — income against expenses over twelve months, the profit
   trend, and who spends the most with you.
 - **Sales** — deals by stage, and the pipeline beside them.
-- **Reports** — who owes you, the balance sheet, cash in and out, and the
-  trial balance.
+- **Reports** — the balance sheet. Who owes you, cash in and out and the trial
+  balance are answered by Pro's accounting, so on a free instance this tab holds
+  the one panel rather than four.
 
 **You see the panels your permissions cover.** The money figures need access
 to the books and the pipeline needs the CRM, so somebody who does neither is
