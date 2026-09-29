@@ -32,6 +32,24 @@ export interface CrawlableSurface {
   prefix: string;
   /** A sitemap for that surface, when the module publishes one. */
   sitemap?: string;
+  /**
+   * Whether the surface is actually open, on the host being asked.
+   *
+   * Declared at load, which is not the same as published: the documentation
+   * module registers `/docs` the moment it is entitled, and the shop registers
+   * `/shop` whether or not it serves a storefront. So a fresh Pro instance
+   * answered `Allow: /docs` and advertised a sitemap, both of which were 404 —
+   * and a business that had deliberately marked its documentation site *not
+   * indexable*, or put the shop away, was still telling every crawler to come
+   * in. robots.txt is the one file whose whole job is to be believed.
+   *
+   * Given the hostname the reader used, because these are per-host answers: one
+   * instance can serve a documentation site on its own domain.
+   *
+   * Left out means "always open", which is what a surface with nothing to
+   * configure wants.
+   */
+  live?: (hostname: string | null) => Promise<boolean> | boolean;
 }
 
 const registry: CrawlableSurface[] = [];
@@ -66,18 +84,40 @@ export function clearCrawlable(): void {
  * `origin` is the address the reader used, because a sitemap line has to be an
  * absolute URL and the one nginx used to reach us is not the one anybody typed.
  */
-export function robotsTxt(origin: string | null): string {
-  const surfaces = allCrawlable();
-  const lines = ["User-agent: *", "Disallow: /"];
+export async function robotsTxt(origin: string | null): Promise<string> {
+  const hostname = origin
+    ? (origin.replace(/^https?:\/\//, "").split(":")[0] ?? null)
+    : null;
+  /*
+   * Only the surfaces that answer today.
+   *
+   * A module that cannot say — one whose check throws because a table it wants
+   * is not migrated yet — counts as closed. The cost of that is a page nobody
+   * crawls; the cost the other way is a crawl of something somebody asked us
+   * not to publish.
+   */
+  const open = [];
+  for (const surface of allCrawlable()) {
+    if (!surface.live) {
+      open.push(surface);
+      continue;
+    }
+    try {
+      if (await surface.live(hostname)) open.push(surface);
+    } catch {
+      // Closed, and silent: robots.txt is fetched by crawlers and a log line
+      // per fetch is a log nobody reads.
+    }
+  }
 
-  for (const surface of [...surfaces].sort((a, b) =>
+  const lines = ["User-agent: *", "Disallow: /"];
+  for (const surface of [...open].sort((a, b) =>
     a.prefix.localeCompare(b.prefix),
   )) {
     lines.push(`Allow: ${surface.prefix}`);
   }
-
   if (origin) {
-    for (const surface of surfaces) {
+    for (const surface of open) {
       if (surface.sitemap) lines.push(`Sitemap: ${origin}${surface.sitemap}`);
     }
   }

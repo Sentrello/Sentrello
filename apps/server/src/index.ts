@@ -390,7 +390,7 @@ app.get("/.well-known/security.txt", (c) =>
  * sitemap line has to be absolute and the address nginx used to reach us is
  * not the one anybody typed.
  */
-app.get("/robots.txt", (c) => {
+app.get("/robots.txt", async (c) => {
   const host = c.req.header("host");
   /*
    * The proxy's word first, then the request's own scheme — not a hardcoded
@@ -408,7 +408,7 @@ app.get("/robots.txt", (c) => {
     }
   })();
   const origin = host ? `${forwarded || own}://${host}` : null;
-  return c.text(robotsTxt(origin), 200, {
+  return c.text(await robotsTxt(origin), 200, {
     "content-type": "text/plain; charset=utf-8",
   });
 });

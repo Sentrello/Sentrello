@@ -80,7 +80,9 @@ A module can also be entitled and not downloaded yet, which an update fixes.
 refused, correctly. That check is what stops another site posting your login
 form.
 
-Fix the value in `secrets/.env` and restart.
+Fix the value in `secrets/.env`, then `sudo sentrello restart`. That recreates
+the containers, which is what makes an edited value take effect — a plain
+container restart keeps the environment it started with.
 
 ## Somebody signs in and sees almost nothing
 
