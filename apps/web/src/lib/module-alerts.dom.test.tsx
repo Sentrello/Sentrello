@@ -8,7 +8,7 @@ GlobalRegistrator.register();
 import { afterAll, afterEach, expect, test } from "bun:test";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { BillingWarning, ModuleFailures } from "./module-alerts";
+import { BillingWarning, DiskWarning, ModuleFailures } from "./module-alerts";
 
 afterAll(() => GlobalRegistrator.unregister());
 
@@ -67,4 +67,18 @@ test("a business whose billing is fine sees nothing", () => {
   expect(mount(<BillingWarning until={null} />).innerHTML).toBe("");
   // And a date nobody can read is not a banner saying "Invalid Date".
   expect(mount(<BillingWarning until="not a date" />).innerHTML).toBe("");
+});
+
+test("a nearly full disk says so, with somewhere to act", () => {
+  const host = mount(<DiskWarning percentUsed={94} />);
+  const alert = host.querySelector('[role="alert"]');
+  expect(alert?.textContent).toContain("94% full");
+  expect(alert?.textContent).toContain("stops accepting writes");
+  expect(host.querySelector("a")?.getAttribute("href")).toBe(
+    "/settings-archive",
+  );
+});
+
+test("a disk with room, or one nobody could measure, draws nothing", () => {
+  expect(mount(<DiskWarning percentUsed={undefined} />).innerHTML).toBe("");
 });

@@ -3,7 +3,11 @@ import { useEffect, useState } from "react";
 import { type Meta, api, setGrants, setLoadedModules } from "./lib/api";
 import { AppShell } from "./lib/app-shell";
 import { signOut, useSession } from "./lib/auth";
-import { BillingWarning, ModuleFailures } from "./lib/module-alerts";
+import {
+  BillingWarning,
+  DiskWarning,
+  ModuleFailures,
+} from "./lib/module-alerts";
 import { setModuleRelease } from "./lib/module-ui";
 import {
   Breadcrumb,
@@ -671,6 +675,8 @@ export default function App() {
         {/* And a card that did not go through, for the same reason: fourteen
             days of grace are no use to somebody who never hears about them. */}
         <BillingWarning until={data?.billingGraceUntil ?? null} />
+        {/* And the disk, because the next thing it does is refuse a write. */}
+        <DiskWarning percentUsed={data?.diskFull} />
         <CurrentScreen nav={nav} withScreens={data?.ui ?? []} />
       </AppShell>
     </NavigationProvider>

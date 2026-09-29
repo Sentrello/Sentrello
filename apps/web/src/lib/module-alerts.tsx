@@ -79,3 +79,39 @@ export function BillingWarning({ until }: { until: string | null }) {
     </div>
   );
 }
+
+/**
+ * The banner for a disk that is nearly full.
+ *
+ * What a full disk looks like from inside the product is PostgreSQL refusing to
+ * write: an invoice that cannot be raised, a payment that cannot be recorded, a
+ * ledger that stops — and by then it has already happened. The business whose
+ * disk it is has no IT department and is not reading logs, so the warning has to
+ * arrive on the screen they are already looking at.
+ *
+ * Only ever shown to somebody who can act on it, and only past ninety per cent:
+ * a warning that appears with a fortnight of room left is one people learn to
+ * ignore before the day it matters.
+ */
+export function DiskWarning({ percentUsed }: { percentUsed?: number }) {
+  if (percentUsed === undefined) return null;
+  return (
+    <div
+      role="alert"
+      className="mb-4 rounded-md border px-3 py-2 text-sm"
+      style={{
+        borderColor: "var(--text-danger)",
+        color: "var(--text-danger)",
+      }}
+    >
+      <strong>This server is {percentUsed}% full.</strong> When the disk fills,
+      the database stops accepting writes — no invoices, no payments, nothing
+      recorded.{" "}
+      <a className="link" href="/settings-archive">
+        Settings &rarr; Archive and storage
+      </a>{" "}
+      takes old records off the machine, and old backups are usually what is
+      taking the room.
+    </div>
+  );
+}

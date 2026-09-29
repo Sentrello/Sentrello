@@ -388,6 +388,16 @@ test("/healthz boots and reports Free when no token is present", async () => {
     // the time here, because a housekeeping job that quietly stopped is how
     // a self-hosted disk fills.
     retention: null,
+    /*
+     * And the disk under all of it, which is the one that ends a working day:
+     * PostgreSQL refuses writes when it fills, so no invoice can be raised. A
+     * real reading here, so the field is asserted as a shape rather than a
+     * value — `null` only on a platform that cannot answer `statfs`.
+     */
+    disk: {
+      percentUsed: expect.any(Number),
+      freeBytes: expect.any(Number),
+    },
   });
 });
 

@@ -28,7 +28,9 @@ Most problems announce themselves in one of those three.
   "license_valid": true,
   "modules_loaded": ["dashboard", "crm", "invoicing"],
   "modules_failed": [],
-  "jobs_unusable": []
+  "jobs_unusable": [],
+  "retention": { "at": "2026-09-29T02:00:07Z", "backlog": 0 },
+  "disk": { "percentUsed": 62, "freeBytes": 31742492672 }
 }
 ```
 
@@ -43,6 +45,17 @@ means that job never runs — while the module loads and every screen it owns
 behaves. Overdue chasing that stopped, a retention sweep that never runs, a
 tidy-up somebody switched on months ago: they all look like nothing happening.
 A name in that list is the reason.
+
+**`disk`** is the one that ends a working day. A disk that fills does not slow
+the product down — PostgreSQL stops accepting writes, so an invoice cannot be
+raised and a payment cannot be recorded. Past 90% the product says so on every
+screen to anybody who can act on it; monitoring anything yourself, alert on this
+field long before that. Old backups are usually what is taking the room, and
+Settings → Archive and storage takes old records off the machine.
+
+`retention` beside it is the nightly housekeeping sweep: `backlog` sitting at a
+number across several days, or an `at` that stops moving, is that sweep not
+running — which is how a disk fills in the first place.
 
 ## A module is missing from the sidebar
 

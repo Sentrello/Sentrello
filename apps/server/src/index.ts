@@ -40,6 +40,7 @@ import {
 import settings from "@sentrello/module-settings";
 import users, { resolveAccess } from "@sentrello/module-users";
 import { Hono } from "hono";
+import { diskState, diskWarning } from "./disk";
 import {
   currentLicenseState,
   currentTokenPresent,
@@ -427,6 +428,15 @@ app.get("/healthz", async (c) => {
      * running.
      */
     retention: lastRetentionSweep(),
+    /*
+     * And the disk underneath all of it.
+     *
+     * PostgreSQL refusing a write is what a full disk looks like from here, and
+     * by then the business has lost the invoice it was raising. A percentage and
+     * the bytes left, so monitoring can alert and a person can read it; `null`
+     * on a platform that cannot answer, which is never a self-hosted Linux box.
+     */
+    disk: diskState(),
   });
 });
 
@@ -733,6 +743,12 @@ app.get("/api/_meta", requireSession(), async (c) => {
      * features disappearing. Same audience as `failed` above — somebody who can
      * act on it — and absent entirely when there is nothing wrong.
      */
+    /*
+     * The disk, to the same people, for the same reason: they can act on it and
+     * nobody else can. Archive takes old records off the machine, and the
+     * backups page says where a dump is written.
+     */
+    diskFull: seesFaults ? diskWarning()?.percentUsed : undefined,
     billingGraceUntil: seesFaults
       ? billingGraceUntil(currentLicenseState())
       : null,

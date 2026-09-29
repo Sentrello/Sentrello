@@ -81,6 +81,12 @@ export type Meta = {
    * Same audience as `failed`, and absent for a business whose billing is fine.
    */
   billingGraceUntil?: string | null;
+  /**
+   * How full this server is, once it is full enough to say so.
+   *
+   * Absent below the threshold and for anybody who could not act on it.
+   */
+  diskFull?: number;
   /** What this instance is licensed for, so a screen can offer its Pro half. */
   tier?: "free" | "pro";
   /**
