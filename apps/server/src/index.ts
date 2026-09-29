@@ -325,6 +325,31 @@ const VERSION = process.env.SENTRELLO_VERSION ?? "unknown";
  * and distinguishes the two failures worth telling apart — a database that
  * cannot be reached, and one that answers fine but has nothing in it.
  */
+/**
+ * How many businesses this instance holds, which is meant to be one.
+ *
+ * Every public page in the product — a storefront, a booking page, a signup
+ * form — refuses to answer when there are two, because with no session there is
+ * nothing to tell them apart. That refusal is right and it was silent: the
+ * instance looked healthy, the admin screens all worked, and a customer
+ * following a link to the shop got a 404. Reported here so monitoring sees it,
+ * and on `/api/_meta` so the person who can fix it is told.
+ *
+ * Two is usually an accident — a second organisation created through the auth
+ * API while somebody was exploring — and one this cannot fix on its own: which
+ * of them to keep is not a decision software gets to make.
+ */
+async function organizationCount(): Promise<number | null> {
+  try {
+    const [row] = await db.execute<{ count: number }>(
+      sql`select count(*)::int as count from organizations`,
+    );
+    return row?.count ?? null;
+  } catch {
+    return null;
+  }
+}
+
 async function databaseHealth(): Promise<"ok" | "unmigrated" | "unreachable"> {
   try {
     const [row] = await db.execute<{ present: boolean }>(
@@ -464,6 +489,12 @@ app.get("/healthz", async (c) => {
      * on a platform that cannot answer, which is never a self-hosted Linux box.
      */
     disk: diskState(),
+    /*
+     * And how many businesses are in here, which is meant to be one. Two
+     * switches off every public page in the product, silently — see
+     * `organizationCount`.
+     */
+    organizations: await organizationCount(),
   });
 });
 
@@ -776,6 +807,12 @@ app.get("/api/_meta", requireSession(), async (c) => {
      * backups page says where a dump is written.
      */
     diskFull: seesFaults ? diskWarning()?.percentUsed : undefined,
+    /*
+     * And a second business in here, which switches off every public page
+     * without saying so — see `organizationCount`. Counted rather than flagged
+     * so the sentence can say how many.
+     */
+    organizations: seesFaults ? ((await organizationCount()) ?? 1) : 1,
     billingGraceUntil: seesFaults
       ? billingGraceUntil(currentLicenseState())
       : null,

@@ -115,3 +115,41 @@ export function DiskWarning({ percentUsed }: { percentUsed?: number }) {
     </div>
   );
 }
+
+/**
+ * A second business on an instance that is built for one.
+ *
+ * Every public page in the product refuses to answer when there are two: a
+ * storefront, a booking page, a signup form all arrive with no session, and
+ * there is nothing to tell the two businesses apart. That refusal is right, and
+ * it was silent — the admin screens all worked, the instance reported healthy,
+ * and a customer following the link to the shop got "not found".
+ *
+ * Usually an accident: a second organisation created through the auth API while
+ * somebody was exploring. Which one to keep is not a decision software gets to
+ * make, so this says what is switched off and leaves the choice alone.
+ */
+export function PublicPagesOff({ organizations }: { organizations?: number }) {
+  if (!organizations || organizations < 2) return null;
+  return (
+    <div
+      role="alert"
+      className="mb-4 rounded-md border px-3 py-2 text-sm"
+      style={{
+        borderColor: "var(--text-danger)",
+        color: "var(--text-danger)",
+      }}
+    >
+      <strong>
+        This instance holds {organizations} businesses, and it is built for one.
+      </strong>{" "}
+      Your public pages are switched off while that is true — a shop, a booking
+      page and a signup form all arrive without a sign-in, and nothing can tell
+      the two apart. Remove the one you did not mean to create in{" "}
+      <a className="link" href="/settings-business">
+        Settings &rarr; Business
+      </a>
+      , or ask support which is which.
+    </div>
+  );
+}

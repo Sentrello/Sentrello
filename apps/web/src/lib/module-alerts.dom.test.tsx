@@ -8,7 +8,12 @@ GlobalRegistrator.register();
 import { afterAll, afterEach, expect, test } from "bun:test";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { BillingWarning, DiskWarning, ModuleFailures } from "./module-alerts";
+import {
+  BillingWarning,
+  DiskWarning,
+  ModuleFailures,
+  PublicPagesOff,
+} from "./module-alerts";
 
 afterAll(() => GlobalRegistrator.unregister());
 
@@ -81,4 +86,21 @@ test("a nearly full disk says so, with somewhere to act", () => {
 
 test("a disk with room, or one nobody could measure, draws nothing", () => {
   expect(mount(<DiskWarning percentUsed={undefined} />).innerHTML).toBe("");
+});
+
+test("a second business says what it switched off", () => {
+  const host = mount(<PublicPagesOff organizations={2} />);
+  const alert = host.querySelector('[role="alert"]');
+  expect(alert?.textContent).toContain("holds 2 businesses");
+  expect(alert?.textContent).toContain("public pages are switched off");
+  expect(host.querySelector("a")?.getAttribute("href")).toBe(
+    "/settings-business",
+  );
+});
+
+test("one business, or a count nobody could take, draws nothing", () => {
+  expect(mount(<PublicPagesOff organizations={1} />).innerHTML).toBe("");
+  expect(mount(<PublicPagesOff organizations={undefined} />).innerHTML).toBe(
+    "",
+  );
 });

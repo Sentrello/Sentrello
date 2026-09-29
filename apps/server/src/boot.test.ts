@@ -398,6 +398,14 @@ test("/healthz boots and reports Free when no token is present", async () => {
       percentUsed: expect.any(Number),
       freeBytes: expect.any(Number),
     },
+    /*
+     * And how many businesses are in here, which is meant to be one. Two
+     * switches off every public page in the product — a storefront, a booking
+     * page, a signup form — because with no session nothing can tell them
+     * apart, and that refusal was silent until it was reported here. A shape
+     * rather than a value: this suite's own organisations come and go.
+     */
+    organizations: expect.any(Number),
   });
 });
 

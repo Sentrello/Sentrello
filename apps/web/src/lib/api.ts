@@ -87,6 +87,14 @@ export type Meta = {
    * Absent below the threshold and for anybody who could not act on it.
    */
   diskFull?: number;
+  /**
+   * How many businesses this instance holds, which is meant to be one.
+   *
+   * Two switches off every public page in the product — a storefront, a
+   * booking page, a signup form — because with no session there is nothing to
+   * tell them apart. 1 for anybody who could not act on it.
+   */
+  organizations?: number;
   /** What this instance is licensed for, so a screen can offer its Pro half. */
   tier?: "free" | "pro";
   /**

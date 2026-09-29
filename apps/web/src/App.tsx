@@ -7,6 +7,7 @@ import {
   BillingWarning,
   DiskWarning,
   ModuleFailures,
+  PublicPagesOff,
 } from "./lib/module-alerts";
 import { setModuleRelease } from "./lib/module-ui";
 import {
@@ -677,6 +678,10 @@ export default function App() {
         <BillingWarning until={data?.billingGraceUntil ?? null} />
         {/* And the disk, because the next thing it does is refuse a write. */}
         <DiskWarning percentUsed={data?.diskFull} />
+        {/* And a second business, which takes every public page down in
+            silence — the admin screens carry on working, so nothing else
+            would ever say so. */}
+        <PublicPagesOff organizations={data?.organizations} />
         <CurrentScreen nav={nav} withScreens={data?.ui ?? []} />
       </AppShell>
     </NavigationProvider>
