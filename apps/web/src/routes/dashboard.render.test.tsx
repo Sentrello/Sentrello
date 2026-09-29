@@ -26,6 +26,12 @@ const HEALTH = {
     usedPercent: 50,
   },
   memory: { usedBytes: 100_000_000, totalBytes: 800_000_000 },
+  backup: {
+    state: "ok",
+    detail: "",
+    kept: 14,
+    at: new Date().toISOString(),
+  },
 };
 
 function render(updates: unknown): string {
@@ -157,4 +163,69 @@ test("a report that cut nothing says nothing", () => {
   const html = owed(null);
   expect(html).toContain("INV-0001");
   expect(html).not.toContain("Showing");
+});
+
+/**
+ * The backup line, in the three states somebody can act on.
+ *
+ * The documentation promises a backup every night and fourteen kept, and until
+ * 2026-09-29 nothing in the product could say whether it was happening. It is
+ * silent by nature — the timer is on the host, its output goes to the journal,
+ * and a self-hosted owner is not reading journals — so the first anybody hears
+ * of three weeks without one is the morning they need it.
+ *
+ * "None reported" is the state that matters. An instance whose timer was never
+ * installed, and one whose timer has stopped, both look exactly like a healthy
+ * one if the absence is drawn as nothing.
+ */
+function renderBackup(backup: typeof HEALTH.backup | null): string {
+  (globalThis as { window?: unknown }).window = {
+    location: { pathname: "/", search: "" },
+    history: { pushState() {}, replaceState() {} },
+    addEventListener() {},
+    removeEventListener() {},
+  };
+  return renderToStaticMarkup(
+    <QueryClientProvider client={new QueryClient()}>
+      <NavigationProvider
+        initial={{ moduleId: "dashboard", title: "Dashboard" }}
+      >
+        <HealthPanel health={{ ...HEALTH, backup }} />
+      </NavigationProvider>
+    </QueryClientProvider>,
+  );
+}
+
+test("a nightly backup that is happening says how many are kept", () => {
+  expect(renderBackup(HEALTH.backup)).toContain("14 kept");
+});
+
+test("nothing reported is said out loud, not drawn as nothing", () => {
+  expect(renderBackup(null)).toContain("none reported");
+});
+
+test("a backup that failed is not reported as a backup", () => {
+  const html = renderBackup({
+    state: "failed",
+    detail: "the dump could not be taken",
+    kept: 13,
+    at: new Date().toISOString(),
+  });
+  expect(html).toContain("last one failed");
+  // And the reason, because "failed" alone sends somebody to the journal this
+  // panel exists to save them from reading.
+  expect(html).toContain("the dump could not be taken");
+});
+
+test("a timer that has stopped reads as stale rather than as fine", () => {
+  const html = renderBackup({
+    state: "ok",
+    detail: "",
+    kept: 14,
+    at: new Date(Date.now() - 9 * 24 * 3600_000).toISOString(),
+  });
+  expect(html).toContain("9 days ago");
+  // Not the reassuring half of the same fact: fourteen are still kept, and
+  // every one of them is a week old.
+  expect(html).not.toContain("14 kept");
 });

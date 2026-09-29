@@ -1,4 +1,4 @@
-import { statfs } from "node:fs/promises";
+import { readFile, statfs } from "node:fs/promises";
 import { resolve } from "node:path";
 import { db } from "@sentrello/db";
 
@@ -21,13 +21,19 @@ export interface Health {
   database: { reachable: boolean; sizeBytes: number | null };
   disk: { freeBytes: number; totalBytes: number; usedPercent: number } | null;
   memory: { usedBytes: number; totalBytes: number } | null;
+  /** The nightly backup, as the host last reported it. Null on an instance that has never run one. */
+  backup: { state: string; detail: string; kept: number; at: string } | null;
 }
 
 /** The data directory, because that is the one that fills up. */
 const dataDir = () => resolve(process.env.SENTRELLO_DATA_DIR ?? "/data");
 
 export async function readHealth(): Promise<Health> {
-  const [database, disk] = await Promise.all([databaseHealth(), diskHealth()]);
+  const [database, disk, backup] = await Promise.all([
+    databaseHealth(),
+    diskHealth(),
+    backupHealth(),
+  ]);
 
   return {
     version: process.env.SENTRELLO_VERSION ?? "unknown",
@@ -35,7 +41,45 @@ export async function readHealth(): Promise<Health> {
     database,
     disk,
     memory: memoryHealth(),
+    backup,
   };
+}
+
+/**
+ * What the nightly backup last did.
+ *
+ * Read from a file the CLI writes, because the backups themselves are not here:
+ * `backups/` sits beside the instance on the host and only `./data` is mounted.
+ * The same channel the update agent uses, for the same reason.
+ *
+ * The promise is in the documentation — a backup every night, fourteen kept —
+ * and nothing in the product could say whether it was being kept. That failure
+ * is silent by nature: the timer is on the host, its output goes to the journal,
+ * and the owner of a self-hosted instance has no IT department and is not
+ * reading journals. The first anybody hears of three weeks without a backup is
+ * the morning they need one.
+ *
+ * Null covers two cases the screen tells apart by the age of `at`: an instance
+ * that has never taken a scheduled backup, and one whose timer has stopped.
+ */
+async function backupHealth(): Promise<Health["backup"]> {
+  try {
+    const raw = await readFile(`${dataDir()}/backup-status.json`, "utf8");
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const at = typeof parsed.at === "string" ? parsed.at : null;
+    if (!at) return null;
+    return {
+      state: parsed.state === "ok" ? "ok" : "failed",
+      detail: typeof parsed.detail === "string" ? parsed.detail : "",
+      kept: Number.isFinite(Number(parsed.kept)) ? Number(parsed.kept) : 0,
+      at,
+    };
+  } catch {
+    // No file, an unreadable one, or one half-written while the host was
+    // replacing it. None of those is worth failing a dashboard for, and all
+    // three mean the same thing to the reader: nothing has reported a backup.
+    return null;
+  }
 }
 
 async function databaseHealth(): Promise<Health["database"]> {

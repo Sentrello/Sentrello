@@ -42,6 +42,7 @@ interface Health {
   uptimeSeconds: number;
   database: { reachable: boolean; sizeBytes: number | null };
   disk: { freeBytes: number; totalBytes: number; usedPercent: number } | null;
+  backup: { state: string; detail: string; kept: number; at: string } | null;
   memory: { usedBytes: number; totalBytes: number } | null;
 }
 
@@ -1249,6 +1250,32 @@ export function HealthPanel({ health }: { health: Health }) {
   const tight = disk ? disk.usedPercent >= 85 : false;
 
   /**
+   * The nightly backup, in the three states a reader can act on.
+   *
+   * The documentation promises one every night and fourteen kept, and nothing in
+   * the product could say whether it was happening. Silent by nature: the timer
+   * is on the host, its output goes to the journal, and the owner of a
+   * self-hosted instance is not reading journals. The first anybody hears of
+   * three weeks without a backup is the morning they need one.
+   *
+   * Two days rather than one, because the timer fires at a randomised hour and a
+   * warning that appears whenever a backup is a few hours late is a warning
+   * people learn to ignore.
+   */
+  const backup = health.backup;
+  const staleAfter = 2 * 24 * 60 * 60 * 1000;
+  const backupState = !backup
+    ? { text: "none reported", colour: "var(--text-warning)" }
+    : backup.state !== "ok"
+      ? { text: "last one failed", colour: "var(--text-danger)" }
+      : Date.now() - new Date(backup.at).getTime() > staleAfter
+        ? {
+            text: `last ${since((Date.now() - new Date(backup.at).getTime()) / 1000)} ago`,
+            colour: "var(--text-warning)",
+          }
+        : { text: `${backup.kept} kept`, colour: undefined };
+
+  /**
    * Whether there is a newer release, on the screen somebody opens anyway.
    *
    * Read from Settings' own endpoint rather than worked out again here — that
@@ -1339,6 +1366,23 @@ export function HealthPanel({ health }: { health: Health }) {
           ) : (
             <p style={muted}>not measurable here</p>
           )}
+        </div>
+        <div>
+          <p className="text-xs" style={muted}>
+            Backups
+          </p>
+          <p
+            style={
+              backupState.colour ? { color: backupState.colour } : undefined
+            }
+          >
+            {backupState.text}
+          </p>
+          {backup?.detail ? (
+            <p className="text-xs" style={muted}>
+              {backup.detail}
+            </p>
+          ) : null}
         </div>
       </div>
     </Card>

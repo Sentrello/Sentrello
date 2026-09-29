@@ -60,6 +60,13 @@ systemctl status sentrello-backup.timer
 systemctl list-timers sentrello-backup.timer
 ```
 
+**And you can see it without leaving the product.** The dashboard's *This
+server* panel has a Backups line: how many are being kept when the last one
+worked, the reason when it did not, and how long ago when the timer has stopped.
+"None reported" means nothing has ever told the application a backup was taken —
+which is what an instance installed some other way looks like, and what a timer
+that was never enabled looks like too.
+
 If you installed some other way, or the timer failed to enable — the
 installer prints a line in red when it does — the cron equivalent is the same
 one command:
