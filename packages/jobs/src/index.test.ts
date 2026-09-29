@@ -8,7 +8,11 @@ import {
   unusableJobs,
   withoutSslMode,
 } from "./index";
-import { refreshLicenseToken } from "./license-refresh";
+import {
+  lastLicenseRefresh,
+  recordLicenseRefresh,
+  refreshLicenseToken,
+} from "./license-refresh";
 
 let boss: PgBoss | undefined;
 
@@ -266,6 +270,54 @@ test("an ambiguous or unrecognised refusal is treated as no answer, not a revoca
     expect(await Bun.file(tokenPath).text()).toBe(
       "still-nominally-valid-token",
     );
+  } finally {
+    server.stop(true);
+    await Bun.file(tokenPath)
+      .delete()
+      .catch(() => {});
+  }
+});
+
+/**
+ * And the reason reaches a screen.
+ *
+ * The refusal that matters most is `instance_limit` — a business that has moved
+ * to a new server and whose licence is still counted against the machine they
+ * left. The licence server has always said so in as many words; the instance
+ * knew only that it had no usable token, so the Licence panel said the licence
+ * did not check out and named nothing anybody could act on.
+ *
+ * This is the link in that chain: the job remembers what it was told, and
+ * `/api/license` hands it to the screen with the address of the page that fixes
+ * it.
+ */
+test("the last refusal is remembered, so the licence screen can say it", async () => {
+  const tokenPath = "secrets/test-remembered-refusal.jwt";
+  await Bun.write(tokenPath, "still-nominally-valid-token");
+  const server = Bun.serve({
+    port: 0,
+    fetch: () =>
+      Response.json(
+        { error: "instance_limit", reason: "1 of 1 permitted installs" },
+        { status: 409 },
+      ),
+  });
+  try {
+    recordLicenseRefresh(
+      await refreshLicenseToken({
+        serverUrl: `http://127.0.0.1:${server.port}`,
+        licenseKey: "lic_busy",
+        instanceId: "inst_moved",
+        tokenPath,
+      }),
+    );
+    expect(lastLicenseRefresh()?.error).toBe("instance_limit");
+    expect(Date.parse(lastLicenseRefresh()?.at ?? "")).not.toBeNaN();
+
+    // A refresh that worked leaves no complaint behind, so the panel stops
+    // showing one the moment the licence is put right.
+    recordLicenseRefresh({ refreshed: true });
+    expect(lastLicenseRefresh()?.error).toBeUndefined();
   } finally {
     server.stop(true);
     await Bun.file(tokenPath)
