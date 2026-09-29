@@ -20,6 +20,8 @@ import {
   Textarea,
   Toolbar,
   Warning,
+  formatCount,
+  formatDate,
   muted,
 } from "../lib/ui";
 
@@ -836,6 +838,21 @@ function PaymentConnections({
           hint: string;
           live: boolean;
         } | null;
+        /**
+         * Events the processor sent that nothing here recognised.
+         *
+         * The route has answered with these since the list was written, for the
+         * reason its own comment gives: an invoice paid by card and confirmed by
+         * nobody looked, from every screen, exactly like nothing having
+         * happened. No screen read them until 2026-09-29, so the list built to
+         * end that silence was itself silent.
+         */
+        unclaimedEvents: {
+          provider: string;
+          eventId: string;
+          eventType: string;
+          receivedAt: string;
+        }[];
       }>("/api/payments/accounts"),
   });
   const refresh = () =>
@@ -895,6 +912,42 @@ function PaymentConnections({
             */}
             Connect the account you mean to use below and it takes over. If the
             name above is the right business, there is nothing to do.
+          </p>
+        </Card>
+      ) : null}
+
+      {data?.unclaimedEvents?.length ? (
+        // ui-drift-ignore: a warning that appears and goes, not a section
+        <Card>
+          <p className="font-medium" style={{ color: "var(--text-warning)" }}>
+            {formatCount(data.unclaimedEvents.length)} payment event
+            {data.unclaimedEvents.length === 1 ? "" : "s"} arrived that nothing
+            here recognised
+          </p>
+          <p className="mt-1 text-sm" style={muted}>
+            The processor sent these and no module claimed them, which is what a
+            payment taken against something this instance has no record of looks
+            like. Newest first.
+          </p>
+          <ul className="mt-2 flex flex-col text-sm">
+            {data.unclaimedEvents.map((event) => (
+              <li
+                key={`${event.provider}:${event.eventId}`}
+                className="flex flex-wrap justify-between gap-x-(--gap-toolbar) border-line border-t py-1.5"
+              >
+                <span>
+                  {event.eventType}
+                  <span className="ml-2" style={muted}>
+                    {event.provider}
+                  </span>
+                </span>
+                <span style={muted}>{formatDate(event.receivedAt)}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-sm" style={muted}>
+            The event id is what a processor's support will ask for:{" "}
+            <code>{data.unclaimedEvents[0]?.eventId}</code> is the most recent.
           </p>
         </Card>
       ) : null}
