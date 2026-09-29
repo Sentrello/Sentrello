@@ -470,7 +470,10 @@ function Widget({
             the far left and its own figure six hundred pixels away, and a
             pair that far apart stops reading as a pair.
           */}
-          <div className="grid gap-(--gap-toolbar) text-sm sm:grid-cols-2 lg:grid-cols-4">
+          {/* Five across rather than four, because Backups is the fifth and a lone
+          cell on a second row reads as something having gone wrong with the
+          panel. Two at phone width, as before. */}
+          <div className="grid gap-(--gap-toolbar) text-sm sm:grid-cols-2 lg:grid-cols-5">
             {data.pipeline ? (
               <>
                 <Stat
