@@ -62,13 +62,16 @@ test("days late is zero all through the due day", () => {
 /**
  * And it survives the two mornings a year when a day is not 24 hours long.
  *
- * `Math.round` rather than `floor` for exactly this: the clocks going forward
- * make the gap between two midnights 23 hours, which floors to one day fewer
- * and would have a chase rule fire a day late every spring.
+ * It survives them by construction: both ends are reduced to a *UTC* midnight
+ * before anything is subtracted, so the gap is always an exact number of days
+ * however the local clocks moved. `Math.round` rather than `floor` is the belt
+ * to that braces — anchor either end on a local midnight and a spring morning
+ * is 23 hours, which floors to a day fewer and fires every chase rule a day
+ * late.
  */
 test("a clock change does not add or lose a day", () => {
   const zone = "America/New_York";
-  // Forward on 8 March 2026: the 7th to the 9th is 47 hours, not 48.
+  // Forward on 8 March 2026: locally the 7th to the 9th is 47 hours, not 48.
   expect(
     daysLate(
       new Date("2026-03-07T00:00:00Z"),
@@ -76,7 +79,7 @@ test("a clock change does not add or lose a day", () => {
       zone,
     ),
   ).toBe(2);
-  // Back on 1 November 2026: the 31st to the 2nd is 49.
+  // Back on 1 November 2026: locally the 31st to the 2nd is 49.
   expect(
     daysLate(
       new Date("2026-10-31T00:00:00Z"),
