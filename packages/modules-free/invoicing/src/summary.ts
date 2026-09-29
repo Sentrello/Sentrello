@@ -24,6 +24,7 @@ import {
 import { sumCents } from "@sentrello/db/money";
 import type { ModuleContext, SummaryFigure } from "@sentrello/module-sdk";
 import { scoreFor } from "@sentrello/module-sdk";
+import { sixMonthsFrom } from "./months";
 
 /**
  * What Invoicing has to say on the dashboard, and on its own first screen.
@@ -268,45 +269,6 @@ export function registerInvoicingSummary(ctx: ModuleContext) {
       },
     ],
   });
-}
-
-/**
- * Six months, including the quiet ones.
- *
- * `group by` answers with the months that have invoices in them, which for a
- * business two months old is two rows — and the chart gives each point an
- * equal share of the card, so one month of trading drew a single bar the
- * width of the screen. It reads as a rendering fault rather than as a young
- * business, and worse, it hides the shape the chart exists to show: a month
- * where nothing was billed is exactly the month somebody wants to see.
- *
- * Filled here rather than in the browser because the browser does not know
- * how many months were asked for — it receives what came back and has no way
- * to tell two months of history from four quiet ones.
- */
-function sixMonthsFrom(
-  since: Date,
-  found: { month: string; billedCents: number }[],
-): { month: string; billedCents: number }[] {
-  /*
-   * Nothing at all stays nothing.
-   *
-   * Six empty bars are not an honest drawing of a business that has never
-   * invoiced anybody — the chart says "Nothing to chart yet" for that, which
-   * is both true and useful. This fills the gaps in a series; it does not
-   * invent one.
-   */
-  if (found.length === 0) return [];
-
-  const byMonth = new Map(found.map((m) => [m.month, m.billedCents]));
-  const series: { month: string; billedCents: number }[] = [];
-  const cursor = new Date(since);
-  for (let i = 0; i < 6; i++) {
-    const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`;
-    series.push({ month: key, billedCents: byMonth.get(key) ?? 0 });
-    cursor.setMonth(cursor.getMonth() + 1);
-  }
-  return series;
 }
 
 /**
