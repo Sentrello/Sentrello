@@ -123,6 +123,43 @@ test("nobody can claim it twice, token or not", async () => {
   expect(again.status).toBe(409);
 });
 
+test("claiming records where the business is, and shrugs at nonsense", async () => {
+  /*
+   * The timezone comes from the browser doing the claiming, because an unset
+   * one is not a neutral state: what day it is decides whether an invoice is
+   * late and which month a figure lands in, and with nothing set the answer is
+   * UTC — wrong for three of the four markets this product is sold in.
+   */
+  expect(
+    (
+      await claim({
+        ...owner,
+        setupToken: "the-real-setup-token",
+        timezone: "America/Halifax",
+      })
+    ).status,
+  ).toBe(201);
+  const [org] = await db
+    .select({ timezone: schema.organizations.timezone })
+    .from(schema.organizations)
+    .where(eq(schema.organizations.slug, "claim-ltd"));
+  expect(org?.timezone).toBe("America/Halifax");
+});
+
+test("a timezone this server cannot resolve does not cost somebody their instance", async () => {
+  const res = await claim({
+    ...owner,
+    setupToken: "the-real-setup-token",
+    timezone: "Mars/Olympus_Mons",
+  });
+  expect(res.status).toBe(201);
+  const [org] = await db
+    .select({ timezone: schema.organizations.timezone })
+    .from(schema.organizations)
+    .where(eq(schema.organizations.slug, "claim-ltd"));
+  expect(org?.timezone ?? null).toBeNull();
+});
+
 test("an instance with no token configured is still claimable", async () => {
   // Someone running it on a laptop, or behind a private network, should not
   // be forced through a token they never set.

@@ -1,5 +1,6 @@
 import { db, schema } from "@sentrello/db";
 import { eq } from "@sentrello/db/orm";
+import { knownTimezone } from "@sentrello/db/timezone";
 import type { SentrelloApp } from "@sentrello/module-sdk";
 import { rateLimit } from "@sentrello/module-sdk";
 import { auth, clientIp } from "./index";
@@ -14,6 +15,21 @@ export interface OwnerDetails {
   password: string;
   name: string;
   organizationName?: string;
+  /**
+   * Where the business is, from the browser claiming the instance.
+   *
+   * Sent because an unset timezone is not a neutral state: what day it is
+   * decides whether an invoice is late, which month a figure lands in and when
+   * a nine o'clock automation fires, and with nothing set the answer comes from
+   * UTC or from the server's own clock. The browser already knows, and asking it
+   * once at the only moment the whole business is being created beats a setting
+   * nobody visits.
+   *
+   * Never fatal. A name this runtime cannot resolve is dropped and the instance
+   * is still claimed — the owner can set it in Settings, and refusing the one
+   * request that creates the business over a timezone would be absurd.
+   */
+  timezone?: string;
 }
 
 /**
@@ -102,6 +118,13 @@ export async function ensureBootstrapped(owner?: OwnerDetails) {
     headers: asRequestHeaders(signUp.headers),
   });
 
+  if (organization && owner.timezone && knownTimezone(owner.timezone)) {
+    await db
+      .update(schema.organizations)
+      .set({ timezone: owner.timezone })
+      .where(eq(schema.organizations.id, organization.id));
+  }
+
   return {
     bootstrapped: true as const,
     organization,
@@ -139,8 +162,11 @@ export function registerBootstrapRoutes(app: SentrelloApp) {
     }
 
     const body = await c.req.json().catch(() => ({}));
-    const { email, password, name, organizationName, setupToken } =
-      body as Partial<OwnerDetails> & { setupToken?: string };
+    const { email, password, name, organizationName, setupToken, timezone } =
+      body as Partial<OwnerDetails> & {
+        setupToken?: string;
+        timezone?: string;
+      };
 
     // A publicly reachable instance must not be claimable by whoever finds it
     // first; the token proves access to the machine running it.
@@ -176,6 +202,7 @@ export function registerBootstrapRoutes(app: SentrelloApp) {
       password,
       name,
       organizationName,
+      timezone,
     });
     if (!result.bootstrapped) {
       return c.json({ error: "already_bootstrapped" }, 409);

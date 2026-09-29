@@ -24,13 +24,17 @@ because every figure in the books is held in that currency, so changing it later
 would restate all of them rather than relabel them. A minute now, or an export
 and a fresh start later.
 
-**Set your timezone while you are there.** It decides what "nine o'clock" means
-for everything that acts at a time of day, whether that is an automation
-chasing quiet deals on Monday morning or a report of yesterday. Leave it blank
-and the server's own clock is used. For a computer sitting in your office that
-is the right answer; for one rented in another country it is how a Monday chase
-goes out on Sunday evening. The **Use mine** button fills in whatever your
-browser says, which is usually what you wanted.
+**Check your timezone while you are there.** It was filled in from your browser
+when you claimed the instance, so it is probably already right — and it decides
+more than you would think. What day it is where you are is what makes an invoice
+late, what puts a payment in September rather than October, and what "nine
+o'clock" means to an automation chasing quiet deals on Monday morning. The **Use
+mine** button fills it in again from whatever browser you are holding.
+
+Clear it and dates are counted in UTC, while times of day fall back to the
+server's own clock. For a computer sitting in your office that second part is
+the right answer; for one rented in another country it is how a Monday chase
+goes out on Sunday evening. Either way, setting it is a five-second job.
 
 ## Tax
 

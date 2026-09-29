@@ -105,6 +105,17 @@ export function Setup({
           password,
           organizationName,
           setupToken,
+          /*
+           * Where this business is, from the browser filling the form in.
+           *
+           * Not asked as a question, because the answer is already on the
+           * screen doing the asking — and an unset timezone is not neutral.
+           * What day it is decides whether an invoice is late and which month a
+           * figure lands in, so an instance that has never been told falls back
+           * to UTC, which is wrong for three of our four markets. Settings can
+           * change it; nobody should have to.
+           */
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         }),
       });
       await suggest();
