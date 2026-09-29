@@ -16,6 +16,7 @@ import {
   Select,
   Table,
   Toolbar,
+  formatDate,
   formatMoney,
   muted,
 } from "../lib/ui";
@@ -49,7 +50,29 @@ type VatScheme = {
   scheme: "standard" | "flat-rate";
   flatRatePpm: number | null;
   basis: "accrual" | "cash";
+  /**
+   * HMRC's thresholds, and the day somebody last read them off gov.uk.
+   *
+   * The route has sent these since it was written and this screen restated
+   * them as prose, with the date typed in beside them — two places answering
+   * one question, agreeing only until gov.uk moves a figure and somebody
+   * updates one of the two. The sentence below is built from these now.
+   */
+  reference?: {
+    checked: string;
+    source: string;
+    flatRate: {
+      joinUnderCents: number;
+      leaveOverCents: number;
+      limitedCostRatePpm: number;
+    };
+    cash: { joinUnderCents: number; leaveOverCents: number };
+  };
 };
+
+/** £150,000 from 15_000_000, the way a threshold is written down. */
+const threshold = (cents: number) =>
+  `£${(cents / 100).toLocaleString("en-GB", { maximumFractionDigits: 0 })}`;
 
 /**
  * Which VAT scheme the return is computed under.
@@ -144,14 +167,21 @@ function SchemeCard({
           Save
         </Button>
       </Toolbar>
-      <p className="text-xs" style={muted}>
-        Eligibility, per gov.uk (checked 15 September 2026): the Flat Rate
-        Scheme is open under £150,000 of annual turnover excluding VAT and must
-        be left above £230,000 including VAT — and a limited cost business pays
-        16.5% regardless of sector. Cash accounting is open up to £1.35 million
-        and must be left above £1.6 million. Whether either applies to you is
-        between you and HMRC.
-      </p>
+      {current.reference ? (
+        <p className="text-xs" style={muted}>
+          Eligibility, per {current.reference.source} (checked{" "}
+          {formatDate(current.reference.checked)}): the Flat Rate Scheme is open
+          under {threshold(current.reference.flatRate.joinUnderCents)} of annual
+          turnover excluding VAT and must be left above{" "}
+          {threshold(current.reference.flatRate.leaveOverCents)} including VAT —
+          and a limited cost business pays{" "}
+          {current.reference.flatRate.limitedCostRatePpm / 10_000}% regardless
+          of sector. Cash accounting is open up to{" "}
+          {threshold(current.reference.cash.joinUnderCents)} and must be left
+          above {threshold(current.reference.cash.leaveOverCents)}. Whether
+          either applies to you is between you and HMRC.
+        </p>
+      ) : null}
       {save.error ? <ErrorNote error={save.error} /> : null}
     </Card>
   );

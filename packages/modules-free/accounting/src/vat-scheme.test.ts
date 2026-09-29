@@ -151,6 +151,19 @@ test("a business that has elected nothing is on the standard accrual scheme", as
   // The eligibility figures carry the date they were checked, because they
   // change and an undated threshold is a trap.
   expect(body.reference.checked).toBe("2026-09-15");
+  /*
+   * And every figure the screen prints comes from here.
+   *
+   * The VAT filing screen restated all four as prose with the date typed in
+   * beside them until 2026-09-29 — two places answering one question, agreeing
+   * only until gov.uk moves one and somebody updates the other. The sentence is
+   * built from this payload now, so dropping a field here empties it.
+   */
+  expect(body.reference.flatRate.joinUnderCents).toBe(15_000_000);
+  expect(body.reference.flatRate.leaveOverCents).toBe(23_000_000);
+  expect(body.reference.flatRate.limitedCostRatePpm).toBe(165_000);
+  expect(body.reference.cash.joinUnderCents).toBe(135_000_000);
+  expect(body.reference.cash.leaveOverCents).toBe(160_000_000);
 });
 
 test("the default return is the standard computation, bit for bit", async () => {
