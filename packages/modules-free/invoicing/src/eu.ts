@@ -60,5 +60,17 @@ export const euCountry = (raw: string | null | undefined): string | null => {
  */
 export const issuesEn16931 = (raw: string | null | undefined): boolean => {
   const code = raw?.trim().toUpperCase() ?? "";
+  /*
+   * "UK" is not a country code and people type it anyway.
+   *
+   * Settings asks for two letters and checks only that there are two of them,
+   * so `UK` is storable — and every other reader of this field already fails
+   * on it quietly (`EAS_VAT_BY_COUNTRY` has `GB`, so an electronic address
+   * cannot be derived). Refusing a British business the standard it does use,
+   * by name, on a typo, is a worse failure than any of those. Accepted here
+   * rather than rewritten in the database, which is a migration and somebody
+   * else's decision.
+   */
+  if (code === "UK") return true;
   return code === "GB" || euCountry(code) !== null;
 };

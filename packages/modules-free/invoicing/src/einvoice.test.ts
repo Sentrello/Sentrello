@@ -728,4 +728,11 @@ test("a seller outside the EU and the UK is refused, in its own terms", () => {
   british.seller.taxId = "GB123456789";
   expect(missingForEInvoice(british)).toEqual([]);
   expect(toUbl(british)).toContain("urn:cen.eu:en16931:2017");
+
+  // And typing "UK" is not a reason to tell a British business the European
+  // standard is not for them. Settings accepts any two letters.
+  const typo = complete();
+  typo.seller.countryCode = "UK";
+  typo.seller.taxId = "GB123456789";
+  expect(missingForEInvoice(typo)).toEqual([]);
 });
