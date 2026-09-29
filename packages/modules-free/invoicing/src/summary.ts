@@ -197,6 +197,31 @@ export function registerInvoicingSummary(ctx: ModuleContext) {
     requires: { invoicing: ["read"] },
     steps: [
       {
+        /*
+         * First, because it is the one nobody would think to check.
+         *
+         * An instance claimed since 2026-09-29 has it filled in from the
+         * browser that claimed it. Every instance claimed before that does not,
+         * and an unset timezone decides real things quietly: whether an invoice
+         * due today is shown as late, and which month a payment taken at nine in
+         * the evening lands in. UTC is four or five hours ahead of the first
+         * market.
+         */
+        id: "where-you-are",
+        label: "Say which timezone you are in",
+        detail:
+          "It decides what day it is for your books — whether an invoice due today counts as late, and which month an evening payment lands in. Settings has a button that reads it off your browser.",
+        opens: "settings",
+        done: async (orgId) => {
+          const [org] = await db
+            .select({ timezone: schema.organizations.timezone })
+            .from(schema.organizations)
+            .where(eq(schema.organizations.id, orgId))
+            .limit(1);
+          return Boolean(org?.timezone?.trim());
+        },
+      },
+      {
         id: "business-details",
         label: "Put your address and tax number in Settings",
         detail:
