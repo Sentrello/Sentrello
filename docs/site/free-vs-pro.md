@@ -7,8 +7,8 @@ tags: [pro, free, pricing]
 
 # Free vs Pro
 
-The **free core** is the public repository: AGPLv3, unlimited users, no licence
-key, no expiry. A real product, not a trial.
+The **free core** is the public repository: AGPLv3, no licence key, no expiry,
+and no per-person charge on any tier. A real product, not a trial.
 
 **Pro** is a subscription. What it opens is the paid half of the modules
 already sitting in the core, the same screens taken further. It is also the
@@ -16,9 +16,13 @@ only way to buy the optional modules, which are not sold against the free core.
 
 Pro is **per instance, not per person**. Hiring somebody costs nothing.
 
+One limit, and it is not a commercial one: an instance holds five hundred
+people. It is there so a runaway invite loop cannot fill the table, it is the
+same on both tiers, and a business with twenty-five staff will never meet it.
+
 | | Free | Pro |
 |---|:---:|:---:|
-| **Users** | unlimited | unlimited |
+| **Users** | no per-person charge | no per-person charge |
 | **Dashboard**: money owed, overdue, what needs answering, server health | ● | ● |
 | **CRM**: contacts, companies, deals board, activities, tasks, notes, tags, attachments, custom fields, inbound email, CSV in and out | ● | ● |
 | 360° customer timeline: activities, invoices and payments in one stream | — | ● |
