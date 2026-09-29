@@ -126,10 +126,10 @@ several can sit on one line. Raise the invoice there when the split has to come
 out of the software rather than out of a spreadsheet.
 :::
 
-:::info[New in 0.19]
-The processor's fee is recorded too, so Cash matches the bank. A card sale of
-$100.00 puts about $96.80 in your account. From 0.19 the books say $96.80 and
-put the $3.20 in **Payment Processing Fees**, instead of showing $100.00 and
-leaving you to reconcile the gap by hand. Where a processor has not reported
-the fee yet, the sale posts as it did before. Nothing is guessed.
+:::info[The processor's fee is on the books too]
+So Cash matches the bank. A card sale of $100.00 puts about $96.80 in your
+account, and that is what the books say — with the $3.20 in **Payment
+Processing Fees** — rather than $100.00 and a gap for you to reconcile by hand.
+Where a processor has not reported its fee yet, the sale posts without one.
+Nothing is guessed.
 :::

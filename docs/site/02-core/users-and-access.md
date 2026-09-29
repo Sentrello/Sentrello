@@ -5,14 +5,6 @@ description: One set of accounts, one set of permissions, used by every module.
 tags: [core, security]
 ---
 
-:::info[New in 0.18]
-The Users console described here arrives in **0.18**: seven screens, the audit
-log, lockout and suspension. On **0.17** the same accounts and the same
-policies exist under **Settings → Users**, as a single screen.
-`sentrello status` tells you which version you are running, and
-`sentrello update` moves you.
-:::
-
 # Users and access
 
 Every module uses these accounts. Nothing in Sentrello keeps a separate list of
@@ -181,11 +173,6 @@ sudo systemctl enable --now chronyd
 A virtual machine that has been suspended and resumed is the usual culprit, and
 a container inherits its host's clock rather than keeping one of its own — so
 this is fixed on the machine, never inside Sentrello.
-:::
-
-:::info[New in 0.19]
-Requiring confirmed email addresses arrives in **0.19**. Everything else on
-this page is in 0.18.
 :::
 
 **Email addresses can be required to be confirmed** before their owner can
