@@ -812,3 +812,94 @@ test("a webhook body too large to be one is refused before it is read", async ()
       .where(eq(schema.paymentAccounts.organizationId, orgId));
   }
 });
+
+/**
+ * What the books are kept in, on a tier that could not say.
+ *
+ * `organizations.base_currency` defaults to `USD` and, until 2026-09-29, the
+ * only route that could change it was Accounting's — which is Pro. So a Free
+ * instance in London, Toronto or Dublin kept its books in US dollars, offered
+ * one currency on the invoice form (`currencies: ["USD"]`, checked against a
+ * running instance), and had no screen anywhere to say otherwise. Three of this
+ * product's four markets, on the tier every new instance starts on.
+ *
+ * The lock is the other half and it is why this cannot simply be a field. Every
+ * figure in the ledger is base-currency cents converted at the rate that applied
+ * on the day, so changing the base after anything is posted does not relabel the
+ * books — it restates every one of them, at rates nobody recorded.
+ */
+test("a business can say what its books are kept in", async () => {
+  const before = (await read()) as {
+    business: { baseCurrency: string; baseCurrencyLocked: boolean };
+  };
+  expect(before.business.baseCurrency).toBe("USD");
+  expect(before.business.baseCurrencyLocked).toBe(false);
+
+  const res = await app.request("http://localhost/api/settings", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ name: "Somebody", baseCurrency: "gbp" }),
+  });
+  expect(res.status).toBe(200);
+
+  const after = (await read()) as { business: { baseCurrency: string } };
+  // Upper-cased on the way in: every currency comparison in the product is
+  // against a three-letter code, and "gbp" would match none of them.
+  expect(after.business.baseCurrency).toBe("GBP");
+});
+
+test("and the screen is offered the four markets' own", async () => {
+  const now = (await read()) as { business: { currencyChoices: string[] } };
+  expect(now.business.currencyChoices).toEqual(["USD", "CAD", "GBP", "EUR"]);
+});
+
+test("something that is not a currency code is refused", async () => {
+  const res = await app.request("http://localhost/api/settings", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ name: "Somebody", baseCurrency: "pounds" }),
+  });
+  expect(res.status).toBe(400);
+  const after = (await read()) as { business: { baseCurrency: string } };
+  expect(after.business.baseCurrency).toBe("GBP");
+});
+
+test("once the books have an entry it is fixed, and says so", async () => {
+  await db.insert(schema.journalEntries).values({
+    organizationId: orgId,
+    memo: "anything at all",
+    source: "test",
+  });
+
+  const locked = (await read()) as {
+    business: { baseCurrencyLocked: boolean };
+  };
+  expect(locked.business.baseCurrencyLocked).toBe(true);
+
+  const res = await app.request("http://localhost/api/settings", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ name: "Somebody", baseCurrency: "EUR" }),
+  });
+  expect(res.status).toBe(409);
+  expect(await res.json()).toMatchObject({
+    error: expect.stringContaining("restate"),
+  });
+
+  // And saving the rest of the form still works while the currency is
+  // unchanged — a locked field must not lock the screen it sits on.
+  const same = await app.request("http://localhost/api/settings", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({
+      name: "Somebody",
+      baseCurrency: "GBP",
+      city: "Leeds",
+    }),
+  });
+  expect(same.status).toBe(200);
+
+  await db
+    .delete(schema.journalEntries)
+    .where(eq(schema.journalEntries.organizationId, orgId));
+});

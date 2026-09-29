@@ -4,6 +4,11 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { db, schema } from "@sentrello/db";
+import {
+  MARKET_CURRENCIES,
+  baseCurrencyLocked,
+  setBaseCurrency,
+} from "@sentrello/db/currency";
 import { knownTimezone } from "@sentrello/db/timezone";
 import { mailConfigured } from "@sentrello/email";
 import {
@@ -160,6 +165,18 @@ export default defineModule({
             city: org?.city ?? "",
             postcode: org?.postcode ?? "",
             countryCode: org?.countryCode ?? "",
+            /*
+             * What the books are kept in, and whether that is still open.
+             *
+             * It defaulted to USD and no screen on any tier but Pro could set
+             * it — so every Free instance outside the United States invoiced in
+             * dollars, permanently, in three of this product's four markets.
+             */
+            baseCurrency: org?.baseCurrency ?? "USD",
+            baseCurrencyLocked: await baseCurrencyLocked(orgId),
+            // The four markets' own, for a screen that should not make anybody
+            // type. Any three-letter code is still accepted on the way in.
+            currencyChoices: [...MARKET_CURRENCIES],
             email: org?.email ?? "",
             phone: org?.phone ?? "",
             iban: org?.iban ?? "",
@@ -640,6 +657,21 @@ export default defineModule({
          * e-invoice standard reads nothing else, and a prose country typed
          * here would surface weeks later as a rejected document.
          */
+        /*
+         * The currency the books are kept in, on the screen that already holds
+         * the country and the timezone — the other two facts about where a
+         * business is.
+         *
+         * Written through `setBaseCurrency` rather than here, because
+         * Accounting has a route for the same column on Pro and two copies of
+         * "may this still change" would disagree the week one of them moved,
+         * about what somebody's books mean.
+         */
+        if (body.baseCurrency !== undefined) {
+          const set = await setBaseCurrency(orgId, String(body.baseCurrency));
+          if ("error" in set) return c.json({ error: set.error }, set.status);
+        }
+
         if (countryCode) {
           if (!/^[A-Za-z]{2}$/.test(countryCode)) {
             return c.json(

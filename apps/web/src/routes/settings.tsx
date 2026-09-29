@@ -73,6 +73,7 @@ interface BusinessDetails {
   city: string;
   postcode: string;
   countryCode: string;
+  baseCurrency: string;
   email: string;
   phone: string;
   iban: string;
@@ -93,6 +94,10 @@ interface SettingsResponse {
     city: string;
     postcode: string;
     countryCode: string;
+    /** What the books are kept in, and whether that can still be said. */
+    baseCurrency: string;
+    baseCurrencyLocked: boolean;
+    currencyChoices: string[];
     email: string;
     phone: string;
     iban: string;
@@ -271,6 +276,7 @@ export function Settings() {
     city: data.business.city,
     postcode: data.business.postcode,
     countryCode: data.business.countryCode,
+    baseCurrency: data.business.baseCurrency,
     email: data.business.email,
     phone: data.business.phone,
     iban: data.business.iban,
@@ -351,6 +357,44 @@ export function Settings() {
                 value={form.countryCode}
                 onChange={(countryCode) => patch({ countryCode })}
               />
+            </Field>
+            {/*
+              What the books are kept in, beside where the business is.
+              
+              The column defaulted to USD and only Accounting's own Pro route
+              could set it, so every Free instance outside the United States
+              invoiced in dollars — three of the four markets this is sold into,
+              with no screen able to say otherwise.
+
+              Locked once the ledger has an entry, because changing it then does
+              not relabel the books, it restates every figure in them at rates
+              nobody recorded. Said on the field rather than refused on save.
+            */}
+            <Field
+              label="Currency"
+              hint={
+                data.business.baseCurrencyLocked
+                  ? "Set once the books are empty. Yours already have entries in it."
+                  : "What your books are kept in. Fixed once anything has been posted."
+              }
+            >
+              <Select
+                value={form.baseCurrency}
+                disabled={data.business.baseCurrencyLocked}
+                onChange={(e) => patch({ baseCurrency: e.target.value })}
+              >
+                {/* The one in use first, in case it is not one of the four. */}
+                {[
+                  form.baseCurrency,
+                  ...data.business.currencyChoices.filter(
+                    (code) => code !== form.baseCurrency,
+                  ),
+                ].map((code) => (
+                  <option key={code} value={code}>
+                    {code}
+                  </option>
+                ))}
+              </Select>
             </Field>
             <Field label={postcodeLabel(form.countryCode)}>
               <Input

@@ -31,6 +31,112 @@ export function toBaseCents(amountCents: number, rateMicro: number): number {
   return Math.round((amountCents * rateMicro) / RATE_SCALE);
 }
 
+/**
+ * The currencies of the markets this product serves, and no others.
+ *
+ * The US first, then Canada, the UK and the EU — the same scoping instrument
+ * that decides which tax regimes exist at all. A business trading in something
+ * else is not turned away: `setBaseCurrency` takes any three-letter code. This
+ * is what a screen offers without making somebody type.
+ */
+export const MARKET_CURRENCIES = ["USD", "CAD", "GBP", "EUR"] as const;
+
+/**
+ * What a business in this country most likely keeps its books in.
+ *
+ * A guess, and only ever used as a default somebody can change. The alternative
+ * was the one that shipped: **every instance in the world kept its books in US
+ * dollars**, because the column defaults to USD and nothing in the Free tier
+ * could set it. A guess that is right three times in four beats a default that
+ * is wrong three times in four.
+ */
+export function currencyForCountry(code: string | null | undefined): string {
+  const country = (code ?? "").trim().toUpperCase();
+  if (country === "US") return "USD";
+  if (country === "CA") return "CAD";
+  if (country === "GB" || country === "UK") return "GBP";
+  return EURO_COUNTRIES.has(country) ? "EUR" : "USD";
+}
+
+/** The euro's own members, which is not the same list as the EU's. */
+const EURO_COUNTRIES = new Set([
+  "AT",
+  "BE",
+  "HR",
+  "CY",
+  "EE",
+  "FI",
+  "FR",
+  "DE",
+  "GR",
+  "IE",
+  "IT",
+  "LV",
+  "LT",
+  "LU",
+  "MT",
+  "NL",
+  "PT",
+  "SK",
+  "SI",
+  "ES",
+]);
+
+/**
+ * Whether the books can still be told what currency they are kept in.
+ *
+ * One entry is enough to stop it. Every figure in the ledger is base-currency
+ * cents converted at the rate that applied on the day, so changing the base
+ * afterwards does not relabel the books — it restates every one of them, at
+ * rates nobody recorded.
+ */
+export async function baseCurrencyLocked(orgId: string): Promise<boolean> {
+  const [posted] = await db
+    .select({ id: schema.journalEntries.id })
+    .from(schema.journalEntries)
+    .where(eq(schema.journalEntries.organizationId, orgId))
+    .limit(1);
+  return Boolean(posted);
+}
+
+/**
+ * Set the currency the books are kept in, while that is still possible.
+ *
+ * Here rather than in a route because there are two routes: Settings, on every
+ * tier, and Accounting's own on Pro. They had one implementation between them
+ * and it was the Pro one — so a Free instance anywhere outside the United
+ * States invoiced in dollars for ever, with no screen able to say otherwise.
+ * Two copies of this rule would disagree the week one of them changed, about
+ * what somebody's books mean.
+ *
+ * Returns the refusal rather than throwing, so each route can answer with its
+ * own status and the words reach the person who typed it.
+ */
+export async function setBaseCurrency(
+  orgId: string,
+  code: string,
+): Promise<{ baseCurrency: string } | { error: string; status: 400 | 409 }> {
+  const want = code.trim().toUpperCase();
+  if (!/^[A-Z]{3}$/.test(want)) {
+    return { error: "a three-letter currency code", status: 400 };
+  }
+  if (
+    want !== (await baseCurrency(orgId)) &&
+    (await baseCurrencyLocked(orgId))
+  ) {
+    return {
+      error:
+        "the books already have entries in the current currency — changing it would restate every one of them",
+      status: 409,
+    };
+  }
+  await db
+    .update(schema.organizations)
+    .set({ baseCurrency: want })
+    .where(eq(schema.organizations.id, orgId));
+  return { baseCurrency: want };
+}
+
 export async function baseCurrency(orgId: string): Promise<string> {
   const [org] = await db
     .select({ baseCurrency: schema.organizations.baseCurrency })
