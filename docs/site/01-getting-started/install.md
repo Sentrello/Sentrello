@@ -83,8 +83,18 @@ sentrello status      # version, tier, which modules loaded
 sentrello update      # to the latest release, backing up first
 sentrello rollback    # back to the previous version
 sentrello backup      # an immediate database dump
+sentrello restore <f> # put a dump back
+sentrello activate    # fetch what your subscription now entitles
+sentrello add <mod>   # fetch one module you have just bought
+sentrello unlock <e>  # let a locked-out address try again
+sentrello reset-password <e> [pw]
 sentrello logs        # follow the application log
 ```
+
+`activate` is the one you will meet without expecting to. Buying Pro, or adding
+a module, changes what your licence entitles — and an instance has to go and
+fetch the code for it. The Licence screen does that itself where the update
+agent is installed; where it is not, the screen says so and names this command.
 
 ## Next
 

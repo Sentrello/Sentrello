@@ -39,6 +39,34 @@ between your mail provider and the recipient.
 its last good token through a grace period. Check the server can reach
 `sentrello.com` over HTTPS.
 
+## When you cannot sign in at all
+
+You own the machine, so there is always a way back in — and it does not require
+signing in first, which is the point. Both of these run on the server.
+
+```bash
+sentrello unlock <email>                 # repeated failures locked the address
+sentrello reset-password <email> [new]   # when no mail is configured to send a link
+```
+
+A self-hosted instance often has no mail server and exactly one administrator,
+so the usual "email yourself a reset link" is not available and there is nobody
+else to ask. Anyone who can run these already holds the machine the database is
+on, which is why they exist and why they are not behind a password. An unlock is
+recorded as having come from the host.
+
+## After you buy something
+
+```bash
+sentrello activate        # sync with whatever the subscription now covers
+sentrello add <module>    # fetch one module you have just bought
+```
+
+Pro's code is already in the image, so a Pro key needs nothing fetched. An
+optional module is a bundle your instance downloads, and the Licence screen does
+that itself where the update agent is installed. Where it is not, the screen
+says so and names the command.
+
 ## When you write to us
 
 Send the output of `sentrello status`, the relevant lines from

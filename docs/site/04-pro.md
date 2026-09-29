@@ -13,6 +13,13 @@ moves. The screens you know stay where they are, and more of them work.
 Paste a licence key into **Settings → Licence** and the features appear. No
 second installation, nothing to migrate.
 
+Pro's own code is already in the image, so there is nothing to fetch for it.
+Buying an optional module is different — that code is a bundle your instance
+downloads — and the Licence screen fetches it for you where the update agent is
+installed. Where it is not, the screen says so and asks you to run
+`sentrello activate` on the server, which syncs the instance with whatever the
+subscription now covers.
+
 ## Invoicing
 
 - **Recurring invoices** on a schedule you set — weekly, monthly, quarterly or
