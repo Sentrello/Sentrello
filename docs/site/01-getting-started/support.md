@@ -67,6 +67,13 @@ optional module is a bundle your instance downloads, and the Licence screen does
 that itself where the update agent is installed. Where it is not, the screen
 says so and names the command.
 
+Either command finishes by asking your instance whether what you paid for is
+actually running, and lists it if it is. If something was fetched and did not
+start — the wrong build for your processor, a migration that failed on this
+machine — it says which module and points you at `sentrello logs app`. That is
+the case worth knowing about: the download can succeed, the restart can succeed,
+and the feature can still not be there.
+
 ## When you write to us
 
 Send the output of `sentrello status`, the relevant lines from
