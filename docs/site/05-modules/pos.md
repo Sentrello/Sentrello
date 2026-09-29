@@ -249,10 +249,12 @@ down as an instruction, *add a flat white to ticket 7*, and sent in order when
 the connection comes back.
 
 On a wide screen you will see **Offline · 3 changes waiting to send** across the
-top of the till. On a phone, where there is no room for a status bar, the
-message arrives where it matters — under the sale that was just paid for, as
-**front-260910-4 paid — waiting to send**, with a line saying the money is taken
-and the sale is kept on this terminal.
+top of the till. On a phone the bar along the bottom — the one that carries the
+running total and opens the sale — says **Offline · 3 waiting to send** in place
+of the item count. And either way the message arrives again where it matters
+most, under the sale that was just paid for, as **front-260910-4 paid — waiting
+to send**, with a line saying the money is taken and the sale is kept on this
+terminal.
 
 Either way a sale paid while the line is down is confirmed with the terminal's
 own name for it rather than an order number, because the order number is minted
