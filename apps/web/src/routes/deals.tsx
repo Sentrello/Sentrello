@@ -33,6 +33,7 @@ import {
   Select,
   Toolbar,
   formatCount,
+  formatDate,
   formatMoney,
   muted,
 } from "../lib/ui";
@@ -241,9 +242,22 @@ function Column({
                   className="mt-0.5 flex flex-wrap gap-x-(--gap-toolbar) text-xs"
                   style={muted}
                 >
+                  {/*
+                    The date came down the wire and nothing drew it.
+
+                    `expectedCloseOn` has been on every row of this query since
+                    the board was written, and `crm.md` has always said the card
+                    carries it — a field fetched, typed, and read by nobody,
+                    which is this project's commonest defect. It is also the one
+                    thing a pipeline is looked at for: a deal that should have
+                    closed last month is what you came to find.
+                  */}
                   <span>
                     {formatMoney(d.amountCents)}
                     {d.category ? ` · ${d.category}` : ""}
+                    {d.expectedCloseOn
+                      ? ` · closes ${formatDate(d.expectedCloseOn)}`
+                      : ""}
                   </span>
                   <ComputedCells columns={columns} row={d} />
                 </div>

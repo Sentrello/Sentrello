@@ -57,6 +57,17 @@ test("every kind the server sends reaches the list", () => {
       event: "closed",
       summary: "Roof",
     },
+    // Added 2026-09-28 with the quotes the Pro route had never sent. A quote
+    // that fell through `plainly` read "Quote: Q-1" rather than "Quote Q-1",
+    // which is the invoice line's own shape said differently.
+    {
+      kind: "quote",
+      at: "2026-09-02T10:00:00Z",
+      id: "q1",
+      summary: "Q-1",
+      detail: "declined",
+      amountCents: 90_00,
+    },
   ];
   const merged = mergeTimeline(history, timeline, money);
 
@@ -66,8 +77,10 @@ test("every kind the server sends reaches the list", () => {
     "email",
     "payment",
     "invoice",
+    "quote",
     "call",
   ]);
+  expect(merged.find((e) => e.kind === "quote")?.title).toBe("Quote Q-1");
   expect(merged.find((e) => e.kind === "email")?.title).toBe(
     "Email: Re: the roof",
   );

@@ -68,6 +68,8 @@ export function describeTimelineEntry(
 ): HistoryEntry {
   const title = (() => {
     switch (entry.kind) {
+      case "quote":
+        return `Quote ${entry.summary ?? ""}`.trim();
       case "invoice":
         return `Invoice ${entry.summary ?? ""}`.trim();
       case "payment":
