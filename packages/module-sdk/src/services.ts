@@ -66,3 +66,23 @@ export function hasService(name: string): boolean {
 export function clearServices(): void {
   registry.clear();
 }
+
+/**
+ * Take one host out, and hand it back so it can be put in again.
+ *
+ * For the branch a `hasService` caller has for doing without — which is real
+ * behaviour on every instance that bought the plugin and not the host, and
+ * which was untestable. This registry is one Map for the whole process, so a
+ * test file registering both modules makes the absent case unreachable in *every
+ * other file* of that run: the Shop's "no Subscriptions, so the change lands on
+ * the next invoice" path passed when its own file ran alone and took the other
+ * branch in a full suite. `clearServices` is no help, because it empties the
+ * registry the rest of the run depends on.
+ *
+ * Returns what was there, so the caller can restore it in a `finally`.
+ */
+export function removeService(name: string): unknown {
+  const was = registry.get(name);
+  registry.delete(name);
+  return was;
+}
