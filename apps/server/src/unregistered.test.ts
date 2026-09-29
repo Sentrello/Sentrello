@@ -51,23 +51,35 @@ const ANSWERED_ELSEWHERE: Record<string, string> = {
   "api/_meta": "the host itself, not a module",
 };
 
-test("no screen asks for a route nobody registered", () => {
-  // Without the commercial repositories beside us, Pro's routes are missing
-  // and every Pro field on a Core screen would look broken.
-  if (!siblings.every(existsSync)) return;
+/**
+ * Skipped, not quietly passed, without the commercial repositories beside us.
+ *
+ * Pro's routes are missing then, and every Pro field on a Core screen would look
+ * broken — so it must not run. It must not *pass* either: this was a bare
+ * `return` inside the test body, which Bun reports as a pass, and Core's CI
+ * checks out this repository alone. So the one check that notices a screen
+ * calling a route nobody registers reported success on every CI run it has ever
+ * had, without reading a line. `skipIf` says so instead.
+ */
+test.skipIf(!siblings.every(existsSync))(
+  "no screen asks for a route nobody registered",
+  () => {
+    const screenFiles = sourceFiles(join(root, "apps/web/src"), [
+      ".ts",
+      ".tsx",
+    ]);
+    const routeFiles = routeDirs.flatMap((d) => sourceFiles(d, [".ts"]));
 
-  const screenFiles = sourceFiles(join(root, "apps/web/src"), [".ts", ".tsx"]);
-  const routeFiles = routeDirs.flatMap((d) => sourceFiles(d, [".ts"]));
+    // A sweep that found no routes would pass this without checking anything.
+    expect(routeFiles.length).toBeGreaterThan(50);
+    expect(screenFiles.length).toBeGreaterThan(20);
 
-  // A sweep that found no routes would pass this without checking anything.
-  expect(routeFiles.length).toBeGreaterThan(50);
-  expect(screenFiles.length).toBeGreaterThan(20);
-
-  expect(
-    unregisteredRequests({
-      routeFiles,
-      screenFiles,
-      answeredElsewhere: ANSWERED_ELSEWHERE,
-    }),
-  ).toEqual([]);
-});
+    expect(
+      unregisteredRequests({
+        routeFiles,
+        screenFiles,
+        answeredElsewhere: ANSWERED_ELSEWHERE,
+      }),
+    ).toEqual([]);
+  },
+);
