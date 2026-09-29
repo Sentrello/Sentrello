@@ -14,7 +14,7 @@ straight away, with the access they already have.
 **Users** is its own section in the sidebar, with seven screens: People,
 Groups, Policies, Sessions, Authentication, Providers and Events.
 
-![Users → Policies: four roles against what each may open, with the Customer role able to open the dashboard and nothing else](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/roles.png)
+![Users → Policies: the five seeded policies against what each may open, with the Customer role able to open the dashboard and nothing else](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/roles.png)
 
 The **Customer** row is the one worth looking at twice. It is how you hand
 somebody outside the business a login without handing them the business: it
@@ -102,7 +102,7 @@ Five are set up for you and cover most businesses:
 | **Executives** | Everything operational; reads the money screens |
 | **Managers** | Their team's work, and the customers behind it |
 | **Staff** | Day-to-day work; no settings, no books |
-| **Customers** | The customer portal only |
+| **Customers** | Signs in and sees the dashboard. Their own documents come through a link, not a login |
 
 **Groups** do the same job for a department: Sales, Marketing, Accounting,
 Customer Service. A new joiner gets the right access by being put in the right
