@@ -31,6 +31,7 @@ import profile from "@sentrello/module-profile";
 import type { SentrelloEnv, SentrelloModule } from "@sentrello/module-sdk";
 import {
   allCrawlable,
+  isEmptyUpdate,
   isMalformedUuid,
   isStatementTimeout,
   robotsTxt,
@@ -111,6 +112,17 @@ app.onError((err, c) => {
    */
   if (isMalformedUuid(err)) {
     return c.json({ error: "not found" }, 404);
+  }
+  /*
+   * A change that changes nothing, for every route at once.
+   *
+   * Each PATCH builds a patch object from the fields it recognises; a body
+   * naming none of them leaves it empty, and drizzle refuses an UPDATE with no
+   * SET. Five routes were answering 500 "something went wrong" to `PATCH … {}`
+   * when the honest answer is that there was nothing in the request to apply.
+   */
+  if (isEmptyUpdate(err)) {
+    return c.json({ error: "there is nothing in that request to change" }, 400);
   }
   /*
    * An address whose escapes are not readable, for every route at once.

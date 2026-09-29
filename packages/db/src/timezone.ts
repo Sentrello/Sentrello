@@ -183,6 +183,21 @@ export function dayFrom(value: unknown): Date | null {
 }
 
 /**
+ * The exclusive upper bound of a date-only filter: the midnight after the day.
+ *
+ * "to 15 September" means the whole of the fifteenth, not its first second —
+ * and the same five lines were written out in four modules, each reading the
+ * value with a bare `new Date`. A nonsense `to` therefore became an Invalid
+ * Date and the list answered 500 "something went wrong" to `to=not-a-date`,
+ * which is an ordinary typing mistake in a query string. Here it is one
+ * function, and it refuses what it cannot read.
+ */
+export function dayAfter(value: unknown): Date {
+  const day = demandDay(value);
+  return new Date(day.getTime() + 86_400_000);
+}
+
+/**
  * `dayFrom`, insisting — a 400 through `app.onError`, like `demandDate`.
  *
  * Reach for this wherever a *day* is being stored: a due date, a validity, an

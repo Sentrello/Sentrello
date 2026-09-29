@@ -363,7 +363,11 @@ export interface SentrelloModule {
 import { type AccountSection, addAccountSection } from "./account";
 import { type ComputedColumns, addComputedColumns } from "./computed-columns";
 import { type CrawlableSurface, addCrawlable } from "./crawlable";
-import { isMalformedUuid, isStatementTimeout } from "./malformed-id";
+import {
+  isEmptyUpdate,
+  isMalformedUuid,
+  isStatementTimeout,
+} from "./malformed-id";
 import { type OnboardingGuide, addOnboarding } from "./onboarding";
 import {
   type PaymentWebhookConsumer,
@@ -578,6 +582,14 @@ export function registerForTest(
     // behaviour nobody ships.
     if (isMalformedUuid(err)) {
       return c.json({ error: "not found" }, 404);
+    }
+    // And a PATCH whose body named nothing this route recognises, which the
+    // host answers 400 rather than letting drizzle's refusal become a crash.
+    if (isEmptyUpdate(err)) {
+      return c.json(
+        { error: "there is nothing in that request to change" },
+        400,
+      );
     }
     // And a statement the instance cut for running too long, which the host
     // answers 503 with the name of the knob in it. Same reason: a module's

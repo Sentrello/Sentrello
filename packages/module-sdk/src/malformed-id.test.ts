@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { isMalformedUuid } from "./malformed-id";
+import { isEmptyUpdate, isMalformedUuid } from "./malformed-id";
 
 /**
  * An id that cannot be an id is a 404, not a 500.
@@ -52,4 +52,22 @@ test("a cycle in the cause chain does not hang the handler", () => {
   a.cause = b;
   b.cause = a;
   expect(isMalformedUuid(a)).toBe(false);
+});
+
+/**
+ * A change that changes nothing.
+ *
+ * Every PATCH builds its patch object from the fields it recognises, and a
+ * body naming none of them leaves it empty — which drizzle refuses rather
+ * than writing a no-op UPDATE. Five routes answered 500 "something went
+ * wrong" to `PATCH … {}` until the host learnt to read this.
+ */
+test("an update with nothing to set is the caller's mistake", () => {
+  expect(isEmptyUpdate(new Error("No values to set"))).toBe(true);
+  // And nothing else is: the message is the only thing to go on, so it has to
+  // be the whole message rather than a word inside a longer one.
+  expect(isEmptyUpdate(new Error("No values to set for this row"))).toBe(false);
+  expect(isEmptyUpdate(new Error("the database is on fire"))).toBe(false);
+  expect(isEmptyUpdate("No values to set")).toBe(false);
+  expect(isEmptyUpdate(null)).toBe(false);
 });

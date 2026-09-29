@@ -905,6 +905,45 @@ test("an address with a bad escape is a 404, not a 500", async () => {
   }
 });
 
+/**
+ * A change that changes nothing is the caller's mistake too.
+ *
+ * Every PATCH in this product builds a patch object from the fields it
+ * recognises and then updates with it. A body naming none of them leaves that
+ * object empty, and drizzle refuses an UPDATE with no SET — so five routes
+ * answered 500 "something went wrong" to `PATCH … {}`. Found on 29 September
+ * by asking every route in the product for wrong things, on a freshly
+ * installed instance with every module on it.
+ */
+test("a patch with nothing in it is a 400, not a 500", async () => {
+  process.env.SENTRELLO_LICENSE_TOKEN_PATH = "secrets/does-not-exist.jwt";
+  const server = (await import("./index")).default;
+  const { headers, cleanUp } = await signedIn();
+  try {
+    headers.set("content-type", "application/json");
+    for (const path of [
+      "/api/invoicing/taxes/00000000-0000-0000-0000-000000000000",
+      "/api/invoicing/items/00000000-0000-0000-0000-000000000000",
+      "/api/invoicing/reminders/00000000-0000-0000-0000-000000000000",
+      "/api/forms/00000000-0000-0000-0000-000000000000",
+    ]) {
+      const res = await server.fetch(
+        new Request(`http://localhost${path}`, {
+          method: "PATCH",
+          headers,
+          body: "{}",
+        }),
+      );
+      expect(res.status, `${path} should not be a 500`).toBe(400);
+      expect(await res.json()).toEqual({
+        error: "there is nothing in that request to change",
+      });
+    }
+  } finally {
+    await cleanUp();
+  }
+});
+
 test("a body that is not JSON is a 400, not a crash", async () => {
   // Routes parse with `c.req.json()`; before the onError mapping, a stray
   // byte in the body answered "something went wrong" with a 500 and a stack

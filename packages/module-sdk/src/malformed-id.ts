@@ -54,3 +54,22 @@ export function isStatementTimeout(err: unknown): boolean {
   }
   return false;
 }
+
+/**
+ * Whether a failure is "you asked me to change nothing".
+ *
+ * Every PATCH in this product builds a patch object from the fields it
+ * recognises and then updates with it. A body naming none of them — `{}`, or
+ * `{"enabled":"yes"}` where a boolean was wanted — leaves that object empty,
+ * and drizzle refuses an UPDATE with no SET rather than writing a no-op. The
+ * refusal arrived as 500 "something went wrong" from every one of those
+ * routes, so an ordinary caller mistake read as the software breaking.
+ *
+ * Matched on the message because there is no code to match on: drizzle throws
+ * a plain `Error("No values to set")`. Narrow, and beside the other two for
+ * the same reason — the module harness has to answer this the way the host
+ * does.
+ */
+export function isEmptyUpdate(err: unknown): boolean {
+  return err instanceof Error && err.message === "No values to set";
+}
