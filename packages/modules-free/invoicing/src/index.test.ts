@@ -3,6 +3,7 @@ import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, schema } from "@sentrello/db";
 import { creditBalanceFor } from "@sentrello/db/customer-credit";
+import { daysLate } from "@sentrello/db/day";
 import { dropOrganization, makeOrganization } from "@sentrello/db/testing";
 import type { SentrelloEnv } from "@sentrello/module-sdk";
 import { resetRateLimits } from "@sentrello/module-sdk";
@@ -1196,10 +1197,9 @@ test("an invoice created without a due date still gets one", async () => {
 
   const dueDate = row?.dueDate;
   if (!dueDate) throw new Error("an invoice must carry a due date");
-  // Thirty days, give or take the time the test takes to run.
-  const days = (dueDate.getTime() - Date.now()) / 86_400_000;
-  expect(days).toBeGreaterThan(29);
-  expect(days).toBeLessThan(31);
+  // Thirty days, counted on a calendar: a due date is a day, so measuring it
+  // from this instant gives a fraction that depends on the hour the suite runs.
+  expect(daysLate(dueDate, new Date(), null)).toBe(-30);
 });
 
 test("a due date the business chose is kept", async () => {
@@ -1291,10 +1291,17 @@ test("converting a quote produces an invoice that can be chased", async () => {
   };
 
   expect(invoice.dueDate).not.toBeNull();
-  const days = Math.round(
-    (new Date(invoice.dueDate as string).getTime() - Date.now()) / 86_400_000,
-  );
-  expect(days).toBe(30);
+  /*
+   * Thirty days as a calendar counts them, not as a clock does.
+   *
+   * A due date is a day, held at midnight, so measuring it from `Date.now()`
+   * gives twenty-nine and a half — and `Math.round` of that flips at exactly
+   * midday UTC. The assertion passed every morning and failed every afternoon
+   * from the moment the default due date became a date, which is a test that
+   * would have been called flaky and retried.
+   */
+  const days = daysLate(new Date(invoice.dueDate as string), new Date(), null);
+  expect(days).toBe(-30);
 });
 
 // ---------------------------------------------------------------------------

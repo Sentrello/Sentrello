@@ -90,3 +90,8 @@ nothing to migrate.
 If the licence server cannot be reached, the instance keeps working on the last
 good token for a grace period, then falls back to the free tier. It never
 stops.
+
+**Lost the key?** [sentrello.com/license](https://sentrello.com/license) looks
+it up, emails it to the address you bought with, and shows which servers the
+licence is running on — which is also where you release one after moving to a
+new machine.
