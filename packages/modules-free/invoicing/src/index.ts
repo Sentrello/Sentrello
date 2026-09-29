@@ -47,7 +47,7 @@ import {
   moneyLocale,
 } from "@sentrello/db/portal";
 import { dateFrom, demandDate } from "@sentrello/db/timezone";
-import { emailAdapter, mailConfigured } from "@sentrello/email";
+import { NO_MAIL_SERVER, emailAdapter, mailConfigured } from "@sentrello/email";
 import {
   invoiceEmail,
   portalLinkEmail,
@@ -1103,8 +1103,7 @@ export default defineModule({
         if (!mailConfigured()) {
           return c.json(
             {
-              error:
-                "no mail server is connected — connect one under Settings → Connections",
+              error: NO_MAIL_SERVER,
             },
             400,
           );
@@ -1944,8 +1943,7 @@ export default defineModule({
               {
                 url,
                 sent: false,
-                error:
-                  "no mail server is connected — copy the link instead, or connect one under Settings → Connections",
+                error: `${NO_MAIL_SERVER}. Copy the link and send it yourself in the meantime.`,
               },
               400,
             );
@@ -2332,8 +2330,7 @@ export default defineModule({
         if (!mailConfigured()) {
           return c.json(
             {
-              error:
-                "no mail server is connected — connect one under Settings → Connections",
+              error: NO_MAIL_SERVER,
             },
             400,
           );

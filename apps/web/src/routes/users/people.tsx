@@ -369,7 +369,7 @@ export function People() {
           <p className="mt-(--gap-tight) text-sm" style={muted}>
             {issuedInvite.emailSent
               ? "An email with this link is on its way to them. You can also copy it and send it yourself."
-              : "No mail server is connected, so nothing was emailed — copy the link and send it to them yourself. Connect one in Settings → Connections to have this sent for you."}{" "}
+              : "No mail server is connected, so nothing was emailed — copy the link and send it to them yourself. Mail is set on the server; Settings → Connections says whether it took."}{" "}
             The link is shown once, works once, and expires on{" "}
             {formatDate(issuedInvite.expiresAt)}. Withdrawing the invitation
             below stops it working.

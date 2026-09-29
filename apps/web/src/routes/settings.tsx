@@ -1897,8 +1897,8 @@ export function Modules() {
         <Empty title="Your licence includes no modules yet">
           Modules are the optional halves of Sentrello — a shop, a booking
           diary, a newsletter. Each is bought on its own and appears here once
-          your licence carries it. Settings → Licence shows what this instance
-          is running on.
+          your licence carries it. Settings → Licence and updates shows what
+          this instance is running on.
         </Empty>
       </Card>
     );

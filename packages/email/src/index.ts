@@ -282,6 +282,22 @@ class NoopAdapter implements EmailAdapter {
  * administrator locked out with a screen telling them to check their inbox.
  * The sign-in page asks this so it can offer the truth instead.
  */
+/**
+ * What to tell somebody when there is no mail server, in one place.
+ *
+ * It was written out five times and it named the wrong screen every time:
+ * "connect one under Settings → Connections". Connections **reports** whether
+ * mail is working and cannot set it — mail is part of how the instance is
+ * deployed, and lives in the environment file beside the database URL. So the
+ * product sent whoever read it to a screen that could not do the thing, which
+ * is worse than saying nothing.
+ *
+ * One string because five would drift, and because the day mail does get a
+ * screen this is the single line to change.
+ */
+export const NO_MAIL_SERVER =
+  "no mail server is connected — it is set on the server, and Settings → Connections says whether it took";
+
 export function mailConfigured(): boolean {
   return Boolean(process.env.RESEND_API_KEY || process.env.SMTP_HOST);
 }

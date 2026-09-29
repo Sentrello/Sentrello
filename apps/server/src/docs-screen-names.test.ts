@@ -112,3 +112,56 @@ test("every screen the documentation names is a screen the sidebar has", () => {
   }
   expect([...new Set(wrong)]).toEqual([]);
 });
+
+/**
+ * And the same for a screen the *product* names out loud.
+ *
+ * An error message that sends somebody to "Settings → Licence" when the sidebar
+ * says "Licence and updates" is the documentation fault one layer in, and it
+ * reaches the reader at exactly the moment something has gone wrong. Five
+ * messages told a customer with no mail server to "connect one under
+ * Settings → Connections" — a screen that reports whether mail works and cannot
+ * set it, because mail lives in the environment file.
+ *
+ * Only this repository's own strings, for the same reason as above: a Pro or
+ * module screen's label lives elsewhere. A module naming its *own* settings
+ * tabs — the newsletter's "Settings → Bounces" — is not this, which is why the
+ * sections checked are the Free tier's own headings.
+ */
+const SOURCES = join(root, "packages", "modules-free");
+const WEB = join(root, "apps", "web", "src");
+
+function code(dir: string, out: string[] = []): string[] {
+  for (const name of readdirSync(dir)) {
+    if (name === "node_modules" || name === "dist") continue;
+    const path = join(dir, name);
+    if (statSync(path).isDirectory()) code(path, out);
+    else if (/\.tsx?$/.test(name) && !name.includes(".test.")) out.push(path);
+  }
+  return out;
+}
+
+test("every screen the product names is a screen the sidebar has", () => {
+  const real = realPairs();
+  const wrong: string[] = [];
+  let seen = 0;
+  for (const file of [...code(SOURCES), ...code(WEB)]) {
+    const text = readFileSync(file, "utf8");
+    for (const [, section, screen] of text.matchAll(
+      /\b(Settings|Money|Users|CRM|Invoicing) → ([A-Z][A-Za-z '-]*[A-Za-z])/g,
+    )) {
+      if (!OURS.has(section as string)) continue;
+      seen += 1;
+      const pair = `${section} → ${screen}`;
+      /*
+       * Prose runs on past the name — "Settings → Connections says which
+       * account that is" — so a mention counts when the sidebar has any screen
+       * whose label the mention starts with.
+       */
+      const known = [...real].some((r) => pair.startsWith(r));
+      if (!known) wrong.push(`${file.slice(root.length + 1)}: ${pair}`);
+    }
+  }
+  expect(seen).toBeGreaterThan(3);
+  expect([...new Set(wrong)]).toEqual([]);
+});

@@ -1,7 +1,7 @@
 import { auth } from "@sentrello/auth";
 import { activeOrganizationId, requireSession } from "@sentrello/auth/hono";
 import { db, schema } from "@sentrello/db";
-import { mailConfigured } from "@sentrello/email";
+import { NO_MAIL_SERVER, mailConfigured } from "@sentrello/email";
 import { defineModule, rateLimit } from "@sentrello/module-sdk";
 import { and, desc, eq } from "drizzle-orm";
 import { DEFAULTS, type Preferences, normalize } from "./preferences";
@@ -233,8 +233,7 @@ export default defineModule({
       if (!mailConfigured()) {
         return c.json(
           {
-            error:
-              "no mail server is connected — connect one under Settings → Connections",
+            error: NO_MAIL_SERVER,
           },
           400,
         );
