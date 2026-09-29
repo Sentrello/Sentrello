@@ -101,3 +101,53 @@ test("two cards at the same position fall back to the name", () => {
     "Zinc gutter",
   ]);
 });
+
+/**
+ * Ordering inside a column, which the board could not do at all until
+ * 2026-09-29: the move route has taken a `position` since it was written,
+ * validated it and clamped it, and nothing in the product ever sent one.
+ *
+ * The case that makes this more than a swap is the ordinary one — every deal
+ * on every instance carries position 0, so exchanging two of them exchanges
+ * nothing. The column is written out instead, and only what differs is sent.
+ */
+import { reindexed } from "./deals";
+
+const column = (...positions: number[]) =>
+  positions.map((position, i) => ({ id: `d${i}`, position }));
+
+test("a column of zeroes is written out, not swapped", () => {
+  // Three deals, all position 0, moving the last one up. Swapping would send
+  // 0 and 0 and change nothing anybody can see.
+  expect(reindexed(column(0, 0, 0), "d2", -1)).toEqual([
+    { id: "d2", position: 1 },
+    { id: "d1", position: 2 },
+  ]);
+});
+
+test("an ordered column costs the two rows that moved", () => {
+  expect(reindexed(column(0, 1, 2, 3), "d2", -1)).toEqual([
+    { id: "d2", position: 1 },
+    { id: "d1", position: 2 },
+  ]);
+  expect(reindexed(column(0, 1, 2, 3), "d1", 1)).toEqual([
+    { id: "d2", position: 1 },
+    { id: "d1", position: 2 },
+  ]);
+});
+
+test("off either end is no move, not a clamped one", () => {
+  expect(reindexed(column(0, 1, 2), "d0", -1)).toEqual([]);
+  expect(reindexed(column(0, 1, 2), "d2", 1)).toEqual([]);
+  // And a card that is not in the column at all.
+  expect(reindexed(column(0, 1, 2), "nope", -1)).toEqual([]);
+});
+
+test("a card already where it is asked to go writes nothing", () => {
+  // Two cards, the first moving down and the second up, are the same result —
+  // and from an already-correct column that is exactly two rows either way.
+  expect(reindexed(column(0, 1), "d0", 1)).toEqual([
+    { id: "d1", position: 0 },
+    { id: "d0", position: 1 },
+  ]);
+});

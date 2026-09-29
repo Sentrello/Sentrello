@@ -110,20 +110,94 @@ interface Stage {
  * leaving with the pointer, and it stayed open until something else was
  * pressed.
  */
+/**
+ * Which rows a move up or down actually changes, and to what.
+ *
+ * Every card whose index changed, not just the two that swapped. A column whose
+ * deals all carry position 0 — which is every column on every instance before
+ * anybody touches one — cannot be reordered by exchanging two zeroes. So the
+ * column is written out in its new order and only the rows that differ are
+ * returned: the whole column the first time it is touched, two on each move
+ * after that.
+ *
+ * Off either end is no move rather than a clamped one. "Move up" on the top
+ * card is not offered, and a caller that asks anyway gets nothing rather than a
+ * write that looks like it did something.
+ */
+export function reindexed(
+  column: { id: string; position: number }[],
+  id: string,
+  by: -1 | 1,
+): { id: string; position: number }[] {
+  const from = column.findIndex((d) => d.id === id);
+  const to = from + by;
+  if (from < 0 || to < 0 || to >= column.length) return [];
+
+  const next = [...column];
+  const [lifted] = next.splice(from, 1);
+  if (lifted) next.splice(to, 0, lifted);
+
+  return next
+    .map((d, position) => ({ id: d.id, position, was: d.position }))
+    .filter((row) => row.was !== row.position)
+    .map(({ id: rowId, position }) => ({ id: rowId, position }));
+}
+
 function StageMenu({
   deal,
   stages,
   onMove,
+  onReorder,
+  canMoveUp,
+  canMoveDown,
 }: {
   deal: Deal;
   stages: Stage[];
   onMove: (id: string, stage: string) => void;
+  /** Up or down inside the column it is already in. */
+  onReorder: (id: string, by: -1 | 1) => void;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
 }) {
   return (
     <div className="shrink-0">
-      <RowMenu label={`Move ${deal.name} to another stage`}>
-        {(close) =>
-          stages
+      <RowMenu label={`Move ${deal.name}`}>
+        {(close) => [
+          /*
+           * Order inside the column, which the board could not do at all until
+           * 2026-09-29 — the route took a position and nothing sent one.
+           *
+           * Here rather than as a drag target between cards: a drop zone
+           * between two cards is a mouse gesture, and this menu exists
+           * precisely because the mouse gesture is not available to everybody.
+           * The first card has no "up" and the last has no "down", offered as
+           * absent rather than as a control that does nothing.
+           */
+          canMoveUp ? (
+            <MenuItem
+              key="up"
+              needs={{ crm: ["update"] }}
+              onClick={() => {
+                onReorder(deal.id, -1);
+                close();
+              }}
+            >
+              Move up
+            </MenuItem>
+          ) : null,
+          canMoveDown ? (
+            <MenuItem
+              key="down"
+              needs={{ crm: ["update"] }}
+              onClick={() => {
+                onReorder(deal.id, 1);
+                close();
+              }}
+            >
+              Move down
+            </MenuItem>
+          ) : null,
+          ...stages
             .filter((s) => s.id !== deal.stage)
             .map((s) => (
               /*
@@ -144,8 +218,8 @@ function StageMenu({
               >
                 Move to {s.label}
               </MenuItem>
-            ))
-        }
+            )),
+        ]}
       </RowMenu>
     </div>
   );
@@ -158,6 +232,7 @@ function Column({
   deals,
   columns,
   onMove,
+  onReorder,
   quiet = false,
 }: {
   /** Every stage, so a card can be moved to any of them without a mouse. */
@@ -168,6 +243,8 @@ function Column({
   /** Columns a module works out, when this instance has one that does. */
   columns: ComputedColumn[] | undefined;
   onMove: (id: string, stage: string) => void;
+  /** Up or down within this column, by one place. */
+  onReorder: (id: string, by: -1 | 1) => void;
   /**
    * Stay silent when the whole board is empty.
    *
@@ -203,7 +280,7 @@ function Column({
       </div>
 
       <div className="flex flex-col gap-(--gap-toolbar)">
-        {deals.map((d) => (
+        {deals.map((d, index) => (
           <div
             key={d.id}
             draggable
@@ -272,7 +349,14 @@ function Column({
                 form. Behind a button it stays out of the way and the board
                 stays operable from the keyboard, which dragging alone is not.
               */}
-              <StageMenu deal={d} stages={stages} onMove={onMove} />
+              <StageMenu
+                deal={d}
+                stages={stages}
+                onMove={onMove}
+                onReorder={onReorder}
+                canMoveUp={index > 0}
+                canMoveDown={index < deals.length - 1}
+              />
             </div>
           </div>
         ))}
@@ -368,14 +452,49 @@ export function Deals() {
     },
   });
 
-  if (error) return <ErrorNote error={error} />;
-
   // Archived deals are already excluded by the server unless asked for.
+  //
+  // Above the early return below, because the mutation under it is a hook and a
+  // hook after a return is a hook that does not always run.
   const deals = data?.deals ?? [];
   const byStage = (stage: string) =>
     deals
       .filter((d) => d.stage === stage)
       .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name));
+
+  /**
+   * Where a deal sits inside its column.
+   *
+   * `PATCH /api/deals/:id/move` has taken a `position` since it was written,
+   * validated it and clamped it — and nothing in the product ever sent one, so
+   * every deal kept the position it was created with and the board fell back to
+   * sorting by name. The site sold "ordering" on the strength of that until
+   * 2026-09-29.
+   *
+   * **Every card whose index changed, not just the two that swapped.** A column
+   * whose deals all carry position 0 — which is every column on every instance
+   * today — cannot be reordered by swapping two zeroes. So the whole column is
+   * written out in its new order and only the rows that actually differ are
+   * sent: N calls the first time a column is touched, two on each after that,
+   * and a column that somebody has already ordered costs exactly the two.
+   */
+  const reorder = useMutation({
+    mutationFn: async ({ id, by }: { id: string; by: -1 | 1 }) => {
+      const deal = deals.find((d) => d.id === id);
+      if (!deal) return;
+      await Promise.all(
+        reindexed(byStage(deal.stage), id, by).map((row) =>
+          api(`/api/deals/${row.id}/move`, {
+            method: "PATCH",
+            body: JSON.stringify({ position: row.position }),
+          }),
+        ),
+      );
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["deals"] }),
+  });
+
+  if (error) return <ErrorNote error={error} />;
 
   // By this business's own names for finished, not by ours. See `isDecided`.
   const openTotal = deals
@@ -556,6 +675,7 @@ export function Deals() {
       ) : null}
 
       {move.error ? <ErrorNote error={move.error} /> : null}
+      {reorder.error ? <ErrorNote error={reorder.error} /> : null}
 
       {isLoading ? <Loading /> : null}
 
@@ -589,6 +709,7 @@ export function Deals() {
             deals={byStage(s.id)}
             columns={data?.computedColumns}
             onMove={(id, stage) => move.mutate({ id, stage })}
+            onReorder={(id, by) => reorder.mutate({ id, by })}
             quiet={deals.length === 0}
           />
         ))}

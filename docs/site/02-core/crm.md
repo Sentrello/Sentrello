@@ -62,6 +62,11 @@ A **deal** is a piece of work you might win, moving through stages you define.
 The board shows the pipeline and what each stage is worth, with every deal's
 amount and its expected close date on the card.
 
+Drag a card to another stage, or use the menu on it — which also moves a card
+up and down inside its own column, so the order is the one you want to work in
+rather than alphabetical. The menu is there because dragging is a mouse
+gesture, and a keyboard and a touch screen both need somewhere else to go.
+
 **A deal can become a quote.** The customer, the description and the figure
 come across with it: three things somebody would otherwise retype, and three
 chances to send a price that does not match what was discussed. You land on
