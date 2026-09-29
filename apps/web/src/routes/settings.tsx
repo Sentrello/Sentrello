@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { type Meta, api } from "../lib/api";
-import { postcodeLabel } from "../lib/country-data";
+import { currencyForCountry, postcodeLabel } from "../lib/country-data";
 import { CountrySelect } from "../lib/ui";
 import {
   Button,
@@ -355,7 +355,29 @@ export function Settings() {
             >
               <CountrySelect
                 value={form.countryCode}
-                onChange={(countryCode) => patch({ countryCode })}
+                onChange={(countryCode) => {
+                  /*
+                   * And the currency, while the books are still empty.
+                   *
+                   * Most people set the country — the tax rules need it — and
+                   * never think about the currency at all, which is how every
+                   * instance outside the United States came to keep its books
+                   * in dollars. Filled in rather than written: the field is
+                   * directly below and shows the answer, so nothing is decided
+                   * behind anybody's back.
+                   *
+                   * Null where there is no good guess — Poland and Sweden are
+                   * in the EU and not in the euro — and null leaves it alone.
+                   */
+                  const guess = data.business.baseCurrencyLocked
+                    ? null
+                    : currencyForCountry(countryCode);
+                  patch(
+                    guess
+                      ? { countryCode, baseCurrency: guess }
+                      : { countryCode },
+                  );
+                }}
               />
             </Field>
             {/*

@@ -42,47 +42,6 @@ export function toBaseCents(amountCents: number, rateMicro: number): number {
 export const MARKET_CURRENCIES = ["USD", "CAD", "GBP", "EUR"] as const;
 
 /**
- * What a business in this country most likely keeps its books in.
- *
- * A guess, and only ever used as a default somebody can change. The alternative
- * was the one that shipped: **every instance in the world kept its books in US
- * dollars**, because the column defaults to USD and nothing in the Free tier
- * could set it. A guess that is right three times in four beats a default that
- * is wrong three times in four.
- */
-export function currencyForCountry(code: string | null | undefined): string {
-  const country = (code ?? "").trim().toUpperCase();
-  if (country === "US") return "USD";
-  if (country === "CA") return "CAD";
-  if (country === "GB" || country === "UK") return "GBP";
-  return EURO_COUNTRIES.has(country) ? "EUR" : "USD";
-}
-
-/** The euro's own members, which is not the same list as the EU's. */
-const EURO_COUNTRIES = new Set([
-  "AT",
-  "BE",
-  "HR",
-  "CY",
-  "EE",
-  "FI",
-  "FR",
-  "DE",
-  "GR",
-  "IE",
-  "IT",
-  "LV",
-  "LT",
-  "LU",
-  "MT",
-  "NL",
-  "PT",
-  "SK",
-  "SI",
-  "ES",
-]);
-
-/**
  * Whether the books can still be told what currency they are kept in.
  *
  * One entry is enough to stop it. Every figure in the ledger is base-currency

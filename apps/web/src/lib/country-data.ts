@@ -125,3 +125,55 @@ export function regionLabel(country: string): string {
   if (code === "GB") return "County";
   return "State or region";
 }
+
+/**
+ * And what a business there most likely keeps its books in.
+ *
+ * `organizations.base_currency` defaults to `USD`, and until 2026-09-29 the only
+ * route that could change it was Accounting's — which is Pro. So every Free
+ * instance outside the United States kept its books in dollars, in three of the
+ * four markets this product is sold into. The currency is a field on Your
+ * business now, and this is what fills it in when somebody picks a country,
+ * because most people set the country for the tax rules and never think about
+ * the currency at all.
+ *
+ * **Null where there is no good answer**, and null leaves whatever is there
+ * alone. Poland, Sweden, Denmark, Czechia, Hungary, Romania and Bulgaria are in
+ * the EU and not in the euro; handing them euros would be the same fault one
+ * size smaller. A wrong guess a screen shows beats a wrong default nobody sees,
+ * and no guess at all beats both.
+ *
+ * Here rather than in `@sentrello/db`, which the browser must never import, and
+ * only here: the server does not guess a currency, so a second copy would be a
+ * second copy of a rule with one caller.
+ */
+const EURO = new Set([
+  "AT",
+  "BE",
+  "HR",
+  "CY",
+  "EE",
+  "FI",
+  "FR",
+  "DE",
+  "GR",
+  "IE",
+  "IT",
+  "LV",
+  "LT",
+  "LU",
+  "MT",
+  "NL",
+  "PT",
+  "SK",
+  "SI",
+  "ES",
+]);
+
+export function currencyForCountry(country: string): string | null {
+  const code = (country ?? "").trim().toUpperCase();
+  if (code === "US") return "USD";
+  if (code === "CA") return "CAD";
+  if (code === "GB" || code === "UK") return "GBP";
+  return EURO.has(code) ? "EUR" : null;
+}
