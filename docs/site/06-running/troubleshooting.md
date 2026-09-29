@@ -145,7 +145,7 @@ The instance keeps working on its last good token through a grace period, then
 falls back to Free. It does not stop.
 
 Check the server can reach `sentrello.com` over HTTPS. If it can and the
-message persists, check the key itself in Settings → Licence. A key that is set
+message persists, check the key itself in Settings → Licence and updates. A key that is set
 but malformed reports as a network problem, which sends people looking in the
 wrong place entirely.
 

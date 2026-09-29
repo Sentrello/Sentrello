@@ -89,14 +89,40 @@ function realPairs(): Set<string> {
   return pairs;
 }
 
-/** `**Settings → Your business**`, and only the sections this repo owns. */
-const MENTION = /\*\*([A-Z][A-Za-z ]*?) → ([A-Za-z][A-Za-z '-]*?)\*\*/g;
+/**
+ * `Settings → Your business`, bold or not.
+ *
+ * It matched only the bold spelling, and the documentation writes these both
+ * ways — so `Settings → Licence` in a sentence went unread while the same words
+ * in bold were checked, in the same file. The one that survived was wrong: the
+ * screen is called Licence and updates.
+ *
+ * Prose runs on past the name — "Settings → Connections has a processor in it" —
+ * so a mention is matched loosely here and compared by prefix below, the same
+ * rule the product-side check uses.
+ */
+const MENTION = /(?:\*\*)?([A-Z][A-Za-z ]*?) → ([A-Z][A-Za-z '-]*[A-Za-z])/g;
 
 test("the modules register some screens at all", () => {
   // Without this every assertion below passes against an empty set, which is
   // the failure this repository keeps finding in its own guards.
   expect(realPairs().size).toBeGreaterThan(8);
 });
+
+/**
+ * Screens the documentation may name that this repository cannot see.
+ *
+ * `registered()` above walks *this* repository's modules, and Pro and the
+ * optional modules are private repositories that are not here. A pair naming one
+ * of their screens is not a fault and cannot be verified from inside Core, so it
+ * is named — with where it comes from, so the next person can check it there.
+ *
+ * Kept short on purpose. Anything Core registers belongs in the check, not here.
+ */
+const ELSEWHERE = new Set([
+  // `pro-core/src/workflows.ts`, parent: "crm".
+  "CRM → Automations",
+]);
 
 test("every screen the documentation names is a screen the sidebar has", () => {
   const real = realPairs();
@@ -106,8 +132,12 @@ test("every screen the documentation names is a screen the sidebar has", () => {
     for (const [, section, screen] of text.matchAll(MENTION)) {
       if (!OURS.has(section as string)) continue;
       const pair = `${section} → ${screen}`;
-      if (!real.has(pair))
+      // Any real screen whose name this mention begins with, so a sentence that
+      // carries on past the name is not a fault.
+      if (ELSEWHERE.has(pair)) continue;
+      if (![...real].some((r) => pair.startsWith(r))) {
         wrong.push(`${page.slice(root.length + 1)}: ${pair}`);
+      }
     }
   }
   expect([...new Set(wrong)]).toEqual([]);

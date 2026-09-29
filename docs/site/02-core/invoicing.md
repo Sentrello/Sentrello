@@ -196,7 +196,7 @@ a file for your records. The paperwork behind an OSS return has to be
 produceable for ten years.
 
 The screen appears once you tell Sentrello you operate in the EU, under
-Settings → Tax regimes.
+Settings → Your business.
 
 **If your books are not in euro.** The return is filed in euro, and the rate is
 not yours to choose. It is the European Central Bank's rate for the last day of

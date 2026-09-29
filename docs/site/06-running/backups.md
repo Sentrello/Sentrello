@@ -152,7 +152,7 @@ people skip, and they are steps 1 and 4.
    allows a set number. Open [the licence page](https://sentrello.com/license),
    paste your key, release the install you no longer run, then `sentrello
    activate` on the new server. Until you do, the new instance runs as Free and
-   Settings → Licence says why.
+   Settings → Licence and updates says why.
 
 Leave the old instance stopped rather than deleted until you are satisfied. Two
 instances writing to one database is the one arrangement to avoid.

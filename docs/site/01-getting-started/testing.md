@@ -38,7 +38,7 @@ nightly job that will not run.
 ## Walk one job through
 
 1. **Add a contact.** CRM → Contacts → New.
-2. **Send them a quote.** Invoicing → Quotes. Add a line, save, send.
+2. **Send them a quote.** Money → Quotes. Add a line, save, send.
 3. **Turn it into an invoice.** From the quote, convert it. The lines, tax and
    customer carry across.
 4. **Record a payment.** Mark it paid, or part paid.
