@@ -27,3 +27,16 @@ run.
 They are built to combine. A booking creates a contact. A shop order posts to
 the ledger, and a document attaches to the customer it belongs to. Two modules
 sharing one set of records is what stops you typing anything twice.
+
+## Adding one, and stopping one
+
+A module arrives on your licence and appears under Settings → Modules. Set it
+up when you are ready for it; nothing is lost by leaving it until then, and
+putting one away hides it without deleting anything — switch the diary off for
+the winter and it is where you left it in the spring.
+
+Stopping one is the same in reverse. Take it off your subscription and it
+disappears from that list on the next licence check, taking its screens with
+it. **Your records stay in your database.** They are still in your backups,
+still in an export you take, and the day the module comes back they are where
+they were.

@@ -2055,6 +2055,20 @@ export function Modules() {
         What your licence includes. Set one up when you are ready for it —
         nothing is lost by leaving it until then.
       </p>
+      {/*
+        What happens at the other end, which nothing said.
+        
+        A module dropped from a subscription simply vanishes from this list on
+        the next licence check: no screens, no nav entry, no sentence. The
+        obvious conclusion is that the orders or the diary went with it, and
+        they did not — putting a module away deletes nothing, and neither does
+        a licence that stops carrying it.
+      */}
+      <p className="mt-1 text-sm" style={muted}>
+        Stop paying for one and it disappears from here, taking its screens with
+        it. Its records stay in your database and come back the day the module
+        does.
+      </p>
 
       <ul className="mt-3 flex flex-col gap-(--gap-toolbar)">
         {available.map((m) => (
