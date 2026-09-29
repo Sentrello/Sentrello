@@ -903,3 +903,32 @@ test("once the books have an entry it is fixed, and says so", async () => {
     .delete(schema.journalEntries)
     .where(eq(schema.journalEntries.organizationId, orgId));
 });
+
+/**
+ * A save that is going to be refused changes nothing at all.
+ *
+ * The currency write happens through its own function and had been placed
+ * before the rest of the validation, so a form with a good currency and a bad
+ * country wrote the currency, returned 400, and told the person nothing had
+ * been saved. Half a save is worse than none: they correct the country, save
+ * again, and never learn that the first attempt moved something.
+ */
+test("a refused save leaves the currency where it was", async () => {
+  const before = (await read()) as { business: { baseCurrency: string } };
+
+  const res = await app.request("http://localhost/api/settings", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({
+      name: "Somebody",
+      baseCurrency: "CAD",
+      // Two characters, so the length check passes and the shape check refuses:
+      // a longer value never reaches the ordering this is about.
+      countryCode: "D1",
+    }),
+  });
+  expect(res.status).toBe(400);
+
+  const after = (await read()) as { business: { baseCurrency: string } };
+  expect(after.business.baseCurrency).toBe(before.business.baseCurrency);
+});

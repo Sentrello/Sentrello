@@ -657,21 +657,6 @@ export default defineModule({
          * e-invoice standard reads nothing else, and a prose country typed
          * here would surface weeks later as a rejected document.
          */
-        /*
-         * The currency the books are kept in, on the screen that already holds
-         * the country and the timezone — the other two facts about where a
-         * business is.
-         *
-         * Written through `setBaseCurrency` rather than here, because
-         * Accounting has a route for the same column on Pro and two copies of
-         * "may this still change" would disagree the week one of them moved,
-         * about what somebody's books mean.
-         */
-        if (body.baseCurrency !== undefined) {
-          const set = await setBaseCurrency(orgId, String(body.baseCurrency));
-          if ("error" in set) return c.json({ error: set.error }, set.status);
-        }
-
         if (countryCode) {
           if (!/^[A-Za-z]{2}$/.test(countryCode)) {
             return c.json(
@@ -708,6 +693,25 @@ export default defineModule({
               400,
             );
           }
+        }
+
+        /*
+         * The currency the books are kept in, on the screen that already holds
+         * the country and the timezone — the other two facts about where a
+         * business is.
+         *
+         * Written through `setBaseCurrency` rather than here, because
+         * Accounting has a route for the same column on Pro and two copies of
+         * "may this still change" would disagree the week one of them moved,
+         * about what somebody's books mean.
+         *
+         * Last, after every other field has been checked. It writes, and a save
+         * that then refused the country would have changed the currency and told
+         * the person nothing was saved.
+         */
+        if (body.baseCurrency !== undefined) {
+          const set = await setBaseCurrency(orgId, String(body.baseCurrency));
+          if ("error" in set) return c.json({ error: set.error }, set.status);
         }
 
         const [org] = await db
