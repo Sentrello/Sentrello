@@ -11,6 +11,7 @@ import {
   companyNames,
   crmValues,
 } from "@sentrello/db/crm";
+import { dayIn } from "@sentrello/db/day";
 import {
   type ListSpec,
   UNPAGED_MAX,
@@ -26,6 +27,7 @@ import {
 import { organizationMember } from "@sentrello/db/membership";
 import { sumCents } from "@sentrello/db/money";
 import { recordChanged } from "@sentrello/db/record-events";
+import { timezoneFor } from "@sentrello/db/timezone";
 import { dateFrom, dayFrom, demandDate } from "@sentrello/db/timezone";
 import type {
   ModuleContext,
@@ -621,7 +623,12 @@ function crud<T extends keyof typeof tables>(
          * in force.
          */
         if (parsed.value.doNotSell !== undefined) {
-          parsed.value.doNotSellOn = parsed.value.doNotSell ? new Date() : null;
+          // The day it arrived, where the business is. Stamped as an instant it
+          // read as the day after in UTC for a business in California, which is
+          // where this rule comes from and where the fifteen days are counted.
+          parsed.value.doNotSellOn = parsed.value.doNotSell
+            ? dayIn(new Date(), await timezoneFor(orgId))
+            : null;
         }
       }
       const shaped = withCheckedText(table, parsed.value);
@@ -633,7 +640,12 @@ function crud<T extends keyof typeof tables>(
       }
       await withCustomValues(resource, orgId, parsed.value);
       if (resource === "deals") await withDecidedAt(orgId, parsed.value);
-      const refError = await checkLinkedRecords(resource, orgId, parsed.value);
+      const refError = await checkLinkedRecords(
+        resource,
+        orgId,
+        parsed.value,
+        c.req.param("id"),
+      );
       if (refError) return c.json({ error: refError.error }, refError.status);
 
       /**
@@ -1015,6 +1027,7 @@ async function checkLinkedRecords(
   resource: string,
   orgId: string,
   value: Record<string, unknown>,
+  recordId?: string,
 ): Promise<LinkRefusal | null> {
   const uuid =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -1032,6 +1045,27 @@ async function checkLinkedRecords(
       .where(and(eq(table.id, id), eq(table.organizationId, orgId)))
       .limit(1);
     return Boolean(row);
+  };
+
+  /** Whether this record already stores this person in this field. */
+  const alreadyOn = async (
+    id: string,
+    field: "ownerId" | "assigneeId",
+    who: unknown,
+  ): Promise<boolean> => {
+    if (!uuid.test(id)) return false;
+    const own = tables[resource as keyof typeof tables]?.table;
+    if (!own) return false;
+    const column = (
+      own as unknown as Record<string, typeof schema.contacts.id | undefined>
+    )[field];
+    if (!column) return false;
+    const [row] = await db
+      .select({ who: column })
+      .from(own)
+      .where(and(eq(own.id, id), eq(own.organizationId, orgId)))
+      .limit(1);
+    return row?.who === who;
   };
 
   const links: [
@@ -1107,12 +1141,28 @@ async function checkLinkedRecords(
   for (const field of ["ownerId", "assigneeId"] as const) {
     const who = value[field];
     if (who === undefined || who === null || who === "") continue;
-    if (!(await organizationMember(orgId, who))) {
-      return {
-        error: `${field === "ownerId" ? "the owner" : "the assignee"} is not a member of this organization`,
-        status: 400,
-      };
-    }
+    if (await organizationMember(orgId, who)) continue;
+    /*
+     * Unless it is who the record already says.
+     *
+     * Somebody leaves, their membership goes, and every record they owned still
+     * names them — which is right: a business that loses who ran an account when
+     * that person leaves has lost its own history. But the check refused the id
+     * on the way back in, so saving a phone number on one of those records
+     * failed with "the owner is not a member of this organization" and the only
+     * way to edit it at all was to give it away.
+     *
+     * Read from the row rather than taken from the body, so an id that is *new*
+     * to this record — a stranger's, which is what this check exists for — is
+     * still refused. Accepting one the row already carries changes nothing about
+     * what is stored, and resolving it into a name is separately guarded: the
+     * managers list is the only place a user id becomes a person here.
+     */
+    if (recordId && (await alreadyOn(recordId, field, who))) continue;
+    return {
+      error: `${field === "ownerId" ? "the owner" : "the assignee"} is not a member of this organization`,
+      status: 400,
+    };
   }
   return null;
 }

@@ -261,3 +261,78 @@ test("a row already holding a foreign id never discloses that person", async () 
     expect(body).not.toContain(`crm-stranger-${suffix}@example.test`);
   }
 });
+
+test("somebody who has left can still be edited around", async () => {
+  /*
+   * A person leaves, their membership goes, and every record they owned still
+   * names them — deliberately, so the business keeps who ran the account. The
+   * check on the way in then refused the same id coming back, so saving a phone
+   * number on one of those records failed with "the owner is not a member of
+   * this organization" and the only way to edit it at all was to give it away.
+   *
+   * The screen sends every field it drew, so this is not an exotic request: it
+   * is what pressing Save does.
+   */
+  await signUpAsOwner({
+    email: `leaver-${suffix}@example.test`,
+    password: "correct-horse-battery-staple",
+    name: "Priya Leaver",
+  });
+  const [leaver] = await db
+    .select({ id: schema.user.id })
+    .from(schema.user)
+    .where(eq(schema.user.email, `leaver-${suffix}@example.test`));
+  if (!leaver) throw new Error("the leaver has no user row");
+  const leaverId = leaver.id;
+  await db.insert(schema.member).values({
+    id: crypto.randomUUID(),
+    organizationId: orgId,
+    userId: leaverId,
+    role: "member",
+    createdAt: new Date(),
+  });
+
+  const created = await post("/api/contacts", {
+    name: "Westbury Joinery",
+    ownerId: leaverId,
+  });
+  expect(created.status).toBe(201);
+  const { contact } = (await created.json()) as { contact: { id: string } };
+
+  // And then they leave.
+  await db.delete(schema.member).where(eq(schema.member.userId, leaverId));
+
+  const saved = await app.request(
+    `http://localhost/api/contacts/${contact.id}`,
+    {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ phone: "01234 567890", ownerId: leaverId }),
+    },
+  );
+  expect(saved.status).toBe(200);
+
+  // The owner is still theirs, and the change went in.
+  const [row] = await db
+    .select({ ownerId: schema.contacts.ownerId, phone: schema.contacts.phone })
+    .from(schema.contacts)
+    .where(eq(schema.contacts.id, contact.id));
+  expect(row).toEqual({ ownerId: leaverId, phone: "01234 567890" });
+
+  // What the exemption is not: somebody else's id is still refused, even on a
+  // record whose owner has left.
+  const stranger = await app.request(
+    `http://localhost/api/contacts/${contact.id}`,
+    {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ ownerId: strangerId }),
+    },
+  );
+  expect(stranger.status).toBe(400);
+
+  await db.delete(schema.contacts).where(eq(schema.contacts.id, contact.id));
+  await db.delete(schema.session).where(eq(schema.session.userId, leaverId));
+  await db.delete(schema.account).where(eq(schema.account.userId, leaverId));
+  await db.delete(schema.user).where(eq(schema.user.id, leaverId));
+});

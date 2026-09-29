@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "./api";
+import { Select } from "./ui";
 
 /**
  * What this business calls its own pipeline, statuses and categories.
@@ -148,4 +149,44 @@ export function useCrmManagers(): Manager[] {
 /** What to call somebody in a list: their name, or their email if unnamed. */
 export function managerName(manager: Manager): string {
   return manager.name?.trim() || manager.email;
+}
+
+/**
+ * Whoever a record belongs to, chosen — including somebody who has left.
+ *
+ * The list of options is the current members, and the record's own value may not
+ * be among them: a person leaves, their membership goes, and every record they
+ * owned still names them. A `<select>` whose value matches no option shows the
+ * first one instead, so opening such a record displayed "Nobody yet" and pressing
+ * Save quietly gave the record to nobody — an owner lost without anybody choosing
+ * to lose it, on the one screen a business uses to keep track of who does what.
+ *
+ * So the value is always an option. `withAuthors` in the CRM's own notes settled
+ * the wording months ago: somebody who has left.
+ */
+export function PersonSelect({
+  value,
+  onChange,
+  managers,
+  none = "Nobody yet",
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  managers: Manager[];
+  none?: string;
+}) {
+  const current = managers.some((m) => m.userId === value);
+  return (
+    <Select value={value} onChange={(e) => onChange(e.target.value)}>
+      <option value="">{none}</option>
+      {value && !current ? (
+        <option value={value}>Somebody who has left</option>
+      ) : null}
+      {managers.map((manager) => (
+        <option key={manager.userId} value={manager.userId}>
+          {managerName(manager)}
+        </option>
+      ))}
+    </Select>
+  );
 }

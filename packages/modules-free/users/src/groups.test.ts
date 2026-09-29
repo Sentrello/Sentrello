@@ -643,3 +643,39 @@ test("a stored row under a compiled name adds to it here too, and does not repla
       ),
     );
 });
+
+/** Kept last in the file: it takes `staff` off the instance for good. */
+test("somebody taken off the instance leaves their groups behind", async () => {
+  /*
+   * The group rows key on the user, not on the membership, so removal used to
+   * leave them: a former employee still listed under a group on the Groups
+   * screen, and — the half that matters — every role that group grants handed
+   * straight back if they were ever re-invited, because `applyRoles` reads the
+   * groups and nobody chose that.
+   */
+  const group = await makeGroup(`Leavers ${suffix}`, ["accounting"]);
+  await post(`/api/users/groups/${group}/members`, { userId: staffId });
+
+  const removed = await app.request(`http://localhost/api/users/${staffId}`, {
+    method: "DELETE",
+    headers,
+  });
+  expect(removed.status).toBe(200);
+
+  const [row] = await db
+    .select({ userId: schema.userGroupMembers.userId })
+    .from(schema.userGroupMembers)
+    .where(
+      and(
+        eq(schema.userGroupMembers.organizationId, orgId),
+        eq(schema.userGroupMembers.userId, staffId),
+      ),
+    );
+  expect(row).toBeUndefined();
+
+  // And the screen does not offer them as staff any more.
+  const listed = await app.request("http://localhost/api/users/groups", {
+    headers,
+  });
+  expect(await listed.text()).not.toContain(staffId);
+});

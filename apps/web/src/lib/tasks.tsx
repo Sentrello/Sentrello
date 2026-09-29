@@ -10,7 +10,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useId, useState } from "react";
 import { api, may } from "./api";
-import { managerName, useCrmManagers } from "./crm-settings";
+import { PersonSelect, useCrmManagers } from "./crm-settings";
 import { Icon } from "./icons";
 import {
   Button,
@@ -386,17 +386,11 @@ export function TaskDialog({
         </Field>
 
         <Field label="Assigned to">
-          <Select
+          <PersonSelect
             value={assigneeId}
-            onChange={(e) => setAssigneeId(e.target.value)}
-          >
-            <option value="">Nobody yet</option>
-            {managers.map((m) => (
-              <option key={m.userId} value={m.userId}>
-                {managerName(m)}
-              </option>
-            ))}
-          </Select>
+            onChange={setAssigneeId}
+            managers={managers}
+          />
         </Field>
 
         {subjects ? (

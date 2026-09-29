@@ -4,7 +4,7 @@ import { ApiError, COMPANY_SIZES, type Company, api } from "../lib/api";
 import { postcodeLabel, regionLabel } from "../lib/country-data";
 import {
   type CrmSettings,
-  managerName,
+  PersonSelect,
   useCrmManagers,
 } from "../lib/crm-settings";
 import { CustomFields } from "../lib/custom-fields";
@@ -312,17 +312,11 @@ export function CompanyForm({
               <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
             </Field>
             <Field label="Account manager" hint="Whose account this is.">
-              <Select
+              <PersonSelect
                 value={ownerId}
-                onChange={(e) => setOwnerId(e.target.value)}
-              >
-                <option value="">Nobody yet</option>
-                {managers.map((manager) => (
-                  <option key={manager.userId} value={manager.userId}>
-                    {managerName(manager)}
-                  </option>
-                ))}
-              </Select>
+                onChange={setOwnerId}
+                managers={managers}
+              />
             </Field>
           </div>
 

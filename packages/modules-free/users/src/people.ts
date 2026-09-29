@@ -622,6 +622,23 @@ export function registerPeople(ctx: ModuleContext) {
       const subject = await subjectOf(userId);
       await db.delete(schema.member).where(eq(schema.member.id, mine.id));
       await db.delete(schema.session).where(eq(schema.session.userId, userId));
+      /*
+       * And out of the groups they were in.
+       *
+       * The group rows are keyed on the user, not the membership, so somebody
+       * taken off the instance stayed listed under Sales on the Groups screen —
+       * a former employee reading as staff to whoever opens it. Worse on the way
+       * back: re-inviting them handed back every role those groups grant,
+       * without anybody choosing to, because `applyRoles` reads the groups.
+       */
+      await db
+        .delete(schema.userGroupMembers)
+        .where(
+          and(
+            eq(schema.userGroupMembers.organizationId, orgId),
+            eq(schema.userGroupMembers.userId, userId),
+          ),
+        );
 
       await record({
         organizationId: orgId,

@@ -3,7 +3,7 @@ import { useState } from "react";
 import { type Contact, type LabelledValue, api } from "../lib/api";
 import {
   type CrmSettings,
-  managerName,
+  PersonSelect,
   useCrmManagers,
 } from "../lib/crm-settings";
 import { CustomFields } from "../lib/custom-fields";
@@ -373,17 +373,11 @@ export function ContactForm({
               />
             </Field>
             <Field label="Account manager" hint="Whose contact this is.">
-              <Select
+              <PersonSelect
                 value={ownerId}
-                onChange={(e) => setOwnerId(e.target.value)}
-              >
-                <option value="">Nobody yet</option>
-                {managers.map((manager) => (
-                  <option key={manager.userId} value={manager.userId}>
-                    {managerName(manager)}
-                  </option>
-                ))}
-              </Select>
+                onChange={setOwnerId}
+                managers={managers}
+              />
             </Field>
             <Field label="Gender">
               {/* Only ever used to pick the right placeholder face. */}
