@@ -15,6 +15,13 @@ actually used on, card readers and receipt printers are not. There is no date,
 deliberately. This page describes how it works, not something you can subscribe
 to yet.
 
+**There are no screenshots on this page**, deliberately. The ones that were here
+showed a till with a Cash button and no Card, an open cash count with the
+expected figure printed above the box, and a sidebar the product replaced in
+September. Every one of those is a thing this page now describes the opposite of,
+and a picture that argues with the words beside it is worse than no picture.
+They come back with the rebuilt screens.
+
 :::
 
 :::danger[Where this till cannot lawfully be used at all]
@@ -51,8 +58,6 @@ end of a shift.
 **POS needs the Shop module.** This is not a separate product with its own
 catalogue. It is a second way of selling the one you already have.
 
-![The till: product tiles on the left, the sale on the right](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/till-sell.png)
-
 ## Before you start
 
 Three things, in this order:
@@ -79,8 +84,6 @@ number a customer ever asks about.
 Tap the same product again and the line becomes a quantity of two rather than a
 second row. That is what a second tap means at a counter.
 
-![A ticket with two items, one of them with choices](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/till-ticket.png)
-
 Everything on the ticket is priced as the shop prices it. Change a price under
 Shop → Products and the till uses the new one immediately. There is no separate
 menu to keep in step.
@@ -100,8 +103,6 @@ still standing there.
 A till that cannot ask "which milk?" sends a member of staff back to the
 counter to ask. **POS questions** are the answer, set up under Shop → POS
 questions.
-
-![Setting up the questions the till asks](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/till-questions.png)
 
 A question has:
 
@@ -125,8 +126,6 @@ since *Milk* belongs on every coffee, and a product can be asked several.
 
 When a product has questions, the till asks them before the item goes on the
 ticket. One at a time, in front of everything else.
-
-![The till asking which milk, before the drink is rung up](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/till-choices.png)
 
 **A required question cannot be skipped.** The button says what is still
 missing, *Choose milk*, rather than letting somebody carry on and sending a
@@ -162,8 +161,6 @@ rather than asked to settle it. See
 The drawer is how a business knows its cash is right. It is optional: a
 business that never opens one still sells things, and the till never holds up a
 sale over bookkeeping nobody asked for.
-
-![The drawer, with a count typed in ready to close the shift](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/till-drawer.png)
 
 **Open a drawer** at the start of a shift with the **float**, the money going in
 to make change with.
