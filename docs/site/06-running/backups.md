@@ -121,8 +121,8 @@ somewhere else, back that up yourself.
 
 ## Moving to another server
 
-A backup and a restore is the whole move. The order matters, and step 1 is the
-one people skip:
+A backup and a restore is most of the move. Two of these steps are the ones
+people skip, and they are steps 1 and 4.
 
 1. **Stop the old instance, then take a fresh backup of it.** `sentrello stop`,
    then `sentrello backup`. Restoring last night's dump instead will lose every
@@ -130,8 +130,35 @@ one people skip:
    will tell you they are gone.
 2. Install Sentrello on the new machine.
 3. Copy the backup, its files archive, and the data directory across.
-4. Restore the dump you took in step 1.
-5. Point your domain at the new address.
+4. **Carry two values over from the old `secrets/.env`.** Open both files and
+   copy these lines from the old one into the new one, leaving everything else
+   in the new file alone:
+
+   - `BETTER_AUTH_SECRET` — the key every credential in the database is
+     encrypted with. Skip it and the database restores perfectly while every
+     credential in it becomes unreadable: your payment processor, your mail
+     provider, a Peppol access point. Nothing is lost that cannot be pasted in
+     again, but you will be pasting all of it, and the audit log will read as
+     though somebody had altered it.
+   - `SENTRELLO_INSTANCE_ID` — how your licence knows this is the same install
+     rather than a second one. Carry it and step 7 is already done.
+
+   Not the whole file. The new install generated its own database password and
+   its own address, and both of those belong to the new machine.
+5. Restore the dump you took in step 1.
+6. Point your domain at the new address.
+7. **If you did not carry `SENTRELLO_INSTANCE_ID` over, release the old
+   install.** To your licence the new machine is a second install, and a licence
+   allows a set number. Open [the licence page](https://sentrello.com/license),
+   paste your key, release the install you no longer run, then `sentrello
+   activate` on the new server. Until you do, the new instance runs as Free and
+   Settings → Licence says why.
 
 Leave the old instance stopped rather than deleted until you are satisfied. Two
 instances writing to one database is the one arrangement to avoid.
+
+### Changing domain at the same time
+
+Set `SENTRELLO_BASE_URL` in the new `secrets/.env` to the address people will
+type. It is what signing in is checked against, so an old address left in there
+refuses every sign-in — correctly, and with a message saying so.

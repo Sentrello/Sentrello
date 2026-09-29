@@ -42,9 +42,14 @@ test("a tampered value refuses to open", () => {
   const flipped = `${v}.${nonce}.${tag}.${(body ?? "").slice(0, -2)}AA`;
   expect(() => open(flipped)).toThrow();
 
-  // And a value from another instance's key is not ours to read.
+  // And a value from another instance's key is not ours to read — said in a
+  // sentence that names the cause, because there is only one ordinary cause and
+  // it is a business that moved to another server. Node's own wording,
+  // "unable to authenticate data", sends somebody to look at Stripe.
   process.env.SENTRELLO_SECRET_KEY = "a-different-instance-secret";
-  expect(() => open(sealed)).toThrow();
+  expect(() => open(sealed)).toThrow(/different instance key/);
+  expect(() => open(sealed)).toThrow(/Reconnect it/);
+  expect(() => open(sealed)).not.toThrow(/authenticate data/);
 });
 
 test("nonsense in the column is refused rather than half-read", () => {

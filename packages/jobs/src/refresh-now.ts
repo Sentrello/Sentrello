@@ -16,13 +16,26 @@ if (result.refreshed) {
   process.exit(0);
 }
 
-// The licence is valid but already in use elsewhere. Almost always a customer
-// who moved to a new server, so the message names that case first rather than
-// accusing them of sharing a key.
+/**
+ * The licence is valid but already in use elsewhere.
+ *
+ * Almost always a customer who moved to a new server, so the message names that
+ * case first rather than accusing them of sharing a key — and now names the page
+ * that fixes it. It used to say "ask support to release the old one", which was
+ * wrong in the way that costs a customer their evening: the licence server has
+ * had a page for listing your own installs and releasing one since it was
+ * written, and nothing in the product had ever mentioned it.
+ */
 if (result.error === "instance_limit") {
+  const server = (process.env.SENTRELLO_LICENSE_SERVER_URL ?? "").replace(
+    /\/+$/,
+    "",
+  );
+  const where = `${server || "https://sentrello.com"}/license`;
   console.error(
-    "this licence is already active on another server.\n" +
-      "If you have moved to a new machine, ask support to release the old one.",
+    `this licence is already active on another server.
+If you have moved to a new machine, release the old install at ${where} —
+your key lists them — then run \`sentrello activate\` again.`,
   );
   process.exit(1);
 }

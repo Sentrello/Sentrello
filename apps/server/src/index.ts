@@ -20,7 +20,7 @@ import { lastRetentionSweep } from "@sentrello/db/retention";
 import { NAV_TAX_REGIME, taxRegimesFor } from "@sentrello/db/tax-regimes";
 import { UnreadableDateError } from "@sentrello/db/timezone";
 import { mailConfigured } from "@sentrello/email";
-import { startJobs, unusableJobs } from "@sentrello/jobs";
+import { lastLicenseRefresh, startJobs, unusableJobs } from "@sentrello/jobs";
 import account from "@sentrello/module-account";
 import archive from "@sentrello/module-archive";
 import crm from "@sentrello/module-crm";
@@ -893,6 +893,23 @@ app.get(
       modulesLoaded: loaded,
       // Behind the settings permission, so this one carries the reason.
       failedBundles,
+      /**
+       * What the licence server last said, and where to act on it.
+       *
+       * `reason` above is what `jose` thought of the token on disk. It cannot
+       * describe the case where no usable token was ever fetched — and the
+       * commonest of those is a business that moved to a new server, whose
+       * licence is still counted against the old install. The server says so in
+       * as many words; until now nothing carried it to a screen.
+       *
+       * `manageUrl` is the licence server's own page, where a customer lists
+       * their installs and releases one. Built months ago and linked from
+       * nowhere at all.
+       */
+      lastRefresh: lastLicenseRefresh(),
+      manageUrl: process.env.SENTRELLO_LICENSE_SERVER_URL
+        ? `${process.env.SENTRELLO_LICENSE_SERVER_URL.replace(/\/+$/, "")}/license`
+        : null,
     });
   },
 );

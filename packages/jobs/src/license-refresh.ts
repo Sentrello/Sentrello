@@ -56,6 +56,33 @@ async function configFromEnv(): Promise<LicenseRefreshConfig> {
  * on the spot, so the next `refreshLicenseState` (apps/server/src/license.ts)
  * degrades immediately instead of riding out the old token's remaining TTL.
  */
+/**
+ * What the last refresh was told, so a screen can say it.
+ *
+ * The hourly job is the only thing that ever talks to the licence server, and
+ * until now the answer went nowhere: a customer who moved to a new server saw
+ * an instance running as Free, a Licence panel saying the token did not check
+ * out, and nothing anywhere naming the reason the server had already given —
+ * that the licence is in use on another install, and where to release it.
+ *
+ * In memory rather than on disk. It is a note about this process's last attempt,
+ * it is worthless after a restart, and a file would be one more thing to keep
+ * honest.
+ */
+let lastRefresh: { at: string; error?: string } | null = null;
+
+export function lastLicenseRefresh(): { at: string; error?: string } | null {
+  return lastRefresh;
+}
+
+/** Only the job and its tests set this. */
+export function recordLicenseRefresh(result: LicenseRefreshResult): void {
+  lastRefresh = {
+    at: new Date().toISOString(),
+    ...(result.error ? { error: result.error } : {}),
+  };
+}
+
 export async function refreshLicenseToken(
   config?: LicenseRefreshConfig,
 ): Promise<LicenseRefreshResult> {

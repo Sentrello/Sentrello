@@ -107,10 +107,30 @@ export function open(sealed: string): string {
     throw new Error("that stored credential is not in a format we can read");
   }
   decipher.setAuthTag(authTag);
-  return Buffer.concat([
-    decipher.update(Buffer.from(body, "base64url")),
-    decipher.final(),
-  ]).toString("utf8");
+  try {
+    return Buffer.concat([
+      decipher.update(Buffer.from(body, "base64url")),
+      decipher.final(),
+    ]).toString("utf8");
+  } catch {
+    /*
+     * The tag did not check out, which in practice means one thing.
+     *
+     * Node says "Unsupported state or unable to authenticate data", and a
+     * business reading that goes looking for a fault in their payment
+     * processor. The ordinary cause is a move to another server: a fresh
+     * install writes a new `BETTER_AUTH_SECRET`, the key is derived from it,
+     * and every credential the old instance sealed is now unreadable — on the
+     * documented path, which says nothing about carrying `secrets/.env` across.
+     *
+     * Nothing is lost that cannot be pasted in again, and that is the sentence
+     * this has to say.
+     */
+    throw new Error(
+      "that stored credential was sealed with a different instance key — it cannot be read here. " +
+        "Reconnect it in the module's own settings, or copy BETTER_AUTH_SECRET from the old server's secrets/.env.",
+    );
+  }
 }
 
 /** Whether a stored string is sealed, so a plain one can be spotted. */

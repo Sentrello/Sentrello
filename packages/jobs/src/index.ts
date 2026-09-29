@@ -1,7 +1,11 @@
 import { sweepAllRetention } from "@sentrello/db/retention";
 import { dbSsl } from "@sentrello/db/ssl";
 import PgBoss from "pg-boss";
-import { refreshLicenseToken } from "./license-refresh";
+import {
+  lastLicenseRefresh,
+  recordLicenseRefresh,
+  refreshLicenseToken,
+} from "./license-refresh";
 import { sendOverdueReminders } from "./overdue";
 import { runReminders } from "./reminders";
 import { sendTelemetry } from "./telemetry";
@@ -217,7 +221,9 @@ export async function startJobs(
     {
       name: QUEUES.licenseRefresh,
       handler: async () => {
-        await refreshLicenseToken();
+        // Remembered, because the reason a refresh failed is the only thing
+        // that can tell a customer what to do about it.
+        recordLicenseRefresh(await refreshLicenseToken());
         // Whether or not that reached the server: either a fresh token just
         // landed on disk, or the old one is still there and may since have
         // expired on its own. Both are reasons to re-read it.
@@ -370,7 +376,7 @@ async function forgetOrphanedSchedules(
   }
 }
 
-export { sendOverdueReminders, refreshLicenseToken };
+export { sendOverdueReminders, refreshLicenseToken, lastLicenseRefresh };
 export { runReminders, lateFeeFor, rulesDue } from "./reminders";
 export {
   sendTelemetry,

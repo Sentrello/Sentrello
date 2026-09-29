@@ -38,6 +38,10 @@ interface LicenseResponse {
   graceUntil: string | null;
   modulesLoaded: string[];
   failedBundles: { name: string; reason: string }[];
+  /** What the licence server last told the hourly refresh, if anything. */
+  lastRefresh: { at: string; error?: string } | null;
+  /** The licence server's own page for listing and releasing installs. */
+  manageUrl: string | null;
 }
 
 /**
@@ -62,6 +66,51 @@ export function friendlyLicenseReason(reason: string | null): string | null {
     return "this licence does not check out — it may be for a different instance, or damaged in transit";
   }
   return "this does not look like a valid licence token";
+}
+
+/**
+ * What the licence *server* said, as against what the token looked like.
+ *
+ * `friendlyLicenseReason` explains a token that failed to verify. This explains
+ * the case where no usable token arrived at all, and the commonest of those is
+ * the one nothing in the product had ever mentioned: a business that moved to a
+ * new server, whose licence is still counted against the machine they left.
+ *
+ * The server has said so in as many words since it was written — "this licence
+ * is already in use on 1 of 1 permitted installs" — and there has been a page
+ * for releasing the old install for just as long. Neither reached a screen.
+ */
+export function refreshRefusal(
+  error: string | undefined,
+): { text: string; offerManage: boolean } | null {
+  switch (error) {
+    case "instance_limit":
+      return {
+        text: "This licence is already in use on another install. If you have moved to a new server, release the old one and then check again.",
+        offerManage: true,
+      };
+    case "not_entitled":
+      return {
+        text: "The licence server says this licence is not active. Check the subscription is paid and current.",
+        offerManage: true,
+      };
+    case "invalid_license":
+      return {
+        text: "The licence server did not recognise this key.",
+        offerManage: false,
+      };
+    case "malformed_key":
+      return {
+        text: "The key on this server is not a licence key. It should read SENT-XXXX-XXXX-XXXX-XXXX.",
+        offerManage: false,
+      };
+    // "unreachable" is deliberately not here. A renewal that could not reach
+    // the server is normal, harmless and already explained by the line about
+    // the grace period; a warning for it would cry wolf every time a network
+    // blinked.
+    default:
+      return null;
+  }
 }
 
 /** The editable half of the business card, held and saved as one. */
@@ -1578,6 +1627,33 @@ export function SettingsLicence() {
                 {sync.error ? <ErrorNote error={sync.error} /> : null}
               </div>
             )}
+
+            {(() => {
+              const refusal = refreshRefusal(licence.data.lastRefresh?.error);
+              if (!refusal) return null;
+              return (
+                <p
+                  className="mt-1 text-sm"
+                  style={{ color: "var(--text-warning)" }}
+                >
+                  {refusal.text}
+                  {refusal.offerManage && licence.data.manageUrl ? (
+                    <>
+                      {" "}
+                      <a
+                        href={licence.data.manageUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="link"
+                      >
+                        Manage your installs
+                      </a>
+                      .
+                    </>
+                  ) : null}
+                </p>
+              );
+            })()}
 
             {licence.data.modules.length > 0 ? (
               <p className="mt-1 text-sm" style={muted}>
