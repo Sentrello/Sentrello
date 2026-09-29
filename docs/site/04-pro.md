@@ -10,7 +10,7 @@ tags: [pro]
 Pro deepens the modules you already use rather than replacing them. Nothing
 moves. The screens you know stay where they are, and more of them work.
 
-Paste a licence key into **Settings → Licence** and the features appear. No
+Paste a licence key into **Settings → Licence and updates** and the features appear. No
 second installation, nothing to migrate.
 
 Pro's own code is already in the image, so there is nothing to fetch for it.
@@ -36,7 +36,7 @@ subscription now covers.
 
 On a free instance the pages a visitor meets carry a "Powered by Sentrello"
 line. The sign-in screen. A form's thank-you page. Pro makes that line yours:
-put your own credit there under **Settings → Business**, or take it out
+put your own credit there under **Settings → Your business**, or take it out
 altogether. Until you change it, it stays as it is.
 
 ## Accounting

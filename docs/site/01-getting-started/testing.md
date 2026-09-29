@@ -49,9 +49,12 @@ If step five shows what you expect, the parts that matter are working.
 
 ## Check email actually leaves
 
-Settings → Email → **Send a test message**. Send it to an address at a
-different provider from your own. A message that reaches your own domain proves
-much less than one that gets past somebody else's spam filter.
+**Settings → Connections** says whether a mail server is connected at all. That
+it is connected is not the same as that mail arrives, so send yourself
+something the product really sends: raise an invoice to an address at a
+**different provider from your own** and press Send. A message that reaches
+your own domain proves much less than one that gets past somebody else's spam
+filter.
 
 ## Check the backup
 

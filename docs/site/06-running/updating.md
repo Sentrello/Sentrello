@@ -72,7 +72,7 @@ plan, not a capability.
 
 ## Updating from the application
 
-**Settings → Updates** offers the same thing from a screen, for people who
+**Settings → Licence and updates** offers the same thing from a screen, for people who
 would rather not open a terminal. Same code path.
 
 ## If an update fails

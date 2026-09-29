@@ -23,7 +23,7 @@ The fuller list, with what each failure actually means, is on
 [When something is wrong](/running/troubleshooting).
 
 **A module is missing from the sidebar.** Check `modules_failed` in `/healthz`,
-then Settings → Licence. Two different things look identical from the sidebar:
+then Settings → Licence and updates. Two different things look identical from the sidebar:
 a module the licence does not cover never loads at all, while one that tried
 and failed writes its reason to the log.
 
@@ -31,9 +31,11 @@ and failed writes its reason to the log.
 does not match the address in the browser. That check is deliberate; correct
 the value and restart.
 
-**Email does not arrive.** Send a test from Settings → Email. If it reports
-success but nothing arrives, the message left Sentrello and the problem is
-between your mail provider and the recipient.
+**Email does not arrive.** Check **Settings → Connections** first: with no mail
+server connected, nothing is sent and nothing is queued. If it says mail is
+working, send an invoice to yourself at another provider — if Sentrello accepts
+it and nothing arrives, the message left here and the problem is between your
+mail provider and the recipient.
 
 **The licence says it cannot reach the server.** The instance keeps working on
 its last good token through a grace period. Check the server can reach

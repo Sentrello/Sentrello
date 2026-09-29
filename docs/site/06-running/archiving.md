@@ -62,7 +62,7 @@ own accountant says your country is seven and you want the disk back, the
 export is always available and you can keep the copy yourself — Sentrello
 simply will not be the thing that destroys your only copy early.
 
-The country comes from your business's details (**Settings → Business**). Ask
+The country comes from your business's details (**Settings → Your business**). Ask
 to archive-and-delete something inside the window and it refuses, and says
 why.
 

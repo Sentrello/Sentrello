@@ -50,7 +50,7 @@ In order:
 
 1. **`modules_failed` in `/healthz`.** If it is named there, the log explains
    it.
-2. **Settings → Licence.** A module that is not entitled does not load, and
+2. **Settings → Licence and updates.** A module that is not entitled does not load, and
    does not complain. That is the design.
 3. **`sentrello status`.** Confirms which tier the instance believes it is.
 
@@ -114,13 +114,17 @@ shows which header is trusted and what the current request resolved to.
 
 ## Email does not arrive
 
-Send a test from **Settings → Email**. If it reports success and nothing
-arrives, the message left Sentrello, and the problem is between your provider
-and the recipient. Usually SPF or DKIM on your domain.
+**Settings → Connections** first: with no mail server connected nothing is
+sent, nothing is queued, and nothing says so on the screen that asked for it.
+It is set on the server, in the same environment file as the database.
 
-Send the test to an address at a different provider from your own. A message
-that reaches your own domain proves much less than one that survives somebody
-else's spam filter.
+If it says mail is working, send an invoice to yourself. If Sentrello accepts it
+and nothing arrives, the message left here and the problem is between your
+provider and the recipient — usually SPF or DKIM on your domain.
+
+Send it to an address at a different provider from your own. A message that
+reaches your own domain proves much less than one that survives somebody else's
+spam filter.
 
 ## The licence says the server cannot be reached
 

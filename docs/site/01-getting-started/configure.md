@@ -1,21 +1,28 @@
 ---
 title: Configure
 sidebar_position: 3
-description: Your business details, tax, email and payments — all from a screen.
+description: Your business details, your currency, tax, email and payments.
 tags: [setup]
 ---
 
 # Configure
 
-**Settings**, inside the application, is where Sentrello's behaviour is set.
-Nothing about how the product works is changed by editing a file on the server.
-If it is configurable, it has a screen.
+Almost everything here is set on a screen inside the application, and the
+screens are named below as the sidebar names them. One thing is not: the mail
+server is part of how the instance is deployed rather than how the business is
+run, and it lives in the environment file beside the database URL.
 
 ## Your business
 
-**Settings → Business** holds the name, address, contact details, logo and
-registration numbers that appear on invoices, quotes and emails. Fill this in
+**Settings → Your business** holds the name, address, contact details, tax
+number and bank details that appear on invoices, quotes and emails. Fill this in
 first: an invoice sent before it is set carries a blank letterhead.
+
+**Say which currency your books are kept in while you are there.** It starts as
+US dollars, and it is fixed the moment anything is posted to the ledger —
+because every figure in the books is held in that currency, so changing it later
+would restate all of them rather than relabel them. A minute now, or an export
+and a fresh start later.
 
 **Set your timezone while you are there.** It decides what "nine o'clock" means
 for everything that acts at a time of day, whether that is an automation
@@ -25,10 +32,10 @@ is the right answer; for one rented in another country it is how a Monday chase
 goes out on Sunday evening. The **Use mine** button fills in whatever your
 browser says, which is usually what you wanted.
 
-## Money
+## Tax
 
-**Settings → Money** sets your currency, your financial year end, and your tax
-rates.
+**Money → Invoice settings** holds your tax rates, what you sell, your payment
+terms, and how overdue invoices are chased.
 
 Tax rates are stored in millionths. 99750 means 9.975%, which is Quebec's QST,
 and storing it that way keeps it exact rather than rounded, three decimal
@@ -43,16 +50,22 @@ recalculated, and that is what makes the books stand up to an accountant.
 
 ## Email
 
-**Settings → Email** connects the server that sends your invoices and
-notifications. Enter the host, port, username and password your mail provider
-gave you, then send a test message from the same screen before you rely on it.
+Mail is set on the server, in the same environment file as the database — an
+API key for a provider, or a plain SMTP host, username and password. The
+[self-hosting guide](https://github.com/Sentrello/Sentrello/blob/main/docs/self-hosting.md)
+has the variables and an example of each.
+
+**Settings → Connections** tells you whether it is working, and which address
+mail goes out as. Until it is set, invoices and password resets cannot be
+delivered and overdue invoices are not chased — they are left alone rather than
+marked as chased, so nothing is lost by doing this later.
 
 Sentrello sends email as your business, from your own domain, through your own
 provider. Nothing routes through us.
 
 ## Taking payments
 
-**Settings → Payments** connects a card processor. Authorise it, test the
+**Settings → Connections** connects a card processor. Authorise it, test the
 connection, work in sandbox mode until you are happy, then switch it to live,
 all from the screen. Once it is connected, an invoice can carry a payment link
 and the customer can pay it online.
@@ -65,7 +78,7 @@ keeps a separate list of logins. See [Users and access](/core/users-and-access).
 
 ## Licence
 
-**Settings → Licence** shows which tier this instance is running and which
+**Settings → Licence and updates** shows which tier this instance is running and which
 modules it is entitled to. Paste a key here to turn on Pro or a module. The
 features appear in the application you already have, with no second install and
 nothing to migrate.

@@ -47,7 +47,7 @@ Four things worth knowing about schedules:
   morning runs Monday's chase, not Saturday's and Sunday's as well.
 - **A month too short runs on its last day.** Setting the 31st means month-end,
   including February.
-- **The time is your business's own**, set under Settings → Business. An instance
+- **The time is your business's own**, set under Settings → Your business. An instance
   with no timezone set falls back to the server's clock, and a server rented in
   another country keeps that country's hours. Monday's chase then goes out on
   Sunday evening.
@@ -239,7 +239,7 @@ automation.
 
 A **wait** is exact to the minute it sweeps, not to the second.
 
-Times are read in the timezone set under Settings → Business, so nine o'clock
+Times are read in the timezone set under Settings → Your business, so nine o'clock
 means nine where you are rather than where your server is.
 
 ## What is not here yet
