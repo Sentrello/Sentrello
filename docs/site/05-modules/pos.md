@@ -292,10 +292,14 @@ It never has its own logins.
 | `pos:sell` | Ring up sales, take cash, open and close a drawer |
 | `pos:void` | Cancel a ticket |
 | `pos:refund` | Give money back |
-| `pos:manage` | Set up the questions the till asks |
+| `pos:manage` | The manager's half: the questions the till asks, the module's own settings, the receipts list, opening and cashing up a drawer, the Z closures — and the drawer's expected total, wherever it appears |
 
-Setting up questions is a manager's job, so it sits behind `pos:manage` instead
-of being available to a counter shift. Everything a shift needs is `pos:sell`.
+That last one is the reason the row is this long. A blind count is only blind
+while the person counting cannot see what the till thinks is in the box, so the
+expected figure carries this permission rather than the screen does: a counter
+shift opens the same drawer screen and gets the drawer, their own payouts and
+drops, and no totals. Read it with `pos:manage` and the same screen is the X
+report a manager takes mid-shift.
 
 ## What is not here yet
 

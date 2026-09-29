@@ -159,7 +159,10 @@ The script leaves a small surface on `window` for sites that want their own
 look entirely:
 
 ```js
-SentrelloShop.products("limit=4").then((data) => {
+// The query string is passed through: `q`, `category` or `collection`, and
+// `currency`. There is no `limit` — the catalogue comes back whole and you
+// slice it yourself, which is what the elements do.
+SentrelloShop.products("category=coffee").then((data) => {
   // data.products — name, slug, image, variants with prices
 });
 

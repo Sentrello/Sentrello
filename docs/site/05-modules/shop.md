@@ -81,7 +81,7 @@ is one customer with two orders.
 
 ## Payment
 
-Connect a card processor in **Settings → Payments**: authorise, test in
+Connect a card processor in **Settings → Connections**: authorise, test in
 sandbox, then go live. The same connection serves invoicing, so you set it up
 once for the whole business.
 

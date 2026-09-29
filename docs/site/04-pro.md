@@ -15,8 +15,10 @@ second installation, nothing to migrate.
 
 ## Invoicing
 
-- **Recurring invoices** on a schedule you set (weekly, monthly, quarterly).
-  They issue themselves, and email themselves too if you want that.
+- **Recurring invoices** on a schedule you set — weekly, monthly, quarterly or
+  yearly, and every *n* of those, so a bill every second week or every third
+  month is a schedule rather than a workaround. They issue themselves, and email
+  themselves too if you want that.
 - **Unbranded reminders.** Chasing an overdue invoice automatically is free.
   What Pro takes away is the Sentrello credit at the foot, so what lands in
   your customer's inbox is entirely yours.
