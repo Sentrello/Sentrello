@@ -1172,13 +1172,16 @@ const tables = {
      * a note it wrote in March.
      */
     async blocksDelete(orgId: string, id: string) {
-      const mine = <T extends { organizationId: unknown; contactId: unknown }>(
-        table: T,
-      ) =>
-        and(
-          eq(table.organizationId as never, orgId),
-          eq(table.contactId as never, id),
-        );
+      /** This organization's rows of one table, pointing at this contact. */
+      const mine = (
+        table:
+          | typeof schema.invoices
+          | typeof schema.quotes
+          | typeof schema.recurringProfiles
+          | typeof schema.transactions
+          | typeof schema.payees
+          | typeof schema.contractorTaxDetails,
+      ) => and(eq(table.organizationId, orgId), eq(table.contactId, id));
 
       const [invoices, quotes, recurring, entries, payees, taxDetails] =
         await Promise.all([
