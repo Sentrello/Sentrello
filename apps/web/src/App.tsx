@@ -412,6 +412,57 @@ function CurrentScreen({
  * On a customer's own server this means somebody whose membership was removed,
  * which is worth saying plainly rather than showing them a blank page.
  */
+/**
+ * The instance could not say what it is running.
+ *
+ * `/api/_meta` is the one call the shell cannot draw without: it carries the
+ * nav, the tier, the modules that loaded and the ones that did not. When it
+ * fails there is no landing page to choose, and this returned `null` — a white
+ * page, in a browser tab, with no way for the person looking at it to tell
+ * "loading" from "broken" from "my wifi".
+ *
+ * Reachable in ordinary use, not only in theory: an instance whose database is
+ * behind its code answers 500 here and boots perfectly otherwise, `/healthz`
+ * says `ok` because the table it checks is still there, and the customer gets a
+ * blank screen. Reproduced on 2026-09-29 against a database three releases old.
+ *
+ * So it says what happened, and the two things worth doing about it. Deliberately
+ * naming the command: this is self-hosted software and the person reading it
+ * owns the machine — telling them to contact support would be telling them to
+ * contact themselves.
+ */
+function CannotStart({ error }: { error: unknown }) {
+  const said = error instanceof Error ? error.message : "";
+  return (
+    <div className="mx-auto max-w-md p-8 text-center">
+      <p className="font-medium">
+        This instance could not say what it is running
+      </p>
+      <p className="mt-2 text-sm" style={{ color: "var(--text-muted)" }}>
+        The application is answering, so this is not your connection. It is the
+        server behind it — most often a database that has not finished migrating
+        after an update.
+      </p>
+      {said ? (
+        <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
+          {said}
+        </p>
+      ) : null}
+      <p className="mt-4 text-sm" style={{ color: "var(--text-muted)" }}>
+        Run <code>sentrello logs app</code> on the server, which says why in its
+        own words, and <code>sentrello status</code> for what it thinks it is.
+      </p>
+      <button
+        type="button"
+        className="mt-4 text-sm link"
+        onClick={() => window.location.reload()}
+      >
+        Try again
+      </button>
+    </div>
+  );
+}
+
 function NoAccess() {
   return (
     <div className="mx-auto max-w-md p-8 text-center">
@@ -580,7 +631,12 @@ export default function App() {
     (chosen ? nav.find((n) => n.id === chosen) : undefined) ??
     nav.find((n) => n.id !== "settings") ??
     nav[0];
-  if (!landing) return null;
+  /*
+   * Nothing to land on means the shell was never told what this instance has —
+   * see `CannotStart`. Returning null here was a white page for a fault the
+   * server could describe perfectly well.
+   */
+  if (!landing) return <CannotStart error={meta.error} />;
 
   return (
     <NavigationProvider
