@@ -9,6 +9,7 @@ import {
   managedExternally,
   readStatus,
   rollbackTarget,
+  sameRelease,
 } from "./updates";
 
 /**
@@ -215,4 +216,48 @@ test("an instance with nowhere to ask says so rather than failing", async () => 
   } finally {
     process.env.SENTRELLO_LICENSE_SERVER_URL = saved;
   }
+});
+
+/**
+ * One release, two spellings, both of them in the field.
+ *
+ * `SENTRELLO_VERSION` is set per host, and on 29 September 2026 two hosts on
+ * the same tag were seen answering `v0.53.0` and `0.53.0` — the same release,
+ * spelled by whoever wrote the environment file. Two checks compared these
+ * with `===` and got it wrong in both directions: a rollback offered to the
+ * version already running, and a finished-update banner that never cleared.
+ */
+test("v0.53.0 and 0.53.0 are one release", () => {
+  expect(sameRelease("v0.53.0", "0.53.0")).toBe(true);
+  expect(sameRelease("0.53.0", "v0.53.0")).toBe(true);
+  expect(sameRelease("v0.53.0+e4e88f1", "0.53.0")).toBe(true);
+  expect(sameRelease("0.53.0", "0.53.1")).toBe(false);
+  // A shorter version is not the same release as a longer one: 0.53 is not a
+  // thing this product tags, and guessing the missing part is how a rollback
+  // gets offered to the wrong place.
+  expect(sameRelease("0.53", "0.53.0")).toBe(false);
+  // "unknown" is what a checkout reports, and it matches only itself.
+  expect(sameRelease("unknown", "0.53.0")).toBe(false);
+  expect(sameRelease("unknown", "unknown")).toBe(true);
+});
+
+test("the spelling does not resurrect a finished update", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "sentrello-updates-"));
+  process.env.SENTRELLO_DATA_DIR = dir;
+  process.env.SENTRELLO_VERSION = "v0.53.0";
+
+  await writeFile(
+    join(dir, "update-status.json"),
+    JSON.stringify({ state: "done", version: "0.53.0", message: "Updated." }),
+  );
+  expect((await readStatus()).state).toBe("idle");
+});
+
+test("nor does it offer a rollback to the version already running", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "sentrello-updates-"));
+  process.env.SENTRELLO_DATA_DIR = dir;
+  process.env.SENTRELLO_VERSION = "v0.53.0";
+
+  await writeFile(join(dir, "rollback-target"), "0.53.0\n");
+  expect(await rollbackTarget()).toBeNull();
 });

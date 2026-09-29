@@ -157,6 +157,28 @@ export function isNewer(candidate: string, current: string): boolean {
 }
 
 /**
+ * Whether two version strings name the same release.
+ *
+ * `v0.53.0` and `0.53.0` are one release spelled two ways, and both spellings
+ * are in the field right now: `SENTRELLO_VERSION` is set per host, and two
+ * hosts on the same tag were seen answering the two forms on the same day. Two
+ * checks below compared them with `===` and got it wrong in both directions —
+ * a rollback offered to the version already running, and a finished-update
+ * banner that never cleared, which is the exact failure its own comment
+ * describes preventing.
+ *
+ * `isNewer` was already careful about this. These two were not, and the
+ * normaliser they needed was twenty lines away.
+ */
+export function sameRelease(a: string, b: string): boolean {
+  if (a.trim() === b.trim()) return true;
+  const x = release(a);
+  const y = release(b);
+  if (!x || !y || x.length !== y.length) return false;
+  return x.every((n, i) => n === y[i]);
+}
+
+/**
  * The numbers of a plain release, or nothing if it is not one.
  *
  * Two things are stripped first, because neither says anything about which
@@ -203,8 +225,9 @@ export async function rollbackTarget(): Promise<string | null> {
     const version = (
       await readFile(`${dataDir()}/rollback-target`, "utf8")
     ).trim();
-    // Never offer to "go back" to what is already running.
-    if (!version || version === currentVersion()) return null;
+    // Never offer to "go back" to what is already running, however either
+    // side happens to spell it.
+    if (!version || sameRelease(version, currentVersion())) return null;
 
     // A Free instance follows the `latest` tag, so after a rollback the
     // recorded target is the word "latest" rather than a number. The agent
@@ -250,7 +273,11 @@ export async function readStatus(): Promise<UpdateStatus> {
     // is the one it just replaced. So a finished update stays on the screen
     // forever unless the version it reports is checked against the version now
     // running — once they agree, the news is that there is no news.
-    if (status.state === "done" && status.version === currentVersion()) {
+    if (
+      status.state === "done" &&
+      status.version &&
+      sameRelease(status.version, currentVersion())
+    ) {
       return { state: "idle" };
     }
     return status;
