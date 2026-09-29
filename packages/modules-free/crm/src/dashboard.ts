@@ -269,8 +269,17 @@ export function registerCrmDashboard(ctx: ModuleContext) {
       const closingSoon = openDeals
         .filter((deal) => {
           if (!deal.expectedCloseOn) return false;
-          const due = new Date(deal.expectedCloseOn);
-          return due >= now && due <= horizon;
+          /*
+           * Days, inclusive of today.
+           *
+           * `due >= now` excludes a deal expected to close *today*, because the
+           * date is midnight and the morning has already gone — and the overdue
+           * filter below excludes it too, correctly. So the deals closing today,
+           * the ones somebody would ring about this afternoon, appeared in
+           * neither list on the panel built to show exactly that.
+           */
+          const due = dayOf(new Date(deal.expectedCloseOn)).getTime();
+          return due >= today.getTime() && due <= dayOf(horizon).getTime();
         })
         .sort(
           (a, b) =>

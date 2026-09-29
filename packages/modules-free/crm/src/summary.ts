@@ -1,5 +1,7 @@
 import { db, eq, notInArray, schema, sql } from "@sentrello/db";
 import { decidedStages } from "@sentrello/db/crm";
+import { dayIn } from "@sentrello/db/day";
+import { timezoneFor } from "@sentrello/db/timezone";
 import type { ModuleContext, SummaryFigure } from "@sentrello/module-sdk";
 
 /**
@@ -38,6 +40,19 @@ export async function crmFigures(
    */
   const stillOpen = notInArray(schema.deals.stage, decided);
 
+  /*
+   * Today where the business is, as a date the column can be compared with.
+   *
+   * `current_date` is the *database's* today, which on our containers is UTC —
+   * so for a business in New York this figure counted a deal as having slipped
+   * from seven in the evening the day before, while the CRM dashboard beside it
+   * (which reads the timezone in Settings) said it had not. Two panels, one
+   * question, two answers for five hours a day.
+   */
+  const dayText = dayIn(new Date(), await timezoneFor(organizationId))
+    .toISOString()
+    .slice(0, 10);
+
   const [row] = await db
     .select({
       openCents: sql<number>`coalesce(sum(
@@ -57,7 +72,7 @@ export async function crmFigures(
         where ${stillOpen}
           and ${schema.deals.archivedAt} is null
           and ${schema.deals.expectedCloseOn} is not null
-          and ${schema.deals.expectedCloseOn} < current_date
+          and ${schema.deals.expectedCloseOn} < ${dayText}
       )::int`,
     })
     .from(schema.deals)

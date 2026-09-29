@@ -54,7 +54,19 @@ beforeAll(async () => {
   });
 });
 
+/**
+ * Second businesses this file plants, dropped whichever way a test ends.
+ *
+ * `dropOrganization` at the end of the test itself only runs when the
+ * assertions above it pass — so a failing assertion leaves an organization in
+ * the shared test database, and the next commit is refused by the leftovers
+ * check for a reason that has nothing to do with it. Seen exactly that way
+ * while deliberately breaking this file's own subject to prove a guard bites.
+ */
+const strangers: string[] = [];
+
 afterAll(async () => {
+  if (strangers.length > 0) await dropOrganization(...strangers);
   for (const table of [
     schema.activities,
     schema.tasks,
@@ -284,6 +296,45 @@ test("an overdue deal is counted separately, never in the forecast", async () =>
   expect(body.upcoming.overdue.totalCents).toBe(700_000);
 });
 
+/**
+ * A deal closing today, and a task due today. Neither is late, and neither
+ * vanishes.
+ *
+ * The forecast asked `expectedCloseOn >= now` — and the date is midnight, so by
+ * nine in the morning today's deals had dropped out of the forecast; the overdue
+ * filter did not want them either, because a deal closing today is not late. So
+ * the deals somebody would ring about this afternoon appeared on neither half of
+ * the panel built to show exactly them. A task due today went the other way: the
+ * API called it late from lunchtime while the row rendering it, which counts
+ * calendar days, said it was not.
+ */
+test("today's deal is in the forecast and today's task is not late", async () => {
+  const todayOnly = new Date().toISOString().slice(0, 10);
+  await db.insert(schema.deals).values({
+    organizationId: orgId,
+    name: "Closing today",
+    amountCents: 111_000,
+    expectedCloseOn: todayOnly,
+  });
+  await db.insert(schema.tasks).values({
+    organizationId: orgId,
+    title: "Due today",
+    // Midday, which is how a day somebody picked is stored.
+    dueAt: new Date(`${todayOnly}T12:00:00Z`),
+  });
+
+  const body = await dashboard();
+  expect(body.upcoming.totalCents).toBe(361_000);
+  expect(body.upcoming.overdue.count).toBe(1);
+  expect(body.tasks.find((t) => t.title === "Due today")?.overdue).toBe(false);
+
+  // Taken back out: the tests after this one count what the ones before it
+  // planted, and a file of tests in order is a file where a stray row is
+  // somebody else's failing assertion.
+  await db.delete(schema.deals).where(eq(schema.deals.name, "Closing today"));
+  await db.delete(schema.tasks).where(eq(schema.tasks.title, "Due today"));
+});
+
 test("tasks come back soonest first, and say which are late", async () => {
   await db.insert(schema.tasks).values([
     { organizationId: orgId, title: "Ring back Tuesday", dueAt: days(2) },
@@ -309,6 +360,7 @@ test("another organization's CRM never appears on this one's dashboard", async (
   const theirs = await makeOrganization(
     `other-${crypto.randomUUID().slice(0, 8)}`,
   );
+  strangers.push(theirs);
   const [contact] = await db
     .insert(schema.contacts)
     .values({ organizationId: theirs, name: "Their Secret Contact" })
@@ -332,8 +384,6 @@ test("another organization's CRM never appears on this one's dashboard", async (
   const text = await res.text();
   expect(text).not.toContain("Their Secret");
   expect(JSON.parse(text).upcoming.totalCents).toBe(250_000);
-
-  await dropOrganization(theirs);
 });
 
 /**

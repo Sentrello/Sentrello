@@ -171,7 +171,11 @@ export default defineModule({
          * happens where the rows already are.
          */
         const owing = owingInvoices(orgId);
-        const overdue = isOverdueSql(owing, now, await timezoneFor(orgId));
+        // The business's own day. Late is a question about days, here and in
+        // every other place the word appears.
+        const zone = await timezoneFor(orgId);
+        const today = dayIn(now, zone);
+        const overdue = isOverdueSql(owing, now, zone);
 
         const [
           [money],
@@ -278,7 +282,17 @@ export default defineModule({
               and(
                 eq(schema.tasks.organizationId, orgId),
                 eq(schema.tasks.done, false),
-                lt(schema.tasks.dueAt, now),
+                /*
+                 * Past its day, not past the moment.
+                 *
+                 * A task due date is a day somebody picked, stored at midday, so
+                 * `dueAt < now` made every task due today late from lunchtime —
+                 * and the row this panel draws says the opposite, because
+                 * `apps/web/src/lib/tasks.tsx` counts calendar days: nobody
+                 * thinks their two o'clock is overdue at one. One screen, two
+                 * answers about the same task.
+                 */
+                lt(schema.tasks.dueAt, today),
               ),
             )
             .orderBy(asc(schema.tasks.dueAt))
