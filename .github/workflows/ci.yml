@@ -11,9 +11,20 @@ name: ci
 on:
   push:
     branches: [main]
-    paths-ignore: ["**/*.md", "docs/**", "LICENSE"]
+    # No markdown or docs filter, deliberately.
+    #
+    # It read `paths-ignore: ["**/*.md", "docs/**", "LICENSE"]` until
+    # 2026-09-29, which skipped CI for exactly the commits that can break the
+    # tests reading those files — and there are several: the guard on what may
+    # sit in `docs/`, the one that reads command lines out of the runbook, the
+    # published-claims and diagram checks. A docs-only commit is the shape of
+    # "somebody writes `docs/booking.md` on a Friday without thinking about
+    # it", which is the sentence the first of those tests was written against.
+    # The local pre-commit gate caught them; a push from anywhere else would
+    # not have.
+    paths-ignore: ["LICENSE"]
   pull_request:
-    paths-ignore: ["**/*.md", "docs/**", "LICENSE"]
+    paths-ignore: ["LICENSE"]
   # For asking the question on purpose.
   workflow_dispatch:
 # One run per branch. A second push supersedes the first rather than
