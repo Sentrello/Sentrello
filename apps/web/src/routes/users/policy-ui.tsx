@@ -53,8 +53,30 @@ export const HIDDEN = new Set([
   "team",
 ]);
 
+/**
+ * Named in the statement, guarded by nothing — the modules that are not built.
+ *
+ * The statement is compiled into the browser as well as the server and keeps
+ * these names on purpose: a policy written before a module was withdrawn may
+ * still grant them, and a statement that dropped a name would refuse the whole
+ * policy. Keeping them costs nothing *there*. Showing them costs something
+ * here: an administrator was offered "HR: approve", "Inventory: delete" and
+ * "Time: approve" on the access screen, ticked one, and nothing anywhere in the
+ * product asks for it. A switch that does nothing is worse than a missing one —
+ * it reads as a feature, and the person who granted it believes somebody can
+ * now do something.
+ *
+ * Found on 2026-09-29 by asking, of every permission a route requires, whether
+ * it can be granted — and then the same question backwards.
+ *
+ * **Take a name out of here the day its module ships.** `hr-permissions` in the
+ * Modules repository and its Pro twin fail if a route in either guards a
+ * resource still listed here, so that day is not one anybody has to remember.
+ */
+export const NOT_BUILT = new Set(["hr", "inventory", "time"]);
+
 export const RESOURCES = Object.entries(statement)
-  .filter(([name]) => !HIDDEN.has(name))
+  .filter(([name]) => !HIDDEN.has(name) && !NOT_BUILT.has(name))
   .map(([name, actions]) => ({
     name,
     actions: [...(actions as readonly string[])],
