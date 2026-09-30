@@ -107,6 +107,9 @@ export async function refreshLicenseToken(
     const res = await fetch(`${serverUrl}/api/license/token`, {
       method: "POST",
       headers: { "content-type": "application/json" },
+      // Two fields, and the published privacy policy says so in as many
+      // words. A build check on the marketing site reads this object and
+      // refuses to publish that page if a third ever appears here.
       body: JSON.stringify({
         license_key: licenseKey,
         instance_id: instanceId,

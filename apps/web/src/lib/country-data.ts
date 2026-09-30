@@ -107,8 +107,12 @@ export const countriesByName = (codes: string[]): string[] =>
 export function postcodeLabel(country: string): string {
   const code = (country ?? "").trim().toUpperCase();
   if (code === "US") return "ZIP code";
-  if (code === "CA") return "Postal code";
-  return "Postcode";
+  if (code === "GB") return "Postcode";
+  // Canada, the EU, and a country nobody has chosen yet. "Postcode" was the
+  // fallback, which put the British word in front of a business in Munich and
+  // in front of every business that had not filled the country in — including,
+  // most of the time, an American one part-way through the form.
+  return "Postal code";
 }
 
 /**

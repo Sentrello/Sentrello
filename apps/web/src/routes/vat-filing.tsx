@@ -346,7 +346,7 @@ export function VatFiling() {
           <p className="text-sm" style={muted}>
             {status.data.connected
               ? `Connected for VAT number ${status.data.vrn}.`
-              : "Authorise this instance to file on your behalf. You will sign in at HMRC and copy a code back here — the code and the connection stay on this server."}
+              : "Authorize this instance to file on your behalf. You will sign in at HMRC and copy a code back here — the code and the connection stay on this server."}
           </p>
         </div>
 

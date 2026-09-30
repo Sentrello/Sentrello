@@ -106,9 +106,11 @@ test("the address lines are called what that country calls them", () => {
   expect(postcodeLabel("US")).toBe("ZIP code");
   expect(postcodeLabel("CA")).toBe("Postal code");
   expect(postcodeLabel("GB")).toBe("Postcode");
-  expect(postcodeLabel("DE")).toBe("Postcode");
+  // Not "Postcode": that is the British word, and it was the fallback for the
+  // whole EU and for a country nobody had chosen yet.
+  expect(postcodeLabel("DE")).toBe("Postal code");
   // Nothing chosen yet keeps a word that is wrong nowhere.
-  expect(postcodeLabel("")).toBe("Postcode");
+  expect(postcodeLabel("")).toBe("Postal code");
 
   expect(regionLabel("US")).toBe("State");
   expect(regionLabel("CA")).toBe("Province");

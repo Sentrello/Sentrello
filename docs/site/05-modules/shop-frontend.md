@@ -13,7 +13,7 @@ SvelteKit, WordPress, or a hand-written HTML file.
 
 One script tag, and four HTML tags you can put anywhere.
 
-![A shop on somebody else's website: basket in the header, a featured product, a product grid](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/shop-headless.png)
+![A shop on somebody else's website: cart in the header, a featured product, a product grid](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/shop-headless.png)
 
 *That page is a plain HTML file on a different domain from the instance.*
 
@@ -22,7 +22,7 @@ One script tag, and four HTML tags you can put anywhere.
 **1. Add your website's domain to the shop.** Shop → Settings → the list of
 sites allowed to use this shop. Until a domain is listed there, the browser
 refuses every request from it. Which is the point: your products, your prices
-and your customers' baskets are readable only by sites you have named.
+and your customers' carts are readable only by sites you have named.
 
 Cover subdomains in one go with `*.example.com`. Your instance's own address is
 always allowed, so the built-in storefront needs nothing.
@@ -38,23 +38,23 @@ so there is nothing to configure on the page.
 
 ## The four tags
 
-### A basket in the header
+### A cart in the header
 
 ```html
-<sentrello-shop-cart-button label="Basket"></sentrello-shop-cart-button>
+<sentrello-shop-cart-button label="Cart"></sentrello-shop-cart-button>
 ```
 
 Shows the count, and tells your page it was pressed. Put it in your header
 partial and leave it in every layout; it defines itself once however many times
 the script is included.
 
-It deliberately opens nothing itself — where a basket appears is your site's
+It deliberately opens nothing itself — where a cart appears is your site's
 decision, and a panel fighting your own header would be worse than none. Listen
 for the event and do whatever suits the design:
 
 ```js
 document.addEventListener('sentrello-shop:open-cart', (e) => {
-  // e.detail is the basket: lines, quantities and totals.
+  // e.detail is the cart: lines, quantities and totals.
   document.querySelector('#my-drawer').showModal();
 });
 ```
@@ -83,7 +83,7 @@ document.addEventListener('sentrello-shop:open-cart', (e) => {
 The featured-product block. Drop it into a sidebar, or into the blog post about
 the thing it sells.
 
-### The basket itself
+### The cart itself
 
 ```html
 <sentrello-shop-cart></sentrello-shop-cart>
@@ -99,11 +99,11 @@ it from there:
 
 ```js
 document.addEventListener('sentrello-shop:checkout', (e) => {
-  // e.detail is the basket, with its token. Send them wherever you take money.
+  // e.detail is the cart, with its token. Send them wherever you take money.
 });
 ```
 
-The button used to link to the hosted basket page either way, which meant the
+The button used to link to the hosted cart page either way, which meant the
 combination this page recommends sent somebody to a 404 on the one button that
 matters. Fixed on 28 September 2026.
 
@@ -171,12 +171,12 @@ SentrelloShop.cart.load();
 SentrelloShop.money(320); // "$3.20"
 ```
 
-The basket announces itself whenever it changes, so a header you wrote yourself
+The cart announces itself whenever it changes, so a header you wrote yourself
 can follow along:
 
 ```js
 window.addEventListener("sentrello-shop:cart", (e) => {
-  render(e.detail); // the basket, or null when it has gone
+  render(e.detail); // the cart, or null when it has gone
 });
 ```
 
@@ -189,7 +189,7 @@ Everything the tags do is a public, read-only API you can call from a server:
 | `GET /api/shop/storefront/shop` | The shop's name, currency and settings |
 | `GET /api/shop/storefront/products` | Published products, with prices |
 | `GET /api/shop/storefront/products/:slug` | One product |
-| `POST /api/shop/storefront/checkout` | Start or change a basket |
+| `POST /api/shop/storefront/checkout` | Start or change a cart |
 
 **Prices and availability, never counts.** The API says whether something can
 be bought, not how many are left. A number in stock on a public page tells a

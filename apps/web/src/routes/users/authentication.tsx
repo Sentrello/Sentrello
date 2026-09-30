@@ -144,11 +144,11 @@ function GoogleSignIn() {
         Optional. With it on, people can use the Google account they already
         have instead of another password. Create an OAuth client in the Google
         Cloud console, paste its two values here, and give it the address below
-        as an authorised redirect URI — Google refuses anything it was not told
+        as an authorized redirect URI — Google refuses anything it was not told
         about in advance.
       </p>
 
-      <Field label="Authorised redirect URI">
+      <Field label="Authorized redirect URI">
         <Input readOnly value={data.redirectUri} />
       </Field>
 
