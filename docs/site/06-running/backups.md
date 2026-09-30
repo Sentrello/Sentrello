@@ -55,6 +55,11 @@ The installer sets up a nightly backup and turns it on: a systemd timer,
 at a randomised time and keeps the last fourteen. You do not have to arrange
 that part, and the installer says so as it finishes.
 
+**It also takes the first one there and then**, so you can see where they land
+and so a timer that cannot run says so while you are still watching. If that
+first run fails, the installer prints why in red — the nightly one would have
+failed the same way, quietly.
+
 ```bash
 systemctl status sentrello-backup.timer
 systemctl list-timers sentrello-backup.timer

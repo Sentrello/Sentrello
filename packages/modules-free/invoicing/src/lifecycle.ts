@@ -79,7 +79,11 @@ async function invoiceIn(orgId: string, id: string) {
  */
 export function requestedIssueDate(
   value: unknown,
-  today: Date = dayIn(new Date(), null),
+  // `Date.now()`, so a test can say what day it is. `new Date()` cannot be
+  // faked from outside, which is how three tests in `issue-date.test.ts` came
+  // to be asserting against the real calendar — they passed all day and failed
+  // at midnight UTC, on the day the clock rolled past the date they name.
+  today: Date = dayIn(new Date(Date.now()), null),
 ): Date | Error {
   if (value === undefined || value === null || value === "") return today;
   if (typeof value !== "string") {
