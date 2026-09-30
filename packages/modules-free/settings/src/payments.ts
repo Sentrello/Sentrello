@@ -4,7 +4,9 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { and, asc, db, eq, schema } from "@sentrello/db";
+import { dayIn, dayLabel } from "@sentrello/db/day";
 import type { PaymentAccount } from "@sentrello/db/payments";
+import { timezoneFor } from "@sentrello/db/timezone";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import {
   type Credentials,
@@ -367,6 +369,9 @@ export function registerPaymentAccounts(ctx: ModuleContext) {
     requirePermission({ settings: ["update"] }),
     async (c: RouteContext) => {
       const orgId = activeOrganizationId(c.get("session"));
+      // The business's day, not the host's: a date printed from the server's
+      // clock is the wrong day for most of the night in every market we sell to.
+      const zone = await timezoneFor(orgId);
       const provider = c.req.param("provider") ?? "";
       const mode = c.req.param("mode") ?? "";
       const account = await accountFor(orgId, provider, mode);
@@ -475,10 +480,10 @@ export function registerPaymentAccounts(ctx: ModuleContext) {
           step: "checked the events that arrived",
           ok: false,
           detail: `${account.webhookRejectedCount} event(s) were refused as unsigned or wrongly signed${
-            when ? `, the last ${when.toDateString()}` : ""
+            when ? `, the last ${dayLabel(dayIn(when, zone))}` : ""
           }${
             lastGood
-              ? `, and none has been accepted since ${lastGood.toDateString()}`
+              ? `, and none has been accepted since ${dayLabel(dayIn(lastGood, zone))}`
               : " and none has ever been accepted"
           } — the stored signing secret does not belong to the endpoint sending them. Clear it and connect again.`,
         });

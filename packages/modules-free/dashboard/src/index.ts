@@ -6,7 +6,7 @@ import {
 } from "@sentrello/auth/hono";
 import { db, schema } from "@sentrello/db";
 import { decidedStages } from "@sentrello/db/crm";
-import { dayIn } from "@sentrello/db/day";
+import { dayIn, dayLabel, dayOf } from "@sentrello/db/day";
 import { isOverdueSql, owingInvoices } from "@sentrello/db/documents";
 import { countExpression } from "@sentrello/db/list-query";
 import { centsFromDriver, sumCents } from "@sentrello/db/money";
@@ -321,8 +321,16 @@ export default defineModule({
             id: i.id,
             kind: "invoice" as const,
             summary: `Invoice ${i.number} is overdue`,
+            /*
+             * `dayLabel(dayOf(...))`, not `toDateString()`. A due date is
+             * midnight UTC on the day somebody typed, and `toDateString()`
+             * renders in the *server's* zone — so a Denver business read "Due
+             * Mon Oct 13" beside an invoice due on the 14th, on the screen they
+             * open to find out who owes them money. The comparison rule has
+             * been right for months; this was the formatting half of it.
+             */
             detail: i.dueDate
-              ? `Due ${new Date(i.dueDate).toDateString()}`
+              ? `Due ${dayLabel(dayOf(new Date(i.dueDate)))}`
               : "",
             // The balance, not the total: chasing somebody for money they
             // have already sent is worse than not chasing at all.
@@ -339,8 +347,10 @@ export default defineModule({
             id: t.id,
             kind: "task" as const,
             summary: t.title,
+            // A task's due_at is an instant, so the day it fell on is the
+            // business's day rather than the server's: `dayIn` then `dayLabel`.
             detail: t.dueAt
-              ? `Was due ${new Date(t.dueAt).toDateString()}`
+              ? `Was due ${dayLabel(dayIn(new Date(t.dueAt), zone))}`
               : "",
           })),
         ];

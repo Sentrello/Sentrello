@@ -76,3 +76,44 @@ export function daysLate(due: Date, now: Date, zone: string | null): number {
     (dayIn(now, zone).getTime() - dayOf(due).getTime()) / DAY_MS,
   );
 }
+
+/**
+ * A stored day, written out for somebody to read — from its UTC fields.
+ *
+ * `toDateString()` renders in the *runtime's* zone, so a due date stored as
+ * midnight UTC on 14 October printed "Tue Oct 13" on any host west of
+ * Greenwich. The dashboard's "Needs attention" list did exactly that: it named
+ * the day before the day the invoice was due, to a business in Denver, on the
+ * screen somebody opens to find out who owes them money. Comparison was fixed
+ * in this file months ago; formatting was the half nobody took away.
+ *
+ * Same shape as `toDateString()` — "Tue Oct 14 2026" — so it is a drop-in, and
+ * built from the UTC fields rather than asking `Intl` for a locale that
+ * punctuates it differently.
+ *
+ * For an **instant** rather than a day, compose: `dayLabel(dayIn(when, zone))`
+ * gives the day it fell on where the business is, which is never the server's
+ * idea of the day.
+ */
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+export function dayLabel(day: Date): string {
+  const weekday = WEEKDAYS[day.getUTCDay()];
+  const month = MONTHS[day.getUTCMonth()];
+  const date = String(day.getUTCDate()).padStart(2, "0");
+  return `${weekday} ${month} ${date} ${day.getUTCFullYear()}`;
+}

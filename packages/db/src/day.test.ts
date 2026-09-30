@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { dayIn, dayOf, daysLate } from "./day";
+import { dayIn, dayLabel, dayOf, daysLate } from "./day";
 
 /**
  * The day a business is having, and the day a due date names.
@@ -101,4 +101,42 @@ test("a timezone the runtime cannot resolve does not throw", () => {
   // guard existed would reach here — and a report that throws is worse than a
   // report kept in UTC.
   expect(() => dayIn(new Date(), "Mars/Olympus_Mons")).not.toThrow();
+});
+
+/*
+ * The formatting half, which nobody had taken away.
+ *
+ * Comparison was fixed in this file months ago. Rendering was not: the
+ * dashboard's "Needs attention" list built its detail line with
+ * `toDateString()`, which reads the runtime's zone, so an invoice due on 14
+ * October printed "Mon Oct 13" to every business west of Greenwich — the
+ * United States, which is the first market. Same invariant, different half.
+ */
+test("a stored day reads as that day, whatever the host's clock says", () => {
+  const due = new Date("2026-10-14T00:00:00Z");
+  expect(dayLabel(dayOf(due))).toBe("Wed Oct 14 2026");
+
+  // What the old code did, stated so the difference is visible rather than
+  // asserted in the abstract: in Denver this is the 13th.
+  const inDenver = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Denver",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(due);
+  expect(inDenver).toBe("2026-10-13");
+  expect(dayLabel(dayOf(due))).not.toContain("13");
+});
+
+test("an instant reads as the day the business was having, not the server", () => {
+  // Nine in the evening in Denver on 14 October is already the 15th in UTC.
+  const when = new Date("2026-10-15T03:00:00Z");
+  expect(dayLabel(dayIn(when, "America/Denver"))).toBe("Wed Oct 14 2026");
+  expect(dayLabel(dayIn(when, "Europe/London"))).toBe("Thu Oct 15 2026");
+  // No zone on the organization means UTC, never wherever the machine is.
+  expect(dayLabel(dayIn(when, null))).toBe("Thu Oct 15 2026");
+});
+
+test("the label pads the day, the way toDateString always did", () => {
+  expect(dayLabel(new Date("2026-10-04T00:00:00Z"))).toBe("Sun Oct 04 2026");
 });
