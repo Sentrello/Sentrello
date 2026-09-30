@@ -155,7 +155,7 @@ sold against the free core.
 | **[Links](https://docs.sentrello.com/docs/modules/links)** | Short links on your own domain, and the click → signup → sale chain | Available |
 | **[Newsletter](https://docs.sentrello.com/docs/modules/newsletter)** | Lists, segments, templates, campaigns and delivery | Available |
 | **[Documentation](https://docs.sentrello.com/docs/modules/docs)** | Publishes your own documentation site | Available |
-| **[Storage](https://docs.sentrello.com/docs/modules/documents)** | Folders, versions, sharing and retention, with warnings before a certificate lapses | Available |
+| **[Storage](https://docs.sentrello.com/docs/modules/storage)** | Folders, versions, sharing and retention, with warnings before a certificate lapses | Available |
 | **[SEO](https://docs.sentrello.com/docs/modules/seo)** | Keyword research, rank tracking, audits, backlinks, competitors — see below | Available |
 | **POS** | Ring up a sale in person, take the money, and the books are written without anybody typing it again. Needs the Shop | **In development — not for sale** |
 | **HR** | Records for the people who work for you, and the time off they take | **Being built** |

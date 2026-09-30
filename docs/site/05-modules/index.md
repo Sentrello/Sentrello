@@ -14,7 +14,7 @@ run.
 | Module | What it does |
 |---|---|
 | [Booking](/modules/booking) | A booking page customers use themselves, and a diary that stays honest |
-| [Storage](/modules/documents) | The business's files, and warnings before one expires |
+| [Storage](/modules/storage) | The business's files, and warnings before one expires |
 | [Shop](/modules/shop) | Sell online, with orders and money landing in the same books |
 | [POS](/modules/pos) | Sell face to face, on the same products, prices and books — **in development, not for sale** |
 | [Subscriptions](/modules/subscriptions) | Sell the same thing every month, and let a customer manage their own |

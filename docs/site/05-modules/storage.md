@@ -2,7 +2,7 @@
 title: Storage
 sidebar_position: 2
 description: Where the business keeps its files, and what stops one expiring unnoticed.
-tags: [module, storage, documents]
+tags: [module, storage, files]
 ---
 
 # Storage
