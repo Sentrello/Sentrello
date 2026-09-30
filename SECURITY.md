@@ -8,9 +8,17 @@ their weekend. Reports are read by a person, quickly, and taken seriously.
 
 **Please don't open a public issue.**
 
-Email **security@sentrello.com** with what you found and how to reproduce it. A
-proof of concept, a curl command, or a failing test all help; so does telling us
-what you think the impact is, even roughly.
+Two private routes, and either is fine:
+
+- **[Report it through GitHub](https://github.com/Sentrello/Sentrello/security/advisories/new).**
+  Private vulnerability reporting is enabled on this repository, so the thread
+  stays between you and us until there is a fix, and the advisory and the CVE
+  come out of the same place.
+- **Email security@sentrello.com**, if you would rather not use GitHub.
+
+Either way: what you found and how to reproduce it. A proof of concept, a curl
+command, or a failing test all help; so does telling us what you think the
+impact is, even roughly.
 
 You can expect:
 
