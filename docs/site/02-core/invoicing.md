@@ -251,7 +251,9 @@ ships no keys.
 Connect one under **Invoice settings → Sending over Peppol**:
 
 1. Open an account with an access point. Storecove is supported today, and
-   the interface behind this is deliberately replaceable.
+   the interface behind this is deliberately replaceable. Ask them for a
+   sandbox key while you are setting the account up — a test account is
+   issued to the business holding the contract, which is you.
 2. Paste the API key and the legal entity id from their dashboard. The key is
    encrypted before it is stored, and is never shown again — only its last
    few characters, so you can tell which key it is.
@@ -276,9 +278,14 @@ explicit Peppol identifier is set.
 :::warning[Walk it with a sandbox key before you rely on it]
 Every part of this is built and tested, and the connection has been proved
 against a real access point — an invalid key comes back refused, from their
-servers, not ours. **What we have not yet done is watch an invoice travel the
-live network**, because the sandbox account we asked for has not been granted
-yet.
+servers, not ours. **What nobody has done yet is watch an invoice travel the
+live network.**
+
+That gap will not close here, and the reason is the same one that makes the
+account yours. A sandbox is issued by an access point to the business holding
+the contract with them; Sentrello holds no such contract and does not intend
+to, so we asked for one and were told exactly that. It is yours to request,
+and providers set them up routinely.
 
 So if a mandate is the reason you are here, do step 3 properly: connect with a
 sandbox key, send one, and read what comes back, before the first real invoice
