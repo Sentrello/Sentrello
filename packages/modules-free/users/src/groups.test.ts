@@ -455,29 +455,15 @@ test("a device is described in words somebody can recognise", () => {
   expect(describeDevice(null)).toBe("an unknown device");
 });
 
-test("a person can end their own session but not somebody else's", async () => {
-  const mine = (await (
-    await app.request("http://localhost/api/users/me/sessions", { headers })
-  ).json()) as { sessions: { id: string; current: boolean }[] };
-
-  expect(mine.sessions.length).toBeGreaterThan(0);
-  expect(mine.sessions.some((s) => s.current)).toBe(true);
-
-  // Somebody else's session id, through the route that is meant to be their
-  // own: refused on the row rather than on the list it came from.
-  const [theirs] = await db
-    .select({ id: schema.session.id })
-    .from(schema.session)
-    .where(eq(schema.session.userId, staffId))
-    .limit(1);
-  if (theirs) {
-    const res = await app.request(
-      `http://localhost/api/users/me/sessions/${theirs.id}`,
-      { method: "DELETE", headers },
-    );
-    expect(res.status).toBe(404);
-  }
-});
+/*
+ * "A person can end their own session but not somebody else's" used to be
+ * asserted here, against `/api/users/me/sessions`. Those two routes were a
+ * duplicate of the profile module's, which is what the Profile screen calls
+ * and which refuses the session you are using rather than silently signing you
+ * out of it; the pair was removed on 2026-09-29. The refusal is asserted where
+ * the surviving routes live — `profile/src/index.test.ts`, "you cannot sign out
+ * the session you are using, or anyone else's".
+ */
 
 test("an administrator cannot read the devices of somebody in another business", async () => {
   const res = await app.request(

@@ -328,6 +328,37 @@ const ATTRIBUTED_COMPARISON_PATHS = new Set([
   "src/components/pricing/CutCosts.astro",
 ]);
 
+/**
+ * Paths that must never be committed at all, as opposed to paths whose
+ * *contents* are not worth scanning.
+ *
+ * `isExcludedPath` below skips line scanning for a handful of files, and its
+ * comment says that doing so "does not relax the separate rule that keeps those
+ * files out of a repository's tracked tree in the first place". There was no
+ * such rule. The only thing keeping them out of this repository was a local,
+ * unversioned `.git/info/exclude`, which a fresh clone does not have — so a
+ * `git add -A` after a re-clone would stage every one of them, and the guard
+ * whose entire job is this leak would skip them by name and report nothing.
+ *
+ * This repository has been recreated three times over this exact class of leak.
+ * So the rule the comment assumed now exists, and it is the strict version: a
+ * commit that *adds* one of these paths is refused. Editing an already-tracked
+ * copy is not refused — no repository has one today, and if one ever gains one
+ * deliberately, the leak is the commit that introduced it rather than every
+ * commit afterward.
+ */
+function isToolingPath(path: string): boolean {
+  const segments = path.split("/");
+  const base = (segments[segments.length - 1] ?? "").toLowerCase();
+  if (base === INSTRUCTIONS_FILE_NAME.toLowerCase()) return true;
+  // Other assistants' instruction files, spelled the same way round.
+  if (base === "agents.md" || base === "gemini.md") return true;
+  if (segments.includes(INSTRUCTIONS_DIR_NAME)) return true;
+  if (segments.includes(SKILL_OUTPUT_DIR_NAME)) return true;
+  if (segments.includes(SKILL_OUTPUT_DIR_NAME.replace(/^\./, ""))) return true;
+  return /(^|\/)docs\/plan\//.test(path);
+}
+
 export function isExcludedPath(path: string): boolean {
   if (SELF_PATHS.has(path)) return true;
   if (ATTRIBUTED_COMPARISON_PATHS.has(path)) return true;
@@ -348,15 +379,30 @@ export function scanAddedLines(diff: string): Violation[] {
   const violations: Violation[] = [];
   let currentFile = "";
   let skip = false;
+  let addingNewFile = false;
 
   for (const rawLine of diff.split("\n")) {
     if (rawLine.startsWith("diff --git")) {
       skip = false;
       continue;
     }
+    // `--- /dev/null` is git saying this file is new. Kept because the rule
+    // below is about *adding* a forbidden path, not about every later commit
+    // that touches one somebody added on purpose.
+    if (rawLine.startsWith("--- ")) {
+      addingNewFile = rawLine.slice(4).trim() === "/dev/null";
+      continue;
+    }
     if (rawLine.startsWith("+++ ")) {
       currentFile = rawLine.slice(4).replace(/^b\//, "").trim();
       skip = isExcludedPath(currentFile);
+      if (addingNewFile && isToolingPath(currentFile)) {
+        violations.push({
+          rule: "tooling path",
+          match: currentFile,
+          where: contextFor("tooling path", `${currentFile}: added`),
+        });
+      }
       continue;
     }
     if (!rawLine.startsWith("+") || rawLine.startsWith("+++")) continue;

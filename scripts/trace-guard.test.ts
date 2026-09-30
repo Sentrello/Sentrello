@@ -19,6 +19,20 @@ const INSTRUCTIONS_FILE = "CLA" + "UDE.md";
 const SKILL_OUTPUT_DIR = "." + "super" + "powers";
 const cap = (s: string) => s[0]?.toUpperCase() + s.slice(1);
 
+/** The same diff, but as git writes it when the file is new. */
+function newFile(file: string, ...lines: string[]): string {
+  return [
+    `diff --git a/${file} b/${file}`,
+    "new file mode 100644",
+    "index 0000000..1111111",
+    "--- /dev/null",
+    `+++ b/${file}`,
+    `@@ -0,0 +1,${lines.length} @@`,
+    ...lines.map((l) => `+${l}`),
+    "",
+  ].join("\n");
+}
+
 function added(file: string, ...lines: string[]): string {
   return [
     `diff --git a/${file} b/${file}`,
@@ -394,6 +408,84 @@ describe("path exclusions", () => {
       `const VENDOR = "${VENDOR}"; // vendor name, spelled out on purpose`,
     );
     expect(scanAddedLines(diff).length).toBeGreaterThan(0);
+  });
+});
+
+/*
+ * Adding one of these files at all is the leak.
+ *
+ * The exclusions above skip *line scanning* for the local instructions file,
+ * the skills directory and the unpublished plan documents — correctly, because
+ * flagging every line of a file that exists to contain those words is how a
+ * guard gets switched off. What the exclusion assumed, in as many words, was a
+ * "separate rule that keeps those files out of a repository's tracked tree in
+ * the first place". There was no such rule: only a local `.git/info/exclude`,
+ * which a fresh clone does not carry. So the guard skipped by name exactly the
+ * paths that must never appear, and this repository has been recreated three
+ * times over that.
+ *
+ * A new file at one of those paths is now refused. A later edit to one is not:
+ * no repository has a tracked copy today, and if one ever gains one on purpose,
+ * the commit that added it is the one to catch.
+ */
+describe("refuses a tooling path being added", () => {
+  test("the local instructions file", () => {
+    const diff = newFile(INSTRUCTIONS_FILE, "# instructions");
+    expect(scanAddedLines(diff).length).toBeGreaterThan(0);
+  });
+
+  test("a skills file beside it", () => {
+    const diff = newFile(`.${VENDOR}/skills/sentrello-module/SKILL.md`, "---");
+    expect(scanAddedLines(diff).length).toBeGreaterThan(0);
+  });
+
+  test("another assistant's instructions file", () => {
+    expect(
+      scanAddedLines(newFile("AGENTS.md", "# agents")).length,
+    ).toBeGreaterThan(0);
+    expect(
+      scanAddedLines(newFile("GEMINI.md", "# gemini")).length,
+    ).toBeGreaterThan(0);
+  });
+
+  test("the skill output directory, with or without its dot", () => {
+    const dotted = newFile(`${SKILL_OUTPUT_DIR}/plans/notes.md`, "a plan");
+    expect(scanAddedLines(dotted).length).toBeGreaterThan(0);
+    const bare = newFile(
+      `${SKILL_OUTPUT_DIR.replace(/^\./, "")}/plans/notes.md`,
+      "a plan",
+    );
+    expect(scanAddedLines(bare).length).toBeGreaterThan(0);
+  });
+
+  test("an unpublished plan document", () => {
+    const diff = newFile("docs/plan/00-START-HERE.md", "# start here");
+    expect(scanAddedLines(diff).length).toBeGreaterThan(0);
+  });
+
+  test("the path is what is reported, so the message says which file", () => {
+    const [violation] = scanAddedLines(newFile(INSTRUCTIONS_FILE, "# x"));
+    expect(violation?.rule).toBe("tooling path");
+    expect(violation?.where).toContain(INSTRUCTIONS_FILE);
+  });
+
+  // The other half, and the one that keeps this rule narrow: an ordinary new
+  // file is still an ordinary new file, and a lock file is not tooling.
+  test("an ordinary new file is not refused for its path", () => {
+    expect(
+      scanAddedLines(newFile("apps/server/src/health.ts", "export {};")),
+    ).toEqual([]);
+    expect(scanAddedLines(newFile("bun.lock", "lockfile"))).toEqual([]);
+    expect(scanAddedLines(newFile("docs/site/intro.md", "# intro"))).toEqual(
+      [],
+    );
+    expect(scanAddedLines(newFile("src/plan.tsx", "export {};"))).toEqual([]);
+  });
+
+  test("editing an already-tracked copy is not refused", () => {
+    expect(scanAddedLines(added(INSTRUCTIONS_FILE, "one more line"))).toEqual(
+      [],
+    );
   });
 });
 

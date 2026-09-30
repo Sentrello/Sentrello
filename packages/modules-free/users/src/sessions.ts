@@ -106,51 +106,25 @@ async function currentToken(session: {
   return row?.token ?? null;
 }
 
+/**
+ * Somebody's own devices live on the Profile screen, not here.
+ *
+ * This module had `GET /api/users/me/sessions` and
+ * `DELETE /api/users/me/sessions/:id` — a second implementation of exactly
+ * what `GET /api/profile` and `DELETE /api/profile/sessions/:id` already do,
+ * and the one the Profile screen calls. Neither of the pair had a caller in
+ * any screen in any repository; the reachability sweep passed them because
+ * `` `/api/users/${userId}/sessions` `` on the person page reduced to a
+ * wildcard that `me` fitted, so the administrator's route was standing in for
+ * the personal one. Removed 2026-09-29.
+ *
+ * The profile module's version is also the better of the two: it refuses to
+ * end the session you are signed in with and says to sign out instead, where
+ * this one would have signed you out of the device in your hand without a
+ * word. What is left below is the administrator's half, which is what this
+ * module is for.
+ */
 export function registerSessions(ctx: ModuleContext) {
-  /**
-   * My own devices.
-   *
-   * No permission beyond having a session: this is somebody's own account, and
-   * needing an administrator to end a session on a lost phone is how a
-   * business ends up with a phone signed in for a year.
-   */
-  ctx.app.get(
-    "/api/users/me/sessions",
-    requireSession(),
-    async (c: RouteContext) => {
-      const session = c.get("session");
-      return c.json({
-        sessions: await sessionsOf(
-          session.user.id,
-          await currentToken(session),
-        ),
-      });
-    },
-  );
-
-  ctx.app.delete(
-    "/api/users/me/sessions/:id",
-    requireSession(),
-    async (c: RouteContext) => {
-      const session = c.get("session");
-      const id = c.req.param("id") ?? "";
-
-      // Only ever their own: the id comes from a list this person was shown,
-      // but the check is against the row, not against the list.
-      const [gone] = await db
-        .delete(schema.session)
-        .where(
-          and(
-            eq(schema.session.id, id),
-            eq(schema.session.userId, session.user.id),
-          ),
-        )
-        .returning();
-      if (!gone) return c.json({ error: "not found" }, 404);
-      return c.json({ ok: true });
-    },
-  );
-
   /**
    * Every live session across the organization, for an administrator.
    *

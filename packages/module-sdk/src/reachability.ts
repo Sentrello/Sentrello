@@ -134,6 +134,59 @@ export function sameShape(route: string[], asked: string[]): boolean {
 }
 
 /**
+ * The positions where this route's own name is a name, and not a parameter.
+ *
+ * `sameShape` lets a wildcard stand for anything in either direction, and it
+ * has to: `/api/settings/tax` is how a screen reaches `/api/settings/:section`,
+ * and `` `/api/invoices/${id}/${action}` `` is how one screen legitimately
+ * reaches seven document actions. Read the other way round, though, it is not
+ * a comparison at all. Every project page asks for
+ * `` `/api/projects/${id}` ``, which reduces to `api/projects/*` — and that
+ * shape also fits `GET /api/projects/time`, a time-and-cost report no screen
+ * in any repository has ever called. The report counted as reached by a call
+ * that fetches a project. **A pass**, on a route that did not exist as a
+ * feature.
+ *
+ * What tells the two cases apart is the route set, not the ask. `:id` and
+ * `time` sit at the same position under `/api/projects` on the same verb, so a
+ * `${…}` written there is the parameter; the named route is a different thing
+ * and has to earn a caller that says its name. Where no sibling route takes a
+ * parameter at that position, every route in the family is named and a
+ * variable can only be standing for one of those names — which is `${action}`
+ * exactly, and those stay reached.
+ *
+ * Only here, and not inside `sameShape`. The other sweep asks the opposite
+ * question — has this request got a route — and there a wildcard covering a
+ * name is the honest answer; tightening both would turn every such request
+ * into an invented 404.
+ */
+function namedPositions(
+  shape: string[],
+  method: string,
+  siblings: { method: string; shape: string[] }[],
+): number[] {
+  const named: number[] = [];
+  for (let i = 0; i < shape.length; i++) {
+    if (shape[i] === "*") continue;
+    const shadowed = siblings.some(
+      (other) =>
+        other.method === method &&
+        other.shape.length === shape.length &&
+        other.shape[i] === "*" &&
+        other.shape.every(
+          (segment, j) =>
+            j === i ||
+            segment === "*" ||
+            shape[j] === "*" ||
+            segment === shape[j],
+        ),
+    );
+    if (shadowed) named.push(i);
+  }
+  return named;
+}
+
+/**
  * Whether a shape actually identifies a route, rather than a whole class of
  * them.
  *
@@ -392,6 +445,11 @@ export function unreachableRoutes(args: {
     ...templateRoutes(args.routeFiles),
   ];
 
+  const shaped = all.map((route) => ({
+    method: route.slice(0, route.indexOf(" ")),
+    shape: pathShape(route.slice(route.indexOf(" ") + 1)),
+  }));
+
   for (const route of all) {
     const method = route.slice(0, route.indexOf(" "));
     const path = route.slice(route.indexOf(" ") + 1);
@@ -400,8 +458,16 @@ export function unreachableRoutes(args: {
     if (excused[route] || excused[path]) continue;
 
     const wanted = pathShape(path);
+    /**
+     * Where this route is named rather than parameterised, a caller has to
+     * say the name. A `${…}` opposite `time` is the sibling `:id`, not this.
+     */
+    const named = namedPositions(wanted, method, shaped);
     const reached = asked.some(
-      (a) => sameShape(wanted, a.shape) && a.methods.has(method),
+      (a) =>
+        sameShape(wanted, a.shape) &&
+        a.methods.has(method) &&
+        named.every((i) => a.shape[i] === wanted[i]),
     );
     if (!reached) unreachable.add(route);
   }

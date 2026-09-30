@@ -125,9 +125,10 @@ const PUBLIC_BY_DESIGN = new Set([
  * business or a provider.
  */
 const YOURS_BY_DESIGN = new Set([
-  // Somebody's own devices, and ending a session on one of them.
-  "GET /api/users/me/sessions",
-  "DELETE /api/users/me/sessions/:id",
+  // Somebody's own devices, their own security page, and ending a session on
+  // one of them. The users module's duplicate pair under `/api/users/me/…` was
+  // removed on 2026-09-29: nothing called it, and the profile module answers
+  // the same two questions better.
   "GET /api/users/me/security",
   "GET /api/profile",
   "PATCH /api/profile",

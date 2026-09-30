@@ -77,6 +77,22 @@ const CALLED_BY_SOMETHING_ELSE: Record<string, string> = {
   // screen: `TagChips` in `apps/web/src/lib/tags.tsx`, mounted by
   // `contact-detail.tsx` and `invoice-detail.tsx`.
   "DELETE /api/*/:id/tags/:tagId": "the tag chips' Remove button, via a prop",
+  /*
+   * A mail provider posts here, and the URL is the credential.
+   *
+   * Read before it was written down: `crm-settings.tsx`, the "Capture email"
+   * card, turns the feature on and then shows `data.webhookUrl` in a read-only
+   * box with a Copy button, beside a line saying the address is a password.
+   * `inbound.ts` builds that address as
+   * `${base}/api/crm/inbound-email/${orgId}/${secret}` — so the browser shows
+   * the path and never asks for it, which is the same shape as the payment
+   * webhook above.
+   *
+   * It went unreported until the sweep stopped letting a wildcard stand for a
+   * literal segment, and it is the honest kind of excuse: a real caller, named.
+   */
+  "/api/crm/inbound-email/:orgId/:secret":
+    "the business's mail provider, with the address the CRM settings screen shows",
 };
 
 /**

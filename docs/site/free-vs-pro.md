@@ -24,7 +24,8 @@ same on both tiers, and a business with twenty-five staff will never meet it.
 |---|:---:|:---:|
 | **Users** | no per-person charge | no per-person charge |
 | **Dashboard**: money owed, overdue, what needs answering, server health | ● | ● |
-| **CRM**: contacts, companies, deals board, activities, tasks, notes, tags, attachments, custom fields, inbound email, CSV in and out | ● | ● |
+| **CRM**: contacts, companies, deals board, activities, tasks, notes, tags, attachments, inbound email, CSV in and out | ● | ● |
+| Defining a custom field. Values in the fields you already have stay readable and editable on Free | — | ● |
 | 360° customer timeline: activities, invoices and payments in one stream | — | ● |
 | **Forms**: contact and quote forms embedded on any site, origin allow-list, rate limiting, honeypot | ● | ● |
 | **Quotes and invoices**: per-line tax, partial payments, sequential numbering, quote-to-invoice, early-payment discount, merge drafts, price list, CSV export | ● | ● |
