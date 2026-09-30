@@ -1,7 +1,7 @@
 ---
 title: Shop on your own website
 sidebar_position: 4
-description: Put the shop on a site built with anything — one script tag, four tags, no framework.
+description: Put the shop on a site built with anything — one script tag, five tags, no framework.
 tags: [module, shop, headless]
 ---
 
@@ -11,11 +11,12 @@ The Shop module is **headless**. Products, stock, orders and money stay on your
 instance. Your website is whatever you already have: Astro, Next.js, Nuxt,
 SvelteKit, WordPress, or a hand-written HTML file.
 
-One script tag, and four HTML tags you can put anywhere.
+One script tag, and five HTML tags you can put anywhere.
 
-![A shop on somebody else's website: cart in the header, a featured product, a product grid](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/shop-headless.png)
+![A shop on somebody else's website: the cart count in the header, a featured product, a grid of products, and the cart itself with a Checkout button](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/shop-headless.png)
 
-*That page is a plain HTML file on a different domain from the instance.*
+*A plain HTML file, on a different domain from the instance. The tags have
+taken its serif — that is the font they inherit.*
 
 ## Two things to set up
 
@@ -36,7 +37,7 @@ always allowed, so the built-in storefront needs nothing.
 That is the whole installation. Your instance's address is baked into the file,
 so there is nothing to configure on the page.
 
-## The four tags
+## The five tags
 
 ### A cart in the header
 
@@ -73,6 +74,29 @@ document.addEventListener('sentrello-shop:open-cart', (e) => {
 | `category` | Only this category |
 | `collection` | Only this collection |
 | `currency` | Prices in this currency, if the shop sells in several |
+
+### A search box
+
+```html
+<sentrello-shop-search></sentrello-shop-search>
+<sentrello-shop-search placeholder="Find a cable"></sentrello-shop-search>
+<sentrello-shop-search action="/shop"></sentrello-shop-search>
+```
+
+Results are the same cards the grid draws, under the box, a beat after you stop
+typing. An empty box shows nothing rather than everything — the whole catalog
+arriving because somebody clicked in and out again is not a search result.
+
+| Attribute | What it does |
+|---|---|
+| `action` | Send them to your own results page instead, with `?q=` on the end |
+| `label` | The label above the box. Default: *Search the shop* |
+| `placeholder` | Default: *What are you after?* |
+| `limit` | How many results. Default: 8 |
+| `currency` | Prices in this currency, if the shop sells in several |
+
+`action` is the one for a header. The box is on every page and the answers
+belong on one of them.
 
 ### One product, anywhere
 

@@ -89,8 +89,9 @@ button.
 
 ## Service areas
 
-If you travel to customers, set the postcodes you cover. Somebody outside them
-is told so before they book, rather than after you have driven there.
+If you travel to customers, set the ZIP or postal codes you cover. Somebody
+outside them is told so before they book, rather than after you have driven
+there.
 
 ## What happens after a booking
 
