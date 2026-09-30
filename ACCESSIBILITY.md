@@ -15,7 +15,7 @@ offers.
 | EU public sector | EN 301 549, which points at WCAG |
 | United Kingdom | Public Sector Bodies Accessibility Regulations; Equality Act duties more generally |
 | United States | Section 508 for federal procurement; ADA Title III for commercial sites |
-| Canada | Accessible Canada Act; AODA in Ontario requires WCAG 2.0 AA of private organisations with fifty or more staff |
+| Canada | Accessible Canada Act; AODA in Ontario requires WCAG 2.0 AA of private organizations with fifty or more staff |
 
 If you are answering a procurement questionnaire, this page is the honest
 version of what such a questionnaire asks for.
@@ -37,7 +37,7 @@ As of the last assessment, **every screen passes**.
 ## What that does not cover, and it is a lot
 
 Automated testing finds roughly a third of accessibility problems. It is
-genuinely good at the mechanical ones — colour contrast, missing names on
+genuinely good at the mechanical ones — color contrast, missing names on
 controls, targets too small to hit — and it cannot see most of the rest.
 
 **Not yet verified by hand:**
@@ -64,7 +64,7 @@ starting point rather than the finish.
   the columns themselves are not individually navigable by arrow key. Somebody
   using a keyboard can reach and scroll it; drag-and-drop between columns is
   mouse-only, and the same moves are available from each card's own menu.
-- Colour is never the only thing carrying meaning, but this has been checked by
+- Color is never the only thing carrying meaning, but this has been checked by
   reading the code rather than by testing with a simulator.
 
 ## Reporting a problem

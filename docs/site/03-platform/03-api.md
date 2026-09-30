@@ -12,7 +12,7 @@ tags: [platform, api]
 One Hono application on Bun, over PostgreSQL 17 through Drizzle ORM, serves
 every route: free and paid, core and module alike. Sessions come from Better
 Auth, with email and password, optionally Google, and roles scoped to an
-organisation. Background jobs run in pg-boss, inside Postgres itself, so there
+organization. Background jobs run in pg-boss, inside Postgres itself, so there
 is no Redis to operate.
 
 ## How a route is guarded
@@ -55,7 +55,7 @@ permission to hold. It is scoped by the form's own key and its allow-list
 instead.
 
 A request passes a session check and a permission check before any handler
-runs. Every business table carries an organisation, every query filters on it,
+runs. Every business table carries an organization, every query filters on it,
 and a test reads the queries themselves and fails the build on one that does
 not — so the rule is checked by a machine rather than remembered by a person.
 
@@ -69,11 +69,11 @@ purpose:
 
 | Gate | When it refuses | What the caller sees |
 |---|---|---|
-| Entitlement | The licence does not cover the module | **404** — the route genuinely does not exist |
+| Entitlement | The license does not cover the module | **404** — the route genuinely does not exist |
 | Permission | The account may not do this | **403** |
 
 A 404 rather than a 403 for an unentitled feature is deliberate: a module the
-licence does not cover is never registered at all, so there is nothing to
+license does not cover is never registered at all, so there is nothing to
 forbid. It also means an instance does not enumerate what its owner has not
 bought.
 

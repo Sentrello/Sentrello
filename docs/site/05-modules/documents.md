@@ -52,7 +52,7 @@ the file with it.
 
 This is the point of the module.
 
-Give a file an **expiry date** and a category: insurance, certificate, licence,
+Give a file an **expiry date** and a category: insurance, certificate, license,
 contract. Anything approaching its date appears on the dashboard. Anything past
 it appears in red — and a certificate expiring *today* is still good today, in
 your own timezone, so it reads as expiring rather than expired.
@@ -67,7 +67,7 @@ learns to filter mail from their own software, and then misses the one that
 mattered.
 
 :::warning[This is the failure that costs real money]
-A lapsed insurance certificate or trade licence can mean a business is not
+A lapsed insurance certificate or trade license can mean a business is not
 legally able to work. It is a date nobody was looking at, on a document nobody
 opened. Putting it on the first screen is the whole feature.
 :::

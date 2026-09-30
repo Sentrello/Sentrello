@@ -750,7 +750,7 @@ function caveatsFor(lines: OssLine[], omissions: OssOmission[] = []): string[] {
   }
   if (lines.some((line) => line.supplyType === "unclassified")) {
     caveats.unshift(
-      "Some supplies could not be told apart as goods or services — the lines did not come from your catalogue, or mixed both. The return has separate parts for them: classify the items, or split those rows by hand.",
+      "Some supplies could not be told apart as goods or services — the lines did not come from your catalog, or mixed both. The return has separate parts for them: classify the items, or split those rows by hand.",
     );
   }
   /*

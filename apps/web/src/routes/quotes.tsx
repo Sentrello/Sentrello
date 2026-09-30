@@ -418,7 +418,7 @@ function InstalmentPlanner({
           </button>
         }
       >
-        Split {quote.number} into instalments
+        Split {quote.number} into installments
       </SectionHeading>
 
       <Toolbar className="mb-(--gap-stack)">
@@ -479,7 +479,7 @@ function InstalmentPlanner({
               <Input
                 value={part.percent}
                 inputMode="decimal"
-                aria-label={`Instalment ${i + 1} percentage`}
+                aria-label={`Installment ${i + 1} percentage`}
                 onChange={(e) => set(i, { percent: e.target.value })}
               />
             </Field>
@@ -489,7 +489,7 @@ function InstalmentPlanner({
                   Math.round((quote.totalCents * bpOf(part.percent)) / 10_000),
                 )}
                 inputMode="decimal"
-                aria-label={`Instalment ${i + 1} amount`}
+                aria-label={`Installment ${i + 1} amount`}
                 onChange={(e) => {
                   const cents = Math.round(
                     (Number.parseFloat(e.target.value || "0") || 0) * 100,
@@ -506,7 +506,7 @@ function InstalmentPlanner({
               <Input
                 value={part.days}
                 inputMode="numeric"
-                aria-label={`Instalment ${i + 1} due in days`}
+                aria-label={`Installment ${i + 1} due in days`}
                 onChange={(e) => set(i, { days: e.target.value })}
               />
             </Field>
@@ -520,7 +520,7 @@ function InstalmentPlanner({
                       ? "Final"
                       : `Stage ${i + 1}`
                 }
-                aria-label={`Instalment ${i + 1} label`}
+                aria-label={`Installment ${i + 1} label`}
                 onChange={(e) => set(i, { label: e.target.value })}
               />
             </Field>
@@ -732,7 +732,7 @@ function QuoteActions({
                     onSplit();
                   }}
                 >
-                  Split into instalments
+                  Split into installments
                 </MenuItem>
               </>
             )}

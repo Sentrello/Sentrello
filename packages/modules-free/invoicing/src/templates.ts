@@ -74,7 +74,7 @@ export function validateTemplate(body: Record<string, unknown>): {
   if (!name) return { error: "give it a name" };
 
   if (body.accentColor && !validColour(body.accentColor)) {
-    return { error: "a colour looks like #1d4ed8" };
+    return { error: "a color looks like #1d4ed8" };
   }
 
   const paperSize =

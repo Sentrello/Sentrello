@@ -80,18 +80,18 @@ and the customer can pay it online.
 can see. Every module uses the same accounts and the same permissions; nothing
 keeps a separate list of logins. See [Users and access](/core/users-and-access).
 
-## Licence
+## License
 
-**Settings → Licence and updates** shows which tier this instance is running and which
+**Settings → License and updates** shows which tier this instance is running and which
 modules it is entitled to. Paste a key here to turn on Pro or a module. The
 features appear in the application you already have, with no second install and
 nothing to migrate.
 
-If the licence server cannot be reached, the instance keeps working on the last
+If the license server cannot be reached, the instance keeps working on the last
 good token for a grace period, then falls back to the free tier. It never
 stops.
 
 **Lost the key?** [sentrello.com/license](https://sentrello.com/license) looks
 it up, emails it to the address you bought with, and shows which servers the
-licence is running on — which is also where you release one after moving to a
+license is running on — which is also where you release one after moving to a
 new machine.

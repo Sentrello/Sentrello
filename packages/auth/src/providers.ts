@@ -125,7 +125,7 @@ export async function verifyGoogle(
     return {
       ok: false,
       error:
-        "Google does not recognise that client ID and secret together. Check both, and that they belong to the same OAuth client.",
+        "Google does not recognize that client ID and secret together. Check both, and that they belong to the same OAuth client.",
     };
   }
   if (body.error === "redirect_uri_mismatch") {

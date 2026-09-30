@@ -808,7 +808,7 @@ export function InvoiceForm({
                 {catalogue.length > 0 ? (
                   <Select
                     value={line.billableItemId ?? ""}
-                    aria-label={`Line ${i + 1} from the catalogue`}
+                    aria-label={`Line ${i + 1} from the catalog`}
                     className="w-full text-xs"
                     onChange={(e) => pickItem(i, e.target.value)}
                   >

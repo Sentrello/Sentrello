@@ -43,7 +43,7 @@ flowchart LR
 
 ## Contacts and companies
 
-A **contact** is a person. A **company** is an organisation, and contacts
+A **contact** is a person. A **company** is an organization, and contacts
 belong to it. A sole trader is a contact with no company; nothing forces you to
 invent one.
 

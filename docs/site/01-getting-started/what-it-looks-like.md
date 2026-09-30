@@ -8,10 +8,10 @@ tags: [tour, core]
 # What it looks like
 
 Everything below is **one install, one server, one login**, and nothing on this
-page needs a licence key.
+page needs a license key.
 
 The screens are rendered from the application's own stylesheet and components,
-with a demo business in them — so the chrome, the type, the status colours and
+with a demo business in them — so the chrome, the type, the status colors and
 the way money is set are the product's, because they are the product's code.
 Every one is drawn as a free instance draws it: no Bills, no bank feeds, no
 recurring invoices, because those are not yours until you pay for them, and a

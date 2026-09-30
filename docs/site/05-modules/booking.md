@@ -109,5 +109,5 @@ customer standing outside a locked door.
 
 ## Cancellations
 
-Both sides can cancel through the link in the confirmation. A cancelled slot
+Both sides can cancel through the link in the confirmation. A canceled slot
 returns to the pool immediately.

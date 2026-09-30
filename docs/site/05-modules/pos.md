@@ -9,7 +9,7 @@ tags: [module, pos, shop]
 
 :::caution[In development — not for sale]
 
-The POS was withdrawn from the catalogue on 15 September 2026 and cannot be
+The POS was withdrawn from the catalog on 15 September 2026 and cannot be
 bought today. Its cash controls are in place. The rebuild for the screens it is
 actually used on, card readers and receipt printers are not. There is no date,
 deliberately. This page describes how it works, not something you can subscribe
@@ -56,7 +56,7 @@ Beside it sit the drawer, the questions a product asks, and the cash-up at the
 end of a shift.
 
 **POS needs the Shop module.** This is not a separate product with its own
-catalogue. It is a second way of selling the one you already have.
+catalog. It is a second way of selling the one you already have.
 
 ## Before you start
 
@@ -179,7 +179,7 @@ Everything that moves is written down as it happens:
 **Whether you can see that last line depends on who you are.** A shift holding
 only `pos:sell` counts the drawer without being told what to expect — a blind
 count, which is the point of counting at all: a figure on the screen is a
-number to reconcile towards rather than a check on anybody. A manager, holding
+number to reconcile toward rather than a check on anybody. A manager, holding
 `pos:manage`, sees the expectation. Both of them see the variance once the
 count is in, and it is written down against that shift either way.
 

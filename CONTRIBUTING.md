@@ -12,8 +12,8 @@ licensing **client**. It is AGPLv3, and it is a complete product on its own —
 not a demo of a paid one.
 
 What is **not** here, and cannot be accepted here: Pro features, the optional
-paid modules, the licence **signing** key, and anything under a commercial
-licence. Those live in private repositories. A pull request that adds one of
+paid modules, the license **signing** key, and anything under a commercial
+license. Those live in private repositories. A pull request that adds one of
 them cannot be merged whatever its quality, so please ask before starting.
 
 ## Reporting a bug
@@ -114,12 +114,29 @@ Write for somebody reading it in a year with no memory of today.
 
 ## Licensing your contribution
 
-Contributions are accepted under the AGPLv3, the same licence as the rest of
+Contributions are accepted under the AGPLv3, the same license as the rest of
 this repository, together with the module linking exception set out at the top
 of [LICENSE](LICENSE).
 
-Please do not paste code from another project unless its licence permits it and
+**You keep the copyright in what you write.** Sentrello LLC asks for no
+assignment and no contributor license agreement — there is nothing to sign, and
+your name stays on your commits. The consequence is worth knowing: because we do
+not hold your copyright, we cannot move your code into a paid module or
+relicense it. If we ever want to, we will ask you on the pull request and you
+are free to say no.
+
+Please do not paste code from another project unless its license permits it and
 you say where it came from.
+
+### What happens after you open it
+
+We read every issue and pull request **daily**, and you will get a reply from a
+person **within two business days**. A reply is not a commitment to merge or to
+fix — it is us telling you what we think and where it sits. If something is
+going to take weeks, we will say that rather than leave it quiet.
+
+Security problems do not belong in an issue. [SECURITY.md](SECURITY.md) has the
+address, and we would rather hear about it privately first.
 
 ### Sign your work
 
@@ -139,7 +156,7 @@ Signed-off-by: Your Name <you@example.com>
 
 By adding it you are certifying the [Developer Certificate of Origin
 1.1](https://developercertificate.org/), which in plain terms means: you wrote
-this, or you have the right to submit it under the licence above, and you
+this, or you have the right to submit it under the license above, and you
 understand that your contribution and the record of it are public and stay
 public.
 

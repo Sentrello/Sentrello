@@ -7,7 +7,7 @@ tags: [pro, free, pricing]
 
 # Free vs Pro
 
-The **free core** is the public repository: AGPLv3, no licence key, no expiry,
+The **free core** is the public repository: AGPLv3, no license key, no expiry,
 and no per-person charge on any tier. A real product, not a trial.
 
 **Pro** is a subscription. What it opens is the paid half of the modules

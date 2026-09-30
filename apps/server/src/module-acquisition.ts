@@ -37,13 +37,13 @@ export async function pursueGainedModules(
     // request would simply never be made. The standing licence-screen alarm
     // is what carries this from here.
     console.warn(
-      `[modules] the licence now includes ${gained.join(", ")}, and this instance has no update agent to fetch it. Run \`sentrello activate\` on the server.`,
+      `[modules] the license now includes ${gained.join(", ")}, and this instance has no update agent to fetch it. Run \`sentrello activate\` on the server.`,
     );
     return;
   }
 
   console.warn(
-    `[modules] the licence now includes ${gained.join(", ")}; asking the host to fetch ${
+    `[modules] the license now includes ${gained.join(", ")}; asking the host to fetch ${
       gained.length === 1 ? "it" : "them"
     }`,
   );

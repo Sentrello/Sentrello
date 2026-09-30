@@ -524,7 +524,7 @@ export function InvoiceDetail() {
               invoice offered Void and no way to credit — while the PATCH
               route refuses an edit to the same document with the words
               "Raise a credit note rather than changing it". In the UK and
-              the EU a cancelled issued invoice needs a credit note in the
+              the EU a canceled issued invoice needs a credit note in the
               series: the number has been used and the customer holds the
               document, so a silent reversal leaves them with a bill the
               business says does not exist.

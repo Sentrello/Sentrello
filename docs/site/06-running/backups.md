@@ -24,7 +24,7 @@ bring back today's documents.
 
 Sentrello also takes one for you before anything that could go wrong:
 `update`, `rollback` and `restore` each begin with a backup and refuse to
-continue without one. Those are labelled `pre-update`, `pre-rollback` and
+continue without one. Those are labeled `pre-update`, `pre-rollback` and
 `pre-restore`, and only the last three of each are kept — the ones you took
 deliberately are yours, and nothing here deletes them.
 
@@ -151,7 +151,7 @@ people skip, and they are steps 1 and 4.
      provider, a Peppol access point. Nothing is lost that cannot be pasted in
      again, but you will be pasting all of it, and the audit log will read as
      though somebody had altered it.
-   - `SENTRELLO_INSTANCE_ID` — how your licence knows this is the same install
+   - `SENTRELLO_INSTANCE_ID` — how your license knows this is the same install
      rather than a second one. Carry it and step 7 is already done.
 
    Not the whole file. The new install generated its own database password and
@@ -159,11 +159,11 @@ people skip, and they are steps 1 and 4.
 5. Restore the dump you took in step 1.
 6. Point your domain at the new address.
 7. **If you did not carry `SENTRELLO_INSTANCE_ID` over, release the old
-   install.** To your licence the new machine is a second install, and a licence
-   allows a set number. Open [the licence page](https://sentrello.com/license),
+   install.** To your license the new machine is a second install, and a license
+   allows a set number. Open [the license page](https://sentrello.com/license),
    paste your key, release the install you no longer run, then `sentrello
    activate` on the new server. Until you do, the new instance runs as Free and
-   Settings → Licence and updates says why.
+   Settings → License and updates says why.
 
 Leave the old instance stopped rather than deleted until you are satisfied. Two
 instances writing to one database is the one arrangement to avoid.

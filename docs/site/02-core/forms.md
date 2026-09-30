@@ -113,7 +113,7 @@ the allowed-sites list.
 
 Nothing counts what any of them turned away. A blocked submission is answered
 and forgotten — writing down every robot that found a public form would be a
-table that grows for ever and tells nobody anything.
+table that grows forever and tells nobody anything.
 
 **A form that is being abused can be paused rather than deleted**, from the row
 menu on the forms list. The tag stays on the customer's website, the address

@@ -11,7 +11,7 @@ tags: [operations]
 sudo sentrello update
 ```
 
-That takes a backup, pulls the new version, fetches any modules your licence
+That takes a backup, pulls the new version, fetches any modules your license
 entitles, runs the migrations, and restarts. On a small server it takes a few
 minutes.
 
@@ -19,7 +19,7 @@ minutes.
 
 1. **Dumps the database** and refuses to continue if the dump is empty. An
    update that cannot be undone is not one worth starting.
-2. **Pulls the image** for the release your licence is offered.
+2. **Pulls the image** for the release your license is offered.
 3. **Fetches your modules** at that same version. Modules and Core move
    together, because a module several versions behind its Core is a screen
    missing whatever changed.
@@ -72,7 +72,7 @@ plan, not a capability.
 
 ## Updating from the application
 
-**Settings → Licence and updates** offers the same thing from a screen, for people who
+**Settings → License and updates** offers the same thing from a screen, for people who
 would rather not open a terminal. Same code path.
 
 ## If an update fails

@@ -112,7 +112,7 @@ const SCREENS: Record<string, () => React.ReactElement | null> = {
   settings: Settings,
   "settings-business": Settings,
   "settings-integrations": SettingsIntegrations,
-  "settings-licence": SettingsLicence,
+  "settings-license": SettingsLicence,
   "settings-modules": SettingsModules,
   "settings-privacy": Privacy,
   "settings-archive": Archive,

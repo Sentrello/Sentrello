@@ -61,7 +61,7 @@ export async function licenseKey(): Promise<string | null> {
 export async function storeLicenseKey(key: string): Promise<void> {
   const trimmed = key.trim().toUpperCase();
   if (!isValidLicenseKey(trimmed)) {
-    throw new Error("that does not look like a Sentrello licence key");
+    throw new Error("that does not look like a Sentrello license key");
   }
   await writeFile(keyPath(), `${trimmed}\n`, { mode: 0o600 });
   await chmod(keyPath(), 0o600);

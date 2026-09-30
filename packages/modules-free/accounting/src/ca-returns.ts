@@ -31,6 +31,17 @@ import { periodFrom } from "./reports";
 export function caReturnNotes(out: CaReturns): string[] {
   const notes: string[] = [];
 
+  /*
+   * "instalments" below is not a spelling this repository missed.
+   *
+   * The product is written in American English, so `licence`, `colour` and
+   * `organisation` are all spelled the American way wherever a customer reads
+   * them. Line 110 is different: it is the CRA's own label on the GST/HST
+   * return, and the person reading this note is holding that form. A line
+   * named "installments" here and "instalments" on the paper is a reader
+   * checking whether they are looking at the same line. Accuracy to the form
+   * wins. Leave it.
+   */
   if (out.gstHst) {
     notes.push(
       "GST/HST is computed on the accrual basis — tax counts when an invoice is issued, which is the CRA's collectible rule. Lines 110 (instalments paid), 111 (rebates), 205 (tax on taxable real property purchases) and 405 (other self-assessed GST/HST) are shown as zero because the ledger cannot know them; if any applies to you, account for it before filing. A negative line 109 is a refund position, claimed on line 114. Form lines per the CRA's GST/HST return guidance (canada.ca), checked 15 September 2026.",

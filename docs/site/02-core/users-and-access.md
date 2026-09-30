@@ -237,7 +237,7 @@ not be much of an audit log.
 
 Twice, deliberately.
 
-A module only loads if the licence entitles it. Every route inside it then
+A module only loads if the license entitles it. Every route inside it then
 checks the permission again before doing anything. A screen showing or hiding a
 button is a convenience rather than the enforcement: a request made straight to
 the API is checked exactly the same way.

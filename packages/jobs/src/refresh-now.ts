@@ -12,7 +12,7 @@ import { refreshLicenseToken } from "./license-refresh";
 const result = await refreshLicenseToken();
 
 if (result.refreshed) {
-  console.log("licence activated");
+  console.log("license activated");
   process.exit(0);
 }
 
@@ -33,7 +33,7 @@ if (result.error === "instance_limit") {
   );
   const where = `${server || "https://sentrello.com"}/license`;
   console.error(
-    `this licence is already active on another server.
+    `this license is already active on another server.
 If you have moved to a new machine, release the old install at ${where} —
 your key lists them — then run \`sentrello activate\` again.`,
   );
@@ -42,13 +42,13 @@ your key lists them — then run \`sentrello activate\` again.`,
 
 if (result.error === "not_entitled") {
   console.error(
-    "this licence is not active — check the subscription is paid and current.",
+    "this license is not active — check the subscription is paid and current.",
   );
   process.exit(1);
 }
 
 if (result.error === "invalid_license") {
-  console.error("that licence key was not recognised.");
+  console.error("that license key was not recognized.");
   process.exit(1);
 }
 
@@ -64,13 +64,13 @@ if (result.error === "invalid_license") {
  */
 if (result.error === "malformed_key") {
   console.error(
-    "SENTRELLO_LICENSE_KEY is set but is not a licence key.\n" +
+    "SENTRELLO_LICENSE_KEY is set but is not a license key.\n" +
       "It should read SENT-XXXX-XXXX-XXXX-XXXX — five groups, four characters each.",
   );
   process.exit(1);
 }
 
 console.error(
-  "could not activate the licence: the server could not be reached.",
+  "could not activate the license: the server could not be reached.",
 );
 process.exit(1);

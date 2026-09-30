@@ -14,7 +14,7 @@ almost certainly be fine.
 Everybody taking part in this project: issues, pull requests, discussions,
 commit messages, code review, and any Sentrello space online or in person. It
 applies to maintainers exactly as much as to first-time contributors, and it
-applies to how we behave towards people who are not here to defend themselves.
+applies to how we behave toward people who are not here to defend themselves.
 
 ## What is expected
 
@@ -42,7 +42,7 @@ applies to how we behave towards people who are not here to defend themselves.
 - Sustained disruption: reopening a settled decision to wear people down, or
   making a space unpleasant enough that others stop taking part.
 
-Not being intended badly is not a defence. The effect on the person on the
+Not being intended badly is not a defense. The effect on the person on the
 receiving end is what matters, and "I was only joking" is a sentence people
 reach for after the damage.
 
@@ -70,7 +70,7 @@ the outcome is that nothing happened.
 Roughly in order, and not necessarily starting at the top:
 
 1. **A quiet word** — usually enough, and usually the end of it.
-2. **A public correction**, where the behaviour was public and left a wrong
+2. **A public correction**, where the behavior was public and left a wrong
    impression standing.
 3. **A temporary ban** from the project's spaces.
 4. **A permanent ban.**

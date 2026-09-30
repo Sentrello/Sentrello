@@ -585,7 +585,7 @@ export function FormBuilder({
         How it looks
       </SectionHeading>
       <div className="grid gap-(--gap-toolbar) sm:grid-cols-3">
-        <Field label="Accent colour" hint="The button and the focus ring.">
+        <Field label="Accent color" hint="The button and the focus ring.">
           <Toolbar>
             {/*
              * A colour input beside the text, not instead of it. Somebody
@@ -597,7 +597,7 @@ export function FormBuilder({
              */}
             <input
               type="color"
-              aria-label="Pick the accent colour"
+              aria-label="Pick the accent color"
               className="h-9 w-9 shrink-0 cursor-pointer rounded-sm border border-line bg-transparent p-1"
               value={/^#[0-9a-f]{6}$/i.test(accent) ? accent : "#c4470f"}
               onChange={(e) => setAccent(e.target.value)}

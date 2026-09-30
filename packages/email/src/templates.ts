@@ -323,7 +323,7 @@ export function receiptEmail(args: {
     html: layout(
       "Payment received",
       `<p>We received <strong>${formatMoney(args.amountCents, args.currency, sellerLocale(args.business))}</strong>
-towards invoice ${escapeHtml(args.number)}${
+toward invoice ${escapeHtml(args.number)}${
         args.businessName ? ` from ${escapeHtml(args.businessName)}` : ""
       }.</p>${remaining}${link}${accountLink}`,
       args.business,

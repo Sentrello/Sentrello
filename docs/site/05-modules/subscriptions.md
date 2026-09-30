@@ -47,7 +47,7 @@ flowchart LR
 
 Nothing new. A subscription raises an invoice on the schedule Invoicing already
 owns, and that invoice posts to the ledger like any other: one set of books,
-and one place money is both recognised and chased from.
+and one place money is both recognized and chased from.
 
 That is deliberate. Two things that each believe they own a renewal is how
 somebody gets charged twice.
@@ -55,8 +55,8 @@ somebody gets charged twice.
 ## Plans
 
 **A plan is an item on your price list with a billing interval on it.** There
-is no second catalogue. It is priced and taxed exactly like anything else you
-sell, because a second catalogue would be a second answer to what a thing
+is no second catalog. It is priced and taxed exactly like anything else you
+sell, because a second catalog would be a second answer to what a thing
 costs.
 
 Anything already on the price list can be promoted to a plan without retyping
@@ -83,8 +83,8 @@ Wednesday.
 |---|---|
 | **Trialling** | On a plan, not yet billed |
 | **Active** | Billed on schedule |
-| **Paused** | Not billed, not cancelled, keeps its place — if you allow pausing |
-| **Cancelled** | Ends on a date; it is not a switch thrown today |
+| **Paused** | Not billed, not canceled, keeps its place — if you allow pausing |
+| **Canceled** | Ends on a date; it is not a switch thrown today |
 
 Cancelling sets the date it takes effect rather than stopping the billing that
 instant. Somebody who cancels on the 3rd of a month they have already paid for
@@ -225,12 +225,12 @@ turns a subscription into an invoice belongs to this module, so when the
 module goes, the invoices stop being raised.
 
 That is the honest answer and it is worth saying plainly, because this page
-said the opposite until 28 September 2026: a business whose licence lapsed
+said the opposite until 28 September 2026: a business whose license lapsed
 would quietly stop billing every subscriber it had, and find out when
 somebody noticed the money had not arrived.
 
 Nothing is lost by it. Every subscription stands, with its price, its
-discount and its next date, and the day the licence comes back the run
+discount and its next date, and the day the license comes back the run
 picks them up and carries on from where it stopped. If you would rather
 keep billing without the module, each one can be re-made as a recurring
 invoice before you let it go.

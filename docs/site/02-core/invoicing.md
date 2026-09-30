@@ -42,7 +42,7 @@ its lines, tax and customer intact.
 
 ![The quotes list, showing what is out for decision, until when, and what each is worth](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/quotes.png)
 
-A quote can also be split into **instalments**, a deposit and two stages, say.
+A quote can also be split into **installments**, a deposit and two stages, say.
 That produces several invoices scheduled across the work rather than one large
 one at the end.
 
@@ -286,7 +286,7 @@ depends on it. If something goes wrong there, tell us — that is a conversation
 we would rather have with you than not have at all.
 :::
 
-## The catalogue
+## The catalog
 
 Products and services you invoice for repeatedly live in a price list, each with
 a code, a description and a kind. Add one to an invoice and the rest fills

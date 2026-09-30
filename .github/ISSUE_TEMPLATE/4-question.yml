@@ -29,4 +29,4 @@ body:
   - type: markdown
     attributes:
       value: |
-        **If this is about a licence, a paid module or an invoice**, email is quicker — this repository is the free core, and the people who can look at an account are not the ones reading issues here.
+        **If this is about a license, a paid module or an invoice**, email is quicker — this repository is the free core, and the people who can look at an account are not the ones reading issues here.

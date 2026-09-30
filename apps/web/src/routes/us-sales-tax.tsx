@@ -389,7 +389,7 @@ function CertificatesCard() {
         <p className="text-sm" style={muted}>
           A reseller, non-profit or government customer hands you a certificate
           and is charged no tax — and in an audit the certificate is the whole
-          defence. Record it here, pick it when you invoice them, and an expired
+          defense. Record it here, pick it when you invoice them, and an expired
           one stops working out loud rather than quietly under-collecting.
         </p>
       </div>

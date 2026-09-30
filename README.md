@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="LICENSE"><img alt="Licence: AGPL v3" src="https://img.shields.io/badge/licence-AGPL--3.0-2f6f62"></a>
+  <a href="LICENSE"><img alt="License: AGPL v3" src="https://img.shields.io/badge/license-AGPL--3.0-2f6f62"></a>
   <a href="https://github.com/Sentrello/Sentrello/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Sentrello/Sentrello/actions/workflows/ci.yml/badge.svg"></a>
   <a href="https://bun.sh"><img alt="Bun 1.3.14" src="https://img.shields.io/badge/bun-1.3.14-000000"></a>
   <a href="https://www.postgresql.org/"><img alt="PostgreSQL 17" src="https://img.shields.io/badge/postgres-17-336791"></a>
@@ -92,10 +92,10 @@ running and your data keeps being readable.
   because it costs nothing to do so. Audit trails only work when people sign in
   as themselves.
 - **Nothing about your customers reaches us.** A paid instance sends one
-  licence check an hour — a key and an instance id. A Free instance need never
+  license check an hour — a key and an instance id. A Free instance need never
   contact us at all.
 - **Start free and stay free if you like.** The free core is not a trial. It
-  doesn't expire, doesn't nag, and doesn't need a licence key.
+  doesn't expire, doesn't nag, and doesn't need a license key.
 - **Grow by module, not by seat.** Add a shop, a booking diary or a newsletter
   when the business needs one, and pay nothing for the ones it doesn't.
 
@@ -107,7 +107,7 @@ One command puts it on a $6 VPS. Go and take it for a walk.
 
 Every screenshot in the documentation is a real instance, captured by an
 automated run against a live server. Nothing is a mock-up. The screens below
-are the free core and need no licence key; the ones in the module and Pro pages
+are the free core and need no license key; the ones in the module and Pro pages
 are the same run against an instance that has one.
 
 ![Money owed, overdue invoices, pipeline value and the server's own health](docs/images/dashboard.png)
@@ -119,7 +119,7 @@ settings, screen by screen.
 ---
 ## Free vs Pro
 
-The **free core** is this repository: AGPLv3, no licence key, no expiry, and no
+The **free core** is this repository: AGPLv3, no license key, no expiry, and no
 per-person charge on any tier. It is a real product, not a trial.
 
 **Pro** is a subscription that unlocks the paid half of the modules already in
@@ -131,7 +131,7 @@ person**: hiring somebody costs nothing.
 Making Tax Digital expects, the Canadian GST/HST return, US sales tax with the
 state nexus thresholds, the EU One Stop Shop return, and a structured EN 16931
 e-invoice — every one of those is in this repository, computed from the ledger,
-and runs on an instance with no licence key at all.
+and runs on an instance with no license key at all.
 
 Dropping back to free leaves every record you created in place, still readable
 and still exportable. The Pro screens simply stop.
@@ -161,15 +161,15 @@ sold against the free core.
 | **HR** | Records for the people who work for you, and the time off they take | **Being built** |
 | **Helpdesk** | Customer questions arriving as tickets in a queue, rather than into one person's inbox | **Being built** |
 
-**POS is not for sale, and has no date.** It was withdrawn from the catalogue
+**POS is not for sale, and has no date.** It was withdrawn from the catalog
 on 15 September 2026 on its own review: a cash-handling product has to be able
 to void, refund, comp and discount a sale, count a drawer blind rather than
 open, print a receipt and keep the closure it printed. Those controls exist
 now; the rebuild for the screens it is actually used on, the card readers and
-the receipt printers do not. Nobody has lost anything — no licence is sold
+the receipt printers do not. Nobody has lost anything — no license is sold
 before 1 October 2026 — and nothing here says when it returns, because we do
 not know. When it does it is a **plugin**: it needs Shop, it is bought
-separately at half a module's price, and it shares Shop's catalogue rather than
+separately at half a module's price, and it shares Shop's catalog rather than
 keeping a menu of its own.
 
 **HR and Helpdesk are being built, and are not dated either.** Neither has
@@ -240,7 +240,7 @@ export default defineModule({
 ```
 
 Paid features are gated twice: the loader refuses to register a module the
-licence doesn't cover, and each route checks permissions independently. Licences
+license doesn't cover, and each route checks permissions independently. Licenses
 are Ed25519-signed tokens verified **offline** against a public key embedded in
 this repository — so an instance keeps working without reaching the internet,
 and a missing or expired token degrades to Free rather than breaking.
@@ -328,14 +328,14 @@ times you can expect, and what the design already assumes.
 
 ---
 
-## Licence
+## License
 
 [GNU AGPLv3](LICENSE). You may run, study, modify and share this software. If
 you modify it and offer it to others over a network, you must publish your
-changes under the same licence.
+changes under the same license.
 
 **Modules are exempt, on purpose.** A [module linking exception](LICENSE) at
-the top of the licence lets you write a module against `@sentrello/module-sdk`,
+the top of the license lets you write a module against `@sentrello/module-sdk`,
 load it into Core, and license and sell that module on whatever terms you like.
 Core itself stays AGPL — modify Core and those changes are still copyleft — but
 the module you wrote is yours.

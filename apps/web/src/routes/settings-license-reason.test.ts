@@ -15,7 +15,7 @@ test("no reason is no reason", () => {
 
 test("an expired token reads as expired", () => {
   expect(friendlyLicenseReason('"exp" claim timestamp check failed')).toBe(
-    "this licence has expired",
+    "this license has expired",
   );
 });
 
@@ -57,7 +57,7 @@ test("an instance limit names the case and offers the page", () => {
 test("a lapsed subscription is not described as a missing key", () => {
   const refusal = refreshRefusal("not_entitled");
   expect(refusal?.text).toContain("not active");
-  expect(refusal?.text).not.toContain("recognise");
+  expect(refusal?.text).not.toContain("recognize");
 });
 
 test("a key of the wrong shape says what the shape is", () => {

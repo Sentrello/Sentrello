@@ -362,7 +362,7 @@ const CORE_SETS: ArchiveSet[] = [
         from: "quote_instalments",
         column: "invoice_id",
         to: "invoices",
-        describedAs: "a quote's instalment was billed by it",
+        describedAs: "a quote's installment was billed by it",
       },
       {
         from: "form_submissions",

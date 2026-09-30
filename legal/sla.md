@@ -1,0 +1,211 @@
+<!--
+  Software License Agreement.
+
+  Copied from the marketing site's own source — src/pages/legal/sla.md — which
+  is what sentrello.com serves and what governs. Kept here so the repository
+  carries it too: an AGPL project whose license talk lives only on a marketing
+  site is asking to be taken at its word.
+
+  If the two ever disagree, the website is right and this is stale.
+-->
+
+# Software License Agreement
+
+**Effective Date: October 1, 2026**
+
+This Software License Agreement ("Agreement") is between you and **Sentrello
+LLC**, a Colorado limited liability company ("Sentrello", "we", "us"). It
+governs the code, not the commerce — buying and renewing are in the [Terms of
+Sale](/legal/sales-terms/), and the rules for using the service are in the
+[Terms of Service](/legal/service-terms/).
+
+Sentrello is one product under **two licenses**. Which one applies depends on
+which part of it you are holding.
+
+---
+
+## 1. Sentrello Core: AGPLv3, with a module linking exception
+
+Sentrello Core — the platform, the module SDK, the host runtime, and the free
+modules — is published under the **GNU Affero General Public License, version
+3**, at `github.com/Sentrello/Sentrello`.
+
+Under the AGPLv3 you may run it for any purpose, read every line, modify it,
+and redistribute it. In exchange, the AGPLv3 requires that if you convey a
+modified version, or make one available to others over a network, you offer
+those people the corresponding source of your modified version under the same
+license. That is section 13 of the AGPLv3, and it is the whole reason the
+license was chosen: a self-hosted product that can be taken closed by whoever
+hosts it is not really open.
+
+**The module linking exception.** Core carries an additional permission under
+section 7 of the AGPLv3, in the `LICENSE` file of the repository. In plain
+terms: **you may write a module for Sentrello, license it however you like, and
+sell it**, provided the module talks to Core only through the published
+interfaces of `@sentrello/module-sdk` and does not copy or modify Core's own
+source beyond those interfaces. Core itself, and any change you make to Core,
+stays under the AGPLv3.
+
+That exception is why our own paid modules can be commercial, and it is granted
+to everybody on the same terms — including anybody who wants to compete with
+us. The `LICENSE` file is the operative text; this page describes it.
+
+Nothing in this Agreement limits the rights the AGPLv3 gives you in Sentrello
+Core. Where this Agreement and the AGPLv3 differ about Core, the AGPLv3 wins.
+
+---
+
+## 2. Sentrello Pro, modules and plugins: a commercial license
+
+Sentrello Pro, the paid modules and the plugins (the "Licensed Software") are
+**not** open source and are not under the AGPLv3. They are licensed to you
+commercially, on these terms, for as long as the subscription that covers them
+is current.
+
+### 2.1 What you may do
+
+Subject to payment, we grant you a non-exclusive, non-transferable,
+non-sublicensable license to:
+
+1. **Install and run** the Licensed Software on servers you control, for the
+   internal business purposes of the legal entity that bought the
+   subscription — including that entity's own employees, contractors and
+   customers using the software you operate;
+2. **Activate it on up to two instances at a time** under one license key, so
+   that a replacement server can be built and checked before the old one is
+   retired;
+3. **Read the source.** The Licensed Software is delivered as source, not as an
+   obfuscated bundle, because you cannot audit what you cannot read and because
+   a self-hosted product that hides its own code is asking for trust it has not
+   earned;
+4. **Modify it for your own internal use**, including patching it to suit your
+   business — with the consequences in section 2.3;
+5. **Keep copies for backup and disaster recovery**, as many as you sensibly
+   need.
+
+### 2.2 What you may not do
+
+You may not:
+
+1. **Redistribute, publish, sell, rent, lease, sublicense or give away** the
+   Licensed Software or any part of it, in source or any other form, to anybody
+   outside your organization;
+2. **Operate it for third parties** — hosting, managed service, agency
+   arrangement, "as a service", or running an instance on behalf of another
+   business — except under a signed [Partner
+   Agreement](/legal/partners/);
+3. **Use it beyond the instances your license activates**, or share a license
+   key with another business;
+4. **Remove, disable, bypass or tamper with license verification**, the license
+   token, the entitlement checks, or any notice of authorship or license;
+5. **Publish the source**, post it to a repository, paste it into a forum or an
+   issue, or include it in a support ticket to anybody but us;
+6. **Use our name or marks** outside [the trademark
+   guidelines](/legal/trademark/).
+
+Each of these is a material breach, and a breach of 2.2(1), (3) or (4)
+terminates this license immediately.
+
+### 2.3 If you modify it
+
+You may patch the Licensed Software for your own use. If you do:
+
+- the modification is yours, and the underlying code remains ours;
+- support does not cover a modified instance — tell us what you changed, or
+  reproduce the fault on an unmodified one;
+- an update may overwrite your change, and keeping the patch is your job;
+- our warranties, such as they are, and our obligations in respect of that
+  instance end.
+
+We would rather you sent us the patch. Contributions to Core are welcome under
+[the contributing guide](https://github.com/Sentrello/Sentrello/blob/main/CONTRIBUTING.md);
+for the paid tiers, write to support@sentrello.com and we will talk about it.
+
+---
+
+## 3. Ownership
+
+We own the Licensed Software, and every copyright, patent, trademark and trade
+secret in it. This Agreement licenses it to you; it does not sell it to you, and
+nothing here transfers ownership of anything.
+
+You own your data, your configuration, and anything you write yourself. We claim
+no rights in what you build on top of Sentrello, and no rights of any kind in
+the business records inside your instance.
+
+---
+
+## 4. License verification
+
+The Licensed Software verifies a signed license token at startup and refreshes
+it hourly. Verification is part of the product, not an add-on to it, and section
+2.2(4) forbids interfering with it.
+
+Verification fails safe: a missing, expired or unreadable token makes the
+instance fall back to Sentrello Core rather than stopping. Your data is not
+touched, and the paid features return when the token does.
+
+---
+
+## 5. Term, and what happens at the end
+
+This Agreement runs for as long as your subscription does.
+
+**On cancellation or non-payment**, and after the 14-day grace period described
+in the [Terms of Sale](/legal/sales-terms/), your license to the Licensed
+Software ends. You must stop running it — in practice the software does this
+itself, by falling back to Core — and you may not keep operating the paid
+features by any other means.
+
+**You may keep the files.** We do not ask you to delete the bundles or the
+backups that contain them, because a backup you cannot restore is not a backup.
+The license to *run* them is what ends.
+
+**Sentrello Core remains yours**, under the AGPLv3, permanently. Nothing about
+the end of a subscription touches that.
+
+---
+
+## 6. Audit
+
+If we have a specific, reasonable basis to believe a license key is being used
+outside these terms, we may ask you to confirm in writing how many instances
+are running and where. That is the whole of the audit right: we do not inspect
+your servers, we cannot read your data, and we will not ask to.
+
+---
+
+## 7. Warranty and liability
+
+The Licensed Software is provided **as is**. The warranty disclaimer in section
+9 of the [Terms of Service](/legal/service-terms/) and the limitation of
+liability in section 10 of the same document — zero, then a fees-paid cap if
+that is unenforceable, then $100 — apply to this Agreement in full and are
+incorporated here.
+
+The AGPLv3's own warranty disclaimer applies to Sentrello Core, as it does to
+every AGPL program.
+
+---
+
+## 8. Third-party components
+
+Sentrello includes open-source components under their own licenses, listed in
+the `NOTICE` file in the repository and in the bill of materials published for
+every release at `get.sentrello.com/sbom/`. Those licenses govern those
+components, and nothing in this Agreement restricts a right they give you.
+
+---
+
+## 9. Export and sanctions
+
+You may not use, export or re-export the software in breach of United States
+export control or sanctions law, and you confirm you are not a person or entity
+barred from receiving it under that law.
+
+---
+
+## 10. Governing law
+
+Colorado, United States, and the courts there, as set out in section 14 of the
+[Terms of Service](/legal/service-terms/) — which applies here in full.

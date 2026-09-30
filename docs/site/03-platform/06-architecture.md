@@ -25,7 +25,7 @@ flowchart TD
 
   SPA["React SPA<br/><small>TanStack Router and Query</small>"]:::browser
   API["Hono<br/><small>one process, one container</small>"]:::host
-  AUTH["Better Auth<br/><small>the session, and which organisation</small>"]:::host
+  AUTH["Better Auth<br/><small>the session, and which organization</small>"]:::host
   ENT{{"entitled?<br/><small>has this instance paid for it</small>"}}:::gate
   NOENT["Not loaded at all<br/><small>no routes, no tables, no nav</small>"]:::no
   LOADER["Module loader<br/><small>every feature is a SentrelloModule</small>"]:::host
@@ -98,7 +98,7 @@ nav is a *result* of the two gates rather than a list maintained beside them.
 
 ## What never leaves your server
 
-The licence is verified **offline**, against a public key compiled into the
+The license is verified **offline**, against a public key compiled into the
 build. The control plane signs tokens; it is not asked for permission at
 request time, and an instance with no route to the internet keeps working.
 
@@ -109,7 +109,7 @@ application, and it never quietly opens something.
 
 One database. A schema per module, and every business table carries an
 `organizationId`. Every query filters on it, and a test reads the queries
-rather than trusting them: one that would return another organisation's rows
+rather than trusting them: one that would return another organization's rows
 fails the build. That is the difference between a rule and a habit.
 
 It is not PostgreSQL row-level security, and saying "at the data layer" makes
@@ -127,7 +127,7 @@ report, and nothing writes money to the database around it.
 
 A business with nine people has no operations team. One container to run, one
 database to back up, one process to restart. Modules are discovered rather than
-deployed separately, so buying one is a licence change rather than an
+deployed separately, so buying one is a license change rather than an
 infrastructure change.
 
 See [Extending Sentrello](/platform/extensible) for the contract each module

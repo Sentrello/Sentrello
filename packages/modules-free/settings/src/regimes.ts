@@ -190,7 +190,7 @@ export const REGIMES: Regime[] = [
     yourJob: [
       {
         what: "The controls themselves, and evidence you operate them",
-        why: "An auditor examines your organisation. The software can only produce the facts.",
+        why: "An auditor examines your organization. The software can only produce the facts.",
       },
     ],
     suggestedFor: { sectors: ["government", "enterprise"] },

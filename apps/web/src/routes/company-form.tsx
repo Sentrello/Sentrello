@@ -133,7 +133,7 @@ function ViesStatus({
             .
           </p>
         ) : (
-          <p>VIES did not recognise this number when checked on {on}.</p>
+          <p>VIES did not recognize this number when checked on {on}.</p>
         ))}
       {problem && <p>{problem}</p>}
       <MenuItem

@@ -10,7 +10,7 @@ tags: [support]
 ## Look here first
 
 ```bash
-sudo sentrello status      # version, tier, modules, licence state
+sudo sentrello status      # version, tier, modules, license state
 sudo sentrello logs        # what the application is actually saying
 curl -s localhost:3000/healthz
 ```
@@ -23,8 +23,8 @@ The fuller list, with what each failure actually means, is on
 [When something is wrong](/running/troubleshooting).
 
 **A module is missing from the sidebar.** Check `modules_failed` in `/healthz`,
-then Settings → Licence and updates. Two different things look identical from the sidebar:
-a module the licence does not cover never loads at all, while one that tried
+then Settings → License and updates. Two different things look identical from the sidebar:
+a module the license does not cover never loads at all, while one that tried
 and failed writes its reason to the log.
 
 **Sign-in is refused with a message about the origin.** `SENTRELLO_BASE_URL`
@@ -37,7 +37,7 @@ working, send an invoice to yourself at another provider — if Sentrello accept
 it and nothing arrives, the message left here and the problem is between your
 mail provider and the recipient.
 
-**The licence says it cannot reach the server.** The instance keeps working on
+**The license says it cannot reach the server.** The instance keeps working on
 its last good token through a grace period. Check the server can reach
 `sentrello.com` over HTTPS.
 
@@ -65,7 +65,7 @@ sudo sentrello add <module>    # fetch one module you have just bought
 ```
 
 Pro's code is already in the image, so a Pro key needs nothing fetched. An
-optional module is a bundle your instance downloads, and the Licence screen does
+optional module is a bundle your instance downloads, and the License screen does
 that itself where the update agent is installed. Where it is not, the screen
 says so and names the command.
 

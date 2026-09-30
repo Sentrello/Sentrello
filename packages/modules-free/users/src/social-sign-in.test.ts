@@ -110,7 +110,7 @@ test("details Google does not recognise are refused and not stored", async () =>
 
   const res = await put({ clientId: "wrong.apps", clientSecret: "nope" });
   expect(res.status).toBe(400);
-  expect((await res.json()).error).toContain("does not recognise");
+  expect((await res.json()).error).toContain("does not recognize");
 
   expect(await db.select().from(schema.authProviders)).toHaveLength(0);
 });

@@ -393,7 +393,7 @@ export function registerCrmSettings(ctx: ModuleContext) {
                   }
                 : {
                     error:
-                      "Custom fields are part of Pro. What you have already defined is still here and still readable; adding or changing one needs a licence.",
+                      "Custom fields are part of Pro. What you have already defined is still here and still readable; adding or changing one needs a license.",
                     field: "customFields",
                   },
               403,

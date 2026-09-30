@@ -1,0 +1,164 @@
+<!--
+  GDPR.
+
+  Copied from the marketing site's own source — src/pages/legal/gdpr.md — which
+  is what sentrello.com serves and what governs. Kept here so the repository
+  carries it too: an AGPL project whose license talk lives only on a marketing
+  site is asking to be taken at its word.
+
+  If the two ever disagree, the website is right and this is stale.
+-->
+
+# GDPR
+
+**Effective Date: October 1, 2026**
+
+Read [the privacy policy](/legal/privacy/) first: it lists what we collect, from
+whom, and for how long. This page adds the parts the GDPR and the UK GDPR ask
+for specifically.
+
+**Controller:** Sentrello LLC, Colorado, United States.
+**Contact for data protection matters:** privacy@sentrello.com
+
+---
+
+## 1. The question a self-hosted product answers differently
+
+For the data inside your Sentrello instance — your contacts, your invoices, your
+employees, your customers — **you are the controller and we are not a
+processor**, because that data is never transmitted to us. It is written to a
+database on infrastructure you control. We hold no copy, we cannot read it, and
+no support request gives us access.
+
+This matters in two practical ways:
+
+- **There is no data processing agreement to sign with us for it.** An Article
+  28 agreement governs a processor's handling of a controller's data. We do not
+  handle it. If your own compliance process needs something in writing to that
+  effect, write to privacy@sentrello.com and we will confirm it on letterhead.
+- **The obligations for that data are yours.** Lawful basis, retention,
+  responding to a subject access request, breach notification: all yours. The
+  product is built to make them possible — every module contributes to one
+  subject access answer, the Privacy screen erases a person across all of them,
+  and consent is recorded with its date and source — but the decisions are the
+  controller's, and that is you.
+
+Where we *are* a controller is the far smaller set of data described in the
+privacy policy: your account, your purchase, your instance's license checks,
+your support correspondence, and the website.
+
+---
+
+## 2. Lawful bases, purpose by purpose
+
+| Purpose | Data | Lawful basis |
+|---|---|---|
+| Creating and running your account | Name, email | Article 6(1)(b) — performance of a contract |
+| Taking payment and issuing an invoice | Billing address, tax identifiers, card metadata | 6(1)(b), and 6(1)(c) for the tax record |
+| Issuing and verifying license tokens | License key, instance identifier, fingerprint | 6(1)(b) — the license is the contract |
+| Transactional email | Email address | 6(1)(b) |
+| Answering support | Correspondence | 6(1)(f) — legitimate interests in supporting our own product |
+| Keeping tax and accounting records | Invoices, payments | 6(1)(c) — legal obligation |
+| Security logs, abuse investigation | IP address, user agent, timestamps | 6(1)(f) — legitimate interests in keeping the service up |
+| Website analytics | Cookie identifiers, page views | 6(1)(a) — consent, and not collected before it is given |
+| Usage reporting from an instance | Version, tier, module list, banded user count | 6(1)(a) — consent, off unless you switch it on |
+
+We do not process special category data, we do not profile, and we take no
+automated decisions with legal effect.
+
+### Our legitimate interests, and the balance
+
+Where we rely on 6(1)(f) — support and security — the interest is running a
+product our customers can get help with and keeping the service available. The
+data is minimal, it is not combined to build a profile, it is not shared for
+advertising, and it is kept for a short and stated period. You can object at any
+time (section 3), and for security logging we will explain what we cannot switch
+off without losing the ability to investigate abuse.
+
+---
+
+## 3. Your rights, and how to use them
+
+You have the right to **access** your data, to have it **corrected**, to have it
+**erased**, to **restrict** or **object to** processing, to **data
+portability**, and to **withdraw consent** at any time where consent is the
+basis. You may also lodge a complaint with your supervisory authority — in the
+UK, the Information Commissioner's Office.
+
+Write to **privacy@sentrello.com**. We answer within **30 days**, and we will
+tell you in that time if a request needs longer and why. We do not charge for
+it, and we will only ask you to prove who you are if we genuinely cannot
+otherwise tell.
+
+Two honest limits:
+
+- **Tax records.** We cannot erase an invoice we are required by law to keep.
+  We can restrict its use to that purpose, and we will.
+- **Your instance.** We cannot exercise a right over data we do not hold. For
+  the records inside your Sentrello instance, the person to ask is you — and
+  the product has a Privacy screen built for exactly that request.
+
+---
+
+## 4. International transfers
+
+We are a United States company, and our providers are listed in [the privacy
+policy](/legal/privacy/). Where personal data moves from the EEA, Switzerland or
+the UK to the United States, the transfer relies on:
+
+- the **Standard Contractual Clauses** adopted by the European Commission,
+  incorporated into our agreements with each provider, together with the UK
+  International Data Transfer Addendum where the UK GDPR applies; and
+- where the provider is certified, the **EU–US Data Privacy Framework** and its
+  UK extension.
+
+Stripe, Cloudflare, Google and GitHub all publish their own transfer
+documentation. We rely on it and keep our own copies.
+
+The volume is worth stating plainly: the personal data crossing the Atlantic
+because of Sentrello is a business contact, a billing address and a license
+record. Your customers' data does not cross anything, because it never leaves
+your server.
+
+---
+
+## 5. Retention
+
+Set out per category in [the privacy policy](/legal/privacy/). In short: license
+token records 90 days; web logs 30 days; support correspondence two years;
+account records while the account exists; invoices seven years because tax law
+requires it.
+
+---
+
+## 6. Security and breach notification
+
+Security measures are described on [the security page](/security/). If a breach
+affecting your personal data occurs on our side, we will notify the relevant
+supervisory authority within 72 hours where the GDPR requires it, and tell you
+without undue delay.
+
+A breach of *your* instance is yours to notify, because we will not know about
+it: we hold no telemetry that would tell us, and no access that would let us
+look.
+
+---
+
+## 7. Representative in the EU and UK
+
+We do not currently appoint an Article 27 representative. Our processing of
+EEA and UK personal data is limited to the business contact and billing records
+described above, is occasional in the sense that it arises only from a purchase
+or a support request, and involves no special category data and no monitoring of
+behavior. We will appoint representatives as the business grows, and this page
+will name them when we do.
+
+If that answer is not enough for your procurement process, write to
+privacy@sentrello.com and tell us what you need. We would rather hear it than
+lose you over it.
+
+---
+
+## 8. Children
+
+We do not knowingly process the personal data of anybody under 16.

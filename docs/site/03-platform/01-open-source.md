@@ -2,7 +2,7 @@
 title: Open source
 sidebar_position: 1
 description: What the AGPLv3 lets you do with Sentrello Core, and where the commercial line is drawn.
-tags: [platform, licence]
+tags: [platform, license]
 ---
 
 # Open source
@@ -11,11 +11,11 @@ Sentrello Core is public at
 [github.com/Sentrello/Sentrello](https://github.com/Sentrello/Sentrello) under
 the GNU Affero General Public License v3: run it, study it, modify it, share
 it. The AGPL makes one demand in return. Modify it, offer it to others over a
-network, and your changes have to be published under the same licence.
+network, and your changes have to be published under the same license.
 
 ## The free tier is not a trial
 
-No licence key, no expiry, no nag, and no cap on how many people use it. What
+No license key, no expiry, no nag, and no cap on how many people use it. What
 you get is a working business system rather than a demonstration of one:
 
 - the dashboard
@@ -25,16 +25,16 @@ you get is a working business system rather than a demonstration of one:
 - embeddable forms
 - accounts, roles and permissions
 
-All of it is in the repository. Nothing on that list needs a licence to run,
+All of it is in the repository. Nothing on that list needs a license to run,
 and nothing on it stops working if you never buy anything.
 
 ## Where the commercial line sits
 
 Pro features and the optional modules are separately licensed commercial
 software, outside the AGPL. They live in their own repositories and install
-against a licence.
+against a license.
 
-The split is written into the licence rather than left as policy. A **module
+The split is written into the license rather than left as policy. A **module
 linking exception** at the top of `LICENSE` lets anyone build a module against
 `@sentrello/module-sdk`, load it into Core, and license and sell that module on
 whatever terms they choose. Changes to Core itself stay copyleft. See

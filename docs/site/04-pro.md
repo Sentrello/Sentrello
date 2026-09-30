@@ -10,12 +10,12 @@ tags: [pro]
 Pro deepens the modules you already use rather than replacing them. Nothing
 moves. The screens you know stay where they are, and more of them work.
 
-Paste a licence key into **Settings → Licence and updates** and the features appear. No
+Paste a license key into **Settings → License and updates** and the features appear. No
 second installation, nothing to migrate.
 
 Pro's own code is already in the image, so there is nothing to fetch for it.
 Buying an optional module is different — that code is a bundle your instance
-downloads — and the Licence screen fetches it for you where the update agent is
+downloads — and the License screen fetches it for you where the update agent is
 installed. Where it is not, the screen says so and asks you to run
 `sentrello activate` on the server, which syncs the instance with whatever the
 subscription now covers.
@@ -63,13 +63,13 @@ altogether. Until you change it, it stays as it is.
 
 ## What Pro does not do
 
-It does not hold your data hostage. Let a licence lapse and the instance falls
+It does not hold your data hostage. Let a license lapse and the instance falls
 back to free: Pro screens stop, every record they created is still there, and
 you can still export the lot.
 
 Concretely. A recurring profile stops issuing but is not deleted, and picks up
-again the day a licence is back. Custom fields you defined stay on your records
-and stay readable. What you cannot do without a licence is add another or
+again the day a license is back. Custom fields you defined stay on your records
+and stay readable. What you cannot do without a license is add another or
 rename one.
 
 That is deliberate. Software that deletes your books when you stop paying is

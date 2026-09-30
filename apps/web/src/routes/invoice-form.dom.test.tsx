@@ -372,7 +372,7 @@ test("an invoice can be raised in a currency the business has priced", async () 
   expect([...picker.options].map((o) => o.value)).toEqual(["GBP", "EUR"]);
 
   choose(
-    labelled<HTMLSelectElement>(host, "Line 1 from the catalogue"),
+    labelled<HTMLSelectElement>(host, "Line 1 from the catalog"),
     "item-1",
   );
   await settle();
@@ -414,7 +414,7 @@ test("the currency the business keeps its books in is not sent", async () => {
   await settle();
 
   choose(
-    labelled<HTMLSelectElement>(host, "Line 1 from the catalogue"),
+    labelled<HTMLSelectElement>(host, "Line 1 from the catalog"),
     "item-1",
   );
   await settle();

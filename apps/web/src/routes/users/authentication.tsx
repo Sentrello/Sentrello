@@ -428,7 +428,7 @@ function SignInRules() {
         </Field>
         <Field
           label="Keep history for"
-          hint="Days. Zero keeps it for ever, and it cannot be shorter than the lock."
+          hint="Days. Zero keeps it forever, and it cannot be shorter than the lock."
         >
           <Input
             needs={{ settings: ["update"] }}

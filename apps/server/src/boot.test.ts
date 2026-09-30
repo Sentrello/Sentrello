@@ -575,7 +575,7 @@ test("/api/_meta exposes only the nav the loaded modules registered", async () =
     // Settings' own pages, so nobody hunts for a VAT number past the licence.
     "settings-business",
     "settings-integrations",
-    "settings-licence",
+    "settings-license",
     "settings-modules",
     // Answering somebody who asks what is held about them, which has a legal
     // deadline — so it sits beside the other settings rather than inside one.

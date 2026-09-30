@@ -140,7 +140,7 @@ export function missingEntitledBundles(
     .map((name) => ({
       name,
       reason:
-        "the licence includes it, and it is not installed on this instance. Run `sentrello update`.",
+        "the license includes it, and it is not installed on this instance. Run `sentrello update`.",
     }));
 }
 

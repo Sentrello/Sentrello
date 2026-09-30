@@ -1075,7 +1075,7 @@ console.log(
 // above it: a bundle that is paid for and absent is the headline, not a detail.
 if (failedBundles.length) {
   console.error(
-    `Sentrello is MISSING PAID MODULES: ${failedBundles.map((f) => f.name).join(", ")} — see /healthz and Settings -> Licence`,
+    `Sentrello is MISSING PAID MODULES: ${failedBundles.map((f) => f.name).join(", ")} — see /healthz and Settings -> License`,
   );
 }
 export default { port, fetch: app.fetch };

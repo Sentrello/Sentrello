@@ -118,7 +118,7 @@ is issued; issue another and it replaces the first.
 People who click a link are not your customers and have not agreed to anything.
 The module says plainly what it holds about them, and lets you decide.
 
-- **How long a returning visitor is recognised**, from a day up to a year.
+- **How long a returning visitor is recognized**, from a day up to a year.
   Longer means a repeat visit is not counted as a new person
 - **Whether the visitor's IP address is kept at all.** Off keeps nobody's
   address; visitors are counted by a one-way hash that stops meaning anything

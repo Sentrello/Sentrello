@@ -42,7 +42,7 @@ test("a missing paid module is named on screen", () => {
   expect(alert?.textContent).toContain("pro-accounting");
   // It says where the explanation lives, because the banner itself only has
   // room to say that something somebody pays for is off.
-  expect(alert?.textContent).toContain("Licence");
+  expect(alert?.textContent).toContain("License");
 });
 
 test("nothing wrong draws nothing at all", () => {
@@ -64,7 +64,7 @@ test("a failed payment says so, with the day it stops", () => {
     new Date("2026-10-14T00:00:00Z").toLocaleDateString(),
   );
   expect(host.querySelector("a")?.getAttribute("href")).toBe(
-    "/settings-licence",
+    "/settings-license",
   );
 });
 

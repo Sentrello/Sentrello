@@ -10,7 +10,7 @@ tags: [operations, support]
 ## Start here
 
 ```bash
-sudo sentrello status     # version, tier, modules, licence
+sudo sentrello status     # version, tier, modules, license
 sudo sentrello logs       # what the application is actually saying
 curl -s localhost:3000/healthz
 ```
@@ -67,7 +67,7 @@ In order:
 
 1. **`modules_failed` in `/healthz`.** If it is named there, the log explains
    it.
-2. **Settings → Licence and updates.** A module that is not entitled does not load, and
+2. **Settings → License and updates.** A module that is not entitled does not load, and
    does not complain. That is the design.
 3. **`sentrello status`.** Confirms which tier the instance believes it is.
 
@@ -145,13 +145,13 @@ Send it to an address at a different provider from your own. A message that
 reaches your own domain proves much less than one that survives somebody else's
 spam filter.
 
-## The licence says the server cannot be reached
+## The license says the server cannot be reached
 
 The instance keeps working on its last good token through a grace period, then
 falls back to Free. It does not stop.
 
 Check the server can reach `sentrello.com` over HTTPS. If it can and the
-message persists, check the key itself in Settings → Licence and updates. A key that is set
+message persists, check the key itself in Settings → License and updates. A key that is set
 but malformed reports as a network problem, which sends people looking in the
 wrong place entirely.
 
@@ -191,7 +191,7 @@ SENTRELLO_DB_STATEMENT_TIMEOUT=180
 ```
 
 Seconds, and `0` turns it off entirely. The ceiling exists because a query
-that runs for ever holds one of ten database connections while it does, and
+that runs forever holds one of ten database connections while it does, and
 ten of those is an instance that answers nothing at all — so turning it off
 trades one slow page for the chance of a silent stop.
 

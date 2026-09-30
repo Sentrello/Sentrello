@@ -1,0 +1,221 @@
+<!--
+  Partner Agreement.
+
+  Copied from the marketing site's own source — src/pages/legal/partners.md — which
+  is what sentrello.com serves and what governs. Kept here so the repository
+  carries it too: an AGPL project whose license talk lives only on a marketing
+  site is asking to be taken at its word.
+
+  If the two ever disagree, the website is right and this is stale.
+-->
+
+# Partner Agreement
+
+**Effective Date: October 1, 2026**
+
+This Partner Agreement ("Agreement") is between **Sentrello LLC** ("Sentrello",
+"we", "us") and the firm that applies to join the Sentrello Business Partner
+Program ("you", "Partner"). It takes effect when we accept your application and
+you pay the annual fee.
+
+It sits beside the [Terms of Service](/legal/service-terms/), the [Terms of
+Sale](/legal/sales-terms/) and the [Software License
+Agreement](/legal/sla/), which continue to apply to you and to every instance
+you operate or place.
+
+---
+
+## 1. Why this program exists
+
+Sentrello is self-hosted. Somebody has to put it on a server, connect the
+payment provider, move the books across and train the staff — and for most
+businesses that somebody is not us. It is a local firm that already knows them.
+
+The program pays that firm properly, for as long as the license it placed keeps
+renewing.
+
+---
+
+## 2. Tiers
+
+| | Associate | Partner | Advanced | Premier |
+|---|---|---|---|---|
+| Annual fee | $740 | $2,950 | $2,950 | $2,950 |
+| Commission on every license you place | 10% | 15% | 25% | 35% |
+| Live instances required | — | 3 | 12 | 30 |
+| Certified staff required | — | 1 | 3 | 6 |
+| Retention floor | — | — | 70% | 80% |
+| Listed in the partner directory | — | yes | yes, ranked | yes, ranked |
+
+One fee covers all three official tiers: you do not pay more for being better at
+this. Fees are annual, in United States dollars, and non-refundable on the same
+terms as everything else we sell.
+
+**Certification** is $185 per person per exam. **Three seats are included** with
+an official tier and renewed at no charge while the partnership is live.
+
+---
+
+## 3. How a tier is granted, held and lost
+
+**Measured on your live book.** The instance count is the number of licenses you
+have placed that are still renewing — not new sales alone. A year spent looking
+after the customers you already have does not cost you a tier.
+
+**Reviewed once a year**, on the anniversary of the tier being granted. If a
+requirement is not met at review, we will tell you what is short and give you
+**90 days** to meet it before the tier changes. There is no quarterly reset.
+
+**Retention floor** applies at Advanced and Premier: the proportion of the
+licenses you placed in the previous twelve months that are still active. Below
+the floor at review, the tier drops one level.
+
+**Moving up** happens at any time, not only at review: meet the requirements of
+the next tier and write to us, and the higher commission applies from the
+following month.
+
+---
+
+## 4. Commission
+
+**On every license you place**, at your tier's rate, for as long as that license
+keeps renewing — including renewals, and including modules and plugins the
+customer adds later to the same subscription.
+
+**It follows the license, not the relationship.** If the customer stops buying
+services from you, the commission continues. You created that license; nobody
+takes it away from you because the implementation work finished.
+
+**Paid monthly**, in arrears, on the amount we actually collected — so a
+discount the customer holds, including founder pricing, reduces the commission
+proportionally, and a refund or chargeback reverses it.
+
+**Attribution** is the license key: a license bought through your partner link,
+or registered to you before purchase, is yours. Where two partners claim the
+same customer, the one named on the subscription at the time of purchase wins,
+and we will not adjudicate a dispute between you beyond that.
+
+**Minimum payment** is $50; below that it rolls to the next month. We pay by
+bank transfer or the method you nominate, and you are responsible for your own
+taxes on it.
+
+---
+
+## 5. What you get
+
+Every tier:
+
+- a Sentrello Pro license for **your own instance**, included in the fee, for
+  your own business use and for demonstrations;
+- the partner mark, to use under [the trademark
+  guidelines](/legal/trademark/);
+- the partner knowledge base and implementation material;
+- the certification seats described in section 2.
+
+Partner and above, additionally:
+
+- a listing in the public partner directory, with your city;
+- a named contact here;
+- **early access to a release candidate** before it ships, so you are not
+  finding out what changed at the same moment your customer does.
+
+---
+
+## 6. What you agree to
+
+1. **Represent the product accurately.** Do not promise features that do not
+   exist, dates we have not published, or service levels we do not offer. Our
+   published documentation is the reference.
+2. **Be honest about who you are.** You are an independent business. You are not
+   Sentrello, you are not our agent, and you may not sign anything on our
+   behalf or accept liability for us.
+3. **Do the work you are paid for.** Implementation, configuration and training
+   you sell are yours to deliver, at your prices, under your own contract with
+   your customer.
+4. **Protect what you are given.** The Pro source you receive stays under the
+   [Software License Agreement](/legal/sla/): not redistributed, not published,
+   not operated for a third party except as section 7 allows.
+5. **Keep your customers' data yours and theirs.** You will often have access to
+   a customer's instance. That relationship is between you and them, and their
+   data protection obligations are theirs — we are not a party to it.
+6. **Tell us about a breach** that affects a customer's Sentrello instance
+   where you were responsible for operating it, within 72 hours of finding it.
+7. **Keep the mark clean.** Use the partner mark only while the partnership is
+   live, and stop using it when it ends.
+
+---
+
+## 7. Operating instances for customers
+
+You may install, configure and operate Sentrello instances for your customers.
+That is the point of the program, and it is the one permission the Software
+License Agreement does not otherwise grant.
+
+Two rules:
+
+- **Each customer instance needs its own subscription**, bought for that
+  customer. Your own partner license covers your instance, not theirs.
+- **The customer owns their instance and their data.** If the relationship with
+  you ends, the license and the data stay with them, and we will help them take
+  over the account.
+
+---
+
+## 8. What we agree to
+
+1. **We will not sell services into your accounts.** Where a partner holds a
+   customer, Sentrello does not sell that customer implementation,
+   configuration or training. If they ask us, we will point them back to you.
+2. **We will pay commission when it is due**, and show you what it was
+   calculated from.
+3. **We will tell you before we change the price list**, at least 30 days
+   ahead, because your proposals have our prices in them.
+4. **We will not poach your staff**, and there is no penalty clause in either
+   direction — a firm that needs one has already lost the argument.
+
+---
+
+## 9. Term and termination
+
+This Agreement runs for twelve months and renews annually with the fee.
+
+**You may leave** at any time. The fee is not refunded, the tier and the mark
+end at the date you say, and commission on licenses already placed continues to
+be paid for as long as those licenses renew.
+
+**We may terminate** for breach — misrepresenting the product, sharing the Pro
+source, using the marks outside the guidelines, or non-payment — with 30 days'
+notice, or immediately where the breach is deliberate or unlawful. On
+termination for breach, commission stops.
+
+On any termination: stop using the marks, remove the directory listing (we will
+do that), and keep operating your customers' instances under their own
+subscriptions — which are theirs, not yours, and are not affected.
+
+---
+
+## 10. Liability
+
+Sections 9 and 10 of the [Terms of Service](/legal/service-terms/) apply to this
+Agreement in full: no warranties, and our total aggregate liability is zero,
+then the fees you paid us in the prior twelve months if that is unenforceable,
+then $100.
+
+You indemnify us against claims arising from what you told a customer, what you
+built for them, how you operated their instance, or your breach of this
+Agreement.
+
+---
+
+## 11. Governing law
+
+Colorado, United States, and the courts there, as set out in section 14 of the
+[Terms of Service](/legal/service-terms/).
+
+---
+
+## 12. Applying
+
+Write to **support@sentrello.com** with "Partner program" in the subject, your
+firm, your city, the businesses you already look after, and which tier you are
+aiming at. We will answer within two business days.

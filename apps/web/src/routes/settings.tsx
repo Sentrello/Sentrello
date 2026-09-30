@@ -57,15 +57,15 @@ export function friendlyLicenseReason(reason: string | null): string | null {
   if (!reason) return null;
   const r = reason.toLowerCase();
   if (r.includes('"exp"') || r.includes("expired")) {
-    return "this licence has expired";
+    return "this license has expired";
   }
   if (r.includes('"iss"') || r.includes("issuer")) {
     return "this token was not issued by sentrello.com";
   }
   if (r.includes("signature")) {
-    return "this licence does not check out — it may be for a different instance, or damaged in transit";
+    return "this license does not check out — it may be for a different instance, or damaged in transit";
   }
-  return "this does not look like a valid licence token";
+  return "this does not look like a valid license token";
 }
 
 /**
@@ -86,22 +86,22 @@ export function refreshRefusal(
   switch (error) {
     case "instance_limit":
       return {
-        text: "This licence is already in use on another install. If you have moved to a new server, release the old one and then check again.",
+        text: "This license is already in use on another install. If you have moved to a new server, release the old one and then check again.",
         offerManage: true,
       };
     case "not_entitled":
       return {
-        text: "The licence server says this licence is not active. Check the subscription is paid and current.",
+        text: "The license server says this license is not active. Check the subscription is paid and current.",
         offerManage: true,
       };
     case "invalid_license":
       return {
-        text: "The licence server did not recognise this key.",
+        text: "The license server did not recognize this key.",
         offerManage: false,
       };
     case "malformed_key":
       return {
-        text: "The key on this server is not a licence key. It should read SENT-XXXX-XXXX-XXXX-XXXX.",
+        text: "The key on this server is not a license key. It should read SENT-XXXX-XXXX-XXXX-XXXX.",
         offerManage: false,
       };
     // "unreachable" is deliberately not here. A renewal that could not reach
@@ -1057,7 +1057,7 @@ function PaymentConnections({
           <p className="font-medium" style={{ color: "var(--text-warning)" }}>
             {formatCount(data.unclaimedEvents.length)} payment event
             {data.unclaimedEvents.length === 1 ? "" : "s"} arrived that nothing
-            here recognised
+            here recognized
           </p>
           <p className="mt-1 text-sm" style={muted}>
             The processor sent these and no module claimed them, which is what a
@@ -1388,7 +1388,7 @@ export function LicenseSyncNote({ syncing }: { syncing: boolean }) {
     <p className="mt-2 text-sm" style={muted}>
       {syncing
         ? "Key saved. Checking your subscription — this can take a minute; the Updates panel below will show progress."
-        : "Key saved, but this instance has no update agent to fetch your licence automatically. Run `sentrello activate` on the server, then reload this page."}
+        : "Key saved, but this instance has no update agent to fetch your license automatically. Run `sentrello activate` on the server, then reload this page."}
     </p>
   );
 }
@@ -1532,7 +1532,7 @@ export function SettingsLicence() {
             ) : null
           }
         >
-          Licence
+          License
         </SectionHeading>
         {/*
           A failed fetch says so, rather than drawing an empty card.
@@ -1573,7 +1573,7 @@ export function SettingsLicence() {
                 {(() => {
                   const friendly = friendlyLicenseReason(licence.data.reason);
                   return friendly ? `: ${friendly}.` : ".";
-                })()} Paid features stay dark until a valid licence is in place.
+                })()} Paid features stay dark until a valid license is in place.
                 Your data is untouched and returns when it is.
               </p>
             ) : null}
@@ -1587,7 +1587,7 @@ export function SettingsLicence() {
             {!licence.data.valid || licence.data.tier !== "pro" ? (
               <div className="mt-3 border-t pt-3 border-line">
                 <Field
-                  label="Licence key"
+                  label="License key"
                   hint="From the email you were sent after buying. Paid features appear once it is checked."
                 >
                   <Input
@@ -1685,9 +1685,9 @@ export function SettingsLicence() {
 
             {licence.data.tokenExpiresAt ? (
               <p className="mt-1 text-sm" style={muted}>
-                Licence token renews automatically; this one is valid until{" "}
+                License token renews automatically; this one is valid until{" "}
                 {new Date(licence.data.tokenExpiresAt).toLocaleString()}. A
-                renewal that cannot reach the licence server is not urgent —
+                renewal that cannot reach the license server is not urgent —
                 there is a grace period before anything changes.
               </p>
             ) : null}
@@ -2050,10 +2050,10 @@ export function Modules() {
       <Card>
         {/* No heading: this card is the whole of a page already titled
             Modules, and Empty carries its own. */}
-        <Empty title="Your licence includes no modules yet">
+        <Empty title="Your license includes no modules yet">
           Modules are the optional halves of Sentrello — a shop, a booking
           diary, a newsletter. Each is bought on its own and appears here once
-          your licence carries it. Settings → Licence and updates shows what
+          your license carries it. Settings → License and updates shows what
           this instance is running on.
         </Empty>
       </Card>
@@ -2068,7 +2068,7 @@ export function Modules() {
       {/* Same here: the page's own title says Modules, and saying it twice
           reads as two sections rather than one. */}
       <p className="text-sm" style={muted}>
-        What your licence includes. Set one up when you are ready for it —
+        What your license includes. Set one up when you are ready for it —
         nothing is lost by leaving it until then.
       </p>
       {/*

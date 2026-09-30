@@ -29,7 +29,7 @@ If both are installed, Docker is used by default. To choose Podman instead, set
 curl -fsSL https://get.sentrello.com | bash
 ```
 
-The installer asks four things: your licence key (leave it blank for the free
+The installer asks four things: your license key (leave it blank for the free
 tier), the domain this instance will answer on, an administrator email address,
 and whether to send usage reports. Then it does the rest by itself. Images come
 down, the database is sized for the machine it is on, migrations run, and the
@@ -105,8 +105,8 @@ sudo sentrello logs        # follow the application log
 ```
 
 `activate` is the one you will meet without expecting to. Buying Pro, or adding
-a module, changes what your licence entitles — and an instance has to go and
-fetch the code for it. The Licence screen does that itself where the update
+a module, changes what your license entitles — and an instance has to go and
+fetch the code for it. The License screen does that itself where the update
 agent is installed; where it is not, the screen says so and names this command.
 
 ## Next

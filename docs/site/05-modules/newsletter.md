@@ -78,7 +78,7 @@ installed, and without it the switch does nothing.
 ## Campaigns
 
 Write a campaign, choose its lists, send a test to yourself, then schedule or
-send it. Templates give you a consistent header, footer and colour.
+send it. Templates give you a consistent header, footer and color.
 
 Sending happens in batches so that a large campaign does not make the rest of
 the application unresponsive. A campaign can be paused and resumed, and

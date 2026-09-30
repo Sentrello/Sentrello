@@ -21,7 +21,7 @@ What software can do is give you the tools and the evidence.
 
 The database runs on a server you choose: your own building, or any host, in
 whatever jurisdiction your obligations require. Business data stays on that
-server. A free instance contacts nobody. A paid instance sends one licence
+server. A free instance contacts nobody. A paid instance sends one license
 check an hour, carrying a key and an instance id; see
 [Security](/platform/security).
 
@@ -35,7 +35,7 @@ runs with nothing leaving the instance.
 
 Backups, exports and deletion happen on your schedule, with direct `psql`
 access to the database itself. Access control is built in: role policies,
-organisation-scoped queries, two-factor authentication, and a log of account
+organization-scoped queries, two-factor authentication, and a log of account
 events.
 
 ## The controls, framework by framework

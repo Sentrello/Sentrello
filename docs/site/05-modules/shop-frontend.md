@@ -111,7 +111,7 @@ matters. Fixed on 28 September 2026.
 
 Every tag renders inside a **shadow root**. Your site's CSS cannot accidentally
 break the shop, and the shop cannot accidentally break your site. What it does
-inherit, deliberately, is your font and your text colour, so it reads as part
+inherit, deliberately, is your font and your text color, so it reads as part
 of the page instead of an iframe somebody dropped in.
 
 Want it to look like something else entirely? Build your own, and see
@@ -160,7 +160,7 @@ look entirely:
 
 ```js
 // The query string is passed through: `q`, `category` or `collection`, and
-// `currency`. There is no `limit` — the catalogue comes back whole and you
+// `currency`. There is no `limit` — the catalog comes back whole and you
 // slice it yourself, which is what the elements do.
 SentrelloShop.products("category=coffee").then((data) => {
   // data.products — name, slug, image, variants with prices

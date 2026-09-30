@@ -107,7 +107,7 @@ export default defineModule({
     for (const page of [
       { id: "settings-business", label: "Your business", icon: "building" },
       { id: "settings-integrations", label: "Connections", icon: "at-sign" },
-      { id: "settings-licence", label: "Licence and updates", icon: "key" },
+      { id: "settings-license", label: "License and updates", icon: "key" },
       { id: "settings-modules", label: "Modules", icon: "boxes" },
       /*
        * Beside the other settings rather than buried in one: answering a
@@ -424,7 +424,7 @@ export default defineModule({
           // shape of the key, not whether it is real, and hinting at the
           // difference helps someone guessing at keys.
           return c.json(
-            { error: "that does not look like a Sentrello licence key" },
+            { error: "that does not look like a Sentrello license key" },
             400,
           );
         }
@@ -435,7 +435,7 @@ export default defineModule({
           return c.json(
             {
               error:
-                "this instance's licence key is set on the server. Change it there.",
+                "this instance's license key is set on the server. Change it there.",
             },
             409,
           );
@@ -470,7 +470,7 @@ export default defineModule({
       requirePermission({ settings: ["update"] }),
       async (c) => {
         if (!(await licenseKey())) {
-          return c.json({ error: "this instance has no licence key yet" }, 409);
+          return c.json({ error: "this instance has no license key yet" }, 409);
         }
         if (!(await agentPresent())) {
           return c.json(
@@ -508,7 +508,7 @@ export default defineModule({
         if (!latest) {
           return c.json(
             {
-              error: "could not reach the licence server to check for updates",
+              error: "could not reach the license server to check for updates",
             },
             503,
           );

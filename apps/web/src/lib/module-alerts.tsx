@@ -30,8 +30,8 @@ export function ModuleFailures({ names }: { names: string[] }) {
       like sending recurring invoices.{" "}
       {/* Linked, not merely named: the screen with the reason on it is four
           clicks away and this banner already knows which one it is. */}
-      <a className="link" href="/settings-licence">
-        Settings &rarr; Licence and updates
+      <a className="link" href="/settings-license">
+        Settings &rarr; License and updates
       </a>{" "}
       has the reason and the remedy.
     </div>
@@ -72,8 +72,8 @@ export function BillingWarning({ until }: { until: string | null }) {
       */}
       <strong>A payment did not go through.</strong> Paid features stop on{" "}
       {when.toLocaleDateString()} unless the card is updated.{" "}
-      <a className="link" href="/settings-licence">
-        Settings &rarr; Licence and updates
+      <a className="link" href="/settings-license">
+        Settings &rarr; License and updates
       </a>{" "}
       has the card details and the remedy.
     </div>

@@ -1356,7 +1356,7 @@ const SAMPLES: {
     accentColor: "#0f766e",
     headerNote: "",
     footerNote: "Thank you — please quote the invoice number when you pay.",
-    says: "A band of colour across the top, the number large, no rules. For a business whose work is what it looks like.",
+    says: "A band of color across the top, the number large, no rules. For a business whose work is what it looks like.",
   },
   {
     id: "compact",
@@ -1547,7 +1547,7 @@ function Letterhead() {
                   <ConfirmButton
                     label={`Delete ${template.name}`}
                     title={`Delete the ${template.name} template?`}
-                    message="Its wording, its colour and its logo go with it. Documents that were set to print on it fall back to the default template."
+                    message="Its wording, its color and its logo go with it. Documents that were set to print on it fall back to the default template."
                     confirmLabel="Delete it"
                     danger
                     className="link-danger text-xs"
@@ -1685,7 +1685,7 @@ function TemplateForm({
         <Input value={name} onChange={(e) => setName(e.target.value)} />
       </Field>
 
-      <Field label="Colour" hint="Headings and rules on the document.">
+      <Field label="Color" hint="Headings and rules on the document.">
         <Toolbar>
           {/* The picker the form builder already uses: a swatch to choose
               with, beside the hex for anybody pasting one off a clipboard.
@@ -1695,7 +1695,7 @@ function TemplateForm({
             type="color"
             value={accentColor}
             onChange={(e) => setAccent(e.target.value)}
-            aria-label="Accent colour"
+            aria-label="Accent color"
             className="h-9 w-12 shrink-0 cursor-pointer rounded-sm border border-line bg-transparent p-1"
           />
           <Input

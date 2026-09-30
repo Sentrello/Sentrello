@@ -32,12 +32,12 @@ spam folder is our failure, not yours.
 
 Findings we particularly want:
 
-- Anything that reads or writes another organisation's data. Every business
+- Anything that reads or writes another organization's data. Every business
   table is `organizationId`-scoped and that boundary is the one that must never
   leak.
 - Authentication and session handling — sign-in, invitations, the first-run
   claim, password reset, two-factor, session revocation.
-- Licence verification. Tokens are Ed25519-signed and verified offline; a way
+- License verification. Tokens are Ed25519-signed and verified offline; a way
   to forge one, or to make verification crash rather than fall back to Free, is
   a real finding.
 - The public form endpoints. They are internet-facing by design and carry an
@@ -61,23 +61,23 @@ Worth knowing if you are reading the code rather than probing a server:
 - **Sign-up is closed by default.** A fresh instance is claimed once by its
   owner using a setup token written into the server's own environment; after
   that, people join by invitation. Open registration is opt-in.
-- **Every business query is scoped by organisation at the data layer**, not by
+- **Every business query is scoped by organization at the data layer**, not by
   the route remembering to. Platform-wide tests assert this rather than
   trusting it.
 - **Paid features are gated twice.** The loader refuses to register a module
-  the licence doesn't cover, and each route checks permissions independently.
+  the license doesn't cover, and each route checks permissions independently.
   Neither gate is allowed to be the only one.
-- **Licence verification fails safe.** A missing, expired or malformed token
+- **License verification fails safe.** A missing, expired or malformed token
   downgrades the instance to Free. It never crashes the application and never
   grants more than the token says.
 - **Money is integer cents and the ledger is double-entry.** Every financial
   event posts a balanced journal entry or throws. A bug that lets an unbalanced
   entry through is a security bug in our book, not a rounding complaint.
 - **Signature comparison is constant-time**, everywhere it happens.
-- **An instance phones home very little.** A paid instance sends one licence
+- **An instance phones home very little.** A paid instance sends one license
   check an hour — a key and an instance id, and nothing else. It is hourly
   rather than nightly because a verified token stays valid for 72 hours, so the
-  hourly call is what stops a cancelled licence promptly instead of up to three
+  hourly call is what stops a canceled license promptly instead of up to three
   days later. A Free instance need never contact us at all. Customer records
   never leave the server.
 

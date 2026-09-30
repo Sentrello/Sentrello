@@ -1,7 +1,7 @@
 ---
 title: Extending Sentrello
 sidebar_position: 2
-description: One module contract for every feature, and the licence exception that lets you sell modules of your own.
+description: One module contract for every feature, and the license exception that lets you sell modules of your own.
 tags: [platform, modules, sdk]
 ---
 
@@ -83,7 +83,7 @@ export default defineModule({
 Three things are worth reading off that:
 
 - **`id` and `tier` are what the host loads against.** A module whose tier the
-  licence does not cover is never registered. Its routes do not exist and its
+  license does not cover is never registered. Its routes do not exist and its
   screens are never served, as opposed to being served and then hidden.
 - **`register` receives the application**, so a module owns its own routes
   instead of asking the host to add them.
@@ -108,7 +108,7 @@ already there.
 
 ## Write a module of your own
 
-The licence carves this out deliberately. The **module linking exception** at
+The license carves this out deliberately. The **module linking exception** at
 the top of `LICENSE` lets you write a module against `@sentrello/module-sdk`,
 load it into Core, and license and sell it on whatever terms you like. Core
 stays AGPL, so changes to Core remain copyleft, but the module belongs to

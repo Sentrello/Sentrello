@@ -430,7 +430,7 @@ export function CrmSettings() {
               <input
                 type="color"
                 value={status.color}
-                aria-label={`Colour for ${status.label}`}
+                aria-label={`Color for ${status.label}`}
                 className="h-8 w-10 rounded border border-line"
                 onChange={(e) => {
                   const next = [...currentStatuses];

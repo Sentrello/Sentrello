@@ -41,7 +41,7 @@ flowchart LR
 
 ## Products
 
-Products with descriptions, images, prices and stock levels. Sizes and colours
+Products with descriptions, images, prices and stock levels. Sizes and colors
 are options on one product, not four near-identical products that drift apart
 over a year.
 
@@ -73,7 +73,7 @@ going. It starts **pending**. It becomes **paid** when the money is confirmed
 with the processor, not when the buyer comes back from it. It becomes
 **fulfilled** once everything on it has been despatched, and a part-despatched
 order says exactly that rather than pretending to be complete. Orders can also
-be **cancelled** or **refunded**; a refund puts the money back through the
+be **canceled** or **refunded**; a refund puts the money back through the
 books as its own entry.
 
 A **customer is created or matched** in the CRM, so somebody who orders twice
