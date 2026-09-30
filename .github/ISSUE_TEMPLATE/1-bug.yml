@@ -26,7 +26,7 @@ body:
       label: How to see it again
       description: The shortest path from a fresh instance to the wrong result. If it only happens with particular data, say what is particular about it.
       placeholder: |
-        1. Invoicing → New invoice, one line, £100
+        1. Invoicing → New invoice, one line, $100
         2. Send it
         3. Record a payment for the full amount
         4. Back to the list — still Open

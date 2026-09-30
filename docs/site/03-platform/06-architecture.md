@@ -42,7 +42,7 @@ flowchart TD
   DB[("PostgreSQL 17<br/><small>Drizzle · a schema per module</small>")]:::store
 
   CP["Control plane<br/><small>sentrello.com</small>"]:::aside
-  LIC["Licence<br/><small>Ed25519, verified offline</small>"]:::aside
+  LIC["License<br/><small>Ed25519, verified offline</small>"]:::aside
   JOBS["pg-boss<br/><small>jobs, in the same database</small>"]:::aside
 
   SPA -->|"one request"| API

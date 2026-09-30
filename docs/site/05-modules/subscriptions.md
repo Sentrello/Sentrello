@@ -7,7 +7,7 @@ tags: [module, subscriptions, invoicing]
 
 # Subscriptions
 
-A wash club. A box every fortnight, a retainer, a membership, a monthly round.
+A wash club. A box every two weeks, a retainer, a membership, a monthly round.
 Selling the same thing every month is a different business from selling a thing
 once, and what it costs you is not the making. It is knowing who is on which
 plan, whose trial ends this week, who is paused, and who has given notice.

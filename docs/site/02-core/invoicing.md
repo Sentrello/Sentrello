@@ -233,7 +233,7 @@ profiles. The bare European norm, Peppol BIS Billing 3.0 for the network most
 reception mandates mean in practice, and XRechnung for German public bodies.
 Each is offered on the invoice only when it would actually validate, and when
 it would not, the screen says what is missing in plain words rather than
-letting you download something that will be rejected a fortnight later.
+letting you download something that will be rejected two weeks later.
 
 **If your business is in the United States or Canada, none of this appears**,
 and that is deliberate rather than unfinished. EN 16931 is a VAT document from

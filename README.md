@@ -70,7 +70,7 @@ instance does and does not send anywhere.
 Look at what a five-person business pays for today. A CRM at $25 a seat. An
 invoicing tool at $30. A bookkeeping subscription at $40. A forms product at
 $20. None of them speak to each other, so somebody re-types the same customer
-four times and the books are always a fortnight behind. Then you hire a sixth
+four times and the books are always two weeks behind. Then you hire a sixth
 person and every one of those bills goes up again.
 
 The usual dodge is to share one login. That works right up until you need to
