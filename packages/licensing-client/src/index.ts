@@ -31,7 +31,6 @@ export interface LicenseClaims extends JWTPayload {
    * Older tokens do not carry it, and its absence must never raise an alarm.
    */
   with_tier?: string[];
-  seats: number;
   grace_until: string | null;
 }
 

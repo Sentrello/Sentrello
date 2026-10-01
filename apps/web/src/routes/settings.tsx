@@ -32,7 +32,6 @@ interface LicenseResponse {
   tokenPresent: boolean;
   reason: string | null;
   modules: string[];
-  seats: number | null;
   instanceId: string | null;
   tokenExpiresAt: string | null;
   graceUntil: string | null;

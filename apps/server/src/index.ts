@@ -983,9 +983,8 @@ app.get(
       // rather than only that something is wrong.
       reason: license.reason ?? null,
       modules: claims?.modules ?? [],
-      seats: claims?.seats ?? null,
       instanceId: claims?.instance_id ?? null,
-      // The token is short-lived and refreshed nightly; this is the deadline
+      // The token is short-lived and refreshed hourly; this is the deadline
       // for that refresh, not the end of the subscription.
       tokenExpiresAt: expiresAt,
       graceUntil: billingGraceUntil(license),
