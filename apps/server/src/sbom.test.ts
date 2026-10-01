@@ -14,6 +14,16 @@ import { join } from "node:path";
  * So the two ways it went wrong while being written are tested, rather than the
  * fact that it produces JSON.
  */
+/*
+ * The version is handed in, because the generator refuses without one.
+ *
+ * It used to fall back to "0.0.0" when the workspace root had no `version`
+ * field — which it does not — so every document ever published named no
+ * release, including the one serving as the current bill of materials the day
+ * v1 shipped. It refuses now; and the first version of this test then broke in
+ * CI but not here, because `actions/checkout` is shallow and has no tags for
+ * the generator's other fallback to find.
+ */
 const sbom = JSON.parse(
   execFileSync(
     "bun",
@@ -21,6 +31,7 @@ const sbom = JSON.parse(
     {
       encoding: "utf8",
       maxBuffer: 32 * 1024 * 1024,
+      env: { ...process.env, SENTRELLO_VERSION: "0.0.0-test" },
     },
   ),
 ) as {
@@ -90,4 +101,27 @@ test("it is reproducible", () => {
   expect(JSON.stringify(again.components)).toBe(
     JSON.stringify(sbom.components),
   );
+});
+
+test("it refuses to describe a release it cannot name", () => {
+  // The silent "0.0.0" is what made a nameless document publishable, so the
+  // refusal is the fix and belongs under a test of its own. `git describe` is
+  // kept out of the way with an empty cwd-relative tag namespace rather than
+  // by moving the script.
+  const run = Bun.spawnSync(
+    ["bun", "run", join(import.meta.dir, "../../../scripts/sbom.ts")],
+    {
+      env: {
+        ...process.env,
+        SENTRELLO_VERSION: "",
+        // `git describe` resolves tags through this; pointed at a directory
+        // with no repository in it, it finds none and exits non-zero.
+        GIT_CEILING_DIRECTORIES: "/",
+        GIT_DIR: "/nonexistent",
+      },
+    },
+  );
+
+  expect(run.exitCode).toBe(1);
+  expect(run.stderr.toString()).toContain("no version");
 });
