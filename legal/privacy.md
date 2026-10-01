@@ -153,14 +153,14 @@ you have dismissed the founder-pricing notice, and whether you have already
 seen the animation on the home page. Signing in to your account opens a billing
 portal on a separate host, which sets its own session cookie there.
 
-Analytics is different. We load Google Tag Manager, which loads Google
-Analytics, to see which pages help somebody decide and which do not.
+Analytics is different. We load Google Analytics, to see which pages help
+somebody decide and which do not.
 
 - **If you are in the EU, the UK or California**, no analytics cookie is set and
-  no measurement is sent until you accept. Google's tag container loads either
-  way — that is how your choice gets applied to it — and declining leaves it
-  switched off. We also honor your browser's Global Privacy Control signal on
-  arrival, before anything is measured.
+  no measurement is sent until you accept. Google's library loads either way, so
+  that your choice can be applied to it, and declining leaves it switched off. We
+  also honor your browser's Global Privacy Control signal on arrival, before
+  anything is measured.
 - **Everywhere else**, analytics measures on arrival, and you can decline it at
   any time from the banner.
 
