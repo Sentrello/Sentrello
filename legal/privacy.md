@@ -168,8 +168,9 @@ somebody decide and which do not.
   that your choice can be applied to it, and declining leaves it switched off. We
   also honor your browser's Global Privacy Control signal on arrival, before
   anything is measured.
-- **Everywhere else**, analytics measures on arrival, and you can decline it at
-  any time from the banner.
+- **Everywhere else**, analytics starts once you do something on the page — a
+  scroll, a tap, a key — and you can decline it at any time from the banner.
+  Land, read nothing, leave, and we never loaded it.
 
 We use two measurements, because they answer different questions. Google
 Analytics tells us which pages help somebody decide. Cloudflare, which serves
