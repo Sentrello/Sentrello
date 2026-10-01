@@ -119,7 +119,7 @@ you connect them yourself.
 | Stripe | Payments, subscriptions, invoices, tax calculation | United States, Ireland |
 | Resend | Transactional email — license keys, receipts, password resets | United States |
 | Cloudflare | DNS, proxy and edge protection for our domains | Global network |
-| Google | Tag Manager and Analytics on `sentrello.com` only, with consent where consent is required | United States |
+| Google | Analytics on `sentrello.com` only, with consent where consent is required | United States |
 | GitHub | Public source code, release artifacts, issue and pull-request discussion | United States |
 | DataForSEO | Search and domain data, for Sentrello SEO Cloud customers only | United States |
 
