@@ -128,12 +128,32 @@ function licenceOf(name: string, version: string): string | undefined {
   return undefined;
 }
 
+/*
+ * Which release this bill of materials is for.
+ *
+ * It read the root `package.json`, which carries no `version` field — a
+ * workspace root does not need one — so every SBOM ever published said
+ * `0.0.0`, including the one serving as `sbom-latest.cdx.json` on the day v1
+ * shipped. A bill of materials that cannot name its own release is not
+ * evidence of anything, and the `?? "0.0.0"` is what made the failure silent.
+ *
+ * `SENTRELLO_VERSION` is what the application itself reports on `/healthz`, so
+ * it is the same answer a customer gets; a tag works for a hand-run. Refusing
+ * is the point: better no file than one claiming a version nobody released.
+ */
 const version =
-  (
-    JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as {
-      version?: string;
-    }
-  ).version ?? "0.0.0";
+  process.env.SENTRELLO_VERSION?.trim().replace(/^v/, "") ||
+  Bun.spawnSync(["git", "describe", "--tags", "--abbrev=0"], { cwd: root })
+    .stdout.toString()
+    .trim()
+    .replace(/^v/, "");
+
+if (!version) {
+  console.error(
+    "sbom: no version. Set SENTRELLO_VERSION, or run this where a release tag is reachable.",
+  );
+  process.exit(1);
+}
 
 const components = fromLockfile()
   .sort((a, b) =>
