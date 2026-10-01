@@ -20,6 +20,15 @@ United States.
 Privacy requests: **privacy@sentrello.com**
 Everything else: **support@sentrello.com**
 
+Post, if you would rather write:
+
+```
+Sentrello LLC
+9249 S Broadway, Suite 200-324
+Highlands Ranch, CO 80129
+United States
+```
+
 This policy covers `sentrello.com`, the account area, the license server, and
 the email we send you. It applies to the personal data of the people who buy,
 evaluate and support Sentrello — not to the data inside your own instance.
@@ -154,6 +163,17 @@ Analytics, to see which pages help somebody decide and which do not.
   arrival, before anything is measured.
 - **Everywhere else**, analytics measures on arrival, and you can decline it at
   any time from the banner.
+
+We use two measurements, because they answer different questions. Google
+Analytics tells us which pages help somebody decide. Cloudflare, which serves
+this site, adds a small beacon of its own that tells us how quickly the page
+actually arrived and from roughly where — the thing an analytics tag cannot see,
+because by the time it runs the page is already there.
+
+The Cloudflare one sets no cookie, identifies nobody, and is not joined to
+anything else we hold. It is added at the network edge rather than by the site,
+so the consent banner does not switch it off; there is nothing in it to switch
+off.
 
 Analytics runs on the public website only. It is not in the product, not on the
 staging site, and not on your instance.

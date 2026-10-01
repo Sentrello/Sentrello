@@ -17,7 +17,16 @@ Read [the privacy policy](privacy.md) first: it lists what we collect, from
 whom, and for how long. This page adds the parts the GDPR and the UK GDPR ask
 for specifically.
 
-**Controller:** Sentrello LLC, Colorado, United States.
+**Controller:** Sentrello LLC, a limited liability company registered in
+Colorado, United States.
+
+```
+Sentrello LLC
+9249 S Broadway, Suite 200-324
+Highlands Ranch, CO 80129
+United States
+```
+
 **Contact for data protection matters:** privacy@sentrello.com
 
 ---

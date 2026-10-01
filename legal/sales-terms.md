@@ -60,11 +60,21 @@ carries onto modules you add to that same subscription later.
 Payments are taken by **Stripe**. We never see your full card number.
 
 Tax is calculated by Stripe at checkout from the address and tax identifiers you
-give, and shown before you pay. US sales tax, Canadian GST/HST and provincial
-taxes, UK VAT and EU VAT are handled that way; if you are a business with a
-valid VAT or GST number, enter it at checkout and the reverse charge applies
-where the law allows it. It is your responsibility to give an accurate address
-and tax number, and to account for tax in your own jurisdiction.
+give, and whatever is due is shown to you before you pay.
+
+**Sentrello LLC is a United States company, registered for tax in the United
+States.** So what you are charged is US tax where US tax applies. We do not add
+Canadian GST or HST, UK VAT or EU VAT, because we are not registered to collect
+them — which means that if you are buying from outside the United States,
+accounting for whatever your own country charges on this purchase is yours to
+do. A business in the UK or the EU can give its VAT number at checkout and
+account for the purchase under the reverse charge; the field is on the payment
+page.
+
+Give an accurate address, and an accurate tax number where you have one. If you
+need something particular on the invoice in order to claim it back, write to
+support@sentrello.com before you buy and we will tell you whether we can put it
+there.
 
 Your invoices and receipts are in your billing portal, reached from the account
 area at any time.
