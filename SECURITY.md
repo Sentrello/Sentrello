@@ -24,7 +24,7 @@ You can expect:
 
 | | |
 |---|---|
-| First reply | Within 3 working days |
+| First reply | Within 2 working days |
 | Assessment and severity | Within 7 days of the first reply |
 | Fix released | As fast as severity warrants — a remote hole in a released version is a same-week patch |
 | Credit | Named in the release notes, if you want to be |
@@ -91,7 +91,7 @@ Worth knowing if you are reading the code rather than probing a server:
 
 ## Supported versions
 
-Sentrello is in early access and moves quickly. Security fixes land on the
+Sentrello reached v1 on 1 October 2026 and still moves quickly. Security fixes land on the
 **latest release**, and `sentrello update` is the supported way to take them.
 There is no long-term-support branch yet; when there is, it will be described
 here.

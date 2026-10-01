@@ -4,7 +4,7 @@ Sentrello targets **WCAG 2.2 Level AA**. This page says what has been tested,
 how, what the results were, and — the part most statements leave out — what has
 **not** been tested.
 
-Last assessed: **9 September 2026**, against every screen the application
+Last assessed: **1 October 2026**, against every screen the application
 offers.
 
 ## Why you may need this
@@ -23,11 +23,13 @@ version of what such a questionnaire asks for.
 ## What is tested, and how
 
 Every screen the application offers is loaded in a real browser, signed in, and
-checked with **axe-core** against WCAG 2.0, 2.1 and 2.2 at levels A and AA. It
-runs with the rest of the test suite, so a change that breaks accessibility
-fails before it is released rather than after somebody reports it.
+checked with **axe-core** against WCAG 2.0 and 2.1 at levels A and AA, and 2.2
+at AA. It is not part of the unit suite — it needs a running, licensed instance
+and a real browser, so it runs every night against the latest core and again on
+every release tag. A regression surfaces within a day of the change that caused
+it, and before the release it would otherwise have gone out in.
 
-**Issues at "serious" and "critical" severity fail the build.** The two lower
+**Issues at "serious" and "critical" severity fail that walk.** The two lower
 severities are reported and not enforced — they contain a large number of
 contextual judgements, and a list nobody can clear becomes a check somebody
 turns off.

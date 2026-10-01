@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 
 /**
  * What this repository tells the public that an instance sends.
@@ -26,7 +26,11 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 const ROOT = `${import.meta.dir}/../../..`;
 
 const walk = (dir: string): string[] =>
-  readdirSync(dir).flatMap((entry) => {
+  // A directory that is not there contributes nothing. `docs/plan` is
+  // git-ignored, so it exists on the machine this was written on and in no
+  // clone and no CI checkout — a sweep that throws where it runs and passes
+  // where it was written is worse than one that looks in fewer places.
+  (existsSync(dir) ? readdirSync(dir) : []).flatMap((entry) => {
     const path = `${dir}/${entry}`;
     return statSync(path).isDirectory()
       ? walk(path)
@@ -46,17 +50,33 @@ const callsItDaily = (line: string): boolean =>
   /\bcheck(s|ing)?\b/i.test(line);
 
 test("nothing public calls the licence check daily", () => {
+  /*
+   * `legal/` was outside this list, and it was wrong.
+   *
+   * `legal/security.md` said "Runs once a day, only on a paid instance" eleven
+   * days after the cron changed — in a legal document, in a public repository.
+   * The file list was README, SECURITY and the published docs, which is "the
+   * places we remembered", and the claim had drifted into the one we had not.
+   */
   const files = [
     `${ROOT}/README.md`,
     `${ROOT}/SECURITY.md`,
     ...walk(`${ROOT}/docs/site`),
+    ...walk(`${ROOT}/legal`),
   ];
 
   const wrong: string[] = [];
   for (const file of files) {
     for (const line of readFileSync(file, "utf8").split("\n")) {
       if (!callsItDaily(line)) continue;
-      if (/rather than nightly|instead of (nightly|daily)/i.test(line))
+      // A sentence that is *about* the change is the one place both cadences
+      // belong in one line, and "hourly, not daily" is the shortest way to
+      // write it.
+      if (
+        /rather than (nightly|daily)|instead of (nightly|daily)|not (nightly|daily)/i.test(
+          line,
+        )
+      )
         continue;
       wrong.push(`${file.slice(ROOT.length + 1)}: ${line.trim().slice(0, 80)}`);
     }

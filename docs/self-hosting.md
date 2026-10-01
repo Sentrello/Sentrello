@@ -23,8 +23,10 @@ front is the one part that is yours. It is the next section.
 
 ### The machine
 
-- **Linux, x86-64 or ARM64.** The installer refuses anything else, because
-  those are the two architectures the images are built for.
+- **Linux, x86-64 or ARM64.** Those are the two architectures the images are
+  built for, and the installer stops on any other. It does not check which
+  operating system it is on, so on a Mac with Docker Desktop it will start and
+  fail later. Don't.
 - **1 GB of memory works; 2 GB is more comfortable.** The installer sizes
   PostgreSQL from whatever it finds — a quarter of memory for shared buffers,
   half as the cache estimate. Verified on a 1 GB server with no swap: the
@@ -108,7 +110,9 @@ your instance stops the moment you log out.
 ### Where to run it
 
 The installer puts everything in **`/opt/sentrello`** by default: the compose
-file, `secrets/.env`, the database volume, backups and bundles.
+file, `secrets/.env`, the data directory, backups and bundles. Not the database
+volume itself — that belongs to the container engine, which matters when you
+come to move a machine.
 
 **You do not have to be root.** Root is only needed to create that directory —
 if you are not root and cannot create it, the installer uses `sudo` for that
@@ -202,9 +206,13 @@ registration, no key, and nothing that expires.
 | Everything the app does | your own instance | yours |
 | Email, if you configure it | Resend or your SMTP server | yours |
 | Card payments, if you enable them | Stripe or PayPal | yours |
+| Asking whether a newer release exists — at install, on `sentrello status`, or when you press Check for updates | sentrello.com | ours |
 | Usage report, **only if you say yes** | sentrello.com | ours |
 
-The usage report is the only thing that ever reaches us, it is off unless you
+That version check carries nothing but the question, and it happens only when
+somebody asks for it: there is no timer behind it and opening a screen does not
+trigger one. Apart from that, the usage report is the only thing that reaches
+us. It is off unless you
 answer yes at install, and you can turn it off afterwards in Settings. It
 sends: the version you run, whether you are Free or Pro, which modules are
 loaded, and a band for how many people use it (`1`, `2-5`, `6-10`, `11-20`,
@@ -394,8 +402,8 @@ If mail is not configured and you are locked out, use the terminal instead:
 sentrello reset-password you@yourbusiness.com
 ```
 
-From **0.18**, a repeated wrong password locks the address for a few minutes —
-by design, so guessing cannot run forever — but that also means the one person on a
+Five wrong passwords lock the address for fifteen minutes — by design, so
+guessing cannot run forever — but that also means the one person on a
 self-hosted instance with nobody else to ask for help can lock themselves
 out. `sentrello reset-password` already clears the lock along with setting a
 new password; if the password itself is fine and only the lock is the
@@ -414,7 +422,12 @@ sentrello backup                 # a dump you can keep
 sentrello restore backups/<file> # put one back
 ```
 
-Two things worth knowing. Every update takes a backup first and **refuses to
+**One is already scheduled.** On an ordinary install a systemd timer takes a
+backup every night, at a randomised minute so a thousand instances do not all
+start at once, and keeps the last fourteen. You do not have to arrange that
+part; the dashboard shows you whether last night's worked.
+
+Two more things worth knowing. Every update takes a backup first and **refuses to
 proceed without one** — an update that cannot back up is an update that should
 not happen. (`--no-backup` overrides that, and exists for the case where you
 have just taken one yourself.) And a backup on the same disk as the database is
@@ -525,15 +538,18 @@ are the ones who have not signed in.
 Bugs and questions: open an issue. Please include the `healthz` output and what
 you were doing.
 
-**Security problems: do not open a public issue.** Email
-`security@sentrello.com` with what you found and how to reproduce it.
+**Security problems: do not open a public issue.** Open a draft advisory on the
+repository, or email `security@sentrello.com`, with what you found and how to
+reproduce it.
 
 ## What the Free dashboard says about Pro
 
 A Free instance shows one block at the top of its dashboard, once there is
 nothing left on the setting-up checklist: a line about what Pro adds, and a
-link to the pricing page. It is the only advertising anywhere in the product,
-and the copy ships in the release.
+link to the pricing page. The other place our name appears is the "Powered by
+Sentrello" line at the foot of the pages your customers see — the sign-in
+screen, a form's thank-you page, an invoice somebody opens from a link. Pro
+replaces it with your own or removes it. Both ship in the release.
 
 **Nothing is fetched to fill it.** Until 21 September 2026 it was a document
 pulled from `sentrello.com` every hour, which made a free instance call home
