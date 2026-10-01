@@ -36,6 +36,49 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The sign-off, checked rather than asked for.
+  #
+  # CONTRIBUTING.md and the pull-request template both called a `Signed-off-by`
+  # line mandatory, and nothing anywhere had ever looked: not one commit in this
+  # repository's history carries one, including every commit that wrote the rule
+  # down. A requirement nobody enforces is a requirement the first outside
+  # contributor meets by accident or not at all, and the DCO is the only thing
+  # standing in for a contributor agreement here — there is no CLA to fall back
+  # on.
+  #
+  # On pull requests only. Work pushed straight to `main` is the owner's own,
+  # which is the one case the certificate has nothing to certify.
+  sign-off:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Just the commits the pull request adds, and their full messages — a
+      # shallow clone has neither.
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: every commit in this pull request certifies its origin
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          missing=0
+          while read -r sha; do
+            # The author's own line, not merely any sign-off: a message carrying
+            # somebody else's would pass a plain grep for the phrase.
+            author="$(git show -s --format='Signed-off-by: %an <%ae>' "$sha")"
+            if ! git show -s --format='%B' "$sha" | grep -qxF "$author"; then
+              echo "::error::$(git show -s --format='%h %s' "$sha")"
+              echo "    needs: $author"
+              missing=1
+            fi
+          done < <(git rev-list --no-merges "$BASE..$HEAD")
+          if [ "$missing" = 1 ]; then
+            echo "::error::Sign off with 'git commit -s --amend', or 'git rebase --signoff $BASE' for several. CONTRIBUTING.md says what it certifies."
+            exit 1
+          fi
+          echo "every commit signed off"
+
   build:
     runs-on: ubuntu-latest
     # A hung job is billed like a working one.

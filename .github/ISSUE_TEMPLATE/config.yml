@@ -8,7 +8,7 @@ blank_issues_enabled: false
 contact_links:
   - name: A security vulnerability
     url: https://github.com/Sentrello/Sentrello/security/policy
-    about: Please email security@sentrello.com instead of opening an issue. A public report is a public exploit for everyone who has not updated yet.
+    about: Report it privately instead of opening an issue — a draft advisory on this repository, or security@sentrello.com. A public report is a public exploit for everyone who has not updated yet.
 
   - name: Documentation
     url: https://docs.sentrello.com/docs/running/troubleshooting

@@ -32,7 +32,7 @@ Fixes #
       exactly like a passing one.)
 - [ ] There is a test that fails without this change, or the change is one that
       cannot have one — and this says which.
-- [ ] Every commit is signed off (`git commit -s`). The
+- [ ] Every commit is signed off (`git commit -s`) — CI checks this first. The
       [DCO](https://developercertificate.org/) is the whole of it; there is no
       agreement to sign.
 - [ ] Nothing here belongs to Pro or a paid module. This repository is the free
