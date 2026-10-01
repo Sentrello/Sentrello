@@ -24,17 +24,25 @@ import { join } from "node:path";
  * CI but not here, because `actions/checkout` is shallow and has no tags for
  * the generator's other fallback to find.
  */
-const sbom = JSON.parse(
-  execFileSync(
-    "bun",
-    ["run", join(import.meta.dir, "../../../scripts/sbom.ts")],
-    {
-      encoding: "utf8",
-      maxBuffer: 32 * 1024 * 1024,
-      env: { ...process.env, SENTRELLO_VERSION: "0.0.0-test" },
-    },
-  ),
-) as {
+const SCRIPT = join(import.meta.dir, "../../../scripts/sbom.ts");
+
+/**
+ * One place that runs the generator, because there are two callers here and
+ * the first fix reached one of them.
+ *
+ * Handing in a version was all that was needed, and `it is reproducible` runs
+ * the script a second time — it kept the bare call, refused in CI for the same
+ * reason, and the repair looked like it had worked locally where a tag is
+ * reachable.
+ */
+const generate = () =>
+  execFileSync("bun", ["run", SCRIPT], {
+    encoding: "utf8",
+    maxBuffer: 32 * 1024 * 1024,
+    env: { ...process.env, SENTRELLO_VERSION: "0.0.0-test" },
+  });
+
+const sbom = JSON.parse(generate()) as {
   bomFormat: string;
   specVersion: string;
   components: {
@@ -88,16 +96,10 @@ test("every component can be identified and most can be verified", () => {
 
 /** Two runs of the same tree differ only by the timestamp. */
 test("it is reproducible", () => {
-  const again = JSON.parse(
-    execFileSync(
-      "bun",
-      ["run", join(import.meta.dir, "../../../scripts/sbom.ts")],
-      {
-        encoding: "utf8",
-        maxBuffer: 32 * 1024 * 1024,
-      },
-    ),
-  ) as { metadata: { timestamp: string }; components: unknown[] };
+  const again = JSON.parse(generate()) as {
+    metadata: { timestamp: string };
+    components: unknown[];
+  };
   expect(JSON.stringify(again.components)).toBe(
     JSON.stringify(sbom.components),
   );
@@ -108,19 +110,16 @@ test("it refuses to describe a release it cannot name", () => {
   // refusal is the fix and belongs under a test of its own. `git describe` is
   // kept out of the way with an empty cwd-relative tag namespace rather than
   // by moving the script.
-  const run = Bun.spawnSync(
-    ["bun", "run", join(import.meta.dir, "../../../scripts/sbom.ts")],
-    {
-      env: {
-        ...process.env,
-        SENTRELLO_VERSION: "",
-        // `git describe` resolves tags through this; pointed at a directory
-        // with no repository in it, it finds none and exits non-zero.
-        GIT_CEILING_DIRECTORIES: "/",
-        GIT_DIR: "/nonexistent",
-      },
+  const run = Bun.spawnSync(["bun", "run", SCRIPT], {
+    env: {
+      ...process.env,
+      SENTRELLO_VERSION: "",
+      // `git describe` resolves tags through this; pointed at a directory
+      // with no repository in it, it finds none and exits non-zero.
+      GIT_CEILING_DIRECTORIES: "/",
+      GIT_DIR: "/nonexistent",
     },
-  );
+  });
 
   expect(run.exitCode).toBe(1);
   expect(run.stderr.toString()).toContain("no version");
