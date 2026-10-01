@@ -167,8 +167,8 @@ Analytics, to see which pages help somebody decide and which do not.
 We use two measurements, because they answer different questions. Google
 Analytics tells us which pages help somebody decide. Cloudflare, which serves
 this site, adds a small beacon of its own that tells us how quickly the page
-actually arrived and from roughly where — the thing an analytics tag cannot see,
-because by the time it runs the page is already there.
+actually arrived and from roughly where, which an analytics tag cannot see:
+by the time it runs, the page is already there.
 
 The Cloudflare one sets no cookie, identifies nobody, and is not joined to
 anything else we hold. It is added at the network edge rather than by the site,
