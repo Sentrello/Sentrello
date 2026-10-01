@@ -49,6 +49,7 @@ You need [Bun 1.3.14](https://bun.sh) exactly, and PostgreSQL 17.
 
 ```bash
 bun install
+cp .env.example .env
 docker compose -f docker-compose.dev.yml up -d   # PostgreSQL
 bun run db:migrate
 bun run dev                                      # API and web
@@ -57,9 +58,20 @@ bun run dev                                      # API and web
 `SENTRELLO_BASE_URL` has to be the address your browser actually uses, or every
 sign-in is refused — correctly, and with a message saying so.
 
-Use a database that is not the one the tests use. Claiming an instance in the
-browser leaves an organization behind, and the bootstrap tests then fail with
-conflicts that have nothing to do with your change.
+The tests need a database of their own. They truncate tables, and the gate
+below refuses to point at the one you are clicking around in — claiming an
+instance in a browser leaves an organization behind, and the bootstrap tests
+then fail with conflicts that have nothing to do with your change. One command,
+once:
+
+```bash
+docker compose -f docker-compose.dev.yml exec -T postgres \
+  createdb -U sentrello sentrello_t_core
+export DATABASE_URL=postgres://sentrello:sentrello@localhost:5432/sentrello_t_core
+```
+
+Keep that exported for anything that runs tests, or they go looking for the
+database this project's own machines keep on port 5433.
 
 ## Before you open a pull request
 
@@ -67,7 +79,9 @@ conflicts that have nothing to do with your change.
 bun run verify
 ```
 
-That runs the typecheck, the linter and the tests, and prints one word at the
+That runs the typecheck, the linter, a web build that checks every Tailwind
+class name against the stylesheet it produced, the tests, and a pass that
+refuses to finish if a suite left rows behind — then prints one word at the
 end. Run it bare — do not pipe it through `tail` or `grep`, because a
 pipeline's exit code is the last command's and a failing gate then looks
 exactly like a passing one.
@@ -110,6 +124,17 @@ A subject line that says what changed and why it matters, and a body that
 explains anything a reader would otherwise have to reconstruct. We use
 `type(scope): summary` — `fix(invoicing):`, `feat(crm):`, `docs:`.
 
+Keep the subject to 72 characters, leave the line under it blank, and wrap the
+body at 72 as well. Those are checked rather than suggested:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+That turns on the local hooks — the message rules, and the gate above before
+every commit. A fresh clone has them off, which is how a long subject line gets
+as far as a pull request.
+
 Write for somebody reading it in a year with no memory of today.
 
 ## Licensing your contribution
@@ -135,14 +160,15 @@ person **within two business days**. A reply is not a commitment to merge or to
 fix — it is us telling you what we think and where it sits. If something is
 going to take weeks, we will say that rather than leave it quiet.
 
-Security problems do not belong in an issue. [SECURITY.md](SECURITY.md) has the
-address, and we would rather hear about it privately first.
+Security problems do not belong in an issue. [SECURITY.md](SECURITY.md) has
+both private routes and the same two-day window, and we would rather hear about
+it privately first.
 
 ### Sign your work
 
-Every commit needs a `Signed-off-by` line. There is no contributor agreement to
-sign and no form to fill in — the sign-off is the whole of it, and `git` writes
-it for you:
+Every commit in a pull request needs a `Signed-off-by` line, and CI checks each
+one before anything else runs. There is no contributor agreement to sign and no
+form to fill in — the sign-off is the whole of it, and `git` writes it for you:
 
 ```
 git commit -s -m "fix(crm): the task list ignored its own filter"

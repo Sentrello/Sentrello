@@ -12,7 +12,7 @@
   <a href="https://github.com/orgs/Sentrello/packages"><img alt="Container image" src="https://img.shields.io/badge/image-ghcr.io%2Fsentrello%2Fcore-0db7ed"></a>
   <img alt="Self-hosted" src="https://img.shields.io/badge/hosting-self--hosted-2f6f62">
   <img alt="No per-seat pricing" src="https://img.shields.io/badge/pricing-no%20per--seat-2f6f62">
-  <a href="#project-status"><img alt="Status: early access" src="https://img.shields.io/badge/status-early%20access-orange"></a>
+  <a href="#project-status"><img alt="Status: stable, v1" src="https://img.shields.io/badge/status-stable%20v1-2f6f62"></a>
   <a href="SECURITY.md"><img alt="Security policy" src="https://img.shields.io/badge/security-policy-555555"></a>
 </p>
 <div id="user-content-toc">
@@ -46,8 +46,9 @@ curl -fsSL https://get.sentrello.com | bash
 install podman-compose`, or `pip3 install podman-compose`. Podman stopped
 bundling one, and the installer will tell you the same thing if it is missing.
 
-The installer asks for a domain and an administrator email, generates its own
-database password and signing secrets, starts PostgreSQL and the app, and runs
+The installer asks four things — a license key if you have one, a domain, an
+administrator email, and whether to send usage reports (the answer is no unless
+you change it) — generates its own database password and signing secrets, starts PostgreSQL and the app, and runs
 migrations. A few minutes later you have a working instance. Put a reverse proxy
 with TLS in front of it and you're done.
 
@@ -57,7 +58,8 @@ here](https://get.sentrello.com/install.sh), and the image is
 
 Manage it afterwards with `sentrello status | update | rollback | backup |
 restore | logs`. Updates can also be applied from Settings, and every update
-takes a database backup before it starts and refuses to continue without one.
+takes a database backup before it starts and refuses to continue without one
+unless you say `--no-backup`.
 
 **[Running it yourself](docs/self-hosting.md)** covers TLS, email, backups,
 updates and what to look at when something is wrong — including exactly what an
@@ -95,7 +97,9 @@ running and your data keeps being readable.
   license check an hour — a key and an instance id. A Free instance need never
   contact us at all.
 - **Start free and stay free if you like.** The free core is not a trial. It
-  doesn't expire, doesn't nag, and doesn't need a license key.
+  doesn't expire and doesn't need a license key. One block on the dashboard
+  says what Pro adds, and the pages your customers see carry a "Powered by
+  Sentrello" line. That is the whole of it.
 - **Grow by module, not by seat.** Add a shop, a booking diary or a newsletter
   when the business needs one, and pay nothing for the ones it doesn't.
 
@@ -133,8 +137,15 @@ state nexus thresholds, the EU One Stop Shop return, and a structured EN 16931
 e-invoice — every one of those is in this repository, computed from the ledger,
 and runs on an instance with no license key at all.
 
-Dropping back to free leaves every record you created in place, still readable
-and still exportable. The Pro screens simply stop.
+Dropping back to free leaves every record you created in place and in the same
+database. The Pro screens simply stop — which means the records only they can
+reach, like bills, vendors, budgets and fixed assets, are still readable but no
+longer exportable from inside the app. Export those before you cancel.
+
+One other thing worth knowing before you compare: a free instance carries a
+"Powered by Sentrello" line on the pages your customers land on — the sign-in
+screen, a form's thank-you page, an invoice opened from a link. Replacing it
+with your own, or removing it, is a Pro feature.
 
 **[The full comparison, line by line →](https://docs.sentrello.com/docs/free-vs-pro)**
 
@@ -148,7 +159,7 @@ sold against the free core.
 
 | Module | What it is | Availability |
 |---|---|---|
-| **[Booking](https://docs.sentrello.com/docs/modules/booking)** | Diary, availability, resources, and a page customers book themselves on | Available |
+| **[Booking](https://docs.sentrello.com/docs/modules/booking)** | Diary, availability, who takes which appointment, and a page customers book themselves on | Available |
 | **[Shop](https://docs.sentrello.com/docs/modules/shop)** | Products, stock by location, storefront, checkout and payments | Available |
 | **[Subscriptions](https://docs.sentrello.com/docs/modules/subscriptions)** | Plans, subscribers, trials, pauses, and a customer who can change or cancel their own | Available |
 | **Projects** | Projects, tasks, boards, milestones, and the hours that become invoice lines | Available |
@@ -162,11 +173,11 @@ sold against the free core.
 | **Helpdesk** | Customer questions arriving as tickets in a queue, rather than into one person's inbox | **Being built** |
 
 **POS is not for sale, and has no date.** It was withdrawn from the catalog
-on 15 September 2026 on its own review: a cash-handling product has to be able
-to void, refund, comp and discount a sale, count a drawer blind rather than
-open, print a receipt and keep the closure it printed. Those controls exist
-now; the rebuild for the screens it is actually used on, the card readers and
-the receipt printers do not. Nobody has lost anything — no license is sold
+on 15 September 2026 on its own review. The cash controls a till needs are all
+there — void, refund, comp, discount, a blind drawer count, a receipt and the
+closure it printed. What is missing is the hardware around them: no card
+reader, no receipt printer, and no pass over the screens for a counter you
+stand at rather than a desk you sit at. Nobody has lost anything — no license is sold
 before 1 October 2026 — and nothing here says when it returns, because we do
 not know. When it does it is a **plugin**: it needs Shop, it is bought
 separately at half a module's price, and it shares Shop's catalog rather than
@@ -202,19 +213,17 @@ to its clients' keywords transiting somebody else's server.
 ---
 ## Founder pricing
 
-**v1 lands on 1 October 2026.** For the **first 90 days** after it does, Pro
-subscriptions bought during that window keep their price for as long as they
-stay active. Locked — not an introductory rate that steps up next year.
+**v1 shipped on 1 October 2026, and the window is open now.** Everything is
+**40% off until 31 December 2026**, and what you start on is what you keep —
+through every release, and through every module you add two years from now.
+Locked for as long as the subscription stays active, not an introductory rate
+that steps up next year. Cancel and the rate leaves with it.
 
 Nothing is sold before it exists: a module that is not finished is not on the
 price list, at any price. One that is finished inside the window goes on sale
 at the founder price like everything else, so waiting for it costs you nothing.
 
-**Watch this repository** to be told the day it does, and **star it** if
-you want to see a business platform exist that nobody has to rent seats on.
-
-[![Star on GitHub](https://img.shields.io/github/stars/Sentrello/Sentrello?style=social)](https://github.com/Sentrello/Sentrello/stargazers)
-[![Watch this repo](https://img.shields.io/github/watchers/Sentrello/Sentrello?style=social)](https://github.com/Sentrello/Sentrello/subscription)
+One window, one set of dates, and nobody gets a better one by asking.
 
 ---
 
@@ -233,7 +242,7 @@ export default defineModule({
   id: "crm",
   tier: "free",
   register(ctx) {
-    ctx.registerNav({ id: "crm", label: "Contacts", order: 10 });
+    ctx.registerNav({ id: "crm", label: "CRM", group: "Sales", order: 10 });
     ctx.app.get("/api/contacts", requireSession(), requirePermission({ crm: ["read"] }), handler);
   },
 });
@@ -275,9 +284,14 @@ bun run db:migrate
 bun run dev                                       # API + web
 ```
 
-Then:
+The tests want a database of their own — they truncate tables, and the gate
+refuses to point at the one you are clicking around in:
 
 ```bash
+docker compose -f docker-compose.dev.yml exec -T postgres \
+  createdb -U sentrello sentrello_t_core
+export DATABASE_URL=postgres://sentrello:sentrello@localhost:5432/sentrello_t_core
+
 bun test          # every test runs against a real PostgreSQL, not mocks
 bun run typecheck
 bun run lint
@@ -291,10 +305,16 @@ what a good pull request looks like.
 
 ## Project status
 
-**Early access, with v1 on 1 October 2026.** The free core is built and tested, and
-the install path works end to end on both Docker and Podman. It has not yet been
-run by a large number of businesses, so expect rough edges and please report
-them — the Podman path was fixed in v0.13.0 because somebody did.
+**Stable since 1 October 2026.** The version number stopped being a warning
+that day. The free core is built and tested, the install path works end to end
+on both Docker and Podman, and a release does not go out until every test in
+four repositories is green on a database created that morning.
+
+What that does not mean is that it has been run by a large number of
+businesses, because it has not. Expect rough edges and please report them —
+an early release fixed the Podman path because somebody hit it, and two faults
+in 1.0.0 were found and patched the same night by installing it here from
+nothing, the way a stranger would.
 
 Live bank feeds arrived in Pro: a business connects its bank through a data
 provider and transactions arrive on their own, alongside the CSV import that is
@@ -307,6 +327,13 @@ passed — a run on a day, not a step in every build. The network leg exists too
 connect an access point of your own, test it from the settings screen, and an
 invoice has a control for it. What has not happened yet is one document making
 the round trip on the live network, so that is not claimed until it has.
+
+That gap will not close here, and the reason is worth knowing because it is
+also the way round it: an access point issues a test account to the business
+holding the contract with them, and Sentrello holds none and does not intend
+to. We asked for one and were told exactly that. So ask your own provider for a
+sandbox key when you open the account, walk it, and read what comes back before
+a real invoice depends on it.
 
 Not yet available, and not promised on any date: QuickBooks or Xero sync,
 mobile apps, and the POS.
