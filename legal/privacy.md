@@ -123,9 +123,16 @@ you connect them yourself.
 | GitHub | Public source code, release artifacts, issue and pull-request discussion | United States |
 | DataForSEO | Search and domain data, for Sentrello SEO Cloud customers only | United States |
 
-Each is engaged under terms that restrict them to processing on our
-instruction. We do not sell personal data, and we do not share it for
-cross-context behavioral advertising.
+Six of those seven process on our instruction and nothing else, under terms
+that say so. GitHub is the exception, and the honest description of it is
+different: it is not working on our behalf at all. The code there is public,
+and somebody who opens an issue is GitHub's user before they are ours — GitHub
+decides what it keeps about that account, and we read only what they chose to
+post in the open. We list it because it is where the project lives, not because
+we handed it anything.
+
+We do not sell personal data, and we do not share it for cross-context
+behavioral advertising.
 
 ---
 

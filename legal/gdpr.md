@@ -116,13 +116,14 @@ policy](privacy.md). Where personal data moves from the EEA, Switzerland or
 the UK to the United States, the transfer relies on:
 
 - the **Standard Contractual Clauses** adopted by the European Commission,
-  incorporated into our agreements with each provider, together with the UK
-  International Data Transfer Addendum where the UK GDPR applies; and
+  incorporated into our agreement with each of our processors, together with the
+  UK International Data Transfer Addendum where the UK GDPR applies; and
 - where the provider is certified, the **EU–US Data Privacy Framework** and its
   UK extension.
 
-Stripe, Cloudflare, Google and GitHub all publish their own transfer
-documentation. We rely on it and keep our own copies.
+Stripe, Cloudflare and Google all publish their own transfer documentation. We
+rely on it and keep our own copies. GitHub is not in that list, because it is
+not a processor for us — the privacy policy says why.
 
 The volume is worth stating plainly: the personal data crossing the Atlantic
 because of Sentrello is a business contact, a billing address and a license
