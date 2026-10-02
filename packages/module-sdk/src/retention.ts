@@ -209,6 +209,15 @@ export const STATUTORY_TABLES = [
    * with a figure it swept.
    */
   "pos.tips",
+  /*
+   * When somebody was on, and at which till.
+   *
+   * Statutory because it is a time-and-attendance record, and in all four of
+   * our markets hours worked is something an employer must be able to produce
+   * — for payroll, and for whichever authority asks about minimum wage or
+   * working time. A business that swept last year's punches cannot answer.
+   */
+  "pos.shifts",
   "pos.adjustments",
   "pos.drawers",
   "pos.drawer_events",
