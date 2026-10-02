@@ -1,5 +1,6 @@
 import { verifyStripeSignature } from "../stripe-signature";
 import type {
+  CardReader,
   CheckoutRequest,
   ConnectionResult,
   Credentials,
@@ -7,6 +8,8 @@ import type {
   OnSitePayment,
   PaymentEvent,
   PaymentProvider,
+  ReaderCollection,
+  ReaderRequest,
 } from "./provider";
 
 /**
@@ -33,6 +36,46 @@ import type {
  * is imported long before one runs.
  */
 const api = () => process.env.STRIPE_API_BASE ?? "https://api.stripe.com/v1";
+
+/**
+ * A reader's `action` block, read as one of the three states a till can act on.
+ *
+ * Stripe reports `in_progress`, `succeeded` or `failed` on the reader itself
+ * rather than on the payment, because the reader is what is busy. A reader with
+ * no action at all has finished and been cleared, which is indistinguishable
+ * here from never having been asked — so the caller passes the reference it
+ * already holds and we keep waiting rather than inventing a verdict.
+ *
+ * `failure_message` is Stripe's own wording and goes straight to the cashier.
+ * Rewriting it would mean guessing at a decline we have not seen, and "card
+ * declined" over the top of "insert card instead" is the kind of help that
+ * costs a sale.
+ */
+function readerCollection(
+  reader: Record<string, unknown>,
+  fallbackReference = "",
+): ReaderCollection {
+  const action = reader.action as
+    | {
+        status?: string;
+        failure_message?: string;
+        process_payment_intent?: { payment_intent?: string };
+      }
+    | null
+    | undefined;
+  const reference =
+    action?.process_payment_intent?.payment_intent ?? fallbackReference;
+
+  if (action?.status === "succeeded") return { reference, status: "paid" };
+  if (action?.status === "failed") {
+    return {
+      reference,
+      status: "failed",
+      message: action.failure_message ?? "the card was not taken",
+    };
+  }
+  return { reference, status: "waiting" };
+}
 
 function form(values: Record<string, string | undefined>): URLSearchParams {
   const params = new URLSearchParams();
@@ -77,13 +120,27 @@ export function stripeProvider(credentials: Credentials): PaymentProvider {
 
   async function call(
     path: string,
-    init: { method?: string; body?: URLSearchParams } = {},
+    init: {
+      method?: string;
+      body?: URLSearchParams;
+      /**
+       * Stripe's own replay protection, for the calls where a repeat costs
+       * money. Sending the same key twice returns the first answer instead of
+       * doing the thing again — which is what a till reconnecting after a
+       * dropped network needs, and the only protection that works when the
+       * first request arrived and the response did not.
+       */
+      idempotencyKey?: string;
+    } = {},
   ): Promise<{ ok: boolean; status: number; body: Record<string, unknown> }> {
     const res = await fetch(`${api()}${path}`, {
       method: init.method ?? "GET",
       headers: {
         authorization: `Bearer ${secretKey}`,
         "content-type": "application/x-www-form-urlencoded",
+        ...(init.idempotencyKey
+          ? { "idempotency-key": init.idempotencyKey }
+          : {}),
       },
       body: init.body,
       // A payment processor that has stopped answering must not hold a
@@ -445,6 +502,107 @@ export function stripeProvider(credentials: Credentials): PaymentProvider {
             : undefined,
         feeCents: feeFrom(res.body),
       };
+    },
+
+    /**
+     * The readers registered to this account.
+     *
+     * Everything Stripe knows, not the ones in one shop: a till picks its own
+     * from this list once, and which shop a reader is grouped under is the
+     * processor's business rather than ours. A reader Stripe cannot reach
+     * comes back `offline` rather than being left out — a cashier whose reader
+     * is unplugged needs to see it greyed out, not to watch it vanish and
+     * wonder whether they imagined it.
+     */
+    async listReaders(): Promise<CardReader[]> {
+      const res = await call("/terminal/readers?limit=100");
+      if (!res.ok) return [];
+      const data = Array.isArray(res.body.data) ? res.body.data : [];
+      return data.map((row) => {
+        const reader = row as Record<string, unknown>;
+        return {
+          id: String(reader.id ?? ""),
+          label: String(reader.label ?? reader.serial_number ?? "Reader"),
+          status: reader.status === "online" ? "online" : "offline",
+          serialNumber:
+            typeof reader.serial_number === "string"
+              ? reader.serial_number
+              : undefined,
+          locationId:
+            typeof reader.location === "string" ? reader.location : undefined,
+        } satisfies CardReader;
+      });
+    },
+
+    /**
+     * Two calls: make the payment, then hand it to the reader.
+     *
+     * `payment_method_types[]=card_present` rather than the automatic set,
+     * because a card present at a counter is a different payment method from a
+     * card typed into a page, and the automatic list does not include it.
+     *
+     * The idempotency key is carried on the first call only. The second is
+     * safe to repeat by its nature — handing the same PaymentIntent to the same
+     * reader twice is one job, not two — while the first creates money-shaped
+     * objects and must not run again, which is the half worth protecting.
+     */
+    async collectOnReader(req: ReaderRequest): Promise<ReaderCollection> {
+      const intent = await call("/payment_intents", {
+        method: "POST",
+        idempotencyKey: req.idempotencyKey,
+        body: form({
+          amount: String(req.amountCents),
+          currency: req.currency.toLowerCase(),
+          "payment_method_types[]": "card_present",
+          capture_method: "automatic",
+          description: req.description,
+        }),
+      });
+      if (!intent.ok || typeof intent.body.id !== "string") {
+        const error = intent.body.error as { message?: string } | undefined;
+        return {
+          reference: "",
+          status: "failed",
+          message: error?.message ?? "the payment could not be started",
+        };
+      }
+      const reference = intent.body.id;
+
+      const handed = await call(
+        `/terminal/readers/${encodeURIComponent(req.readerId)}/process_payment_intent`,
+        { method: "POST", body: form({ payment_intent: reference }) },
+      );
+      if (!handed.ok) {
+        const error = handed.body.error as { message?: string } | undefined;
+        return {
+          reference,
+          status: "failed",
+          message: error?.message ?? "the reader did not take the job",
+        };
+      }
+      return readerCollection(handed.body, reference);
+    },
+
+    async readerPayment(readerId: string): Promise<ReaderCollection> {
+      const res = await call(
+        `/terminal/readers/${encodeURIComponent(readerId)}`,
+      );
+      if (!res.ok) {
+        const error = res.body.error as { message?: string } | undefined;
+        return {
+          reference: "",
+          status: "failed",
+          message: error?.message ?? "the reader could not be reached",
+        };
+      }
+      return readerCollection(res.body);
+    },
+
+    async cancelReaderPayment(readerId: string): Promise<void> {
+      await call(
+        `/terminal/readers/${encodeURIComponent(readerId)}/cancel_action`,
+        { method: "POST" },
+      );
     },
 
     async refund(reference: string, amountCents: number, _currency: string) {

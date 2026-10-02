@@ -89,6 +89,56 @@ export interface OnSitePayment {
   reference: string;
 }
 
+/**
+ * A card reader, as the processor describes it.
+ *
+ * `label` is what somebody called it when they registered it — "Front
+ * counter", "Van" — and is the only field a cashier should ever be shown. The
+ * serial number is here because it is printed on the device itself, which is
+ * how you tell two identical readers apart when the labels were guessed at.
+ */
+export interface CardReader {
+  id: string;
+  label: string;
+  /** `online` means the processor can reach it right now. */
+  status: "online" | "offline";
+  serialNumber?: string;
+  /** The processor's grouping — a shop, usually. */
+  locationId?: string;
+}
+
+export interface ReaderRequest {
+  readerId: string;
+  amountCents: number;
+  /** ISO 4217, lower case, as every processor wants it. */
+  currency: string;
+  /**
+   * Ours, and unique per attempt.
+   *
+   * A till that loses its answer and asks again must not take the money twice,
+   * and this is what lets the processor recognise the second ask as the same
+   * one. It is the same discipline as the tender's own operation id, one layer
+   * down.
+   */
+  idempotencyKey: string;
+  description?: string;
+}
+
+/**
+ * How a collection on a reader is going.
+ *
+ * Three states and no more, because a till can only do three things: keep
+ * waiting, take the money, or tell somebody it failed and why.
+ */
+export interface ReaderCollection {
+  /** What the webhook will call this payment. Stable across polls. */
+  reference: string;
+  status: "waiting" | "paid" | "failed";
+  /** Only on `failed`, and written for a cashier rather than a developer. */
+  message?: string;
+  amountCents?: number;
+}
+
 export interface ConnectionResult {
   ok: boolean;
   /** Who the provider says we are: an account name, or an error to show. */
@@ -177,6 +227,44 @@ export interface PaymentProvider {
    * taken and never confirmed, with nothing on either side saying so.
    */
   webhookTargets?(): Promise<{ url: string; status: string }[]>;
+
+  /**
+   * The readers this account can drive, as the processor knows them.
+   *
+   * Not stored here. A reader is registered to the processor, moved between
+   * shops, swapped when one dies — and a copy of that list in our database is
+   * a copy that goes stale the first time somebody does any of it from the
+   * processor's own dashboard. What a till stores is which reader it stands
+   * beside, by id; what the reader *is* comes from here.
+   */
+  listReaders?(): Promise<CardReader[]>;
+
+  /**
+   * Hand an amount to a reader and let the customer tap it.
+   *
+   * Server-driven on purpose. The alternative is a JavaScript SDK in the
+   * browser, which means the tablet must stay awake and on the same network as
+   * the reader, and a sale in flight dies with the tab. This is one HTTPS call
+   * from the instance to the processor, and the reader is reached by the
+   * processor rather than by us — so a till can lock its screen mid-sale and
+   * the payment carries on.
+   *
+   * Returns as soon as the reader has been handed the job. It has not been
+   * paid yet: somebody still has to present a card. `readerPayment` is how the
+   * till finds out, and the webhook is how the books do.
+   */
+  collectOnReader?(req: ReaderRequest): Promise<ReaderCollection>;
+
+  /** Where a collection handed to a reader has got to. */
+  readerPayment?(readerId: string): Promise<ReaderCollection>;
+
+  /**
+   * Stop waiting, and clear the reader's screen.
+   *
+   * The customer changed their mind, or the cashier hit the wrong button. Not
+   * the same as a refund: nothing has been taken.
+   */
+  cancelReaderPayment?(readerId: string): Promise<void>;
 
   /** Sends money back. Returns what was actually refunded. */
   refund?(
