@@ -173,6 +173,20 @@ export const STATUTORY_TABLES = [
    */
   "pos.tickets",
   "pos.ticket_line_modifiers",
+  /*
+   * What the card machine said: the brand, the last four, the authorisation
+   * code and the processor's own reference.
+   *
+   * Statutory because it is the only thing that matches a day's takings to
+   * what the acquirer actually paid out. A business asked to show that the
+   * money it banked is the money it rang up answers with this, and an auditor
+   * asking why a deposit is short answers with it too. Losing it leaves two
+   * lists and a guess.
+   *
+   * It holds nothing worth stealing — no card number, nobody's name — which is
+   * what lets a till keep this record without becoming a place cards are kept.
+   */
+  "pos.card_payments",
   "pos.adjustments",
   "pos.drawers",
   "pos.drawer_events",
