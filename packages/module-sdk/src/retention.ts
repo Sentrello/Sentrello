@@ -198,6 +198,17 @@ export const STATUTORY_TABLES = [
    * it.
    */
   "pos.bill_parts",
+  /*
+   * Tips: who was owed what, and when they were handed it.
+   *
+   * Statutory, and for two reasons at once. It is money the business held on
+   * somebody else's behalf, so each row is one side of a liability that posted
+   * to the ledger and has to be reconcilable against it years later. And it is
+   * a payroll record in every one of our markets: what a person was paid in
+   * tips is reportable income, and a business asked to show it cannot answer
+   * with a figure it swept.
+   */
+  "pos.tips",
   "pos.adjustments",
   "pos.drawers",
   "pos.drawer_events",
