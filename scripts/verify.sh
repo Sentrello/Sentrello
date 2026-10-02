@@ -38,7 +38,14 @@ command -v bun >/dev/null || { echo "  bun not found on PATH"; exit 1; }
 # Exported, not local: `bun test` reads DATABASE_URL from the environment, so a
 # default that only reached psql left the tests themselves pointed elsewhere —
 # which is exactly how a commit hook came to run against the wrong database.
-export DATABASE_URL="${DATABASE_URL:-postgres://sentrello:sentrello@localhost:5433/sentrello_t_core}"
+#
+# Read from a file rather than written here, because `scripts/test-database.ts`
+# needs the same answer and two copies of one address is an address that drifts.
+# That file is the `[test] preload`, so the refusals below now also hold for a
+# bare `bun test` — this script is not what anybody types to run one file, which
+# is how a run against the retired shared database happened on 2 October and
+# produced 87 failures in modules nobody had touched.
+export DATABASE_URL="${DATABASE_URL:-$(cat "$(dirname "$0")/test-database")}"
 
 # Three things this must never be allowed to point at. The suites truncate
 # tables; being wrong about where is not recoverable by reading the output

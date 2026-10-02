@@ -1,0 +1,5 @@
+[test]
+# Which database the tests use, and the three it must never use. See
+# scripts/test-database.ts — the rule lived in scripts/verify.sh, which is not
+# what anybody types to run one file.
+preload = ["./scripts/test-database.ts"]

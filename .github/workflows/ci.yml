@@ -86,13 +86,13 @@ jobs:
     services:
       postgres:
         image: postgres:17
-        env: { POSTGRES_USER: sentrello, POSTGRES_PASSWORD: sentrello, POSTGRES_DB: sentrello }
+        env: { POSTGRES_USER: sentrello, POSTGRES_PASSWORD: sentrello, POSTGRES_DB: sentrello_t_core }
         ports: ["5432:5432"]
         options: >-
           --health-cmd "pg_isready -U sentrello" --health-interval 5s
           --health-timeout 5s --health-retries 10
     env:
-      DATABASE_URL: postgres://sentrello:sentrello@localhost:5432/sentrello
+      DATABASE_URL: postgres://sentrello:sentrello@localhost:5432/sentrello_t_core
       BETTER_AUTH_SECRET: ci-secret-not-used-outside-ci-0123456789abcdef
       SENTRELLO_BASE_URL: http://localhost:3000
       SENTRELLO_INSTANCE_ID: ci-instance

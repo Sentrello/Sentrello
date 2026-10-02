@@ -75,6 +75,10 @@ const BELONGS_AT_ROOT = new Set([
   "README.md",
   "SECURITY.md",
   "biome.json",
+  // Bun's own config, and it has to be at the root: `bun test` reads it from
+  // the directory it is run in, which is the whole reason the database guard
+  // inside it fires for somebody running one file.
+  "bunfig.toml",
   "bun.lock",
   "docker-compose.dev.yml",
   "package.json",
