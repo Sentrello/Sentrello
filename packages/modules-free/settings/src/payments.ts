@@ -9,9 +9,8 @@ import type { PaymentAccount } from "@sentrello/db/payments";
 import { timezoneFor } from "@sentrello/db/timezone";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import {
-  type Credentials,
   type PaymentProvider,
-  paypalProvider,
+  providerFromAccount,
   secrets,
   stripeProvider,
 } from "@sentrello/module-sdk";
@@ -40,19 +39,16 @@ const PROVIDERS = new Set(["stripe", "paypal"]);
 const MODES = new Set(["test", "live"]);
 
 /** Builds a provider from a stored row, opening its secrets. */
-export function providerFrom(account: PaymentAccount): PaymentProvider {
-  const credentials: Credentials = {
-    publicKey: account.publicKey,
-    secretKey: account.secretKey ? secrets.open(account.secretKey) : "",
-    webhookSecret: account.webhookSecret
-      ? secrets.open(account.webhookSecret)
-      : null,
-    test: account.mode === "test",
-  };
-  return account.provider === "paypal"
-    ? paypalProvider(credentials)
-    : stripeProvider(credentials);
-}
+/**
+ * Builds a provider from a stored row, opening its secrets.
+ *
+ * One line now. This was six, and the same six lived in the Shop — the step
+ * that decrypts a secret key and picks a processor, written down twice. It is
+ * `providerFromAccount` in the module SDK, which both repositories can reach
+ * and which is where a third caller found it rather than copying it again.
+ */
+export const providerFrom = (account: PaymentAccount): PaymentProvider =>
+  providerFromAccount(account);
 
 /** What a settings screen may see: everything except the secrets. */
 function forDisplay(account: PaymentAccount) {

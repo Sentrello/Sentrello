@@ -615,6 +615,7 @@ export function registerForTest(
 export * from "./custom-fields";
 export * from "./malformed-id";
 export * from "./services";
+export * from "./payments/account";
 export * from "./payments/provider";
 export * from "./payments/webhooks";
 export * from "./payments/stripe";
