@@ -187,6 +187,17 @@ export const STATUTORY_TABLES = [
    * what lets a till keep this record without becoming a place cards are kept.
    */
   "pos.card_payments",
+  /*
+   * The shares a split bill was paid in.
+   *
+   * Statutory, because each row is what one person actually handed over: the
+   * amount, how it was taken, and which drawer took it. A business asked why a
+   * table of ten shows seven card payments and three in cash answers with
+   * these, and so does anybody reconciling that evening's drawer. The sale
+   * itself is one record; this is the evidence of who settled which part of
+   * it.
+   */
+  "pos.bill_parts",
   "pos.adjustments",
   "pos.drawers",
   "pos.drawer_events",
