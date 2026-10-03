@@ -10,10 +10,14 @@ tags: [module, pos, shop]
 :::caution[In development — not for sale]
 
 The POS was withdrawn from the catalog on 15 September 2026 and cannot be
-bought today. Its cash controls are in place. The rebuild for the screens it is
-actually used on, card readers and receipt printers are not. There is no date,
-deliberately. This page describes how it works, not something you can subscribe
-to yet.
+bought today. There is no date, deliberately: this page describes how it works
+rather than something you can subscribe to yet.
+
+Most of what the withdrawal was waiting for is now built — the screens it is
+actually used on, a card reader the till drives, table service, the kitchen
+pass, and a receipt that carries what each of the four markets requires. What
+remains is a thermal printer driver and a drawer that kicks open, which is the
+list under [What is not here yet](#what-is-not-here-yet).
 
 **There are no screenshots on this page**, deliberately. The ones that were here
 showed a till with a Cash button and no Card, an open cash count with the
@@ -151,10 +155,17 @@ same double-entry journal to the same accounts. There is no second path from a
 sale to your books.
 
 **Card is a tender like any other**, including half on the card and the rest in
-cash on one sale. What the till does not do is drive the machine: the customer
-taps a terminal standing beside it, and the till is told the sale is settled
-rather than asked to settle it. See
-[What is not here yet](#what-is-not-here-yet).
+cash on one sale.
+
+**The till can drive the machine.** Pair a card reader to a terminal under
+Point of sale → Serving, and *Card* sends the figure to it: the customer taps,
+the till watches the reader and settles the sale itself when the processor
+confirms the payment. Nobody types a total twice, and nobody can type it wrong.
+
+It also still takes a card the old way, which is not a fallback so much as how
+most counters work: the customer taps a machine standing beside the till, and
+somebody records the slip. Both paths end in the same order and the same
+journal entry.
 
 ## The drawer
 
@@ -278,6 +289,196 @@ comfortable:
   the last one really had gone, the till says so and names it, so somebody can
   put it right under Shop → Orders. It is never silently dropped.
 
+## Tables, sections, and who served
+
+A counter serves whoever is in front of it. A dining room does not, and the
+difference is most of what a restaurant needs from a till.
+
+**Draw the room once** under Point of sale → Floor plan: areas, tables, how
+many each seats. Point of sale → Room is then the floor as it stands — which
+tables are taken, what each bill has come to, how long they have been sitting
+there.
+
+**Put a bill on a table** and it stays with that table through everything else:
+a second round, a split, a handover at the end of a shift.
+
+**Give a server their section.** On the Room screen, *Looked after by* assigns
+tables to one person for their shift. A bill opened on one of their tables is
+theirs without anybody choosing from a list — which matters at eight in the
+evening, when the answer somebody picks in a hurry is whoever is at the top of
+it.
+
+Three things can have an opinion about whose bill it is, and they rank:
+
+1. **Whoever is signed in at that till** — they are standing there.
+2. **The table's own server**, where nobody has signed in.
+3. **The account the device holds**, which is a fallback rather than a person.
+
+So seating a party on somebody else's table never quietly moves the bill, and a
+shared counter with nobody identified attributes to the section rather than to
+the business.
+
+## Who is at the till
+
+Some places give every server their own device. Some share one. Both work, and
+the till has to be told which person is ringing a sale either way — or every
+evening's takings, and every tip, land against one account.
+
+Under Point of sale → **Who is serving**, give each person a **code** of four to
+eight digits, or a **badge** to scan. At the till they tap it between customers.
+
+What that does, and does not, do:
+
+- It **identifies** a person. It is not a password and it opens nothing but the
+  till: what somebody may *do* is still their role under Users.
+- It **opens their shift** if one is not already open, so hours are recorded
+  without a second thing to remember.
+- Signing in at another device **moves** their shift rather than opening a
+  second one, and ends anybody else's on the till they have just left.
+- Codes are stored sealed, compared without telling a guesser how close they
+  were, and **capped at ten tries a minute per till**. Two people can never
+  share one.
+- The list of who has a code never shows the codes.
+
+## Tips and service charges
+
+Both are off until you turn them on, and that is a market decision rather than
+a shy default. Tipping is woven into eating out in the United States and barely
+exists in the United Kingdom, where a prompt on a card machine for a sandwich
+reads as the shop asking for money.
+
+Everything here lives under Point of sale → **Tips & charges**.
+
+### Tips
+
+- **On or off** for the business. Off means the prompt never appears.
+- **Suggested percentages you set**, defaulting to 18, 20 and 25.
+- **Any amount**, always. Zero is as easy to give as a suggestion, because a
+  customer who does not want to tip should not have to work at it.
+- **Suggested on the goods before tax, or on the whole bill** — your call, and
+  the receipt says which.
+- A tip **reaches the person who served**, which is why the section above
+  exists. It posts as money held for them rather than as takings, and the
+  Shifts screen is where somebody hands it over.
+
+### Sharing a tip
+
+Most places share. Some give the whole of it to the server, and plenty of
+arrangements in between send a slice to the bar.
+
+Set the shares as percentages that have to add up to the whole. They are
+**written onto each tip as it is taken**, so changing the arrangement on a
+Tuesday does not quietly restate what somebody was owed on Monday.
+
+A share for the house is allowed and the screen warns you about it, because in
+some places keeping part of a voluntary tip is a matter somebody will ask about.
+A share for the bar carries no name until the end of a shift, when whoever was
+on it is a decision rather than a column.
+
+### A service charge is not a tip
+
+A mandatory charge — an automatic gratuity on a large party, a flat percentage
+on every bill — is part of what is owed rather than a gift. The till treats it
+that way: it goes on the bill before tax, it is taxed where tax applies, and it
+is posted to its own account so it never reads as a tip somebody is owed.
+
+Set a percentage, a party size it starts at, and **the wording your menu uses**.
+That last one is not decoration. In some places a required charge is lawful only
+once it has been clearly disclosed in advance, so the words are snapshotted onto
+the bill and printed on the receipt as they were at the time — not read back
+from a setting somebody has since changed.
+
+A manager can take one off. A table that queries an automatic gratuity is a
+conversation that ends with somebody removing it, and a till that could not
+would send them to the owner's laptop.
+
+## Joining two bills
+
+Two friends at the bar move to a table. A four becomes a six. Somebody opens a
+second bill because the first was on the other terminal.
+
+*Join another bill to this one* takes a list of what is open — never a box to
+type a number into — and moves one into the other. Items, notes, and anything
+already with the kitchen come across. Identical lines add up; a flat white with
+oat milk and one without stay two lines, because somebody has to carry them to
+the right person.
+
+The bill that moved closes as joined, keeping its number so anybody who wrote it
+on a slip can still find where it went.
+
+It refuses where joining would be a lie: a bill a card reader is holding, a bill
+already split, or one of each when one of them is a rehearsal.
+
+## The customer's screen
+
+A counter where the first figure somebody sees is the one they are asked for is
+a counter where arguments start.
+
+Pair a second screen under Point of sale → Serving. You get an address to open
+once on that device; it then shows the bill as it is rung up — the lines, the
+service charge in the words you disclosed, the tax, the total, and what each
+suggested tip comes to.
+
+- It **reads one till** and nothing else. No history, no other terminal, no
+  staff name, nothing about the day.
+- It **writes nothing**: no tender, no tip, no line.
+- Once a bill is paid it shows a total and a thank-you, and clears itself after
+  a minute and a half rather than holding the last customer's lunch in front of
+  the next one.
+- The address is the whole key, so treat it like one. *New address* replaces it,
+  which is what you press when the tablet has gone.
+
+## Rehearsing before you go live
+
+You cannot learn a till by reading about it, and practising on the real one
+leaves journal entries, stock off the shelf and figures in a month's takings.
+
+Point of sale → **Rehearsal mode** gives you the whole till with nothing behind
+it. Sales ring up, split, refund, print and cash up exactly as they do live, and
+**nothing reaches the books, the stock or any figure** — a rehearsal posts
+nothing at all rather than posting something harmless.
+
+- Receipts print saying so, and the sell screen carries a banner. The person
+  ringing a sale is not always the person who turned the mode on.
+- A bill opened as a rehearsal stays one for its whole life, through a split, a
+  refund and a reprint, whatever the setting says by then.
+- **A card reader still charges whatever card is presented**, because the money
+  is the processor's affair and not ours. The till refuses to send a rehearsal
+  to a live reader and tells you to put the processor in test mode first.
+- Going live says what it is about to start doing, and how many rehearsal bills
+  are still open. Those keep the answer they were opened with.
+- **Throw the practice away in one action** when you are done. It deletes the
+  rehearsal bills, their orders and the drawers they were rung on, and touches
+  no real sale. The Z numbers the practice used are not given back: a gap in the
+  readings is the honest record of one.
+
+## What a shift came to
+
+Point of sale → Shifts answers the three questions somebody has at the end of a
+night.
+
+**Who was on**, and for how long — hours punched at a till, which is a different
+question from who had the cash. Somebody carrying plates all evening never opens
+a drawer.
+
+**What one person did.** Open a shift from the list for sold, bills, covers,
+spend a head, tips earned and still owed, voids, discounts and anything put on
+the house. Sales and covers belong to whoever served the bill; voids and
+discounts belong to whoever gave them, because a manager taking money off
+somebody else's table has done that and the server has not.
+
+It is not the cash-up, and it will not agree with one on a night where a manager
+tendered somebody else's tables. A cash-up balances a box; this says who served
+what. Both are right.
+
+**What is owed in tips**, per person, with a button to hand it over — which
+comes out of the drawer open now and leaves it short against its own card
+takings. That is correct, and the count knows.
+
+Somebody may read their own shift without `pos:manage`. A till that makes a
+server ask a manager what they earned is a till people keep their own notes
+beside.
+
 ## Who can use it
 
 The till uses the same people, roles and permissions as the rest of Sentrello.
@@ -303,17 +504,21 @@ report a manager takes mid-shift.
 Said plainly, because a list of what a product cannot do is more useful than a
 list of what it can.
 
-- **A card reader the till drives.** Card is a tender the till takes and
-  records, and splitting a sale across card and cash works. What is missing is
-  the till talking to the terminal — today somebody taps the machine beside it
-  and the till is told the money arrived. Planned.
 - **A thermal printer, and a drawer that kicks open.** The receipt itself is
   built: a frozen document with a gapless number, the content each of the four
   markets requires, a Canadian GST/PST/QST split that reconciles to the cent,
   refund receipts and a record of every reprint. It goes to the screen, to an
   email, or to a PDF. What no driver exists for yet is the roll of paper.
-- **Table service, tabs, and kitchen printing.** The till is built for counter
-  service first. The rest is planned, and deliberately not dated.
+- **Kitchen printing.** The pass is a screen — Point of sale → Pass — showing
+  what has been sent, oldest first, with a button to say it is being cooked and
+  another to say it is ready. A chit coming out on paper in the kitchen is the
+  same missing printer driver as the receipt above.
+- **Routing to stations.** One pass, not a hot line and a cold line. That is a
+  layer on top of this and one nobody should design without a kitchen to stand
+  in.
+- **A customer tapping their own tip.** The screen facing them shows what each
+  percentage comes to and cannot take an answer. Tapping belongs on the card
+  reader's own screen, which has one.
 - **Fiscalisation.** No certified device, no signature, no live link to a tax
   authority — and none planned. See the notice at the top of this page: where
   a jurisdiction requires one, this till cannot be used for those sales.
@@ -327,4 +532,9 @@ list of what it can.
 - Stock is **one count**, shared with the website. You cannot sell the last one
   twice.
 - People and permissions come from **Users**. A new starter gets till access
-  the same way they get everything else.
+  the same way they get everything else, and the code they tap at the till is
+  an identification on top of that rather than a second account.
+- A **tip** is money held for a person, not takings: it posts to its own
+  liability and leaves it when somebody is handed the cash. A **service charge**
+  is the business's income and posts to its own account, so neither is ever
+  mistaken for the other in a profit and loss.
