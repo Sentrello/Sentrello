@@ -161,6 +161,41 @@ export function momentAt(
 }
 
 /**
+ * A moment, written the way a person would say it.
+ *
+ * For prose: a note on a customer's timeline, a line in an email, anything a
+ * human reads rather than a column a machine sorts. **Never for storage**, and
+ * never for an API answer — those stay ISO, which is what a client parses.
+ *
+ * It exists because an ISO timestamp reached a customer's timeline: "Booked
+ * Puppy Foundations for 2026-10-06T15:00:00.000Z", on a screen a dog trainer
+ * reads. That was one `toISOString()` in one module, and the next one would
+ * have been written the same way for want of anywhere to look.
+ *
+ * **In the business's own zone**, because the customer was booked at three in
+ * the afternoon where the business is, not wherever the server happens to be;
+ * an unset zone is UTC, like everything else here. **And in the business's own
+ * convention**, which is the seller's: a shop in Denver reads "3:00 pm" and one
+ * in Manchester reads "15:00", and the locale is the same one money is written
+ * with — `moneyLocale(countryCode)`. Defaults to `en-GB` only because something
+ * has to; pass the locale wherever the country is known.
+ */
+export function whenInWords(
+  when: Date,
+  zone: string | null,
+  locale = "en-GB",
+): string {
+  return new Intl.DateTimeFormat(locale, {
+    timeZone: zone ?? "UTC",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(when);
+}
+
+/**
  * `2026-03-31` → the first instant of that day, in UTC.
  *
  * Not the last instant, despite how it reads: `plan()` in the accounting
