@@ -2,4 +2,16 @@
 # Which database the tests use, and the three it must never use. See
 # scripts/test-database.ts — the rule lived in scripts/verify.sh, which is not
 # what anybody types to run one file.
-preload = ["./scripts/test-database.ts"]
+#
+# And a fresh rate-limit budget per test. The limiter is one map in one
+# process, so without this a test's budget depends on how many ran before it
+# — see packages/module-sdk/src/fresh-rate-limit.ts, which explains why that
+# file lives in the SDK rather than being copied into four repositories.
+#
+# By path, not by package name: Bun resolves a preload entry as a file
+# relative to the working directory and does not read the exports map, so
+# `@sentrello/module-sdk/fresh-rate-limit` fails with "preload not found".
+preload = [
+  "./scripts/test-database.ts",
+  "./packages/module-sdk/src/fresh-rate-limit.ts",
+]

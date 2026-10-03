@@ -13,7 +13,8 @@
     "./control-permissions": "./src/control-permissions.ts",
     "./copied-helpers": "./src/copied-helpers.ts",
     "./money-locale": "./src/money-locale.ts",
-    "./csv-separator": "./src/csv-separator.ts"
+    "./csv-separator": "./src/csv-separator.ts",
+    "./fresh-rate-limit": "./src/fresh-rate-limit.ts"
   },
   "dependencies": {
     "hono": "^4.13.5"
