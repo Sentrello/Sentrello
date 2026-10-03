@@ -18,6 +18,15 @@ export {
   bigint,
   boolean,
   /**
+   * For a column Postgres has and Drizzle does not name.
+   *
+   * `tsvector` is the first: the docs module keeps a stored, generated one
+   * beside each page so a search is an index lookup rather than a rebuild of
+   * every page's vector on every keystroke. Drizzle's own documentation shows
+   * exactly this shape for it.
+   */
+  customType,
+  /**
    * A day, with no time and no zone.
    *
    * For the things a business says a date about rather than a moment: the day
@@ -64,6 +73,15 @@ export {
   or,
   sql,
 } from "drizzle-orm";
+
+/**
+ * The type a generated column's expression returns.
+ *
+ * `generatedAlwaysAs` takes a function so the table can refer to its own
+ * columns, and the function has to say what it returns or TypeScript widens it
+ * to something Drizzle will not accept.
+ */
+export type { SQL } from "drizzle-orm";
 
 import { sql as drizzleSql } from "drizzle-orm";
 
