@@ -289,6 +289,33 @@ test("the public definition endpoint exposes fields but no internals", async () 
   expect(body.id).toBeUndefined();
 });
 
+/**
+ * And the snippet on that site can read its own definition.
+ *
+ * A browser sends no `Origin` on a same-origin GET, and a site rendered at
+ * build time sends none at all. The origin rule read a missing one as an
+ * unlisted caller, so naming the website a form lives on stopped the snippet
+ * drawing its fields there. Nothing is protected by refusing that: this is
+ * what the form shows anybody who loads the page. Submitting is the write, and
+ * that is what the list is for.
+ */
+test("the definition can be read without an Origin, and not submitted", async () => {
+  const read = await app.request(
+    `http://localhost/api/embed/forms/${contactFormKey}`,
+  );
+  expect(read.status).toBe(200);
+
+  const wrote = await app.request(
+    `http://localhost/api/embed/forms/${contactFormKey}`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: "nobody@example.test", name: "Nobody" }),
+    },
+  );
+  expect(wrote.status).toBe(404);
+});
+
 test("preflight is answered for an allowed origin and refused otherwise", async () => {
   const ok = await app.request(
     `http://localhost/api/embed/forms/${contactFormKey}`,

@@ -74,6 +74,13 @@ export const FORBIDDEN_IN_SOURCE: ForbiddenName[] = [
  *
  * `the site` rather than `site`, so "one call site", "the copy site" and "a
  * call site now" — all of which are in real subjects here — pass untouched.
+ *
+ * **It does catch the odd honest sentence, and that is the trade.** This
+ * product is full of other people's websites — an embedded form, a storefront,
+ * an allow-list — so "the site it was embedded in" is a true thing to say and
+ * is refused here. The cost is a reworded subject, which took ten seconds and
+ * produced a better one; the cost of narrowing the pattern is the case it was
+ * written for. Reword rather than loosen. Say "the website" or name the thing.
  */
 export const FORBIDDEN_IN_MESSAGES: ForbiddenName[] = [
   ...FORBIDDEN_IN_SOURCE,

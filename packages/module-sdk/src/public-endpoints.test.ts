@@ -9,20 +9,24 @@ import {
 } from "@sentrello/module-sdk";
 
 test("a listed origin is allowed and echoed back", () => {
-  const d = originAllowed("https://acme.com", ["https://acme.com"]);
+  const d = originAllowed("https://acme.com", ["https://acme.com"], "write");
   expect(d.allowed).toBe(true);
   expect(d.echo).toBe("https://acme.com");
 });
 
 test("a bare host in the list matches the origin", () => {
-  expect(originAllowed("https://acme.com", ["acme.com"]).allowed).toBe(true);
-  expect(originAllowed("http://acme.com", ["acme.com"]).allowed).toBe(true);
+  expect(originAllowed("https://acme.com", ["acme.com"], "write").allowed).toBe(
+    true,
+  );
+  expect(originAllowed("http://acme.com", ["acme.com"], "write").allowed).toBe(
+    true,
+  );
 });
 
 test("an unlisted origin is refused", () => {
-  expect(originAllowed("https://evil.example", ["acme.com"]).allowed).toBe(
-    false,
-  );
+  expect(
+    originAllowed("https://evil.example", ["acme.com"], "write").allowed,
+  ).toBe(false);
 });
 
 test("a lookalike domain does not slip through", () => {
@@ -32,29 +36,34 @@ test("a lookalike domain does not slip through", () => {
     "https://acme.com.co",
     "https://evilacme.com",
   ]) {
-    expect(originAllowed(origin, ["acme.com"]).allowed).toBe(false);
+    expect(originAllowed(origin, ["acme.com"], "write").allowed).toBe(false);
   }
 });
 
 test("a wildcard matches subdomains but not the bare domain's neighbours", () => {
-  expect(originAllowed("https://shop.acme.com", ["*.acme.com"]).allowed).toBe(
-    true,
-  );
-  expect(originAllowed("https://acme.com", ["*.acme.com"]).allowed).toBe(true);
   expect(
-    originAllowed("https://acme.com.evil.example", ["*.acme.com"]).allowed,
+    originAllowed("https://shop.acme.com", ["*.acme.com"], "write").allowed,
+  ).toBe(true);
+  expect(
+    originAllowed("https://acme.com", ["*.acme.com"], "write").allowed,
+  ).toBe(true);
+  expect(
+    originAllowed("https://acme.com.evil.example", ["*.acme.com"], "write")
+      .allowed,
   ).toBe(false);
 });
 
 test("an empty allow-list means same-origin only", () => {
   // a form that has not been told where it lives must not accept cross-site posts
-  expect(originAllowed("https://anywhere.example", []).allowed).toBe(false);
+  expect(originAllowed("https://anywhere.example", [], "write").allowed).toBe(
+    false,
+  );
   // no Origin header at all is a same-origin or non-browser request
-  expect(originAllowed(undefined, []).allowed).toBe(true);
+  expect(originAllowed(undefined, [], "write").allowed).toBe(true);
 });
 
 test("a malformed origin is refused rather than throwing", () => {
-  expect(originAllowed("not a url", ["acme.com"]).allowed).toBe(false);
+  expect(originAllowed("not a url", ["acme.com"], "write").allowed).toBe(false);
 });
 
 test("the rate limit lets a burst through and then holds", () => {
@@ -137,8 +146,8 @@ test("the methods a storefront needs are all advertised", () => {
  * for years, so this refuses scripts rather than customers.
  */
 test("no Origin is refused once a form has named where it lives", () => {
-  expect(originAllowed(undefined, ["acme.com"]).allowed).toBe(false);
-  expect(originAllowed("", ["acme.com"]).allowed).toBe(false);
+  expect(originAllowed(undefined, ["acme.com"], "write").allowed).toBe(false);
+  expect(originAllowed("", ["acme.com"], "write").allowed).toBe(false);
 
   /*
    * And nothing changes where no list is configured, because there is no
@@ -146,10 +155,12 @@ test("no Origin is refused once a form has named where it lives", () => {
    * same-origin only, and a header-less request is as likely to be that as
    * anything else.
    */
-  expect(originAllowed(undefined, []).allowed).toBe(true);
+  expect(originAllowed(undefined, [], "write").allowed).toBe(true);
 
   // The named place still works, which is the case this must never break.
-  expect(originAllowed("https://acme.com", ["acme.com"]).allowed).toBe(true);
+  expect(originAllowed("https://acme.com", ["acme.com"], "write").allowed).toBe(
+    true,
+  );
 });
 
 /**
@@ -168,7 +179,7 @@ test("a read with no Origin is allowed, and a write is not", () => {
   expect(originAllowed(undefined, ["acme.com"], "read").allowed).toBe(true);
   expect(originAllowed(undefined, ["acme.com"], "write").allowed).toBe(false);
   // The default is the strict one, so an endpoint has to ask for the exception.
-  expect(originAllowed(undefined, ["acme.com"]).allowed).toBe(false);
+  expect(originAllowed(undefined, ["acme.com"], "write").allowed).toBe(false);
 });
 
 test("and a read from the wrong website is still refused", () => {

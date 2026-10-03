@@ -706,9 +706,14 @@ export function registerForms(ctx: ModuleContext) {
 
   ctx.app.options("/api/embed/forms/:key", async (c) => {
     const form = await formByKey(c.req.param("key"));
+    // A preflight is the browser asking about the POST that follows, and a
+    // preflight always carries an Origin — so this is the strict question
+    // whichever way you read it. Said out loud because the next person to add
+    // a public route should have to decide, not inherit.
     const decision = originAllowed(
       c.req.header("origin"),
       form?.allowedOrigins ?? [],
+      "write",
     );
     if (!form || !decision.allowed) return c.body(null, 403);
     return c.body(null, 204, corsHeaders(decision.echo));
@@ -717,9 +722,27 @@ export function registerForms(ctx: ModuleContext) {
   /** The form definition, so a snippet can render fields it did not hardcode. */
   ctx.app.get("/api/embed/forms/:key", async (c) => {
     const form = await formByKey(c.req.param("key"));
+    /*
+     * A read, so a caller with no `Origin` is not an unlisted one.
+     *
+     * This is what the snippet fetches to draw itself. A browser sends no
+     * `Origin` on a same-origin GET, and a site that renders its pages at
+     * build time sends none at all — so once a form named the website it
+     * lives on, the snippet on that website could no longer read its own
+     * fields. Nothing is protected by refusing those: this answers what the
+     * form shows anybody who loads the page.
+     *
+     * The POST below stays strict, and that is the one the list is for: it
+     * writes a contact, with a key that is visible in page source.
+     *
+     * Fourth copy of this. Booking found it on 2026-09-29 and `kind` exists
+     * because of it; the shop's storefront, the newsletter's embed and this
+     * one all kept passing the default.
+     */
     const decision = originAllowed(
       c.req.header("origin"),
       form?.allowedOrigins ?? [],
+      "read",
     );
     if (!form || !form.active || !decision.allowed) {
       return c.json({ error: "not found" }, 404);
@@ -743,7 +766,9 @@ export function registerForms(ctx: ModuleContext) {
     const key = c.req.param("key");
     const form = await formByKey(key);
     const origin = c.req.header("origin");
-    const decision = originAllowed(origin, form?.allowedOrigins ?? []);
+    // The write the list exists for: a contact, from a key anybody can read
+    // off the page the form is on.
+    const decision = originAllowed(origin, form?.allowedOrigins ?? [], "write");
 
     // One 404 for "no such form", "inactive" and "origin not allowed": a
     // public endpoint should not help someone map which keys are real.

@@ -54,7 +54,17 @@ export interface OriginDecision {
 export function originAllowed(
   origin: string | undefined,
   allowedOrigins: string[],
-  kind: "read" | "write" = "write",
+  /**
+   * Required, with no default.
+   *
+   * The default was `"write"`, and it is what made this invisible four times:
+   * three modules and a public page each inherited the strict rule for a read
+   * and answered 404 to the one site they had been told they serve. A default
+   * is a decision nobody made. Now the compiler asks, and
+   * `scripts/reads-are-not-writes.ts` asks again for the places a type cannot
+   * reach.
+   */
+  kind: "read" | "write",
 ): OriginDecision {
   if (!origin) {
     return { allowed: kind === "read" || allowedOrigins.length === 0 };
