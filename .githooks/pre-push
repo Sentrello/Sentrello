@@ -63,5 +63,20 @@ done <"$shas_file"
 # because all four repositories ask it the same way.
 bash "$(git rev-parse --show-toplevel)/scripts/ci-standing.sh" || exit 1
 
+# What a commit here is allowed to be *about*, which is a different question
+# from whether it carries a tool's trace.
+#
+# This repository is public and its commit subjects are pasted verbatim into
+# the release notes. Ten commits in its history name the marketing site and one
+# of them reached a published page with 1.1.0, past a notes check whose own
+# comment says "not the site" and whose regex covered the hosts and not the
+# site. Nothing had ever read a commit message for this.
+#
+# Not folded into the trace guard: that file is byte-identical across four
+# repositories and checked for drift, and three of them are private, where
+# naming the demo is ordinary and correct. This rule is this repository's alone.
+bun run "$(git rev-parse --show-toplevel)/scripts/public-commit-names.ts" \
+  --messages "$messages_file" || exit 1
+
 exec bun run "$(git rev-parse --show-toplevel)/scripts/trace-guard.ts" \
   --messages "$messages_file" --diff "$diff_file"
