@@ -114,16 +114,33 @@ export async function dropOrganization(...orgIds: string[]): Promise<void> {
    * relationships drifts from the schema; the schema does not drift from
    * itself.
    */
+  /*
+   * **The organization goes first, and the sweep below is the safety net.**
+   *
+   * This swept the scoped tables and then deleted the organization, in whatever
+   * order the catalogue happened to list them — and a table that another table
+   * points at cannot go first. The till is where that showed: `pos.tickets`
+   * references `pos.order_types`, so a suite with one ticket in it tore down
+   * with "update or delete on table order_types violates foreign key
+   * constraint", in an `afterAll`, after everything it was testing had passed.
+   *
+   * Every business table cascades from `organizations` since 2026-09-28, which
+   * means Postgres already knows the order and does not need to be told. The
+   * sweep stays because it costs nothing on a database where the cascade did
+   * the work, and it is the only thing that would catch a table that is scoped
+   * and *not* cascading — which is a schema bug rather than a teardown one, and
+   * better found as leftover rows than as a passing test.
+   */
+  await db.execute(sql`
+    delete from ${sql.identifier("organizations")} where id in (${list})
+  `);
+
   for (const [name, nsp] of scoped) {
     await db.execute(sql`
       delete from ${sql.identifier(nsp)}.${sql.identifier(name)}
       where organization_id in (${list})
     `);
   }
-
-  await db.execute(sql`
-    delete from ${sql.identifier("organizations")} where id in (${list})
-  `);
 }
 
 /** The people a suite signed up, and everything hanging off them. */

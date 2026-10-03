@@ -84,6 +84,29 @@ export const CORE_ACCOUNTS = {
    * scope of VAT.
    */
   otherIncome: { code: "4200", name: "Other Income", type: "income" },
+  /**
+   * A mandatory service charge, which is income and is not a tip.
+   *
+   * The distinction is the reason this is not folded into Sales Income. A tip is
+   * voluntary, the customer decides it, and it belongs to the staff — it posts
+   * to Tips Payable, a liability. A service charge is the business's own money:
+   * it set the amount, it keeps it, and in most places it is taxable revenue.
+   * An owner reading a month should be able to see how much came from service
+   * charges rather than from food, and a business that has to report the two
+   * differently cannot do it from one account.
+   *
+   * 4300, because 4100 is Sales Discounts and 4200 is Other Income. Worth
+   * saying out loud: the point-of-sale plugin first declared this as 4100 and
+   * would have credited every service charge to an expense account named Sales
+   * Discounts — `ensureAccount` finds an account by its code, so the name it
+   * was given locally would have been ignored. Here, once, is why that cannot
+   * happen again.
+   */
+  serviceCharges: {
+    code: "4300",
+    name: "Service Charges",
+    type: "income",
+  },
   taxPayable: { code: "2200", name: "Tax Payable", type: "liability" },
   /** Where an expense lands when it has not been given an account of its own. */
   generalExpense: { code: "6000", name: "General Expenses", type: "expense" },
