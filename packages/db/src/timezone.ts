@@ -62,19 +62,28 @@ export function partsIn(
   minutes: number;
   weekday: number;
 } {
-  if (!zone) {
-    return {
-      year: when.getFullYear(),
-      month: when.getMonth() + 1,
-      day: when.getDate(),
-      hours: when.getHours(),
-      minutes: when.getMinutes(),
-      weekday: when.getDay(),
-    };
-  }
+  /*
+   * **No zone set means UTC, never the server's clock.**
+   *
+   * This read `getHours()` and friends, and the test beside it argued for that:
+   * no timezone means the server's own, which is what a box in the office
+   * wants. The reasoning is real and the cost was higher. An organization has
+   * no timezone until somebody fills one in, so the fallback is the *default*
+   * state of a fresh instance rather than an edge — and in that state the same
+   * instance answered "has nine o'clock come round" differently depending on
+   * what `TZ` the container was started with. A business's own hours moving
+   * because somebody restarted a machine is not a thing anybody can debug.
+   *
+   * UTC is the one answer that is the same everywhere, which makes it the only
+   * safe thing to assume when nobody has said. It is also what the platform's
+   * date rule already promised in writing. James, 3 October 2026: fix it to
+   * UTC, and have onboarding ask for the timezone so this is never what a real
+   * business is running on.
+   */
+  const where = zone ?? "UTC";
 
   const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: zone,
+    timeZone: where,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -135,15 +144,9 @@ export function momentAt(
     parts.hours,
     parts.minutes,
   );
-  if (!zone) {
-    return new Date(
-      parts.year,
-      parts.month - 1,
-      parts.day,
-      parts.hours,
-      parts.minutes,
-    );
-  }
+  // The inverse of `partsIn`, and it has to agree with it about an unset zone
+  // or a round trip moves the time. UTC both ways — see the note there.
+  if (!zone) return new Date(asUtc);
 
   let guess = new Date(asUtc);
   for (let i = 0; i < 2; i++) {

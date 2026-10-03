@@ -101,18 +101,51 @@ test("a place keeps its nine o'clock across a clock change", () => {
   }
 });
 
-/** No timezone means the server's own, which is what a box in the office wants. */
-test("no timezone is the server's own", () => {
-  const when = new Date(2026, 5, 15, 9, 30);
-  const parts = partsIn(when, null);
-  expect(parts.hours).toBe(9);
-  expect(parts.minutes).toBe(30);
+/**
+ * No timezone means UTC, never the clock the server happens to keep.
+ *
+ * This asserted the opposite until 3 October, with a reason worth recording:
+ * no timezone means the server's own, which is what a box in the office wants.
+ * The cost was higher than the convenience. An organization has no timezone
+ * until somebody fills one in, so the fallback is the *default* state of a
+ * fresh instance — and in that state the same instance answered "has nine
+ * o'clock come round" differently depending on what `TZ` its container was
+ * started with. A business's hours moving because somebody restarted a machine
+ * is not something anybody can debug.
+ *
+ * **It was invisible here, and that is the other half.** `bun test` runs in
+ * UTC whatever zone the machine keeps, so the old assertion passed on a laptop
+ * in Denver and would have passed on any laptop anywhere. Only
+ * `TZ=America/Denver bun test` could tell the two rules apart. A test for a
+ * clock has to say which clock, out loud, or the runner picks one for it.
+ *
+ * Asserted against an explicit "UTC" rather than against numbers, so this says
+ * what the rule is instead of restating arithmetic. And `momentAt` has to agree
+ * with `partsIn` about an unset zone or a round trip moves the time, which is
+ * the second half below.
+ */
+test("no timezone is UTC, not the server's own", () => {
+  // 00:30 UTC lands on a different *day* in both directions: still yesterday
+  // evening in Denver, already lunchtime in Auckland. A server in either would
+  // disagree about every field, not just the hour.
+  const when = new Date("2026-07-15T00:30:00Z");
+
+  expect(partsIn(when, null)).toEqual(partsIn(when, "UTC"));
+  expect(partsIn(when, null).hours).toBe(0);
+  expect(partsIn(when, null).day).toBe(15);
+
+  // And back again, which is what keeps a stored day and a read day the same.
   expect(
     momentAt(
-      { year: 2026, month: 6, day: 15, hours: 9, minutes: 30 },
+      { year: 2026, month: 7, day: 15, hours: 0, minutes: 30 },
       null,
-    ).getTime(),
-  ).toBe(when.getTime());
+    ).toISOString(),
+  ).toBe("2026-07-15T00:30:00.000Z");
+  expect(
+    momentAt({ year: 2026, month: 7, day: 15, hours: 0, minutes: 30 }, null),
+  ).toEqual(
+    momentAt({ year: 2026, month: 7, day: 15, hours: 0, minutes: 30 }, "UTC"),
+  );
 });
 
 test("a date is a date", () => {
