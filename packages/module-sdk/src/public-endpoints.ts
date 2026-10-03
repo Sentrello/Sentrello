@@ -51,6 +51,44 @@ export interface OriginDecision {
  * source, which is what the paragraph above is about. Found 2026-09-29, when the
  * demo's own reseed could not read its own services.
  */
+/**
+ * Whether this origin is the instance itself.
+ *
+ * Compared against the address the request actually arrived on as well as the
+ * configured base URL. An instance reached on a host nobody wrote into
+ * `SENTRELLO_BASE_URL` — a bare IP, a port during setup, a second name — is
+ * still talking to itself, and its own pages should not be refused by its own
+ * module with a message about origins.
+ *
+ * Lived privately in the shop until 3 October, where it compensated for the
+ * rule below outside the rule. Booking, the newsletter's embedded form and a
+ * CRM form had no equivalent, so on an instance with nothing in its allow-list
+ * an explicitly same-origin request was refused — by a rule whose own comment
+ * says an empty list means same-origin only.
+ */
+export function sameOrigin(
+  origin: string | undefined,
+  requestUrl: string,
+): boolean {
+  if (!origin) return false;
+  let host: string;
+  try {
+    host = new URL(origin).host;
+  } catch {
+    return false;
+  }
+
+  for (const candidate of [process.env.SENTRELLO_BASE_URL, requestUrl]) {
+    if (!candidate) continue;
+    try {
+      if (new URL(candidate).host === host) return true;
+    } catch {
+      // A base URL somebody typed wrong is not a reason to refuse everything.
+    }
+  }
+  return false;
+}
+
 export function originAllowed(
   origin: string | undefined,
   allowedOrigins: string[],
@@ -65,9 +103,29 @@ export function originAllowed(
    * reach.
    */
   kind: "read" | "write",
+  /**
+   * The address this request arrived on, so "same-origin only" can be true
+   * rather than aspirational.
+   *
+   * Required, with no default, for the reason `kind` is: the shop had this
+   * check and three other public surfaces did not, so an instance with an
+   * empty allow-list refused its own pages whenever they named themselves.
+   * Pass `c.req.url`.
+   */
+  requestUrl: string,
 ): OriginDecision {
   if (!origin) {
     return { allowed: kind === "read" || allowedOrigins.length === 0 };
+  }
+  /*
+   * The instance's own pages are always allowed to call its own API, whatever
+   * the list says and whether the list is empty. A browser sends `Origin` on a
+   * same-origin write, so without this the pages an instance serves itself are
+   * refused by its own module — and on an empty list, which the paragraph above
+   * calls "same-origin only", it was refused for being exactly that.
+   */
+  if (sameOrigin(origin, requestUrl)) {
+    return { allowed: true, echo: origin };
   }
   if (allowedOrigins.length === 0) return { allowed: false };
 

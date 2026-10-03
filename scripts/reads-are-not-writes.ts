@@ -20,13 +20,18 @@
  * anybody, and a script can send whatever `Origin` it likes. The list is what
  * makes a *write* with a page-source key worth something.
  *
- * **So the third argument is required here, and that is the whole rule.** Not
+ * **So every argument is required here, and that is the whole rule.** Not
  * "a GET passes read": the first version of this guard said that, and it
  * missed two of the four — the shop and Booking both ask through a helper that
  * is nowhere near the route, so there is no method to read. A default is what
- * made this invisible each time, and the fix is that nobody gets the default.
- * `"read"`, `"write"`, or an expression deciding between them; a call that
- * says nothing is the bug, whatever file it is in.
+ * made this invisible each time, and the fix is that nobody gets a default.
+ *
+ * Four arguments now, because the fourth went the same way as the third. The
+ * rule has always said "an empty list means same-origin only", and with an
+ * explicit same-origin header it refused for being exactly that — the shop
+ * carried its own check outside the rule to compensate and three other public
+ * surfaces carried none. The request's address is what makes that half of the
+ * rule true, so it is passed rather than assumed: `c.req.url`.
  *
  * Shared by the four repositories and checked for drift, like the other
  * guards: the mistake is available in every one of them.
@@ -95,10 +100,10 @@ export function readsJudgedAsWrites(root: string): string[] {
     while (hit) {
       const open = hit.index + hit[0].length - 1;
       const given = argumentsGiven(source, open);
-      if (given >= 0 && given < 3) {
+      if (given >= 0 && given < 4) {
         const line = source.slice(0, hit.index).split("\n").length;
         found.push(
-          `${file.slice(root.length + 1)}:${line}: originAllowed with ${given} arguments — say "read" or "write". A caller with no Origin is not an unlisted caller on a read, and the default is what hid this four times`,
+          `${file.slice(root.length + 1)}:${line}: originAllowed with ${given} arguments — it takes four. Say "read" or "write", and pass c.req.url so "same-origin only" can be true. Both of those were defaults once, and each one hid the same bug in four places`,
         );
       }
       hit = call.exec(source);

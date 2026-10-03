@@ -714,6 +714,7 @@ export function registerForms(ctx: ModuleContext) {
       c.req.header("origin"),
       form?.allowedOrigins ?? [],
       "write",
+      c.req.url,
     );
     if (!form || !decision.allowed) return c.body(null, 403);
     return c.body(null, 204, corsHeaders(decision.echo));
@@ -743,6 +744,7 @@ export function registerForms(ctx: ModuleContext) {
       c.req.header("origin"),
       form?.allowedOrigins ?? [],
       "read",
+      c.req.url,
     );
     if (!form || !form.active || !decision.allowed) {
       return c.json({ error: "not found" }, 404);
@@ -768,7 +770,12 @@ export function registerForms(ctx: ModuleContext) {
     const origin = c.req.header("origin");
     // The write the list exists for: a contact, from a key anybody can read
     // off the page the form is on.
-    const decision = originAllowed(origin, form?.allowedOrigins ?? [], "write");
+    const decision = originAllowed(
+      origin,
+      form?.allowedOrigins ?? [],
+      "write",
+      c.req.url,
+    );
 
     // One 404 for "no such form", "inactive" and "origin not allowed": a
     // public endpoint should not help someone map which keys are real.
