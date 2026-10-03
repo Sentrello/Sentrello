@@ -87,6 +87,53 @@ export default defineModule({
     registerCompliance(ctx);
     registerEvidence(ctx);
     registerTaxRegimes(ctx);
+    /**
+     * The one setting nothing else can guess.
+     *
+     * A business has no timezone until somebody fills it in, and until then
+     * every question of the form "has nine o'clock come round" is answered in
+     * UTC — which is the only safe assumption and is wrong for almost
+     * everybody. It decides when a happy hour starts, when the till's day rolls
+     * over, when a scheduled job runs, and which day an hour worked lands on.
+     *
+     * A checklist step rather than a field somebody may never open, because the
+     * cost of leaving it is invisible: nothing breaks, prices and reports are
+     * simply out by the offset and nobody has a reason to look at this screen.
+     *
+     * Asked of the data like every other step, so a business that set it during
+     * install never sees it, and one that clears it sees it come back.
+     */
+    ctx.registerOnboarding({
+      id: "settings",
+      label: "Your business",
+      icon: "building",
+      requires: { settings: ["read"] },
+      steps: [
+        {
+          id: "timezone",
+          label: "Say where your business keeps its day",
+          detail:
+            "Your timezone decides when a timed offer starts, when the till's day rolls over, and which day an hour worked belongs to. Without it we have to assume UTC, which is right for almost nobody.",
+          opens: "settings-business",
+          done: async (orgId) => {
+            const [org] = await db
+              .select({ timezone: schema.organizations.timezone })
+              .from(schema.organizations)
+              .where(eq(schema.organizations.id, orgId))
+              .limit(1);
+            /*
+             * Known, not merely present. A typo saved as "Americas/Denver" is a
+             * field somebody has filled in and a timezone nothing can read, and
+             * `timezoneFor` falls back to UTC on exactly that — so the step has
+             * to agree with the code that uses it or it would read as done
+             * while the business ran on the fallback.
+             */
+            return Boolean(org?.timezone && knownTimezone(org.timezone));
+          },
+        },
+      ],
+    });
+
     ctx.registerNav({
       id: "settings",
       icon: "sliders",
