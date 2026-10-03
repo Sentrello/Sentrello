@@ -210,6 +210,20 @@ export const STATUTORY_TABLES = [
    */
   "pos.tips",
   /*
+   * And how each one was shared out, for the same two reasons and a third.
+   *
+   * A tip is one credit to Tips Payable for its whole amount; these rows say to
+   * whom. Sweeping them would leave a liability in the books with nothing to
+   * say who it was owed to — and the payroll half is worse: what a person was
+   * paid in tips is reportable income in every one of our markets, and a pooled
+   * tip's server share is the only record of their part of it.
+   *
+   * The third reason is that the shares cannot be recomputed. They were applied
+   * by the arrangement in force on the night, and an owner can change that
+   * arrangement on any Tuesday.
+   */
+  "pos.tip_shares",
+  /*
    * When somebody was on, and at which till.
    *
    * Statutory because it is a time-and-attendance record, and in all four of
