@@ -79,6 +79,16 @@ books as its own entry.
 A **customer is created or matched** in the CRM, so somebody who orders twice
 is one customer with two orders.
 
+Two kinds of order are marked in the list and left out of the figures across
+the top of it, and they mean different things:
+
+- **sandbox** — paid through your processor's test keys. A real sale in your own
+  books, which is why it posts like any other; it is only kept out of the
+  takings so a test payment never reads as revenue.
+- **practice** — rung up on a till in rehearsal mode. Never a sale at all: it
+  posts nothing, moves no stock, and can be thrown away in one action. See
+  [Rehearsing before you go live](/modules/pos#rehearsing-before-you-go-live).
+
 ## Payment
 
 Connect a card processor in **Settings → Connections**: authorise, test in
