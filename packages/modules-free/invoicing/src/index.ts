@@ -57,6 +57,7 @@ import {
   receiptEmail,
 } from "@sentrello/email/templates";
 import {
+  callerKey,
   customerThemeFor,
   defineModule,
   rateLimit,
@@ -2055,7 +2056,7 @@ export default defineModule({
       }
 
       const supplied = c.req.param("token");
-      const contact = await contactByPortalToken(supplied);
+      const contact = await contactByPortalToken(supplied, callerKey(c));
       // Not a bare 404: a customer followed this from a bill somebody sent
       // them, and a blank browser error answers none of their questions.
       if (!contact) return c.html(deadLinkPage(), 404);
@@ -2459,7 +2460,7 @@ export default defineModule({
       }
 
       const token = c.req.param("token");
-      const contact = await contactByPortalToken(token);
+      const contact = await contactByPortalToken(token, callerKey(c));
       if (!contact) return c.notFound();
 
       const [quote] = await db

@@ -195,6 +195,56 @@ test("a tampered or invented token is refused, not merely denied its data", asyn
   expect(real404Check.status).toBe(200);
 });
 
+/**
+ * Guessing a token is capped, because a guess is not cheap.
+ *
+ * The comparison is constant time, which is right and means there is no early
+ * return: every contact on the instance holding a portal token is loaded and
+ * compared on every attempt, wrong ones included. So a stranger could ask a
+ * business with twenty thousand customers to scan all twenty thousand, as
+ * fast as they liked — and through four different addresses, since the
+ * account page, the invoice portal, the subscriber portal and the autopay
+ * pages all resolve a token the same way.
+ *
+ * The cap is in the lookup rather than in the four routes, so the fifth route
+ * to need one gets it by being written. This page has a limit of its own as
+ * well, at thirty a minute, and reaches that first — which is why the
+ * assertion below is "refused", either way, rather than a particular code. It
+ * is the portals with no limit of their own that the lookup's cap is for.
+ */
+test("a stranger guessing portal tokens is cut off", async () => {
+  const orgId = await makeOrg(`Guessed ${suffix}`);
+  orgIds.push(orgId);
+  const contact = await makeContact(orgId, "Guessed Customer");
+  const app = registerForTest(account);
+  const who = { "x-real-ip": "203.0.113.42" };
+
+  let answered = 0;
+  for (let i = 0; i < 70; i += 1) {
+    const res = await app.request(
+      `http://localhost/account/invented-token-number-${i}-aaaaaaaaaaaaaaaa`,
+      { headers: who },
+    );
+    if (res.status === 200) answered += 1;
+  }
+  expect(answered).toBe(0);
+
+  // The caller who spent the budget is the one held: a real customer arriving
+  // from another address still opens their own page.
+  const elsewhere = await app.request(
+    `http://localhost/account/${contact.portalToken}`,
+    { headers: { "x-real-ip": "203.0.113.43" } },
+  );
+  expect(elsewhere.status).toBe(200);
+
+  // And the one who spent it is held even holding a token that is real.
+  const held = await app.request(
+    `http://localhost/account/${contact.portalToken}`,
+    { headers: who },
+  );
+  expect(held.status).not.toBe(200);
+});
+
 test("a section whose load throws is left out entirely, not shown empty", async () => {
   const orgId = await makeOrg(`Throws ${suffix}`);
   orgIds.push(orgId);

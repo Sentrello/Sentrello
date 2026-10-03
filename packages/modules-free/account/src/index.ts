@@ -13,6 +13,7 @@ import type {
 } from "@sentrello/module-sdk";
 import {
   allAccountSections,
+  callerKey,
   customerThemeFor,
   defineModule,
   rateLimit,
@@ -408,7 +409,7 @@ export default defineModule({
       }
 
       const token = c.req.param("token") ?? "";
-      const contact = await contactByPortalToken(token);
+      const contact = await contactByPortalToken(token, callerKey(c));
       // Not a bare 404: the link came from a bill or an email, and the
       // person following it deserves a sentence rather than a blank page.
       if (!contact) return c.html(deadLinkPage(), 404);

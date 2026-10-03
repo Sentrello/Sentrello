@@ -177,6 +177,45 @@ export function rateLimit(
   return { allowed: true, retryAfterSeconds: 0 };
 }
 
+/**
+ * Who is asking, for the purpose of counting how often they ask.
+ *
+ * `x-real-ip`, then the origin, then nothing. **Never `x-forwarded-for`**, and
+ * that is the whole of this function's opinion.
+ *
+ * nginx sets `x-real-ip` from `$remote_addr`, replacing anything sent, so it
+ * is the one address in a request a caller cannot choose. It sets
+ * `X-Forwarded-For` with `$proxy_add_x_forwarded_for`, which *appends* the
+ * real address to whatever arrived — so every entry but the last is text the
+ * caller wrote. The storefront's limit was keyed on the first entry once, and
+ * a fresh value on each request was a fresh budget on each request.
+ *
+ * The last entry is trustworthy behind our own proxy, and this deliberately
+ * does not use it either: an instance with no proxy in front of it has no
+ * trustworthy entry at all, and a limit that is sometimes forgeable depending
+ * on the deployment is a limit nobody can reason about. A test flooding this
+ * with a new `x-forwarded-for` each time is how that reasoning got checked —
+ * it caught a draft of this function that did read the last entry.
+ *
+ * So: no proxy means every caller shares one budget, which is stricter than
+ * the truth and never looser. The links module reads the chain for visitor
+ * *counts*, where best-effort is the right trade and a forged number is a
+ * wrong statistic rather than a bypassed guard; see `clientAddress` there.
+ *
+ * Takes the whole caller, not a route: a limit is about who is asking, and
+ * each caller's budget is named by the prefix its own call site passes. The
+ * plainer copies elsewhere — `x-real-ip` or nothing — are this function
+ * without the origin fallback, and are left alone until touched for another
+ * reason.
+ */
+export function callerKey(c: {
+  req: { header: (name: string) => string | undefined };
+}): string {
+  const real = c.req.header("x-real-ip")?.trim();
+  if (real) return real.slice(0, 45);
+  return c.req.header("origin")?.slice(0, 80) ?? "anon";
+}
+
 export function resetRateLimits() {
   hits.clear();
 }

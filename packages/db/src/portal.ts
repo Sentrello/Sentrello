@@ -1,3 +1,4 @@
+import { rateLimit } from "@sentrello/module-sdk";
 import { and, eq, isNotNull } from "drizzle-orm";
 import { db } from "./client";
 import * as schema from "./schema";
@@ -34,9 +35,49 @@ function tokenMatches(supplied: string, expected: string): boolean {
   return diff === 0;
 }
 
-/** The customer a portal token belongs to, or null. */
-export async function contactByPortalToken(token: string) {
+/**
+ * How many portal-token lookups one caller may make in a minute.
+ *
+ * Sixty, which no real customer reaches: they follow a link from their own
+ * email and read the page it opens. A script enumerating tokens reaches it in
+ * a second.
+ */
+const LOOKUPS = 60;
+const LOOKUP_WINDOW_MS = 60_000;
+
+/**
+ * The customer a portal token belongs to, or null.
+ *
+ * `caller` is who is asking — `callerKey(c)` from the module SDK — and it is
+ * required because this function cannot know otherwise, and because the
+ * counting below is half of what it does.
+ *
+ * **Guessing is limited, and the cost of a guess is why.** The comparison is
+ * constant time, which is right and means there is no early return: every
+ * contact on the instance holding a portal token is loaded and compared on
+ * every attempt, wrong ones included. So an unauthenticated stranger could
+ * ask a business with twenty thousand customers to scan all twenty thousand
+ * as fast as they liked — through the account page, the invoice portal, the
+ * subscriber portal or the autopay pages, all of which arrive here.
+ *
+ * Checked before the scan rather than after, which is the point: a limit that
+ * records an attempt it has already paid for is a log, not a limit.
+ *
+ * Every attempt counts, not only the wrong ones. Counting failures alone
+ * would need a peek that does not consume, and the budget is set where honest
+ * use never arrives.
+ *
+ * ponytail: the scan is O(contacts) per attempt, which the limit caps rather
+ * than fixes. Storing a hash of the token beside it would make this an index
+ * lookup; worth doing when an instance's contact list is large enough to
+ * measure, and a migration rather than a patch.
+ */
+export async function contactByPortalToken(token: string, caller: string) {
   if (token.length < 20) return null;
+  if (!rateLimit(`portal-token:${caller}`, LOOKUPS, LOOKUP_WINDOW_MS).allowed) {
+    return null;
+  }
+
   const candidates = await db
     .select()
     .from(schema.contacts)

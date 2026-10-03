@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import {
   HONEYPOT_FIELD,
+  callerKey,
   corsHeaders,
   looksAutomated,
   originAllowed,
@@ -190,4 +191,41 @@ test("and a read from the wrong website is still refused", () => {
   expect(originAllowed("https://acme.com", ["acme.com"], "read").allowed).toBe(
     true,
   );
+});
+
+/**
+ * The caller a limit counts, and the header it refuses to believe.
+ *
+ * nginx sets `X-Forwarded-For` with `$proxy_add_x_forwarded_for`, appending
+ * the real address to whatever arrived, so every entry but the last is text
+ * the caller wrote. The last one is trustworthy behind our own proxy and not
+ * on an instance with nothing in front of it — and a limit that is forgeable
+ * depending on the deployment is a limit nobody can reason about. So this
+ * reads none of it.
+ *
+ * The cost is that a proxy-less instance puts every caller in one bucket,
+ * which is stricter than the truth and never looser.
+ */
+test("a limit's caller cannot be chosen by the caller", () => {
+  const ask = (headers: Record<string, string>) =>
+    callerKey({ req: { header: (name: string) => headers[name] } });
+
+  // The one value nginx replaces rather than appends to.
+  expect(ask({ "x-real-ip": "198.51.100.7" })).toBe("198.51.100.7");
+
+  // A forwarded chain says nothing here, however it is arranged.
+  const forged = ask({ "x-forwarded-for": "203.0.113.1, 203.0.113.2" });
+  expect(forged).not.toContain("203.0.113");
+  expect(ask({ "x-forwarded-for": "203.0.113.9" })).toBe(
+    ask({ "x-forwarded-for": "203.0.113.8" }),
+  );
+
+  // And it cannot beat the header it cannot set.
+  expect(
+    ask({ "x-real-ip": "198.51.100.7", "x-forwarded-for": "203.0.113.9" }),
+  ).toBe("198.51.100.7");
+
+  // Behind no proxy at all: the website asking, then one shared bucket.
+  expect(ask({ origin: "https://shop.example" })).toBe("https://shop.example");
+  expect(ask({})).toBe("anon");
 });
