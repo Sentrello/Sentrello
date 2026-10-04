@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { gitLines } from "./git-lines";
 
 /**
  * Nothing that was written to answer a question stays in the repository.
@@ -29,13 +29,10 @@ const SCRATCH =
 
 test("no scratch or debug files are committed", () => {
   const repo = join(import.meta.dir, "../../..");
-  const tracked = spawnSync("git", ["ls-files"], {
-    cwd: repo,
-    encoding: "utf8",
-  });
-  expect(tracked.status).toBe(0);
+  const tracked = gitLines(["ls-files"], repo);
+  expect(tracked, "git would not list this repository's files").not.toBeNull();
 
-  const files = tracked.stdout.split("\n").filter(Boolean);
+  const files = tracked ?? [];
   // A listing that comes back empty would pass every assertion below it.
   expect(files.length).toBeGreaterThan(50);
 
@@ -101,13 +98,10 @@ const BELONGS_AS_DIRECTORY = new Set([
 
 test("nothing is committed at the root except what belongs there", () => {
   const repo = join(import.meta.dir, "../../..");
-  const tracked = spawnSync("git", ["ls-files"], {
-    cwd: repo,
-    encoding: "utf8",
-  });
-  expect(tracked.status).toBe(0);
+  const tracked = gitLines(["ls-files"], repo);
+  expect(tracked, "git would not list this repository's files").not.toBeNull();
 
-  const files = tracked.stdout.split("\n").filter(Boolean);
+  const files = tracked ?? [];
   // A listing that came back empty would pass every assertion below it.
   expect(files.length).toBeGreaterThan(50);
 
@@ -140,13 +134,10 @@ test("nothing is committed at the root except what belongs there", () => {
  */
 test("every package in this repository states its licence", () => {
   const repo = join(import.meta.dir, "../../..");
-  const tracked = spawnSync("git", ["ls-files", "*package.json"], {
-    cwd: repo,
-    encoding: "utf8",
-  });
-  expect(tracked.status).toBe(0);
+  const tracked = gitLines(["ls-files", "*package.json"], repo);
+  expect(tracked, "git would not list this repository's files").not.toBeNull();
 
-  const manifests = tracked.stdout.split("\n").filter(Boolean);
+  const manifests = tracked ?? [];
   // A listing that came back empty would pass the assertion below it.
   expect(manifests.length).toBeGreaterThan(5);
 

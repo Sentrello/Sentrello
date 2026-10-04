@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { gitLines } from "./git-lines";
 
 /**
  * A module cannot depend on one that does not exist.
@@ -78,13 +78,10 @@ function declared(): Declared[] {
     const root = join(import.meta.dir, "../../../..", repo);
     if (!existsSync(root)) continue;
 
-    const listed = spawnSync("git", ["ls-files", "packages/*/src/index.ts"], {
-      cwd: root,
-      encoding: "utf8",
-    });
-    if (listed.status !== 0) continue;
+    const listed = gitLines(["ls-files", "packages/*/src/index.ts"], root);
+    if (!listed) continue;
 
-    for (const file of listed.stdout.split("\n").filter(Boolean)) {
+    for (const file of listed) {
       const source = readFileSync(join(root, file), "utf8");
       const at = source.indexOf("defineModule({");
       if (at === -1) continue;
@@ -154,4 +151,42 @@ test("money is the module the host loads, and invoicing is not", () => {
   // three. A split back into two fails here rather than going dark again.
   expect(core).not.toContain("invoicing");
   expect(core).not.toContain("accounting");
+});
+
+/**
+ * And the guard survives being run from a commit hook.
+ *
+ * This read the *wrong repository's* file list for months, and only sometimes.
+ * It asks `git ls-files` with `cwd` pointing at Pro and Modules, and git sets
+ * `GIT_INDEX_FILE` in a hook's environment for an amend, a rebase and a merge —
+ * so the question went to the other repository and the answer came from this
+ * one's index. Four failures in a row on `git commit --amend --only`, with a
+ * message about a module dependency that was perfectly fine, and a clean gate
+ * every other time.
+ *
+ * So the environment is asserted rather than trusted: whatever a hook sets,
+ * `gitLines` answers about the repository it was pointed at.
+ */
+test("a stale git environment does not redirect the question", () => {
+  const core = join(import.meta.dir, "../../..");
+  // A file that has been tracked for as long as the repository has existed:
+  // `ls-files` lists what is tracked, so a new file would answer nothing and
+  // this test would pass by accident whatever the environment did.
+  const asked = gitLines(["ls-files", "apps/server/package.json"], core);
+  expect(asked).toEqual(["apps/server/package.json"]);
+
+  // The shape a commit hook leaves behind: an index belonging to this process
+  // rather than to the repository being asked.
+  process.env.GIT_INDEX_FILE = "/nonexistent/index";
+  process.env.GIT_DIR = "/nonexistent/.git";
+  try {
+    expect(gitLines(["ls-files", "apps/server/package.json"], core)).toEqual([
+      "apps/server/package.json",
+    ]);
+  } finally {
+    // Set to empty rather than deleted: `delete` on an env object is what the
+    // linter objects to, and `gitLines` strips the names whatever they hold.
+    process.env.GIT_INDEX_FILE = "";
+    process.env.GIT_DIR = "";
+  }
 });
