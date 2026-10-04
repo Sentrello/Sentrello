@@ -857,8 +857,18 @@ export function ConfirmButton({
    * it and nothing at all to a screen reader — and `title` here is the
    * dialog's heading rather than the button's. And a word that is right in
    * its row and ambiguous on its screen: six rows of "Delete" are six
-   * identical names, so each one says which group it means. Only read when
-   * no `variant` is set, since a full `Button` carries its own words.
+   * identical names, so each one says which group it means.
+   *
+   * Read by both shapes. This said "only read when no `variant` is set, since
+   * a full `Button` carries its own words" — true of the code for about a day,
+   * and untrue from the moment the full button started passing it on. A comment
+   * claiming a prop is ignored is a comment that stops anybody passing it.
+   *
+   * **The visible word goes first.** `Remove Alice`, not `Remove the subscriber
+   * Alice`: the name has to *contain* the words printed on the control, because
+   * somebody driving the screen by voice says what they can see. WCAG calls it
+   * Label in Name, and rephrasing the visible word fails it however much better
+   * the rephrasing reads.
    */
   label?: string;
   /** Set to render a full Button rather than the small inline link. */

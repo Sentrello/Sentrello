@@ -15,9 +15,11 @@ rather than something you can subscribe to yet.
 
 Most of what the withdrawal was waiting for is now built — the screens it is
 actually used on, a card reader the till drives, table service, the kitchen
-pass, and a receipt that carries what each of the four markets requires. What
-remains is a thermal printer driver and a drawer that kicks open, which is the
-list under [What is not here yet](#what-is-not-here-yet).
+pass, a receipt that carries what each of the four markets requires, and paper:
+a receipt printer, chits in the kitchen, and a drawer that springs open when
+cash goes in it. What remains is the list under
+[What is not here yet](#what-is-not-here-yet), and most of it is there on
+purpose.
 
 **There are no screenshots on this page**, deliberately. The ones that were here
 showed a till with a Cash button and no Card, an open cash count with the
@@ -206,6 +208,48 @@ out and written down against that shift, as it was at that moment.
 A shortfall is reported as a shortfall. It is never rounded away or called
 "within tolerance". A figure that hides small differences is a figure everybody
 learns to ignore, and then it is worth nothing on the night it is large.
+
+### Printers, and the drawer that opens itself
+
+A receipt printer is an address on your network. Add it under **Point of sale →
+How you serve → Printers**: a name, the address, and whether the cash drawer is
+wired to it. Then press **Test**, which puts a piece of paper in your hand and
+opens the drawer — the only way to know a printer works is to have it print.
+
+Two kinds, chosen when you add one:
+
+| Prints | Where it goes |
+|---|---|
+| **Receipts** | What a customer is handed. One till, one printer. |
+| **Kitchen chits** | Every round sent to the kitchen, and every cancellation. |
+
+**The drawer is wired to the printer, not to Sentrello.** That is how a counter
+is built: the drawer has a solenoid and a plug, and the plug goes in the back of
+the receipt printer. So the till opens the drawer by sending the printer a job
+with no paper in it. Pin 2 is the near-universal wiring; pin 5 is where a second
+drawer on one printer goes.
+
+**It opens on a cash sale and nothing else.** There is no change to give from a
+card, so a drawer that opened for every tap would spend the day open. A sale the
+till is told about twice — a queue draining after an outage — does not open it
+either: a drawer that springs open on its own is the one thing on a counter
+nobody can explain. Open it by hand with a **no-sale**, which is logged with who
+did it.
+
+**A printer never holds up a sale.** The money is taken, the sale is finished,
+and the paper is a second copy of something already true. A printer with no paper
+in it says so on the screen and nothing else changes.
+
+:::note[Where the printer has to be]
+
+Sentrello sends to printers from the server, so the printer has to be reachable
+from wherever Sentrello is installed — usually the same network as the till,
+which is the ordinary self-hosted arrangement. A browser cannot open a socket to
+a printer, and a printer speaks no https, so there is no way to do this from the
+till's own screen instead. If you run Sentrello on a rented server somewhere
+else, it cannot reach a printer on your counter.
+
+:::
 
 ### Why a card sale never reaches the drawer
 
@@ -504,18 +548,14 @@ report a manager takes mid-shift.
 Said plainly, because a list of what a product cannot do is more useful than a
 list of what it can.
 
-- **A thermal printer, and a drawer that kicks open.** The receipt itself is
-  built: a frozen document with a gapless number, the content each of the four
-  markets requires, a Canadian GST/PST/QST split that reconciles to the cent,
-  refund receipts and a record of every reprint. It goes to the screen, to an
-  email, or to a PDF. What no driver exists for yet is the roll of paper.
-- **Kitchen printing.** The pass is a screen — Point of sale → Pass — showing
-  what has been sent, oldest first, with a button to say it is being cooked and
-  another to say it is ready. A chit coming out on paper in the kitchen is the
-  same missing printer driver as the receipt above.
-- **Routing to stations.** One pass, not a hot line and a cold line. That is a
-  layer on top of this and one nobody should design without a kitchen to stand
-  in.
+- **A printer plugged into the till by USB.** Printers are reached over the
+  network, on port 9100, which is what every receipt printer worth buying
+  speaks. One hanging off a cable has nothing listening on an address, and a
+  browser cannot talk to it either. A USB printer with a small network adapter
+  in front of it works today.
+- **Routing to stations.** One pass and one kitchen chit, not a hot line and a
+  cold line. That is a layer on top of this and one nobody should design without
+  a kitchen to stand in.
 - **A customer tapping their own tip.** The screen facing them shows what each
   percentage comes to and cannot take an answer. Tapping belongs on the card
   reader's own screen, which has one.

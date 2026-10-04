@@ -179,13 +179,14 @@ comp, discount, a blind drawer count, a receipt and the closure it printed), a
 card reader the till drives rather than one somebody taps beside it, table
 service with floors and sections, a kitchen pass, tips and a mandatory service
 charge with the disclosure one lawfully needs, a per-person shift report, two
-bills joining into one, a screen the customer reads over the counter, and a
-rehearsal mode that posts nothing anywhere.
+bills joining into one, a screen the customer reads over the counter, a
+rehearsal mode that posts nothing anywhere, and paper: receipts off a roll,
+chits in the kitchen, and a drawer that springs open when cash goes in it.
 
-What is still missing: a thermal printer driver and a drawer that kicks open,
-routing between kitchen stations, and fiscalisation — no certified device and
-no live link to a tax authority, which is permanent and rules out those
-markets that require one.
+What is still missing: routing a chit between kitchen stations, a printer
+plugged in by USB rather than reached over the network, and fiscalisation — no
+certified device and no live link to a tax authority, which is permanent and
+rules out those markets that require one.
 
 Nothing here says when it returns, because we do not know. When it does it is a
 **plugin**: it needs Shop, it is bought separately at half a module's price,
