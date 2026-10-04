@@ -84,18 +84,47 @@ export interface ListState {
 export { filterIntent, monthRange } from "./drill";
 
 export function useArrivingFilters(state: ListState): string | null {
-  const { takeIntent } = useNavigation();
-  const [intent] = useState(takeIntent);
-  const applied = useRef(false);
+  const { current, takeIntent } = useNavigation();
+  // Read at mount, which is the ordinary case: opening a list means mounting
+  // its screen, and the intent is waiting by the time this runs.
+  const [atMount] = useState(takeIntent);
+  const first = useRef(true);
 
+  /*
+   * And read again whenever the view changes, which is the case that mounting
+   * alone misses: pressing a chart that opens the screen you are already on.
+   * The component does not remount, so a hook that only looked once would
+   * apply nothing and say nothing — the bar would be a button that silently
+   * did not work, which is worse than one that plainly is not pressable.
+   *
+   * `takeIntent` clears what it returns, so this cannot apply the same one
+   * twice however often the view re-renders.
+   */
+  /*
+   * `state` is a new object on every render, so it cannot be a dependency:
+   * including it would run this on every keystroke in the search box and put
+   * back a filter somebody had just cleared. The setter is held in a ref so the
+   * effect can reach today's one without depending on it.
+   */
+  const apply = useRef(state.setFilter);
+  apply.current = state.setFilter;
+
+  /*
+   * `current` is a signal, not an input: the effect reads nothing off it and
+   * names it so that a navigation re-runs this. The rule cannot express that,
+   * and the alternatives are worse — keying on the module and record ids would
+   * miss the case this exists for, which is pressing a chart that opens the
+   * screen you are already on.
+   */
+  // biome-ignore lint/correctness/useExhaustiveDependencies: see above
   useEffect(() => {
-    if (applied.current) return;
-    applied.current = true;
+    const intent = first.current ? atMount : takeIntent();
+    first.current = false;
     const filters = filtersFromIntent(intent);
-    if (filters && Object.keys(filters).length > 0) state.setFilter(filters);
-  }, [intent, state]);
+    if (filters && Object.keys(filters).length > 0) apply.current(filters);
+  }, [current, atMount, takeIntent]);
 
-  return filtersFromIntent(intent) ? null : intent;
+  return filtersFromIntent(atMount) ? null : atMount;
 }
 
 /**

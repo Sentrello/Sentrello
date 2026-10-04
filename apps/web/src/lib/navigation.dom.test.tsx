@@ -10,6 +10,8 @@ GlobalRegistrator.register({ url: "http://localhost/" });
 import { afterAll, afterEach, expect, test } from "bun:test";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
+import { filterIntent, monthRange } from "./drill";
+import { useArrivingFilters, useListState } from "./list-ui";
 import { installRuntime } from "./module-ui";
 import { NavigationProvider, useNavigation } from "./navigation";
 
@@ -96,4 +98,58 @@ test("without a provider, open falls back to a full page load", () => {
 
   runtime.open({ moduleId: "shop", title: "Shop" });
   expect(assigned[1]).toBe("/shop");
+});
+
+/**
+ * The other end of a drill-through: a chart presses, and the list arrives
+ * narrowed.
+ *
+ * Three pieces have to meet for that, and each is fine on its own while the
+ * chain is broken — the intent has to travel on the view, the provider has to
+ * put it in the slot a screen reads, and the list has to apply it. So this
+ * drives all three: the module door (`window.__sentrello.open`, which is the
+ * one a module's chart has), and the state a real `useListState` ends up in.
+ */
+function ArrivingList() {
+  const state = useListState({ sort: "issueDate", order: "desc" });
+  useArrivingFilters(state);
+  return (
+    <span id="filters">
+      {Object.entries(state.filters)
+        .map(([k, v]) => `${k}=${v}`)
+        .sort()
+        .join("&") || "none"}
+    </span>
+  );
+}
+
+test("a filter intent reaches the list and becomes its filters", () => {
+  const mountPoint = document.createElement("div");
+  document.body.append(mountPoint);
+  act(() => {
+    createRoot(mountPoint).render(
+      <NavigationProvider
+        initial={{ moduleId: "dashboard", title: "Dashboard" }}
+        known={[{ id: "invoicing", label: "Invoices" }]}
+      >
+        <ArrivingList />
+      </NavigationProvider>,
+    );
+  });
+
+  // Nothing pressed yet: the list is the whole list.
+  expect(document.querySelector("#filters")?.textContent).toBe("none");
+
+  const runtime = window.__sentrello;
+  act(() => {
+    runtime?.open?.({
+      moduleId: "invoicing",
+      title: "Invoices",
+      intent: filterIntent(monthRange("2026-09")),
+    });
+  });
+
+  expect(document.querySelector("#filters")?.textContent).toBe(
+    "from=2026-09-01&to=2026-09-30",
+  );
 });
