@@ -75,6 +75,14 @@ interface DocumentShape {
   exemptionCertificateId?: string | null;
   /** The prices on this document already contain the tax. */
   pricesIncludeTax?: boolean;
+  /**
+   * When the document last changed, which is what Save claims back.
+   *
+   * Two people editing one draft used to overwrite each other in silence. The
+   * editor sends this version with the write and the server refuses one that
+   * has moved since — see `movedSince` in the module.
+   */
+  updatedAt?: string;
 }
 
 interface LineDraft {
@@ -315,10 +323,13 @@ export function InvoiceForm({
    * since.
    */
   const [loaded, setLoaded] = useState(false);
+  /** The version this screen is editing, claimed back when Save is pressed. */
+  const [seenUpdatedAt, setSeenUpdatedAt] = useState<string | null>(null);
   if (documentId && !loaded && existing.data) {
     const doc = existing.data.quote ?? existing.data.invoice;
     if (doc) {
       setLoaded(true);
+      setSeenUpdatedAt(doc.updatedAt ?? null);
       setCustomer(existing.data.contact ?? null);
       setCurrency(doc.currency ?? "");
       setNotes(doc.notes ?? "");
@@ -533,17 +544,29 @@ export function InvoiceForm({
       const path = asQuote ? "/api/quotes" : "/api/invoices";
       const url = documentId ? `${path}/${documentId}` : path;
       const method = documentId ? "PATCH" : "POST";
+      /*
+       * Which version this screen was editing, sent with the write.
+       *
+       * The server refuses a write against a document that has changed since,
+       * rather than quietly putting these boxes on top of somebody else's work.
+       * Only on a PATCH: there is nothing to have moved on a document that does
+       * not exist yet.
+       */
+      const claimed =
+        method === "PATCH" && seenUpdatedAt
+          ? { expectedUpdatedAt: seenUpdatedAt }
+          : {};
 
       if (asQuote) {
         const res = await api<{ quote: { id: string; number: string } }>(url, {
           method,
-          body: JSON.stringify(body),
+          body: JSON.stringify({ ...body, ...claimed }),
         });
         return res.quote;
       }
       const res = await api<{ invoice: { id: string; number: string } }>(url, {
         method,
-        body: JSON.stringify(body),
+        body: JSON.stringify({ ...body, ...claimed }),
       });
       return res.invoice;
     },
