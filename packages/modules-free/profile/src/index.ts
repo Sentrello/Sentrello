@@ -4,6 +4,7 @@ import { db, schema } from "@sentrello/db";
 import { NO_MAIL_SERVER, mailConfigured } from "@sentrello/email";
 import { defineModule, rateLimit } from "@sentrello/module-sdk";
 import { and, desc, eq } from "drizzle-orm";
+import { type Columns, normalizeColumns } from "./columns";
 import { DEFAULTS, type Preferences, normalize } from "./preferences";
 
 /**
@@ -21,6 +22,34 @@ import { DEFAULTS, type Preferences, normalize } from "./preferences";
  */
 
 const KEY = "profile";
+/**
+ * The column choices, under their own key rather than inside `profile`.
+ *
+ * Two reasons. They are written by a different screen at a different moment —
+ * a column menu on a list, not a preferences form — so a save of one must not
+ * carry a stale copy of the other. And this one grows with the product while
+ * `profile` is a fixed handful of fields; keeping them apart means a list's
+ * entry can never be dropped by a preferences screen that has not heard of it.
+ */
+const COLUMNS_KEY = "list-columns";
+
+async function readColumns(
+  organizationId: string,
+  userId: string,
+): Promise<Columns> {
+  const [row] = await db
+    .select({ value: schema.userPreferences.value })
+    .from(schema.userPreferences)
+    .where(
+      and(
+        eq(schema.userPreferences.organizationId, organizationId),
+        eq(schema.userPreferences.userId, userId),
+        eq(schema.userPreferences.key, COLUMNS_KEY),
+      ),
+    )
+    .limit(1);
+  return row ? normalizeColumns(row.value) : {};
+}
 
 async function readPreferences(
   organizationId: string,
@@ -142,6 +171,75 @@ export default defineModule({
      * only when it belongs to the person asking — that filter is what stands
      * in for a permission check here.
      */
+    /**
+     * The columns this person hides, on every list at once.
+     *
+     * One request, answered on the first screen and cached for the rest of the
+     * visit: a reader who opens four lists in a minute asks once. An
+     * organization is needed to answer at all — the choices belong to this
+     * person *on this business* — and somebody with no active organization gets
+     * an empty answer rather than an error, because a billing account with no
+     * business still draws a screen.
+     */
+    ctx.app.get("/api/profile/columns", requireSession(), async (c) => {
+      const session = c.get("session");
+      const orgId = session.session.activeOrganizationId;
+      return c.json({
+        columns: orgId ? await readColumns(orgId, session.user.id) : {},
+      });
+    });
+
+    /**
+     * One list's choice, saved as it is made.
+     *
+     * Per list rather than the whole map, because two lists open in two tabs
+     * would otherwise overwrite each other with whichever map was fetched
+     * first. The row is read, the one entry replaced and the rest kept — the
+     * same merge the dashboard's arrangement needs for the same reason.
+     *
+     * No permission beyond a session. Which columns somebody looks at is not a
+     * thing a role should be able to decide for them.
+     */
+    ctx.app.put("/api/profile/columns/:list", requireSession(), async (c) => {
+      const session = c.get("session");
+      const orgId = session.session.activeOrganizationId;
+      if (!orgId) return c.json({ error: "no organization" }, 400);
+
+      const list = String(c.req.param("list") ?? "");
+      const body = (await c.req.json().catch(() => ({}))) as {
+        hidden?: unknown;
+      };
+      const asked = normalizeColumns({ [list]: body.hidden });
+      // A list name this module would not store is a name the screen made up.
+      if (!(list in asked) && !Array.isArray(body.hidden)) {
+        return c.json({ error: "which list?" }, 400);
+      }
+
+      const columns = await readColumns(orgId, session.user.id);
+      const next = normalizeColumns({ ...columns, ...asked });
+      // Nothing hidden is no entry, so "show them all" removes the list rather
+      // than storing an empty array for ever.
+      if (!(list in asked)) delete next[list];
+
+      await db
+        .insert(schema.userPreferences)
+        .values({
+          organizationId: orgId,
+          userId: session.user.id,
+          key: COLUMNS_KEY,
+          value: next,
+        })
+        .onConflictDoUpdate({
+          target: [
+            schema.userPreferences.organizationId,
+            schema.userPreferences.userId,
+            schema.userPreferences.key,
+          ],
+          set: { value: next, updatedAt: new Date() },
+        });
+      return c.json({ columns: next });
+    });
+
     ctx.app.delete("/api/profile/sessions/:id", requireSession(), async (c) => {
       const session = c.get("session");
       const id = c.req.param("id");

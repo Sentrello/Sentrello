@@ -132,6 +132,14 @@ const YOURS_BY_DESIGN = new Set([
   "GET /api/users/me/security",
   "GET /api/profile",
   "PATCH /api/profile",
+  /*
+   * Which columns somebody looks at, on their own account. There is no role
+   * that should be able to decide that for them, and the answer names list keys
+   * and field names rather than any of the business's data — a reader with no
+   * permissions gets an empty map and a list they cannot open anyway.
+   */
+  "GET /api/profile/columns",
+  "PUT /api/profile/columns/:list",
   "DELETE /api/profile/sessions/:id",
   "POST /api/profile/password",
   "POST /api/profile/email",

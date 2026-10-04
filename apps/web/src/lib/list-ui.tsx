@@ -1,10 +1,16 @@
-import { type Query, useQuery } from "@tanstack/react-query";
+import {
+  type Query,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { announce } from "./announce";
 import { api } from "./api";
 import { Icon, type IconName } from "./icons";
 import {
   Button,
+  ErrorNote,
   Input,
   Select,
   border,
@@ -517,41 +523,83 @@ export interface ColumnState {
   /** Back to every column, for a screen somebody has hidden their way out of. */
   reset: () => void;
   hiddenCount: number;
+  /**
+   * Why the last change did not save, if it did not.
+   *
+   * The choice lives on the account now, so saving it is a request that can
+   * fail — and a tick that appears to work and is gone tomorrow is worse than
+   * one that refuses. The menu says so where the box was ticked.
+   */
+  error: unknown;
 }
 
 /**
- * Which columns this person wants to see, remembered.
+ * Which columns this person wants to see, remembered on their account.
  *
  * Personal rather than the business's: two people working the same list want
  * different things in front of them, and one of them turning a column off for
  * everybody is worse than neither being able to.
  *
- * ponytail: kept in localStorage, so it is per browser rather than per person.
- * Move it to `user_preferences` beside the profile's own settings if somebody
- * asks why their columns did not follow them to a second machine.
+ * **On the account, not in the browser.** This was `localStorage` with a note
+ * saying to move it the day somebody asked why their columns had not followed
+ * them to a second machine. Three reasons not to wait for the question: a
+ * person who works on a laptop and at a desk is two sets of columns, clearing
+ * site data is a screen that silently resets, and a saved view — a filter, a
+ * sort and a set of columns under one name — cannot be shared out of a
+ * browser's storage.
+ *
+ * One request for every list, cached for the visit: the answer is the whole map
+ * and every list on every screen reads the same copy of it. A reader who opens
+ * four lists in a minute asks once.
+ *
+ * **Showing everything is the failure mode**, deliberately. Until the answer
+ * arrives, and if it never does, every column is shown — a list with a column
+ * missing because a request failed is a figure somebody cannot find and has no
+ * way to ask for.
  */
 export function useColumns(key: string, columns: ListColumn[]): ColumnState {
-  const storageKey = `sentrello:columns:${key}`;
-  const [hidden, setHidden] = useState<string[]>(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(storageKey) ?? "[]");
-      return Array.isArray(saved)
-        ? saved.filter((f) => typeof f === "string")
-        : [];
-    } catch {
-      return [];
-    }
+  const qc = useQueryClient();
+  const stored = useQuery({
+    queryKey: ["profile", "columns"],
+    queryFn: () =>
+      api<{ columns: Record<string, string[]> }>("/api/profile/columns"),
+    // Chosen rarely and read on every list. Refetching on a focus change would
+    // be a request per tab switch for an answer that has not moved.
+    staleTime: 5 * 60_000,
+  });
+  const hidden = stored.data?.columns?.[key] ?? [];
+
+  const save = useMutation({
+    mutationFn: (next: string[]) =>
+      api<{ columns: Record<string, string[]> }>(
+        `/api/profile/columns/${encodeURIComponent(key)}`,
+        { method: "PUT", body: JSON.stringify({ hidden: next }) },
+      ),
+    /*
+     * The cache is written before the request goes, because a column menu that
+     * waits for a round trip to tick a box feels broken. The server answers
+     * with the whole map and that answer replaces the guess, so a save that
+     * fails leaves the screen agreeing with the server on the next read rather
+     * than agreeing with itself for ever.
+     */
+    onMutate: (next) => {
+      qc.setQueryData(
+        ["profile", "columns"],
+        (old: { columns: Record<string, string[]> } | undefined) => ({
+          columns: {
+            ...(old?.columns ?? {}),
+            [key]: next,
+          },
+        }),
+      );
+    },
+    onSettled: (answer) => {
+      if (answer) qc.setQueryData(["profile", "columns"], answer);
+      else qc.invalidateQueries({ queryKey: ["profile", "columns"] });
+    },
   });
 
-  const remember = (next: string[]) => {
-    setHidden(next);
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(next));
-    } catch {
-      // A browser with storage refused is a browser that shows every column,
-      // which is the right thing to do rather than the reason to fail.
-    }
-  };
+  const remember = (next: string[]) => save.mutate(next);
 
   const optional = columns.filter((c) => !c.fixed);
   return {
@@ -569,6 +617,7 @@ export function useColumns(key: string, columns: ListColumn[]): ColumnState {
       ),
     reset: () => remember([]),
     hiddenCount: optional.filter((c) => hidden.includes(c.field)).length,
+    error: save.error,
   };
 }
 
@@ -621,6 +670,12 @@ export function ColumnsMenu({ state }: { state: ColumnState }) {
             Show them all
           </button>
         ) : null}
+        {/*
+          Said here rather than swallowed. The choice is kept on the account, so
+          this is a request — and a box that ticks, looks saved and is back
+          tomorrow is the kind of fault somebody blames on themselves.
+        */}
+        {state.error ? <ErrorNote error={state.error} /> : null}
       </div>
     </details>
   );

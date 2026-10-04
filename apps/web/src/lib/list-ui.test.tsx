@@ -252,22 +252,15 @@ test("a caller that does not ask to poll gets no interval", () => {
  * survives the screen being left and come back to.
  */
 /**
- * The browser's own store, which this runner does not have.
+ * The answer the account gives, seeded into the cache this screen reads.
  *
- * Stubbed rather than mocked away: the hook reads and writes real strings, and
- * a stub that answers like the real thing is what makes the round trip — hide
- * a column, come back tomorrow, still hidden — a thing this test can see.
+ * It used to be a `localStorage` stub, because that is where the choice lived.
+ * It is on the account now — one request, cached for the visit — so what makes
+ * the round trip visible is the query cache rather than a browser store, and
+ * the test is closer to the real thing for it: this is the same cache entry the
+ * real screen reads, written the way the real request writes it.
  */
-const store = new Map<string, string>();
-(globalThis as { localStorage?: unknown }).localStorage = {
-  getItem: (key: string) => store.get(key) ?? null,
-  setItem: (key: string, value: string) => {
-    store.set(key, value);
-  },
-};
-
 function Columns({ hidden }: { hidden: string[] }) {
-  store.set("sentrello:columns:probe", JSON.stringify(hidden));
   const state = useColumns("probe", [
     { field: "number", label: "Number", fixed: true },
     { field: "customer", label: "Customer" },
@@ -284,16 +277,22 @@ function Columns({ hidden }: { hidden: string[] }) {
   );
 }
 
+const withColumns = (hidden: string[]): string => {
+  const qc = new QueryClient();
+  qc.setQueryData(["profile", "columns"], { columns: { probe: hidden } });
+  return renderToStaticMarkup(
+    <QueryClientProvider client={qc}>
+      <Columns hidden={hidden} />
+    </QueryClientProvider>,
+  );
+};
+
 test("a column somebody turned off is not drawn, and a fixed one cannot be", () => {
   // Nothing hidden: the list as it ships.
-  expect(renderToStaticMarkup(<Columns hidden={[]} />)).toBe(
-    "number,customer,dueDate|0",
-  );
+  expect(withColumns([])).toBe("number,customer,dueDate|0");
 
   // One hidden, remembered from the last visit to this screen.
-  expect(renderToStaticMarkup(<Columns hidden={["dueDate"]} />)).toBe(
-    "number,customer|1",
-  );
+  expect(withColumns(["dueDate"])).toBe("number,customer|1");
 
   /*
    * A fixed column named in what was remembered is still drawn.
@@ -302,7 +301,37 @@ test("a column somebody turned off is not drawn, and a fixed one cannot be", () 
    * since become fixed would otherwise stay hidden for that one person, on a
    * screen with no control left to bring it back.
    */
+  expect(withColumns(["number", "customer"])).toBe("number,dueDate|1");
+});
+
+/**
+ * No answer yet, and no answer ever: every column is drawn.
+ *
+ * The one failure mode that must not hide anything. A list with a column
+ * missing because a request has not come back is a figure somebody cannot find
+ * and has no way to ask for — so an empty cache means the list as it ships,
+ * and so does a request that fails.
+ */
+test("a list with no stored answer draws every column", () => {
+  const qc = new QueryClient();
   expect(
-    renderToStaticMarkup(<Columns hidden={["number", "customer"]} />),
-  ).toBe("number,dueDate|1");
+    renderToStaticMarkup(
+      <QueryClientProvider client={qc}>
+        <Columns hidden={[]} />
+      </QueryClientProvider>,
+    ),
+  ).toBe("number,customer,dueDate|0");
+
+  // And a stored map that says nothing about this list.
+  const other = new QueryClient();
+  other.setQueryData(["profile", "columns"], {
+    columns: { invoices: ["dueDate"] },
+  });
+  expect(
+    renderToStaticMarkup(
+      <QueryClientProvider client={other}>
+        <Columns hidden={[]} />
+      </QueryClientProvider>,
+    ),
+  ).toBe("number,customer,dueDate|0");
 });

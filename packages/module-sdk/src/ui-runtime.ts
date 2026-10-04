@@ -345,6 +345,15 @@ export interface ColumnState {
   toggle: (field: string) => void;
   reset: () => void;
   hiddenCount: number;
+  /**
+   * Why the last change did not save, if it did not.
+   *
+   * The choice is kept on the person's account rather than in the browser, so
+   * turning a column off is a request. `ColumnsMenu` already says so where the
+   * box was ticked; a module drawing its own menu has to, because a tick that
+   * looks saved and is gone tomorrow is a fault somebody blames on themselves.
+   */
+  error: unknown;
 }
 
 /**
