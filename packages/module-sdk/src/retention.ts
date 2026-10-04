@@ -251,6 +251,19 @@ export const STATUTORY_TABLES = [
   "subscriptions.plan_changes",
   "subscriptions.dunning_cycles",
   "subscriptions.discounts",
+  /*
+   * What a metered customer used, and the arithmetic that charged them for it.
+   *
+   * The basis of an invoice line rather than a log of activity: "why was this
+   * customer charged £20 for calls" is answered by the readings and the
+   * tier-by-tier working, and by nothing else — the tier table they were priced
+   * through can be edited the next day, and repricing from today's would give a
+   * different number, confidently. Both have to last as long as the invoice
+   * they explain. Qualified, because `readings` is a word a dozen modules could
+   * reasonably use for a log of their own.
+   */
+  "subscriptions.readings",
+  "subscriptions.usage_charges",
   "seo.usage",
   "links.events",
 

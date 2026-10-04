@@ -92,8 +92,14 @@ export const statement = {
    * Its own resource rather than actions on `invoicing`, because the two are
    * different work: raising an invoice for work done is a bookkeeper's, and
    * ending a customer's membership is not.
+   *
+   * `meter` is the third because the thing holding it is usually not a person:
+   * whatever counts a metered customer's usage posts readings on a schedule,
+   * with a key somebody has put in a cron job. Giving that `manage` would give
+   * it cancelling, repricing and pausing every subscription in the business,
+   * which is a great deal more than it needs to add up gigabytes.
    */
-  subscriptions: ["read", "manage"],
+  subscriptions: ["read", "manage", "meter"],
   documents: ["read", "create", "update", "delete"],
   /**
    * The mailing list.
@@ -188,7 +194,7 @@ export const admin = ac.newRole({
   scheduling: ["read", "create", "update", "delete"],
   shop: ["read", "create", "update", "delete"],
   pos: ["read", "sell", "void", "refund", "manage"],
-  subscriptions: ["read", "manage"],
+  subscriptions: ["read", "manage", "meter"],
   documents: ["read", "create", "update", "delete"],
   newsletter: ["read", "create", "update", "delete", "send"],
   links: ["read", "create", "update", "delete", "domains"],

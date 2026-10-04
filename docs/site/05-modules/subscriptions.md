@@ -107,6 +107,124 @@ It is the same decision the night's run makes, not a description of one — the
 same function answers both — so the figure you read here is the figure that
 arrives.
 
+## Charging for what somebody used
+
+Some things are not a flat monthly fee. Hosting, phone minutes, text messages,
+gigabytes out, seats in use — a plan can carry **meters**, and the invoice picks
+up what was used alongside the subscription's own price.
+
+### How it fits together
+
+1. **A meter** is something you count: a code your own script sends
+   (`api-calls`), a name your customer reads ("API calls"), and what one of them
+   is ("call"). Set them up on the Plans page.
+2. **A plan prices a meter** in tiers. One plan can meter several things, and
+   each is priced and billed on its own — minutes and data are two lines.
+3. **Whatever counts it posts readings** against the subscription, on whatever
+   schedule suits it.
+4. **The renewal invoice carries both:** the month ahead for the subscription,
+   and what was used in the month just gone.
+
+That last point is worth reading twice. Usage is billed **in arrear**, because
+nothing can be charged for usage that has not happened yet. So a subscription's
+first invoice has no usage on it — no period has closed — and every invoice after
+it covers the period that just ended.
+
+### Two kinds of meter
+
+| Measures | Means | For |
+|---|---|---|
+| **What they used** | The readings in the period, added up | Calls, emails, gigabytes transferred — anything consumed |
+| **The most they had at once** | The highest reading in the period | Seats, concurrent connections, bandwidth — anything held |
+
+The second is charged a flat amount for the tier the peak lands in: "up to 500
+members, £5 a month". It does not scale with the number.
+
+### Two ways to price tiers
+
+For a meter that counts what was used, a tier table can mean one of two things,
+and the difference is real money. Say which on the plan:
+
+- **Priced tier by tier.** The first 5 at £2, then £1 each. Seven units cost £12.
+- **All of it at the tier they reach.** Seven units reach the £1 tier, so all
+  seven cost £1 each: £7.
+
+The second is the one people mean by "it gets cheaper the more you use". Nothing
+in a tier table shows which was intended, which is why it is a setting rather
+than something we guess.
+
+A tier charges by the **block**: `in blocks of 1,000,000` at £2 is two pounds per
+million, and a part-used block is a whole block. Price in blocks of one if that
+is not what you want. Leave the last tier's limit empty — that is the one
+everything above the others is priced at.
+
+A tier priced at nothing is a free allowance: *the first 1,000 free, then 5p
+each* is two tiers.
+
+### Recording what was used
+
+```bash
+curl -X POST https://your-instance/api/subscriptions/SUBSCRIPTION_ID/readings \
+  -H 'content-type: application/json' \
+  -d '{
+    "reference": "nightly-2026-12-01",
+    "readings": [
+      { "meter": "api-calls", "quantity": 41200, "at": "2026-12-01T00:00:00Z" }
+    ]
+  }'
+```
+
+**The `reference` is yours and it matters.** It is how a batch sent twice is
+recorded once — the day, a job run, a log offset, whatever your side already has.
+Every HTTP client retries, and without it a retry charges your customer twice for
+the same gigabytes, with nothing anywhere saying so. Send it again and you get
+the same answer back rather than an error, because a retry that gets an error
+retries again.
+
+Leave `at` out and the reading is now; send it when the batch is catching up on
+yesterday's traffic. A date we cannot read is refused rather than quietly stamped
+with the current time, because that would move usage into the wrong period.
+
+Recording usage needs **its own permission** — `subscriptions: meter` — and
+nothing else. A key in a cron job should be able to add up gigabytes without also
+being able to cancel every subscription you have.
+
+### What you can see
+
+- **The subscriber's own page** shows what they have used so far and what it has
+  come to, beside the next invoice.
+- **Their record here** lists every reading, with the batch it arrived in, and
+  lets you add one by hand when a collector was down.
+- **Tonight's billing** shows the usage that is about to be invoiced.
+- **The invoice line** carries the count; the working behind it — tier by tier —
+  is kept at the time the invoice is raised, so "why is this £21.40" has an
+  answer a year later even if the tier table has changed since.
+
+### The edges, decided
+
+**A trial's usage is free.** The first invoice is raised the day the trial ends,
+and it carries no usage for the free period. "Free for 30 days" that arrives with
+a bill for those 30 days is not free.
+
+**A customer who leaves is billed for what they used.** Ending a subscription
+raises one last usage invoice for the period just finished. Nothing else ever
+would, and the alternative is giving away every leaving customer's last month.
+
+**A plan can cost nothing a month.** Pay-for-what-you-use is a plan priced at
+zero with a meter on it; the invoice carries the usage and no subscription line.
+
+**Repricing a meter changes the period now running**, because usage is billed in
+arrear and the tiers are read when the invoice is raised. That is the opposite of
+the subscription's own price, which is copied onto each subscriber at signup and
+never moves under them. Both are deliberate: a monthly fee is an agreement, and
+what a gigabyte costs this month is a price list.
+
+**Retiring a meter keeps billing what is already recorded**, including the period
+running now. It stops the meter being put on new plans. The code never changes,
+so renaming one is safe for the scripts that have been sending it for a year.
+
+**Readings are whole numbers.** If you need half a gigabyte, meter in megabytes.
+
 ## Settings
 
 The module has its own settings screen, and the first question people ask is
@@ -154,9 +272,15 @@ Sentrello. There is no second list of accounts.
 |---|---|
 | `subscriptions:read` | See plans and who is on them |
 | `subscriptions:manage` | Create plans, move somebody between them, end a membership |
+| `subscriptions:meter` | Record what a metered customer used, and nothing else |
 
 Ending somebody's membership is not the same job as raising an invoice for work
 done, so it gets its own permission instead of riding on Invoicing's.
+
+**Metering has a third** because what holds it is usually not a person. Whatever
+counts your customers' usage posts readings on a schedule, with a key somebody
+put in a cron job — and a key that can add up gigabytes should not also be able
+to cancel every subscription you have.
 
 ## Changing a plan mid-cycle
 
@@ -229,9 +353,6 @@ payment** setting above.
 
 ## What it does not do
 
-- **No usage-based or metered billing.** A plan has a price, not a meter. If
-  what you sell varies by how much somebody used, this is the wrong module and
-  raising the invoices yourself is the right answer.
 - **No refund to the card on a downgrade.** Money owed back becomes a credit
   against the `Customer Credits` account and is spent on the next subscription
   invoice before the card is charged. That is deliberate: the customer is
