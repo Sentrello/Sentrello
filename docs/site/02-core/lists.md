@@ -26,11 +26,15 @@ list rather than to the page in front of you. Counting says the same thing:
 
 ## Saved views
 
-A view is a search, its filters and its sorting, kept under a name.
+A view is a search, its filters, its sorting and — where the list has
+columns to choose — which columns you had on, kept under a name.
 
 Save one when you notice yourself making the same choices every morning:
 "unpaid, oldest first", or "fuel, last quarter". Choosing a view puts the list
 back exactly as it was. Choosing **All** returns it to the list's own default.
+
+A view saved before columns were part of one says nothing about them, and
+choosing it leaves your columns alone rather than resetting them.
 
 Views are **yours**. They live with your account, and a colleague's views are
 not in your list. Since a view changes nothing but your own screen, it needs no
