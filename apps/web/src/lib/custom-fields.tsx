@@ -224,10 +224,14 @@ export function CustomFieldEditor({
                   </option>
                 ))}
               </select>
+              {/* Named by field, because a screen with eight custom fields has
+                  eight controls saying "Remove" and the row is the only thing
+                  that says which one — which a screen reader does not get. */}
               <button
                 type="button"
                 className="text-sm"
                 style={{ color: "var(--text-danger)" }}
+                aria-label={`Remove the ${field.label || "unnamed"} field`}
                 onClick={() => onChange(fields.filter((_, i) => i !== index))}
               >
                 Remove
