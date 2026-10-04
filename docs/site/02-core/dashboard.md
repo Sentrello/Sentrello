@@ -68,6 +68,19 @@ access covers one module is shown a shorter version of the same arrangement.
 When they save it, everything they were never shown stays exactly where it was —
 including a tab that looks empty to them and is not.
 
+## The charts go somewhere
+
+Every figure on this screen is a count of rows, and pressing it opens them.
+
+A bar on **Income by month** opens the invoices issued in that month. A row on
+**Deals by stage** opens the board, narrowed to that stage. A name on **Top
+customers** opens their invoices. On the CRM dashboard, "four deals past the date
+they were meant to close" opens those four.
+
+The list says what it has been narrowed to and offers the way back to all of it,
+so nothing arrives short with no explanation. Refreshing returns the plain list —
+a drill-through is a press rather than a place.
+
 ## Why that matters
 
 The most expensive thing a small business misses is a date nobody was looking

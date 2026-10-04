@@ -15,6 +15,7 @@ import {
   ComputedCells,
   type ComputedColumn,
   listQueryString,
+  useArrivingFilters,
   useListState,
 } from "../lib/list-ui";
 import { RelatedLink, useNavigation } from "../lib/navigation";
@@ -395,6 +396,9 @@ export function Deals() {
    * answer, and it is the answer the board already has.
    */
   const state = useListState({ sort: "position", order: "asc" });
+  // A stage somebody pressed on the dashboard. The Clear beside the search is
+  // already the way back, so nothing else is needed here.
+  useArrivingFilters(state);
   const query = listQueryString(state, false);
   const { data, isLoading, error } = useQuery({
     queryKey: ["deals", query],

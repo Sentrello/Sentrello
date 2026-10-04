@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "../lib/api";
 import { Bars, Line, type Point } from "../lib/charts";
+import { filterIntent, monthRange } from "../lib/drill";
 import { useNavigation } from "../lib/navigation";
 import {
   Button,
@@ -114,7 +115,7 @@ interface Insights {
     netCents: number;
   }[];
   dealsByStage: { stage: string; count: number; cents: number }[];
-  topCustomers: { name: string; cents: number }[];
+  topCustomers: { contactId: string | null; name: string; cents: number }[];
   aging: { bucket: string; cents: number; count: number }[];
 }
 
@@ -813,6 +814,9 @@ function InsightWidget({
    */
   failed?: boolean;
 }) {
+  // Every panel here is a picture of rows somebody can go and look at.
+  const { go } = useNavigation();
+
   if (!insights) {
     return (
       <Card>
@@ -830,10 +834,20 @@ function InsightWidget({
   }
 
   if (id === "revenue-trend") {
+    /*
+     * Each bar opens the invoices behind it.
+     *
+     * The chart answers "which month was bad" and used to be where the trail
+     * went cold: the only way on was the invoice list, from the top, finding
+     * September again by hand. The range is the month's own first and last day,
+     * which is what the list already filters on.
+     */
     const points: Point[] = insights.months.map((m) => ({
       label: monthLabel(m.month),
       value: m.incomeCents,
       display: formatMoney(m.incomeCents),
+      goLabel: `open the invoices for ${monthLabel(m.month)}`,
+      go: () => go("invoicing", "Invoices", filterIntent(monthRange(m.month))),
     }));
     return (
       <Card>
@@ -868,11 +882,26 @@ function InsightWidget({
         ) : (
           <ul className="flex flex-col gap-(--gap-tight) text-sm">
             {insights.dealsByStage.map((s) => (
-              <li key={s.stage} className="flex justify-between">
-                <span className="capitalize">
-                  {s.stage} · {s.count}
-                </span>
-                <span className="money">{formatMoney(s.cents)}</span>
+              <li key={s.stage}>
+                {/*
+                  The whole row presses, not a link at the end of it: the row is
+                  one fact and the fact is the control. Its name carries the
+                  stage and the figure, because a column of "Open" says nothing
+                  read aloud.
+                */}
+                <button
+                  type="button"
+                  className="flex w-full justify-between text-left link-muted"
+                  aria-label={`${s.stage}: ${s.count} deals, ${formatMoney(s.cents)} — open them`}
+                  onClick={() =>
+                    go("deals", "Deals", filterIntent({ stage: s.stage }))
+                  }
+                >
+                  <span className="capitalize">
+                    {s.stage} · {s.count}
+                  </span>
+                  <span className="money">{formatMoney(s.cents)}</span>
+                </button>
               </li>
             ))}
           </ul>
@@ -892,9 +921,36 @@ function InsightWidget({
         ) : (
           <ul className="flex flex-col gap-(--gap-tight) text-sm">
             {insights.topCustomers.map((c) => (
-              <li key={c.name} className="flex justify-between">
-                <span>{c.name}</span>
-                <span className="money">{formatMoney(c.cents)}</span>
+              <li key={c.contactId ?? c.name}>
+                {/*
+                  Invoices rather than the contact's own record, because the
+                  figure beside the name is what they have been billed and the
+                  rows that add up to it are the invoices. A row with nobody
+                  behind it — invoices raised against no customer — is a real
+                  line and not a record anybody can open, so it stays text.
+                */}
+                {c.contactId ? (
+                  <button
+                    type="button"
+                    className="flex w-full justify-between text-left link-muted"
+                    aria-label={`${c.name}: ${formatMoney(c.cents)} — open their invoices`}
+                    onClick={() =>
+                      go(
+                        "invoicing",
+                        "Invoices",
+                        filterIntent({ contactId: c.contactId as string }),
+                      )
+                    }
+                  >
+                    <span>{c.name}</span>
+                    <span className="money">{formatMoney(c.cents)}</span>
+                  </button>
+                ) : (
+                  <span className="flex justify-between">
+                    <span>{c.name}</span>
+                    <span className="money">{formatMoney(c.cents)}</span>
+                  </span>
+                )}
               </li>
             ))}
           </ul>

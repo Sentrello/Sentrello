@@ -8,6 +8,7 @@ import {
   Pagination,
   SortMenu,
   listQueryString,
+  useArrivingFilters,
   useColumns,
   useListState,
 } from "../lib/list-ui";
@@ -79,6 +80,37 @@ interface InvoiceRow {
   /** What it has been labelled. Sent with the page, not fetched per row. */
   tags: TagChip[];
   deletedAt: string | null;
+}
+
+/**
+ * What a narrowed list is narrowed to, in words.
+ *
+ * A date range reads as the dates and not as `from=2026-09-01&to=2026-09-30`,
+ * because the person reading it pressed a bar on a chart and is entitled to see
+ * which bar in the language they pressed it in. Anything else is named by its
+ * own key, which is honest rather than pretty: a filter nobody has written a
+ * sentence for still has to be visible and clearable.
+ */
+function narrowedTo(filters: Record<string, string>): string {
+  const { from, to, ...rest } = filters;
+  const said: string[] = [];
+  const day = (value: string) =>
+    new Date(`${value}T00:00:00Z`).toLocaleDateString(undefined, {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+  if (from && to) said.push(`issued ${day(from)} to ${day(to)}`);
+  else if (from) said.push(`issued on or after ${day(from)}`);
+  else if (to) said.push(`issued on or before ${day(to)}`);
+  if (rest.contactId) said.push("one customer");
+  for (const key of Object.keys(rest)) {
+    if (key !== "contactId") said.push(key);
+  }
+  return said.length > 0
+    ? `Showing ${said.join(", ")}`
+    : "Showing some of them";
 }
 
 const TABS: { id: string; label: string }[] = [
@@ -166,6 +198,15 @@ export function Invoices() {
     { field: "balanceCents", label: "Owed" },
     { field: "status", label: "Status" },
   ]);
+  /*
+   * A filter somebody arrived with, from a chart on the dashboard.
+   *
+   * Applied through `setFilter`, so it is indistinguishable afterwards from one
+   * set here — it reaches the server in the same query string and clears with
+   * the same control.
+   */
+  useArrivingFilters(state);
+
   const query = `${listQueryString(state, true)}&tab=${tab}${
     tagId ? `&tagId=${encodeURIComponent(tagId)}` : ""
   }`;
@@ -375,6 +416,28 @@ export function Invoices() {
         />
 
         <ColumnsMenu state={columns} />
+
+        {/*
+          What this list has been narrowed to, and the way back to all of it.
+          
+          This screen narrows by tab and had no way to show or clear anything
+          else — so a filter arriving from a chart would have been applied,
+          invisible, and permanent until a reload. Saying it in words is also
+          the thing that makes a drill-through safe to refresh away: nobody is
+          left looking at a short list wondering what happened to the rest.
+        */}
+        {state.hasFilters ? (
+          <span className="flex items-center gap-(--gap-toolbar) text-sm">
+            <span style={muted}>{narrowedTo(state.filters)}</span>
+            <button
+              type="button"
+              className="text-xs link-muted"
+              onClick={state.clearFilters}
+            >
+              Show all invoices
+            </button>
+          </span>
+        ) : null}
 
         <div className="ml-auto flex flex-wrap items-center gap-(--gap-toolbar)">
           <span className="text-sm" style={muted}>

@@ -525,3 +525,36 @@ test("won and lost are counted by the stages this business calls won and lost", 
   expect(thisMonth?.lostCents).toBe(300_000);
   expect(thisMonth?.lostCount).toBe(1);
 });
+
+/**
+ * The figure and the rows behind it agree, which is the whole point of
+ * pressing it.
+ *
+ * "Four deals past the date they were meant to close" is the most actionable
+ * line on this screen, and its button opened the whole board — leaving somebody
+ * to find those four by reading every card. A filter that disagreed with the
+ * count would be worse than that: it would look like an answer.
+ *
+ * So the two are asserted together, including the deal closing *today*, which
+ * is in neither. A day comparison is the only thing that gets that right; an
+ * instant marks it late from one second past midnight.
+ */
+test("the overdue count and the overdue filter name the same deals", async () => {
+  const body = await dashboard();
+  const res = await app.request(
+    "http://localhost/api/deals?overdue=1&perPage=100",
+    { headers },
+  );
+  expect(res.status).toBe(200);
+  const listed = (await res.json()) as {
+    deals: { name: string; expectedCloseOn: string | null }[];
+  };
+
+  expect(listed.deals.length).toBe(body.upcoming.overdue.count);
+  // Named, so a regression says which deal moved rather than only that a
+  // number did.
+  expect(listed.deals.map((d) => d.name).sort()).toEqual(
+    ["Should have closed"].sort(),
+  );
+  expect(listed.deals.map((d) => d.name)).not.toContain("Closing today");
+});

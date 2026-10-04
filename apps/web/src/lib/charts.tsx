@@ -32,6 +32,28 @@ export interface Point {
   value: number;
   /** What to show when read, e.g. "$1,240.00". Falls back to the number. */
   display?: string;
+  /**
+   * The rows behind this bar, opened by pressing it.
+   *
+   * A chart is a picture of rows, and until a bar could be pressed the picture
+   * was where the trail went cold: a reader shown that September was the bad
+   * month arrived at every invoice ever raised and had to find September again
+   * by hand. The figure answered "what" and nothing answered "which".
+   *
+   * Optional, because not every series has rows to arrive at — a chart of a
+   * ratio or a forecast has none — and a bar that looks pressable and does
+   * nothing is worse than one that plainly is not.
+   */
+  go?: () => void;
+  /**
+   * What pressing it opens, in words, for the control's own name.
+   *
+   * Required in practice wherever `go` is set: the bar's name is otherwise the
+   * label and the figure, which says what the bar *is* and not what it does, and
+   * a control that does something unannounced is the complaint this product has
+   * already had about rows of identical buttons.
+   */
+  goLabel?: string;
 }
 
 /** A tidy upper bound, so the axis does not read 1,237. */
@@ -205,12 +227,32 @@ export function Bars({
               // A button, so the readout is reachable by keyboard as well as by
               // pointer. A chart that only answers a mouse answers half a
               // business.
-              className="flex h-full flex-1 cursor-default flex-col justify-end"
+              //
+              // The cursor says whether it does anything. `cursor-default` on a
+              // bar that opens the rows behind it is a control dressed as a
+              // decoration, and nobody presses it.
+              className={`flex h-full flex-1 flex-col justify-end ${
+                p.go ? "cursor-pointer" : "cursor-default"
+              }`}
               onPointerEnter={() => setAt(i)}
               onPointerLeave={() => setAt(null)}
               onFocus={() => setAt(i)}
               onBlur={() => setAt(null)}
-              aria-label={`${p.label}: ${p.display ?? p.value}`}
+              onClick={p.go}
+              /*
+               * The name says what it is *and* what pressing it does.
+               *
+               * The label and the figure alone describe the bar, which is right
+               * for one that does nothing and wrong for one that navigates:
+               * somebody who cannot see the cursor change has no other way to
+               * know, and a control that acts unannounced is the complaint this
+               * product has already had about rows of identical buttons.
+               */
+              aria-label={
+                p.go
+                  ? `${p.label}: ${p.display ?? p.value} — ${p.goLabel ?? "open these"}`
+                  : `${p.label}: ${p.display ?? p.value}`
+              }
             >
               <div
                 className="rounded-t transition-[height,opacity] duration-200 motion-reduce:transition-none"
@@ -470,6 +512,10 @@ export interface PairedPoint {
   down: number;
   /** What to show when read, e.g. "won $4,200 · lost $900". */
   display?: string;
+  /** The rows behind this month, opened by pressing it. See `Point.go`. */
+  go?: () => void;
+  /** What pressing it opens, in words, for the control's own name. */
+  goLabel?: string;
 }
 
 export function PairedBars({
@@ -569,14 +615,17 @@ export function PairedBars({
             <button
               key={p.label}
               type="button"
-              className="flex h-full flex-1 cursor-default items-end gap-0.5"
+              className={`flex h-full flex-1 items-end gap-0.5 ${
+                p.go ? "cursor-pointer" : "cursor-default"
+              }`}
               onPointerEnter={() => setAt(i)}
               onPointerLeave={() => setAt(null)}
               onFocus={() => setAt(i)}
               onBlur={() => setAt(null)}
+              onClick={p.go}
               aria-label={`${p.label}: ${
                 p.display ?? `${p.up} up, ${p.down} down`
-              }`}
+              }${p.go ? ` — ${p.goLabel ?? "open these"}` : ""}`}
             >
               {showing.map((s) => (
                 <div

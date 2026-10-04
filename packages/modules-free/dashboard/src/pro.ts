@@ -25,7 +25,16 @@ export interface Insights {
     netCents: number;
   }[];
   dealsByStage: { stage: string; count: number; cents: number }[];
-  topCustomers: { name: string; cents: number }[];
+  /**
+   * Who brings the money in, and which record that is.
+   *
+   * Keyed by the contact rather than by the name, which is both what makes the
+   * panel pressable and a quiet fix: two customers called the same thing were
+   * one row, adding up to a figure neither of them had billed. `contactId` is
+   * null for invoices raised against nobody, which is a real row and not a
+   * record anybody can open.
+   */
+  topCustomers: { contactId: string | null; name: string; cents: number }[];
   aging: { bucket: string; cents: number; count: number }[];
 }
 
@@ -179,17 +188,21 @@ export async function readInsights(organizationId: string): Promise<Insights> {
       [c.firstName, c.lastName].filter(Boolean).join(" ").trim() || "Unnamed",
     ]),
   );
-  const byCustomer = new Map<string, number>();
+  const byCustomer = new Map<string, { name: string; cents: number }>();
   for (const inv of invoices) {
     if (inv.deletedAt || inv.status === "void" || inv.status === "draft")
       continue;
     const name = inv.contactId
       ? (names.get(inv.contactId) ?? "Unnamed")
       : "No customer";
+    // Keyed by the record, not by what it is called. Two customers with one
+    // name were one row before this, showing a figure neither had billed.
+    const key = inv.contactId ?? "";
     // A credit note is billing in reverse: a customer billed 10,000 and
     // credited 4,000 brought in 6,000, not 14,000.
     const cents = inv.kind === "credit_note" ? -inv.totalCents : inv.totalCents;
-    byCustomer.set(name, (byCustomer.get(name) ?? 0) + cents);
+    const sofar = byCustomer.get(key);
+    byCustomer.set(key, { name, cents: (sofar?.cents ?? 0) + cents });
   }
 
   // How late the money is, not just that it is late. Thirty days out is a
@@ -230,7 +243,11 @@ export async function readInsights(organizationId: string): Promise<Insights> {
     months: [...months.values()],
     dealsByStage: [...stages.values()].sort((a, b) => b.cents - a.cents),
     topCustomers: [...byCustomer.entries()]
-      .map(([name, cents]) => ({ name, cents }))
+      .map(([contactId, row]) => ({
+        contactId: contactId || null,
+        name: row.name,
+        cents: row.cents,
+      }))
       .sort((a, b) => b.cents - a.cents)
       .slice(0, 5),
     aging,

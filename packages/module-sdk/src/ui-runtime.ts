@@ -426,7 +426,17 @@ export interface SentrelloListUi {
   }>;
   SortMenu: React.ComponentType<{ state: ListState; fields: SortField[] }>;
   /**
-   * Which columns this person wants to see, remembered per browser.
+   * A list that arrives already narrowed, because somebody pressed a chart.
+   *
+   * Reads the navigation's one-shot intent once, applies any filters it carries
+   * through `setFilter`, and hands back whatever is left — so a screen using the
+   * intent for something else asks this instead of `takeIntent` and still gets
+   * its answer. A module's chart reaches a module's list the same way Core's
+   * does: `go(moduleId, title, filterIntent({ … }))`.
+   */
+  useArrivingFilters: (state: ListState) => string | null;
+  /**
+   * Which columns this person wants to see, kept on their account.
    *
    * `fixed` marks the ones a list stops making sense without — the row's own
    * identifier, its actions — and those are never offered.
@@ -532,6 +542,7 @@ export const LIST_UI_MEMBERS = [
   "FilterGroup",
   "FilterToggle",
   "SortMenu",
+  "useArrivingFilters",
   "useColumns",
   "ColumnsMenu",
   "Pagination",

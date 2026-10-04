@@ -7,7 +7,9 @@ import {
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { announce } from "./announce";
 import { api } from "./api";
+import { filtersFromIntent } from "./drill";
 import { Icon, type IconName } from "./icons";
+import { useNavigation } from "./navigation";
 import {
   Button,
   ErrorNote,
@@ -54,6 +56,35 @@ export interface ListState {
   setPage: (page: number) => void;
   perPage: number;
   setPerPage: (perPage: number) => void;
+}
+
+/**
+ * A list that arrives already narrowed, because somebody pressed a chart.
+ *
+ * Reads the navigation's one-shot intent once, applies any filters it carries,
+ * and hands back whatever is left — so a screen that uses the intent for
+ * something else ("arrive with the new form up") asks this instead of
+ * `takeIntent` and still gets its answer. Reading it twice would mean whichever
+ * call ran first won, and the other would silently do nothing.
+ *
+ * Applied in an effect rather than as the hook's initial state: `setFilter` is
+ * the same door the filter rail presses, so a filter that arrives this way is
+ * indistinguishable afterwards from one somebody set — it shows in the rail, it
+ * clears with the rest, and nothing has to know where it came from.
+ */
+export function useArrivingFilters(state: ListState): string | null {
+  const { takeIntent } = useNavigation();
+  const [intent] = useState(takeIntent);
+  const applied = useRef(false);
+
+  useEffect(() => {
+    if (applied.current) return;
+    applied.current = true;
+    const filters = filtersFromIntent(intent);
+    if (filters && Object.keys(filters).length > 0) state.setFilter(filters);
+  }, [intent, state]);
+
+  return filtersFromIntent(intent) ? null : intent;
 }
 
 /**

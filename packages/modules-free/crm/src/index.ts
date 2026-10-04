@@ -51,6 +51,7 @@ import {
   inArray,
   isNotNull,
   isNull,
+  lt,
   lte,
   or,
   sql,
@@ -1699,6 +1700,38 @@ const tables = {
           : query.archived === "any"
             ? undefined
             : isNull(schema.deals.archivedAt),
+        /*
+         * "The ones whose close date has gone", which the CRM dashboard counts
+         * and nothing could list.
+         *
+         * That panel says "four deals past the date they were meant to close"
+         * and its button opened the whole board, leaving somebody to find those
+         * four by reading every card. A figure with no way to the rows behind it
+         * is this product's most reliable bug, and this is the most actionable
+         * figure on that screen.
+         *
+         * Compared as days, in the business's own timezone, exactly as the
+         * dashboard does it: an instant comparison marks a deal expected to
+         * close today as late from one second past midnight.
+         */
+        query.overdue === "1"
+          ? and(
+              isNotNull(schema.deals.expectedCloseOn),
+              /*
+               * Compared as a date string, because that is what the column is.
+               * `expectedCloseOn` is a `date` and holds `2026-09-30`, so the
+               * day the business is having has to be written the same way —
+               * handing it a `Date` compares a date with an instant, which is
+               * the one thing this product has a guard against.
+               */
+              lt(
+                schema.deals.expectedCloseOn,
+                dayIn(new Date(), await timezoneFor(orgId))
+                  .toISOString()
+                  .slice(0, 10),
+              ),
+            )
+          : undefined,
         query.ownerId ? eq(schema.deals.ownerId, query.ownerId) : undefined,
         query.companyId
           ? eq(schema.deals.companyId, query.companyId)

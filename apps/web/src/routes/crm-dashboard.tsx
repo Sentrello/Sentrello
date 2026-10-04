@@ -3,6 +3,7 @@ import { useState } from "react";
 import { api } from "../lib/api";
 import { Avatar } from "../lib/avatar";
 import { PairedBars } from "../lib/charts";
+import { filterIntent } from "../lib/drill";
 import { Icon } from "../lib/icons";
 import { useNavigation } from "../lib/navigation";
 import { TaskDialog, TaskRow } from "../lib/tasks";
@@ -221,7 +222,7 @@ export function CrmDashboard() {
               borderColor: "var(--text-warning)",
               color: "var(--text-warning)",
             }}
-            onClick={() => go("deals", "Deals")}
+            onClick={() => go("deals", "Deals", filterIntent({ overdue: "1" }))}
           >
             {data.upcoming.overdue.count} deal
             {data.upcoming.overdue.count === 1 ? "" : "s"} past the date they
