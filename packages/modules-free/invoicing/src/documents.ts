@@ -403,12 +403,11 @@ export { creditedAgainst } from "@sentrello/db/documents";
  * schema. Every later edit of it reads the document's own answer, so a
  * business that changes the setting does not silently restate what it has
  * already sent.
+ *
+ * The function moved under `@sentrello/db` and is re-exported here. Three
+ * things outside these screens need the same answer — the door a module raises
+ * an invoice through, Pro's recurring engine, and whatever bills next — and a
+ * second copy of this query is the shape that eventually answers differently
+ * from the first.
  */
-export async function quotesGross(orgId: string): Promise<boolean> {
-  const [row] = await db
-    .select({ pricesIncludeTax: schema.invoicingSettings.pricesIncludeTax })
-    .from(schema.invoicingSettings)
-    .where(eq(schema.invoicingSettings.organizationId, orgId))
-    .limit(1);
-  return row?.pricesIncludeTax === true;
-}
+export { quotesGross } from "@sentrello/db/documents";

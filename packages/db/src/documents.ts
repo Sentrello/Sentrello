@@ -411,6 +411,34 @@ export async function copyInvoice(
 }
 
 /**
+ * Whether this business quotes gross — the price list already contains the tax.
+ *
+ * How the UK and the EU quote, and not how the US does: a price list says £120
+ * and the VAT is inside it, so £120 is what the customer pays.
+ *
+ * **The one implementation**, here rather than in Invoicing, because
+ * `@sentrello/db` is underneath every module and three things outside Invoicing
+ * need the answer: this file's raising door, Pro's recurring engine, and
+ * whatever bills next. Invoicing re-exports it under its own name, so the
+ * screens keep the import they had and there is still one function.
+ *
+ * Read when a document is made and then frozen onto it. Every later reading
+ * asks the document rather than the setting, so a business that changes its
+ * mind does not silently restate what it has already sent.
+ *
+ * Absent settings read as net, which is the US default and what every row
+ * written before the setting existed meant.
+ */
+export async function quotesGross(organizationId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ pricesIncludeTax: schema.invoicingSettings.pricesIncludeTax })
+    .from(schema.invoicingSettings)
+    .where(eq(schema.invoicingSettings.organizationId, organizationId))
+    .limit(1);
+  return row?.pricesIncludeTax === true;
+}
+
+/**
  * An invoice raised by something that is not the invoicing screen.
  *
  * A booking that charges is the first caller. It exists because Invoicing owns
@@ -424,6 +452,16 @@ export async function copyInvoice(
  * today, the totals, and the entry in the books. What it does not do is decide
  * what anything costs — the caller knows that, and a shared function guessing
  * at prices is how two modules disagree about the same sale.
+ *
+ * **Whether the price already contains the tax is the business's answer, not
+ * the caller's.** This read neither the setting nor wrote it onto the document,
+ * so every invoice raised here was net-quoted: a UK business whose plan says
+ * £120 including VAT billed £120 + £24, every month, to every subscriber, and
+ * the document then agreed with itself because its own copy of the flag said
+ * net too. Three callers, all of them billing a price somebody typed into a
+ * plan or a service — a subscription, a mid-period change and an appointment —
+ * and the US is the one market where the default was right. Read once here and
+ * frozen onto the row, which is exactly what the invoicing screen does with it.
  */
 export async function raiseInvoice(
   organizationId: string,
@@ -486,6 +524,7 @@ export async function raiseInvoice(
     );
   }
 
+  const pricesIncludeTax = await quotesGross(organizationId);
   const totals = documentTotals(
     input.lines.map((l) => ({
       quantity: l.quantity,
@@ -493,6 +532,8 @@ export async function raiseInvoice(
       taxRatePpm: l.taxRatePpm ?? bpToPpm(l.taxRateBp ?? 0),
       taxDefinitionId: l.taxDefinitionId ?? null,
     })),
+    null,
+    { pricesIncludeTax },
   );
 
   const write = async (tx: DbTx) => {
@@ -507,6 +548,7 @@ export async function raiseInvoice(
         rateMicro: rate,
         dueDate: input.dueDate ?? defaultDueDate(),
         notes: input.notes ?? null,
+        pricesIncludeTax,
         subtotalCents: totals.subtotal,
         taxCents: totals.tax,
         totalCents: totals.total,

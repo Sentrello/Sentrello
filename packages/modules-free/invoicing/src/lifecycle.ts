@@ -462,6 +462,14 @@ export function registerLifecycle(ctx: ModuleContext) {
       const netCents = amount - taxCents;
 
       const note = await db.transaction(async (tx) => {
+        /*
+         * gross-or-net: written net, whatever the business quotes in. The
+         * figures here are not a price list being applied — they are the
+         * sale's own bands, apportioned, so the net and the tax are already
+         * separated and the line below carries the net. A credit against a
+         * gross-quoted invoice is still an accurate document saying net plus
+         * tax, which is what every later reading of it needs.
+         */
         const [made] = await tx
           .insert(schema.invoices)
           .values({
