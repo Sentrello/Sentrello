@@ -737,9 +737,18 @@ export function Pagination({
         </Select>
       </span>
 
+      {/*
+        The page number is in each button's name, not only beside them.
+
+        A screen with a pager above the list and another below it has two
+        controls called "Previous" and two called "Next", and nothing in either
+        name says which page it goes to. The words stay as they are — a pager
+        reading "Previous page 2 of 7" in print is a pager nobody can skim.
+      */}
       <div className="ml-auto flex flex-wrap items-center gap-2">
         <Button
           variant="secondary"
+          aria-label={`Previous page, ${state.page - 1} of ${pages}`}
           onClick={() => state.setPage(state.page - 1)}
           disabled={state.page <= 1}
         >
@@ -750,6 +759,7 @@ export function Pagination({
         </span>
         <Button
           variant="secondary"
+          aria-label={`Next page, ${state.page + 1} of ${pages}`}
           onClick={() => state.setPage(state.page + 1)}
           disabled={state.page >= pages}
         >

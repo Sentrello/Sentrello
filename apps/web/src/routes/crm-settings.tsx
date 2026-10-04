@@ -600,7 +600,11 @@ export function CrmSettings() {
                     </button>
                   ))}
                 </span>
+                {/* Named by tag: eight tags is eight controls saying
+                    "Delete", and the swatch beside them says nothing to a
+                    screen reader. */}
                 <ConfirmButton
+                  label={`Delete the ${tag.name} tag`}
                   title={`Delete the ${tag.name} tag?`}
                   message="It comes off every contact carrying it, and this screen is the only place it can be typed back in. Nobody's contacts are touched otherwise."
                   confirmLabel="Delete it"
@@ -767,6 +771,7 @@ function Webhooks() {
             <button
               type="button"
               className="text-xs link-muted"
+              aria-label={`Deliveries to ${hook.url}`}
               onClick={() =>
                 setShowingLog((v) => (v === hook.id ? null : hook.id))
               }
@@ -777,6 +782,7 @@ function Webhooks() {
               title="Remove this webhook?"
               message="Nothing more will be sent to it, and its delivery log goes with it."
               confirmLabel="Remove it"
+              label={`Remove the webhook to ${hook.url}`}
               danger
               needs={{ crm: ["update"] }}
               onConfirm={() => remove.mutate(hook.id)}

@@ -493,6 +493,9 @@ function TaxRates({
                     // Retired, not deleted: documents copy the rate they were
                     // issued at, and the tax summary groups by this row.
                     title="Takes it out of the line editor; documents keep it"
+                    // Named by rate, because four tax rates is four controls
+                    // saying "Retire" with nothing to tell them apart.
+                    aria-label={`Retire the ${tax.name} rate`}
                     onClick={() => retire.mutate(tax.id)}
                   >
                     Retire
@@ -501,6 +504,7 @@ function TaxRates({
                   <MenuItem
                     needs={{ invoicing: ["update"] }}
                     className="text-sm link-muted"
+                    aria-label={`Bring back the ${tax.name} rate`}
                     onClick={() =>
                       change.mutate({ id: tax.id, patch: { active: true } })
                     }
@@ -692,6 +696,7 @@ function Catalogue({
                   <MenuItem
                     needs={{ invoicing: ["update"] }}
                     className="text-sm link-muted"
+                    aria-label={`Retire ${item.name}`}
                     onClick={() => retire.mutate(item.id)}
                   >
                     Retire
@@ -700,6 +705,7 @@ function Catalogue({
                   <MenuItem
                     needs={{ invoicing: ["update"] }}
                     className="text-sm link-muted"
+                    aria-label={`Bring back ${item.name}`}
                     onClick={() => restore.mutate(item.id)}
                   >
                     Bring back
