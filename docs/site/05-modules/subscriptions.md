@@ -130,15 +130,26 @@ nothing can be charged for usage that has not happened yet. So a subscription's
 first invoice has no usage on it — no period has closed — and every invoice after
 it covers the period that just ended.
 
-### Two kinds of meter
+### Three kinds of meter
 
 | Measures | Means | For |
 |---|---|---|
 | **What they used** | The readings in the period, added up | Calls, emails, gigabytes transferred — anything consumed |
 | **The most they had at once** | The highest reading in the period | Seats, concurrent connections, bandwidth — anything held |
+| **What it cost** | The amounts the readings bring with them | Anything you resell, where the price is not yours to set |
 
 The second is charged a flat amount for the tier the peak lands in: "up to 500
 members, £5 a month". It does not scale with the number.
+
+The third is for reselling. If you pass a provider's service through to your
+customers, the price varies by which call it was — forty endpoints at forty
+prices, which is not a tier table and never becomes one. So the reading carries
+the amount: whatever recorded the usage works out what to charge, sends it along
+with the count, and the period is the sum. Amounts are in **millionths**, because
+a resold call can cost a fraction of a penny and a thousand of them have to add
+up to what you actually spent. The invoice is still in whole cents; the fraction
+left over carries to the next bill, so what you have billed plus what is still
+owed always equals what was recorded.
 
 ### Two ways to price tiers
 
@@ -161,6 +172,38 @@ everything above the others is priced at.
 A tier priced at nothing is a free allowance: *the first 1,000 free, then 5p
 each* is two tiers.
 
+### When a period is too small to bill
+
+Three settings, and they only make sense as a set.
+
+| Setting | What it decides |
+|---|---|
+| **Included each period** | An allowance taken off before anything is charged. **It does not roll over** — a month's allowance that accumulated would let somebody who ignored the service for a year spend the lot in an afternoon. For a counted meter, make the first tier cost nothing instead; that is the same thing said the natural way. |
+| **Too small to bill** | Under this, nothing is invoiced and the amount waits for the next bill. Card fees on a forty-pence charge cost more than the charge collects, and a receipt for forty pence reads badly against a service somebody pays ten pounds a month for. |
+| **Carry for at most** | How many periods it may wait. Then it bills whatever it comes to, because carrying indefinitely is how a small kindness becomes an audit finding. |
+
+Nothing is written down twice to make this work: a period that bills nothing
+claims nothing, so the next period simply covers both. The amount a customer is
+carrying is on their own page and on their record here, said in words — "carried
+to a later bill, it is under the minimum charge" — because a balance nobody can
+see is two periods arriving at once with no warning.
+
+### An annual plan with monthly usage
+
+Usage settles with the subscription by default, which is the obvious answer and
+the wrong one for an annual plan: a year of usage sitting unbilled is a year of
+your costs carried as exposure, and your customer gets one alarming invoice
+instead of twelve ordinary ones.
+
+So a meter can settle **every month** whatever the subscription bills on. The
+subscription is annual; the usage is monthly, as its own small invoice. Where a
+monthly settlement falls on the same day as the renewal it goes onto that invoice
+instead, because two invoices on one day for one customer is a support email.
+
+The boundary is the first of the month **where your business is**, not wherever
+the server happens to be. The sweep runs nightly and does nothing on the
+twenty-nine days with no boundary behind them.
+
 ### Recording what was used
 
 ```bash
@@ -169,7 +212,8 @@ curl -X POST https://your-instance/api/subscriptions/SUBSCRIPTION_ID/readings \
   -d '{
     "reference": "nightly-2026-12-01",
     "readings": [
-      { "meter": "api-calls", "quantity": 41200, "at": "2026-12-01T00:00:00Z" }
+      { "meter": "api-calls", "quantity": 41200, "at": "2026-12-01T00:00:00Z" },
+      { "meter": "lookups", "quantity": 3, "amountMicros": 2520000 }
     ]
   }'
 ```
@@ -184,6 +228,12 @@ retries again.
 Leave `at` out and the reading is now; send it when the batch is catching up on
 yesterday's traffic. A date we cannot read is refused rather than quietly stamped
 with the current time, because that would move usage into the wrong period.
+
+`amountMicros` is for a **what it cost** meter and is what you are charging for
+those units, in millionths — 2,520,000 is £2.52. Leave it off for a counted
+meter, where the tiers do the pricing. Send a fraction and it is refused rather
+than rounded: a silently dropped amount is a period that bills less than it
+should and says nothing about it.
 
 Recording usage needs **its own permission** — `subscriptions: meter` — and
 nothing else. A key in a cron job should be able to add up gigabytes without also
@@ -224,6 +274,8 @@ running now. It stops the meter being put on new plans. The code never changes,
 so renaming one is safe for the scripts that have been sending it for a year.
 
 **Readings are whole numbers.** If you need half a gigabyte, meter in megabytes.
+Amounts on a *what it cost* meter are the exception and are in millionths, for
+the reason above.
 
 ## Settings
 
