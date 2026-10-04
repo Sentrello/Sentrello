@@ -263,7 +263,7 @@ export const STATUTORY_TABLES = [
    * reasonably use for a log of their own.
    */
   "subscriptions.readings",
-  "subscriptions.usage_charges",
+  "subscriptions.usage_periods",
   "seo.usage",
   "links.events",
 

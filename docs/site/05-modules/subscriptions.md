@@ -118,11 +118,16 @@ up what was used alongside the subscription's own price.
 1. **A meter** is something you count: a code your own script sends
    (`api-calls`), a name your customer reads ("API calls"), and what one of them
    is ("call"). Set them up on the Plans page.
-2. **A plan prices a meter** in tiers. One plan can meter several things, and
-   each is priced and billed on its own — minutes and data are two lines.
-3. **Whatever counts it posts readings** against the subscription, on whatever
+2. **A plan carries usage charges.** One charge is one line on the invoice, and
+   it has a name of your own — "Minutes", "Data". A plan can have several, each
+   settled on its own clock.
+3. **A charge prices one or more meters** in tiers. Several together is not a
+   convenience: for a charge that measures a peak it is the difference between
+   right and wrong, because a tier is reached only when *every* limit in it is
+   satisfied.
+4. **Whatever counts it posts readings** against the subscription, on whatever
    schedule suits it.
-4. **The renewal invoice carries both:** the month ahead for the subscription,
+5. **The renewal invoice carries both:** the month ahead for the subscription,
    and what was used in the month just gone.
 
 That last point is worth reading twice. Usage is billed **in arrear**, because
@@ -166,8 +171,13 @@ than something we guess.
 
 A tier charges by the **block**: `in blocks of 1,000,000` at £2 is two pounds per
 million, and a part-used block is a whole block. Price in blocks of one if that
-is not what you want. Leave the last tier's limit empty — that is the one
-everything above the others is priced at.
+is not what you want.
+
+**A tier's limit counts blocks, not units**, and this is the one thing here worth
+reading twice. *Blocks of 10, 100 blocks in this tier* is a thousand units at
+that price — not a hundred. Leave the last tier's limit empty: that is the one
+everything above the others is priced at, and a table whose last tier still stops
+is refused rather than silently leaving usage above it unpriced.
 
 A tier priced at nothing is a free allowance: *the first 1,000 free, then 5p
 each* is two tiers.
@@ -182,6 +192,9 @@ Three settings, and they only make sense as a set.
 | **Too small to bill** | Under this, nothing is invoiced and the amount waits for the next bill. Card fees on a forty-pence charge cost more than the charge collects, and a receipt for forty pence reads badly against a service somebody pays ten pounds a month for. |
 | **Carry for at most** | How many periods it may wait. Then it bills whatever it comes to, because carrying indefinitely is how a small kindness becomes an audit finding. |
 
+Each of the three belongs to one charge, not to the plan: minutes can bill every
+penny while data waits for five pounds.
+
 Nothing is written down twice to make this work: a period that bills nothing
 claims nothing, so the next period simply covers both. The amount a customer is
 carrying is on their own page and on their record here, said in words — "carried
@@ -195,14 +208,15 @@ the wrong one for an annual plan: a year of usage sitting unbilled is a year of
 your costs carried as exposure, and your customer gets one alarming invoice
 instead of twelve ordinary ones.
 
-So a meter can settle **every month** whatever the subscription bills on. The
-subscription is annual; the usage is monthly, as its own small invoice. Where a
-monthly settlement falls on the same day as the renewal it goes onto that invoice
-instead, because two invoices on one day for one customer is a support email.
+So a charge can settle on **a period of its own** — weekly, monthly, quarterly,
+yearly — whatever the subscription bills on. The subscription is annual; the usage
+is monthly, as its own small invoice. Where a settlement falls on the same day as
+the renewal it goes onto that invoice instead, because two invoices on one day for
+one customer is a support email.
 
-The boundary is the first of the month **where your business is**, not wherever
-the server happens to be. The sweep runs nightly and does nothing on the
-twenty-nine days with no boundary behind them.
+A monthly charge closes on the first of the month **where your business is**, not
+wherever the server happens to be. The sweep runs nightly and does nothing on the
+days with no boundary behind them.
 
 ### Recording what was used
 
@@ -263,7 +277,7 @@ would, and the alternative is giving away every leaving customer's last month.
 **A plan can cost nothing a month.** Pay-for-what-you-use is a plan priced at
 zero with a meter on it; the invoice carries the usage and no subscription line.
 
-**Repricing a meter changes the period now running**, because usage is billed in
+**Repricing a charge changes the period now running**, because usage is billed in
 arrear and the tiers are read when the invoice is raised. That is the opposite of
 the subscription's own price, which is copied onto each subscriber at signup and
 never moves under them. Both are deliberate: a monthly fee is an agreement, and
