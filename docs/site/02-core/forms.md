@@ -105,6 +105,17 @@ spreadsheet. The columns come from the form's own questions, not from whatever
 the first submission happened to answer. A question added last week is still a
 column. Answers to a question you have since deleted are still in the file.
 
+**You can throw one away.** Press Delete on the row and the submission goes —
+and so does any file it carried, which matters when the file is somebody's CV.
+It asks first, because it cannot be undone. Anyone already added to the pipeline
+stays there: they are a person in your CRM now, with a history of their own,
+rather than an attachment of the form they arrived through.
+
+Before this, the only way to remove a submission was to delete the whole form,
+which takes every submission with it. That is the wrong instrument for the case
+that actually comes up — a filled role on a careers form that is still taking
+applications for the next one.
+
 ## Spam
 
 Forms carry basic protection against automated submission: a field a person
