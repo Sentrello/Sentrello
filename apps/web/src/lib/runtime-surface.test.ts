@@ -1,9 +1,14 @@
 import { expect, test } from "bun:test";
-import { LIST_UI_MEMBERS, UI_MEMBERS } from "@sentrello/module-sdk/ui-runtime";
+import {
+  CHART_MEMBERS,
+  LIST_UI_MEMBERS,
+  UI_MEMBERS,
+} from "@sentrello/module-sdk/ui-runtime";
 import type {
   SentrelloListUi,
   SentrelloUi,
 } from "@sentrello/module-sdk/ui-runtime";
+import * as charts from "./charts";
 import * as listUi from "./list-ui";
 import * as ui from "./ui";
 
@@ -158,4 +163,33 @@ test("every primitive that can be refused declares it to modules", () => {
   for (const props of [button, menuItem, select, input, confirm]) {
     expect(props.needs).toEqual(needs);
   }
+});
+
+/**
+ * The charts, by the same rule as everything else.
+ *
+ * They were Core's alone for months while every module drew its own divs — and
+ * the divs are not the same chart: a bar that is a button, the series as one
+ * sentence for a screen reader, a zero drawn as a hairline, and a bar that
+ * opens the rows behind it are all things that were found and fixed here while
+ * the copies stayed as they were.
+ */
+test("every chart the SDK promises modules is exported by charts.tsx", () => {
+  const exported = new Set(Object.keys(charts));
+  expect(CHART_MEMBERS.filter((name) => !exported.has(name))).toEqual([]);
+});
+
+/**
+ * Host-only chart exports: real members of `charts.tsx` deliberately not
+ * promised. Both are types or a type's helper rather than something to draw.
+ */
+const CHART_HOST_ONLY = [
+  // The axis formatter's own type. A module passes a function; it does not need
+  // the name of the shape.
+  "Format",
+];
+
+test("every export of charts.tsx is promised or explicitly host-only", () => {
+  const known = new Set<string>([...CHART_MEMBERS, ...CHART_HOST_ONLY]);
+  expect(Object.keys(charts).filter((name) => !known.has(name))).toEqual([]);
 });

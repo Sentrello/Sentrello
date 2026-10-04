@@ -15,6 +15,7 @@ import * as reactQuery from "@tanstack/react-query";
 import * as React from "react";
 import * as jsxRuntime from "react/jsx-runtime";
 import { api, may } from "./api";
+import * as charts from "./charts";
 import * as listUi from "./list-ui";
 import * as money from "./money";
 import * as ui from "./ui";
@@ -51,6 +52,7 @@ interface SentrelloRuntime {
    * list and Core's being the same product.
    */
   listUi: typeof listUi;
+  charts: typeof charts;
   money: typeof money;
   /** whether this person may do something — the same answer Core reads */
   may: typeof may;
@@ -94,6 +96,7 @@ export function installRuntime(): SentrelloRuntime {
     reactQuery,
     ui,
     listUi,
+    charts,
     money,
     // The same answer Core's own screens read, from the same value. A
     // second implementation of "may this person" is the one thing this whole

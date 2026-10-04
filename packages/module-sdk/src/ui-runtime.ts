@@ -555,6 +555,83 @@ export const LIST_UI_MEMBERS = [
   "SavedViews",
 ] as const satisfies readonly (keyof SentrelloListUi)[];
 
+/**
+ * The charts Core draws, which every module was hand-rolling.
+ *
+ * Six rectangles in a flex row is a chart until somebody asks it a question.
+ * Core's are the same six rectangles with the answers already in them: a bar
+ * is a button so a keyboard can read the figure off it, the series is also one
+ * sentence for a screen reader, a zero is a hairline rather than a missing
+ * month, the axis is formatted by whoever knows what is being counted, and a
+ * bar that has rows behind it opens them.
+ *
+ * Every one of those was found and fixed on Core's charts while the modules
+ * went on drawing divs — which is the argument for this being here rather than
+ * a note in a review. The shop's own comment says a charting library would be a
+ * dependency in a bundle customers download, and it is right: this is not a
+ * library, it is the thing already on the page.
+ */
+export interface SentrelloCharts {
+  Bars: React.ComponentType<{
+    points: ChartPoint[];
+    height?: number;
+    format?: (value: number) => string;
+  }>;
+  Line: React.ComponentType<{
+    points: ChartPoint[];
+    height?: number;
+    format?: (value: number) => string;
+  }>;
+  PairedBars: React.ComponentType<{
+    points: ChartPairedPoint[];
+    height?: number;
+    upLabel: string;
+    downLabel: string;
+    format?: (value: number) => string;
+  }>;
+  /** A line small enough to sit in a table cell. No axis, no readout. */
+  Sparkline: React.ComponentType<{ values: number[]; className?: string }>;
+  /** Short enough for an axis: 1.2k, 3.4M. The full figure is in the readout. */
+  brief: (value: number) => string;
+}
+
+/** One column of a chart. `go` is what pressing it opens — see `useArrivingFilters`. */
+export interface ChartPoint {
+  label: string;
+  value: number;
+  /** What to show when read, e.g. "$1,240.00". Falls back to the number. */
+  display?: string;
+  /**
+   * The rows behind this bar, opened by pressing it.
+   *
+   * A chart is a picture of rows, and a figure with no way to the rows behind
+   * it is this product's most reliable bug. Optional, because a chart of a
+   * ratio has none — and a bar that looks pressable and does nothing is worse
+   * than one that plainly is not.
+   */
+  go?: () => void;
+  /** What pressing it opens, in words, for the control's own name. */
+  goLabel?: string;
+}
+
+/** One column of a two-series chart: a won half and a lost half. */
+export interface ChartPairedPoint {
+  label: string;
+  up: number;
+  down: number;
+  display?: string;
+  go?: () => void;
+  goLabel?: string;
+}
+
+export const CHART_MEMBERS = [
+  "Bars",
+  "Line",
+  "PairedBars",
+  "Sparkline",
+  "brief",
+] as const satisfies readonly (keyof SentrelloCharts)[];
+
 export interface Runtime {
   ui: SentrelloUi;
   /**
@@ -566,6 +643,8 @@ export interface Runtime {
    * list and Core's being the same product.
    */
   listUi: SentrelloListUi;
+  /** The charts Core draws, so a module stops drawing its own. */
+  charts: SentrelloCharts;
   money: { toCents: (value: string) => number };
   /**
    * Whether the person in front of this screen may do something.
