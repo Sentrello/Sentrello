@@ -3,6 +3,7 @@ import {
   findDroppedNotice,
   findFillAsText,
   findHandRolledUi,
+  findLopsidedColumns,
   findUnpagedList,
   findUnthemedElevation,
 } from "./ui-drift";
@@ -367,6 +368,8 @@ test("every scanner says what kind of source it is for", () => {
     // Advice a string of HTML cannot take: import SectionHeading, ui.Tabs,
     // listUi.useListState.
     findHandRolledUi: ["react"],
+    // `useColumns` is a hook, so only a React screen can have one to get wrong.
+    findLopsidedColumns: ["react"],
     // A JSX attribute, and only ever that: a stylesheet writing a border
     // colour is writing a rule, and a rule can carry its own width.
     findColourWithoutBorder: ["react"],
@@ -477,4 +480,50 @@ test("a track that can give is left alone", () => {
   ]) {
     expect(findHandRolledUi(source)).toBeEmpty();
   }
+});
+
+/**
+ * A column that only half the table knows about.
+ *
+ * The failure it exists to catch draws perfectly and is wrong: a header turned
+ * off without its cell shifts every row by one, so a price sits under Stock on
+ * the screens of the people who cared enough to hide a column. Nothing throws, a
+ * browser walk sees a tidy table, and the two halves are forty lines apart.
+ */
+test("a column guarded in one place and not the other is a finding", () => {
+  const halfGuarded = `
+const columns = useColumns("orders", [
+  { field: "number", label: "Order", fixed: true },
+  { field: "customer", label: "Customer" },
+  { field: "total", label: "Total" },
+]);
+<Table headers={["Order", ...(columns.shown("customer") ? ["Customer"] : []), ...(columns.shown("total") ? ["Total"] : [])]}>
+  <td>{o.number}</td>
+  {columns.shown("customer") ? <td>{o.customer}</td> : null}
+</Table>`;
+  const found = findLopsidedColumns(halfGuarded);
+  expect(found).toHaveLength(1);
+  expect(found[0]?.say).toContain('"total"');
+
+  // Both halves present: nothing to say.
+  expect(
+    findLopsidedColumns(
+      `${halfGuarded}\n{columns.shown("total") ? <td>{o.total}</td> : null}`,
+    ),
+  ).toEqual([]);
+
+  // A fixed column is always drawn and never guarded, so it is not a finding.
+  expect(
+    findLopsidedColumns(`
+const columns = useColumns("orders", [
+  { field: "number", label: "Order", fixed: true },
+]);
+<Table headers={["Order"]}><td>{o.number}</td></Table>`),
+  ).toEqual([]);
+
+  // And a screen with no column choice at all is none of this scanner's
+  // business.
+  expect(
+    findLopsidedColumns("<Table headers={['A']}><td>a</td></Table>"),
+  ).toEqual([]);
 });

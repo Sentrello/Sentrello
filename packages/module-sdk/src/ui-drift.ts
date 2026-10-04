@@ -509,6 +509,68 @@ const CAPPED_FETCH = new RegExp(
 /** A query that is nothing but one interpolation: `?${query}`, a builder. */
 const WHOLE_QUERY_BUILT = /^\?\$\{[^}]*\}$/;
 
+/**
+ * A column somebody can turn off, where only half the table knows.
+ *
+ * `useColumns` gives a list a set of optional columns and the screen asks
+ * `shown("field")` twice for each: once around the header and once around the
+ * cell. Ask in one place and not the other and every row below the fold is
+ * shifted by one — a price under the Stock heading, a status under Placed — on
+ * the screens of exactly the people who cared enough to turn a column off.
+ *
+ * It is a shape worth scanning for rather than a mistake worth being careful
+ * about: the header list and the cell are forty lines apart, the diff looks
+ * right in both places, and nothing fails. A browser walk does not catch it
+ * either — the table draws perfectly, with the wrong headings.
+ *
+ * So: every non-fixed field a `useColumns` call declares has to be asked about
+ * at least twice in the same file. A `fixed` column is exempt, because it is
+ * always drawn and never guarded.
+ */
+export function findLopsidedColumns(source: string): HandRolledFinding[] {
+  const rawLines = source.split("\n");
+  const clean = stripComments(source);
+  const findings: HandRolledFinding[] = [];
+
+  for (const call of clean.matchAll(
+    /useColumns\(\s*["'`][^"'`]*["'`]\s*,\s*\[/g,
+  )) {
+    // From the `[` to its partner, so the fields belong to this call.
+    let depth = 0;
+    let end = clean.length;
+    for (let i = call.index + call[0].length - 1; i < clean.length; i += 1) {
+      const ch = clean[i];
+      if (ch === "[") depth += 1;
+      else if (ch === "]") {
+        depth -= 1;
+        if (depth === 0) {
+          end = i;
+          break;
+        }
+      }
+    }
+    const block = clean.slice(call.index, end);
+    const line = lineOf(clean, call.index);
+    if (exceptedAbove(rawLines, line, "ui-drift")) continue;
+
+    for (const entry of block.matchAll(
+      /\{[^{}]*field:\s*["'`]([a-zA-Z0-9_-]+)["'`][^{}]*\}/g,
+    )) {
+      const field = entry[1];
+      if (!field || /fixed:\s*true/.test(entry[0])) continue;
+      const asked = [
+        ...clean.matchAll(new RegExp(`shown\\(\\s*["'\`]${field}["'\`]`, "g")),
+      ].length;
+      if (asked >= 2) continue;
+      findings.push({
+        line,
+        say: `the column "${field}" is asked about ${asked === 1 ? "once" : "nowhere"} — a header and a cell each need their own \`shown("${field}")\`, or the rows below sit under the wrong headings.`,
+      });
+    }
+  }
+  return findings.sort((a, b) => a.line - b.line);
+}
+
 export function findUnpagedList(source: string): HandRolledFinding[] {
   const rawLines = source.split("\n");
   const clean = stripComments(source);
@@ -665,6 +727,8 @@ declareScope(findOwnVerticalRhythm, "react");
 declareScope(findUnreportedMutation, "react");
 declareScope(findFillAsText);
 declareScope(findUnthemedElevation);
+// React only: `useColumns` is a hook, so a server-rendered page cannot have one.
+declareScope(findLopsidedColumns, "react");
 declareScope(findUnpagedList, "react", "page");
 declareScope(findDroppedNotice, "react", "page");
 
