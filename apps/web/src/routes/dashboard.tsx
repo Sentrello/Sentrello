@@ -858,10 +858,18 @@ function InsightWidget({
   }
 
   if (id === "cash-position") {
+    /*
+     * Profit is the ledger's answer, so a month opens the journal for it — the
+     * entries that add up to the figure, which is the only place "why was
+     * September like that" can actually be answered.
+     */
     const points: Point[] = insights.months.map((m) => ({
       label: monthLabel(m.month),
       value: m.netCents,
       display: formatMoney(m.netCents),
+      goLabel: `open the journal for ${monthLabel(m.month)}`,
+      go: () =>
+        go("accounting-journal", "Journal", filterIntent(monthRange(m.month))),
     }));
     return (
       <Card>

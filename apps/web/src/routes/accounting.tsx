@@ -16,6 +16,7 @@ import {
   Pagination,
   SortMenu,
   listQueryString,
+  useArrivingFilters,
   useListState,
 } from "../lib/list-ui";
 import { toCents } from "../lib/money";
@@ -1559,6 +1560,9 @@ export function Journal() {
    * cannot render and the server cannot build without taking the box with it.
    */
   const state = useListState({ sort: "postedAt", order: "desc" });
+  // A month somebody pressed on "Profit by month". The journal already filters
+  // by `from` and `to`, which is what the chart hands it.
+  useArrivingFilters(state);
   /**
    * The chart, for the account filter.
    *

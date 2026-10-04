@@ -72,10 +72,12 @@ including a tab that looks empty to them and is not.
 
 Every figure on this screen is a count of rows, and pressing it opens them.
 
-A bar on **Income by month** opens the invoices issued in that month. A row on
-**Deals by stage** opens the board, narrowed to that stage. A name on **Top
-customers** opens their invoices. On the CRM dashboard, "four deals past the date
-they were meant to close" opens those four.
+A bar on **Income by month** opens the invoices issued in that month, and one on
+**Profit by month** opens the journal entries behind it — which is where "why was
+September like that" is actually answered. A row on **Deals by stage** opens the
+board, narrowed to that stage. A name on **Top customers** opens their invoices.
+On the CRM dashboard, "four deals past the date they were meant to close" opens
+those four. In the Shop, a bar on **Taken by month** opens that month's orders.
 
 The list says what it has been narrowed to and offers the way back to all of it,
 so nothing arrives short with no explanation. Refreshing returns the plain list —

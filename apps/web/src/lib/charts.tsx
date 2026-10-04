@@ -428,12 +428,21 @@ export function Line({
             <button
               key={p.label}
               type="button"
-              className="h-full flex-1 cursor-default"
+              className={`h-full flex-1 ${
+                p.go ? "cursor-pointer" : "cursor-default"
+              }`}
               onPointerEnter={() => setAt(i)}
               onPointerLeave={() => setAt(null)}
               onFocus={() => setAt(i)}
               onBlur={() => setAt(null)}
-              aria-label={`${p.label}: ${p.display ?? p.value}`}
+              onClick={p.go}
+              // The same bargain the bars make: the name says what pressing it
+              // does, and nothing is dressed as a control unless it is one.
+              aria-label={
+                p.go
+                  ? `${p.label}: ${p.display ?? p.value} — ${p.goLabel ?? "open these"}`
+                  : `${p.label}: ${p.display ?? p.value}`
+              }
             />
           ))}
         </div>
