@@ -971,6 +971,21 @@ function Stat({
  * is which of nine panels appear on which of up to six tabs — a list handles
  * that, and a canvas would be more to build, more to break, and no easier.
  */
+/**
+ * One item moved to a new index, or the list untouched at an end.
+ *
+ * Out here rather than inside the component so the off-by-one at both ends can
+ * be checked without a browser — the ends are the whole of it, and a Down on the
+ * last row that silently dropped the row would be a layout somebody loses.
+ */
+export function moved<T>(list: T[], from: number, to: number): T[] {
+  if (to < 0 || to >= list.length) return list;
+  const out = [...list];
+  const [item] = out.splice(from, 1);
+  if (item !== undefined) out.splice(to, 0, item);
+  return out;
+}
+
 function Arrange({
   tabs,
   widgets,
@@ -1023,6 +1038,27 @@ function Arrange({
       ),
     );
 
+  /**
+   * Moving things, which is the whole of ordering.
+   *
+   * Two buttons rather than dragging. A drag needs a pointer, so it is the one
+   * interaction a keyboard cannot do and a screen reader cannot announce — and
+   * this is a settings screen somebody visits twice a year, where "Up" and
+   * "Down" are faster than learning a gesture. If dragging is ever added it goes
+   * on top of these rather than instead of them.
+   */
+  const moveTab = (index: number, by: number) =>
+    setDraft((d) => moved(d, index, index + by));
+
+  const movePanel = (index: number, at: number, by: number) =>
+    setDraft((d) =>
+      d.map((tab, i) =>
+        i !== index
+          ? tab
+          : { ...tab, widgets: moved(tab.widgets, at, at + by) },
+      ),
+    );
+
   return (
     <Card>
       <SectionHeading>Arrange your dashboard</SectionHeading>
@@ -1050,6 +1086,31 @@ function Arrange({
                   )
                 }
               />
+              {/*
+                Which way a tab moves is left and right, because that is how the
+                strip above reads — a tab is not above or below anything. The
+                name is in the accessible name for the same reason the Remove
+                below carries it: seven of these on one screen, told apart by
+                position alone, is a column nobody can use by ear.
+              */}
+              <button
+                type="button"
+                className="text-xs link-muted"
+                disabled={i === 0}
+                aria-label={`Move tab ${tab.name || "with no name"} left`}
+                onClick={() => moveTab(i, -1)}
+              >
+                Left
+              </button>
+              <button
+                type="button"
+                className="text-xs link-muted"
+                disabled={i === draft.length - 1}
+                aria-label={`Move tab ${tab.name || "with no name"} right`}
+                onClick={() => moveTab(i, 1)}
+              >
+                Right
+              </button>
               <button
                 type="button"
                 className="text-xs"
@@ -1060,25 +1121,79 @@ function Arrange({
                 Remove tab
               </button>
             </div>
-            <div className="mt-2 flex flex-wrap gap-3 text-sm">
-              {widgets.map((widget) => (
-                <label key={widget.id} className="flex items-center gap-1">
-                  {/*
-                    This is a grid: every panel appears once per tab, so
-                    "CRM" names eight different boxes. The label a person
-                    reads is in its row; the one a screen reader or a voice
-                    hears has to carry the row with it.
-                  */}
-                  <input
-                    type="checkbox"
-                    aria-label={`${widget.label} on ${tab.name || "this tab"}`}
-                    checked={tab.widgets.includes(widget.id)}
-                    onChange={() => toggle(i, widget.id)}
-                  />
-                  {widget.label}
-                </label>
-              ))}
-            </div>
+            {/*
+              What is on this tab, in the order it is drawn in.
+              
+              Two lists rather than one grid of checkboxes, and the reason is
+              that a checkbox cannot express a position. The ticked panels are
+              listed in their order with a way to move each one; everything else
+              is a row of things to add. The old single grid is why a panel
+              landed wherever it was ticked and stayed there.
+            */}
+            {tab.widgets.length > 0 ? (
+              <ol className="mt-2 flex flex-col gap-1 text-sm">
+                {tab.widgets.map((widget, at) => (
+                  <li key={widget} className="flex items-center gap-2">
+                    <span className="w-6 tabular-nums" style={muted}>
+                      {at + 1}.
+                    </span>
+                    <span className="grow">{labelOf(widget)}</span>
+                    <button
+                      type="button"
+                      className="text-xs link-muted"
+                      disabled={at === 0}
+                      aria-label={`Move up ${labelOf(widget)} on ${tab.name || "this tab"}`}
+                      onClick={() => movePanel(i, at, -1)}
+                    >
+                      Up
+                    </button>
+                    <button
+                      type="button"
+                      className="text-xs link-muted"
+                      disabled={at === tab.widgets.length - 1}
+                      aria-label={`Move down ${labelOf(widget)} on ${tab.name || "this tab"}`}
+                      onClick={() => movePanel(i, at, 1)}
+                    >
+                      Down
+                    </button>
+                    <button
+                      type="button"
+                      className="text-xs"
+                      style={{ color: "var(--text-danger)" }}
+                      aria-label={`Remove ${labelOf(widget)} from ${tab.name || "this tab"}`}
+                      onClick={() => toggle(i, widget)}
+                    >
+                      Remove
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="mt-2 text-sm" style={muted}>
+                Nothing on this tab yet.
+              </p>
+            )}
+
+            {widgets.filter((w) => !tab.widgets.includes(w.id)).length > 0 ? (
+              <div className="mt-2 flex flex-wrap gap-2 text-sm">
+                {widgets
+                  .filter((widget) => !tab.widgets.includes(widget.id))
+                  .map((widget) => (
+                    <button
+                      key={widget.id}
+                      type="button"
+                      className="text-xs link-muted"
+                      /* Every panel appears once per tab, so "CRM" names as many
+                         controls as there are tabs. The visible word first, then
+                         which tab it is for. */
+                      aria-label={`Add ${widget.label} to ${tab.name || "this tab"}`}
+                      onClick={() => toggle(i, widget.id)}
+                    >
+                      Add {widget.label}
+                    </button>
+                  ))}
+              </div>
+            ) : null}
           </div>
         ))}
       </div>

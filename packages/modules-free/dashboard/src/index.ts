@@ -37,6 +37,7 @@ import {
   clearStored,
   declaredWidgets,
   defaultLayout,
+  mergeLayout,
   normalizeLayout,
   readStored,
   shownTabs,
@@ -828,14 +829,26 @@ export default defineModule({
            * deliberately-removed widget back into a new arrival.
            */
           const stored = await readStored(orgId);
+          /*
+           * Merged into what is there, never replacing it. A reader is only ever
+           * shown the panels they may have, so a save from somebody whose policy
+           * covers one module would otherwise delete every panel they were never
+           * told about — for the whole business, permanently. See `mergeLayout`.
+           */
+          const kept = mergeLayout(
+            stored?.tabs ?? [],
+            tabs,
+            new Set(visible.map((w) => w.key)),
+            new Set(declaredWidgets().map((w) => w.key)),
+          );
           const known = [
             ...new Set([
               ...(stored?.known ?? []),
               ...visible.map((w) => w.key),
-              ...tabs.flatMap((t) => t.widgets),
+              ...kept.flatMap((t) => t.widgets),
             ]),
           ];
-          await writeStored(orgId, tabs, known);
+          await writeStored(orgId, kept, known);
         }
 
         // Answer with what this reader now sees, which is also the rule that

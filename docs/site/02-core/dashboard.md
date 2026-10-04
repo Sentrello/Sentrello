@@ -52,10 +52,21 @@ business wants something else, **Arrange** on the dashboard renames tabs, adds
 and removes them, and decides what sits on each. Free and Pro arrange the same
 way. Arranging is not a paid feature.
 
+Order is part of the arrangement. Tabs move left and right, panels move up and
+down inside a tab, and what you put at the top of the first tab is the first
+thing anybody in the business reads each morning. Two buttons rather than
+dragging, because a drag is the one thing a keyboard cannot do.
+
 The arrangement belongs to the business rather than to whoever saved it.
 Everyone sees the same tabs, so "look at the Shop tab" means one thing across
 the whole company. A module you add later puts its panel on a tab of its own,
 without anybody arranging anything.
+
+**Somebody who cannot see a panel cannot move or delete it.** A dashboard only
+ever names the panels your account is allowed to open, so an employee whose
+access covers one module is shown a shorter version of the same arrangement.
+When they save it, everything they were never shown stays exactly where it was —
+including a tab that looks empty to them and is not.
 
 ## Why that matters
 

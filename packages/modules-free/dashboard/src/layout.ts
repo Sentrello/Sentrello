@@ -341,6 +341,89 @@ export function shownTabs(tabs: Tab[], visible: Set<string>): Tab[] {
 }
 
 /**
+ * A save merged into what is stored, so nobody deletes what they cannot see.
+ *
+ * Every response from this module names only panels the reader may have — which
+ * means somebody whose policy covers one module is handed a *cut-down* copy of
+ * the business's arrangement. Press Done arranging and, until this existed, that
+ * cut-down copy was what got stored: every panel they were never shown
+ * disappeared, for everybody, permanently. `known` then kept it from coming back
+ * as a new arrival — right for a removal somebody meant, and exactly wrong here,
+ * because nobody removed anything.
+ *
+ * So the write is a merge rather than a replacement. What the writer sent is
+ * authoritative for everything they could see: the tabs, their order, their
+ * names, which visible panels sit on each. What they could not see is put back
+ * where it was.
+ *
+ * **Tabs are matched by position**, because position is the only thing that
+ * survives the round trip — the screen sends back the tabs it was given, in
+ * order, with renames and insertions, and a name is the first thing somebody
+ * changes.
+ *
+ * **A tab the writer dropped is kept if it holds something they could not see.**
+ * The alternative is deleting a colleague's panel by deleting what looks like an
+ * empty tab, which is the same bug one level up.
+ */
+export function mergeLayout(
+  stored: Tab[],
+  incoming: Tab[],
+  visible: Set<string>,
+  /**
+   * Every panel any module on this instance declared, which is not the same
+   * question as what this reader may see — and the difference is what decides
+   * whether a dropped tab comes back.
+   *
+   * A stored id that nothing declares is a module switched off, a licence that
+   * lapsed, or a layout saved by a newer version. It keeps its place on a tab
+   * that survives, which is the rule the rest of this file follows. It does not
+   * keep a *tab* alive, because there is nobody it belongs to: resurrecting one
+   * would mean a business could never delete a tab holding the remains of a
+   * module it stopped paying for.
+   */
+  declared: Set<string> = visible,
+): Tab[] {
+  const hiddenOn = (index: number) =>
+    (stored[index]?.widgets ?? [])
+      .map((widget, at) => ({ widget, at }))
+      .filter((x) => !visible.has(x.widget));
+
+  const merged = incoming.map((tab, index) => {
+    const hidden = hiddenOn(index);
+    if (hidden.length === 0) return tab;
+    /*
+     * Put back at the index it held, which keeps a hidden panel next to the
+     * panels it was next to. Order is something a business arranges now, so
+     * appending them all to the end would quietly rearrange somebody's screen
+     * every time a colleague saved.
+     */
+    const widgets = [...tab.widgets];
+    for (const { widget, at } of hidden) {
+      widgets.splice(Math.min(at, widgets.length), 0, widget);
+    }
+    return { name: tab.name, widgets };
+  });
+
+  /*
+   * And the tabs that fell off the end. Only the ones still holding something
+   * invisible: a tab the writer could see in full and deleted is a tab they
+   * deleted.
+   */
+  for (let index = incoming.length; index < stored.length; index += 1) {
+    const hidden = hiddenOn(index).map((x) => x.widget);
+    // Somebody else's panel, rather than the remains of a module that is away.
+    const theirs = hidden.filter((widget) => declared.has(widget));
+    if (theirs.length > 0) {
+      merged.push({
+        name: stored[index]?.name ?? `Tab ${index + 1}`,
+        widgets: hidden,
+      });
+    }
+  }
+  return merged.slice(0, MAX_TABS);
+}
+
+/**
  * A module bought on day 200 reaches the screen on day 200.
  *
  * The business arranged its tabs long ago; a widget that was in nobody's

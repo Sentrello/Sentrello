@@ -5,6 +5,7 @@ import {
   CORE_TABS,
   CORE_WIDGETS,
   defaultLayout,
+  mergeLayout,
   normalizeLayout,
   shownTabs,
   upgradeWidgetIds,
@@ -252,4 +253,90 @@ test("a layout stored before panels were keyed by module comes forward", () => {
     // Already a key, and left alone rather than scoped twice.
     k("health"),
   ]);
+});
+
+/**
+ * Order is a decision, so it has to survive the round trip.
+ *
+ * Panels used to land where the checkbox put them and tabs in the order they
+ * were added, with no way to move either. The arrays were always ordered — the
+ * screen simply had no way to say so — which is why this is the assertion that
+ * matters: a save is read back in the order it was sent, through everything that
+ * touches it on the way.
+ */
+test("the order of tabs and of panels inside them is what was sent", () => {
+  const sent = [
+    { name: "Money", widgets: ["dashboard:health", "dashboard:money"] },
+    { name: "Week", widgets: ["dashboard:attention"] },
+  ];
+  const back = normalizeLayout(sent);
+  expect(back.map((t) => t.name)).toEqual(["Money", "Week"]);
+  expect(back[0]?.widgets).toEqual(["dashboard:health", "dashboard:money"]);
+
+  // And through the cut, which rebuilds each tab's list.
+  const visible = new Set([
+    "dashboard:health",
+    "dashboard:money",
+    "dashboard:attention",
+  ]);
+  expect(shownTabs(back, visible)[0]?.widgets).toEqual([
+    "dashboard:health",
+    "dashboard:money",
+  ]);
+});
+
+/**
+ * The merge keeps a hidden panel beside the panels it was beside.
+ *
+ * Appending every invisible panel to the end of its tab would have been simpler
+ * and would quietly rearrange a colleague's screen every time somebody with
+ * narrower permissions pressed save — which is the thing ordering was added to
+ * stop.
+ */
+test("a merge puts a hidden panel back where it was, not at the end", () => {
+  const stored = [
+    { name: "All", widgets: ["a:one", "b:secret", "a:two", "a:three"] },
+  ];
+  const visible = new Set(["a:one", "a:two", "a:three"]);
+  const declared = new Set([...visible, "b:secret"]);
+
+  // The narrow reader moves `three` to the front and saves what they can see.
+  const merged = mergeLayout(
+    stored,
+    [{ name: "All", widgets: ["a:three", "a:one", "a:two"] }],
+    visible,
+    declared,
+  );
+  expect(merged[0]?.widgets).toEqual(["a:three", "b:secret", "a:one", "a:two"]);
+});
+
+/**
+ * A tab somebody cannot see into is not a tab they can delete — and the remains
+ * of a module that is away are not a reason to keep one.
+ */
+test("a dropped tab comes back only when it holds somebody else's panel", () => {
+  const visible = new Set(["a:one"]);
+  const declared = new Set(["a:one", "b:theirs"]);
+
+  const theirs = mergeLayout(
+    [
+      { name: "Mine", widgets: ["a:one"] },
+      { name: "Theirs", widgets: ["b:theirs"] },
+    ],
+    [{ name: "Mine", widgets: ["a:one"] }],
+    visible,
+    declared,
+  );
+  expect(theirs.map((t) => t.name)).toEqual(["Mine", "Theirs"]);
+
+  const gone = mergeLayout(
+    [
+      { name: "Mine", widgets: ["a:one"] },
+      { name: "Old module", widgets: ["c:retired"] },
+    ],
+    [{ name: "Mine", widgets: ["a:one"] }],
+    visible,
+    declared,
+  );
+  expect(gone.map((t) => t.name)).toEqual(["Mine"]);
 });

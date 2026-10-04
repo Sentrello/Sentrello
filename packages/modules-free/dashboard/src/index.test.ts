@@ -1682,3 +1682,75 @@ test("a reader with no books is sent no money figures at all", async () => {
   await db.delete(schema.member).where(eq(schema.member.userId, theirId));
   await db.delete(schema.user).where(eq(schema.user.id, theirId));
 });
+
+/**
+ * A colleague who cannot see a panel must not be able to delete it.
+ *
+ * The arrangement is one decision per organization, and a response only ever
+ * names panels the reader may have — so somebody whose policy covers one module
+ * is handed a *cut-down* copy of the business's arrangement. Press Done
+ * arranging and that cut-down copy is what gets stored: every panel they were
+ * never shown is gone, for everybody, permanently. `known` keeps it from coming
+ * back as a new arrival, which is right for a deliberate removal and is exactly
+ * wrong here, because nobody removed anything.
+ *
+ * The fix is on the write rather than on the read: a save is merged into what is
+ * stored, keeping the panels this writer was not shown where they already were.
+ */
+test("a reader who cannot see a panel does not delete it by saving", async () => {
+  const before = allWidgets();
+  addWidget({
+    moduleId: "cellar",
+    id: "cellar-stock",
+    label: "Cellar",
+    entitlement: { module: "cellar" },
+    load: async () => [{ label: "Bottles", value: 12, kind: "count" }],
+  });
+
+  try {
+    // The manager, entitled to it, puts it on a tab beside an ordinary panel.
+    const put = await app.request("http://localhost/api/dashboard/layout", {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({
+        tabs: [
+          {
+            name: "Everything",
+            widgets: ["dashboard:money", "cellar:cellar-stock"],
+          },
+        ],
+      }),
+    });
+    expect(put.status).toBe(200);
+
+    // Somebody entitled to nothing extra opens the same screen. They are not
+    // told the cellar panel exists, which is the rule and is correct.
+    const narrow = registerForTest(dashboard, undefined, () => false);
+    const theirs = await readLayoutAs(narrow);
+    expect(theirs.tabs.flatMap((t) => t.widgets)).not.toContain(
+      "cellar:cellar-stock",
+    );
+
+    // They rename a tab and save. Nothing they did was about the cellar.
+    const saved = await narrow.request(
+      "http://localhost/api/dashboard/layout",
+      {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({
+          tabs: theirs.tabs.map((tab) => ({ ...tab, name: "Our week" })),
+        }),
+      },
+    );
+    expect(saved.status).toBe(200);
+
+    // The manager comes back. The panel is still there, on the tab it was on.
+    const mine = await readLayoutAs(app);
+    expect(mine.tabs.flatMap((t) => t.widgets)).toContain(
+      "cellar:cellar-stock",
+    );
+    expect(mine.tabs[0]?.name).toBe("Our week");
+  } finally {
+    restoreWidgets(before);
+  }
+});

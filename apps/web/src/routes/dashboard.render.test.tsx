@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 import { NavigationProvider } from "../lib/navigation";
-import { HealthPanel, WhoOwesPanel } from "./dashboard";
+import { HealthPanel, WhoOwesPanel, moved } from "./dashboard";
 
 /**
  * Whether this instance is on the current release, said on the screen somebody
@@ -228,4 +228,21 @@ test("a timer that has stopped reads as stale rather than as fine", () => {
   // Not the reassuring half of the same fact: fourteen are still kept, and
   // every one of them is a week old.
   expect(html).not.toContain("14 kept");
+});
+
+/**
+ * Moving a panel or a tab, which is the arranging screen's whole new trick.
+ *
+ * The interesting cases are both ends: Up on the first row and Down on the last
+ * must do nothing rather than drop the row. A dropped row is a panel somebody
+ * loses off their dashboard by pressing a button that looked harmless.
+ */
+test("moving an item stops at the ends rather than losing it", () => {
+  const three = ["a", "b", "c"];
+  expect(moved(three, 1, 2)).toEqual(["a", "c", "b"]);
+  expect(moved(three, 2, 1)).toEqual(["a", "c", "b"]);
+  expect(moved(three, 0, -1)).toEqual(["a", "b", "c"]);
+  expect(moved(three, 2, 3)).toEqual(["a", "b", "c"]);
+  // And the original is never changed under the caller.
+  expect(three).toEqual(["a", "b", "c"]);
 });
