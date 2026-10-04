@@ -553,6 +553,17 @@ export function findLopsidedColumns(source: string): HandRolledFinding[] {
     const line = lineOf(clean, call.index);
     if (exceptedAbove(rawLines, line, "ui-drift")) continue;
 
+    // A set of columns with nothing on screen to change it. The hook reads a
+    // preference and every heading obeys it, so everything works and nobody
+    // can reach it — the shape this project finds more often than any other,
+    // and the one a passing test suite is least likely to notice.
+    if (!/<ColumnsMenu\b/.test(clean)) {
+      findings.push({
+        line,
+        say: "this screen chooses its columns and draws no `<ColumnsMenu>` — the choice is read on every row and there is nothing anybody can press to make one.",
+      });
+    }
+
     for (const entry of block.matchAll(
       /\{[^{}]*field:\s*["'`]([a-zA-Z0-9_-]+)["'`][^{}]*\}/g,
     )) {

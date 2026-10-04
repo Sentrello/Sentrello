@@ -500,6 +500,7 @@ const columns = useColumns("orders", [
   { field: "customer", label: "Customer" },
   { field: "total", label: "Total" },
 ]);
+<ColumnsMenu state={columns} />
 <Table headers={["Order", ...(columns.shown("customer") ? ["Customer"] : []), ...(columns.shown("total") ? ["Total"] : [])]}>
   <td>{o.number}</td>
   {columns.shown("customer") ? <td>{o.customer}</td> : null}
@@ -521,6 +522,7 @@ const columns = useColumns("orders", [
 const columns = useColumns("orders", [
   { field: "number", label: "Order", fixed: true },
 ]);
+<ColumnsMenu state={columns} />
 <Table headers={["Order"]}><td>{o.number}</td></Table>`),
   ).toEqual([]);
 
@@ -528,6 +530,33 @@ const columns = useColumns("orders", [
   // business.
   expect(
     findLopsidedColumns("<Table headers={['A']}><td>a</td></Table>"),
+  ).toEqual([]);
+});
+
+/**
+ * Columns chosen, and nothing on screen to choose them with.
+ *
+ * Every heading obeys the preference, every cell obeys it, the hook reads it
+ * from the account — and without the menu nobody can ever make a choice for any
+ * of that to honour. Built, correct, unreachable: the shape this project finds
+ * more often than any other, and the one a green suite is least likely to
+ * notice, because everything it asserts is true.
+ */
+test("a column set with no menu to change it is a finding", () => {
+  const noMenu = `
+const columns = useColumns("orders", [
+  { field: "number", label: "Order", fixed: true },
+  { field: "customer", label: "Customer" },
+]);
+<Table headers={["Order", ...(columns.shown("customer") ? ["Customer"] : [])]}>
+  {columns.shown("customer") ? <td>{o.customer}</td> : null}
+</Table>`;
+  const found = findLopsidedColumns(noMenu);
+  expect(found).toHaveLength(1);
+  expect(found[0]?.say).toContain("ColumnsMenu");
+
+  expect(
+    findLopsidedColumns(`${noMenu}\n<ColumnsMenu state={columns} />`),
   ).toEqual([]);
 });
 
