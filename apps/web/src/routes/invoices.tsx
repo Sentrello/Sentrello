@@ -371,6 +371,7 @@ export function Invoices() {
           resource="invoices"
           state={state}
           defaults={{ sort: "issueDate", order: "desc" }}
+          columns={columns}
         />
 
         <ColumnsMenu state={columns} />

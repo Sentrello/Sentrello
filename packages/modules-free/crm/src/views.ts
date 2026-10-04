@@ -118,6 +118,31 @@ function cleanView(raw: unknown): Record<string, unknown> {
     }
     out.filters = filters;
   }
+  /*
+   * And which columns were hidden when it was saved.
+   *
+   * A view is "how I look at this list on a Monday", and that includes what is
+   * on the screen as much as what is in the rows — somebody whose view is
+   * "unpaid, oldest first" has usually turned off three columns to get there.
+   * Hidden rather than shown, the same way the account's own column preference
+   * stores it: a view that recorded what to show would hide every column added
+   * after it was saved.
+   *
+   * Absent is different from empty. A view saved before this existed, or from a
+   * list with no column choice, says nothing about columns and must leave the
+   * reader's own choice alone; an empty array is "this view shows them all".
+   */
+  if (Array.isArray(source.hidden)) {
+    out.hidden = [
+      ...new Set(
+        (source.hidden as unknown[]).filter(
+          (field): field is string =>
+            typeof field === "string" &&
+            /^[a-z0-9][a-z0-9:_-]{0,63}$/i.test(field),
+        ),
+      ),
+    ].slice(0, 80);
+  }
   return out;
 }
 

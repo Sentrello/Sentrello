@@ -17,7 +17,7 @@ is worked the same way. Learn it once.
 | **Search** | Matches the fields that identify a row: a name, a number, a reference, a description. Two letters is usually enough. |
 | **Filters** | Narrow by whatever that list is about — a status, a stage, a sector — and they combine. Which ones a list offers is on the list itself; there is no filter every list has. |
 | **Sort** | Pick the column and the direction. Rows with the same value keep a stable order, so paging never shows you the same row twice or skips one. |
-| **Columns** | On the tables that have several — invoices, quotes and bills — choose which you want to see. Kept per person, in your own browser. |
+| **Columns** | On the tables that have several — invoices, quotes, bills, orders, products, subscribers and bookings — choose which you want to see. Kept with your account, so they follow you to another machine. |
 | **Group** | Where a list has a handful of values worth splitting on: customers by status or kind, companies by sector, city or size, deals by stage or category. Each section's count is over everything that matched, not just this page. |
 
 Search, filters and sorting happen on the server, so they apply to the whole

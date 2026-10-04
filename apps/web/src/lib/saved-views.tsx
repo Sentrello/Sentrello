@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "./api";
 import { Icon } from "./icons";
-import type { ListState } from "./list-ui";
+import type { ColumnState, ListState } from "./list-ui";
 import { Button, ConfirmButton, ErrorNote, Input, Select, muted } from "./ui";
 
 /**
@@ -36,6 +36,8 @@ export interface SavedView {
     sort?: string;
     order?: "asc" | "desc";
     filters?: Record<string, string>;
+    /** Which columns were hidden when it was saved. Absent means it says nothing. */
+    hidden?: string[];
   };
 }
 
@@ -43,6 +45,7 @@ export function SavedViews({
   resource,
   state,
   defaults,
+  columns,
 }: {
   resource:
     | "contacts"
@@ -56,6 +59,15 @@ export function SavedViews({
   state: ListState;
   /** What "no view" means for this screen, so applying nothing restores it. */
   defaults: { sort: string; order: "asc" | "desc" };
+  /**
+   * The screen's columns, where it has any.
+   *
+   * A view is how somebody looks at a list, and what is on the screen is as much
+   * a part of that as what is in the rows: a view called "unpaid, oldest first"
+   * usually has three columns turned off to get there. Lists without column
+   * choice pass nothing and behave exactly as before.
+   */
+  columns?: ColumnState;
 }) {
   const qc = useQueryClient();
   const [activeId, setActiveId] = useState("");
@@ -74,6 +86,13 @@ export function SavedViews({
     sort: state.sort,
     order: state.order,
     filters: state.filters,
+    ...(columns
+      ? {
+          hidden: columns.columns
+            .filter((c) => !c.fixed && !columns.shown(c.field))
+            .map((c) => c.field),
+        }
+      : {}),
   });
 
   const invalidate = () =>
@@ -110,6 +129,25 @@ export function SavedViews({
     },
   });
 
+  /**
+   * Put the columns where a view says, by moving only what disagrees.
+   *
+   * `toggle` is what the menu uses, so a view is applied through the same door a
+   * person presses — which means one save of the preference per column that
+   * actually changes, and none at all for a view whose columns already match.
+   */
+  const applyColumns = (hidden: string[] | undefined) => {
+    if (!columns || !hidden) return;
+    const wanted = new Set(hidden);
+    for (const column of columns.columns) {
+      if (column.fixed) continue;
+      const shouldShow = !wanted.has(column.field);
+      if (columns.shown(column.field) !== shouldShow) {
+        columns.toggle(column.field);
+      }
+    }
+  };
+
   const apply = (view: SavedView | undefined) => {
     if (!view) {
       // Back to the screen as it opens: no search, no filters, the default
@@ -127,6 +165,7 @@ export function SavedViews({
     state.clearFilters();
     const filters = view.view.filters ?? {};
     if (Object.keys(filters).length) state.setFilter(filters);
+    applyColumns(view.view.hidden);
   };
 
   const mine = views.data?.views ?? [];

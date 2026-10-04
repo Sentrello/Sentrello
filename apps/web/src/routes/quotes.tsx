@@ -210,6 +210,7 @@ export function Quotes() {
           resource="quotes"
           state={state}
           defaults={{ sort: "issueDate", order: "desc" }}
+          columns={columns}
         />
 
         <ColumnsMenu state={columns} />
