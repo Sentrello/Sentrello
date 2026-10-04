@@ -212,7 +212,7 @@ learns to ignore, and then it is worth nothing on the night it is large.
 ### Printers, and the drawer that opens itself
 
 A receipt printer is an address on your network. Add it under **Point of sale →
-How you serve → Printers**: a name, the address, and whether the cash drawer is
+Serving → Printers**: a name, the address, and whether the cash drawer is
 wired to it. Then press **Test**, which puts a piece of paper in your hand and
 opens the drawer — the only way to know a printer works is to have it print.
 
