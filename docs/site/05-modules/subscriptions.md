@@ -135,13 +135,17 @@ nothing can be charged for usage that has not happened yet. So a subscription's
 first invoice has no usage on it — no period has closed — and every invoice after
 it covers the period that just ended.
 
-### Three kinds of meter
+### Three kinds of charge
 
 | Measures | Means | For |
 |---|---|---|
 | **What they used** | The readings in the period, added up | Calls, emails, gigabytes transferred — anything consumed |
 | **The most they had at once** | The highest reading in the period | Seats, concurrent connections, bandwidth — anything held |
 | **What it cost** | The amounts the readings bring with them | Anything you resell, where the price is not yours to set |
+
+A meter is only ever a thing you count. **How** it is measured belongs to the
+charge, which is why the same meter can be counted by one charge and peaked by
+another.
 
 The second is charged a flat amount for the tier the peak lands in: "up to 500
 members, £5 a month". It does not scale with the number.
@@ -158,7 +162,7 @@ owed always equals what was recorded.
 
 ### Two ways to price tiers
 
-For a meter that counts what was used, a tier table can mean one of two things,
+For a charge that counts what was used, a tier table can mean one of two things,
 and the difference is real money. Say which on the plan:
 
 - **Priced tier by tier.** The first 5 at £2, then £1 each. Seven units cost £12.
@@ -260,9 +264,10 @@ being able to cancel every subscription you have.
 - **Their record here** lists every reading, with the batch it arrived in, and
   lets you add one by hand when a collector was down.
 - **Tonight's billing** shows the usage that is about to be invoiced.
-- **The invoice line** carries the count; the working behind it — tier by tier —
-  is kept at the time the invoice is raised, so "why is this £21.40" has an
-  answer a year later even if the tier table has changed since.
+- **The invoice line** carries the counts — one line per charge, however many
+  meters it prices — and the working behind it, tier by tier and meter by meter,
+  is kept at the time the invoice is raised. So "why is this £21.40" has an answer
+  a year later even if the tier table has been edited since.
 
 ### The edges, decided
 
@@ -275,7 +280,8 @@ raises one last usage invoice for the period just finished. Nothing else ever
 would, and the alternative is giving away every leaving customer's last month.
 
 **A plan can cost nothing a month.** Pay-for-what-you-use is a plan priced at
-zero with a meter on it; the invoice carries the usage and no subscription line.
+zero with a usage charge on it; the invoice carries the usage and no subscription
+line.
 
 **Repricing a charge changes the period now running**, because usage is billed in
 arrear and the tiers are read when the invoice is raised. That is the opposite of
@@ -284,11 +290,12 @@ never moves under them. Both are deliberate: a monthly fee is an agreement, and
 what a gigabyte costs this month is a price list.
 
 **Retiring a meter keeps billing what is already recorded**, including the period
-running now. It stops the meter being put on new plans. The code never changes,
-so renaming one is safe for the scripts that have been sending it for a year.
+running now. It stops the meter being offered on new charges. Its code never
+changes, so renaming one is safe for the scripts that have been sending it for a
+year.
 
 **Readings are whole numbers.** If you need half a gigabyte, meter in megabytes.
-Amounts on a *what it cost* meter are the exception and are in millionths, for
+Amounts on a *what it cost* charge are the exception and are in millionths, for
 the reason above.
 
 ## Settings
