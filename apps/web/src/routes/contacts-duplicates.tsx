@@ -71,6 +71,9 @@ export function ContactDuplicates({ onChanged }: { onChanged: () => void }) {
   });
 
   if (pairs.isLoading) return <Loading />;
+  // As above. "No duplicates found" and "we could not look" are different
+  // answers, and only one of them is good news.
+  if (pairs.error) return <ErrorNote error={pairs.error} />;
 
   const found = pairs.data?.pairs ?? [];
   if (found.length === 0) {

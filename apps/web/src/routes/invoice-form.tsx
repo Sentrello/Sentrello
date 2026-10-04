@@ -578,6 +578,14 @@ export function InvoiceForm({
 
   if (taxes.isLoading) return <Loading />;
   /*
+   * And it says so when the rates cannot be fetched.
+   *
+   * Everything below this line is behind that one query, including the form
+   * itself — so a screen whose calls are refused sat on a spinner and said
+   * nothing. On the screen a business raises its invoices from.
+   */
+  if (taxes.error) return <ErrorNote error={taxes.error} />;
+  /*
    * Before the boxes, because a blank one is a statement too.
    *
    * Nothing below tells a document that failed to load apart from a document

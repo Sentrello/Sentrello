@@ -285,6 +285,9 @@ export function VatFiling() {
   });
 
   if (status.isLoading) return <Loading />;
+  // As above: the whole screen is behind this one query, so a failure here has
+  // to be said rather than left as a spinner nobody can read.
+  if (status.error) return <ErrorNote error={status.error} />;
 
   /*
    * Said rather than shown as a dead button. An instance without HMRC

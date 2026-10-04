@@ -4,6 +4,7 @@ import {
   findFillAsText,
   findHandRolledUi,
   findLopsidedColumns,
+  findSpinningQuery,
   findUnevenColumnRows,
   findUnpagedList,
   findUnthemedElevation,
@@ -373,6 +374,8 @@ test("every scanner says what kind of source it is for", () => {
     findLopsidedColumns: ["react"],
     // Counts `<Row>` against the headings above it, which is JSX either way.
     findUnevenColumnRows: ["react"],
+    // Reads a hook's own result, so only a React screen has one.
+    findSpinningQuery: ["react"],
     // A JSX attribute, and only ever that: a stylesheet writing a border
     // colour is writing a rule, and a rule can carry its own width.
     findColourWithoutBorder: ["react"],
@@ -637,5 +640,60 @@ test("a span counted by hand under a hideable heading is a finding", () => {
     findUnevenColumnRows(
       '<Table headers={["Name", "Size"]}><Row><td colSpan={2} /></Row></Table>',
     ),
+  ).toEqual([]);
+});
+
+/**
+ * A screen that can sit on a spinner and never say why.
+ *
+ * The failure it exists to catch is the one a browser walk catches only
+ * sometimes: whether the spinner is still up two seconds later depends on how
+ * fast the request failed. The shop's inventory screen passed that walk for
+ * weeks and failed it the day the page gained one more request — and the defect
+ * was never the extra request, it was that the only answer the screen had while
+ * that one query was in flight was the spinner's.
+ */
+test("a query that gates a spinner and reports no failure is a finding", () => {
+  const silent = `
+const places = useQuery({ queryKey: ["places"], queryFn: fetchPlaces });
+if (places.isLoading) return <Loading />;
+return <main>{places.data?.places.length}</main>;`;
+  const found = findSpinningQuery(silent);
+  expect(found).toHaveLength(1);
+  expect(found[0]?.say).toContain("places.error");
+
+  // Reported: nothing to say.
+  expect(
+    findSpinningQuery(
+      `${silent}\nif (places.error) return <ErrorNote error={places.error} />;`,
+    ),
+  ).toEqual([]);
+
+  // `isPending` is the same gate under another name.
+  expect(
+    findSpinningQuery(`
+const thing = useQuery({ queryKey: ["t"] });
+if (thing.isPending) return <Loading />;`),
+  ).toHaveLength(1);
+
+  /*
+   * A query this file does not own is somebody else's to report. A screen handed
+   * one as a prop cannot know whether its parent already says so, and guessing
+   * would make every child of a loader a finding.
+   */
+  expect(
+    findSpinningQuery(`
+function Card({ places }: { places: UseQueryResult }) {
+  if (places.isLoading) return <Loading />;
+  return null;
+}`),
+  ).toEqual([]);
+
+  // And a screen that means it says so above the line.
+  expect(
+    findSpinningQuery(`
+const places = useQuery({ queryKey: ["places"] });
+// ui-drift-ignore: the panel above this one reports it for both
+if (places.isLoading) return <Loading />;`),
   ).toEqual([]);
 });

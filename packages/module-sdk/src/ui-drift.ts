@@ -661,6 +661,57 @@ export function findUnevenColumnRows(source: string): HandRolledFinding[] {
   return findings.sort((a, b) => a.line - b.line);
 }
 
+/**
+ * A query a screen can wait for, and never says anything about when it fails.
+ *
+ * The sibling of the mutation check above, and the one that was missing. A
+ * screen writes `if (thing.isLoading) return <Loading />` — which is right — and
+ * then draws nothing at all about `thing.error`. Every honest answer the screen
+ * has is *below* that line, including the errors its other queries would have
+ * reported, so a page whose calls are all refused sits on a spinner saying
+ * nothing for as long as that one query takes.
+ *
+ * It is not caught by a browser walk reliably, which is the whole reason for
+ * reading it here: whether the spinner is still up when somebody looks depends
+ * on how fast the request failed. The shop's inventory screen passed that walk
+ * for weeks and failed it the day the page gained one more request — the defect
+ * was never the request.
+ *
+ * So: a query whose `isLoading` or `isPending` gates an early return has to have
+ * its `error` or `isError` read somewhere in the same file. A screen that
+ * deliberately shows nothing — because a parent already says it — says so above
+ * the line with a `ui-drift-ignore` note.
+ */
+export function findSpinningQuery(source: string): HandRolledFinding[] {
+  const rawLines = source.split("\n");
+  const clean = stripComments(source);
+  const findings: HandRolledFinding[] = [];
+
+  for (const match of clean.matchAll(
+    /if\s*\(\s*(\w+)\.(isLoading|isPending)\s*\)\s*return\b/g,
+  )) {
+    const name = match[1];
+    if (!name) continue;
+    // Declared by this file as a query, rather than a prop or a parameter whose
+    // owner reports it somewhere this file cannot see.
+    if (
+      !new RegExp(`\\b(?:const|let)\\s+${name}\\s*=\\s*use\\w*Query`).test(
+        clean,
+      )
+    )
+      continue;
+    if (new RegExp(`\\b${name}\\.(?:error\\b|isError\\b)`).test(clean))
+      continue;
+    const line = lineOf(clean, match.index);
+    if (exceptedAbove(rawLines, line, "ui-drift")) continue;
+    findings.push({
+      line,
+      say: `\`${name}\` can hold this screen on a spinner and nothing here reads \`${name}.error\` — a page whose calls are refused then says nothing at all, because everything else it could say is below this line.`,
+    });
+  }
+  return findings.sort((a, b) => a.line - b.line);
+}
+
 export function findUnpagedList(source: string): HandRolledFinding[] {
   const rawLines = source.split("\n");
   const clean = stripComments(source);
@@ -820,6 +871,7 @@ declareScope(findUnthemedElevation);
 // React only: `useColumns` is a hook, so a server-rendered page cannot have one.
 declareScope(findLopsidedColumns, "react");
 declareScope(findUnevenColumnRows, "react");
+declareScope(findSpinningQuery, "react");
 declareScope(findUnpagedList, "react", "page");
 declareScope(findDroppedNotice, "react", "page");
 
