@@ -90,6 +90,23 @@ Cancelling sets the date it takes effect rather than stopping the billing that
 instant. Somebody who cancels on the 3rd of a month they have already paid for
 keeps the rest of it, which is what they expect and what avoids a refund.
 
+## Tonight's billing
+
+Subscriptions bill themselves at two in the morning. Which is fine when it
+works, and nothing at all when it does not — a subscription whose plan has been
+deleted, or that nobody ever priced, is skipped every single night, and the only
+trace is a line in a log you have no reason to read. The customer is simply
+never billed.
+
+So **Tonight's billing** shows you the run before it happens: everything due by
+the end of today, what each one will raise, and the total. Read down the column
+of sentences. Most of them say what will be billed and for which period. Any
+that say somebody has to fix something first are money you are not collecting.
+
+It is the same decision the night's run makes, not a description of one — the
+same function answers both — so the figure you read here is the figure that
+arrives.
+
 ## Settings
 
 The module has its own settings screen, and the first question people ask is
@@ -110,6 +127,15 @@ software plan. Turn it on and the control appears in both places a pause can
 happen: your own screen, and the subscriber's.
 
 ## The customer's own screen
+
+Every subscriber has a private page showing what they subscribe to, where it
+stands, when the next payment is and **what the next invoice comes to** — the
+amount, with the tax in it, worked out the way the night's run will work it out.
+Not the price per period: on a business that quotes net those are different
+numbers, and the difference is the thing the customer was left to work out.
+Where nothing will be billed — a trial that has not ended, a pause, the last
+period of a subscription that is leaving — it says so in a sentence instead of
+showing nought.
 
 Run the Shop as well and a subscriber can sign in to your storefront to cancel
 their own subscription without emailing you about it, or pause it if you allow
