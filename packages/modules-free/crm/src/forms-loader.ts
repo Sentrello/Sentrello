@@ -369,14 +369,30 @@ const SCRIPT = String.raw`(function () {
 
         var sending = { method: "POST", credentials: "omit", body: data };
         if (!carrying) {
+          /*
+           * Built with forEach, which is what a FormData actually offers.
+           *
+           * This was Array.prototype.reduce.call(data.entries(), …) and it sent
+           * an empty object — every time, on every form without a file on it.
+           * entries() returns an iterator, an iterator has no length, and reduce
+           * borrowed onto something with no length iterates nothing at all and
+           * hands back its initial value. So the body was {}, the instance
+           * answered 400 "name or email is required", and the only forms that
+           * worked were the ones carrying a file: those send the FormData itself
+           * and never reach this branch.
+           *
+           * Nothing anywhere said so. The form rendered, the fields filled, the
+           * button submitted, and the visitor was told it could not be sent.
+           * forEach is already used ten lines above to decide whether a file is
+           * being carried, which is the part worth reading twice — the right
+           * call was in this same function the whole time.
+           */
+          var body = {};
+          data.forEach(function (value, field) {
+            body[field] = value;
+          });
           sending.headers = { "content-type": "application/json" };
-          sending.body = JSON.stringify(
-            Array.prototype.reduce.call(
-              data.entries(),
-              function (acc, pair) { acc[pair[0]] = pair[1]; return acc; },
-              {},
-            ),
-          );
+          sending.body = JSON.stringify(body);
         }
 
         fetch(base + "/api/embed/forms/" + encodeURIComponent(key), sending)

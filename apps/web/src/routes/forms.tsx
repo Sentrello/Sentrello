@@ -588,6 +588,21 @@ function Submissions({ form }: { form: FormRow }) {
     },
   });
 
+  /**
+   * Throwing one away, with whatever it carried.
+   *
+   * There was no way to do this: the only deletion on this screen takes the
+   * whole form and every submission with it, which is the wrong instrument for
+   * a filled role on a form still taking applications for the next one.
+   */
+  const remove = useMutation({
+    mutationFn: (id: string) =>
+      api(`/api/forms/submissions/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["submissions", form.id] });
+    },
+  });
+
   return (
     <div className="flex flex-col gap-(--gap-stack)">
       {/* A plain link rather than a fetch: the browser saves the file itself,
@@ -644,14 +659,41 @@ function Submissions({ form }: { form: FormRow }) {
                     {new Date(sub.createdAt).toLocaleString()}
                   </div>
                 </div>
-                <Button
-                  variant="secondary"
-                  needs={{ crm: ["create"] }}
-                  onClick={() => promote.mutate(sub.id)}
-                  disabled={promote.isPending}
-                >
-                  Add to pipeline
-                </Button>
+                <Toolbar>
+                  <Button
+                    variant="secondary"
+                    needs={{ crm: ["create"] }}
+                    onClick={() => promote.mutate(sub.id)}
+                    disabled={promote.isPending}
+                  >
+                    Add to pipeline
+                  </Button>
+                  {/*
+                    Asked first, because it cannot be undone and because the
+                    file goes with it. The name of whoever sent it is in the
+                    question: a list of submissions is rows of similar-looking
+                    text, and "are you sure" on the wrong one reads the same as
+                    on the right one.
+                  */}
+                  <ConfirmButton
+                    needs={{ crm: ["delete"] }}
+                    variant="secondary"
+                    danger
+                    title="Throw this submission away?"
+                    message={
+                      sub.attachments?.length
+                        ? "The submission and the file it came with are both deleted, and neither can be brought back. Anyone already added to the pipeline stays there."
+                        : "The submission is deleted and cannot be brought back. Anyone already added to the pipeline stays there."
+                    }
+                    confirmLabel="Throw it away"
+                    onConfirm={() => remove.mutate(sub.id)}
+                    aria-label={`Throw away the submission from ${
+                      Object.values(sub.payload)[0] ?? "this sender"
+                    }`}
+                  >
+                    Delete
+                  </ConfirmButton>
+                </Toolbar>
               </div>
             </li>
           ))}
@@ -662,6 +704,7 @@ function Submissions({ form }: { form: FormRow }) {
         </p>
       )}
       {promote.error ? <ErrorNote error={promote.error} /> : null}
+      {remove.error ? <ErrorNote error={remove.error} /> : null}
     </div>
   );
 }

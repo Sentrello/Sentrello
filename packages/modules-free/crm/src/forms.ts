@@ -350,6 +350,77 @@ export function registerForms(ctx: ModuleContext) {
     },
   );
 
+  /**
+   * Throwing away one submission, and the file it came with.
+   *
+   * There was no way to do this at all. A form could be deleted, which takes
+   * every submission with it, and that is the wrong instrument for the case
+   * that actually comes up: a job application, after the role is filled, on a
+   * form that is still taking applications for the next one. The only options
+   * were keep every CV for ever or delete the form people are applying through.
+   *
+   * **The file goes with the row**, which is the half that matters and the half
+   * that would have been easy to leave out. A submission is a line of text; its
+   * attachment is somebody's CV, and a row removed while the PDF stays on the
+   * disk is the deletion a business would report as done and a candidate would
+   * be entitled to complain about. `removeAttachment` is the same call the
+   * retention sweep makes.
+   *
+   * The contact it was promoted to stays. That is a person in the CRM now,
+   * with a history of their own, and they are not an attachment of the form
+   * they arrived through — the same reasoning as deleting a whole form.
+   */
+  ctx.app.delete(
+    "/api/forms/submissions/:submissionId",
+    requireSession(),
+    requirePermission({ crm: ["delete"] }),
+    async (c) => {
+      const orgId = activeOrganizationId(c.get("session"));
+      const id = c.req.param("submissionId");
+
+      /*
+       * Found and scoped in one query, so an id belonging to another business
+       * cannot be deleted and cannot be told apart from one that never existed.
+       */
+      const [row] = await db
+        .select({
+          id: schema.formSubmissions.id,
+          attachments: schema.formSubmissions.attachments,
+        })
+        .from(schema.formSubmissions)
+        .where(
+          and(
+            eq(schema.formSubmissions.id, id),
+            eq(schema.formSubmissions.organizationId, orgId),
+          ),
+        )
+        .limit(1);
+      if (!row) return c.json({ error: "not found" }, 404);
+
+      /*
+       * Files first, then the row. The other order loses the paths: with the
+       * row gone there is nothing left that says which files belonged to it, and
+       * they sit on the disk for ever with nobody able to name them.
+       */
+      let files = 0;
+      for (const held of row.attachments ?? []) {
+        await removeAttachment(held.path, UPLOAD_FOLDER);
+        files += 1;
+      }
+
+      await db
+        .delete(schema.formSubmissions)
+        .where(
+          and(
+            eq(schema.formSubmissions.id, id),
+            eq(schema.formSubmissions.organizationId, orgId),
+          ),
+        );
+
+      return c.json({ ok: true, files });
+    },
+  );
+
   ctx.app.get(
     "/api/forms/:id/submissions",
     requireSession(),
