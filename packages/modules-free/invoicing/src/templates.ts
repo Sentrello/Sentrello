@@ -312,11 +312,11 @@ export function registerTemplates(ctx: ModuleContext) {
       await db.transaction(async (tx) => {
         await tx
           .update(schema.documentTemplates)
-          .set({ isDefault: false })
+          .set({ isDefault: false, updatedAt: new Date() })
           .where(eq(schema.documentTemplates.organizationId, orgId));
         await tx
           .update(schema.documentTemplates)
-          .set({ isDefault: true })
+          .set({ isDefault: true, updatedAt: new Date() })
           .where(eq(schema.documentTemplates.id, id));
       });
       return c.json({ isDefault: true });

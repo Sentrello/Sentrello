@@ -415,7 +415,7 @@ export async function runReminders(
       }
       await db
         .update(schema.invoices)
-        .set({ lastReminderAt: now })
+        .set({ lastReminderAt: now, updatedAt: now })
         .where(eq(schema.invoices.id, invoice.id));
       sent += 1;
       continue;
@@ -541,7 +541,7 @@ export async function runReminders(
 
     await db
       .update(schema.invoices)
-      .set({ lastReminderAt: now })
+      .set({ lastReminderAt: now, updatedAt: now })
       .where(eq(schema.invoices.id, invoice.id));
     sent += 1;
   }

@@ -122,6 +122,7 @@ export function registerPaymentWebhookEndpoint(ctx: ModuleContext) {
       await db
         .update(schema.paymentAccounts)
         .set({
+          updatedAt: new Date(),
           webhookRejectedAt: new Date(),
           webhookRejectedCount: sql`${schema.paymentAccounts.webhookRejectedCount} + 1`,
         })
@@ -148,7 +149,11 @@ export function registerPaymentWebhookEndpoint(ctx: ModuleContext) {
      */
     await db
       .update(schema.paymentAccounts)
-      .set({ webhookAcceptedAt: new Date(), webhookRejectedCount: 0 })
+      .set({
+        webhookAcceptedAt: new Date(),
+        webhookRejectedCount: 0,
+        updatedAt: new Date(),
+      })
       .where(eq(schema.paymentAccounts.id, account.id));
 
     const { eventId, eventType } = identifyPaymentEvent(raw);

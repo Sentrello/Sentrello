@@ -373,7 +373,7 @@ export function registerMerge(ctx: ModuleContext) {
           ];
           await tx
             .update(schema.deals)
-            .set({ contactIds: next })
+            .set({ contactIds: next, updatedAt: new Date() })
             .where(eq(schema.deals.id, deal.id));
         }
         if (onDeals.length) moved.deals = onDeals.length;

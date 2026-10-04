@@ -328,7 +328,7 @@ export function registerPaymentAccounts(ctx: ModuleContext) {
       if (secretKey && saved.enabled) {
         await db
           .update(schema.paymentAccounts)
-          .set({ enabled: false })
+          .set({ enabled: false, updatedAt: new Date() })
           .where(eq(schema.paymentAccounts.id, saved.id));
         saved.enabled = false;
       }
@@ -418,6 +418,7 @@ export function registerPaymentAccounts(ctx: ModuleContext) {
       await db
         .update(schema.paymentAccounts)
         .set({
+          updatedAt: new Date(),
           lastTestedAt: new Date(),
           lastTestOk: tested.ok,
           lastTestMessage: tested.message,
@@ -512,7 +513,7 @@ export function registerPaymentAccounts(ctx: ModuleContext) {
             webhookSecret = secrets.seal(made.secret);
             await db
               .update(schema.paymentAccounts)
-              .set({ webhookSecret })
+              .set({ webhookSecret, updatedAt: new Date() })
               .where(eq(schema.paymentAccounts.id, account.id));
             steps.push({ step: "set up the webhook", ok: true });
           } else {
@@ -540,7 +541,7 @@ export function registerPaymentAccounts(ctx: ModuleContext) {
 
       await db
         .update(schema.paymentAccounts)
-        .set({ enabled: false })
+        .set({ enabled: false, updatedAt: new Date() })
         .where(eq(schema.paymentAccounts.organizationId, orgId));
       const [enabled] = await db
         .update(schema.paymentAccounts)
@@ -565,7 +566,7 @@ export function registerPaymentAccounts(ctx: ModuleContext) {
       const orgId = activeOrganizationId(c.get("session"));
       await db
         .update(schema.paymentAccounts)
-        .set({ enabled: false })
+        .set({ enabled: false, updatedAt: new Date() })
         .where(eq(schema.paymentAccounts.organizationId, orgId));
       return c.json({ ok: true });
     },

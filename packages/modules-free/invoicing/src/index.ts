@@ -896,8 +896,12 @@ export default defineModule({
             .update(schema.invoices)
             .set(
               takingIt
-                ? { status, earlyDiscountTakenCents: terms.savingCents }
-                : { status },
+                ? {
+                    status,
+                    earlyDiscountTakenCents: terms.savingCents,
+                    updatedAt: new Date(),
+                  }
+                : { status, updatedAt: new Date() },
             )
             .where(eq(schema.invoices.id, invoiceId));
 
@@ -1081,7 +1085,7 @@ export default defineModule({
 
           await tx
             .update(schema.invoices)
-            .set({ status })
+            .set({ status, updatedAt: new Date() })
             .where(eq(schema.invoices.id, invoiceId));
 
           // No cash moves and no FX applies: this reclassifies a liability the
@@ -1182,7 +1186,7 @@ export default defineModule({
         // Only now: a quote the customer can see is one that actually went.
         const [updated] = await db
           .update(schema.quotes)
-          .set({ status: "sent" })
+          .set({ status: "sent", updatedAt: new Date() })
           .where(eq(schema.quotes.id, quote.id))
           .returning();
 

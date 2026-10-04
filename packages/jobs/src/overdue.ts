@@ -165,7 +165,7 @@ export async function sendOverdueReminders(
 
     await db
       .update(schema.invoices)
-      .set({ lastReminderAt: now })
+      .set({ lastReminderAt: now, updatedAt: now })
       .where(eq(schema.invoices.id, invoice.id));
     sent++;
   }
