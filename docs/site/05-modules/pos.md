@@ -211,10 +211,28 @@ learns to ignore, and then it is worth nothing on the night it is large.
 
 ### Printers, and the drawer that opens itself
 
-A receipt printer is an address on your network. Add it under **Point of sale →
-Serving → Printers**: a name, the address, and whether the cash drawer is
-wired to it. Then press **Test**, which puts a piece of paper in your hand and
-opens the drawer — the only way to know a printer works is to have it print.
+Add a printer under **Point of sale → Serving → Printers**: a name, how it is
+reached, and whether the cash drawer is wired to it. Then press **Test**, which
+puts a piece of paper in your hand and opens the drawer — the only way to know a
+printer works is to have it print.
+
+**Two ways round, and the default is the one that always works.**
+
+| How it is reached | What it means |
+|---|---|
+| **It polls us** | The printer asks Sentrello for work every couple of seconds. Nothing is opened on your network, and it works wherever Sentrello is installed. |
+| **We dial it** | Sentrello opens a connection to the printer's address. A fraction faster, and it needs the printer on the same network as the server. |
+
+A polling printer is given an address instead of being asked for one. Copy it
+into the printer's own settings — the manufacturer calls this CloudPRNT or
+server-direct printing — and it starts asking. Until it asks, nothing prints,
+and the screen says so plainly rather than leaving you guessing.
+
+That arrangement has a second benefit nobody expects until they need it: there
+is a queue. A printer switched off at six o'clock does not lose the evening's
+receipts; it collects them when it comes back. And because the printer reports
+its own condition on every poll, the screen can tell you the paper has run out
+**before** somebody tries to print.
 
 Two kinds, chosen when you add one:
 
@@ -242,12 +260,18 @@ in it says so on the screen and nothing else changes.
 
 :::note[Where the printer has to be]
 
-Sentrello sends to printers from the server, so the printer has to be reachable
-from wherever Sentrello is installed — usually the same network as the till,
-which is the ordinary self-hosted arrangement. A browser cannot open a socket to
-a printer, and a printer speaks no https, so there is no way to do this from the
-till's own screen instead. If you run Sentrello on a rented server somewhere
-else, it cannot reach a printer on your counter.
+**Dialling the printer** needs it on the same network as the server, which a
+self-hosted instance in the back office is and a rented server in another country
+is not. It also cannot be done from the till's own screen instead: a browser
+cannot open a socket, and a printer answers plain http, which a page served over
+https is not allowed to call.
+
+**A polling printer has none of those problems**, which is why it is the default.
+Pick it unless you have a reason not to.
+
+One honest gap in both: a printer plugged into the till by USB cannot be reached
+either way, because both of them are addresses on a network. A USB printer with a
+small network adapter in front of it works.
 
 :::
 
@@ -548,11 +572,13 @@ report a manager takes mid-shift.
 Said plainly, because a list of what a product cannot do is more useful than a
 list of what it can.
 
-- **A printer plugged into the till by USB.** Printers are reached over the
-  network, on port 9100, which is what every receipt printer worth buying
-  speaks. One hanging off a cable has nothing listening on an address, and a
-  browser cannot talk to it either. A USB printer with a small network adapter
-  in front of it works today.
+- **A printer plugged into the till by USB.** Both ways of reaching a printer are
+  addresses on a network, and a printer hanging off a cable has none. One with a
+  small network adapter in front of it works today.
+- **A drawer on a printer that only takes plain text.** Opening a drawer is a
+  command, and there is nowhere in a line of text to put one. Most printers take
+  commands and this does not come up; where it does, the printers screen says so
+  rather than offering a button that does nothing.
 - **Routing to stations.** One pass and one kitchen chit, not a hot line and a
   cold line. That is a layer on top of this and one nobody should design without
   a kitchen to stand in.

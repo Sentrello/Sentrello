@@ -181,12 +181,15 @@ service with floors and sections, a kitchen pass, tips and a mandatory service
 charge with the disclosure one lawfully needs, a per-person shift report, two
 bills joining into one, a screen the customer reads over the counter, a
 rehearsal mode that posts nothing anywhere, and paper: receipts off a roll,
-chits in the kitchen, and a drawer that springs open when cash goes in it.
+chits in the kitchen, and a drawer that springs open when cash goes in it —
+reached either by dialling the printer or, by default, by the printer polling us,
+which works wherever the instance is and queues what a printer that is switched
+off would otherwise lose.
 
-What is still missing: routing a chit between kitchen stations, a printer
-plugged in by USB rather than reached over the network, and fiscalisation — no
-certified device and no live link to a tax authority, which is permanent and
-rules out those markets that require one.
+What is still missing: routing a chit between kitchen stations, a printer plugged
+in by USB rather than reached over a network, and fiscalisation — no certified
+device and no live link to a tax authority, which is permanent and rules out
+those markets that require one.
 
 Nothing here says when it returns, because we do not know. When it does it is a
 **plugin**: it needs Shop, it is bought separately at half a module's price,
