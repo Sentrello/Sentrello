@@ -78,7 +78,13 @@ interface SentrelloRuntime {
    * installs the real one as it mounts; until then a full page load lands in
    * the same place the slow way.
    */
-  open: (view: { moduleId: string; recordId?: string; title: string }) => void;
+  open: (view: {
+    moduleId: string;
+    recordId?: string;
+    title: string;
+    /** A one-shot message to the screen being opened — see `filterIntent`. */
+    intent?: string;
+  }) => void;
 }
 
 declare global {
@@ -119,7 +125,12 @@ export function installRuntime(): SentrelloRuntime {
 
 /** Hands modules the real navigation once the provider that owns it mounts. */
 export function setModuleNavigator(
-  open: (view: { moduleId: string; recordId?: string; title: string }) => void,
+  open: (view: {
+    moduleId: string;
+    recordId?: string;
+    title: string;
+    intent?: string;
+  }) => void,
 ): void {
   installRuntime().open = open;
 }

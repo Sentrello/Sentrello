@@ -436,6 +436,14 @@ export interface SentrelloListUi {
    */
   useArrivingFilters: (state: ListState) => string | null;
   /**
+   * "Open that list, narrowed to this." The other half of
+   * `useArrivingFilters`: a chart builds one of these and hands it to `open` as
+   * an `intent`, and the list it lands on applies it.
+   */
+  filterIntent: (filters: Record<string, string>) => string;
+  /** `2026-09` as the first and last day of it, which is what a list filters on. */
+  monthRange: (month: string) => { from: string; to: string };
+  /**
    * Which columns this person wants to see, kept on their account.
    *
    * `fixed` marks the ones a list stops making sense without — the row's own
@@ -543,6 +551,8 @@ export const LIST_UI_MEMBERS = [
   "FilterToggle",
   "SortMenu",
   "useArrivingFilters",
+  "filterIntent",
+  "monthRange",
   "useColumns",
   "ColumnsMenu",
   "Pagination",
@@ -674,7 +684,12 @@ export interface Runtime {
    * host may not publish it; `makeModuleRuntime` falls back to a full page
    * load, which lands in the same place the slow way.
    */
-  open?: (view: { moduleId: string; recordId?: string; title: string }) => void;
+  open?: (view: {
+    moduleId: string;
+    recordId?: string;
+    title: string;
+    intent?: string;
+  }) => void;
 }
 
 /**
@@ -709,9 +724,24 @@ export function makeModuleRuntime(moduleName: string): {
   may: Runtime["may"];
   api: Runtime["api"];
   listUi: SentrelloListUi;
+  charts: SentrelloCharts;
   openedRecord: () => string | undefined;
   registerScreen: (id: string, screen: () => React.ReactElement | null) => void;
-  open: (view: { moduleId: string; recordId?: string; title: string }) => void;
+  open: (view: {
+    moduleId: string;
+    recordId?: string;
+    title: string;
+    /**
+     * A one-shot message to the screen being opened, read once on arrival.
+     *
+     * This is how a module's chart narrows the list it opens:
+     * `open({ moduleId: "shop-orders", title: "Orders", intent:
+     * listUi.filterIntent({ from, to }) })`, and the list applies it with
+     * `useArrivingFilters`. Without it a module could draw a pressable bar and
+     * have nothing to say about what it should open.
+     */
+    intent?: string;
+  }) => void;
 } {
   const runtime = hostRuntime(moduleName);
   return {
@@ -720,6 +750,7 @@ export function makeModuleRuntime(moduleName: string): {
     may: runtime.may,
     api: runtime.api,
     listUi: runtime.listUi,
+    charts: runtime.charts,
     /** The record this screen was opened for, if any. */
     openedRecord: () => runtime.opened?.recordId,
     /** How a module hands its screen to the host. */

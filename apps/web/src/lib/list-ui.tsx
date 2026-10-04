@@ -72,6 +72,17 @@ export interface ListState {
  * indistinguishable afterwards from one somebody set — it shows in the rail, it
  * clears with the rest, and nothing has to know where it came from.
  */
+/*
+ * Re-exported here rather than imported from `drill` by every caller.
+ *
+ * `useArrivingFilters` is the other half of the same idea and lives in this
+ * file because it is list machinery; a module reaching for one and finding the
+ * other somewhere it cannot see would be the surface problem this whole runtime
+ * exists to stop. The implementation stays in `drill.ts`, which has no React in
+ * it and can therefore be tested as plain functions.
+ */
+export { filterIntent, monthRange } from "./drill";
+
 export function useArrivingFilters(state: ListState): string | null {
   const { takeIntent } = useNavigation();
   const [intent] = useState(takeIntent);

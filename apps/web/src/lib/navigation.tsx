@@ -31,6 +31,19 @@ export interface View {
   recordId?: string;
   /** What to call this in a breadcrumb. */
   title: string;
+  /**
+   * A one-shot message to the screen being opened, read once on arrival.
+   *
+   * Here as well as on `go` because a module's chart has only `open` to reach
+   * another screen with — so without it a module could draw a bar and never
+   * say what pressing it should narrow to, which is the whole of the feature
+   * for every chart outside Core.
+   *
+   * Not in the address, for the reason `go`'s copy of this gives: it names
+   * something the screen should *do* on arrival, and a refresh should not do
+   * it again.
+   */
+  intent?: string;
 }
 
 interface Navigation {
@@ -296,6 +309,9 @@ export function NavigationProvider({
     (view: View) => {
       const carryOn = () => {
         setTrail((t) => trailAfterOpening(t, currentRef.current, view));
+        // Same one-shot slot `go` writes, so a screen reads an intent the same
+        // way whichever door it was opened through.
+        intentRef.current = view.intent ?? null;
         setCurrent(view);
         showPath(view);
       };
