@@ -571,6 +571,85 @@ export function findLopsidedColumns(source: string): HandRolledFinding[] {
   return findings.sort((a, b) => a.line - b.line);
 }
 
+/**
+ * A table whose rows do not all have the same columns.
+ *
+ * `findLopsidedColumns` asks for two mentions of a field and is satisfied by a
+ * header and one cell. That is the whole answer for a list with one kind of
+ * row, and half of it for a list with two: the filing cabinet draws a folder
+ * row and a file row inside one table, and a folder cell that is drawn
+ * unconditionally while the header beside it can be turned off shifts every
+ * folder one column left of every file. Two mentions, both present, nothing
+ * fails — the shape this project keeps finding, one question answered out of
+ * two.
+ *
+ * So, per table: whatever the headers guard, every row in that table guards
+ * too. A table whose rows are drawn by a component of their own has none to
+ * read here and is left to the scanner above.
+ */
+export function findUnevenColumnRows(source: string): HandRolledFinding[] {
+  const rawLines = source.split("\n");
+  const clean = stripComments(source);
+  const findings: HandRolledFinding[] = [];
+
+  const guarded = (text: string) =>
+    new Set(
+      [...text.matchAll(/shown\(\s*["'`]([a-zA-Z0-9_-]+)["'`]/g)].map(
+        (m) => m[1] as string,
+      ),
+    );
+
+  for (const table of clean.matchAll(/<Table\b/g)) {
+    const close = clean.indexOf("</Table>", table.index);
+    if (close === -1) continue;
+    const region = clean.slice(table.index, close);
+
+    // What the headings themselves can turn off: the array literal, not the
+    // rows under it.
+    const open = region.indexOf("headers={[");
+    if (open === -1) continue;
+    const headers = region.slice(open, region.indexOf("]", open));
+    const optional = guarded(headers);
+    if (optional.size === 0) continue;
+
+    for (const row of region.matchAll(/<Row\b/g)) {
+      const rowEnd = region.indexOf("</Row>", row.index);
+      if (rowEnd === -1) continue;
+      const body = region.slice(row.index, rowEnd);
+      // A row that spans the table has no columns of its own to keep in line —
+      // a select-all row, a subtotal. What it has instead is arithmetic, and a
+      // span counted by hand is right on the day it is written and wrong from
+      // the first time anybody hides a column: a cell wider than its table,
+      // which the browser pads by inventing a column nothing is under.
+      const span = body.match(/\bcolSpan=\{([^}]*)\}/);
+      if (span) {
+        const line = lineOf(clean, table.index + row.index);
+        if (
+          /^\s*\d+\s*$/.test(span[1] ?? "") &&
+          !exceptedAbove(rawLines, line, "ui-drift")
+        ) {
+          findings.push({
+            line,
+            say: `\`colSpan={${(span[1] ?? "").trim()}}\` is counted by hand in a table whose headings can be turned off — span the headers this table is actually drawing instead.`,
+          });
+        }
+        continue;
+      }
+      const cells = guarded(body);
+      const line = lineOf(clean, table.index + row.index);
+      if (exceptedAbove(rawLines, line, "ui-drift")) continue;
+      for (const field of optional) {
+        if (cells.has(field)) continue;
+        findings.push({
+          line,
+          say: `this row draws no \`shown("${field}")\` and the heading above it does — the heading comes off and this row keeps its cell, which shifts it a column out of line with every other row in the table.`,
+        });
+      }
+    }
+  }
+  return findings.sort((a, b) => a.line - b.line);
+}
+
 export function findUnpagedList(source: string): HandRolledFinding[] {
   const rawLines = source.split("\n");
   const clean = stripComments(source);
@@ -729,6 +808,7 @@ declareScope(findFillAsText);
 declareScope(findUnthemedElevation);
 // React only: `useColumns` is a hook, so a server-rendered page cannot have one.
 declareScope(findLopsidedColumns, "react");
+declareScope(findUnevenColumnRows, "react");
 declareScope(findUnpagedList, "react", "page");
 declareScope(findDroppedNotice, "react", "page");
 

@@ -4,6 +4,7 @@ import {
   findFillAsText,
   findHandRolledUi,
   findLopsidedColumns,
+  findUnevenColumnRows,
   findUnpagedList,
   findUnthemedElevation,
 } from "./ui-drift";
@@ -370,6 +371,8 @@ test("every scanner says what kind of source it is for", () => {
     findHandRolledUi: ["react"],
     // `useColumns` is a hook, so only a React screen can have one to get wrong.
     findLopsidedColumns: ["react"],
+    // Counts `<Row>` against the headings above it, which is JSX either way.
+    findUnevenColumnRows: ["react"],
     // A JSX attribute, and only ever that: a stylesheet writing a border
     // colour is writing a rule, and a rule can carry its own width.
     findColourWithoutBorder: ["react"],
@@ -525,5 +528,85 @@ const columns = useColumns("orders", [
   // business.
   expect(
     findLopsidedColumns("<Table headers={['A']}><td>a</td></Table>"),
+  ).toEqual([]);
+});
+
+/**
+ * Two kinds of row in one table, and only one of them asked.
+ *
+ * The filing cabinet's list draws a folder row and a file row under one set of
+ * headings. The scanner above counts mentions and is satisfied at two, so a
+ * folder cell drawn unconditionally beside a header that can be turned off
+ * passes it — and the folders then sit a column left of the files, for whoever
+ * turned that heading off. Written against the real shape, because that is the
+ * one it missed.
+ */
+test("a row that keeps a cell the heading can lose is a finding", () => {
+  const twoShapes = `
+<Table headers={["", "Name", ...(columns.shown("size") ? ["Size"] : [])]}>
+  <Row><td /><td>{f.name}</td><td>—</td></Row>
+  <Row><td /><td>{d.name}</td>{columns.shown("size") ? <td>{d.size}</td> : null}</Row>
+</Table>`;
+  const found = findUnevenColumnRows(twoShapes);
+  expect(found).toHaveLength(1);
+  expect(found[0]?.say).toContain('"size"');
+
+  // Both rows asking: nothing to say.
+  expect(
+    findUnevenColumnRows(
+      twoShapes.replace(
+        "<td>—</td>",
+        '{columns.shown("size") ? <td>—</td> : null}',
+      ),
+    ),
+  ).toEqual([]);
+
+  // Rows drawn by a component of their own leave nothing here to read, and the
+  // scanner above still has them.
+  expect(
+    findUnevenColumnRows(
+      '<Table headers={["Product", ...(columns.shown("sku") ? ["SKU"] : [])]}>{rows.map((l) => <StockRow key={l.id} columns={columns} />)}</Table>',
+    ),
+  ).toEqual([]);
+
+  // A heading that cannot be turned off is not this scanner's business either.
+  expect(
+    findUnevenColumnRows(
+      '<Table headers={["Name"]}><Row><td>{a}</td></Row><Row><td>{b}</td></Row></Table>',
+    ),
+  ).toEqual([]);
+});
+
+/**
+ * The span under the select-all tick, counted by hand.
+ *
+ * The shop's product list carried `colSpan={5}`, written when five was the
+ * number of columns after the tick and wrong from the first time anybody hid
+ * one: a cell claiming more columns than the table has, which a browser
+ * accommodates by inventing one. Found by the scanner above the day it was
+ * written, which is the argument for the scanner.
+ */
+test("a span counted by hand under a hideable heading is a finding", () => {
+  const byHand = `
+<Table headers={["", ...(columns.shown("picture") ? [""] : []), "Product"]}>
+  <Row><td><input type="checkbox" /></td><td colSpan={5} /></Row>
+</Table>`;
+  const found = findUnevenColumnRows(byHand);
+  expect(found).toHaveLength(1);
+  expect(found[0]?.say).toContain("colSpan={5}");
+
+  // Spanning whatever the table is drawing: nothing to say, and no demand for
+  // per-column cells either.
+  expect(
+    findUnevenColumnRows(
+      byHand.replace("colSpan={5}", "colSpan={headers.length - 1}"),
+    ),
+  ).toEqual([]);
+
+  // A table with fixed headings can count its own span on its fingers.
+  expect(
+    findUnevenColumnRows(
+      '<Table headers={["Name", "Size"]}><Row><td colSpan={2} /></Row></Table>',
+    ),
   ).toEqual([]);
 });
