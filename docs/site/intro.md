@@ -11,9 +11,10 @@ Sentrello is a **unified business management platform** for small businesses.
 Customers, quotes, invoices, bookkeeping, bookings, files and staff accounts,
 in one application, on a server you control.
 
-Under twenty people is the size it is built for. That is the size at which five
-subscriptions cost more than the work they save, and nobody has the afternoon
-it takes to make five systems agree with each other.
+One person to five hundred is the size it is built for — the whole span of a
+small business. That is the size at which five subscriptions cost more than the
+work they save, and nobody has the afternoon it takes to make five systems
+agree with each other.
 
 ## What makes it different
 

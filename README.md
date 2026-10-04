@@ -173,15 +173,23 @@ sold against the free core.
 | **Helpdesk** | Customer questions arriving as tickets in a queue, rather than into one person's inbox | **Being built** |
 
 **POS is not for sale, and has no date.** It was withdrawn from the catalog
-on 15 September 2026 on its own review. The cash controls a till needs are all
-there — void, refund, comp, discount, a blind drawer count, a receipt and the
-closure it printed. What is missing is the hardware around them: no card
-reader, no receipt printer, and no pass over the screens for a counter you
-stand at rather than a desk you sit at. Nobody has lost anything — no license is sold
-before 1 October 2026 — and nothing here says when it returns, because we do
-not know. When it does it is a **plugin**: it needs Shop, it is bought
-separately at half a module's price, and it shares Shop's catalog rather than
-keeping a menu of its own.
+on 15 September 2026 on its own review, and most of what that review was
+waiting for has since been built: the cash controls a till needs (void, refund,
+comp, discount, a blind drawer count, a receipt and the closure it printed), a
+card reader the till drives rather than one somebody taps beside it, table
+service with floors and sections, a kitchen pass, tips and a mandatory service
+charge with the disclosure one lawfully needs, a per-person shift report, two
+bills joining into one, a screen the customer reads over the counter, and a
+rehearsal mode that posts nothing anywhere.
+
+What is still missing: a thermal printer driver and a drawer that kicks open,
+routing between kitchen stations, and fiscalisation — no certified device and
+no live link to a tax authority, which is permanent and rules out those
+markets that require one.
+
+Nothing here says when it returns, because we do not know. When it does it is a
+**plugin**: it needs Shop, it is bought separately at half a module's price,
+and it shares Shop's catalog rather than keeping a menu of its own.
 
 **HR and Helpdesk are being built, and are not dated either.** Neither has
 code yet, so anything said about them here beyond what they are for would be a
