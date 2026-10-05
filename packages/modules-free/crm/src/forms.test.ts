@@ -1098,3 +1098,41 @@ test("a submission carries the click that brought them, out of the answers", asy
     );
   expect(withNoLink.length).toBeGreaterThan(0);
 });
+
+/**
+ * What the script is cached for, which decides how long a fix takes to arrive.
+ *
+ * The script runs on somebody else's website, so a copy held anywhere between
+ * this instance and their visitor is a copy of whatever was wrong last time. It
+ * spent a day posting an empty body; the fix shipped, and the proxy in front of
+ * the instance went on handing out the broken one.
+ *
+ * `s-maxage` is the half that is ours to enforce: a shared cache prefers it to
+ * `max-age`, so the edge rechecks on our terms whatever a browser was told. The
+ * browser's own figure can be overridden by a proxy — Cloudflare's Browser Cache
+ * TTL defaults to four hours and replaces anything lower — which is why the
+ * release asks the public hostname what it actually serves rather than trusting
+ * this line.
+ */
+test("the embed script is cached briefly, and the edge is told separately", async () => {
+  const res = await app.request("http://localhost/embed.js");
+  expect(res.status).toBe(200);
+  const cache = res.headers.get("cache-control") ?? "";
+
+  const maxAge = Number(/(?:^|[ ,])max-age=(\d+)/.exec(cache)?.[1] ?? -1);
+  const shared = Number(/s-maxage=(\d+)/.exec(cache)?.[1] ?? -1);
+  expect(maxAge, `no max-age in "${cache}"`).toBeGreaterThan(0);
+  expect(
+    maxAge,
+    `max-age is ${maxAge}s — a fix to the script collecting somebody's leads should not wait that long`,
+  ).toBeLessThanOrEqual(600);
+  expect(
+    shared,
+    `no s-maxage in "${cache}" — without it a shared cache follows max-age, which a proxy is free to lengthen`,
+  ).toBeGreaterThan(0);
+  expect(shared).toBeLessThanOrEqual(600);
+
+  // And it is still a public, cacheable answer: this is served to every visitor
+  // of every page that embeds a form, and no-store would put all of them here.
+  expect(cache).toContain("public");
+});

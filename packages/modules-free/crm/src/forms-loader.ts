@@ -24,6 +24,27 @@
  * through the browser of whoever is filling it in — and the script runs on the
  * customer's own site, where an injection would be theirs to explain, not
  * ours.
+ *
+ * **A comment in here is a comment on somebody else's website.** Everything
+ * between these backticks is served verbatim to every page that embeds a form,
+ * so the explanation of a fix belongs out here and a pointer belongs in there.
+ * Seventeen lines describing the bug below went out to three live pages that
+ * way, and took the script past twenty-one kilobytes.
+ *
+ * **The body, built with forEach.** It was
+ * `Array.prototype.reduce.call(data.entries(), …)`, and it sent an empty object
+ * — every time, on every form without a file on it. `entries()` returns an
+ * iterator, an iterator has no `length`, and a borrowed array method reads
+ * nothing else: it visited nothing and handed back the empty object it started
+ * with. So the body was `{}`, the instance answered `400 name or email is
+ * required`, and the only forms that worked were the ones carrying a file —
+ * those post the FormData itself and never reach that branch.
+ *
+ * Nothing anywhere said so. The form rendered, the fields filled, the button
+ * submitted, and the visitor was told it could not be sent. `forEach` was
+ * already being used ten lines above to decide whether a file was being
+ * carried, which is the part worth reading twice: the right call was in the same
+ * function the whole time.
  */
 const SCRIPT = String.raw`(function () {
   var tag = document.currentScript;
@@ -369,24 +390,7 @@ const SCRIPT = String.raw`(function () {
 
         var sending = { method: "POST", credentials: "omit", body: data };
         if (!carrying) {
-          /*
-           * Built with forEach, which is what a FormData actually offers.
-           *
-           * This was Array.prototype.reduce.call(data.entries(), …) and it sent
-           * an empty object — every time, on every form without a file on it.
-           * entries() returns an iterator, an iterator has no length, and reduce
-           * borrowed onto something with no length iterates nothing at all and
-           * hands back its initial value. So the body was {}, the instance
-           * answered 400 "name or email is required", and the only forms that
-           * worked were the ones carrying a file: those send the FormData itself
-           * and never reach this branch.
-           *
-           * Nothing anywhere said so. The form rendered, the fields filled, the
-           * button submitted, and the visitor was told it could not be sent.
-           * forEach is already used ten lines above to decide whether a file is
-           * being carried, which is the part worth reading twice — the right
-           * call was in this same function the whole time.
-           */
+          // forEach, which is what a FormData offers. See this file's own notes.
           var body = {};
           data.forEach(function (value, field) {
             body[field] = value;

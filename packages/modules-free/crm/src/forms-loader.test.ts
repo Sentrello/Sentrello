@@ -190,3 +190,28 @@ test("a form carrying a file posts the body the browser built", () => {
     'sending.headers = { "content-type": "application/json" }',
   );
 });
+
+/**
+ * Every byte in here is a byte on somebody else's website.
+ *
+ * The script is served verbatim, so everything between the backticks is
+ * downloaded by every page that embeds a form. Seventeen lines explaining why
+ * the request body is built with `forEach` rather than a borrowed `reduce` went
+ * out that way, to three live pages, and took the script from 20,084 bytes to
+ * 21,140 — a kilobyte of post-mortem on a stranger's contact page.
+ *
+ * A budget rather than a rule about comments. The script is deliberately
+ * commented: its own doc says it is small enough to read in one sitting so that
+ * anybody can check what they are pasting onto their page, and fifteen design
+ * notes in it are there for that reader. What does not belong is the story of a
+ * bug we fixed, and the thing that distinguishes the two is size.
+ *
+ * Raise the number when the script genuinely earns the bytes, and say why.
+ */
+test("the script somebody else's page downloads stays inside its budget", () => {
+  const size = embedScript().length;
+  expect(
+    size,
+    `the embed script is ${size} bytes and ships to every page that embeds a form — if the growth is an explanation rather than a feature, it belongs in the source around the template`,
+  ).toBeLessThan(21000);
+});

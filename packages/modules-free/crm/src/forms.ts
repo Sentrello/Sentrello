@@ -767,10 +767,28 @@ export function registerForms(ctx: ModuleContext) {
   ctx.app.get("/embed.js", (c) =>
     c.body(embedScript(), 200, {
       "content-type": "application/javascript; charset=utf-8",
-      // Cached, but briefly. It changes when the product does, and a site
-      // holding a month-old copy would miss a fix to the thing collecting
-      // their leads.
-      "cache-control": "public, max-age=3600",
+      /*
+       * Cached briefly, and the edge told separately.
+       *
+       * It changes when the product does, and a site holding an old copy misses
+       * a fix to the thing collecting their leads — which is not hypothetical:
+       * the script spent a day posting an empty body, and when the fix shipped,
+       * the proxy in front of this instance went on serving the broken one.
+       *
+       * `s-maxage` is why both are here. A shared cache takes that in preference
+       * to `max-age`, so the edge rechecks every five minutes whatever a browser
+       * has been told, and `stale-while-revalidate` means the recheck costs
+       * nobody a wait.
+       *
+       * **A proxy may still lengthen the browser's figure.** Cloudflare's
+       * Browser Cache TTL overrides a `max-age` lower than its own and defaults
+       * to four hours on every plan, so this header asked for an hour and
+       * arrived as four until that zone setting was put on "Respect Existing
+       * Headers". Nothing here can enforce it; `finish-release.sh` asks the
+       * public hostname what it actually serves, which is the only way to know.
+       */
+      "cache-control":
+        "public, max-age=300, s-maxage=300, stale-while-revalidate=60",
       "access-control-allow-origin": "*",
     }),
   );
