@@ -441,7 +441,9 @@ Tuesday does not quietly restate what somebody was owed on Monday.
 A share for the house is allowed and the screen warns you about it, because in
 some places keeping part of a voluntary tip is a matter somebody will ask about.
 A share for the bar carries no name until the end of a shift, when whoever was
-on it is a decision rather than a column.
+on it is a decision rather than a column — so the bar's, the kitchen's and the
+house's shares sit on the Shifts screen as their own figures, and you pick who
+takes each one when you hand it over.
 
 ### A service charge is not a tip
 
@@ -539,9 +541,11 @@ It is not the cash-up, and it will not agree with one on a night where a manager
 tendered somebody else's tables. A cash-up balances a box; this says who served
 what. Both are right.
 
-**What is owed in tips**, per person, with a button to hand it over — which
-comes out of the drawer open now and leaves it short against its own card
-takings. That is correct, and the count knows.
+**What is owed in tips**, per person and per pool, with a button to hand it
+over — which comes out of the drawer open now and leaves it short against its
+own card takings. That is correct, and the count knows. Each person's figure is
+their share under the arrangement in force when the tip was taken, not the whole
+gratuity: the bar's slice is the bar's, and paying the server does not settle it.
 
 Somebody may read their own shift without `pos:manage`. A till that makes a
 server ask a manager what they earned is a till people keep their own notes
