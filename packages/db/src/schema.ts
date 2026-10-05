@@ -2828,12 +2828,21 @@ export const fixedAssets = pgTable(
     /**
      * The last month depreciation was posted for.
      *
-     * Held as the first day of that month. What stops a monthly job posting
-     * twice for one month, and what lets a business that started using this in
-     * March catch up on January and February in one run.
+     * Held as the first day of that month, and a marker rather than a control.
+     *
+     * This said it was "what stops a monthly job posting twice for one month".
+     * It is not, and never was: the run reads the entries' own sources for
+     * that, deliberately, because a counter on the asset is a second thing to
+     * keep in step — and it already was not, since a run that dies between the
+     * posting and this update leaves the column behind for ever. The next run
+     * finds the month posted and skips it without touching this.
+     *
+     * So nothing reads it. The register asks the books how far each asset has
+     * been depreciated, the same way it asks them what has been taken.
      */
     depreciatedThrough: timestamp("depreciated_through"),
     disposedOn: timestamp("disposed_on"),
+    /** What it fetched, where it was sold rather than scrapped. */
     disposalProceedsCents: integer("disposal_proceeds_cents"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
