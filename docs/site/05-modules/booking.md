@@ -65,18 +65,15 @@ flowchart LR
   ROOT(["yours.example/"]):::url
   BOOK(["/book"]):::url
   SVC(["/book/&lt;service&gt;"]):::url
-  CONF(["/book/confirm"]):::url
-  MAN(["/book/manage/&lt;token&gt;"]):::url
+  MAN(["/booking/manage/&lt;token&gt;"]):::url
 
   L1["Every service you publish"]:::leaf
-  L2["The slots availability leaves open"]:::leaf
-  L3["Details, and the booking is made"]:::leaf
-  L4["Their own link, to move or cancel<br/><small>no account, no password</small>"]:::leaf
+  L2["The slots availability leaves open,<br/><small>and the form that takes the booking</small>"]:::leaf
+  L4["Their own link, mailed to them,<br/><small>to move or cancel — no account, no password</small>"]:::leaf
 
   ROOT --> BOOK --> L1
   BOOK --> SVC --> L2
-  SVC --> CONF --> L3
-  CONF --> MAN --> L4
+  SVC --> MAN --> L4
 ```
 
 A public page that works on a phone, with no account and no app. One per

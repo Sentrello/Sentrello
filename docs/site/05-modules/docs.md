@@ -60,29 +60,34 @@ open it.
 
 ## How your files become a site
 
-A path in the repository becomes a path on the site. Numeric prefixes order
-the sidebar and then drop out of the URL, so renaming a file to move it does
-not break a link.
+A path in the repository becomes a path on the site, underneath wherever the
+site lives. That is `/docs` unless you change it on the site's settings, and
+everything below hangs off it. Numeric prefixes order the sidebar and then drop
+out of the URL, so renaming a file to move it does not break a link.
 
 ```mermaid
 flowchart LR
   classDef file fill:#f7f7f8,stroke:#9aa3ad,color:#444c55
   classDef url fill:#eef4ff,stroke:#3b6fd4,color:#16305e
 
-  A["docs/intro.md"]:::file --> A2(["/intro"]):::url
-  B["docs/01-getting-started/index.md"]:::file --> B2(["/getting-started"]):::url
-  C["docs/01-getting-started/install.md"]:::file --> C2(["/getting-started/install"]):::url
-  D["docs/02-core/crm.md"]:::file --> D2(["/core/crm"]):::url
+  A["docs/intro.md"]:::file --> A2(["/docs/intro"]):::url
+  B["docs/01-getting-started/index.md"]:::file --> B2(["/docs/getting-started"]):::url
+  C["docs/01-getting-started/install.md"]:::file --> C2(["/docs/getting-started/install"]):::url
+  D["docs/02-core/crm.md"]:::file --> D2(["/docs/core/crm"]):::url
 ```
 
 | In your repository | On the site |
 |---|---|
-| `intro.md` | A page at `/intro` |
-| `guides/install.md` | A page at `/guides/install`, in a "Guides" section |
+| `intro.md` | A page at `/docs/intro` |
+| `guides/install.md` | A page at `/docs/guides/install`, in a "Guides" section |
 | `guides/_category_.json` | Names that section and orders it |
 | `guides/index.md` | That section's own page |
 | `01-first.md` | Ordered first; the number is not in the address |
 | `_partial.md` | Not published; a leading underscore means a fragment |
+
+Keep more than one version and each gets its own segment in between —
+`/docs/v2/guides/install` — except the one you publish at the root, which
+carries none.
 
 The header block at the top of a file sets the title, its position in the
 sidebar, tags, a description, and whether it is a draft.
