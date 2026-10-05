@@ -49,9 +49,13 @@ remembering to add it. The CCPA "do not sell or share" opt-out is recorded with
 the date it was received and carried into every contact export.
 
 **HIPAA.** An optional safeguards switch in Settings turns on automatic
-sign-out, mandatory two-factor authentication, and a log of every read of a
-patient's record. The screen also lists what stays your own responsibility:
-risk assessment, training, and business associate agreements.
+sign-out, mandatory two-factor authentication, and a log of every time somebody
+opens a patient's record — the question after a suspected snooping incident is
+"who looked at this", and a log of changes cannot answer it, because nothing was
+changed. Opening the record is what is written down; a list of two hundred
+contacts is not, or the one line that mattered is buried under the noise. The
+screen also lists what stays your own responsibility: risk assessment, training,
+and business associate agreements.
 
 **PCI DSS.** The card number and the security code never touch your server.
 Payment goes straight to the processor, and what comes back is a token plus

@@ -90,7 +90,7 @@ export const REGIMES: Regime[] = [
     turnsOn: [
       "Automatic sign-out after a set time",
       "A second factor required from everybody",
-      "Every read of a patient's record recorded, not only changes",
+      "Opening a patient's record recorded, not only changes to it",
     ],
     yourJob: [
       {
