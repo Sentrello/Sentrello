@@ -1,4 +1,4 @@
-import { beforeEach, expect, test } from "bun:test";
+import { afterAll, beforeEach, expect, test } from "bun:test";
 import {
   addCrawlable,
   allCrawlable,
@@ -16,6 +16,10 @@ import {
  */
 
 beforeEach(clearCrawlable);
+// And after the file: the registry is one array for the whole process, so a
+// prefix this file left behind is a prefix another file's `noindex` header
+// answers with.
+afterAll(clearCrawlable);
 
 test("an instance with no public pages refuses the lot", async () => {
   expect(await robotsTxt("https://app.example.test")).toBe(

@@ -1,4 +1,4 @@
-import { beforeEach, expect, test } from "bun:test";
+import { afterAll, beforeEach, expect, test } from "bun:test";
 import {
   addOnboarding,
   allOnboarding,
@@ -26,6 +26,9 @@ const guide = (steps: Parameters<typeof addOnboarding>[0]["steps"]) => ({
 });
 
 beforeEach(clearOnboarding);
+// And after the file, because the registry is one array for the whole process:
+// a guide this file left behind is a guide another file's list answers with.
+afterAll(clearOnboarding);
 
 test("a step asks the data rather than remembering an answer", async () => {
   const asked: string[] = [];

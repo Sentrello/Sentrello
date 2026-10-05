@@ -52,6 +52,12 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // And the registries this file filled, for the reason it clears them on the
+  // way in: one array for the whole process, and the next file's list answers
+  // with whatever this one left.
+  clearOnboarding();
+  clearSummaries();
+  clearWidgets();
   // The owner has to go too. Leaving one behind makes the instance look
   // claimed, and every bootstrap test then fails on a database this one
   // dirtied — which reads as those tests breaking, not this one.

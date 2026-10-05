@@ -43,6 +43,16 @@ async function makeContact(organizationId: string, name: string) {
 
 const orgIds: string[] = [];
 afterAll(async () => {
+  /*
+   * And the registry, because it is one array for the whole process.
+   *
+   * `beforeEach` kept this file honest with itself and left whatever the last
+   * case registered behind — including a section whose `load` throws on
+   * purpose. Any suite that renders an account page after this one then got a
+   * module it never registered, failing in a file that had nothing to do with
+   * it. That is the shape of today's one red CI run.
+   */
+  clearAccountSections();
   for (const id of orgIds) {
     await db
       .delete(schema.contacts)

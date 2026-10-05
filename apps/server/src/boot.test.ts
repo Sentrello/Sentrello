@@ -11,6 +11,9 @@ import {
   addPersonalData,
   addSearchProvider,
   allCrawlable,
+  clearCrawlable,
+  clearPersonalData,
+  clearSearchProviders,
   defineModule,
   personalDataSources,
   registerForTest,
@@ -95,6 +98,18 @@ async function signedIn(): Promise<{
  * it misses.
  */
 afterAll(async () => {
+  /*
+   * The three registries this file writes into by hand.
+   *
+   * `loadModules` clears all ten at every load, which is what the cases here
+   * are about — but the ones that register a `gone` module to prove the loader
+   * empties it leave their registration behind when they run last. Each of
+   * these outlives a file, so a prefix left here is a prefix another suite's
+   * `noindex` header answers with.
+   */
+  clearCrawlable();
+  clearPersonalData();
+  clearSearchProviders();
   const strays = await db
     .select({ id: schema.organizations.id })
     .from(schema.organizations)
