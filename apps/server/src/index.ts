@@ -1077,7 +1077,32 @@ if (failedBundles.length) {
     `Sentrello is MISSING PAID MODULES: ${failedBundles.map((f) => f.name).join(", ")} — see /healthz and Settings -> License`,
   );
 }
-export default { port, fetch: app.fetch };
+/**
+ * The largest request this server will take, because Bun's own default is
+ * smaller than what the product says it accepts.
+ *
+ * `Bun.serve` stops at 128MB when nothing says otherwise, and it stops by
+ * answering 413 and closing the connection **before Hono sees the request** —
+ * so no route runs, no error of ours is returned, and nothing is logged. The
+ * archive module offers to read a 512MB export back in, the published install
+ * instructions set nginx to `client_max_body_size 520m` to let it through, and
+ * a restore over 128MB has therefore never reached the code that was written
+ * for it. Three places agreed on the number and the runtime was not one of
+ * them.
+ *
+ * Sized to the largest limit the product declares, with the slack a multipart
+ * envelope adds around the file itself. It is a ceiling, not an allocation:
+ * what actually decides whether a 512MB restore survives on a small instance is
+ * the memory that reading it takes, and `Infrastructure/build/upload-ceiling.test.ts`
+ * is what keeps this number, nginx's and the modules' own in step.
+ */
+const MAX_REQUEST_BYTES = 520 * 1024 * 1024;
+
+export default {
+  port,
+  fetch: app.fetch,
+  maxRequestBodySize: MAX_REQUEST_BYTES,
+};
 
 /**
  * The assembled application, for tests that need to enumerate what it serves
