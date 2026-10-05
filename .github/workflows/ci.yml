@@ -50,7 +50,18 @@ jobs:
   # which is the one case the certificate has nothing to certify.
   sign-off:
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    # Pinned, not floating, until after launch.
+    #
+    # `ubuntu-latest` migrates to Ubuntu 26 from 19 October 2026, and GitHub says
+    # so in an annotation on every run. The suite here is Bun, a Postgres service
+    # container, a typecheck and a linter, none of which has an obvious reason to
+    # mind — but "no obvious reason" is not a thing to find out about from a red
+    # build on the public repository in the fortnight either side of v1.
+    #
+    # Revisit once launch is behind us: a pin is maintenance of its own, and
+    # GitHub retires an image eventually. The point of the date in this comment is
+    # that somebody can tell how stale the decision is.
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       # Just the commits the pull request adds, and their full messages — a
@@ -80,7 +91,8 @@ jobs:
           echo "every commit signed off"
 
   build:
-    runs-on: ubuntu-latest
+    # Pinned for the reason given on the job above.
+    runs-on: ubuntu-24.04
     # A hung job is billed like a working one.
     timeout-minutes: 30
     services:
