@@ -6,7 +6,7 @@ import {
 import { and, db, eq, inArray, schema } from "@sentrello/db";
 import { baseCurrency, rateOn } from "@sentrello/db/currency";
 import { dayIn } from "@sentrello/db/day";
-import { defaultDueDateFor } from "@sentrello/db/documents";
+import { invoiceDefaultsFor } from "@sentrello/db/documents";
 import { ownedContact } from "@sentrello/db/ledger";
 import { MoneyError } from "@sentrello/db/money";
 import { nextDocumentNumber } from "@sentrello/db/numbering";
@@ -233,6 +233,8 @@ export function registerConsolidate(ctx: ModuleContext) {
         );
       }
 
+      const fromSettings = await invoiceDefaultsFor(orgId);
+
       const merged = await db.transaction(async (tx) => {
         const [invoice] = await tx
           .insert(schema.invoices)
@@ -246,7 +248,8 @@ export function registerConsolidate(ctx: ModuleContext) {
             status: "draft",
             // A day, like every other issue date.
             issueDate: dayIn(new Date(), zone),
-            dueDate: await defaultDueDateFor(orgId),
+            dueDate: fromSettings.dueDate,
+            paymentTerms: fromSettings.paymentTerms,
             discountType:
               (body.discountType as string) === "percent" ||
               (body.discountType as string) === "amount"

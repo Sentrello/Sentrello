@@ -1253,6 +1253,92 @@ test("a business that said how long its customers get is believed", async () => 
   }
 });
 
+/**
+ * And the terms the business set are printed on the invoice.
+ *
+ * `defaultPaymentTerms` says of itself that it is "printed at the foot of every
+ * document that does not override it". It was printed on none: the share page,
+ * the PDF and the e-invoice all read `invoices.paymentTerms` with no fallback,
+ * so a business that set its terms once saw them in the settings panel and
+ * nowhere a customer would ever look.
+ *
+ * Filled at creation rather than at render, because an invoice is a record of
+ * what was agreed — changing the setting in March must not rewrite January's.
+ */
+test("the business's own terms reach an invoice that names none", async () => {
+  await db
+    .insert(schema.invoicingSettings)
+    .values({
+      organizationId: orgId,
+      defaultPaymentTerms: "Net 30, 2% monthly",
+    })
+    .onConflictDoUpdate({
+      target: schema.invoicingSettings.organizationId,
+      set: { defaultPaymentTerms: "Net 30, 2% monthly" },
+    });
+  try {
+    const res = await app.request("http://localhost/api/invoices", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        contactId,
+        currency: "USD",
+        lines: [
+          { description: "Terms", quantity: 1, unitPrice: 5000, taxRateBp: 0 },
+        ],
+      }),
+    });
+    expect(res.status).toBe(201);
+    const { invoice } = (await res.json()) as { invoice: { id: string } };
+    const [row] = await db
+      .select()
+      .from(schema.invoices)
+      .where(eq(schema.invoices.id, invoice.id));
+    expect(row?.paymentTerms).toBe("Net 30, 2% monthly");
+  } finally {
+    await db
+      .update(schema.invoicingSettings)
+      .set({ defaultPaymentTerms: null })
+      .where(eq(schema.invoicingSettings.organizationId, orgId));
+  }
+});
+
+/** And what the form typed still wins over the setting. */
+test("terms typed on the document override the business's own", async () => {
+  await db
+    .insert(schema.invoicingSettings)
+    .values({ organizationId: orgId, defaultPaymentTerms: "Net 30" })
+    .onConflictDoUpdate({
+      target: schema.invoicingSettings.organizationId,
+      set: { defaultPaymentTerms: "Net 30" },
+    });
+  try {
+    const res = await app.request("http://localhost/api/invoices", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        contactId,
+        currency: "USD",
+        paymentTerms: "Due on receipt",
+        lines: [
+          { description: "Terms", quantity: 1, unitPrice: 5000, taxRateBp: 0 },
+        ],
+      }),
+    });
+    const { invoice } = (await res.json()) as { invoice: { id: string } };
+    const [row] = await db
+      .select()
+      .from(schema.invoices)
+      .where(eq(schema.invoices.id, invoice.id));
+    expect(row?.paymentTerms).toBe("Due on receipt");
+  } finally {
+    await db
+      .update(schema.invoicingSettings)
+      .set({ defaultPaymentTerms: null })
+      .where(eq(schema.invoicingSettings.organizationId, orgId));
+  }
+});
+
 test("a due date the business chose is kept", async () => {
   const chosen = "2027-02-01";
   const res = await app.request("http://localhost/api/invoices", {

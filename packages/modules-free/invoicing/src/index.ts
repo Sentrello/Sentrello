@@ -20,7 +20,7 @@ import { dayIn, dayOf } from "@sentrello/db/day";
 import {
   convertQuoteToInstalments,
   convertQuoteToInvoice,
-  defaultDueDateFor,
+  invoiceDefaultsFor,
 } from "@sentrello/db/documents";
 import {
   CORE_ACCOUNTS,
@@ -539,6 +539,10 @@ export default defineModule({
           }
         }
 
+        // Read outside the transaction: two settings every invoice inherits
+        // when the form left them alone.
+        const fromSettings = await invoiceDefaultsFor(orgId);
+
         const invoice = await db.transaction(async (tx) => {
           const [inv] = await tx
             .insert(schema.invoices)
@@ -563,13 +567,15 @@ export default defineModule({
               // Defaulted rather than left null: overdue chasing skips an
               // invoice with no due date, so one created without a date is
               // money the business is never reminded to ask for.
-              dueDate: dueDate
-                ? new Date(dueDate)
-                : await defaultDueDateFor(orgId),
+              dueDate: dueDate ? new Date(dueDate) : fromSettings.dueDate,
               number: await nextDocumentNumber(tx, orgId, "invoice"),
               status: asDraft ? "draft" : "open",
               notes: String(body.notes ?? "").trim() || null,
-              paymentTerms: String(body.paymentTerms ?? "").trim() || null,
+              // Nothing typed falls back to the business's own terms, which is
+              // what `defaultPaymentTerms` says it is for and never was.
+              paymentTerms:
+                String(body.paymentTerms ?? "").trim() ||
+                fromSettings.paymentTerms,
               // BT-10 on the e-invoice: the customer's PO or reference, or a
               // German public body's Leitweg-ID.
               buyerReference: String(body.buyerReference ?? "").trim() || null,

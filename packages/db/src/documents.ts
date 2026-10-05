@@ -76,15 +76,41 @@ export async function defaultDueDateFor(
   organizationId: string,
   from = new Date(),
 ): Promise<Date> {
+  return (await invoiceDefaultsFor(organizationId, from)).dueDate;
+}
+
+/**
+ * Both of the things a business decides once and every invoice inherits.
+ *
+ * `defaultPaymentTerms` had the same shape as the due days: a column whose own
+ * comment said "printed at the foot of every document that does not override
+ * it", a box on the settings panel that saved it, and no document that ever
+ * read it. Terms were printed from `invoices.paymentTerms` with no fallback, so
+ * a business that set its terms in one place saw them in that one place.
+ *
+ * Applied at creation rather than at render, because an invoice is a record of
+ * what was agreed. Change the terms in settings next March and the invoice you
+ * sent in January must still say what it said in January.
+ */
+export async function invoiceDefaultsFor(
+  organizationId: string,
+  from = new Date(),
+): Promise<{ dueDate: Date; paymentTerms: string | null }> {
   const [settings] = await db
-    .select({ days: schema.invoicingSettings.defaultDueDays })
+    .select({
+      days: schema.invoicingSettings.defaultDueDays,
+      terms: schema.invoicingSettings.defaultPaymentTerms,
+    })
     .from(schema.invoicingSettings)
     .where(eq(schema.invoicingSettings.organizationId, organizationId))
     .limit(1);
-  return defaultDueDate(
-    dayIn(from, await timezoneFor(organizationId)),
-    settings?.days ?? DEFAULT_DUE_DAYS,
-  );
+  return {
+    dueDate: defaultDueDate(
+      dayIn(from, await timezoneFor(organizationId)),
+      settings?.days ?? DEFAULT_DUE_DAYS,
+    ),
+    paymentTerms: settings?.terms?.trim() || null,
+  };
 }
 
 export async function convertQuoteToInvoice(
@@ -139,6 +165,7 @@ export async function convertQuoteToInvoice(
     .where(eq(schema.quoteLines.quoteId, quoteId));
 
   const invoice = await db.transaction(async (tx) => {
+    const fromSettings = await invoiceDefaultsFor(organizationId);
     const [inv] = await tx
       .insert(schema.invoices)
       .values({
@@ -163,7 +190,10 @@ export async function convertQuoteToInvoice(
         // never be chased. The portal's own acceptance path set one; this one
         // did not, so which screen accepted the work decided whether the
         // business would ever be reminded to ask for the money.
-        dueDate: await defaultDueDateFor(organizationId),
+        dueDate: fromSettings.dueDate,
+        // A quote has no terms column, so the business's own are what an invoice
+        // raised from one goes out on.
+        paymentTerms: fromSettings.paymentTerms,
         subtotalCents: quote.subtotalCents,
         discountType: quote.discountType,
         discountValue: quote.discountValue,
@@ -573,6 +603,7 @@ export async function raiseInvoice(
     { pricesIncludeTax },
   );
 
+  const fromSettings = await invoiceDefaultsFor(organizationId);
   const write = async (tx: DbTx) => {
     const [inv] = await tx
       .insert(schema.invoices)
@@ -583,7 +614,8 @@ export async function raiseInvoice(
         status: "open",
         currency,
         rateMicro: rate,
-        dueDate: input.dueDate ?? (await defaultDueDateFor(organizationId)),
+        dueDate: input.dueDate ?? fromSettings.dueDate,
+        paymentTerms: fromSettings.paymentTerms,
         notes: input.notes ?? null,
         pricesIncludeTax,
         subtotalCents: totals.subtotal,
