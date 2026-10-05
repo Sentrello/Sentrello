@@ -57,6 +57,33 @@ latest="$(
 
 IFS=$'\t' read -r conclusion workflow sha url <<<"$latest"
 
+# Unless something newer has already been pushed, in which case the red one is
+# not the standing of this branch — it is the standing of a commit somebody has
+# already moved past.
+#
+# The check above reads the newest *finished* run on purpose, because waiting for
+# one in flight would put ten minutes in front of every push. The cost of that
+# choice showed up on 5 October: a red run, a fix pushed straight after it, and
+# then every push refused for the whole length of the fix's own run — naming a sha
+# that was no longer the tip. Three commits sat on a laptop with nothing wrong
+# with them.
+#
+# So: if any run exists for a commit *later* than the red one, the red one has
+# been answered. In flight or finished, because the question here is only whether
+# somebody has already moved on, and `git merge-base` answers it from the sha
+# rather than from the run's state.
+newest_sha="$(
+  gh run list --branch "$default" --limit 10 \
+    --json workflowName,headSha \
+    --jq '[.[] | select(.workflowName != "red-main")][0].headSha' \
+    2>/dev/null
+)" || newest_sha=""
+if [ -n "$newest_sha" ] && [ "$newest_sha" != "null" ] &&
+   [ "${newest_sha:0:7}" != "$sha" ] &&
+   git merge-base --is-ancestor "$sha" "$newest_sha" 2>/dev/null; then
+  exit 0
+fi
+
 # A repository with no runs at all answers `null` in every field rather than
 # a bare `null`, because the interpolation happens per field — so the check
 # above sees "null\tnull\tnull\tnull", which is neither empty nor "null",
