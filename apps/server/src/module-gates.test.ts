@@ -411,3 +411,54 @@ test("every public route that takes a body says how much it takes", () => {
   expect(checkedKeys.size).toBe(4);
   expect(uncapped).toEqual([]);
 });
+
+/**
+ * And asked, not only read.
+ *
+ * The sweep above compares a route's path with the paths the limits were
+ * registered on, which contains this file's own reading of how Hono matches a
+ * pattern — two copies of one rule. If the reading is wrong the sweep passes and
+ * nothing is capped, so each door is actually posted to with more than it takes.
+ *
+ * No fixtures: the limit answers before the handler runs, which is the point of
+ * it. An uncapped route answers whatever it answers to a body it cannot use — a
+ * 400, a 404 — and never 413.
+ */
+test("an oversized body is refused at every public door, by the door", async () => {
+  const doors: [string, number][] = [
+    // The small ones: a quote accepted from a portal link, and a processor
+    // reporting that money moved.
+    ["/portal/nothing/quotes/nothing/accept", 2 * 1024 * 1024],
+    ["/api/payments/webhook/nothing", 2 * 1024 * 1024],
+    // And the two that take a file, just over their own numbers: one attachment
+    // plus its fields, and a provider posting a whole message.
+    ["/api/embed/forms/nothing", 12 * 1024 * 1024],
+    ["/api/crm/inbound-email/nothing/nothing", 12 * 1024 * 1024],
+  ];
+
+  for (const [path, size] of doors) {
+    let refused = false;
+    for (const [name, mod] of Object.entries(MODULES)) {
+      const app = registerForTest(mod) as unknown as {
+        routes?: { method: string; path: string }[];
+        request: (url: string, init?: RequestInit) => Promise<Response>;
+      };
+      // Only the module that registers it, so a 404 from the others is not
+      // mistaken for a refusal.
+      if (!(app.routes ?? []).some((r) => r.method === "POST")) continue;
+      const res = await app.request(`http://localhost${path}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: `{"padding":"${"x".repeat(size)}"}`,
+      });
+      if (res.status === 413) refused = true;
+      else if (res.status !== 404) {
+        expect(
+          res.status,
+          `${name}: ${path} took ${Math.round(size / 1024)}KB`,
+        ).toBe(413);
+      }
+    }
+    expect(refused, `nothing refused ${path}`).toBe(true);
+  }
+}, 60_000);
