@@ -16,6 +16,21 @@ A free instance never has to contact Sentrello at all. A paid instance sends
 one license check an hour. That check carries a license key and an instance id,
 and nothing else.
 
+**Usage reporting, if you said yes.** The installer asks, in those words, and
+the answer is no unless somebody chose otherwise — an install nobody watched
+cannot have consented to anything. Say yes and once a day the instance sends its
+version, whether it is Free or Pro, which modules are loaded, the instance id,
+and a band for how many people use it: 1, 2–5, 6–10, 11–20, 21+. Never a
+customer record, a name, an address, a figure, or anything that identifies your
+business. **Settings → License and updates** shows the answer and changes it, and
+`SENTRELLO_TELEMETRY=off` fixes it on the server for an operator who would
+rather it were not a choice anybody can make from a browser.
+
+Checking for a newer version is the other call, and only when somebody presses
+the button. On a paid instance it asks what your license entitles; on a free one
+it asks the public release number and carries nothing at all — no key, no
+instance id, not even the version you are on.
+
 One module can be told to send more, and only if you ask it to. Choose SEO
 Cloud over a provider account of your own and the domains and keywords you
 research reach Sentrello under your license key. Every other module runs with

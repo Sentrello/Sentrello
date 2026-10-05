@@ -95,3 +95,64 @@ test("and the schedule those pages describe is still the schedule", () => {
     "the licence refresh is no longer on the hourly jittered cron. README.md, SECURITY.md and docs/site say hourly — read the new schedule and correct them in the same commit.",
   ).toBe(true);
 });
+
+/**
+ * And what it sends, not only how often.
+ *
+ * The page whose job is "what leaves a Sentrello instance, what never does" said
+ * a paid instance sends one licence check an hour "and nothing else". It also
+ * sends a usage report, daily, on any instance whose owner said yes at the
+ * prompt — version, tier, which modules are loaded, the instance id and a band
+ * for how many people use it.
+ *
+ * The installer asks for that consent in plain words and defaults to no, which is
+ * right and is the part that was already careful. The published page said less
+ * than the installer did, which for a self-hosted product is the wrong way round:
+ * the reader most likely to find that page is somebody evaluating us who has not
+ * run the installer.
+ *
+ * Measured against the payload's own type rather than a remembered list, so a
+ * field added to the report has to be added to the page before the build passes.
+ * `instanceId` is the one exception and it is named on the page as "the instance
+ * id" — in words, because that is how a page is written.
+ */
+const SAID_ON_THE_PAGE: Record<string, RegExp> = {
+  version: /\bversion\b/i,
+  tier: /free or pro/i,
+  modules: /which modules are loaded/i,
+  users: /band for how many people/i,
+  instanceId: /instance id/i,
+};
+
+test("the page names every field the usage report carries", () => {
+  const telemetry = readFileSync(
+    `${ROOT}/packages/jobs/src/telemetry.ts`,
+    "utf8",
+  );
+  const shape = /export interface Telemetry \{([\s\S]*?)\n\}/.exec(telemetry);
+  expect(
+    shape,
+    "the Telemetry payload is not declared where this looked",
+  ).toBeTruthy();
+
+  const fields = [
+    ...(shape?.[1] ?? "").matchAll(/^\s*([A-Za-z][\w]*)\??:/gm),
+  ].map(([, name]) => name as string);
+  // So a sweep that read no fields cannot pass as a clean one.
+  expect(fields.length).toBeGreaterThan(3);
+
+  const page = readFileSync(
+    `${ROOT}/docs/site/03-platform/04-security.md`,
+    "utf8",
+  );
+  const unsaid = fields.filter((field) => {
+    const says = SAID_ON_THE_PAGE[field];
+    // A field nobody has written a phrase for is unsaid by definition: adding one
+    // to the report means saying what it is, here and on the page.
+    return !says || !says.test(page);
+  });
+  expect(
+    unsaid,
+    `the usage report carries ${unsaid.join(", ")} and the security page does not say so`,
+  ).toEqual([]);
+});

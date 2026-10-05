@@ -49,10 +49,21 @@ flowchart LR
   API --> EMBED --> PUBLIC
 ```
 
-`/api/embed/` is the one branch that skips both gates, and it is meant to: an
-embedded form on somebody's public website has no session to check and no
-permission to hold. It is scoped by the form's own key and its allow-list
-instead.
+A handful of branches skip both gates, and each one is meant to. `/api/embed/`
+is the one most people meet: an embedded form on somebody's public website has
+no session to check and no permission to hold, so it is scoped by the form's own
+key and the list of sites the business allowed. Beside it, in the free core,
+inbound mail from a provider carries a secret in its address, and a card
+processor reporting that money moved is authenticated by a signature over the
+raw body. A customer's own portal, a shared invoice and a shared quote are
+reached by a token that is the whole credential.
+
+Add a paid module and that list grows: a storefront, a booking page, a
+subscribe form, a short link, a shared file, a receipt from a till. Every one
+of them is written down in a test that enumerates the routes answering a
+stranger and fails the build on a new one — so the list is complete by
+machine rather than by memory, and a reviewer argues with an entry instead of
+rediscovering a route.
 
 A request passes a session check and a permission check before any handler
 runs. Every business table carries an organization, every query filters on it,
