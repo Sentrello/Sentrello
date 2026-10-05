@@ -383,7 +383,9 @@ function coveredBy(pattern: string, path: string): boolean {
 
 test("every public route that takes a body says how much it takes", () => {
   const uncapped: string[] = [];
-  let checked = 0;
+  // Deduplicated: the route table holds a row per registration, so a route with
+  // middleware on it appears more than once and would inflate the floor below.
+  const checkedKeys = new Set<string>();
 
   for (const [name, mod] of Object.entries(MODULES)) {
     const app = registerForTest(mod) as unknown as {
@@ -396,8 +398,9 @@ test("every public route that takes a body says how much it takes", () => {
 
     for (const route of routes) {
       if (!TAKES_A_BODY.has(route.method)) continue;
-      if (!PUBLIC_BY_DESIGN.has(`${route.method} ${route.path}`)) continue;
-      checked += 1;
+      const key = `${route.method} ${route.path}`;
+      if (!PUBLIC_BY_DESIGN.has(key) || checkedKeys.has(key)) continue;
+      checkedKeys.add(key);
       if (!limits.some((pattern) => coveredBy(pattern, route.path))) {
         uncapped.push(`${name}: ${route.method} ${route.path}`);
       }
@@ -405,6 +408,6 @@ test("every public route that takes a body says how much it takes", () => {
   }
 
   // So a sweep that found no public writes at all cannot pass as a clean one.
-  expect(checked).toBeGreaterThan(3);
+  expect(checkedKeys.size).toBe(4);
   expect(uncapped).toEqual([]);
 });
