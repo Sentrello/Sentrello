@@ -232,8 +232,16 @@ test("and a read from the wrong website is still refused", () => {
  * which is stricter than the truth and never looser.
  */
 test("a limit's caller cannot be chosen by the caller", () => {
+  /*
+   * A caller shaped the way Hono's is, cast because its `header` is an overload
+   * set and this needs only the one-argument form. `callerKey` asks
+   * `callerAddress`, which reaches for a socket and finds none here — which is
+   * exactly the shape of every test that drives a route through `app.request()`.
+   */
   const ask = (headers: Record<string, string>) =>
-    callerKey({ req: { header: (name: string) => headers[name] } });
+    callerKey({
+      req: { header: (name: string) => headers[name] },
+    } as unknown as Parameters<typeof callerKey>[0]);
 
   // The one value nginx replaces rather than appends to.
   expect(ask({ "x-real-ip": "198.51.100.7" })).toBe("198.51.100.7");

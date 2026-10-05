@@ -10,6 +10,7 @@ import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import {
   AVATAR_RULES,
   type ProcessedImage,
+  callerKey,
   processImage,
   rateLimit,
 } from "@sentrello/module-sdk";
@@ -413,11 +414,7 @@ export function registerTemplates(ctx: ModuleContext) {
    * all the same, because it is an unauthenticated route that touches disk.
    */
   ctx.app.get("/share/template/:id/logo", async (c: RouteContext) => {
-    const limited = rateLimit(
-      `logo:${c.req.header("x-real-ip") ?? "anon"}`,
-      120,
-      60_000,
-    );
+    const limited = rateLimit(`logo:${callerKey(c)}`, 120, 60_000);
     if (!limited.allowed) return c.text("Too many requests", 429);
 
     const [template] = await db

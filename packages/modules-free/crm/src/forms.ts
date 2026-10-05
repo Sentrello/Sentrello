@@ -17,6 +17,7 @@ import {
   MAX_ATTACHMENT_BYTES,
   attachmentFile,
   attachmentHeaders,
+  callerKey,
   checkUpload,
   csvDownload,
   displayFilename,
@@ -880,7 +881,7 @@ export function registerForms(ctx: ModuleContext) {
     }
 
     const limited = rateLimit(
-      `${key}:${c.req.header("x-real-ip") ?? origin ?? "anon"}`,
+      `${key}:${callerKey(c)}`,
       SUBMIT_LIMIT,
       SUBMIT_WINDOW_MS,
     );

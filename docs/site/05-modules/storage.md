@@ -78,6 +78,11 @@ Any file can be shared by link, password-protected or not, expiring or not. The
 recipient needs no account. Useful for sending a customer something too large
 to email.
 
+A link set to expire **on** a day works through the whole of that day, in your own
+timezone — the same reading as an expiry date on a file. Set one for today and it
+works today. The same goes for a link you send somebody to upload *to*: "until
+Friday" means Friday is fine.
+
 ## Downloading a folder
 
 Download a whole folder and it arrives as a single zip with the folder tree

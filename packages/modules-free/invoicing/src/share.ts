@@ -11,7 +11,7 @@ import { deadLinkPage } from "@sentrello/db/portal";
 import { businessIdentity, moneyLocale } from "@sentrello/db/portal";
 import { timezoneFor } from "@sentrello/db/timezone";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
-import { calendarDay, rateLimit } from "@sentrello/module-sdk";
+import { calendarDay, callerKey, rateLimit } from "@sentrello/module-sdk";
 import { exemptionReasonFor } from "./einvoice";
 import { type Template, templateFor } from "./templates";
 
@@ -598,11 +598,7 @@ export function registerShare(ctx: ModuleContext) {
        * address. A wrong token answers 404 rather than 403: telling somebody a
        * token is real but not for them is telling them something.
        */
-      const limited = rateLimit(
-        `share:${c.req.header("x-real-ip") ?? "anon"}`,
-        60,
-        60_000,
-      );
+      const limited = rateLimit(`share:${callerKey(c)}`, 60, 60_000);
       if (!limited.allowed) return c.text("Too many requests", 429);
       /*
        * A page rather than Hono's blank 404, for the reason `deadLinkPage`

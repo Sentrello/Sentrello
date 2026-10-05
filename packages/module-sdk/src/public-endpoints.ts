@@ -8,6 +8,8 @@
  * implementation is a second set of mistakes.
  */
 
+import { callerAddress } from "./caller";
+
 export interface OriginDecision {
   allowed: boolean;
   /** Value for Access-Control-Allow-Origin, when allowed. */
@@ -261,16 +263,23 @@ export function rateLimit(
  * wrong statistic rather than a bypassed guard; see `clientAddress` there.
  *
  * Takes the whole caller, not a route: a limit is about who is asking, and
- * each caller's budget is named by the prefix its own call site passes. The
- * plainer copies elsewhere — `x-real-ip` or nothing — are this function
- * without the origin fallback, and are left alone until touched for another
- * reason.
+ * each caller's budget is named by the prefix its own call site passes.
+ *
+ * **The address comes from `callerAddress`**, which is the one place that decides
+ * whether a header may be believed. This used to read `x-real-ip` itself, as did
+ * `clientAddress` in `@sentrello/auth`, and only one of the two honoured
+ * `SENTRELLO_TRUSTED_PROXIES` — so an operator who set that variable had it
+ * applied to sign-in attempts and ignored by every public rate limit in every
+ * module. Six more copies of the same raw read were sitting in the newsletter
+ * module. One answer now, and `caller.ts` carries the reasoning.
+ *
+ * The origin fallback stays here rather than moving: it is about *naming a
+ * budget* when there is no address, which is this function's job and not a
+ * question about who is calling.
  */
-export function callerKey(c: {
-  req: { header: (name: string) => string | undefined };
-}): string {
-  const real = c.req.header("x-real-ip")?.trim();
-  if (real) return real.slice(0, 45);
+export function callerKey(c: Parameters<typeof callerAddress>[0]): string {
+  const { ip } = callerAddress(c);
+  if (ip) return ip.slice(0, 45);
   return c.req.header("origin")?.slice(0, 80) ?? "anon";
 }
 

@@ -9,7 +9,7 @@ import {
 import { and, db, eq, or, schema } from "@sentrello/db";
 import { contactHasEmail } from "@sentrello/db/crm";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
-import { rateLimit } from "@sentrello/module-sdk";
+import { callerKey, rateLimit } from "@sentrello/module-sdk";
 import { displayFilename, safeExtension } from "./attachments";
 
 /**
@@ -276,11 +276,7 @@ export function registerInboundEmail(ctx: ModuleContext) {
   ctx.app.post(
     "/api/crm/inbound-email/:orgId/:secret",
     async (c: RouteContext) => {
-      const limited = rateLimit(
-        `inbound:${c.req.header("x-real-ip") ?? "anon"}`,
-        120,
-        60_000,
-      );
+      const limited = rateLimit(`inbound:${callerKey(c)}`, 120, 60_000);
       if (!limited.allowed) return c.text("Too many requests", 429);
 
       const orgId = c.req.param("orgId") ?? "";
