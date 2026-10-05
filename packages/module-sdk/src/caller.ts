@@ -20,11 +20,13 @@ import { bunServer } from "./server-access";
  * hop on the list** — the lever an operator behind Caddy, behind a load balancer,
  * or exposed directly needs.
  */
-function trustedHeaderName(env: Record<string, string | undefined>): string {
+export function trustedHeaderName(
+  env: Record<string, string | undefined>,
+): string {
   return env.SENTRELLO_CLIENT_IP_HEADER?.trim() || "x-real-ip";
 }
 
-function trustedHops(env: Record<string, string | undefined>): string[] {
+export function trustedHops(env: Record<string, string | undefined>): string[] {
   return (
     env.SENTRELLO_TRUSTED_PROXIES?.split(",")
       .map((hop) => hop.trim())

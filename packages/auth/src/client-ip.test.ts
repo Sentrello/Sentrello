@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { trustedHeaderName, trustedHops } from "@sentrello/module-sdk";
 import { clientIpOptions } from "./index";
 
 /**
@@ -12,6 +13,32 @@ test("the default trusted header is one a proxy sets, not one a client sends", (
   const options = clientIpOptions({});
   expect(options.ipAddressHeaders).toEqual(["x-real-ip"]);
   expect(options.ipAddressHeaders).not.toContain("x-forwarded-for");
+});
+
+/**
+ * The library and the product believe the same header, by construction.
+ *
+ * This file held its own copy of the `x-real-ip` default and its own
+ * comma-splitting, beside the copy in the SDK that every other reader of the
+ * caller's address goes through. If those two ever drifted, Better Auth would
+ * rate-limit a sign-in on one address while the lockout counted another — two
+ * answers to one question, in the place where that is worst.
+ *
+ * They are one call now. This asserts it rather than trusting the diff, because
+ * the cheap way to reintroduce it is to inline a default back "for clarity".
+ */
+test("Better Auth is handed the header the rest of the product believes", () => {
+  for (const env of [
+    {},
+    { SENTRELLO_CLIENT_IP_HEADER: "cf-connecting-ip" },
+    { SENTRELLO_CLIENT_IP_HEADER: "  true-client-ip  " },
+    { SENTRELLO_TRUSTED_PROXIES: "10.0.0.1, 10.0.0.0/24" },
+  ]) {
+    expect(clientIpOptions(env).ipAddressHeaders).toEqual([
+      trustedHeaderName(env),
+    ]);
+    expect(clientIpOptions(env).trustedProxies ?? []).toEqual(trustedHops(env));
+  }
 });
 
 test("a deployment behind a different proxy can name its own header", () => {

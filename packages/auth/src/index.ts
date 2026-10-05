@@ -7,7 +7,11 @@ import {
   passwordResetEmail,
   verifyEmailEmail,
 } from "@sentrello/email/templates";
-import { callerAddress } from "@sentrello/module-sdk";
+import {
+  callerAddress,
+  trustedHeaderName,
+  trustedHops,
+} from "@sentrello/module-sdk";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
@@ -38,18 +42,6 @@ const socialProviders = { google: googleProvider };
 /**
  * Which header carries the caller's real address.
  *
- * Broken out so `clientIpOptions` and `clientIp` agree on a single default —
- * an operator who changes `SENTRELLO_CLIENT_IP_HEADER` should not have to
- * find and change a second copy of `"x-real-ip"` sitting somewhere else in
- * this file.
- */
-function trustedIpHeader(env: Record<string, string | undefined>): string {
-  return env.SENTRELLO_CLIENT_IP_HEADER?.trim() || "x-real-ip";
-}
-
-/**
- * Which header carries the caller's real address.
- *
  * Better Auth defaults to `x-forwarded-for`, which the caller sets. Anything
  * keyed on it — the rate limit on sign-in, the lockout in the Users module,
  * the address shown beside a session — is then keyed on a value the attacker
@@ -66,13 +58,20 @@ export function clientIpOptions(env: Record<string, string | undefined>): {
   ipAddressHeaders: string[];
   trustedProxies?: string[];
 } {
-  const header = trustedIpHeader(env);
-  const proxies = env.SENTRELLO_TRUSTED_PROXIES?.split(",")
-    .map((p) => p.trim())
-    .filter(Boolean);
+  /*
+   * Asked of the SDK rather than worked out again here.
+   *
+   * This file held its own copy of both — the `x-real-ip` default and the
+   * comma-splitting — beside the copy in `caller.ts` that every other reader of
+   * the caller's address now uses. Two copies of one rule, and the consequence if
+   * they drift is the worst shape available: the library believing one header
+   * while the product believes another, so a sign-in is rate-limited on one
+   * address and the lockout counts a different one.
+   */
+  const proxies = trustedHops(env);
   return {
-    ipAddressHeaders: [header],
-    ...(proxies && proxies.length > 0 ? { trustedProxies: proxies } : {}),
+    ipAddressHeaders: [trustedHeaderName(env)],
+    ...(proxies.length > 0 ? { trustedProxies: proxies } : {}),
   };
 }
 
