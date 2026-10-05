@@ -118,3 +118,74 @@ describe("the published documentation's code samples", () => {
     }
   });
 });
+
+/**
+ * Prose caught inside a code fence.
+ *
+ * On the backups page the fence opened, a paragraph about two instances on one
+ * machine sat inside it, and the cron line it was meant to introduce sat at the
+ * bottom. So the published page showed a code block with a paragraph of prose in
+ * it, asterisks and backticks and all, and the warning about a second instance's
+ * timer name — on the page whose subject is whether backups are running — was
+ * unreadable.
+ *
+ * Nothing caught it, and nothing could: a fenced block is prose to every tool in
+ * this repository, as the note at the top of this file says about the samples.
+ * This is the cheapest half of that problem. A line inside a fence that starts
+ * with `**` is markdown emphasis, and markdown emphasis inside a code block is
+ * always a mistake — no language in this documentation begins a line that way.
+ *
+ * Fences are counted as well. An odd number means one was never closed, which
+ * swallows the rest of the page.
+ */
+describe("the fences in the published documentation", () => {
+  const pages = (): string[] => {
+    const out: string[] = [];
+    const walk = (dir: string) => {
+      if (!existsSync(dir)) return;
+      for (const entry of readdirSync(dir)) {
+        const path = `${dir}/${entry}`;
+        if (statSync(path).isDirectory()) walk(path);
+        else if (path.endsWith(".md")) out.push(path);
+      }
+    };
+    walk(`${import.meta.dir}/../../../docs`);
+    return out;
+  };
+
+  test("no fence is left open", () => {
+    const found = pages();
+    expect(found.length).toBeGreaterThan(10);
+    const odd = found.filter(
+      (file) =>
+        readFileSync(file, "utf8")
+          .split("\n")
+          .filter((line) => line.trimStart().startsWith("```")).length %
+          2 ===
+        1,
+    );
+    expect(odd, `${odd.join(", ")} leaves a code fence open`).toEqual([]);
+  });
+
+  test("no paragraph is trapped inside one", () => {
+    const trapped: string[] = [];
+    for (const file of pages()) {
+      let inside = false;
+      readFileSync(file, "utf8")
+        .split("\n")
+        .forEach((line, i) => {
+          if (line.trimStart().startsWith("```")) {
+            inside = !inside;
+            return;
+          }
+          if (inside && line.trimStart().startsWith("**")) {
+            trapped.push(`${file}:${i + 1}  ${line.trim().slice(0, 80)}`);
+          }
+        });
+    }
+    expect(
+      trapped,
+      `markdown emphasis inside a code fence, which publishes as literal asterisks:\n  ${trapped.join("\n  ")}`,
+    ).toEqual([]);
+  });
+});

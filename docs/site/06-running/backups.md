@@ -76,6 +76,8 @@ If you installed some other way, or the timer failed to enable — the
 installer prints a line in red when it does — the cron equivalent is the same
 one command:
 
+```bash
+15 2 * * * cd /opt/sentrello && ./sentrello backup scheduled
 ```
 
 **Two instances on one machine** get a timer each: the second one's units are
@@ -83,8 +85,6 @@ named after its directory — `sentrello-backup-<directory>.timer` and so on —
 neither can take over the other's schedule. The plain names belong to an instance
 at `/opt/sentrello`, which is where the installer puts one unless you say
 otherwise.
-15 2 * * * cd /opt/sentrello && ./sentrello backup scheduled
-```
 
 What still has nobody doing it for you is getting those files off the
 machine. That is the paragraph above, and it is the one that matters on the
