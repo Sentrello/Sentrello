@@ -576,6 +576,66 @@ test("an expired certificate does not silently keep exempting", async () => {
   );
 });
 
+/**
+ * A certificate expiring today is good today.
+ *
+ * The expiry is a day — `dayFrom` writes it, as midnight UTC of the day somebody
+ * typed — and the status compared it with an *instant*. So a certificate valid
+ * through the 15th read "expired" from one second past midnight on the 15th, and
+ * from six in the evening on the 14th for a business in Denver. The state's own
+ * test is whether it was valid *on the day of the sale*, which the schema comment
+ * beside the table says in those words.
+ *
+ * The enforcement already compared it with the invoice's issue date, which is also
+ * a day, and was therefore right — so the screen said expired while the sale would
+ * have been exempted. Two answers to one question, and the one a person reads was
+ * the wrong one: somebody chases a customer for a certificate they do not need, or
+ * charges tax they should not.
+ */
+test("a certificate whose last day is today still exempts, and says valid", async () => {
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  await db
+    .update(schema.exemptionCertificates)
+    .set({ expiresAt: today, revokedAt: null })
+    .where(eq(schema.exemptionCertificates.id, certificateId));
+
+  const list = await app.request("http://localhost/api/invoicing/exemptions", {
+    headers,
+  });
+  const { certificates } = (await list.json()) as {
+    certificates: { id: string; status: string }[];
+  };
+  const status = certificates.find((c) => c.id === certificateId)?.status;
+  expect(status, "a certificate good until today read as expired").not.toBe(
+    "expired",
+  );
+
+  /*
+   * And the sale it covers is accepted, which is the half that refused.
+   *
+   * Taken away again afterwards: the filing report further down this file sums
+   * every exempt sale in the period, so a draft left here is five thousand cents
+   * added to a figure another test asserts exactly. Found by that test failing.
+   */
+  const res = await app.request("http://localhost/api/invoices", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      contactId,
+      currency: "USD",
+      exemptionCertificateId: certificateId,
+      lines: [{ description: "Last day stock", quantity: 1, unitPrice: 5_000 }],
+    }),
+  });
+  expect(res.status).toBe(201);
+  const { invoice } = (await res.json()) as { invoice: { id: string } };
+  await db
+    .delete(schema.invoiceLines)
+    .where(eq(schema.invoiceLines.invoiceId, invoice.id));
+  await db.delete(schema.invoices).where(eq(schema.invoices.id, invoice.id));
+});
+
 test("a draft written under a certificate is re-checked on the day it is issued", async () => {
   // Bring the certificate back to life, draft under it, kill it, issue.
   await db

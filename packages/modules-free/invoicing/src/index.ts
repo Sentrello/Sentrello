@@ -509,7 +509,10 @@ export default defineModule({
             orgId,
             contactId,
             body.exemptionCertificateId,
-            issued ?? new Date(),
+            // A day, like `issued` itself: the certificate's expiry is compared
+            // with the day of the sale, and `new Date()` here made every sale
+            // land after midnight on its own issue date.
+            issued ?? dayIn(new Date(), await timezoneFor(orgId)),
           );
         } catch (err) {
           if (err instanceof ExemptionError) {

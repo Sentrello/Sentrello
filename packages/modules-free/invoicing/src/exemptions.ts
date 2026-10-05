@@ -4,7 +4,8 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { and, db, desc, eq, schema } from "@sentrello/db";
-import { dayFrom } from "@sentrello/db/timezone";
+import { dayIn, dayOf } from "@sentrello/db/day";
+import { dayFrom, timezoneFor } from "@sentrello/db/timezone";
 import type { ModuleContext } from "@sentrello/module-sdk";
 import type { IncomingLine } from "./documents";
 import { usStateCode } from "./us-nexus-thresholds";
@@ -90,16 +91,42 @@ function parseCertificate(body: Record<string, unknown>): {
 }
 
 /** Sixty days: enough time to chase the customer for a fresh one. */
-const EXPIRING_SOON_MS = 60 * 86_400_000;
+const EXPIRING_SOON_DAYS = 60;
 
+/**
+ * What a certificate is today, where the business is.
+ *
+ * **An expiry is a day.** The column is honestly named `expiresAt` and holds
+ * midnight UTC of the day somebody typed, because `dayFrom` writes it — and this
+ * compared it with an *instant*. So a certificate valid through the 15th read
+ * "expired" from one second past midnight on the 15th, and from six in the
+ * evening on the 14th for a business in Denver. The state's test is whether it
+ * was valid *on the day of the sale*, which the schema comment beside the table
+ * says in those words.
+ *
+ * The enforcement below had it too, and in a way that was easy to misread: it
+ * compares the expiry with the invoice's *issue date*, which is a day wherever
+ * one was given — and `new Date()` where one was not. So a sale issued today
+ * under a certificate good through today was refused, because every moment of a
+ * day is after its midnight. A certificate chased for no reason, or tax charged
+ * that was not owed.
+ *
+ * `today` is required rather than defaulted, so a caller cannot forget to say
+ * which day it is where the business keeps its books.
+ */
 function certificateStatus(
   cert: { expiresAt: Date | null; revokedAt: Date | null },
-  on: Date = new Date(),
+  today: Date,
 ): "valid" | "expiring-soon" | "expired" | "revoked" {
   if (cert.revokedAt) return "revoked";
   if (!cert.expiresAt) return "valid";
-  if (cert.expiresAt.getTime() < on.getTime()) return "expired";
-  if (cert.expiresAt.getTime() < on.getTime() + EXPIRING_SOON_MS) {
+  const until = dayOf(cert.expiresAt);
+  // Inclusive: a certificate expiring today is good today.
+  if (until.getTime() < today.getTime()) return "expired";
+  if (
+    until.getTime() <
+    today.getTime() + EXPIRING_SOON_DAYS * 24 * 60 * 60 * 1000
+  ) {
     return "expiring-soon";
   }
   return "valid";
@@ -170,7 +197,23 @@ export async function exemptionForInvoice(
       `certificate ${cert.number} has been revoked and cannot exempt a sale`,
     );
   }
-  if (cert.expiresAt && cert.expiresAt.getTime() < issueDate.getTime()) {
+  /*
+   * Days, both sides.
+   *
+   * An expiry is a day — `dayFrom` writes it, as midnight UTC of the day somebody
+   * typed — and so is an issue date. Compared as instants, a certificate good
+   * through the 15th refused a sale issued on the 15th, because the fallback issue
+   * date was `new Date()` and every moment of the day is after midnight. The
+   * state's test is whether the certificate was valid *on the day of the sale*,
+   * which the schema comment beside the table says in those words.
+   *
+   * `dayOf` on a value that is already a day is identity, so this is safe for the
+   * stored issue date and for the day a caller computed.
+   */
+  if (
+    cert.expiresAt &&
+    dayOf(cert.expiresAt).getTime() < dayOf(issueDate).getTime()
+  ) {
     throw new ExemptionError(
       `certificate ${cert.number} expired on ${cert.expiresAt.toISOString().slice(0, 10)} — the sale cannot be exempted under it. Record the customer's new certificate first.`,
     );
@@ -257,11 +300,13 @@ export function registerExemptions(ctx: ModuleContext) {
         )
         .where(eq(schema.exemptionCertificates.organizationId, orgId))
         .orderBy(desc(schema.exemptionCertificates.createdAt));
+      // The day it is where the business keeps its books, not where the box is.
+      const today = dayIn(new Date(), await timezoneFor(orgId));
       return c.json({
         certificates: rows.map((row) => ({
           ...row.certificate,
           companyName: row.companyName,
-          status: certificateStatus(row.certificate),
+          status: certificateStatus(row.certificate, today),
         })),
       });
     },
@@ -307,8 +352,9 @@ export function registerExemptions(ctx: ModuleContext) {
         .values({ organizationId: orgId, ...parsed })
         .returning();
       if (!made) throw new Error("certificate insert returned no row");
+      const today = dayIn(new Date(), await timezoneFor(orgId));
       return c.json(
-        { certificate: { ...made, status: certificateStatus(made) } },
+        { certificate: { ...made, status: certificateStatus(made, today) } },
         201,
       );
     },
@@ -336,8 +382,9 @@ export function registerExemptions(ctx: ModuleContext) {
         )
         .returning();
       if (!row) return c.json({ error: "not found" }, 404);
+      const today = dayIn(new Date(), await timezoneFor(orgId));
       return c.json({
-        certificate: { ...row, status: certificateStatus(row) },
+        certificate: { ...row, status: certificateStatus(row, today) },
       });
     },
   );
