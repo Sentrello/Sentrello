@@ -180,6 +180,33 @@ test("a group grants its roles on top of the person's own", async () => {
     body: { organizationId: orgId, permissions: { settings: ["update"] } },
   });
   expect(beyondTheGroup.success).toBe(false);
+
+  /*
+   * And the list says who put them in it.
+   *
+   * `addedBy` and `addedAt` have been written since groups were built and read
+   * back by nothing, so the member list showed names and no provenance — on the
+   * screen that decides what a person can reach, which is exactly where an
+   * access review starts.
+   */
+  const listed = await app.request("http://localhost/api/users/groups", {
+    headers,
+  });
+  const body = (await listed.json()) as {
+    groups: {
+      id: string;
+      members: {
+        userId: string;
+        addedByName: string | null;
+        addedAt: string;
+      }[];
+    }[];
+  };
+  const member = body.groups
+    .find((g) => g.id === group)
+    ?.members.find((m) => m.userId === staffId);
+  expect(member?.addedByName).toBe("Owner");
+  expect(member?.addedAt).toBeTruthy();
 });
 
 test("taking somebody out of a group takes the permission with it", async () => {

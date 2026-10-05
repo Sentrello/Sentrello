@@ -7,6 +7,7 @@ import { and, asc, db, eq, schema } from "@sentrello/db";
 import { organizationMember } from "@sentrello/db/membership";
 import { record } from "@sentrello/db/security-events";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
+import { alias } from "drizzle-orm/pg-core";
 import { policyKind, seedDefaults } from "./defaults";
 import {
   BUILT_IN,
@@ -96,17 +97,36 @@ export function registerGroups(ctx: ModuleContext) {
         .where(eq(schema.userGroups.organizationId, orgId))
         .orderBy(asc(schema.userGroups.name));
 
+      /*
+       * And how each member got there.
+       *
+       * A group decides what somebody can reach, so "who gave them this, and
+       * when" is what an access review is made of. Both columns have been
+       * written since groups were built and read back by nothing, so the list
+       * showed names and no provenance at all.
+       *
+       * The adder is joined through a second alias rather than looked up per
+       * row: a group of forty is forty queries otherwise, on a screen somebody
+       * opens to check forty people.
+       */
+      const addedByUser = alias(schema.user, "added_by_user");
       const members = await db
         .select({
           groupId: schema.userGroupMembers.groupId,
           userId: schema.userGroupMembers.userId,
           name: schema.user.name,
           email: schema.user.email,
+          addedAt: schema.userGroupMembers.addedAt,
+          addedByName: addedByUser.name,
         })
         .from(schema.userGroupMembers)
         .innerJoin(
           schema.user,
           eq(schema.user.id, schema.userGroupMembers.userId),
+        )
+        .leftJoin(
+          addedByUser,
+          eq(addedByUser.id, schema.userGroupMembers.addedBy),
         )
         .where(eq(schema.userGroupMembers.organizationId, orgId));
 
@@ -115,7 +135,14 @@ export function registerGroups(ctx: ModuleContext) {
           ...group,
           members: members
             .filter((m) => m.groupId === group.id)
-            .map((m) => ({ userId: m.userId, name: m.name, email: m.email })),
+            .map((m) => ({
+              userId: m.userId,
+              name: m.name,
+              email: m.email,
+              addedAt: m.addedAt,
+              // Null where the row predates the column or the person has gone.
+              addedByName: m.addedByName,
+            })),
         })),
       });
     },

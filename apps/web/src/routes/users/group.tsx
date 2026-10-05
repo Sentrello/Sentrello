@@ -165,7 +165,21 @@ function Members({ group }: { group: GroupRow }) {
           <ul className="flex flex-col gap-(--gap-tight) text-sm">
             {group.members.map((m) => (
               <li key={m.userId} className="flex items-center justify-between">
-                <span>{m.name || m.email}</span>
+                <span>
+                  {m.name || m.email}
+                  {/*
+                    How they got here, which is what an access review is made
+                    of. Both columns were written when somebody was added and
+                    read back by nothing, so this list showed names and no
+                    provenance — and a group decides what a person can reach.
+                  */}
+                  {m.addedByName || m.addedAt ? (
+                    <span className="block text-xs" style={muted}>
+                      {m.addedByName ? `Added by ${m.addedByName}` : "Added"}
+                      {m.addedAt ? ` · ${formatDate(m.addedAt)}` : ""}
+                    </span>
+                  ) : null}
+                </span>
                 <ConfirmButton
                   danger
                   needs={{ settings: ["update"] }}

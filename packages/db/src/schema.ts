@@ -3632,6 +3632,14 @@ export const userGroupMembers = pgTable(
     organizationId: text("organization_id")
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
+    /**
+     * When, and by whom.
+     *
+     * A group decides what somebody can reach, so "who gave them this" is the
+     * question an access review is made of. Both were written and neither was
+     * ever read back, so the member list showed names and nothing about how
+     * they got there.
+     */
     addedAt: timestamp("added_at").defaultNow().notNull(),
     addedBy: text("added_by"),
   },

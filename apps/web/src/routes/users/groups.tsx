@@ -38,7 +38,14 @@ export interface GroupRow {
   name: string;
   description: string | null;
   roles: string[];
-  members: { userId: string; name: string; email: string }[];
+  members: {
+    userId: string;
+    name: string;
+    email: string;
+    /** Who put them in it, and when. Null on a row that predates the column. */
+    addedByName: string | null;
+    addedAt: string | null;
+  }[];
 }
 
 export function Groups() {

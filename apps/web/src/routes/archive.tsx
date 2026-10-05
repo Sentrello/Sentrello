@@ -92,6 +92,9 @@ type Run = {
   sha256: string | null;
   rows: { table: string; rows: number }[];
   removedRows: { table: string; rows: number }[] | null;
+  /** When the live rows went, and when the file was checked against them. */
+  removedAt: string | null;
+  verifiedAt: string | null;
   carriedForward: string[];
   error: string | null;
   createdAt: string;
@@ -287,8 +290,20 @@ export function Archive() {
                   {run.rows
                     .reduce((total, r) => total + r.rows, 0)
                     .toLocaleString()}
+                  {/*
+                    When the live rows went, not only that they did.
+
+                    `removedAt` was written at the removal and shown nowhere, so
+                    the one line on this screen said "removed here" with no date
+                    — and "when did we delete the 2019 ledger" is the question a
+                    retention policy is answered with.
+                  */}
                   {run.removedRows ? (
-                    <div style={muted}>removed here</div>
+                    <div style={muted}>
+                      {run.removedAt
+                        ? `removed ${formatDate(run.removedAt)}`
+                        : "removed here"}
+                    </div>
                   ) : null}
                 </td>
                 <td>{size(run.bytes)}</td>
@@ -296,7 +311,16 @@ export function Archive() {
                   <StatusBadge status={run.status} />
                   {run.error ? <div style={muted}>{run.error}</div> : null}
                 </td>
-                <td>{formatDate(run.createdAt)}</td>
+                <td>
+                  {formatDate(run.createdAt)}
+                  {/* And whether the file was checked against what it holds.
+                      An archive nobody verified is a file, not a record. */}
+                  {run.verifiedAt ? (
+                    <div style={muted}>
+                      checked {formatDate(run.verifiedAt)}
+                    </div>
+                  ) : null}
+                </td>
                 <td>
                   {run.present ? (
                     <div className="flex gap-(--gap-toolbar)">
