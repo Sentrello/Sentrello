@@ -201,6 +201,67 @@ test("the rules say who must have a second factor, and the person is told", asyn
   ).toBe(200);
 });
 
+/**
+ * Exactly which doors stay open, counted rather than described.
+ *
+ * The comment beside the list said "two doors" and the list held four, and the
+ * published security page repeated the two — so a reader auditing what a required
+ * second factor actually covers was told a smaller surface than the one that
+ * exists. Every entry is a hole in a control a business switched on deliberately,
+ * so adding one has to mean editing this test and saying why.
+ *
+ * Asserted *and* exercised: a list that is right and unenforced is the exact
+ * failure this rule was written for, in those words.
+ */
+test("a required second factor leaves exactly four doors open", async () => {
+  const { STILL_REACHABLE_WITHOUT_A_FACTOR } = await import(
+    "@sentrello/auth/hono"
+  );
+  expect([...STILL_REACHABLE_WITHOUT_A_FACTOR].sort()).toEqual([
+    // The compliance settings, where a business switches HIPAA mode — and
+    // therefore where it switches it back off.
+    "/api/compliance",
+    // Their own profile, which is where a second factor is set up, and the
+    // security panel that tells them they need one.
+    "/api/users/me",
+    "/api/users/me/security",
+    // The policy screen, so an administrator who names their own role by
+    // mistake can unname it.
+    "/api/users/policy",
+  ]);
+
+  const required = await putPolicy({ requireTwoFactorFor: ["admin"] });
+  expect(required.status).toBe(200);
+  try {
+    /*
+     * None of them is turned away for want of a second factor.
+     *
+     * Asserted on the refusal rather than on a 200, because this app registers
+     * the Users module alone: `/api/compliance` belongs to Settings and answers
+     * 404 here, which is a route that is not mounted rather than a door that was
+     * shut. What matters is that the guard did not speak.
+     */
+    for (const path of [
+      "/api/users/me/security",
+      "/api/users/me",
+      "/api/compliance",
+    ]) {
+      const res = await app.request(`http://localhost${path}`, { headers });
+      const said = await res.text();
+      expect(res.status, `${path} was refused`).not.toBe(403);
+      expect(said, `${path} was refused for want of a factor`).not.toContain(
+        "second factor",
+      );
+    }
+    // And something that is not on the list is refused, or the four above
+    // would prove nothing.
+    const shut = await app.request("http://localhost/api/users", { headers });
+    expect(shut.status).toBe(403);
+  } finally {
+    await putPolicy({ requireTwoFactorFor: [] });
+  }
+});
+
 test("a password minimum is kept inside what the platform can enforce", async () => {
   const res = await putPolicy({ minPasswordLength: 2 });
   const { policy } = (await res.json()) as {

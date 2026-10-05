@@ -177,15 +177,21 @@ const ALWAYS_REACHABLE = ["/api/compliance", "/api/users/me/security"];
  * the business believes it is covered and the person believes they are
  * blocked, and neither is true. Found 2026-09-28.
  *
- * Two doors stay open, for the reason the HIPAA list above gives. Complying
- * is always possible — enabling a second factor goes to `/api/auth/*`, which
- * `mountAuth` serves without this middleware — and so is undoing it: an
- * administrator who names their own role by mistake can still reach the
- * policy screen. Without that second door the mistake is unrecoverable from
- * inside the product, which is the failure this rule's neighbour already
- * made once.
+ * Two more doors stay open, on top of the pair above, for the reason that pair
+ * gives. Complying is always possible — enabling a second factor goes to
+ * `/api/auth/*`, which `mountAuth` serves without this middleware — and so is
+ * undoing it: an administrator who names their own role by mistake can still
+ * reach the policy screen. Without that the mistake is unrecoverable from inside
+ * the product, which is the failure this rule's neighbour already made once.
+ *
+ * **Four in total, and the count matters**, which is why it is exported and
+ * asserted rather than described. The comment here said "two" while the list
+ * below held four, and a security page repeated the two — so a reader auditing
+ * what a required second factor actually covers was told a smaller surface than
+ * the one that exists. A new entry is a widening of that surface and has to be
+ * argued for in the test, not added quietly.
  */
-const STILL_REACHABLE_WITHOUT_A_FACTOR = [
+export const STILL_REACHABLE_WITHOUT_A_FACTOR = [
   ...ALWAYS_REACHABLE,
   "/api/users/policy",
   "/api/users/me",

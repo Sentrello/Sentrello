@@ -146,9 +146,15 @@ codes are shown once, at the moment it is enabled.
 
 Required means refused. Somebody holding a named role and no second factor is
 told so on their profile and turned away from everything else until they set
-one up — two doors stay open, the profile page itself and, for whoever can
-edit the policy, the screen that would unname the role. Nobody can lock the
-business out of undoing it.
+one up.
+
+Four things stay reachable, and they are the way back: their own profile and
+its security panel, where a second factor is set up; the policy screen, so an
+administrator who named their own role by mistake can unname it; and the
+compliance settings, where the stricter rule that requires one of everybody is
+switched off again. Each still needs a password and the permission for it —
+this is an administrator, not the public. Nobody can lock the business out of
+undoing it.
 
 :::warning[Recovery codes are shown once]
 Store them somewhere other than the machine you sign in from. Losing both the
