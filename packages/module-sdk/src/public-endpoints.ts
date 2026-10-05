@@ -8,6 +8,7 @@
  * implementation is a second set of mistakes.
  */
 
+import { bodyLimit } from "hono/body-limit";
 import { callerAddress } from "./caller";
 
 export interface OriginDecision {
@@ -288,6 +289,36 @@ export function resetRateLimits() {
 }
 
 /** The field bots fill in and humans never see. */
+/**
+ * What a door with no account in front of it may send.
+ *
+ * Nothing bounded any of them. The server's own ceiling is sized for the one
+ * feature that legitimately wants half a gigabyte — reading an archive back in,
+ * behind a session and a permission — and until that ceiling was set explicitly
+ * Bun's 128MB default was quietly standing in for a decision nobody had made.
+ * Either way a public form is nothing like it: a checkout, a booking, a
+ * subscribe box and a password on a share page are all a few hundred bytes, and
+ * the gap between that and the ceiling is a gap anybody on the internet can
+ * stand in.
+ *
+ * Counted off the stream as it arrives, not taken from `content-length`, which
+ * is a claim by the sender. The answer is 413 and a sentence, because the
+ * caller may well be a person who attached the wrong thing.
+ *
+ * Generous on purpose: a long message in a booking's notes, a cart with forty
+ * lines and a provider's bounce payload all fit several times over. A route that
+ * genuinely takes a file says its own number.
+ */
+export const MOST_PUBLIC_BYTES = 256 * 1024;
+
+export function publicBodyLimit(maxBytes: number = MOST_PUBLIC_BYTES) {
+  return bodyLimit({
+    maxSize: maxBytes,
+    onError: (c) =>
+      c.text("That is more than this form takes. Try again with less.", 413),
+  });
+}
+
 export const HONEYPOT_FIELD = "_sentrello_hp";
 
 /** CORS headers for an allowed origin; nothing at all for a refused one. */
