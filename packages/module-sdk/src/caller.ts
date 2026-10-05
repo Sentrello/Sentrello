@@ -1,5 +1,4 @@
 import type { Context } from "hono";
-import { getConnInfo } from "hono/bun";
 
 /**
  * Who is calling, and whether we have any reason to believe them.
@@ -104,6 +103,42 @@ export interface CallerAddress {
   proxied: boolean;
 }
 
+/**
+ * The address off the socket, asked of the server rather than imported.
+ *
+ * `getConnInfo` from `hono/bun` is these four lines, and importing it put
+ * `hono/bun` into the import graph of `@sentrello/db` — which drizzle-kit reads
+ * under Node, where `Bun` is not defined. Every module's `db:generate` then died
+ * on `ReferenceError: Bun is not defined` before it reached a table. A package
+ * three repositories depend on has no business naming a runtime, and the only
+ * thing that was wanted from the adapter is the question below.
+ *
+ * Empty whenever there is no server to ask: a test driving a route through
+ * `app.request()`, or a runtime that is not Bun's own.
+ */
+function peerAddress(c: Pick<Context, "req">): {
+  address?: string;
+  port?: number;
+} {
+  const env = (c as { env?: unknown }).env;
+  if (!env || typeof env !== "object") return {};
+  const holder = (
+    "server" in env ? (env as { server?: unknown }).server : env
+  ) as
+    | {
+        requestIP?: (
+          request: Request,
+        ) => { address?: string; port?: number } | null;
+      }
+    | undefined;
+  if (typeof holder?.requestIP !== "function") return {};
+  try {
+    return holder.requestIP(c.req.raw) ?? {};
+  } catch {
+    return {};
+  }
+}
+
 /** The caller's address, as far as anything here can honestly tell. */
 export function callerAddress(
   c: Pick<Context, "req">,
@@ -113,29 +148,20 @@ export function callerAddress(
   if (fromHeader) {
     const hops = trustedHops(env);
     if (hops.length === 0) return { ip: fromHeader, proxied: true };
-    let peer: string | undefined;
-    try {
-      peer = getConnInfo(c as Context).remote.address;
-    } catch {
-      peer = undefined;
+    if (fromTrustedHop(peerAddress(c).address, hops)) {
+      return { ip: fromHeader, proxied: true };
     }
-    if (fromTrustedHop(peer, hops)) return { ip: fromHeader, proxied: true };
     // The header arrived from somewhere we did not say to believe, so it is a
     // claim rather than an address. Fall through to the socket.
   }
 
-  try {
-    const info = getConnInfo(c as Context);
-    if (info.remote.address) {
-      return {
-        ip: info.remote.address,
-        port: info.remote.port != null ? String(info.remote.port) : undefined,
-        proxied: false,
-      };
-    }
-  } catch {
-    // Not a Bun server — every test driving a route through `app.request()`
-    // lands here rather than on a real socket.
+  const peer = peerAddress(c);
+  if (peer.address) {
+    return {
+      ip: peer.address,
+      port: peer.port != null ? String(peer.port) : undefined,
+      proxied: false,
+    };
   }
   return { proxied: false };
 }
