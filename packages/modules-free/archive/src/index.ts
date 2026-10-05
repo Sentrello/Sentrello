@@ -11,6 +11,7 @@ import {
 } from "@sentrello/db/archive";
 import {
   type RouteContext,
+  allowLongRequest,
   contentDisposition,
   defineModule,
 } from "@sentrello/module-sdk";
@@ -207,6 +208,8 @@ export default defineModule({
         const period = periodOf(body);
         if ("error" in period) return c.json({ error: period.error }, 400);
 
+        // Zipping years of records out of the database, with somebody waiting.
+        allowLongRequest(c, 255);
         const plan = await planArchive(
           orgId,
           typeof body.set === "string" ? body.set : "",
@@ -340,6 +343,14 @@ export default defineModule({
       requirePermission({ archive: ["create"] }),
       async (c: RouteContext) => {
         const orgId = activeOrganizationId(c.get("session"));
+        /*
+         * Reading half a gigabyte back in, verifying it and putting the records
+         * where they were, while one person watches a spinner. Bun closes a
+         * connection that has gone quiet, and a handler that has not written a
+         * byte counts as quiet — so without this the restore the product
+         * documents was cut off and answered nothing.
+         */
+        allowLongRequest(c, 255);
         const form = await c.req.formData().catch(() => null);
         const file = form?.get("file");
         if (!(file instanceof File) || file.size === 0) {

@@ -261,6 +261,14 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+
+        # A restore, an import or an archive run takes longer than nginx waits
+        # by default — one minute — and when it gives up the answer is nginx's
+        # own 504, which cannot say what was happening. Sentrello allows two
+        # minutes for an ordinary request and up to four for the few that read
+        # a whole file, so this has to be the more patient of the two.
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
     }
 
     # nginx refuses a larger request before Sentrello sees it, so this has to

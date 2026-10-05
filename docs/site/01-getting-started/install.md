@@ -57,6 +57,8 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         client_max_body_size 520m;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
     }
 }
 ```
@@ -71,6 +73,16 @@ asked.
 run to 512MB, Storage takes files up to 100MB, and an invoice attachment stops
 at 10MB. A ceiling is not an allocation, so a generous one costs you nothing —
 and a short one costs you a restore, on the day you are doing a restore.
+:::
+
+:::info[And give it time, for the same reason]
+`proxy_read_timeout` is how long nginx waits for an answer, and the default is
+one minute. A restore, an import or an archive run over a few years of records
+takes longer than that, and when nginx gives up the answer is nginx's own 504 —
+which cannot say what was happening, because nothing in the product was asked.
+
+Sentrello allows two minutes for an ordinary request and up to four for the few
+that read a whole file, so 300s keeps nginx the more patient of the two.
 :::
 
 Then issue a certificate:

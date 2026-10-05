@@ -404,6 +404,7 @@ export * from "./images";
 export * from "./customer-session";
 export * from "./caller";
 export * from "./public-endpoints";
+export * from "./server-access";
 /**
  * Read from disk, so it is imported by tests rather than by a running
  * instance. Exported from here because Core's modules and the commercial ones

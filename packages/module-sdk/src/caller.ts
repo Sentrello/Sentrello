@@ -1,4 +1,5 @@
 import type { Context } from "hono";
+import { bunServer } from "./server-access";
 
 /**
  * Who is calling, and whether we have any reason to believe them.
@@ -106,34 +107,18 @@ export interface CallerAddress {
 /**
  * The address off the socket, asked of the server rather than imported.
  *
- * `getConnInfo` from `hono/bun` is these four lines, and importing it put
- * `hono/bun` into the import graph of `@sentrello/db` — which drizzle-kit reads
- * under Node, where `Bun` is not defined. Every module's `db:generate` then died
- * on `ReferenceError: Bun is not defined` before it reached a table. A package
- * three repositories depend on has no business naming a runtime, and the only
- * thing that was wanted from the adapter is the question below.
- *
  * Empty whenever there is no server to ask: a test driving a route through
- * `app.request()`, or a runtime that is not Bun's own.
+ * `app.request()`, or a runtime that is not Bun's own. See `server-access.ts`
+ * for why the adapter is not imported.
  */
 function peerAddress(c: Pick<Context, "req">): {
   address?: string;
   port?: number;
 } {
-  const env = (c as { env?: unknown }).env;
-  if (!env || typeof env !== "object") return {};
-  const holder = (
-    "server" in env ? (env as { server?: unknown }).server : env
-  ) as
-    | {
-        requestIP?: (
-          request: Request,
-        ) => { address?: string; port?: number } | null;
-      }
-    | undefined;
-  if (typeof holder?.requestIP !== "function") return {};
+  const server = bunServer(c);
+  if (typeof server?.requestIP !== "function") return {};
   try {
-    return holder.requestIP(c.req.raw) ?? {};
+    return server.requestIP(c.req.raw) ?? {};
   } catch {
     return {};
   }

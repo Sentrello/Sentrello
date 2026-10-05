@@ -1098,10 +1098,34 @@ if (failedBundles.length) {
  */
 const MAX_REQUEST_BYTES = 520 * 1024 * 1024;
 
+/**
+ * How long a request may be quiet before the connection is closed.
+ *
+ * **`Bun.serve` closes a connection after ten seconds of inactivity, and a
+ * handler that has not yet written a byte counts as inactive.** So every request
+ * in this product whose work took longer than ten seconds was killed with no
+ * response: the caller saw a connection reset, the route never finished, and the
+ * only trace was one line on stdout saying to pass `idleTimeout`. Verified by
+ * experiment — a handler that waits twenty seconds never answers.
+ *
+ * Two minutes here, which is twelve times what a request has had and far more
+ * than any ordinary one needs. It is also the only number in the chain that was
+ * chosen: nginx's own read timeout defaults to a minute, and the proxy block in
+ * the published install instructions names no timeout at all, so this was never
+ * the binding constraint — it was simply the smallest, and the one nobody had
+ * written down.
+ *
+ * A route that genuinely needs longer asks for it per request with
+ * `allowLongRequest` from the SDK, because an upload being read and a report
+ * being computed are not the same kind of wait.
+ */
+const IDLE_SECONDS = 120;
+
 export default {
   port,
   fetch: app.fetch,
   maxRequestBodySize: MAX_REQUEST_BYTES,
+  idleTimeout: IDLE_SECONDS,
 };
 
 /**
