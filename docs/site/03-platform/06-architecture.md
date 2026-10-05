@@ -105,6 +105,11 @@ request time, and an instance with no route to the internet keeps working.
 A missing, expired or invalid token fails safe to Free. It never crashes the
 application, and it never quietly opens something.
 
+That is the licensing half. For the whole answer — what the hourly check
+carries, the usage report an instance sends only if somebody said yes, and the
+one module that can be asked to send more — see
+[Security](/platform/security).
+
 ## Where the state lives
 
 One database. A schema per module, and every business table carries an
