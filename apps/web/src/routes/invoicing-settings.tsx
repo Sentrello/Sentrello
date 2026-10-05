@@ -1138,6 +1138,30 @@ function BillingRules() {
             </>
           ) : null}
 
+          {/*
+            How long a customer has, and the field this panel had been
+            missing: the column was here from the start, the route validated
+            it to 0–365, and no screen offered it. Beside the terms line
+            because the two are halves of one sentence — "30 days net" is
+            what the customer reads, and this is what the invoice does.
+          */}
+          <Field label="Days to pay" hint="Used when nobody types a due date">
+            <Input
+              type="number"
+              min="0"
+              max="365"
+              needs={{ invoicing: ["update"] }}
+              defaultValue={settings.defaultDueDays}
+              className="w-24"
+              aria-label="Days to pay"
+              onBlur={(e) =>
+                saveSettings.mutate({
+                  defaultDueDays: Number.parseInt(e.target.value, 10) || 0,
+                })
+              }
+            />
+          </Field>
+
           <Field label="Default payment terms">
             <Input
               needs={{ invoicing: ["update"] }}

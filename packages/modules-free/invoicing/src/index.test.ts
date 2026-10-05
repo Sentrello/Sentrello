@@ -1202,6 +1202,57 @@ test("an invoice created without a due date still gets one", async () => {
   expect(daysLate(dueDate, new Date(), null)).toBe(-30);
 });
 
+/**
+ * And the thirty days is the fallback, not the rule.
+ *
+ * `defaultDueDays` has been a column on `invoicing_settings` since the module
+ * was written, offered by the settings route and validated to 0–365. Nothing
+ * read it. A business that told the product its customers get fourteen days
+ * went on raising invoices due in thirty, and the form's hint said "thirty
+ * days" as though that were the arrangement.
+ *
+ * Asserted through the route rather than against the helper, because a correct
+ * helper no caller reaches is the bug this is.
+ */
+test("a business that said how long its customers get is believed", async () => {
+  await db
+    .insert(schema.invoicingSettings)
+    .values({ organizationId: orgId, defaultDueDays: 14 })
+    .onConflictDoUpdate({
+      target: schema.invoicingSettings.organizationId,
+      set: { defaultDueDays: 14 },
+    });
+  try {
+    const res = await app.request("http://localhost/api/invoices", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        contactId,
+        currency: "USD",
+        lines: [
+          { description: "Net 14", quantity: 1, unitPrice: 5000, taxRateBp: 0 },
+        ],
+      }),
+    });
+    expect(res.status).toBe(201);
+    const { invoice } = (await res.json()) as { invoice: { id: string } };
+    const [row] = await db
+      .select()
+      .from(schema.invoices)
+      .where(eq(schema.invoices.id, invoice.id));
+    const dueDate = row?.dueDate;
+    if (!dueDate) throw new Error("an invoice must carry a due date");
+    expect(daysLate(dueDate, new Date(), null)).toBe(-14);
+  } finally {
+    // Back to the column default, so the test above keeps answering thirty
+    // whichever order the file runs in.
+    await db
+      .update(schema.invoicingSettings)
+      .set({ defaultDueDays: 30 })
+      .where(eq(schema.invoicingSettings.organizationId, orgId));
+  }
+});
+
 test("a due date the business chose is kept", async () => {
   const chosen = "2027-02-01";
   const res = await app.request("http://localhost/api/invoices", {

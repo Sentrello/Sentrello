@@ -683,7 +683,7 @@ export function InvoiceForm({
           ) : (
             <Field
               label="Due"
-              hint="Left blank, it defaults to thirty days — an invoice with no due date is never chased."
+              hint="Left blank, it uses the days to pay in Invoice settings — an invoice with no due date is never chased."
             >
               <Input
                 type="date"

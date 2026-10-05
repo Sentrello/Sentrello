@@ -20,7 +20,7 @@ import { dayIn, dayOf } from "@sentrello/db/day";
 import {
   convertQuoteToInstalments,
   convertQuoteToInvoice,
-  defaultDueDate,
+  defaultDueDateFor,
 } from "@sentrello/db/documents";
 import {
   CORE_ACCOUNTS,
@@ -563,7 +563,9 @@ export default defineModule({
               // Defaulted rather than left null: overdue chasing skips an
               // invoice with no due date, so one created without a date is
               // money the business is never reminded to ask for.
-              dueDate: dueDate ? new Date(dueDate) : defaultDueDate(),
+              dueDate: dueDate
+                ? new Date(dueDate)
+                : await defaultDueDateFor(orgId),
               number: await nextDocumentNumber(tx, orgId, "invoice"),
               status: asDraft ? "draft" : "open",
               notes: String(body.notes ?? "").trim() || null,

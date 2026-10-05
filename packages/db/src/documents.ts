@@ -34,20 +34,57 @@ import { timezoneFor } from "./timezone";
  * answers 404 rather than leaking whether an id exists.
  */
 /**
- * When an invoice raised from a quote falls due.
+ * When an invoice falls due, counting from a day.
  *
- * Thirty days, because an invoice with no due date can never be late: it sits
- * outside every aging bucket, the overdue chase skips it, and it never reaches
- * the dashboard's overdue figure. A quote carries no terms of its own, so this
- * is the assumption — worth making configurable once anyone asks for different
- * terms.
+ * An invoice with no due date can never be late: it sits outside every aging
+ * bucket, the overdue chase skips it, and it never reaches the dashboard's
+ * overdue figure. So one is always chosen.
+ *
+ * Thirty days is only the fallback. How long a customer actually has is
+ * `defaultDueDays` on the organization's invoicing settings — use
+ * `defaultDueDateFor`, which reads it. This function exists for the arithmetic
+ * and for tests.
  */
-export function defaultDueDate(from = new Date()): Date {
-  // A date, not an instant: midnight UTC thirty days on. Every due date a
+export function defaultDueDate(
+  from = new Date(),
+  days = DEFAULT_DUE_DAYS,
+): Date {
+  // A date, not an instant: midnight UTC, that many days on. Every due date a
   // person types is stored that way, and one carrying a time of day renders in
   // the reader's own zone — so the same invoice could be due on two different
   // days depending on who was looking at it.
-  return new Date(dayOf(from).getTime() + 30 * 24 * 60 * 60 * 1000);
+  return new Date(dayOf(from).getTime() + days * 24 * 60 * 60 * 1000);
+}
+
+/** What a business gets when it has never said. Mirrors the column default. */
+export const DEFAULT_DUE_DAYS = 30;
+
+/**
+ * The same thing, for a business that said how long its customers get.
+ *
+ * `defaultDueDays` has been a column on `invoicing_settings` since the module
+ * was written, settable through the settings route, validated to 0–365 — and
+ * read by nothing. Every invoice raised without a typed due date fell due in
+ * thirty days, whatever a business had set, and the form said "thirty days" as
+ * though that were the rule rather than one business's answer.
+ *
+ * And it counts from the day where the business is, not where the server is.
+ * `dayOf(new Date())` in Denver at seven in the evening is already tomorrow in
+ * UTC, so net-30 arrived on day 31 for half of every afternoon.
+ */
+export async function defaultDueDateFor(
+  organizationId: string,
+  from = new Date(),
+): Promise<Date> {
+  const [settings] = await db
+    .select({ days: schema.invoicingSettings.defaultDueDays })
+    .from(schema.invoicingSettings)
+    .where(eq(schema.invoicingSettings.organizationId, organizationId))
+    .limit(1);
+  return defaultDueDate(
+    dayIn(from, await timezoneFor(organizationId)),
+    settings?.days ?? DEFAULT_DUE_DAYS,
+  );
 }
 
 export async function convertQuoteToInvoice(
@@ -126,7 +163,7 @@ export async function convertQuoteToInvoice(
         // never be chased. The portal's own acceptance path set one; this one
         // did not, so which screen accepted the work decided whether the
         // business would ever be reminded to ask for the money.
-        dueDate: defaultDueDate(),
+        dueDate: await defaultDueDateFor(organizationId),
         subtotalCents: quote.subtotalCents,
         discountType: quote.discountType,
         discountValue: quote.discountValue,
@@ -546,7 +583,7 @@ export async function raiseInvoice(
         status: "open",
         currency,
         rateMicro: rate,
-        dueDate: input.dueDate ?? defaultDueDate(),
+        dueDate: input.dueDate ?? (await defaultDueDateFor(organizationId)),
         notes: input.notes ?? null,
         pricesIncludeTax,
         subtotalCents: totals.subtotal,

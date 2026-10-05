@@ -6,7 +6,7 @@ import {
 import { and, db, eq, inArray, schema } from "@sentrello/db";
 import { baseCurrency, rateOn } from "@sentrello/db/currency";
 import { dayIn } from "@sentrello/db/day";
-import { defaultDueDate } from "@sentrello/db/documents";
+import { defaultDueDateFor } from "@sentrello/db/documents";
 import { ownedContact } from "@sentrello/db/ledger";
 import { MoneyError } from "@sentrello/db/money";
 import { nextDocumentNumber } from "@sentrello/db/numbering";
@@ -246,7 +246,7 @@ export function registerConsolidate(ctx: ModuleContext) {
             status: "draft",
             // A day, like every other issue date.
             issueDate: dayIn(new Date(), zone),
-            dueDate: defaultDueDate(),
+            dueDate: await defaultDueDateFor(orgId),
             discountType:
               (body.discountType as string) === "percent" ||
               (body.discountType as string) === "amount"
