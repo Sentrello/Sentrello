@@ -55,6 +55,21 @@ and block out holidays. The booking page then offers only what is genuinely
 free, because it reads your existing
 bookings before it draws the grid. Two people cannot take the same slot.
 
+**How far ahead the page goes** is sixty days unless you say otherwise, under
+Booking → Settings. Set that figure to 0 and there is no limit at all.
+
+A service can carry its own window instead: a rolling number of days, or a
+season with a start and an end. Where it does, the service wins. Leave all
+three boxes empty and the instance figure applies — which is the part nobody
+guesses, and the reason a date that should be free reads as unavailable.
+
+A private link ignores every one of them. The whole point of one is to book
+something the page does not offer.
+
+Past the last month with anything in it, the arrow forward stops rather than
+handing somebody an empty grid, which reads as "fully booked" and is the
+opposite of what you meant.
+
 ## The booking page
 
 ```mermaid
