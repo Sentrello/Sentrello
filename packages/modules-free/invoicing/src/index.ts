@@ -60,6 +60,7 @@ import {
   callerKey,
   customerThemeFor,
   defineModule,
+  publicBodyLimit,
   rateLimit,
 } from "@sentrello/module-sdk";
 import { and, eq, isNotNull, isNull, notInArray } from "drizzle-orm";
@@ -262,6 +263,15 @@ export default defineModule({
   id: "invoicing",
   tier: "free",
   register(ctx) {
+    /*
+     * The customer's own portal, which needs no account and had no bound.
+     *
+     * Accepting a quote is a few bytes. The server's ceiling is sized for
+     * reading an archive back in behind a session, and everything between the
+     * two was a gap anybody holding a portal link could stand in.
+     */
+    ctx.app.use("/portal/*", publicBodyLimit());
+
     registerInvoicingPersonalData(ctx);
     registerInvoiceSearch(ctx);
     registerEInvoice(ctx);

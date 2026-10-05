@@ -69,10 +69,16 @@ export async function unclaimedPaymentEvents(
     .limit(limit);
 }
 
-export function registerPaymentWebhookEndpoint(ctx: ModuleContext) {
-  /** The largest webhook any card processor sends, with room to spare. */
-  const MAX_WEBHOOK_BYTES = 256 * 1024;
+/**
+ * The largest webhook any card processor sends, with room to spare.
+ *
+ * Module scope because the body limit in front of the route is registered from
+ * `index.ts` and has to use the same number — two places saying 256KB is how one
+ * of them ends up saying something else.
+ */
+export const MAX_WEBHOOK_BYTES = 256 * 1024;
 
+export function registerPaymentWebhookEndpoint(ctx: ModuleContext) {
   ctx.app.post("/api/payments/webhook/:provider", async (c: RouteContext) => {
     const name = c.req.param("provider") ?? "";
 

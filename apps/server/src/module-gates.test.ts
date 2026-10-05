@@ -349,3 +349,62 @@ test("no Free module refuses the owner of the business", async () => {
   expect(checked).toBeGreaterThan(90);
   expect(refused).toEqual([]);
 }, 120_000);
+
+/**
+ * And every public door says how much it will take.
+ *
+ * The server's own ceiling is sized for the one feature that legitimately wants
+ * half a gigabyte: reading an archive back in, behind a session and a permission.
+ * Everything above is a form, a portal link or a provider's webhook — a few
+ * hundred bytes to a few hundred kilobytes — and the gap between the two was a
+ * gap anybody on the internet could stand in.
+ *
+ * The CRM's form had the only limit of the four, and it compared `content-length`
+ * and nothing else. That is a claim by the sender, and absent altogether from a
+ * chunked request, so the one endpoint with a bound could be walked past by not
+ * declaring a length. `publicBodyLimit` counts the stream when there is no length
+ * to read.
+ *
+ * Matched on the middleware's name in the route table rather than on identity,
+ * because Hono's `bodyLimit` returns a fresh closure per registration.
+ */
+const TAKES_A_BODY = new Set(["POST", "PUT", "PATCH"]);
+
+function coveredBy(pattern: string, path: string): boolean {
+  if (pattern === path || pattern === "*" || pattern === "/*") return true;
+  if (pattern.endsWith("/*")) return path.startsWith(pattern.slice(0, -1));
+  const theirs = pattern.split("/");
+  const ours = path.split("/");
+  if (theirs.length !== ours.length) return false;
+  return theirs.every(
+    (part, i) => part === ours[i] || part.startsWith(":") || part === "*",
+  );
+}
+
+test("every public route that takes a body says how much it takes", () => {
+  const uncapped: string[] = [];
+  let checked = 0;
+
+  for (const [name, mod] of Object.entries(MODULES)) {
+    const app = registerForTest(mod) as unknown as {
+      routes?: { method: string; path: string; handler: { name?: string } }[];
+    };
+    const routes = app.routes ?? [];
+    const limits = routes
+      .filter((r) => /^bodyLimit/.test(r.handler?.name ?? ""))
+      .map((r) => r.path);
+
+    for (const route of routes) {
+      if (!TAKES_A_BODY.has(route.method)) continue;
+      if (!PUBLIC_BY_DESIGN.has(`${route.method} ${route.path}`)) continue;
+      checked += 1;
+      if (!limits.some((pattern) => coveredBy(pattern, route.path))) {
+        uncapped.push(`${name}: ${route.method} ${route.path}`);
+      }
+    }
+  }
+
+  // So a sweep that found no public writes at all cannot pass as a clean one.
+  expect(checked).toBeGreaterThan(3);
+  expect(uncapped).toEqual([]);
+});

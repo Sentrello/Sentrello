@@ -22,11 +22,14 @@ import {
   licenseKey,
   storeLicenseKey,
 } from "@sentrello/licensing-client";
-import { defineModule } from "@sentrello/module-sdk";
+import { defineModule, publicBodyLimit } from "@sentrello/module-sdk";
 import { eq } from "drizzle-orm";
 import { registerCompliance } from "./compliance";
 import { registerEvidence } from "./evidence";
-import { registerPaymentWebhookEndpoint } from "./payment-webhook";
+import {
+  MAX_WEBHOOK_BYTES,
+  registerPaymentWebhookEndpoint,
+} from "./payment-webhook";
 import { registerPaymentAccounts } from "./payments";
 import { registerPrivacy } from "./privacy";
 import { registerTaxRegimes } from "./tax-regimes";
@@ -83,6 +86,17 @@ export default defineModule({
   id: "settings",
   tier: "free",
   register(ctx) {
+    /*
+     * A processor reporting that money moved, with a bound on how much it may
+     * say while doing it.
+     *
+     * The handler already refuses a body over this number — it has to read the
+     * raw bytes to check the signature over them — and this is the same number
+     * said a step earlier, so the stream is abandoned rather than buffered on a
+     * request that was never going to verify.
+     */
+    ctx.app.use("/api/payments/webhook/*", publicBodyLimit(MAX_WEBHOOK_BYTES));
+
     registerPrivacy(ctx);
     registerCompliance(ctx);
     registerEvidence(ctx);

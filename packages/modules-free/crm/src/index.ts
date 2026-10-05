@@ -36,6 +36,7 @@ import type {
 } from "@sentrello/module-sdk";
 import {
   defineModule,
+  publicBodyLimit,
   scoreFor,
   toCsv,
   withComputedColumns,
@@ -62,10 +63,10 @@ import { registerAttachments } from "./attachments";
 import { type TrailRemoved, removeCrmTrail } from "./cascade";
 import { registerCrmDashboard } from "./dashboard";
 import { CRM_ENTITY, type CrmResource } from "./entities";
-import { registerForms } from "./forms";
+import { MAX_UPLOAD_BODY_BYTES, registerForms } from "./forms";
 import { registerCrmHistory } from "./history";
 import { registerCrmImages } from "./images";
-import { registerInboundEmail } from "./inbound";
+import { MAX_INBOUND_ATTACHMENT, registerInboundEmail } from "./inbound";
 import { registerCrmManagers } from "./managers";
 import { registerMerge } from "./merge";
 import { registerCrmPersonalData } from "./personal-data";
@@ -2808,6 +2809,25 @@ export default defineModule({
   id: "crm",
   tier: "free",
   register(ctx) {
+    /*
+     * How much a stranger may post, on the two doors this module opens.
+     *
+     * The form checked `content-length` and nothing else, which is a claim by
+     * the sender and absent altogether on a chunked request — so the one public
+     * endpoint here that *had* a limit could be walked straight past by not
+     * declaring a length. This counts the stream when there is no length to
+     * read, and the number is the module's own: one attachment plus the fields
+     * around it.
+     *
+     * Inbound mail is the other, and it is a different size by nature: a
+     * provider posts the whole message, attachments included.
+     */
+    ctx.app.use("/api/embed/forms/*", publicBodyLimit(MAX_UPLOAD_BODY_BYTES));
+    ctx.app.use(
+      "/api/crm/inbound-email/*",
+      publicBodyLimit(MAX_INBOUND_ATTACHMENT + 1024 * 1024),
+    );
+
     registerCrmPersonalData(ctx);
     // How long the change feed is kept, and what is left of it. Beside the
     // erasure above because the two empty the same two columns and must not
