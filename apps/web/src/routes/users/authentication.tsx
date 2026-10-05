@@ -50,6 +50,10 @@ interface Policy {
 interface Diagnostics {
   ipHeader: string;
   resolvedIp: string;
+  /** Whether the header above was believed for this request, or the socket used. */
+  headerBelieved?: boolean;
+  /** The hops the header is believed from, empty when it is believed from any. */
+  trustedProxies?: string[];
   baseUrl: string;
   https: boolean;
   mailConfigured: boolean;
@@ -468,6 +472,18 @@ function Diagnostics() {
           <dd style={muted}>
             trusts <code>{d.ipHeader}</code>, resolved to{" "}
             <code>{d.resolvedIp}</code> for this request
+            {/*
+              Naming the header is half the answer. A trusted-hop list makes the
+              header believed only from a hop on it, so an instance can name
+              `x-real-ip` here and be using the socket address for every request
+              because the proxy in front is not on the list somebody typed. That
+              is this screen's own subject, arrived at from the other side.
+            */}
+            {d.trustedProxies?.length
+              ? d.headerBelieved
+                ? " — the connection came from a hop on your trusted list, so the header was believed"
+                : " — from the connection itself, because the hop it came from is not on your trusted list"
+              : null}
           </dd>
         </div>
         <div>

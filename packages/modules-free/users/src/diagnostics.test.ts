@@ -248,3 +248,44 @@ test("GET /api/users/diagnostics answers with diagnostics, not a person-shaped 4
   expect(body.error).toBeUndefined();
   expect(body.ipHeader).toBeDefined();
 });
+
+/**
+ * Naming the header is half the answer.
+ *
+ * `SENTRELLO_TRUSTED_PROXIES` is the other: set it and the header is believed
+ * only from a hop on the list, so an instance can report `x-real-ip` on this
+ * screen and be using the socket address for every request, because the proxy in
+ * front of it is not on the list somebody typed. That is the same lockout this
+ * screen exists to explain, reached from the opposite direction, and the screen
+ * could not see it.
+ */
+test("the screen says whether that header was believed for this request", async () => {
+  const before = process.env.SENTRELLO_TRUSTED_PROXIES;
+  try {
+    // A list naming a hop this request did not come from.
+    process.env.SENTRELLO_TRUSTED_PROXIES = "10.9.9.9";
+    const res = await app.request("http://localhost/api/users/diagnostics", {
+      headers: { ...Object.fromEntries(headers), "x-real-ip": "203.0.113.9" },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      ipHeader: string;
+      trustedProxies: string[];
+      headerBelieved: boolean;
+    };
+    // The header it trusts is still reported, because that is the setting.
+    expect(body.ipHeader).toBe("x-real-ip");
+    // And the list is reported, which is what makes the answer readable.
+    expect(body.trustedProxies).toEqual(["10.9.9.9"]);
+
+    /*
+     * `app.request()` has no socket, so there is no hop to judge and the header
+     * is believed — which is the documented behaviour and the right one for a
+     * test harness. What this pins is that the screen *reports* the decision
+     * rather than only the setting: the field exists and is a boolean.
+     */
+    expect(typeof body.headerBelieved).toBe("boolean");
+  } finally {
+    process.env.SENTRELLO_TRUSTED_PROXIES = before ?? "";
+  }
+});

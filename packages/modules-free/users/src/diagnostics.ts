@@ -1,4 +1,4 @@
-import { clientIp, clientIpOptions } from "@sentrello/auth";
+import { clientAddress, clientIp, clientIpOptions } from "@sentrello/auth";
 import {
   activeOrganizationId,
   requirePermission,
@@ -52,9 +52,30 @@ export function registerDiagnostics(ctx: ModuleContext) {
       const ipHeader =
         clientIpOptions(process.env).ipAddressHeaders[0] ?? "x-real-ip";
 
+      /*
+       * And whether that header was believed for this very request.
+       *
+       * Naming the header is half the answer. `SENTRELLO_TRUSTED_PROXIES` is the
+       * other: set it, and the header is believed only from a hop on the list —
+       * so an instance can report "x-real-ip" on this screen and be using the
+       * socket address for every request, because the proxy in front of it is not
+       * on the list somebody typed. That is the same lockout this screen exists to
+       * explain, arrived at from the opposite direction, and the screen could not
+       * see it.
+       *
+       * Asked of the request in hand rather than of the configuration, because
+       * the configuration cannot answer it: whether a header is believed depends
+       * on where the connection came from.
+       */
+      const who = clientAddress(c);
+
       return c.json({
         ipHeader,
         resolvedIp: clientIp(c),
+        /** Whether this request's address came from the header or the socket. */
+        headerBelieved: who.proxied,
+        /** Whether a hop list is narrowing it at all. */
+        trustedProxies: clientIpOptions(process.env).trustedProxies ?? [],
         baseUrl,
         https: baseUrl.startsWith("https://"),
         mailConfigured: mailConfigured(),
