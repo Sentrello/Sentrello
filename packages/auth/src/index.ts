@@ -118,13 +118,103 @@ export function clientIp(c: Context): string {
  * and want its absence explained when it does not, which is what `proxied`
  * is for.
  */
+/**
+ * Whether a connection came from a hop we said to believe.
+ *
+ * `SENTRELLO_TRUSTED_PROXIES` already existed and already meant this — it is
+ * handed to Better Auth as `trustedProxies`, and `self-hosting.md` documents it
+ * with a CIDR in the example. What it did not do was reach `clientAddress`, so
+ * the same variable meant "only believe these hops" to Better Auth's own rate
+ * limit and nothing at all to `clientIp`, which is what every module uses for a
+ * public limiter and for the address written into the audit log.
+ *
+ * Unset, this changes nothing: the header is believed, which is correct on every
+ * instance deployed the documented way, because our nginx writes `x-real-ip` from
+ * `$remote_addr` and a caller cannot forge it through that. Set, the header is
+ * believed only from a hop in the list — which is the lever an operator behind
+ * something else, or exposed directly, needs and did not have.
+ *
+ * An entry this cannot parse matches nothing. That tightens rather than loosens,
+ * which is the safe direction for a typo, and it shows up as limits counting
+ * several callers as one rather than as a limit quietly not applying.
+ */
+function fromTrustedHop(peer: string | undefined, list: string[]): boolean {
+  if (!peer) {
+    /*
+     * No socket to ask. Every test that drives a route through `app.request()`
+     * lands here, and so does any runtime that is not Bun's server — so this
+     * believes the header rather than failing a deployment nobody can diagnose.
+     */
+    return true;
+  }
+  /*
+   * `::ffff:127.0.0.1` is how a dual-stack socket reports an IPv4 peer, and it
+   * is what Bun handed back the first time this was tested against a real
+   * server. Without this, a list naming `127.0.0.1` matched nothing and the fix
+   * would have quietly tightened every instance that set the variable — several
+   * callers counted as one, with nothing to say why.
+   */
+  const plain = (ip: string): string =>
+    /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i.exec(ip)?.[1] ?? ip;
+  const asNumber = (raw: string): number | null => {
+    const ip = plain(raw);
+    const parts = ip.split(".");
+    if (parts.length !== 4) return null;
+    let total = 0;
+    for (const part of parts) {
+      const byte = Number(part);
+      if (!Number.isInteger(byte) || byte < 0 || byte > 255) return null;
+      total = total * 256 + byte;
+    }
+    return total;
+  };
+  const peerNumber = asNumber(peer);
+  for (const entry of list) {
+    if (entry === peer || plain(entry) === plain(peer)) return true;
+    const [network, bits] = entry.split("/");
+    if (!network || bits === undefined) continue;
+    const width = Number(bits);
+    const networkNumber = network ? asNumber(network) : null;
+    if (
+      peerNumber === null ||
+      networkNumber === null ||
+      !Number.isInteger(width) ||
+      width < 0 ||
+      width > 32
+    ) {
+      continue;
+    }
+    // A /0 would match everything, and a mask of 32 ones needs the unsigned
+    // shift: `-1 << 0` is every bit set, which is what /0 should mean.
+    const mask = width === 0 ? 0 : (-1 << (32 - width)) >>> 0;
+    if ((peerNumber & mask) === (networkNumber & mask)) return true;
+  }
+  return false;
+}
+
 export function clientAddress(c: Context): {
   ip?: string;
   port?: string;
   proxied: boolean;
 } {
   const fromHeader = c.req.header(trustedIpHeader(process.env));
-  if (fromHeader) return { ip: fromHeader, proxied: true };
+  if (fromHeader) {
+    const trusted = clientIpOptions(process.env).trustedProxies;
+    if (!trusted || trusted.length === 0) {
+      return { ip: fromHeader, proxied: true };
+    }
+    let peer: string | undefined;
+    try {
+      peer = getConnInfo(c).remote.address;
+    } catch {
+      peer = undefined;
+    }
+    if (fromTrustedHop(peer, trusted)) {
+      return { ip: fromHeader, proxied: true };
+    }
+    // The header arrived from somewhere we did not say to believe, so it is a
+    // claim rather than an address. Fall through to the socket.
+  }
 
   try {
     const info = getConnInfo(c);
