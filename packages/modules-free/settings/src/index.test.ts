@@ -13,7 +13,40 @@ const app = registerForTest(settings);
 let orgId: string;
 let headers: Headers;
 
+/**
+ * A stand-in Stripe for the whole file, which refuses every key.
+ *
+ * Every connect case here asserts a refusal, and until now each one got it by
+ * asking the real Stripe over the public internet. That made the suite depend
+ * on a third party being reachable inside Bun's five-second test timeout: it
+ * passed on a laptop and failed on CI, where the call did not come back in
+ * time, with a message about proving a connection and nothing about the network.
+ *
+ * The refusal is Stripe's own shape, so the provider's error handling is still
+ * what is being exercised — only the hostname has changed. A test that
+ * overrides `STRIPE_API_BASE` for its own stand-in restores this one, not the
+ * internet.
+ */
+let refusing: ReturnType<typeof Bun.serve>;
+let withoutAStandIn: string | undefined;
+
 beforeAll(async () => {
+  refusing = Bun.serve({
+    port: 0,
+    fetch: () =>
+      Response.json(
+        {
+          error: {
+            message: "Invalid API Key provided",
+            type: "invalid_request_error",
+          },
+        },
+        { status: 401 },
+      ),
+  });
+  withoutAStandIn = process.env.STRIPE_API_BASE;
+  process.env.STRIPE_API_BASE = `http://localhost:${refusing.port}`;
+
   const signUp = await signUpAsOwner({
     email,
     password: "correct-horse-battery-staple",
@@ -36,6 +69,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  refusing.stop(true);
+  process.env.STRIPE_API_BASE = withoutAStandIn ?? "";
   await db
     .delete(schema.paymentAccounts)
     .where(eq(schema.paymentAccounts.organizationId, orgId));
