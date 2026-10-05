@@ -6,6 +6,22 @@ import { dropOrganization, makeOrganization } from "@sentrello/db/testing";
 import { lateFeeFor, rulesDue, runReminders } from "./reminders";
 
 /**
+ * Today, at ten in the morning, because the sweep now asks what hour it is.
+ *
+ * A chase goes out at eight in the morning *where the business is*, so the hour
+ * on the clock decides whether anything is sent. These tests passed `new Date()`
+ * and were therefore green all afternoon and red before eight — a suite that
+ * depends on the hour somebody happens to run it is not a suite. The day is
+ * today's, because every due date here is set as an offset from now and the
+ * arithmetic has to stay true.
+ */
+function businessMorning(): Date {
+  const at = new Date();
+  at.setUTCHours(10, 0, 0, 0);
+  return at;
+}
+
+/**
  * Chasing by rule, and charging for being late.
  *
  * The two things worth protecting here both cost a business its customers if
@@ -151,7 +167,7 @@ test("a rule chases once, and a rerun sends nothing", async () => {
     .returning();
   if (!rule) throw new Error("no rule");
 
-  const first = await runReminders(new Date(), { mailer });
+  const first = await runReminders(businessMorning(), { mailer });
   expect(first.sent).toBeGreaterThan(0);
 
   const logged = await db
@@ -162,7 +178,7 @@ test("a rule chases once, and a rerun sends nothing", async () => {
   expect(logged[0]?.sentTo).toBe("priya@example.test");
 
   // Run it again: the rule has already fired for this invoice.
-  const second = await runReminders(new Date(), { mailer });
+  const second = await runReminders(businessMorning(), { mailer });
   const stillLogged = await db
     .select()
     .from(schema.reminderLog)
@@ -193,7 +209,7 @@ test("a second rule fires on the next run, not all at once", async () => {
     },
   ]);
 
-  const run = await runReminders(new Date(), { mailer });
+  const run = await runReminders(businessMorning(), { mailer });
   expect(run.sent).toBe(1);
 
   const logged = await db
@@ -217,7 +233,7 @@ test("a late fee is applied once, after the grace period", async () => {
     .where(eq(schema.invoices.id, invoiceId));
   const wasTotal = before[0]?.totalCents ?? 0;
 
-  const run = await runReminders(new Date(), { mailer });
+  const run = await runReminders(businessMorning(), { mailer });
   expect(run.feesApplied).toBe(1);
 
   const [after] = await db
@@ -229,7 +245,7 @@ test("a late fee is applied once, after the grace period", async () => {
   expect(after?.lateFeeAppliedAt).toBeTruthy();
 
   // A rerun must not charge it again — the invoice records that it was.
-  const again = await runReminders(new Date(), { mailer });
+  const again = await runReminders(businessMorning(), { mailer });
   expect(again.feesApplied).toBe(0);
   const [unchanged] = await db
     .select()
@@ -311,7 +327,7 @@ test("a later chase does not ask for the late fee again", async () => {
       .returning();
     const id = String(own?.id);
 
-    await runReminders(new Date(), { mailer });
+    await runReminders(businessMorning(), { mailer });
     const [charged] = await db
       .select()
       .from(schema.invoices)
@@ -325,7 +341,7 @@ test("a later chase does not ask for the late fee again", async () => {
       .delete(schema.reminderLog)
       .where(eq(schema.reminderLog.invoiceId, id));
     outbox.length = 0;
-    await runReminders(new Date(), { mailer });
+    await runReminders(businessMorning(), { mailer });
 
     const asked = outbox.at(-1)?.html ?? "";
     expect(asked).toContain("1,050.00");
@@ -357,7 +373,7 @@ test("a paid invoice is neither chased nor charged", async () => {
     amountCents: invoice?.totalCents ?? 0,
   });
 
-  const run = await runReminders(new Date(), { mailer });
+  const run = await runReminders(businessMorning(), { mailer });
   expect(run.sent).toBe(0);
   expect(run.feesApplied).toBe(0);
 
@@ -393,7 +409,7 @@ test("a reminder that could not be sent is tried again next run", async () => {
     },
   };
 
-  const failed = await runReminders(new Date(), { mailer: broken });
+  const failed = await runReminders(businessMorning(), { mailer: broken });
   expect(failed.sent).toBe(0);
 
   // Nothing is claimed, so it is still owed a reminder.
@@ -403,7 +419,7 @@ test("a reminder that could not be sent is tried again next run", async () => {
     .where(eq(schema.reminderLog.invoiceId, invoice.id));
   expect(afterFailure).toHaveLength(0);
 
-  const recovered = await runReminders(new Date(), { mailer });
+  const recovered = await runReminders(businessMorning(), { mailer });
   expect(recovered.sent).toBeGreaterThan(0);
   const afterSuccess = await db
     .select()
@@ -474,7 +490,7 @@ test("a fee is not charged during the grace period", async () => {
     .returning();
   if (!invoice) throw new Error("no invoice");
 
-  await runReminders(new Date(), { mailer });
+  await runReminders(businessMorning(), { mailer });
 
   const [untouched] = await db
     .select()
@@ -489,7 +505,7 @@ test("a fee is not charged during the grace period", async () => {
     .set({ dueDate: new Date(Date.now() - 10 * 86_400_000) })
     .where(eq(schema.invoices.id, invoice.id));
 
-  const run = await runReminders(new Date(), { mailer });
+  const run = await runReminders(businessMorning(), { mailer });
   expect(run.feesApplied).toBe(1);
 
   const [charged] = await db
@@ -564,7 +580,7 @@ test("a chase that will not send loses one invoice, not the whole run", async ()
   };
 
   try {
-    const run = await runReminders(new Date(), { mailer: halfBroken });
+    const run = await runReminders(businessMorning(), { mailer: halfBroken });
     expect(reached).toContain("reachable@example.test");
     expect(run.sent).toBeGreaterThan(0);
 
@@ -577,5 +593,75 @@ test("a chase that will not send loses one invoice, not the whole run", async ()
     expect(bounced?.lastReminderAt).toBeNull();
   } finally {
     await dropOrganization(failOrg);
+  }
+});
+
+/**
+ * Eight in the morning where the business is, not where the server is.
+ *
+ * The sweep ran at eight o'clock **UTC** — two in the morning in Denver, nine or
+ * ten in Berlin. Every one of these is a letter to somebody else's customer
+ * asking them for money, and on our first market it arrived overnight: at the
+ * bottom of an inbox by the time anybody read it, and looking like something
+ * nobody had looked at. pg-boss parses a cron in UTC and there is nowhere to tell
+ * it otherwise, because the schedule is registered once at boot and the timezone
+ * belongs to the organization. So the sweep is hourly and the hour lives in the
+ * job, which already reads that timezone to count the days a rule is offset from.
+ *
+ * A floor rather than an exact hour, because the log is one row per rule per
+ * invoice: the first tick at or after eight sends, every later one finds the work
+ * done, and an hour the process spent restarting is caught up at nine.
+ */
+test("nothing is chased before the morning, and everything is after it", async () => {
+  // A zone a long way west of the server's, where eight o'clock UTC is the
+  // middle of the night.
+  await db
+    .update(schema.organizations)
+    .set({ timezone: "America/Denver" })
+    .where(eq(schema.organizations.id, orgId));
+
+  // A rule nothing has fired yet, so the log cannot be what keeps it quiet.
+  const [rule] = await db
+    .insert(schema.reminderRules)
+    .values({
+      organizationId: orgId,
+      name: "Twenty-one days late",
+      daysOffset: 21,
+      subject: "Invoice {{number}} is a long way overdue",
+      body: "{{amount}} is still outstanding on {{number}}.",
+      active: true,
+    })
+    .returning();
+  if (!rule) throw new Error("no rule");
+
+  try {
+    const atNight = new Date();
+    // 08:00 UTC — one or two in the morning in Denver, and the hour this swept
+    // at for its whole life.
+    atNight.setUTCHours(8, 0, 0, 0);
+    const quiet = await runReminders(atNight, { mailer });
+    expect(
+      quiet.sent,
+      "a chase went out in the middle of the night where the business is",
+    ).toBe(0);
+
+    const atWork = new Date();
+    // 16:00 UTC is nine in Denver in summer and ten in winter; either is past
+    // the eight o'clock floor, which is what this asserts rather than a wall
+    // clock of its own.
+    atWork.setUTCHours(16, 0, 0, 0);
+    const chased = await runReminders(atWork, { mailer });
+    expect(chased.sent).toBeGreaterThan(0);
+  } finally {
+    await db
+      .update(schema.organizations)
+      .set({ timezone: null })
+      .where(eq(schema.organizations.id, orgId));
+    await db
+      .delete(schema.reminderLog)
+      .where(eq(schema.reminderLog.ruleId, rule.id));
+    await db
+      .delete(schema.reminderRules)
+      .where(eq(schema.reminderRules.id, rule.id));
   }
 });

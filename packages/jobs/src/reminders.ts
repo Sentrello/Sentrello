@@ -12,7 +12,7 @@ import {
   ensurePortalToken,
   moneyLocale,
 } from "@sentrello/db/portal";
-import { timezoneFor } from "@sentrello/db/timezone";
+import { partsIn, timezoneFor } from "@sentrello/db/timezone";
 import { emailAdapter, mailConfigured } from "@sentrello/email";
 import {
   escapeHtml,
@@ -41,6 +41,15 @@ import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm";
  * off unless configured, it has a grace period, and the invoice records when
  * it was applied so a rerun cannot apply it again.
  */
+
+/**
+ * The hour a business starts chasing, where the business is.
+ *
+ * Eight in the morning, which is what the schedule in `index.ts` has always
+ * claimed and what it did only in Greenwich. See the gate in the loop below for
+ * why the sweep is hourly and this is a floor rather than an exact hour.
+ */
+const CHASE_FROM_HOUR = 8;
 
 /** With no rules configured, this is the fallback: one chase a week. */
 const FALLBACK_INTERVAL_HOURS = 24 * 7;
@@ -235,11 +244,27 @@ export async function runReminders(
      * set for the due date went out in the evening of the day before on every
      * host west of Greenwich.
      */
-    const overdueBy = daysLate(
-      invoice.dueDate,
-      now,
-      zoneByOrg.get(orgId) ?? null,
-    );
+    const zone = zoneByOrg.get(orgId) ?? null;
+
+    /*
+     * In the morning where the business is, not where the server is.
+     *
+     * The sweep ran at eight o'clock **UTC**, which is two in the morning in
+     * Denver and nine or ten in Berlin. Every one of these is a letter to
+     * somebody else's customer asking them for money, and on our first market it
+     * arrived overnight — at the bottom of an inbox by the time anybody read it,
+     * and looking like something nobody had looked at.
+     *
+     * So the sweep is hourly and this is the gate: at or after eight in the
+     * morning, counted where the business keeps its books. `>=` rather than `===`
+     * on purpose — the log's unique key is one row per rule per invoice, so the
+     * first tick at or after eight sends and every later one finds the work
+     * already done. An hour the process spent restarting is therefore caught up
+     * at nine rather than skipped for the day, which an exact match would not do.
+     */
+    if (partsIn(now, zone).hours < CHASE_FROM_HOUR) continue;
+
+    const overdueBy = daysLate(invoice.dueDate, now, zone);
     const rules = rulesByOrg.get(orgId) ?? [];
     const settings = settingsByOrg.get(orgId) ?? null;
 

@@ -43,7 +43,22 @@ export function jitteredMinuteCron(random: () => number = Math.random): string {
 
 /** cron schedules, UTC */
 export const SCHEDULES: Record<string, string> = {
-  [QUEUES.overdueReminders]: "0 8 * * *",
+  /**
+   * Hourly, and the job decides whether it is morning yet.
+   *
+   * This read `0 8 * * *` and the comment beside the sweep said "eight o'clock"
+   * — eight o'clock **UTC**, which is two in the morning in Denver and nine or
+   * ten in Berlin. pg-boss parses a cron in UTC unless told otherwise, and there
+   * is nowhere to tell it: the schedule is registered once at boot and the
+   * timezone belongs to the organization.
+   *
+   * So the hour moved into the job, which already reads that timezone to count
+   * the days a rule is offset from. Every row it writes is one per rule per
+   * invoice, so an hourly sweep sends the same letters once and no more — and an
+   * hour the process spent restarting is caught up on the next one rather than
+   * skipped for the day.
+   */
+  [QUEUES.overdueReminders]: "0 * * * *",
   /**
    * Hourly, not daily. What is bought is how long a cancelled customer keeps
    * a paid feature: `refreshLicenseState` (apps/server/src/license.ts)
