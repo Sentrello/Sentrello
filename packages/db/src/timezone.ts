@@ -307,3 +307,59 @@ export function demandDate(value: unknown): Date {
   }
   return date;
 }
+
+/**
+ * A time somebody typed, read where the business is.
+ *
+ * `<input type="datetime-local">` sends `2026-10-12T09:00` and says nothing
+ * about a zone — and **a zone-less date-time is parsed in the runtime's own
+ * zone**, which in the shipped container is UTC. So a business in Denver that
+ * scheduled a campaign for nine in the morning had it stored as nine UTC: three
+ * in the morning where they are, and the screen then showed them three, because
+ * the browser renders the instant in its own zone. Measured, not reasoned: the
+ * same string parses six hours apart depending on `TZ`, which is the fault
+ * `partsIn` exists to have stopped.
+ *
+ * So: a string that carries a zone — a trailing `Z`, or an offset — is an
+ * instant and is taken as one, which is what an API caller sends and what the
+ * product stores. A string that carries none is a wall clock, and a wall clock
+ * belongs to the business's own zone rather than to whatever the server was
+ * started with.
+ *
+ * Returns null for anything unreadable, like `dateFrom`, whose validation it
+ * uses for the date half.
+ */
+export function momentTyped(value: unknown, zone: string | null): Date | null {
+  if (typeof value !== "string") return null;
+  const text = value.trim();
+
+  const parts =
+    /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?$/.exec(
+      text,
+    );
+  // No zone in it, so it is a wall clock. `dateFrom` first, so an impossible
+  // date is still refused rather than rolled into the next month.
+  if (parts) {
+    if (!dateFrom(text)) return null;
+    return momentAt(
+      {
+        year: Number(parts[1]),
+        month: Number(parts[2]),
+        day: Number(parts[3]),
+        hours: Number(parts[4]),
+        minutes: Number(parts[5]),
+      },
+      zone,
+    );
+  }
+  return dateFrom(text);
+}
+
+/** `momentTyped`, insisting. */
+export function demandMomentTyped(value: unknown, zone: string | null): Date {
+  const when = momentTyped(value, zone);
+  if (!when) {
+    throw new UnreadableDateError(`"${String(value)}" is not a real date`);
+  }
+  return when;
+}

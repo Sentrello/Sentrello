@@ -4,8 +4,10 @@ import {
   dateFrom,
   dayFrom,
   demandDate,
+  demandMomentTyped,
   knownTimezone,
   momentAt,
+  momentTyped,
   partsIn,
 } from "./timezone";
 
@@ -198,4 +200,47 @@ test("demandDate refuses out loud, carrying the value that was wrong", () => {
   expect(demandDate("2026-02-28").toISOString()).toBe(
     "2026-02-28T00:00:00.000Z",
   );
+});
+
+/**
+ * A time somebody typed, read where the business is.
+ *
+ * `<input type="datetime-local">` sends `2026-10-12T09:00` and says nothing about
+ * a zone, and a zone-less date-time is parsed in the *runtime's* zone. In the
+ * shipped container that is UTC, so a business in Denver that scheduled a
+ * campaign for nine in the morning had nine UTC stored — three in the morning
+ * where they are — and the screen showed them three, because the browser renders
+ * the instant in its own zone.
+ */
+test("a typed wall clock belongs to the business, not to the server", () => {
+  const typed = "2026-10-12T09:00";
+  // Nine in Denver in October is 15:00 UTC.
+  expect(momentTyped(typed, "America/Denver")?.toISOString()).toBe(
+    "2026-10-12T15:00:00.000Z",
+  );
+  // And in Berlin, 07:00 UTC.
+  expect(momentTyped(typed, "Europe/Berlin")?.toISOString()).toBe(
+    "2026-10-12T07:00:00.000Z",
+  );
+  // No zone set is UTC, like everything else here — never the server's clock.
+  expect(momentTyped(typed, null)?.toISOString()).toBe(
+    "2026-10-12T09:00:00.000Z",
+  );
+});
+
+test("a string that names its own zone is taken at its word", () => {
+  // What an API caller sends, and what the product stores and hands back.
+  expect(
+    momentTyped("2026-10-12T09:00:00.000Z", "America/Denver")?.toISOString(),
+  ).toBe("2026-10-12T09:00:00.000Z");
+  expect(
+    momentTyped("2026-10-12T09:00:00-06:00", "Europe/Berlin")?.toISOString(),
+  ).toBe("2026-10-12T15:00:00.000Z");
+});
+
+test("an impossible date is still refused rather than rolled forward", () => {
+  expect(momentTyped("2026-02-30T09:00", "America/Denver")).toBeNull();
+  expect(momentTyped("not a date", null)).toBeNull();
+  expect(momentTyped(undefined, null)).toBeNull();
+  expect(() => demandMomentTyped("2026-02-30T09:00", null)).toThrow();
 });
