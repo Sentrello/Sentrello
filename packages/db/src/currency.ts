@@ -32,6 +32,68 @@ export function toBaseCents(amountCents: number, rateMicro: number): number {
 }
 
 /**
+ * A whole journal entry converted into base currency, still balanced.
+ *
+ * Converting each line on its own and hoping is how an entry comes out a penny
+ * short: `toBaseCents` rounds, and seven roundings do not have to agree.
+ * `postJournalEntry` throws on an unbalanced entry — correctly — so a sale in
+ * another currency would simply fail to reach the books, which is worse than the
+ * rounding it was avoiding.
+ *
+ * So the residual is absorbed, on the largest line, where a penny is least
+ * visible and cannot change a sign. The caller gets lines in base currency that
+ * add up, and the rounding lands somewhere a bookkeeper would put it.
+ *
+ * At par — a rate of exactly one, or none recorded — nothing is touched at all,
+ * which keeps every single-currency instance's figures bit-for-bit as they were.
+ */
+export function postingsInBase<
+  T extends { debitCents?: number; creditCents?: number },
+>(lines: T[], rateMicro: number | null | undefined): T[] {
+  const rate = rateMicro ?? RATE_SCALE;
+  if (rate === RATE_SCALE) return lines;
+
+  const converted = lines.map((line) => ({
+    ...line,
+    ...(line.debitCents === undefined
+      ? {}
+      : { debitCents: toBaseCents(line.debitCents, rate) }),
+    ...(line.creditCents === undefined
+      ? {}
+      : { creditCents: toBaseCents(line.creditCents, rate) }),
+  }));
+
+  const debits = converted.reduce((n, l) => n + (l.debitCents ?? 0), 0);
+  const credits = converted.reduce((n, l) => n + (l.creditCents ?? 0), 0);
+  const off = debits - credits;
+  if (off === 0) return converted;
+
+  /*
+   * Which line carries it: the biggest one on the side that is over.
+   *
+   * Debits over credits means a debit shrinks, and the other way round. The
+   * biggest line is chosen because a penny off the largest figure cannot take it
+   * through zero and change what the entry says happened.
+   */
+  const side = off > 0 ? "debitCents" : "creditCents";
+  const magnitude = Math.abs(off);
+  let chosen = -1;
+  let largest = -1;
+  for (const [index, line] of converted.entries()) {
+    const value = (line as Record<string, number | undefined>)[side] ?? 0;
+    if (value > largest) {
+      largest = value;
+      chosen = index;
+    }
+  }
+  if (chosen === -1 || largest < magnitude) return converted;
+
+  const line = converted[chosen] as Record<string, number | undefined>;
+  line[side] = (line[side] ?? 0) - magnitude;
+  return converted;
+}
+
+/**
  * The currencies of the markets this product serves, and no others.
  *
  * The US first, then Canada, the UK and the EU — the same scoping instrument
