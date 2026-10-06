@@ -5,6 +5,7 @@ import {
 } from "@sentrello/auth/hono";
 import { and, asc, db, eq, schema } from "@sentrello/db";
 import { baseCurrency } from "@sentrello/db/currency";
+import { checkedText, notText } from "@sentrello/db/text-columns";
 import type { ModuleContext } from "@sentrello/module-sdk";
 
 /**
@@ -69,6 +70,14 @@ export function parseTaxDefinition(body: Record<string, unknown>): {
   regime: string | null;
   recoverable?: boolean;
 } {
+  /*
+   * An object where text belongs is refused rather than flattened. `String({})`
+   * is the words "[object Object]" and the column takes it, so the row is saved
+   * under a name nobody can search for or correct. See `checkedText`.
+   */
+  const shaped = checkedText(schema.taxDefinitions, body);
+  if (!shaped.ok) throw new CatalogueError(notText(shaped.field));
+
   const name = String(body.name ?? "").trim();
   if (!name) throw new CatalogueError("a name is required");
   if (name.length > 60) throw new CatalogueError("that name is too long");
@@ -454,6 +463,12 @@ export function registerCatalogue(ctx: ModuleContext) {
         string,
         unknown
       >;
+
+      // Same refusal as the tax route above, and the reason it was found: an
+      // item called "[object Object]" was sitting in the catalogue on the
+      // invoicing settings screen.
+      const shaped = checkedText(schema.billableItems, body);
+      if (!shaped.ok) return c.json({ error: notText(shaped.field) }, 400);
 
       const name = String(body.name ?? "").trim();
       if (!name) return c.json({ error: "a name is required" }, 400);

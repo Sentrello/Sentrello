@@ -6,6 +6,7 @@ import {
 import { and, asc, db, eq, schema } from "@sentrello/db";
 import { organizationMember } from "@sentrello/db/membership";
 import { record } from "@sentrello/db/security-events";
+import { checkedText, notText } from "@sentrello/db/text-columns";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import { alias } from "drizzle-orm/pg-core";
 import { policyKind, seedDefaults } from "./defaults";
@@ -159,6 +160,17 @@ export function registerGroups(ctx: ModuleContext) {
         string,
         unknown
       >;
+
+      /*
+       * An object here is refused rather than flattened.
+       *
+       * `String({})` is the words "[object Object]", and the column takes it:
+       * a probe sent `{"name": {}}` on 6 October and that group appeared on
+       * the people list, the groups screen, the audit log and the events
+       * screen, with no way to search for it or rename it by name.
+       */
+      const shaped = checkedText(schema.userGroups, body);
+      if (!shaped.ok) return c.json({ error: notText(shaped.field) }, 400);
 
       const name = String(body.name ?? "")
         .trim()

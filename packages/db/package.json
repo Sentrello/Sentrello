@@ -9,6 +9,7 @@
     "./tax": "./src/tax.ts",
     "./ca-tax": "./src/ca-tax.ts",
     "./concurrency": "./src/concurrency.ts",
+    "./text-columns": "./src/text-columns.ts",
     "./currency": "./src/currency.ts",
     "./crm": "./src/crm.ts",
     "./ledger": "./src/ledger.ts",

@@ -5,6 +5,7 @@ import {
 } from "@sentrello/auth/hono";
 import { and, db, eq, inArray, isNull, isUuid, schema } from "@sentrello/db";
 import { ensureAccount, ownedAccount } from "@sentrello/db/ledger";
+import { checkedText, notText } from "@sentrello/db/text-columns";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 
 /**
@@ -195,6 +196,14 @@ export function registerChart(ctx: ModuleContext) {
     async (c: RouteContext) => {
       const orgId = activeOrganizationId(c.get("session"));
       const body = await c.req.json();
+      /*
+       * An object where text belongs is refused rather than flattened: the
+       * driver would store `{}` as the words "[object Object]", and an account
+       * in the chart under that name is one nobody can find or rename.
+       */
+      const shaped = checkedText(schema.accounts, body);
+      if (!shaped.ok) return c.json({ error: notText(shaped.field) }, 400);
+
       const code = String(body.code ?? "").trim();
       const name = String(body.name ?? "").trim();
       const type = String(body.type ?? "");
