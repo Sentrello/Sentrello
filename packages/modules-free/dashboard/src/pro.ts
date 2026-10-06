@@ -1,5 +1,5 @@
 import { db, schema } from "@sentrello/db";
-import { daysLate } from "@sentrello/db/day";
+import { dayIn, daysLate } from "@sentrello/db/day";
 import { creditedAgainst } from "@sentrello/db/documents";
 import { timezoneFor } from "@sentrello/db/timezone";
 import { and, eq, gte, isNull } from "drizzle-orm";
@@ -39,8 +39,23 @@ export interface Insights {
 }
 
 /** `2026-08`, so months sort as strings and group without a date library. */
-function monthKey(d: Date): string {
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+/**
+ * Which month a moment belongs to, where the business is.
+ *
+ * `postedAt` defaults to the instant an entry was posted — the ledger's own
+ * comment says so, and says why — so taking its UTC month puts everything a
+ * business west of Greenwich records in the last hours of a month into the
+ * next one. In Denver that is every sale after six in the evening on the 31st,
+ * which for a shop is the busy part of the day.
+ *
+ * The zone was already fetched two lines below this and used for the ageing of
+ * receivables and nothing else. The chart it feeds sits beside a profit and
+ * loss for the same month, and two figures for one month that disagree is the
+ * fault this project keeps writing down.
+ */
+function monthKey(d: Date, zone: string | null): string {
+  const day = dayIn(d, zone);
+  return `${day.getUTCFullYear()}-${String(day.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
 export async function readInsights(organizationId: string): Promise<Insights> {
@@ -149,7 +164,7 @@ export async function readInsights(organizationId: string): Promise<Insights> {
     const d = new Date(
       Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1),
     );
-    const key = monthKey(d);
+    const key = monthKey(d, zone);
     months.set(key, {
       month: key,
       incomeCents: 0,
@@ -158,7 +173,7 @@ export async function readInsights(organizationId: string): Promise<Insights> {
     });
   }
   for (const line of ledger) {
-    const bucket = months.get(monthKey(new Date(line.postedAt)));
+    const bucket = months.get(monthKey(new Date(line.postedAt), zone));
     if (!bucket) continue;
     // Income accounts carry credit balances, expense accounts debit balances.
     if (line.type === "income")

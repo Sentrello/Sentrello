@@ -29,14 +29,22 @@ export default defineConfig({
        * `global-setup.ts` opens `/healthz` and parses it as JSON — it got
        * `<!doctype`.
        *
-       * None of these collides with a screen: the `account` module registers no
-       * nav entry and no route in `App.tsx`, and neither does the portal. A
-       * path that is both would have to be listed more precisely than a prefix.
+       * **Anchored, because a prefix is not a path.** Vite matches a plain
+       * string key as a prefix, so `"/account"` also matched `/accounting-money`,
+       * `/accounting-journal`, `/accounting-summary` and `/accounting-accounts`
+       * — four screens forwarded to a server that has no such route, which
+       * answers 404, which renders as a white page. The sentence above this one
+       * said a path that is both would have to be listed more precisely than a
+       * prefix, and then listed a prefix.
+       *
+       * A key beginning `^` is a regular expression, so these match the path
+       * exactly or the path with something under it, and nothing that merely
+       * starts with the same letters.
        */
-      "/healthz": "http://localhost:3000",
-      "/account": "http://localhost:3000",
-      "/portal": "http://localhost:3000",
-      "/share": "http://localhost:3000",
+      "^/healthz$": "http://localhost:3000",
+      "^/account(/|$)": "http://localhost:3000",
+      "^/portal(/|$)": "http://localhost:3000",
+      "^/share(/|$)": "http://localhost:3000",
     },
   },
   build: { outDir: "dist" },
