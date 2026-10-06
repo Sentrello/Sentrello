@@ -1703,6 +1703,67 @@ test("a reader with no books is sent no money figures at all", async () => {
  * The fix is on the write rather than on the read: a save is merged into what is
  * stored, keeping the panels this writer was not shown where they already were.
  */
+/**
+ * Nor by resetting, which is the path the merge does not cover.
+ *
+ * An empty save means "put it back the way it came", and putting it back is
+ * the one write here that is not a merge — so the care taken above was
+ * skipped entirely by `{"tabs": []}`: one request from somebody shown a single
+ * module's panels, and the whole business's arrangement was gone. A probe of
+ * 1,060 writes as a read-only role found it; no screen would have explained
+ * it afterwards.
+ */
+test("nor does a reader reset the arrangement for everybody", async () => {
+  const before = allWidgets();
+  addWidget({
+    moduleId: "cellar",
+    id: "cellar-stock",
+    label: "Cellar",
+    entitlement: { module: "cellar" },
+    load: async () => [{ label: "Bottles", value: 12, kind: "count" }],
+  });
+
+  try {
+    const put = await app.request("http://localhost/api/dashboard/layout", {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({
+        tabs: [
+          {
+            name: "Everything",
+            widgets: ["dashboard:money", "cellar:cellar-stock"],
+          },
+        ],
+      }),
+    });
+    expect(put.status).toBe(200);
+
+    const narrow = registerForTest(dashboard, undefined, () => false);
+    const refused = await narrow.request(
+      "http://localhost/api/dashboard/layout",
+      { method: "PUT", headers, body: JSON.stringify({ tabs: [] }) },
+    );
+    expect(refused.status).toBe(403);
+
+    // Still arranged, and still the manager's arrangement.
+    const mine = await readLayoutAs(app);
+    expect(mine.tabs[0]?.name).toBe("Everything");
+    expect(mine.tabs.flatMap((t) => t.widgets)).toContain(
+      "cellar:cellar-stock",
+    );
+
+    // And somebody who can see all of it still may reset.
+    const reset = await app.request("http://localhost/api/dashboard/layout", {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({ tabs: [] }),
+    });
+    expect(reset.status).toBe(200);
+  } finally {
+    restoreWidgets(before);
+  }
+});
+
 test("a reader who cannot see a panel does not delete it by saving", async () => {
   const before = allWidgets();
   addWidget({

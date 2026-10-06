@@ -822,8 +822,32 @@ export default defineModule({
         const tabs = normalizeLayout(body.tabs);
 
         if (tabs.length === 0) {
-          // An empty save resets rather than empties: a layout with no tabs
-          // is a blank screen with no way back to a usable one.
+          /*
+           * An empty save resets rather than empties: a layout with no tabs is
+           * a blank screen with no way back to a usable one.
+           *
+           * But only from somebody who can see the whole of it. Every other
+           * path here is careful that a saver who is shown a subset cannot
+           * delete what they were never told about — and this one threw that
+           * away, because a reset is not a merge. So a read-only role with one
+           * module's panels could wipe the arrangement for the whole business
+           * with `{"tabs": []}`, which a probe of 1,060 writes found and
+           * nothing on any screen would have explained.
+           *
+           * The same rule as the merge, then, rather than a new permission:
+           * resetting is allowed to whoever the reset would be about.
+           */
+          const everything = new Set(declaredWidgets().map((w) => w.key));
+          const seen = new Set(visible.map((w) => w.key));
+          if ([...everything].some((key) => !seen.has(key))) {
+            return c.json(
+              {
+                error:
+                  "resetting the dashboard puts back panels you cannot see, so it is for somebody who can see all of them",
+              },
+              403,
+            );
+          }
           await clearStored(orgId);
         } else {
           /*
