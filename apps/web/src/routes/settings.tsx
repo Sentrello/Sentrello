@@ -643,16 +643,23 @@ export function Settings() {
 
           {/*
             Where the business is, in time.
-            
+
             Anything that acts at a time of day depends on it: an automation
             chasing quiet deals every Monday at nine goes out on Sunday evening
             for a business whose server is in another country, and nothing
             anywhere says why. Offered with the browser's own answer, because
             the person filling this in is standing in the business.
+
+            **The hint said blank meant the server's own clock.** It does not and
+            never did — `partsIn` reads UTC for an unset zone, deliberately, so
+            that what a figure means does not depend on where the box is. The
+            sentence was an invitation to leave this empty on a machine in the
+            office, which is exactly the instance it would go wrong on, and the
+            published page repeated it because it was written from this screen.
           */}
           <Field
             label="Timezone"
-            hint="What 'nine o'clock' means for this business. Leave it blank to use the server's own."
+            hint="What 'nine o'clock' means for this business. Blank means UTC."
           >
             <Toolbar>
               <Input

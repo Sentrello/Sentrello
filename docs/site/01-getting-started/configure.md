@@ -31,10 +31,11 @@ late, what puts a payment in September rather than October, and what "nine
 o'clock" means to an automation chasing quiet deals on Monday morning. The **Use
 mine** button fills it in again from whatever browser you are holding.
 
-Clear it and dates are counted in UTC, while times of day fall back to the
-server's own clock. For a computer sitting in your office that second part is
-the right answer; for one rented in another country it is how a Monday chase
-goes out on Sunday evening. Either way, setting it is a five-second job.
+Leave it blank and everything is counted in UTC — the days and the times of day
+alike, not the clock on the machine Sentrello is installed on. That is on
+purpose: what a figure means should not depend on where the box is, and a server
+moved between regions should not change what day an invoice was late. But it does
+mean a blank box is rarely what anybody wants. Setting it is a five-second job.
 
 ## Tax
 
