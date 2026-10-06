@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "bun run --filter '@sentrello/server' --filter '@sentrello/web' dev",
     "typecheck": "tsc -b",
-    "test": "bun test",
+    "test": "bun test --timeout 30000",
     "lint": "biome check .",
     "format": "biome format --write .",
     "sbom": "bun run scripts/sbom.ts",

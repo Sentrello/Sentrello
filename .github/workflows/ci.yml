@@ -119,8 +119,8 @@ jobs:
       - run: bun run lint
       - run: bun run typecheck
       - run: bun run db:migrate
-      - run: bun test
+      - run: bun run test
       # On its own, because these need the organizations table empty and Bun
       # runs the files at the same time. The reasoning is in the file.
-      - run: bun test ./packages/auth/src/bootstrap-claim.alone.ts
+      - run: bun test --timeout 30000 ./packages/auth/src/bootstrap-claim.alone.ts
       - run: bun run build:web

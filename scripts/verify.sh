@@ -197,7 +197,13 @@ if [ "$failed" -ne 0 ]; then
   exit 1
 fi
 
-step "tests" bun test
+# Through the package script, not `bun test` directly.
+#
+# The timeout lives in `package.json` so this and the CI workflow cannot
+# disagree about it. Bun's default is five seconds, which is a laptop's number:
+# the shared builder is a fraction of that speed, and three suites went red
+# there on tests that pass here in two — none of them slow code.
+step "tests" bun run test
 step_leftovers
 
 # The claim tests, on their own, once nothing else is running.
