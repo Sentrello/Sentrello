@@ -5,6 +5,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { db, isUuid, schema } from "@sentrello/db";
+import { MOVED, movedSince } from "@sentrello/db/concurrency";
 import { creditFor } from "@sentrello/db/credit";
 import {
   RATE_SCALE,
@@ -220,44 +221,6 @@ async function postIssued(
     options,
   );
 }
-
-/**
- * Whether the document in front of somebody is still the document on disk.
- *
- * Two people edit one draft, both press Save a minute apart, and the second
- * write used to land on top of the first in silence: both answered 200, neither
- * was told, and the lines the first person typed were gone with nothing anywhere
- * saying so. It is rare and it is also the one kind of loss a person cannot
- * recover by trying again, because they never learn it happened.
- *
- * So a caller may say which version it is editing — `expectedUpdatedAt`, the
- * `updated_at` it read — and a write against a row that has moved since is
- * refused rather than applied. HTTP's own `If-Unmodified-Since` is the same
- * idea; this is in the body because every other field of these writes is.
- *
- * **Only when the caller claims a version.** A script that has never heard of
- * this keeps the behaviour it had, which is what stops this being a breaking
- * change for somebody's integration; our own screens always send it, so the
- * place two people actually collide is covered.
- *
- * To the millisecond, from the column rather than from a hash of the row: the
- * column is stamped by every write that touches it, which is a rule a test in
- * the core holds every path to.
- */
-function movedSince(
-  row: { updatedAt: Date },
-  body: Record<string, unknown>,
-): boolean {
-  const claimed = body.expectedUpdatedAt;
-  if (typeof claimed !== "string" || claimed === "") return false;
-  const asked = new Date(claimed).getTime();
-  if (Number.isNaN(asked)) return false;
-  return asked !== row.updatedAt.getTime();
-}
-
-/** What somebody is told when it has. */
-const MOVED =
-  "Somebody else changed this while you had it open, so nothing here has been saved. Open it again to see their version.";
 
 export default defineModule({
   id: "invoicing",
