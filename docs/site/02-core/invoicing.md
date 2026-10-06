@@ -94,6 +94,14 @@ Reminders sent on the free tier carry a small Sentrello credit at the foot.
 [Pro](/pro) removes it, so the reminder goes out under your business's name
 alone.
 
+**Before you chase, look at whether they opened it.** Every invoice says so on
+its own page: when it was first opened, how many times, and when they last
+opened it. "I never received it" is the most common sentence on that call, and
+*opened three times, the last one yesterday* is a different conversation from
+*opened three times, all on the day it was sent* — which is a different
+conversation again from *not opened yet*, where the thing to check is the
+address rather than the customer.
+
 ## US sales tax
 
 The United States has no national sales tax. Each state sets its own, and
