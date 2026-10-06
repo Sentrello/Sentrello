@@ -36,14 +36,25 @@ writes an unbalanced one. Issuing an invoice, recording a payment, raising a
 bill, a sale at the counter: all of it goes through one posting function, and
 that function refuses anything whose debits and credits disagree.
 
-**The ledger is the source of truth.** Profit and loss, balance sheet, the tax
-summary, the dashboard's figures — every one of them is computed from journal
-entries, never summed off the invoice table. That is what makes the cash basis
-and the accrual basis two readings of one set of books, rather than two sets of
-numbers somebody has to reconcile.
+**The ledger is the source of truth.** Profit and loss, the balance sheet, the
+tax summary, the takings on the dashboard: computed from journal entries, never
+summed off the invoice table. That is what makes the cash basis and the accrual
+basis two readings of one set of books, rather than two sets of numbers somebody
+has to reconcile. And it means a report cannot disagree with the journal behind
+it. If a figure looks wrong, the entries that produce it are on screen and can
+be read.
 
-It also means a report cannot disagree with the journal behind it. If a figure
-looks wrong, the entries that produce it are on screen and can be read.
+**What is owed to you is read off the documents instead**, and has to be. Money
+owed, what is overdue, and the age of each of them come from the invoices
+themselves, because the ledger carries the debt as one balance and cannot say
+which invoice, to whom, or how many days late. Those are the questions the figure
+exists to answer.
+
+So the two agree on the total and are not the same reading. Accounts Receivable
+in the books is what you are owed; the receivables list is the same money, named
+and dated. If they ever disagree, something has happened to a document that did
+not happen to its entry — which is worth knowing, and is why neither is derived
+from the other.
 
 ## Why it is written down here
 
