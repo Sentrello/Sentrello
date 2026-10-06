@@ -376,6 +376,11 @@ test("every scanner says what kind of source it is for", () => {
     findUnevenColumnRows: ["react"],
     // Reads a hook's own result, so only a React screen has one.
     findSpinningQuery: ["react"],
+    // A `className={` template, which only JSX writes. A server-rendered page
+    // builds its class attribute as a plain string, where a `${` next to a
+    // class name is the same mistake — but Tailwind never scans those files
+    // for candidates, so there is no rule for it to fail to emit.
+    findWeldedClassName: ["react"],
     // A JSX attribute, and only ever that: a stylesheet writing a border
     // colour is writing a rule, and a rule can carry its own width.
     findColourWithoutBorder: ["react"],

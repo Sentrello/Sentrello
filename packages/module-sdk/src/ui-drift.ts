@@ -527,6 +527,51 @@ const WHOLE_QUERY_BUILT = /^\?\$\{[^}]*\}$/;
  * at least twice in the same file. A `fixed` column is exempt, because it is
  * always drawn and never guarded.
  */
+/**
+ * A class name with an interpolation welded to its end.
+ *
+ * Tailwind finds classes by scanning these files for candidates, and a
+ * candidate ends where its run of characters ends. Written as
+ *
+ *     className={`grid lg:grid-cols-[2fr_minmax(0,1fr)]${open ? "" : " x"}`}
+ *
+ * the scanner reads the class name and the start of the interpolation as one
+ * token, fails to parse it, and emits **no rule for that class at all** — while
+ * the class name still reaches the browser, because the markup is built at
+ * runtime. The source is right, the DOM is right, and the stylesheet is missing
+ * one line.
+ *
+ * On 6 October 2026 that took the till's two columns down to one: the menu,
+ * with the sale panel underneath it and `lg:sticky` holding it over the top, so
+ * every product was behind it and nobody could ring anything up. Nothing in the
+ * source was wrong, so no unit test could see it; the browser walk found it
+ * four hours later.
+ *
+ * **Its own scanner rather than a rule in `RULES`**, and that is the point:
+ * `findHandRolledUi` is deliberately not run over `lib/`, because `lib/` is
+ * where the primitives it recommends are defined. A welded class name there is
+ * just as broken as one in a screen — the first one found was in the sidebar —
+ * so this is scanned everywhere React is.
+ *
+ * The fix is a space. There is no case where a class name wants an
+ * interpolation stuck to it, so this takes no exceptions beyond the file-wide
+ * one every scanner here honours.
+ */
+export function findWeldedClassName(source: string): HandRolledFinding[] {
+  const rawLines = source.split("\n");
+  const clean = stripComments(source);
+  const findings: HandRolledFinding[] = [];
+  for (const match of clean.matchAll(/className=\{`[^`]*[^\s`]\$\{/g)) {
+    const line = lineOf(clean, match.index);
+    if (exceptedAbove(rawLines, line, "ui-drift")) continue;
+    findings.push({
+      line,
+      say: "a class name with `${` welded to it — a candidate ends where its characters end, so Tailwind emits no rule for it while the class still reaches the browser. Put a space before the `${`",
+    });
+  }
+  return findings;
+}
+
 export function findLopsidedColumns(source: string): HandRolledFinding[] {
   const rawLines = source.split("\n");
   const clean = stripComments(source);
@@ -869,6 +914,7 @@ declareScope(findUnreportedMutation, "react");
 declareScope(findFillAsText);
 declareScope(findUnthemedElevation);
 // React only: `useColumns` is a hook, so a server-rendered page cannot have one.
+declareScope(findWeldedClassName, "react");
 declareScope(findLopsidedColumns, "react");
 declareScope(findUnevenColumnRows, "react");
 declareScope(findSpinningQuery, "react");
