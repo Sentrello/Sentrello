@@ -2410,6 +2410,13 @@ export const bankTransactions = pgTable(
      * second kind of row: everything downstream — matching, reconciliation,
      * the screen — already works in terms of an import, and a feed that
      * bypassed it would need all of that written twice.
+     *
+     * **"The screen" was aspirational until 6 October 2026.** Nothing read this
+     * column or the table it points at, so a bookkeeper could not tell which
+     * file a line came from or when — and importing the same statement twice is
+     * the commonest mistake in a bank import, leaving two identical lines with
+     * nothing to tell them apart. The transaction list joins the import and the
+     * row says its filename and date.
      */
     importId: uuid("import_id").notNull(),
     date: timestamp("date").notNull(),
