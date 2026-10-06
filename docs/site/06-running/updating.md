@@ -23,9 +23,21 @@ minutes.
 3. **Fetches your modules** at that same version. Modules and Core move
    together, because a module several versions behind its Core is a screen
    missing whatever changed.
-4. **Starts the new version**, then runs migrations against it, then restarts
-   the app so it picks up the schema it just got.
+4. **Starts the new version**, then runs the platform's migrations against it,
+   then restarts the app so it picks up the schema it just got.
 5. **Waits for the instance to answer**, and says so when it does.
+
+A module brings its own tables, and those are built when the app starts rather
+than by the updater — on the licence's say-so, so a module you have not bought
+never has its schema touch your database. Which means they are built twice
+during an update: once when the new version comes up in step 4, and again on the
+restart at the end of it.
+
+That is worth knowing because of what you may see in between. A module whose
+tables need something the platform's own migration has not added yet fails the
+first time and succeeds on the restart, and in that window `sentrello logs` says
+the module did not load. Seconds, and it clears itself. If it is still saying so
+after step 5, it is real.
 
 The order matters if something goes wrong, so it is worth being plain about
 it: the new image is running before the migrations do. Migrations are
@@ -95,3 +107,10 @@ either migrated or replaced. `sentrello rollback` puts the previous one back.
 
 Then read `sentrello logs`, fix what it names, and run the update again.
 Updates are safe to repeat.
+
+One thing in those logs is not a failure: a module reported as not loading
+*during* the update, for the reason in step 4. Trust what the update says when it
+finishes over the log as it scrolls past. It asks the instance which of the
+modules you pay for are actually running, and names any that are not — so a
+module that sorted itself out on the restart is not mentioned, and one that did
+not is.
