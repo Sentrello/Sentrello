@@ -190,6 +190,14 @@ export function CompanyForm({
   const [customValues, setCustomValues] = useState<
     Record<string, string | number | boolean | null>
   >(company?.customValues ?? {});
+  /**
+   * The version this screen is editing, claimed back when Save is pressed.
+   *
+   * Held in state like every box above it, and for the same reason: the prop is
+   * refetched, and a claim that quietly caught up with somebody else's save
+   * would be no claim at all.
+   */
+  const [seenUpdatedAt] = useState(company?.updatedAt ?? null);
   const managers = useCrmManagers();
 
   const save = useMutation({
@@ -216,7 +224,15 @@ export function CompanyForm({
       };
       const res = await api<{ company: Company }>(
         company ? `/api/companies/${company.id}` : "/api/companies",
-        { method: company ? "PATCH" : "POST", body: JSON.stringify(body) },
+        {
+          method: company ? "PATCH" : "POST",
+          // Nothing can have moved on a company that does not exist yet.
+          body: JSON.stringify(
+            company && seenUpdatedAt
+              ? { ...body, expectedUpdatedAt: seenUpdatedAt }
+              : body,
+          ),
+        },
       );
       return res.company;
     },

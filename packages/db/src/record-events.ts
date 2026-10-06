@@ -79,13 +79,21 @@ export interface RecordChange {
  *
  * Compared by their JSON, so a date and a nested object behave like everything
  * else rather than being unequal to themselves.
+ *
+ * `updatedAt` is left out, because it is the record of the change rather than
+ * one of the things that changed. Every write moves it — a trigger sees to that
+ * — so counting it would put one name in `changed` on a save that altered
+ * nothing, and make "fire when anything changes" fire on a save that did not.
  */
+const NOT_A_CHANGE = new Set(["updatedAt"]);
+
 export function changedFields(
   before: Record<string, unknown> | null | undefined,
   after: Record<string, unknown> | null | undefined,
 ): string[] {
   if (!before || !after) return [];
   const names = new Set([...Object.keys(before), ...Object.keys(after)]);
+  for (const name of NOT_A_CHANGE) names.delete(name);
   const changed: string[] = [];
   for (const name of names) {
     if (JSON.stringify(before[name]) !== JSON.stringify(after[name])) {

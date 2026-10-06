@@ -160,6 +160,11 @@ export type Contact = {
   firstSeenAt: string | null;
   lastSeenAt: string | null;
   createdAt: string;
+  /**
+   * The version a screen is editing, sent back with a save as
+   * `expectedUpdatedAt` so the server can refuse a write over somebody else's.
+   */
+  updatedAt: string;
   /** Attached by the list route, so a row can draw them without a second call. */
   tags?: Tag[];
   openTasks?: number;
@@ -197,6 +202,11 @@ export type Company = {
   contextLinks: string[] | null;
   ownerId: string | null;
   createdAt: string;
+  /**
+   * The version a screen is editing, sent back with a save as
+   * `expectedUpdatedAt` so the server can refuse a write over somebody else's.
+   */
+  updatedAt: string;
   /** Attached by the list route so a card can draw itself in one request. */
   contacts?: { id: string; name: string; avatarPath: string | null }[];
   contactCount?: number;

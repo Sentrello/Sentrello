@@ -113,6 +113,17 @@ export const companies = pgTable(
       .$type<Record<string, string | number | boolean | null>>()
       .default({}),
     createdAt: timestamp("created_at").defaultNow().notNull(),
+    /**
+     * When the row last changed, so two people editing it cannot overwrite
+     * each other silently.
+     *
+     * A database trigger sets this on every update — see the migration that
+     * added it. Stamping it from TypeScript was the alternative, and
+     * invoicing does it that way in twenty separate places; a writer that
+     * forgets is invisible until it makes the save guard refuse an edit
+     * nobody else touched.
+     */
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (t) => [index("companies_org_idx").on(t.organizationId)],
 );
@@ -237,6 +248,8 @@ export const contacts = pgTable(
       .$type<Record<string, string | number | boolean | null>>()
       .default({}),
     createdAt: timestamp("created_at").defaultNow().notNull(),
+    /** When the row last changed. Set by a trigger; see `companies`. */
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (t) => [
     index("contacts_org_idx").on(t.organizationId),
@@ -338,6 +351,8 @@ export const notes = pgTable(
       .default([]),
     authorId: text("author_id"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
+    /** When the row last changed. Set by a trigger; see `companies`. */
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (t) => [
     index("notes_org_idx").on(t.organizationId),
@@ -416,6 +431,8 @@ export const tasks = pgTable(
     done: boolean("done").notNull().default(false),
     /** When it was ticked off, so a finished task can still be read in order. */
     doneAt: timestamp("done_at"),
+    /** When the row last changed. Set by a trigger; see `companies`. */
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (t) => [index("tasks_org_idx").on(t.organizationId)],
 );

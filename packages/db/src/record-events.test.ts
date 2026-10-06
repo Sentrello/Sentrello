@@ -67,3 +67,22 @@ test("a creation and a deletion name no changed fields", () => {
 test("the list is in a stable order, so two runs agree", () => {
   expect(changedFields({ b: 1, a: 1 }, { b: 2, a: 2 })).toEqual(["a", "b"]);
 });
+
+/**
+ * The stamp is not one of the things that changed.
+ *
+ * Every write moves `updated_at` — a database trigger sees to that since the
+ * CRM started checking saves against the version somebody read — so counting it
+ * would put exactly one name in `changed` on a save that altered nothing, and
+ * tell a rule watching "any change" that there had been one.
+ */
+test("the modification stamp is not reported as a change", () => {
+  const before = { name: "Ruth", updatedAt: new Date("2026-10-05T09:00:00Z") };
+  const after = { name: "Ruth", updatedAt: new Date("2026-10-06T09:00:00Z") };
+  expect(changedFields(before, after)).toEqual([]);
+
+  // And it does not hide a real one beside it.
+  expect(changedFields(before, { ...after, name: "Ruth Okonjo" })).toEqual([
+    "name",
+  ]);
+});

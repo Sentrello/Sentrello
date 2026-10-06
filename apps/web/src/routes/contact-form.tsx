@@ -237,6 +237,14 @@ export function ContactForm({
    * agency, and treating the two as one control loses one of them.
    */
   const [doNotSell, setDoNotSell] = useState(contact?.doNotSell ?? false);
+  /**
+   * The version this screen is editing, claimed back when Save is pressed.
+   *
+   * Held in state like every box above it, and for the same reason: the prop is
+   * refetched, and a claim that quietly caught up with somebody else's save
+   * would be no claim at all.
+   */
+  const [seenUpdatedAt] = useState(contact?.updatedAt ?? null);
   const [customValues, setCustomValues] = useState<
     Record<string, string | number | boolean | null>
   >(contact?.customValues ?? {});
@@ -273,7 +281,12 @@ export function ContactForm({
         contact ? `/api/contacts/${contact.id}` : "/api/contacts",
         {
           method: contact ? "PATCH" : "POST",
-          body: JSON.stringify(body),
+          // Nothing can have moved on a contact that does not exist yet.
+          body: JSON.stringify(
+            contact && seenUpdatedAt
+              ? { ...body, expectedUpdatedAt: seenUpdatedAt }
+              : body,
+          ),
         },
       );
       return res.contact;

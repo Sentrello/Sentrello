@@ -2336,9 +2336,10 @@ test("changing a deal is written down, with what changed", async () => {
     .where(eq(schema.recordEvents.entityId, deal.id));
   const moved = after.find((e) => e.action === "updated");
   expect(moved).toBeDefined();
-  // The one thing a rule would be narrowed to. `updatedAt` moves on every save
-  // and is expected beside it; what matters is that `stage` is named at all.
-  expect(moved?.changed).toContain("stage");
+  // The one thing a rule would be narrowed to, and now the only thing named:
+  // `updatedAt` moves on every save and is left out of the comparison, because
+  // it records the change rather than being one of them.
+  expect(moved?.changed).toEqual(["stage"]);
   expect((moved?.before as { stage?: string } | null)?.stage).toBe("lead");
   expect((moved?.after as { stage?: string } | null)?.stage).toBe("won");
 

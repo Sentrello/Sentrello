@@ -4,6 +4,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { db, schema } from "@sentrello/db";
+import { MOVED, movedSince } from "@sentrello/db/concurrency";
 import { recordConsent } from "@sentrello/db/consent";
 import {
   type CRM_SUBJECTS,
@@ -386,12 +387,22 @@ async function withAuthors<T extends { authorId: string | null }>(
   }));
 }
 
+/** Thrown inside the write so nothing commits; answered as a 409 outside it. */
+class RecordMoved extends Error {}
+
 function crud<T extends keyof typeof tables>(
   ctx: Parameters<Parameters<typeof defineModule>[0]["register"]>[0],
   resource: T,
 ) {
   const { table, path, permission } = tables[resource];
   const singular = CRM_ENTITY[resource];
+
+  /**
+   * Whether a save on this table can be checked against the version the
+   * caller read. Every CRM table keeps `updated_at` except tags, which are a
+   * name and a colour nobody collides over.
+   */
+  const keepsVersion = "updatedAt" in table;
 
   const list = (tables[resource] as { list?: ListSpec }).list;
   const narrow = (
@@ -603,9 +614,33 @@ function crud<T extends keyof typeof tables>(
     async (c) => {
       const orgId = activeOrganizationId(c.get("session"));
       const body = await c.req.json();
+      /*
+       * `expectedUpdatedAt` is a question about the row, not a field of it, so
+       * it comes off the body here — left in, it reaches the UPDATE as a column
+       * that does not exist and the save is refused for the wrong reason.
+       */
       // organizationId is never taken from the body — it comes from the
       // session — and neither is a credential: see `CREDENTIAL_FIELDS`.
-      const { organizationId: _ignored, id: _id, ...withCredentials } = body;
+      const {
+        organizationId: _ignored,
+        id: _id,
+        expectedUpdatedAt: _claimed,
+        ...withCredentials
+      } = body;
+      /*
+       * And a caller that asks for a check this table cannot answer is told so.
+       *
+       * Ignoring it would be the quiet kind of wrong: the request looks
+       * protected, the answer is 200, and the protection was never there.
+       */
+      if (!keepsVersion && typeof body.expectedUpdatedAt === "string") {
+        return c.json(
+          {
+            error: `A ${singular} does not keep a modification time, so a save cannot be checked against one.`,
+          },
+          400,
+        );
+      }
       const rest = withoutCredentials(withCredentials);
       const parsed = withParsedDates(rest, table);
       if (!parsed.ok) {
@@ -718,6 +753,21 @@ function crud<T extends keyof typeof tables>(
         )[0];
 
         /*
+         * Refused before anything is written, inside the transaction that read
+         * the row, so the version checked is the version replaced.
+         *
+         * Thrown rather than returned because a `c.json` here would leave the
+         * transaction to commit around it.
+         */
+        if (
+          keepsVersion &&
+          before &&
+          movedSince(before as { updatedAt: Date }, body)
+        ) {
+          throw new RecordMoved();
+        }
+
+        /*
          * The display name is built from the record as it will be, not from
          * what this request happened to mention.
          *
@@ -799,6 +849,7 @@ function crud<T extends keyof typeof tables>(
       try {
         written = await write;
       } catch (err) {
+        if (err instanceof RecordMoved) return c.json({ error: MOVED }, 409);
         const refused = refusedByTheDatabase(err);
         if (!refused) throw err;
         return c.json({ error: refused }, 400);
