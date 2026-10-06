@@ -996,8 +996,16 @@ function EmailCapture() {
             it goes anywhere it should not.
           </p>
           <Toolbar className="mt-1">
+            {/*
+              Named, because a box with no label is a box a screen reader calls
+              nothing at all — axe rates that critical, and it is the one
+              control on this card. The sentence above it is a paragraph, which
+              explains the field to somebody who can see it and is attached to
+              nothing.
+            */}
             <Input
               readOnly
+              aria-label="The address to point your provider at"
               value={data.webhookUrl}
               className="font-mono w-full text-xs"
             />

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import { Icon } from "./icons";
 import { useNavigation } from "./navigation";
@@ -28,17 +28,37 @@ interface Hit {
 
 export function FindButton() {
   const [open, setOpen] = useState(false);
+  const mine = useRef<HTMLButtonElement>(null);
+  /*
+   * What to put focus back on, remembered out here rather than inside the
+   * palette.
+   *
+   * The palette used to read `document.activeElement` in its own mount
+   * effect, which is right exactly once. React runs an effect twice in
+   * development, and by the second run focus is already in the search field —
+   * so the palette remembered its own input, the input was gone by the time
+   * anything wanted it, and Escape left focus on `<body>`. The thing that
+   * opened the palette is known here, before focus moves anywhere, and a ref
+   * on this component outlives any number of mounts of that one.
+   */
+  const from = useRef<HTMLElement | null>(null);
+  /** Ref-only and state-only, so the key listener below can keep `[]`. */
+  const opened = useCallback(() => {
+    from.current =
+      (document.activeElement as HTMLElement | null) ?? mine.current;
+    setOpen(true);
+  }, []);
 
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setOpen(true);
+        opened();
       }
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, []);
+  }, [opened]);
 
   return (
     <>
@@ -74,7 +94,8 @@ export function FindButton() {
       */}
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        ref={mine}
+        onClick={opened}
         aria-label="Find anything"
         className="flex h-9 w-9 flex-none items-center gap-2.5 rounded-md border px-2 text-sm sm:w-full sm:max-w-sm sm:flex-1 sm:px-3"
         style={{
@@ -101,18 +122,20 @@ export function FindButton() {
           ⌘K
         </kbd>
       </button>
-      {open ? <FindDialog onClose={() => setOpen(false)} /> : null}
+      {open ? <FindDialog onClose={() => setOpen(false)} from={from} /> : null}
     </>
   );
 }
 
-function FindDialog({ onClose }: { onClose: () => void }) {
+function FindDialog({
+  onClose,
+  from,
+}: { onClose: () => void; from: React.RefObject<HTMLElement | null> }) {
   const { go, open: openRecord } = useNavigation();
   const [q, setQ] = useState("");
   const [at, setAt] = useState(0);
   const box = useRef<HTMLInputElement>(null);
   const shell = useRef<HTMLDialogElement>(null);
-  const opener = useRef<HTMLElement | null>(null);
   // Set when a hit is opened, which is the one exit that must not put focus
   // back on the header.
   const taken = useRef(false);
@@ -125,20 +148,28 @@ function FindDialog({ onClose }: { onClose: () => void }) {
    * anywhere and a screen reader starting the page again from the top, after
    * a search that found nothing.
    *
-   * On mount and only on mount. Written with `[onClose]` beside the key
-   * listener it looked right and did nothing useful: the parent passes a new
-   * closure every render, so the effect re-ran on each keystroke and
-   * remembered the palette's own input as the thing to go back to.
+   * The element itself comes from the parent (see `from`), because by the
+   * time this runs focus has already been in here once.
    */
   useEffect(() => {
-    opener.current = document.activeElement as HTMLElement | null;
     box.current?.focus();
     return () => {
       // Not when the palette closed by opening a record — that screen owns
       // focus now, and the button this came from may not exist on it.
-      if (!taken.current && opener.current?.isConnected) opener.current.focus();
+      const back = from.current;
+      if (taken.current || !back?.isConnected) return;
+      /*
+       * On the next frame, not in the cleanup itself.
+       *
+       * A `<dialog>` opened with `showModal()` puts focus back where the
+       * browser decides when it closes, and that happens *after* React has
+       * run this cleanup — so focusing here is immediately undone.
+       */
+      requestAnimationFrame(() => {
+        if (back.isConnected) back.focus();
+      });
     };
-  }, []);
+  }, [from]);
 
   /*
    * `showModal()`, not the `open` attribute.
