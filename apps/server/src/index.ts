@@ -16,9 +16,9 @@ import {
   setModuleEnabled,
 } from "@sentrello/db/modules";
 import { and, eq, sql } from "@sentrello/db/orm";
+import { RequestFieldError } from "@sentrello/db/request-values";
 import { lastRetentionSweep } from "@sentrello/db/retention";
 import { NAV_TAX_REGIME, taxRegimesFor } from "@sentrello/db/tax-regimes";
-import { TextColumnError } from "@sentrello/db/text-columns";
 import { UnreadableDateError } from "@sentrello/db/timezone";
 import { mailConfigured } from "@sentrello/email";
 import { lastLicenseRefresh, startJobs, unusableJobs } from "@sentrello/jobs";
@@ -93,14 +93,16 @@ app.onError((err, c) => {
     return c.json({ error: err.message }, 400);
   }
   /*
-   * An object sent where text belongs, for every route at once.
+   * A field the caller got wrong, for every route at once.
    *
-   * The driver accepts one and stores the words "[object Object]", so the row
-   * is wrong and nothing failed. The write guard in `@sentrello/db` refuses it
-   * at the one place every write passes; this is what turns that into an
+   * Two shapes, one answer. An object where text belongs is *accepted* by the
+   * driver and stored as the words "[object Object]", so the row is wrong and
+   * nothing failed. An empty list where a number belongs is worse: `Number([])`
+   * is 0, so every range check in the repository said yes to it. Both are
+   * refused where they are read, and this is what turns the refusal into an
    * answer naming the field rather than a 500.
    */
-  if (err instanceof TextColumnError) {
+  if (err instanceof RequestFieldError) {
     return c.json({ error: err.message }, 400);
   }
   // A body that is not JSON is the caller's mistake, not a crash. The parse

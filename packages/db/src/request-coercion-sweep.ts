@@ -1,5 +1,5 @@
 /**
- * Where `String(body.x)` still turns a request value into text.
+ * Where a request value is still coerced instead of checked.
  *
  * Shared because all three repositories have routes and all three had this
  * bug; a sweep written once per repository is three things to keep right, and
@@ -12,7 +12,20 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
-const COERCED = /String\(\s*(body|payload)\.[A-Za-z_]/;
+/*
+ * Not preceded by a letter, which is load-bearing twice.
+ *
+ * `asWholeNumber(body.x` ends with the characters `Number(body.`, so the first
+ * version of this swept up the very call that fixes the bug — and found one
+ * inside its own refusal message, in the file doing the sweeping.
+ */
+const COERCED = /(?<![A-Za-z])String\(\s*(body|payload)\.[A-Za-z_]/;
+/**
+ * The same hole on the numeric side, and the worse of the two. `Number([])` is
+ * 0, so an empty list sent where a price belongs passed every range check in
+ * the product and bought a subscription for nothing.
+ */
+const COUNTED = /(?<![A-Za-z])Number\(\s*(body|payload)\.[A-Za-z_]/;
 /**
  * Comments do not count, and this sweep found its own.
  *
@@ -44,19 +57,31 @@ export function sourcesUnder(repo: string, where: string[]): string[] {
   return where.flatMap((dir) => sources(join(repo, dir)));
 }
 
-/** Each `file:line` that coerces a request value into text. */
-export function coercedTextSites(repo: string, where: string[]): string[] {
+function sitesMatching(repo: string, where: string[], what: RegExp): string[] {
   const out: string[] = [];
   for (const file of sourcesUnder(repo, where)) {
     readFileSync(file, "utf8")
       .split("\n")
       .forEach((line, i) => {
-        if (IS_COMMENT.test(line) || !COERCED.test(line)) return;
+        if (IS_COMMENT.test(line) || !what.test(line)) return;
         out.push(`${relative(repo, file)}:${i + 1}`);
       });
   }
   return out;
 }
+
+/** Each `file:line` that coerces a request value into text. */
+export function coercedTextSites(repo: string, where: string[]): string[] {
+  return sitesMatching(repo, where, COERCED);
+}
+
+/** Each `file:line` that coerces a request value into a number. */
+export function coercedNumberSites(repo: string, where: string[]): string[] {
+  return sitesMatching(repo, where, COUNTED);
+}
+
+export const WHY_NOT_NUMBER =
+  'these turn a request value into a number with Number(), and Number([]) is 0 — so a list sent where a price belongs passes every range check — use asWholeNumber(body.x, "x") or asNumber from @sentrello/db/request-values';
 
 export const WHY_NOT_STRING =
   'these turn a request value into text with String(), which stores an object as the words "[object Object]" and refuses nothing — use asText(body.x, "x") from @sentrello/db/text-columns';

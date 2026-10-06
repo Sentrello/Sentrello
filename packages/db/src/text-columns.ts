@@ -20,6 +20,7 @@
  */
 import { getTableColumns } from "drizzle-orm";
 import type { Table } from "drizzle-orm";
+import { RequestFieldError } from "./request-values";
 
 export type TextCheck = { ok: true } | { ok: false; field: string };
 
@@ -68,12 +69,10 @@ export function notText(field: string): string {
  * too and is a perfectly good thing to set a column to, so the test is the
  * prototype rather than `typeof`.
  */
-export class TextColumnError extends Error {
-  readonly field: string;
+export class TextColumnError extends RequestFieldError {
   constructor(field: string) {
-    super(notText(field));
+    super(field, notText(field));
     this.name = "TextColumnError";
-    this.field = field;
   }
 }
 

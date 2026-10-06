@@ -4,6 +4,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { and, db, eq, schema } from "@sentrello/db";
+import { asWholeNumber } from "@sentrello/db/request-values";
 import {
   forgetHipaaRules,
   record as recordSecurityEvent,
@@ -229,7 +230,10 @@ export function registerCompliance(ctx: ModuleContext) {
         patch.requireTwoFactor = body.requireTwoFactor === true;
       }
       if (body.idleTimeoutMinutes !== undefined) {
-        const minutes = Number(body.idleTimeoutMinutes);
+        const minutes = asWholeNumber(
+          body.idleTimeoutMinutes,
+          "idleTimeoutMinutes",
+        );
         /*
          * A ceiling, not a suggestion. "Automatic logoff after eight hours" is
          * a setting that satisfies the letter of a checklist and protects
