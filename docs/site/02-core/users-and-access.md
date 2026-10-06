@@ -14,7 +14,7 @@ straight away, with the access they already have.
 **Users** is its own section in the sidebar, with seven screens: People,
 Groups, Policies, Sessions, Authentication, Providers and Events.
 
-![Users → Policies: the five seeded policies against what each may open, with the Customer role able to open the dashboard and nothing else](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/roles.png)
+![Users → Policies: the seeded policies against what each may open, with the Customer role able to open the dashboard and nothing else](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/roles.png)
 
 The **Customer** row is the one worth looking at twice. It is how you hand
 somebody outside the business a login without handing them the business: it
@@ -94,7 +94,10 @@ What somebody can do is decided by the **policies** attached to them. A policy
 grants specific permissions on specific modules: read invoices, create
 contacts, update settings.
 
-Five are set up for you and cover most businesses:
+Nine are set up for you, in two kinds, and the screen shows them as two tables.
+
+The first five say **how senior somebody is**, and are given to a person
+directly:
 
 | Policy | Roughly |
 |---|---|
@@ -104,7 +107,17 @@ Five are set up for you and cover most businesses:
 | **Staff** | Day-to-day work; no settings, no books |
 | **Customers** | Signs in and sees the dashboard. Their own documents come through a link, not a login |
 
-**Groups** do the same job for a department: Sales, Marketing, Accounting,
+The other four say **what department somebody is in**, and are carried by a
+group rather than handed out one at a time:
+
+| Policy | Roughly |
+|---|---|
+| **Sales** | The pipeline, the people in it, and quotes |
+| **Marketing** | Campaigns, forms and links — but not the domain they point at, which is an act with DNS behind it |
+| **Accounting** | The books in full, and read on the CRM, because an unpaid invoice is a conversation with a person |
+| **Customer service** | The diary in full and orders they can change, because moving an appointment is the commonest thing anybody rings about |
+
+**Groups** are how the second kind reaches people: Sales, Marketing, Accounting,
 Customer Service. A new joiner gets the right access by being put in the right
 group, rather than by somebody remembering fourteen switches. A group has its
 own Access tab, which answers the same question about the policies it carries.
