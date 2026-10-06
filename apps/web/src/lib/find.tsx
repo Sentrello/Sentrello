@@ -150,6 +150,13 @@ function FindDialog({
    *
    * The element itself comes from the parent (see `from`), because by the
    * time this runs focus has already been in here once.
+   *
+   * Focused here and not on the next frame. A deferred version of this lived
+   * here for an afternoon, with a comment saying the browser's own `<dialog>`
+   * restore happens after React's cleanup and undoes it — measured, and it
+   * does not. The browser puts focus back on whatever had it before
+   * `showModal()`, which is the same button this is aiming at, so the two
+   * agree rather than fight.
    */
   useEffect(() => {
     box.current?.focus();
@@ -158,16 +165,7 @@ function FindDialog({
       // focus now, and the button this came from may not exist on it.
       const back = from.current;
       if (taken.current || !back?.isConnected) return;
-      /*
-       * On the next frame, not in the cleanup itself.
-       *
-       * A `<dialog>` opened with `showModal()` puts focus back where the
-       * browser decides when it closes, and that happens *after* React has
-       * run this cleanup — so focusing here is immediately undone.
-       */
-      requestAnimationFrame(() => {
-        if (back.isConnected) back.focus();
-      });
+      back.focus();
     };
   }, [from]);
 

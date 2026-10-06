@@ -1126,7 +1126,18 @@ function Connection({
 }) {
   /** Sandbox first. Somebody rehearsing must not be one press from live. */
   const [mode, setMode] = useState("test");
-  const [publicKey, setPublicKey] = useState("");
+  /*
+   * Null until somebody types, which is not the same as empty.
+   *
+   * The stored publishable key used to be the field's *placeholder*. A
+   * placeholder is not a value: it is not announced as one, it cannot be
+   * selected or copied, it goes the moment you type a character, and a key
+   * that is 107 characters long in a third of a row was clipped without an
+   * ellipsis — so the one field here that is deliberately not a secret was
+   * the only one you could not read. Null means untouched, and untouched
+   * sends nothing.
+   */
+  const [publicKey, setPublicKey] = useState<string | null>(null);
   const [secretKey, setSecretKey] = useState("");
   const [webhookSecret, setWebhookSecret] = useState("");
 
@@ -1149,7 +1160,7 @@ function Connection({
       await api(path, {
         method: "PUT",
         body: JSON.stringify({
-          publicKey: publicKey || undefined,
+          publicKey: publicKey ?? undefined,
           secretKey: secretKey || undefined,
           webhookSecret: webhookSecret || undefined,
         }),
@@ -1228,7 +1239,19 @@ function Connection({
             key={option}
             variant={mode === option ? "primary" : "secondary"}
             aria-label={`${option === "test" ? "Sandbox" : "Live"} — ${label}`}
-            onClick={() => setMode(option)}
+            onClick={() => {
+              /*
+               * The boxes empty when the mode changes. They are per-mode
+               * credentials and the state behind them is not: a key typed
+               * against the sandbox and left there while somebody switched
+               * to live would have been saved against live on the next
+               * press, and the live key it shadowed would never have shown.
+               */
+              setMode(option);
+              setPublicKey(null);
+              setSecretKey("");
+              setWebhookSecret("");
+            }}
           >
             {option === "test" ? "Sandbox" : "Live"}
           </Button>
@@ -1260,14 +1283,23 @@ function Connection({
         </p>
       ) : null}
 
-      <div className="mt-3 grid gap-(--gap-toolbar) sm:grid-cols-3">
+      {/*
+        The publishable key on its own row, and the two secrets beside each
+        other. Three equal columns read tidily and gave the longest string on
+        the screen the same room as `sk_…`.
+      */}
+      <div className="mt-3">
         <Field label="Publishable key" hint="Not a secret.">
           <Input
-            value={publicKey}
-            placeholder={account?.publicKey ?? "pk_…"}
+            value={publicKey ?? account?.publicKey ?? ""}
+            placeholder="pk_…"
+            spellCheck={false}
             onChange={(e) => setPublicKey(e.target.value)}
           />
         </Field>
+      </div>
+
+      <div className="mt-(--gap-toolbar) grid gap-(--gap-toolbar) sm:grid-cols-2">
         <Field label="Secret key" hint="Leave blank to keep the stored one.">
           <SecretInput
             value={secretKey}
