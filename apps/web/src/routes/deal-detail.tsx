@@ -39,6 +39,8 @@ interface Related {
     description: string | null;
     expectedCloseOn: string | null;
     archivedAt: string | null;
+    /** The version a screen is editing, sent back with a save. */
+    updatedAt: string;
     customValues?: Record<string, string | number | boolean | null> | null;
   };
   company: { id: string; name: string } | null;
@@ -96,6 +98,13 @@ function EditDeal({
    * ones already on the deal are shown; anybody else is found by searching.
    */
   const [on, setOn] = useState(people);
+  /**
+   * The version this form is editing, claimed back when Save is pressed.
+   *
+   * Held in state like every box above it: the prop is refetched, and a claim
+   * that quietly caught up with somebody else's save would be no claim at all.
+   */
+  const [seenUpdatedAt] = useState(deal.updatedAt);
   const set = (patch: Partial<typeof form>) =>
     setForm((f) => ({ ...f, ...patch }));
 
@@ -117,6 +126,16 @@ function EditDeal({
       api(`/api/deals/${deal.id}`, {
         method: "PATCH",
         body: JSON.stringify({
+          /*
+           * Which version this form was editing.
+           *
+           * The server refuses the write if the deal has changed since, rather
+           * than putting these boxes on top of somebody else's work. Only on
+           * the form: moving a card to another stage or archiving it is one
+           * field, and refusing that because somebody edited the description
+           * would be refusing the wrong thing.
+           */
+          expectedUpdatedAt: seenUpdatedAt,
           name: form.name,
           amountCents: Math.round(Number(form.amount || 0) * 100),
           category: form.category || null,

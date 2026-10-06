@@ -337,7 +337,15 @@ export const notes = pgTable(
     organizationId: text("organization_id")
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
-    entityType: text("entity_type").notNull(), // "contact" | "deal"
+    /**
+     * What the note hangs from: `contact`, `company` or `deal`.
+     *
+     * A company takes notes of its own — "renew the retainer", "chase the PO" —
+     * which belong to the account rather than to whoever answered the phone that
+     * day. This said contacts and deals only, for as long as companies have been
+     * accepted.
+     */
+    entityType: text("entity_type").notNull(),
     entityId: uuid("entity_id").notNull(),
     text: text("text").notNull(),
     /**
@@ -550,9 +558,10 @@ export const taggables = pgTable(
     tagId: uuid("tag_id")
       .notNull()
       .references(() => tags.id, { onDelete: "cascade" }),
-    entityType: text("entity_type").notNull(), // "contact" | "deal"
+    /** What is tagged: `contact`, `company` or `deal`. All three can be. */
+    entityType: text("entity_type").notNull(),
     /**
-     * Polymorphic — a contact id or a deal id, told apart by `entityType`.
+     * Polymorphic — a contact, company or deal id, told apart by `entityType`.
      * No foreign key is possible against a column that names a row in
      * whichever table the tag was put on. Not an oversight.
      */

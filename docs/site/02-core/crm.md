@@ -56,6 +56,23 @@ where "met at the trade show, knows Priya" ends up. That scrap is often the
 only thing anybody can remember about the person they are trying to find again.
 On companies, search reads the sector, city, website and description.
 
+### Two people, one record
+
+Somebody in sales corrects the phone number. Somebody in accounts corrects the
+billing address. Both had the contact open; both press Save.
+
+Sentrello refuses the second save rather than applying it, and says so: *somebody
+else changed this while you had it open, so nothing here has been saved.* Open it
+again and you see their version, with your change still to make.
+
+The alternative is what most software does — the second save wins, quietly, and
+the first person never learns their work is gone. It is the one kind of loss
+nobody recovers from by trying again.
+
+Contact, company and deal forms work this way, as do quotes and invoices. The
+one-tap actions do not, deliberately: dragging a card to another stage or ticking
+a task off should not be refused because somebody else edited the description.
+
 ## Deals
 
 A **deal** is a piece of work you might win, moving through stages you define.
