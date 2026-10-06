@@ -27,14 +27,14 @@ flowchart LR
   end
   PUB(["Your booking page"]):::pub
   CRM["A contact<br/><small>CRM</small>"]:::out
-  INV["An invoice<br/><small>Invoicing</small>"]:::out
+  INV["An invoice<br/><small>Invoicing, if the service asks for one</small>"]:::out
 
   SVC --> PUB
   AV --> PUB
   AREA --> PUB
   PUB --> BK
   BK --> CRM
-  BK --> INV
+  BK -.-> INV
   style OWN fill:#fbfdfc,stroke:#cfe4d8,color:#10442a
 ```
 
@@ -110,10 +110,12 @@ there.
 - The customer gets a confirmation, then a reminder before the appointment.
 - A **contact is created or matched** in the CRM. A repeat customer stays one
   person instead of becoming a new record each time.
-- If the service has a price, an invoice is raised automatically. Book six
-  weekly sessions in one go and that is one invoice for the course, not six.
-  Where a card processor is connected, the invoice carries a payment link like
-  any other.
+- An invoice is raised automatically **if you asked for one**: tick *Raise an
+  invoice when it is booked* on the service, which needs a price on it and is
+  off to begin with. Leave it off and the price is shown while the business
+  bills the way it already does. Book six weekly sessions in one go and the
+  invoice is one for the course, not six. Where a card processor is connected,
+  it carries a payment link like any other.
 - The appointment appears on your dashboard.
 
 Raising that invoice is never allowed to fail the booking. An invoice that did

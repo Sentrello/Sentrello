@@ -23,8 +23,9 @@ A free instance starts with these, across four tabs:
 
 - **Overview** — what is owed to you and what is overdue, the list of things
   needing attention, what is in the pipeline, and how late the money is.
-- **Performance** — income against expenses over twelve months, the profit
-  trend, and who spends the most with you.
+- **Performance** — income by month over twelve months, the profit trend, and
+  who spends the most with you. Income and expenses together is a chart on
+  Money's own front page rather than a panel here.
 - **Sales** — deals by stage, and the pipeline beside them.
 - **Reports** — the balance sheet. Who owes you, cash in and out and the trial
   balance are answered by Pro's accounting, so on a free instance this tab holds

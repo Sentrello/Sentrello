@@ -75,7 +75,7 @@ keywords slipped this month?* *Draft a post about the three we rank fourth for.*
 the last crawl, the AI-visibility answers and the bill, so it answers from your
 data rather than from a guess.
 
-Two decisions are yours, on the Search settings screen:
+Two decisions are yours, on **Search → Source and spend**:
 
 **The key.** One per business, made with a button and shown exactly once —
 there is nowhere to read it back from, which is the point. Lose it and you make

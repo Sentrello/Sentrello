@@ -220,8 +220,13 @@ be bought, not how many are left. A number in stock on a public page tells a
 competitor what you turn over.
 
 Calls from a browser need the domain listed, as above. Calls from your own
-server carry no origin and are not restricted, which is what makes server-side
-rendering possible.
+server carry no origin, and **reads** are allowed without one — which is what
+makes server-side rendering possible.
+
+A **write** without an origin is not. Once you have listed a domain, the
+checkout refuses a call that names nobody, because an origin-less write is the
+one shape a listed domain cannot vouch for. So render pages and a basket from
+your server if you like, and take the checkout from the browser.
 
 ## When something does not work
 

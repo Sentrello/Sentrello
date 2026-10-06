@@ -80,7 +80,7 @@ Three kinds of record, chosen in the **Records** box:
 - **Invoices, credit notes, quotes and payments.** The documents, their lines,
   their tax and the payments against them. Statutory.
 - **A closed period's journal.** The ledger entries of a period you have closed
-  in **Accounting → Tax and currency**, which is a Pro screen. Statutory, and
+  in **Money → Settings → Tax and currency**, which is a Pro screen. Statutory, and
   the books must be closed through the whole period before it can be removed
   — so on a free instance this is the one set here you cannot archive, because
   closing the books is the thing Pro adds. Everything else on this list

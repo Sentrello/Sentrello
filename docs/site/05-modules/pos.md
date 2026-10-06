@@ -14,12 +14,19 @@ bought today. There is no date, deliberately: this page describes how it works
 rather than something you can subscribe to yet.
 
 Most of what the withdrawal was waiting for is now built — the screens it is
-actually used on, a card reader the till drives, table service, the kitchen
-pass, a receipt that carries what each of the four markets requires, and paper:
-a receipt printer, chits in the kitchen, and a drawer that springs open when
-cash goes in it. What remains is the list under
-[What is not here yet](#what-is-not-here-yet), and most of it is there on
-purpose.
+actually used on, table service, the kitchen pass, a receipt that carries what
+each of the four markets requires, and the code for paper: a receipt printer,
+chits in the kitchen, a drawer, and a card reader the till talks to.
+
+**None of the hardware has met a real device.** Printer, drawer and reader are
+driven end to end by a test harness, which proves the exchange and cannot prove
+the firmware: what a real printer does with a media type it dislikes, whether a
+particular drawer answers the kick, how a reader behaves when somebody taps
+twice. We expect the devices in the middle of November 2026. Until each one has
+been used over a counter, nothing on this page about paper or cards is a
+promise, and that — rather than the list under
+[What is not here yet](#what-is-not-here-yet) — is what the till is waiting
+for.
 
 **There are no screenshots on this page**, deliberately. The ones that were here
 showed a till with a Cash button and no Card, an open cash count with the
@@ -66,7 +73,9 @@ catalog. It is a second way of selling the one you already have.
 
 ## Before you start
 
-Three things, in this order:
+Three things, in this order. The first needs a POS subscription, which is what
+cannot be bought today — so read this part as what setting the till up will
+involve rather than as something to go and do.
 
 1. **Enable Shop and POS** under Settings → Modules.
 2. **Add your products** under Shop → Products, and publish them. Anything not
@@ -107,8 +116,8 @@ still standing there.
 ## Questions: milk, sizes, extras
 
 A till that cannot ask "which milk?" sends a member of staff back to the
-counter to ask. **POS questions** are the answer, set up under Shop → POS
-questions.
+counter to ask. Questions are the answer, set up under
+**Shop → Point of sale → Questions**.
 
 A question has:
 
@@ -148,8 +157,9 @@ differently, priced differently, and handed to different people.
 
 ## Taking the money
 
-**Cash works today.** Type what the customer handed over and press Cash; the
-till works out the change. Leave the box blank for the exact amount.
+**Cash is the simplest tender.** Type what the customer handed over and press
+Cash; the till works out the change. Leave the box blank for the exact
+amount.
 
 The sale then becomes a Shop order. The same order a website sale becomes, with
 the same order number series, in the same list under Shop → Orders, posting the
@@ -159,10 +169,16 @@ sale to your books.
 **Card is a tender like any other**, including half on the card and the rest in
 cash on one sale.
 
-**The till can drive the machine.** Pair a card reader to a terminal under
-Point of sale → Serving, and *Card* sends the figure to it: the customer taps,
-the till watches the reader and settles the sale itself when the processor
-confirms the payment. Nobody types a total twice, and nobody can type it wrong.
+**The till can send the figure to the machine.** Pair a card reader to a
+terminal under Point of sale → Serving, and *Card* sends the amount to it: the
+customer taps, and the till shows what the reader reported. Nobody types a
+total twice, and nobody can type it wrong.
+
+The cashier still completes the sale. The reader's job ends at "taken"; one
+path leads from a sale to the books and it is the same press that takes cash,
+which is why there is no second way for a sale to reach the journal. Reader
+support is code against a harness until the hardware arrives in
+November 2026.
 
 It also still takes a card the old way, which is not a fallback so much as how
 most counters work: the customer taps a machine standing beside the till, and
@@ -213,8 +229,9 @@ learns to ignore, and then it is worth nothing on the night it is large.
 
 Add a printer under **Point of sale → Serving → Printers**: a name, how it is
 reached, and whether the cash drawer is wired to it. Then press **Test**, which
-puts a piece of paper in your hand and opens the drawer — the only way to know a
-printer works is to have it print.
+sends a receipt and a drawer kick — the only way to know a printer works is to
+have it print, and that is also why this part of the till is not finished: it
+has printed for a test harness and not yet for a printer.
 
 **Two ways round, and the default is the one that always works.**
 
@@ -429,8 +446,9 @@ What that does, and does not, do:
 - Signing in at another device **moves** their shift rather than opening a
   second one, and ends anybody else's on the till they have just left.
 - Codes are stored sealed, compared without telling a guesser how close they
-  were, and **capped at ten tries a minute per till**. Two people can never
-  share one.
+  were, and **capped at ten tries a minute from one network address** — so two
+  tills behind one router share a budget, and the same till on two networks has
+  two. Two people can never share one code.
 - The list of who has a code never shows the codes.
 
 ## Tips and service charges
@@ -445,7 +463,9 @@ Everything here lives under Point of sale → **Tips & charges**.
 ### Tips
 
 - **On or off** for the business. Off means the prompt never appears.
-- **Suggested percentages you set**, defaulting to 18, 20 and 25.
+- **Suggested percentages you set**, and none to begin with: an empty list means
+  the till asks and suggests nothing, which is what a bar that takes tips and
+  would rather not nudge wants.
 - **Any amount**, always. Zero is as easy to give as a suggestion, because a
   customer who does not want to tip should not have to work at it.
 - **Suggested on the goods before tax, or on the whole bill** — your call, and
@@ -587,7 +607,7 @@ It never has its own logins.
 | `pos:sell` | Ring up sales, take cash, open and close a drawer |
 | `pos:void` | Cancel a ticket |
 | `pos:refund` | Give money back |
-| `pos:manage` | The manager's half: the questions the till asks, the module's own settings, the receipts list, opening and cashing up a drawer, the Z closures — and the drawer's expected total, wherever it appears |
+| `pos:manage` | The manager's half: the questions the till asks, the module's own settings, the receipts list, the list of drawers and a cash-up — and the drawer's expected total, wherever it appears |
 
 That last one is the reason the row is this long. A blind count is only blind
 while the person counting cannot see what the till thinks is in the box, so the

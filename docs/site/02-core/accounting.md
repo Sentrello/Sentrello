@@ -35,7 +35,7 @@ flowchart LR
   subgraph OWN[" Accounting "]
     JR["The journal"]:::own
     COA["Chart of accounts"]:::own
-    RPT["Profit and loss · Balance sheet · Trial balance"]:::own
+    RPT["Profit and loss · Balance sheet"]:::own
     TAX["Tax returns"]:::own
   end
 

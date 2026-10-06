@@ -328,9 +328,10 @@ Where nothing will be billed — a trial that has not ended, a pause, the last
 period of a subscription that is leaving — it says so in a sentence instead of
 showing nought.
 
-Run the Shop as well and a subscriber can sign in to your storefront to cancel
-their own subscription without emailing you about it, or pause it if you allow
-pausing. This works whether or not the Shop is installed. What the storefront can change
+A subscriber can cancel without emailing you about it, or pause if you allow
+pausing — on the link this module sends them, which works on its own. Run the
+Shop as well and the same two things are on your storefront, behind a sign-in,
+beside everything else they have bought from you. What the storefront can change
 it asks Subscriptions to change — a seat count goes through the proration policy
 you set here, and the customer sees the figure before agreeing to it. Without
 Subscriptions the Shop cannot quote or collect anything: the new count simply

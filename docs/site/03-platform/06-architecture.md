@@ -23,7 +23,7 @@ flowchart TD
   classDef store fill:#f4f0fb,stroke:#6b47c4,color:#31205e
   classDef aside fill:#f7f7f8,stroke:#9aa3ad,color:#444c55
 
-  SPA["React SPA<br/><small>TanStack Router and Query</small>"]:::browser
+  SPA["React SPA<br/><small>TanStack Query, and routing of its own</small>"]:::browser
   API["Hono<br/><small>one process, one container</small>"]:::host
   AUTH["Better Auth<br/><small>the session, and which organization</small>"]:::host
   ENT{{"entitled?<br/><small>has this instance paid for it</small>"}}:::gate

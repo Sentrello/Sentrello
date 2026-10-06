@@ -167,7 +167,7 @@ figure here will ever net it against what you collected.
 province they are shipped to, services generally take the customer's address.
 Not where you sit.
 
-**Filing.** Accounting → Canadian tax shows, for any period, one card per
+**Filing.** Money → Tax → Canadian tax shows, for any period, one card per
 government you collect for: the CRA's return with its own line numbers, the QST
 return, each province's PST. Each card puts the ledger's figure and your
 documents' figure side by side, so you can see them agree before you type
@@ -208,9 +208,9 @@ Settings → Your business.
 
 **If your books are not in euro.** The return is filed in euro, and the rate is
 not yours to choose. It is the European Central Bank's rate for the last day of
-the quarter, or the next day it published. Record that rate under Accounting
-and the figures convert exactly, and the screen says it used the prescribed
-one.
+the quarter, or the next day it published. Record that rate — Pro's
+Money → Settings → Tax and currency is the screen that does it — and the figures convert
+exactly, with the screen saying it used the prescribed one.
 
 With no euro rate recorded at all, no figures are shown — a return that is
 plausible and wrong is worse than one that is late. With an older rate on file

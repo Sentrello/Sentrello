@@ -42,8 +42,8 @@ nightly job that will not run.
 3. **Turn it into an invoice.** From the quote, convert it. The lines, tax and
    customer carry across.
 4. **Record a payment.** Mark it paid, or part paid.
-5. **Look at the ledger.** Accounting → Journal. There is an entry for the
-   invoice and another for the payment, each balanced.
+5. **Look at the ledger.** Money → The books → Journal. There is an entry for
+   the invoice and another for the payment, each balanced.
 
 If step five shows what you expect, the parts that matter are working.
 

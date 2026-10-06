@@ -41,7 +41,7 @@ writers also keep the tools they already use.
 
 ## Connecting one
 
-**Docs → Settings**:
+**Documentation → Settings**:
 
 1. Enter the repository as `owner/name`, or paste its GitHub URL.
 2. Choose the branch and the folder your pages are in, usually `docs`.

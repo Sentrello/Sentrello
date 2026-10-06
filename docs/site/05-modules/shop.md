@@ -26,14 +26,13 @@ flowchart LR
   end
   SF(["Your storefront"]):::pub
   CUST["Customer"]:::screen
-  INV["An invoice<br/><small>Invoicing</small>"]:::out
   LED["The journal<br/><small>stock, income and tax</small>"]:::out
   CRM["A contact<br/><small>CRM</small>"]:::out
 
   CUST --> SF --> O
   P --> SF
   D --> SF
-  O --> INV --> LED
+  O --> LED
   O --> CRM
   O -->|"stock comes down"| P
   style OWN fill:#fbfdfc,stroke:#cfe4d8,color:#10442a

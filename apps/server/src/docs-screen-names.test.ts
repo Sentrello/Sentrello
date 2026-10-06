@@ -39,8 +39,59 @@ import users from "@sentrello/module-users";
 const root = join(import.meta.dir, "..", "..", "..");
 const site = join(root, "docs", "site");
 
-/** Section headings this repository owns, as the sidebar prints them. */
+/**
+ * Section headings this repository owns, as the sidebar prints them.
+ *
+ * Written down rather than derived, and that is deliberate for the *product*
+ * check further down, which greps source for these words. The documentation
+ * check no longer uses it: a hand-written list of heads is a list of the heads
+ * somebody remembered, and a path whose head was **removed from the product**
+ * falls outside it and is never looked at. That is how the manual kept sending
+ * people to `Accounting → Journal` for weeks after Accounting stopped being a
+ * place in the rail — the guard existed, read the page, and skipped the line.
+ */
 const OURS = new Set(["Settings", "Money", "Users", "CRM", "Invoicing"]);
+
+/**
+ * Heads that belong to the commercial repositories, which this one cannot read.
+ *
+ * Pinned from both ends: an entry no page uses any more fails, so the list
+ * cannot quietly grow into the thing that spares everything.
+ */
+const HEADS_ELSEWHERE = [
+  "Booking",
+  "Documentation",
+  "Point of sale",
+  "Search",
+  "Shop",
+];
+
+/** An arrow in prose is not a path through the product. */
+const NOT_A_PATH = new Set([
+  // A route through these pages rather than through the sidebar.
+  "Running it",
+  // Screens of this repository, named as a parent in their own right.
+  "Contacts",
+  "Invoice settings",
+]);
+
+/**
+ * The head, out of however much of the sentence came with it.
+ *
+ * The match is deliberately loose on the left — "the timezone set under
+ * Settings → Modules" is one capture — so the head is the shortest run of words
+ * at the end of it that the sidebar actually has. Taking the whole capture
+ * reported five real paths as menus nothing registers, which is the sort of
+ * noise that gets a guard switched off.
+ */
+function headOf(captured: string, known: Set<string>): string | null {
+  const words = captured.trim().split(/\s+/);
+  for (let from = 0; from < words.length; from++) {
+    const candidate = words.slice(from).join(" ");
+    if (known.has(candidate)) return candidate;
+  }
+  return null;
+}
 
 function pages(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
@@ -51,9 +102,28 @@ function pages(dir: string, out: string[] = []): string[] {
   return out;
 }
 
+/** Every head the sidebar has: a nav entry with nothing above it. */
+function realHeads(): Set<string> {
+  return new Set(
+    registered()
+      .filter((e) => !e.parent)
+      .map((e) => e.label),
+  );
+}
+
 /** Every nav entry the Free modules register, as `{id, label, parent}`. */
-function registered(): { id: string; label: string; parent?: string }[] {
-  const entries: { id: string; label: string; parent?: string }[] = [];
+function registered(): {
+  id: string;
+  label: string;
+  parent?: string;
+  section?: string;
+}[] {
+  const entries: {
+    id: string;
+    label: string;
+    parent?: string;
+    section?: string;
+  }[] = [];
   /*
    * The same list `apps/server/src/index.ts` boots with. Written out rather
    * than imported from there, because importing that file starts a server.
@@ -71,20 +141,42 @@ function registered(): { id: string; label: string; parent?: string }[] {
   for (const mod of free) {
     registerForTest(mod, undefined, () => true, {
       registerNav: (entry) =>
-        entries.push(entry as { id: string; label: string; parent?: string }),
+        entries.push(
+          entry as {
+            id: string;
+            label: string;
+            parent?: string;
+            section?: string;
+          },
+        ),
     });
   }
   return entries;
 }
 
-/** "Settings → Your business", for every parent and child that really exist. */
+/**
+ * "Settings → Your business", for every parent and child that really exist.
+ *
+ * **And the heading in between, where there is one.** Money files its pages
+ * under sections — The books, Tax, Getting paid, Spending — and the sidebar
+ * prints all three levels, so the manual writes `Money → The books → Journal`.
+ * This read two segments and compared the first two, which made the section
+ * look like a screen that does not exist: four correct paths reported as wrong
+ * the day the manual was fixed to match the product. Both shapes are real now,
+ * and a page may name either.
+ */
 function realPairs(): Set<string> {
   const entries = registered();
   const labelOf = new Map(entries.map((e) => [e.id, e.label]));
   const pairs = new Set<string>();
   for (const entry of entries) {
     const parent = entry.parent ? labelOf.get(entry.parent) : undefined;
-    if (parent) pairs.add(`${parent} → ${entry.label}`);
+    if (!parent) continue;
+    pairs.add(`${parent} → ${entry.label}`);
+    if (entry.section) {
+      pairs.add(`${parent} → ${entry.section}`);
+      pairs.add(`${parent} → ${entry.section} → ${entry.label}`);
+    }
   }
   return pairs;
 }
@@ -101,7 +193,8 @@ function realPairs(): Set<string> {
  * so a mention is matched loosely here and compared by prefix below, the same
  * rule the product-side check uses.
  */
-const MENTION = /(?:\*\*)?([A-Z][A-Za-z ]*?) → ([A-Z][A-Za-z '-]*[A-Za-z])/g;
+const MENTION =
+  /(?:\*\*)?([A-Z][A-Za-z ]*?) → ([A-Z][A-Za-z '-]*[A-Za-z])(?: → ([A-Z][A-Za-z '-]*[A-Za-z]))?/g;
 
 test("the modules register some screens at all", () => {
   // Without this every assertion below passes against an empty set, which is
@@ -126,12 +219,38 @@ const ELSEWHERE = new Set([
 
 test("every screen the documentation names is a screen the sidebar has", () => {
   const real = realPairs();
+  const heads = realHeads();
   const wrong: string[] = [];
+  const usedElsewhere = new Set<string>();
+
   for (const page of pages(site)) {
     const text = readFileSync(page, "utf8");
-    for (const [, section, screen] of text.matchAll(MENTION)) {
-      if (!OURS.has(section as string)) continue;
-      const pair = `${section} → ${screen}`;
+    for (const [, section, screen, deeper] of text.matchAll(MENTION)) {
+      const captured = section as string;
+
+      const elsewhere = headOf(captured, new Set(HEADS_ELSEWHERE));
+      if (elsewhere) {
+        usedElsewhere.add(elsewhere);
+        continue;
+      }
+      if (headOf(captured, NOT_A_PATH)) continue;
+
+      /*
+       * A head the sidebar does not have at all. Checked before the pair,
+       * because this is the fault the old spelling of this test could not see:
+       * it only looked at heads it already knew about.
+       */
+      const head = headOf(captured, heads);
+      if (!head) {
+        wrong.push(
+          `${page.slice(root.length + 1)}: "${captured.split(/\s+/).slice(-3).join(" ")}" → … — nothing registers a menu called that`,
+        );
+        continue;
+      }
+
+      const pair = deeper
+        ? `${head} → ${screen} → ${deeper}`
+        : `${head} → ${screen}`;
       // Any real screen whose name this mention begins with, so a sentence that
       // carries on past the name is not a fault.
       if (ELSEWHERE.has(pair)) continue;
@@ -140,7 +259,14 @@ test("every screen the documentation names is a screen the sidebar has", () => {
       }
     }
   }
+
   expect([...new Set(wrong)]).toEqual([]);
+
+  const stale = HEADS_ELSEWHERE.filter((h) => !usedElsewhere.has(h));
+  expect(
+    stale,
+    `these are excused as another repository's menus and no page names them any more:\n    ${stale.join("\n    ")}`,
+  ).toEqual([]);
 });
 
 /**
