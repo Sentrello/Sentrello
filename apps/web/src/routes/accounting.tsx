@@ -1550,6 +1550,75 @@ function isReversal(entry: JournalEntry): boolean {
  * what an auditor expects to find and the only version that survives being
  * checked.
  */
+/**
+ * A closed period, on an instance with no screen to close one.
+ *
+ * `PUT /api/accounting/period` is registered by the **free** accounting module,
+ * and the screen that drives it is Pro's. So a business that closed its books on
+ * Pro and then let the licence lapse has a ledger that refuses every posting on
+ * or before that date — an invoice, a payment, an expense — with no way anywhere
+ * in the application to move the line back. The only way out was a `curl`.
+ *
+ * So Free gets the half that rescues them: it says a period is closed, and it
+ * offers to reopen it. Closing one from a screen stays Pro's, which is where it
+ * was sold; this is not a feature so much as the door out of a locked room.
+ *
+ * Drawn only when there is a lock. A business that has never had one is told
+ * nothing, because there is nothing to tell it.
+ */
+function ClosedBooks() {
+  const qc = useQueryClient();
+  const period = useQuery({
+    queryKey: ["accounting-period"],
+    queryFn: () =>
+      api<{ closedThrough: string | null }>("/api/accounting/period"),
+  });
+  const reopen = useMutation({
+    mutationFn: () =>
+      api("/api/accounting/period", {
+        method: "PUT",
+        body: JSON.stringify({ closedThrough: null }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["accounting-period"] });
+      // The ledger itself, because what it will accept has just changed.
+      qc.invalidateQueries({ queryKey: ["journal"] });
+    },
+  });
+
+  const closed = period.data?.closedThrough;
+  if (!closed) return null;
+
+  /*
+   * The sentence and the button are siblings, not nested.
+   *
+   * `Warning` is a `<p>`, so a paragraph or a toolbar inside it is invalid
+   * markup — React says so in the console and the browser silently closes the
+   * first one, which puts the button outside the box it was drawn in. Caught by
+   * looking at the page, which is the only thing that would have.
+   */
+  return (
+    <Card>
+      <Warning>
+        The books are closed through {formatDate(closed)}. Nothing can be posted
+        on or before that date — no invoice, no payment, no expense — until the
+        line moves.
+      </Warning>
+      <Toolbar className="mt-2">
+        <Button
+          variant="secondary"
+          needs={{ bookkeeping: ["update"] }}
+          onClick={() => reopen.mutate()}
+          disabled={reopen.isPending}
+        >
+          {reopen.isPending ? "Reopening…" : "Reopen the books"}
+        </Button>
+      </Toolbar>
+      {reopen.error ? <ErrorNote error={reopen.error} /> : null}
+    </Card>
+  );
+}
+
 export function Journal() {
   const [composing, setComposing] = useState(false);
   /*
@@ -1599,6 +1668,8 @@ export function Journal() {
 
   return (
     <Page>
+      {/* Before the ledger, because it explains every refusal below it. */}
+      <ClosedBooks />
       {mayPost ? (
         <>
           <PageActions>
