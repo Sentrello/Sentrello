@@ -89,10 +89,18 @@ including ones that are nothing to do with Sentrello.
 
 **Name the sites it may be posted from.** The key in that snippet is visible in
 anybody's page source, so the list of allowed sites is what makes it worth
-having: a form with a list takes submissions from those places and nowhere
-else, including from something that is not a browser at all. Leave the list
-empty and the form accepts only its own instance, which is the right default
-for one nobody has told where it will live.
+having: a form with a list takes submissions from those places and nowhere else,
+including from something that is not a browser at all.
+
+**An empty list is not a closed door.** It turns away another website — a browser
+says where it is posting from, and a site that is not on the list is refused —
+but it accepts anything that names no site at all, which is what a script or a
+server posting directly does. That is deliberate, because an empty list is also
+how your own pages and your own integrations post, and there is no way to tell
+those apart from a stranger's script. So the list is the control, and leaving it
+empty leaves the form open to anything that is not a browser.
+
+Name the sites before you paste the snippet.
 
 ## What arrives
 
@@ -120,7 +128,8 @@ applications for the next one.
 
 Forms carry basic protection against automated submission: a field a person
 never sees and a robot fills in, a limit on how fast one address may post, and
-the allowed-sites list.
+the allowed-sites list — which only counts for anything once you have filled it
+in, as above.
 
 Nothing counts what any of them turned away. A blocked submission is answered
 and forgotten — writing down every robot that found a public form would be a
