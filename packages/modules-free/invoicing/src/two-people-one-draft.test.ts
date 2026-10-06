@@ -215,3 +215,54 @@ test("a quote refuses a stale save too", async () => {
   });
   expect(stale.status).toBe(409);
 });
+
+/**
+ * A claim nobody can read, which this ignored until 6 October.
+ *
+ * The check answered "has it moved: yes or no", so a claim it could not parse —
+ * a millisecond timestamp, an object, a date that is not one — came back no and
+ * the write went through. A request that looks checked and is not is the fault
+ * this mechanism exists to remove, and it was inside the mechanism. On an
+ * invoice, where what the second save silently discards is a figure.
+ */
+for (const claimed of [
+  1762440000000,
+  { at: "2026-10-06T00:00:00.000Z" },
+  "not a date",
+  "",
+  true,
+] as unknown[]) {
+  test(`an invoice refuses a claim of ${JSON.stringify(claimed)}`, async () => {
+    const draft = await aDraft();
+    const res = await call(`/api/invoices/${draft.id}`, "PATCH", {
+      expectedUpdatedAt: claimed,
+      notes: "Mine",
+    });
+    expect(res.status).toBe(400);
+    expect((await json<{ error: string }>(res)).error).toContain(
+      "expectedUpdatedAt",
+    );
+
+    const [row] = await db
+      .select()
+      .from(schema.invoices)
+      .where(eq(schema.invoices.id, draft.id));
+    expect(row?.notes).not.toBe("Mine");
+  });
+}
+
+test("a quote refuses one too", async () => {
+  const made = await json<{ quote: { id: string } }>(
+    await call("/api/quotes", "POST", {
+      contactId,
+      lines: [
+        { description: "Scoping", quantityMilli: 1000, unitPriceCents: 20_000 },
+      ],
+    }),
+  );
+  const res = await call(`/api/quotes/${made.quote.id}`, "PATCH", {
+    expectedUpdatedAt: 1762440000000,
+    notes: "Mine",
+  });
+  expect(res.status).toBe(400);
+});

@@ -4,7 +4,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { db, schema } from "@sentrello/db";
-import { MOVED, movedSince } from "@sentrello/db/concurrency";
+import { MOVED, UNUSABLE_CLAIM, versionClaim } from "@sentrello/db/concurrency";
 import { recordConsent } from "@sentrello/db/consent";
 import {
   type CRM_SUBJECTS,
@@ -389,6 +389,8 @@ async function withAuthors<T extends { authorId: string | null }>(
 
 /** Thrown inside the write so nothing commits; answered as a 409 outside it. */
 class RecordMoved extends Error {}
+/** The same, for a claim that could not be read at all. Answered as a 400. */
+class ClaimUnusable extends Error {}
 
 function crud<T extends keyof typeof tables>(
   ctx: Parameters<Parameters<typeof defineModule>[0]["register"]>[0],
@@ -759,12 +761,10 @@ function crud<T extends keyof typeof tables>(
          * Thrown rather than returned because a `c.json` here would leave the
          * transaction to commit around it.
          */
-        if (
-          keepsVersion &&
-          before &&
-          movedSince(before as { updatedAt: Date }, body)
-        ) {
-          throw new RecordMoved();
+        if (keepsVersion && before) {
+          const claim = versionClaim(before as { updatedAt: Date }, body);
+          if (claim === "moved") throw new RecordMoved();
+          if (claim === "unusable") throw new ClaimUnusable();
         }
 
         /*
@@ -850,6 +850,9 @@ function crud<T extends keyof typeof tables>(
         written = await write;
       } catch (err) {
         if (err instanceof RecordMoved) return c.json({ error: MOVED }, 409);
+        if (err instanceof ClaimUnusable) {
+          return c.json({ error: UNUSABLE_CLAIM }, 400);
+        }
         const refused = refusedByTheDatabase(err);
         if (!refused) throw err;
         return c.json({ error: refused }, 400);

@@ -203,3 +203,65 @@ test("a tag cannot be asked a question it does not keep the answer to", async ()
   expect(res.status).toBe(400);
   expect((await res.json()).error).toMatch(/modification time/);
 });
+
+/**
+ * A claim nobody can read, which the first version of this ignored.
+ *
+ * `movedSince` answered "has it moved: yes or no", so a claim it could not
+ * parse — a millisecond timestamp, an object, a date that is not one — came back
+ * no and the write went through. The request looked protected, answered 200, and
+ * had been checked against nothing: the same silence this whole mechanism exists
+ * to remove, inside the mechanism. Found by sending wrong shapes at a running
+ * instance, which is the only way it would ever have shown up.
+ */
+const UNREADABLE: unknown[] = [
+  // The mistake somebody actually makes: the stamp as a number.
+  1762440000000,
+  { at: "2026-10-06T00:00:00.000Z" },
+  ["2026-10-06T00:00:00.000Z"],
+  "not a date",
+  "",
+  "   ",
+  "2026-13-45T99:99:99Z",
+  true,
+];
+
+for (const claimed of UNREADABLE) {
+  test(`a claim of ${JSON.stringify(claimed)} is answered, not ignored`, async () => {
+    const made = await send("POST", "/api/contacts", { name: "Shapes" });
+    const row = (await made.json()).contact as { id: string };
+
+    const res = await send("PATCH", `/api/contacts/${row.id}`, {
+      name: "Mine",
+      expectedUpdatedAt: claimed,
+    });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/expectedUpdatedAt/);
+
+    // And nothing was written, which is the half that matters.
+    const [after] = await db
+      .select({ name: schema.contacts.name })
+      .from(schema.contacts)
+      .where(eq(schema.contacts.id, row.id));
+    expect(after?.name).toBe("Shapes");
+  });
+}
+
+/**
+ * Null is asking nothing rather than asking badly.
+ *
+ * A caller that holds no version and serialises that as null — a new record, a
+ * form field never filled — is in the same position as one that never heard of
+ * this, and gets the behaviour it had.
+ */
+test("a null claim is no claim", async () => {
+  const made = await send("POST", "/api/contacts", { name: "Null" });
+  const row = (await made.json()).contact as { id: string };
+  await send("PATCH", `/api/contacts/${row.id}`, { name: "Someone else" });
+
+  const res = await send("PATCH", `/api/contacts/${row.id}`, {
+    name: "Mine",
+    expectedUpdatedAt: null,
+  });
+  expect(res.status).toBe(200);
+});

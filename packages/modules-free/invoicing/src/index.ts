@@ -5,7 +5,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { db, isUuid, schema } from "@sentrello/db";
-import { MOVED, movedSince } from "@sentrello/db/concurrency";
+import { MOVED, UNUSABLE_CLAIM, versionClaim } from "@sentrello/db/concurrency";
 import { creditFor } from "@sentrello/db/credit";
 import {
   RATE_SCALE,
@@ -1487,7 +1487,13 @@ export default defineModule({
           unknown
         >;
 
-        if (movedSince(invoice, body)) return c.json({ error: MOVED }, 409);
+        const claim = versionClaim(invoice, body);
+        if (claim === "moved") return c.json({ error: MOVED }, 409);
+        // A claim nobody can read is answered rather than ignored: a write that
+        // looks checked and was not is the fault this mechanism exists to remove.
+        if (claim === "unusable") {
+          return c.json({ error: UNUSABLE_CLAIM }, 400);
+        }
 
         // Same rule as creation: a reassigned customer has to be one of ours.
         if (
@@ -1771,7 +1777,13 @@ export default defineModule({
           unknown
         >;
 
-        if (movedSince(quote, body)) return c.json({ error: MOVED }, 409);
+        const claim = versionClaim(quote, body);
+        if (claim === "moved") return c.json({ error: MOVED }, 409);
+        // A claim nobody can read is answered rather than ignored: a write that
+        // looks checked and was not is the fault this mechanism exists to remove.
+        if (claim === "unusable") {
+          return c.json({ error: UNUSABLE_CLAIM }, 400);
+        }
 
         let prepared: Awaited<ReturnType<typeof prepareDocument>> | null = null;
         if (Array.isArray(body.lines)) {
