@@ -325,6 +325,20 @@ export function InvoiceDetail() {
                   <p>Opened {formatDate(invoice.firstViewedAt)}</p>
                   <p className="text-xs">
                     {invoice.viewCount} time{invoice.viewCount === 1 ? "" : "s"}
+                    {/*
+                      And when they last did, which is the half that decides the
+                      call. "Opened three times, all on the day it was sent" and
+                      "opened three times, the last one yesterday" are different
+                      conversations, and this was stamped on every view and shown
+                      on none of them. Said only when it adds something: on a
+                      document opened once, or opened again the same day, the
+                      line above already answered it.
+                    */}
+                    {invoice.lastViewedAt &&
+                    formatDate(invoice.lastViewedAt) !==
+                      formatDate(invoice.firstViewedAt)
+                      ? `, last on ${formatDate(invoice.lastViewedAt)}`
+                      : ""}
                   </p>
                 </>
               ) : invoice.published ? (
