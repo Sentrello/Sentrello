@@ -1,5 +1,6 @@
 import { db, schema } from "@sentrello/db";
 import { eq } from "@sentrello/db/orm";
+import { asText } from "@sentrello/db/text-columns";
 import { knownTimezone } from "@sentrello/db/timezone";
 import type { SentrelloApp } from "@sentrello/module-sdk";
 import { rateLimit } from "@sentrello/module-sdk";
@@ -161,12 +162,26 @@ export function registerBootstrapRoutes(app: SentrelloApp) {
       return c.json({ error: "already_bootstrapped" }, 409);
     }
 
-    const body = await c.req.json().catch(() => ({}));
-    const { email, password, name, organizationName, setupToken, timezone } =
-      body as Partial<OwnerDetails> & {
-        setupToken?: string;
-        timezone?: string;
-      };
+    const body = (await c.req.json().catch(() => ({}))) as Record<
+      string,
+      unknown
+    >;
+    /*
+     * Every field read as text, because `!name` does not refuse an object.
+     *
+     * `{}` is truthy, so a name of `{}` got past the required-fields check and
+     * went to the sign-up as it was: an owner called "[object Object]" on the
+     * very first screen of an instance, and the organisation's slug derived
+     * from it. The claim route is the one place where a bad value cannot be
+     * corrected afterwards by somebody with an account, because this *is* how
+     * the first account is made.
+     */
+    const email = asText(body.email, "email");
+    const password = asText(body.password, "password");
+    const name = asText(body.name, "name");
+    const organizationName = asText(body.organizationName, "organizationName");
+    const timezone = asText(body.timezone, "timezone");
+    const setupToken = asText(body.setupToken, "setupToken");
 
     // A publicly reachable instance must not be claimable by whoever finds it
     // first; the token proves access to the machine running it.
@@ -186,7 +201,7 @@ export function registerBootstrapRoutes(app: SentrelloApp) {
     }
 
     if (
-      !setupTokenAccepted(setupToken ?? c.req.header("x-sentrello-setup-token"))
+      !setupTokenAccepted(setupToken || c.req.header("x-sentrello-setup-token"))
     ) {
       return c.json({ error: "invalid_setup_token" }, 403);
     }
@@ -201,8 +216,10 @@ export function registerBootstrapRoutes(app: SentrelloApp) {
       email,
       password,
       name,
-      organizationName,
-      timezone,
+      // Absent, not empty: the business is named after its owner when nobody
+      // typed a name, and `""` is a name as far as `??` is concerned.
+      organizationName: organizationName || undefined,
+      timezone: timezone || undefined,
     });
     if (!result.bootstrapped) {
       return c.json({ error: "already_bootstrapped" }, 409);
