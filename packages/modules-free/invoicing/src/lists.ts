@@ -598,7 +598,21 @@ export function registerLists(ctx: ModuleContext) {
    * Never a delete: a document somebody sent is a thing that happened, and the
    * number it used must stay used. It goes to the "deleted" tab, where it can
    * be read and put back.
+   *
+   * **And an invoice that still stands in the books cannot be filed at all.**
+   * The published page has always said so — "an invoice that has posted to the
+   * ledger cannot vanish at all, since the books would stop balancing; it is
+   * credited instead" — and nothing enforced it. Filing one took it out of
+   * receivables while its entry stayed posted, so Invoicing said the customer
+   * owed nothing and the balance sheet went on carrying the debt. Money a
+   * business is owed, off every list that would have chased it, with the asset
+   * still on the books and nothing reconciling the two.
+   *
+   * A draft was never posted. A void has been reversed, and a credited one has
+   * been credited, so both net to nothing and filing them changes no figure.
+   * Those three go; the rest are told what to do instead.
    */
+  const STILL_IN_THE_BOOKS = new Set(["open", "partial", "paid"]);
   for (const kind of ["invoices", "quotes"] as const) {
     const table = kind === "invoices" ? schema.invoices : schema.quotes;
 
@@ -608,6 +622,30 @@ export function registerLists(ctx: ModuleContext) {
       requirePermission({ invoicing: ["delete"] }),
       async (c) => {
         const orgId = activeOrganizationId(c.get("session"));
+
+        if (kind === "invoices") {
+          const [standing] = await db
+            .select({ status: schema.invoices.status })
+            .from(schema.invoices)
+            .where(
+              and(
+                eq(schema.invoices.id, c.req.param("id")),
+                eq(schema.invoices.organizationId, orgId),
+                isNull(schema.invoices.deletedAt),
+              ),
+            )
+            .limit(1);
+          if (standing && STILL_IN_THE_BOOKS.has(standing.status)) {
+            return c.json(
+              {
+                error:
+                  "this invoice stands in the books, so filing it away would leave the balance sheet carrying it. Credit it, or void it if nothing has been paid.",
+              },
+              409,
+            );
+          }
+        }
+
         const [row] = await db
           .update(table)
           .set({ deletedAt: new Date(), updatedAt: new Date() })

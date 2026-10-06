@@ -268,6 +268,11 @@ export default defineModule({
               and(
                 eq(schema.quotes.organizationId, orgId),
                 eq(schema.quotes.status, "sent"),
+                // A quote the business has filed away is not somebody to chase.
+                // Filing leaves the status as it was, so a status filter alone
+                // kept every binned quote on the dashboard asking to be
+                // followed up.
+                isNull(schema.quotes.deletedAt),
               ),
             )
             .orderBy(asc(schema.quotes.issueDate))

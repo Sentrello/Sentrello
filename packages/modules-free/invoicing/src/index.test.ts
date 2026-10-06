@@ -2137,6 +2137,70 @@ test("the tab counts add up to what the tabs actually hold", async () => {
   }
 });
 
+/**
+ * An invoice that stands in the books cannot be filed away.
+ *
+ * The published page has said so since the module shipped — "an invoice that has
+ * posted to the ledger cannot vanish at all, since the books would stop
+ * balancing; it is credited instead" — and nothing enforced it. Filing one took
+ * it out of receivables, because the owing query excludes a filed document,
+ * while its journal entry stayed posted. So Invoicing said the customer owed
+ * nothing and the balance sheet went on carrying the debt: money a business is
+ * owed, off every list that would have chased it, with the asset still on the
+ * books and nothing reconciling the two.
+ */
+test("an invoice standing in the books refuses to be filed away", async () => {
+  const res = await app.request("http://localhost/api/invoices", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      contactId,
+      currency: "USD",
+      lines: [
+        {
+          description: "Posted work",
+          quantity: 1,
+          unitPrice: 9_900,
+          taxRateBp: 0,
+        },
+      ],
+    }),
+  });
+  expect(res.status).toBe(201);
+  const { invoice } = (await res.json()) as { invoice: { id: string } };
+
+  const refused = await app.request(
+    `http://localhost/api/invoices/${invoice.id}`,
+    { method: "DELETE", headers },
+  );
+  expect(refused.status).toBe(409);
+  // It says what to do instead, which is the half a 409 usually leaves out.
+  expect((await refused.text()).toLowerCase()).toContain("credit it");
+
+  // Still there, and still owed.
+  const [row] = await db
+    .select({ deletedAt: schema.invoices.deletedAt })
+    .from(schema.invoices)
+    .where(eq(schema.invoices.id, invoice.id));
+  expect(row?.deletedAt).toBeNull();
+
+  /*
+   * And voiding it first makes it filable, because a void reverses the entry:
+   * the books net to nothing, so nothing moves when it is put away. That is the
+   * documented route out, and the guard has to leave it open.
+   */
+  const voided = await app.request(
+    `http://localhost/api/invoices/${invoice.id}/void`,
+    { method: "POST", headers },
+  );
+  expect(voided.status).toBe(200);
+  const filed = await app.request(
+    `http://localhost/api/invoices/${invoice.id}`,
+    { method: "DELETE", headers },
+  );
+  expect(filed.status).toBe(200);
+});
+
 test("a deleted invoice leaves the list without losing its number", async () => {
   const draft = await draftInvoice();
   await app.request(`http://localhost/api/invoices/${draft.id}`, {
