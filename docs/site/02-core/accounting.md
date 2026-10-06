@@ -81,9 +81,14 @@ than spent anything.
 When one of those goods is sold and leaves, its cost moves out of Inventory and
 into **Cost of Sales**, against the sale that took it. That is what makes gross
 profit mean something: a sale of $40 on an item that cost you $22 shows $18,
-not $40. Breakages and a stocktake that comes up short are costs too. Something
-a customer brings back goes the other way, and the cost of that sale is undone
-rather than a debt to a supplier invented.
+not $40. Breakages and a stocktake that comes up short are costs too.
+
+Something a customer brings back goes the other way: the goods return to
+Inventory and the cost of sale is reversed, rather than a debt to a supplier
+being invented. It comes back at what the next one is worth under whichever
+basis you chose, because nothing records which delivery that particular item
+came off — so where your buying prices have moved, the reversal and the original
+cost will not be the same figure to the penny.
 
 ### Which cost
 

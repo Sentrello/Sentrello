@@ -576,7 +576,22 @@ export function InvoiceForm({
     },
   });
 
-  if (taxes.isLoading) return <Loading />;
+  /*
+   * The rates, and the settings the figures are read under.
+   *
+   * `billing` was not waited for, and five things below take a default when it
+   * is missing — the units, the payment terms, the currency list, the base
+   * currency, and whether a price already contains its tax. The last of those
+   * is the one that matters: it defaults to **excluding** tax, so a business
+   * that prices gross — which is every business in the UK and the EU — saw a
+   * preview with the tax added on top of a figure that already held it, until
+   * the second request landed. Right on a fast connection, wrong on a slow one,
+   * and the figure somebody reads is the one in front of them.
+   *
+   * A query that fails is not loading, so a refused fetch still draws the form
+   * rather than a spinner. Same as the rates below.
+   */
+  if (taxes.isLoading || billing.isLoading) return <Loading />;
   /*
    * And it says so when the rates cannot be fetched.
    *
