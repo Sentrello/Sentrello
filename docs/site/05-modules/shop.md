@@ -101,6 +101,14 @@ A paid order posts to the ledger like any other income: the sale, the tax, the
 money received. Your books include the shop without anyone entering anything
 twice.
 
+**Selling in a second currency.** Price a region in its own currency and a
+visitor from that country pays in it. The order keeps that currency, and the
+books keep yours: each order carries the exchange rate that stood when it was
+placed, and the entry is posted in your own money at that rate. A rate you
+record next March cannot restate what last October took. The takings figures and
+a customer's lifetime spend are converted the same way, so every total on the
+screen is in one currency rather than several added together.
+
 :::caution[Two Canadian taxes, one rate]
 A shop's tax is one rate per place — a country, and a region inside it where
 you have named one. In British Columbia or Quebec that means entering the
