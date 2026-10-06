@@ -1,6 +1,7 @@
 import { auth } from "@sentrello/auth";
 import { activeOrganizationId, requireSession } from "@sentrello/auth/hono";
 import { db, schema } from "@sentrello/db";
+import { asText } from "@sentrello/db/text-columns";
 import { NO_MAIL_SERVER, mailConfigured } from "@sentrello/email";
 import { defineModule, rateLimit } from "@sentrello/module-sdk";
 import { and, desc, eq } from "drizzle-orm";
@@ -315,9 +316,7 @@ export default defineModule({
       const body = (await c.req.json().catch(() => ({}))) as {
         newEmail?: unknown;
       };
-      const newEmail = String(body.newEmail ?? "")
-        .trim()
-        .toLowerCase();
+      const newEmail = asText(body.newEmail, "newEmail").trim().toLowerCase();
       if (!newEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
         return c.json({ error: "a valid email address is required" }, 400);
       }

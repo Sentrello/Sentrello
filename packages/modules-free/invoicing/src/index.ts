@@ -48,6 +48,7 @@ import {
   ensurePortalToken,
   moneyLocale,
 } from "@sentrello/db/portal";
+import { asText } from "@sentrello/db/text-columns";
 import { dayFrom, demandDay } from "@sentrello/db/timezone";
 import { timezoneFor } from "@sentrello/db/timezone";
 import { NO_MAIL_SERVER, emailAdapter, mailConfigured } from "@sentrello/email";
@@ -434,7 +435,9 @@ export default defineModule({
         // The 30th of February is unreadable too, however plainly it reads:
         // `new Date` rolls it to the 2nd of March, and the issue date is the
         // month this sale is booked into.
-        const issued = body.issueDate ? dayFrom(String(body.issueDate)) : null;
+        const issued = body.issueDate
+          ? dayFrom(asText(body.issueDate, "issueDate"))
+          : null;
         if (body.issueDate && !issued) {
           return c.json({ error: "unreadable issue date" }, 400);
         }
@@ -533,15 +536,16 @@ export default defineModule({
               dueDate: dueDate ? new Date(dueDate) : fromSettings.dueDate,
               number: await nextDocumentNumber(tx, orgId, "invoice"),
               status: asDraft ? "draft" : "open",
-              notes: String(body.notes ?? "").trim() || null,
+              notes: asText(body.notes, "notes").trim() || null,
               // Nothing typed falls back to the business's own terms, which is
               // what `defaultPaymentTerms` says it is for and never was.
               paymentTerms:
-                String(body.paymentTerms ?? "").trim() ||
+                asText(body.paymentTerms, "paymentTerms").trim() ||
                 fromSettings.paymentTerms,
               // BT-10 on the e-invoice: the customer's PO or reference, or a
               // German public body's Leitweg-ID.
-              buyerReference: String(body.buyerReference ?? "").trim() || null,
+              buyerReference:
+                asText(body.buyerReference, "buyerReference").trim() || null,
               templateId: await ownedTemplateId(orgId, body.templateId),
               discountType:
                 (body.discountType as string) === "percent" ||
@@ -1303,7 +1307,7 @@ export default defineModule({
               // here took a timestamp at its word and stored the instant.
               validUntil: validUntil ? demandDay(validUntil) : null,
               pricesIncludeTax,
-              notes: String(body.notes ?? "").trim() || null,
+              notes: asText(body.notes, "notes").trim() || null,
               templateId: await ownedTemplateId(orgId, body.templateId),
               discountType:
                 (body.discountType as string) === "percent" ||
@@ -1581,23 +1585,23 @@ export default defineModule({
             values.contactId = body.contactId;
           }
           if (body.notes !== undefined) {
-            values.notes = String(body.notes ?? "").trim() || null;
+            values.notes = asText(body.notes, "notes").trim() || null;
           }
           if (body.dueDate !== undefined) {
             // `demandDate`, so "2026-02-30" is a 400 rather than an aging
             // bucket two days out. It throws, which also unwinds this
             // transaction rather than leaving half an edit behind.
             values.dueDate = body.dueDate
-              ? demandDay(String(body.dueDate))
+              ? demandDay(asText(body.dueDate, "dueDate"))
               : null;
           }
           if (body.paymentTerms !== undefined) {
             values.paymentTerms =
-              String(body.paymentTerms ?? "").trim() || null;
+              asText(body.paymentTerms, "paymentTerms").trim() || null;
           }
           if (body.buyerReference !== undefined) {
             values.buyerReference =
-              String(body.buyerReference ?? "").trim() || null;
+              asText(body.buyerReference, "buyerReference").trim() || null;
           }
           if (typeof body.templateId === "string") {
             values.templateId = await ownedTemplateId(orgId, body.templateId);
@@ -1817,11 +1821,11 @@ export default defineModule({
             values.contactId = body.contactId;
           }
           if (body.notes !== undefined) {
-            values.notes = String(body.notes ?? "").trim() || null;
+            values.notes = asText(body.notes, "notes").trim() || null;
           }
           if (body.validUntil !== undefined) {
             values.validUntil = body.validUntil
-              ? demandDay(String(body.validUntil))
+              ? demandDay(asText(body.validUntil, "validUntil"))
               : null;
           }
           if (typeof body.templateId === "string") {

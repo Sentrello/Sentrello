@@ -6,6 +6,7 @@ import {
 } from "@sentrello/auth/hono";
 import { and, db, eq, schema } from "@sentrello/db";
 import { record } from "@sentrello/db/security-events";
+import { asText } from "@sentrello/db/text-columns";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 
 /**
@@ -143,7 +144,7 @@ export function registerSso(ctx: ModuleContext) {
         return c.json({ error: "a domain like example.com is needed" }, 400);
       }
 
-      const issuer = kind.issuer ?? String(body.issuer ?? "").trim();
+      const issuer = kind.issuer ?? asText(body.issuer, "issuer").trim();
       if (!issuer) {
         return c.json({ error: "that provider needs an issuer URL" }, 400);
       }
@@ -163,8 +164,8 @@ export function registerSso(ctx: ModuleContext) {
 
       try {
         if (kind.kind === "oidc") {
-          const clientId = String(body.clientId ?? "").trim();
-          const clientSecret = String(body.clientSecret ?? "").trim();
+          const clientId = asText(body.clientId, "clientId").trim();
+          const clientSecret = asText(body.clientSecret, "clientSecret").trim();
           if (!clientId || !clientSecret) {
             return c.json(
               { error: "a client id and secret are both needed" },
@@ -192,8 +193,8 @@ export function registerSso(ctx: ModuleContext) {
             headers: c.req.raw.headers,
           });
         } else {
-          const entryPoint = String(body.entryPoint ?? "").trim();
-          const cert = String(body.certificate ?? "").trim();
+          const entryPoint = asText(body.entryPoint, "entryPoint").trim();
+          const cert = asText(body.certificate, "certificate").trim();
           if (!entryPoint || !cert) {
             return c.json(
               { error: "a sign-in URL and the provider's certificate" },

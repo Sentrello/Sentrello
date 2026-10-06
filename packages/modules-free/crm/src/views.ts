@@ -4,6 +4,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { db, schema } from "@sentrello/db";
+import { asText } from "@sentrello/db/text-columns";
 import type {
   ModuleContext,
   RouteContext,
@@ -192,16 +193,14 @@ export function registerSavedViews(ctx: ModuleContext) {
         unknown
       >;
 
-      const resource = String(body.resource ?? "");
+      const resource = asText(body.resource, "resource");
       if (!(RESOURCES as readonly string[]).includes(resource)) {
         return c.json({ error: "that is not a list views exist for" }, 400);
       }
       if (!(await mayUse(c.req.raw.headers, resource))) {
         return c.json({ error: "forbidden" }, 403);
       }
-      const name = String(body.name ?? "")
-        .trim()
-        .slice(0, 80);
+      const name = asText(body.name, "name").trim().slice(0, 80);
       if (!name) return c.json({ error: "a view needs a name" }, 400);
 
       const [made] = await db

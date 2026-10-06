@@ -16,6 +16,7 @@ import {
  * invoices.
  */
 import { and, db, eq, schema } from "@sentrello/db";
+import { asText } from "@sentrello/db/text-columns";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import { secrets } from "@sentrello/module-sdk";
 import { transportFor, transports } from "./einvoice-transport";
@@ -81,8 +82,10 @@ export function registerPeppol(ctx: ModuleContext) {
       if (!provider) {
         return c.json({ error: "this instance has no such access point" }, 400);
       }
-      const apiKey = (body.apiKey ?? "").trim();
-      const legalEntityId = (body.legalEntityId ?? "").trim();
+      // Read as text, not trusted to be text: the type above is a claim about
+      // what arrives, and `.trim()` on an object is a 500.
+      const apiKey = asText(body.apiKey, "apiKey").trim();
+      const legalEntityId = asText(body.legalEntityId, "legalEntityId").trim();
       if (!apiKey || !legalEntityId) {
         return c.json(
           {

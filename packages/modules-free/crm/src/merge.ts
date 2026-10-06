@@ -7,6 +7,7 @@ import { db, schema } from "@sentrello/db";
 import { dayIn } from "@sentrello/db/day";
 import { recordChanged } from "@sentrello/db/record-events";
 import { record } from "@sentrello/db/security-events";
+import { asText } from "@sentrello/db/text-columns";
 import { timezoneFor } from "@sentrello/db/timezone";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import { and, eq, inArray, sql } from "drizzle-orm";
@@ -148,8 +149,8 @@ export function registerMerge(ctx: ModuleContext) {
         aId?: string;
         bId?: string;
       };
-      const aId = String(body.aId ?? "");
-      const bId = String(body.bId ?? "");
+      const aId = asText(body.aId, "aId");
+      const bId = asText(body.bId, "bId");
       if (!aId || !bId || aId === bId) {
         return c.json({ error: "two different contacts are required" }, 400);
       }
@@ -195,7 +196,7 @@ export function registerMerge(ctx: ModuleContext) {
       const body = (await c.req.json().catch(() => ({}))) as {
         mergedId?: string;
       };
-      const mergedId = String(body.mergedId ?? "");
+      const mergedId = asText(body.mergedId, "mergedId");
       if (!mergedId || mergedId === keptId) {
         return c.json(
           { error: "a different contact to fold in is required" },

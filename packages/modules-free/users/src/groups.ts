@@ -6,7 +6,7 @@ import {
 import { and, asc, db, eq, schema } from "@sentrello/db";
 import { organizationMember } from "@sentrello/db/membership";
 import { record } from "@sentrello/db/security-events";
-import { checkedText, notText } from "@sentrello/db/text-columns";
+import { asText, checkedText, notText } from "@sentrello/db/text-columns";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import { alias } from "drizzle-orm/pg-core";
 import { policyKind, seedDefaults } from "./defaults";
@@ -172,9 +172,7 @@ export function registerGroups(ctx: ModuleContext) {
       const shaped = checkedText(schema.userGroups, body);
       if (!shaped.ok) return c.json({ error: notText(shaped.field) }, 400);
 
-      const name = String(body.name ?? "")
-        .trim()
-        .slice(0, 60);
+      const name = asText(body.name, "name").trim().slice(0, 60);
       if (!name) return c.json({ error: "a name is required" }, 400);
 
       const allowed = await knownRoles(orgId);
@@ -196,7 +194,7 @@ export function registerGroups(ctx: ModuleContext) {
           .values({
             organizationId: orgId,
             name,
-            description: String(body.description ?? "").trim() || null,
+            description: asText(body.description, "description").trim() || null,
             roles,
           })
           .returning();
@@ -241,7 +239,8 @@ export function registerGroups(ctx: ModuleContext) {
         patch.name = body.name.trim().slice(0, 60);
       }
       if (body.description !== undefined) {
-        patch.description = String(body.description ?? "").trim() || null;
+        patch.description =
+          asText(body.description, "description").trim() || null;
       }
       if (body.roles !== undefined) {
         const allowed = await knownRoles(orgId);
@@ -343,7 +342,7 @@ export function registerGroups(ctx: ModuleContext) {
       const body = (await c.req.json().catch(() => ({}))) as {
         userId?: unknown;
       };
-      const userId = String(body.userId ?? "");
+      const userId = asText(body.userId, "userId");
       if (!userId) return c.json({ error: "a person is required" }, 400);
 
       const [group] = await db

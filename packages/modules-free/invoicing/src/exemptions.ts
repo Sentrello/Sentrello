@@ -5,6 +5,7 @@ import {
 } from "@sentrello/auth/hono";
 import { and, db, desc, eq, schema } from "@sentrello/db";
 import { dayIn, dayOf } from "@sentrello/db/day";
+import { asText } from "@sentrello/db/text-columns";
 import { dayFrom, timezoneFor } from "@sentrello/db/timezone";
 import type { ModuleContext } from "@sentrello/module-sdk";
 import type { IncomingLine } from "./documents";
@@ -44,24 +45,24 @@ function parseCertificate(body: Record<string, unknown>): {
   expiresAt: Date | null;
   documentPath: string | null;
 } {
-  const companyId = String(body.companyId ?? "").trim();
+  const companyId = asText(body.companyId, "companyId").trim();
   if (!companyId) throw new ExemptionError("whose certificate is it?");
 
-  const number = String(body.number ?? "").trim();
+  const number = asText(body.number, "number").trim();
   if (!number) {
     throw new ExemptionError(
       "the certificate's number is required — it is the evidence",
     );
   }
 
-  const state = usStateCode(String(body.state ?? ""));
+  const state = usStateCode(asText(body.state, "state"));
   if (!state) {
     throw new ExemptionError(
       "which state issued it? (two letters, or its name)",
     );
   }
 
-  const reason = String(body.reason ?? "resale").trim();
+  const reason = asText(body.reason, "reason", "resale").trim();
   if (!REASONS.has(reason)) {
     throw new ExemptionError(
       "the reason is one of: resale, nonprofit, government, direct-pay, other",
@@ -73,7 +74,7 @@ function parseCertificate(body: Record<string, unknown>): {
     // A certificate's expiry decides whether a sale is charged tax at all, so
     // a day that rolls — 30 February becoming 2 March — moves the line
     // between an excused sale and a taxable one.
-    expiresAt = dayFrom(String(body.expiresAt));
+    expiresAt = dayFrom(asText(body.expiresAt, "expiresAt"));
     if (!expiresAt) {
       throw new ExemptionError("unreadable expiry date");
     }
@@ -84,9 +85,9 @@ function parseCertificate(body: Record<string, unknown>): {
     number,
     state,
     reason,
-    notes: String(body.notes ?? "").trim() || null,
+    notes: asText(body.notes, "notes").trim() || null,
     expiresAt,
-    documentPath: String(body.documentPath ?? "").trim() || null,
+    documentPath: asText(body.documentPath, "documentPath").trim() || null,
   };
 }
 

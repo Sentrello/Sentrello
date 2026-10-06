@@ -9,6 +9,7 @@ import {
   baseCurrencyLocked,
   setBaseCurrency,
 } from "@sentrello/db/currency";
+import { asText } from "@sentrello/db/text-columns";
 import { knownTimezone } from "@sentrello/db/timezone";
 import { mailConfigured } from "@sentrello/email";
 import {
@@ -614,7 +615,7 @@ export default defineModule({
         const orgId = activeOrganizationId(c.get("session"));
         const body = await c.req.json().catch(() => ({}));
 
-        const name = String(body.name ?? "").trim();
+        const name = asText(body.name, "name").trim();
         if (!name) return c.json({ error: "a name is required" }, 400);
         if (name.length > 120) {
           return c.json({ error: "that name is too long" }, 400);
@@ -668,7 +669,7 @@ export default defineModule({
           if (body.creditText === null || body.creditText === undefined) {
             creditText = null;
           } else {
-            creditText = String(body.creditText).trim();
+            creditText = asText(body.creditText, "creditText").trim();
             if (creditText.length > 60) throw new RangeError("credit");
           }
           creditUrl = text(body.creditUrl, 200, "credit link");
@@ -771,7 +772,10 @@ export default defineModule({
          * the person nothing was saved.
          */
         if (body.baseCurrency !== undefined) {
-          const set = await setBaseCurrency(orgId, String(body.baseCurrency));
+          const set = await setBaseCurrency(
+            orgId,
+            asText(body.baseCurrency, "baseCurrency"),
+          );
           if ("error" in set) return c.json({ error: set.error }, set.status);
         }
 

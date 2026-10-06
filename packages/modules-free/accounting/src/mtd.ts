@@ -99,22 +99,29 @@ export async function exchangeCode(
       code,
     }),
   });
-  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-  if (!res.ok || typeof body.access_token !== "string") {
+  // `answer`, not `body`: this is what HMRC said, and a sweep that keeps
+  // `String(body.x)` out of the routes reads the name.
+  const answer = (await res.json().catch(() => ({}))) as Record<
+    string,
+    unknown
+  >;
+  if (!res.ok || typeof answer.access_token !== "string") {
     /*
      * The message rather than a status, because the two failures look
      * identical from a screen and want different actions: an expired code
      * means authorise again, a wrong secret means fix the configuration.
      */
     throw new Error(
-      String(body.error_description ?? body.error ?? "HMRC refused the code"),
+      String(
+        answer.error_description ?? answer.error ?? "HMRC refused the code",
+      ),
     );
   }
   return {
-    accessToken: body.access_token,
-    refreshToken: String(body.refresh_token ?? ""),
+    accessToken: answer.access_token,
+    refreshToken: String(answer.refresh_token ?? ""),
     expiresAt: new Date(
-      Date.now() + Number(body.expires_in ?? 14400) * 1000,
+      Date.now() + Number(answer.expires_in ?? 14400) * 1000,
     ).toISOString(),
   };
 }
@@ -141,21 +148,24 @@ export async function refreshTokens(
       refresh_token: refreshToken,
     }),
   });
-  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-  if (!res.ok || typeof body.access_token !== "string") {
+  const answer = (await res.json().catch(() => ({}))) as Record<
+    string,
+    unknown
+  >;
+  if (!res.ok || typeof answer.access_token !== "string") {
     throw new Error(
       String(
-        body.error_description ??
+        answer.error_description ??
           "HMRC would not refresh the connection — it may need authorising again",
       ),
     );
   }
   return {
-    accessToken: body.access_token,
+    accessToken: answer.access_token,
     // HMRC rotates it; keeping the old one would work until it suddenly did not.
-    refreshToken: String(body.refresh_token ?? refreshToken),
+    refreshToken: String(answer.refresh_token ?? refreshToken),
     expiresAt: new Date(
-      Date.now() + Number(body.expires_in ?? 14400) * 1000,
+      Date.now() + Number(answer.expires_in ?? 14400) * 1000,
     ).toISOString(),
   };
 }
@@ -202,13 +212,16 @@ async function call<T>(
     },
   });
 
-  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  const answer = (await res.json().catch(() => ({}))) as Record<
+    string,
+    unknown
+  >;
   if (!res.ok) {
     throw new Error(
-      String(body.message ?? body.code ?? `HMRC answered ${res.status}`),
+      String(answer.message ?? answer.code ?? `HMRC answered ${res.status}`),
     );
   }
-  return body as T;
+  return answer as T;
 }
 
 /** What HMRC says is due, and by when. */

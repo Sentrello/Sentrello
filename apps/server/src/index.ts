@@ -18,6 +18,7 @@ import {
 import { and, eq, sql } from "@sentrello/db/orm";
 import { lastRetentionSweep } from "@sentrello/db/retention";
 import { NAV_TAX_REGIME, taxRegimesFor } from "@sentrello/db/tax-regimes";
+import { TextColumnError } from "@sentrello/db/text-columns";
 import { UnreadableDateError } from "@sentrello/db/timezone";
 import { mailConfigured } from "@sentrello/email";
 import { lastLicenseRefresh, startJobs, unusableJobs } from "@sentrello/jobs";
@@ -89,6 +90,17 @@ app.onError((err, c) => {
    * route at once.
    */
   if (err instanceof UnreadableDateError) {
+    return c.json({ error: err.message }, 400);
+  }
+  /*
+   * An object sent where text belongs, for every route at once.
+   *
+   * The driver accepts one and stores the words "[object Object]", so the row
+   * is wrong and nothing failed. The write guard in `@sentrello/db` refuses it
+   * at the one place every write passes; this is what turns that into an
+   * answer naming the field rather than a 500.
+   */
+  if (err instanceof TextColumnError) {
     return c.json({ error: err.message }, 400);
   }
   // A body that is not JSON is the caller's mistake, not a crash. The parse

@@ -6,6 +6,7 @@ import {
 } from "@sentrello/auth/hono";
 import { db, eq, schema } from "@sentrello/db";
 import { record as recordSecurityEvent } from "@sentrello/db/security-events";
+import { asText } from "@sentrello/db/text-columns";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import { secrets } from "@sentrello/module-sdk";
 import {
@@ -176,8 +177,8 @@ export function registerMtd(ctx: ModuleContext) {
         string,
         unknown
       >;
-      const code = String(body.code ?? "").trim();
-      const vrn = String(body.vrn ?? "").replace(/\s/g, "");
+      const code = asText(body.code, "code").trim();
+      const vrn = asText(body.vrn, "vrn").replace(/\s/g, "");
       if (!code) return c.json({ error: "paste the code from HMRC" }, 400);
       // Nine digits. A wrong VRN files against somebody else's registration,
       // and a submission cannot be withdrawn.
@@ -239,8 +240,8 @@ export function registerMtd(ctx: ModuleContext) {
           ready.cfg,
           ready.token,
           ready.row.vrn,
-          String(body.from ?? `${year - 2}-01-01`),
-          String(body.to ?? `${year}-12-31`),
+          asText(body.from, "from", `${year - 2}-01-01`),
+          asText(body.to, "to", `${year}-12-31`),
           clientContext(body.client),
           await serverContext(c, orgId),
         );
@@ -270,7 +271,7 @@ export function registerMtd(ctx: ModuleContext) {
         unknown
       >;
 
-      const periodKey = String(body.periodKey ?? "");
+      const periodKey = asText(body.periodKey, "periodKey");
       if (!periodKey) return c.json({ error: "which period?" }, 400);
       if (body.finalised !== true) {
         return c.json(
@@ -298,9 +299,9 @@ export function registerMtd(ctx: ModuleContext) {
           orgId,
           periodFrom((name) =>
             name === "from"
-              ? String(body.from ?? "")
+              ? asText(body.from, "from")
               : name === "to"
-                ? String(body.to ?? "")
+                ? asText(body.to, "to")
                 : undefined,
           ),
         ));

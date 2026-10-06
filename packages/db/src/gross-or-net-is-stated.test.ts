@@ -35,8 +35,34 @@ const WRITES_AN_INVOICE = /\.insert\(\s*schema\.invoices\s*\)/;
 /** The escape hatch, in the comment block above, with a reason after it. */
 const EXCUSED = /gross-or-net:\s*\S/;
 const IS_COMMENT = /^\s*(\/\/|\*|\/\*)/;
-/** How far below the insert the `values({…})` it belongs to can be. */
-const VALUES_WITHIN = 45;
+/**
+ * The `values({…})` the insert belongs to, read to its own closing brace.
+ *
+ * This was a 45-line window, which is a number that decides whether the guard
+ * works and says nothing when it stops being enough. One line was added to an
+ * invoice's values on 6 October — a refusal wrapped onto two — and
+ * `pricesIncludeTax` fell out of the window: the guard reported a live writer
+ * as not stating gross or net, which it had stated all along, 46 lines down.
+ * Counting braces is the version with nothing to keep right.
+ */
+function valuesBlock(lines: string[], from: number): string {
+  const start = lines
+    .slice(from, from + 6)
+    .findIndex((line) => line.includes(".values("));
+  if (start === -1) return lines.slice(from, from + 6).join("\n");
+  let depth = 0;
+  const out: string[] = [];
+  for (let i = from + start; i < lines.length; i++) {
+    const line = lines[i] as string;
+    out.push(line);
+    for (const ch of line) {
+      if (ch === "(" || ch === "{") depth++;
+      else if (ch === ")" || ch === "}") depth--;
+    }
+    if (depth <= 0 && out.length > 1) break;
+  }
+  return out.join("\n");
+}
 /** How far above the insert an exception may be written. */
 const EXCUSE_WITHIN = 14;
 
@@ -82,7 +108,7 @@ test("every invoice written says whether its prices contain the tax", () => {
     lines.forEach((line, i) => {
       if (!WRITES_AN_INVOICE.test(line) || IS_COMMENT.test(line)) return;
 
-      const block = lines.slice(i, i + VALUES_WITHIN).join("\n");
+      const block = valuesBlock(lines, i);
       if (/pricesIncludeTax/.test(block)) return;
 
       /*

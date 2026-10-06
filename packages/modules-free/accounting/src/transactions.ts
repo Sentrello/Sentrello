@@ -15,6 +15,7 @@ import {
   taggingFrom,
 } from "@sentrello/db/ledger";
 import { sumCents } from "@sentrello/db/money";
+import { asText } from "@sentrello/db/text-columns";
 import { dayFrom, demandDate, timezoneFor } from "@sentrello/db/timezone";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import type { AccountType } from "./chart";
@@ -175,7 +176,7 @@ export async function createTransaction(
 ): Promise<
   { transaction: typeof schema.transactions.$inferSelect } | { error: string }
 > {
-  const kind = String(body.kind ?? "expense") as TransactionKind;
+  const kind = asText(body.kind, "kind", "expense") as TransactionKind;
   if (!(TRANSACTION_KINDS as readonly string[]).includes(kind)) {
     return { error: "kind must be income or expense" };
   }
@@ -216,7 +217,7 @@ export async function createTransaction(
    */
   if (
     body.accountId &&
-    !(await ownedAccountOfType(orgId, String(body.accountId), [
+    !(await ownedAccountOfType(orgId, asText(body.accountId, "accountId"), [
       CATEGORY_TYPE[kind],
     ]))
   ) {
@@ -224,7 +225,10 @@ export async function createTransaction(
   }
   if (
     body.paidThroughAccountId &&
-    !(await ownedAccount(orgId, String(body.paidThroughAccountId)))
+    !(await ownedAccount(
+      orgId,
+      asText(body.paidThroughAccountId, "paidThroughAccountId"),
+    ))
   ) {
     return { error: "unknown account" };
   }
@@ -241,10 +245,12 @@ export async function createTransaction(
 
   const [categoryAccountId, paidThroughAccountId] = await Promise.all([
     body.accountId
-      ? Promise.resolve(String(body.accountId))
+      ? Promise.resolve(asText(body.accountId, "accountId"))
       : defaultCategory(orgId, kind),
     body.paidThroughAccountId
-      ? Promise.resolve(String(body.paidThroughAccountId))
+      ? Promise.resolve(
+          asText(body.paidThroughAccountId, "paidThroughAccountId"),
+        )
       : ensureAccount(orgId, CORE_ACCOUNTS.cash),
   ]);
 
@@ -489,10 +495,10 @@ export function registerTransactions(ctx: ModuleContext) {
 
       const amountCents = body.amountCents ?? existing.amountCents;
       const accountId = body.accountId
-        ? String(body.accountId)
+        ? asText(body.accountId, "accountId")
         : existing.accountId;
       const paidThroughAccountId = body.paidThroughAccountId
-        ? String(body.paidThroughAccountId)
+        ? asText(body.paidThroughAccountId, "paidThroughAccountId")
         : existing.paidThroughAccountId;
 
       const figuresChanged =

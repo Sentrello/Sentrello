@@ -7,6 +7,7 @@ import {
 } from "@sentrello/auth/hono";
 import { db, schema } from "@sentrello/db";
 import { record } from "@sentrello/db/security-events";
+import { asText } from "@sentrello/db/text-columns";
 import {
   emailAdapter,
   mailConfigured,
@@ -129,10 +130,8 @@ export function registerInvitations(ctx: ModuleContext) {
         email?: unknown;
         role?: unknown;
       };
-      const email = String(body.email ?? "")
-        .trim()
-        .toLowerCase();
-      const role = String(body.role ?? "").trim();
+      const email = asText(body.email, "email").trim().toLowerCase();
+      const role = asText(body.role, "role").trim();
       if (!email || !role) {
         return c.json({ error: "an email and a role are required" }, 400);
       }
@@ -301,7 +300,7 @@ export function registerInvitations(ctx: ModuleContext) {
       password?: unknown;
     };
     const password = typeof body.password === "string" ? body.password : "";
-    const name = String(body.name ?? "").trim();
+    const name = asText(body.name, "name").trim();
 
     // A session as the invited address, however they can honestly get one.
     let cookie: string | null = null;

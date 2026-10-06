@@ -5,7 +5,7 @@ import {
 } from "@sentrello/auth/hono";
 import { and, asc, db, eq, schema } from "@sentrello/db";
 import { baseCurrency } from "@sentrello/db/currency";
-import { checkedText, notText } from "@sentrello/db/text-columns";
+import { asText, checkedText, notText } from "@sentrello/db/text-columns";
 import type { ModuleContext } from "@sentrello/module-sdk";
 
 /**
@@ -78,7 +78,7 @@ export function parseTaxDefinition(body: Record<string, unknown>): {
   const shaped = checkedText(schema.taxDefinitions, body);
   if (!shaped.ok) throw new CatalogueError(notText(shaped.field));
 
-  const name = String(body.name ?? "").trim();
+  const name = asText(body.name, "name").trim();
   if (!name) throw new CatalogueError("a name is required");
   if (name.length > 60) throw new CatalogueError("that name is too long");
 
@@ -99,7 +99,7 @@ export function parseTaxDefinition(body: Record<string, unknown>): {
     throw new CatalogueError("that rate is not a tax rate");
   }
 
-  const categoryCode = String(body.categoryCode ?? "S").trim();
+  const categoryCode = asText(body.categoryCode, "categoryCode", "S").trim();
   if (!CATEGORY_CODES.has(categoryCode as "S")) {
     throw new CatalogueError("that is not a tax category");
   }
@@ -133,9 +133,7 @@ export function parseTaxDefinition(body: Record<string, unknown>): {
    * the same authority.
    */
   const jurisdiction =
-    String(body.jurisdiction ?? "")
-      .trim()
-      .toUpperCase() || null;
+    asText(body.jurisdiction, "jurisdiction").trim().toUpperCase() || null;
   if (jurisdiction && jurisdiction.length > 80) {
     throw new CatalogueError("that jurisdiction is too long");
   }
@@ -147,7 +145,7 @@ export function parseTaxDefinition(body: Record<string, unknown>): {
     rateBp: Math.round(ratePpm / 100),
     ratePpm,
     categoryCode,
-    description: String(body.description ?? "").trim() || null,
+    description: asText(body.description, "description").trim() || null,
     jurisdiction,
     // Inferred rather than asked for: a "US-…" jurisdiction is US sales tax
     // and a "CA…" one is Canadian, which is what routes each liability to
@@ -470,7 +468,7 @@ export function registerCatalogue(ctx: ModuleContext) {
       const shaped = checkedText(schema.billableItems, body);
       if (!shaped.ok) return c.json({ error: notText(shaped.field) }, 400);
 
-      const name = String(body.name ?? "").trim();
+      const name = asText(body.name, "name").trim();
       if (!name) return c.json({ error: "a name is required" }, 400);
 
       const unitPriceCents = body.unitPriceCents ?? 0;
@@ -499,10 +497,10 @@ export function registerCatalogue(ctx: ModuleContext) {
         .values({
           organizationId: orgId,
           name,
-          description: String(body.description ?? "").trim() || null,
-          sku: String(body.sku ?? "").trim() || null,
+          description: asText(body.description, "description").trim() || null,
+          sku: asText(body.sku, "sku").trim() || null,
           unitPriceCents: unitPriceCents as number,
-          unit: String(body.unit ?? "piece").trim() || "piece",
+          unit: asText(body.unit, "unit", "piece").trim() || "piece",
           kind: body.kind === "product" ? "product" : "service",
           taxDefinitionId,
         })
@@ -527,10 +525,11 @@ export function registerCatalogue(ctx: ModuleContext) {
         patch.name = body.name.trim();
       }
       if (body.description !== undefined) {
-        patch.description = String(body.description ?? "").trim() || null;
+        patch.description =
+          asText(body.description, "description").trim() || null;
       }
       if (body.sku !== undefined) {
-        patch.sku = String(body.sku ?? "").trim() || null;
+        patch.sku = asText(body.sku, "sku").trim() || null;
       }
       if (body.unitPriceCents !== undefined) {
         if (
@@ -716,7 +715,8 @@ export function registerBillingRules(ctx: ModuleContext) {
       const values = {
         defaultDueDays,
         defaultPaymentTerms:
-          String(body.defaultPaymentTerms ?? "").trim() || null,
+          asText(body.defaultPaymentTerms, "defaultPaymentTerms").trim() ||
+          null,
         paymentTermOptions: cleanTerms(body.paymentTermOptions),
         units: cleanUnits(body.units),
         lateFeeType,
@@ -753,9 +753,9 @@ export function registerBillingRules(ctx: ModuleContext) {
         unknown
       >;
 
-      const name = String(body.name ?? "").trim();
-      const subject = String(body.subject ?? "").trim();
-      const text = String(body.body ?? "").trim();
+      const name = asText(body.name, "name").trim();
+      const subject = asText(body.subject, "subject").trim();
+      const text = asText(body.body, "body").trim();
       if (!name || !subject || !text) {
         return c.json(
           { error: "a reminder needs a name, a subject and something to say" },

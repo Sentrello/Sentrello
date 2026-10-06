@@ -157,12 +157,21 @@ const sql = held.sql;
  * because a test database with one business in it returns the same rows
  * either way — so the test reads the query rather than the answer.
  */
+import { guardWrites } from "./text-columns";
+
 export const watchQueries: { onQuery?: (query: string) => void } = {};
 
-export const db = drizzle(sql, {
-  schema,
-  logger: { logQuery: (query) => watchQueries.onQuery?.(query) },
-});
+/*
+ * Wrapped, so every write in the platform is checked for an object sent where
+ * text belongs. See `text-columns.ts` for why the rule cannot live in the
+ * routes: it was in 4 of 31 of them.
+ */
+export const db = guardWrites(
+  drizzle(sql, {
+    schema,
+    logger: { logQuery: (query) => watchQueries.onQuery?.(query) },
+  }),
+);
 export { schema };
 
 /**

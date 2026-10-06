@@ -6,6 +6,7 @@ import {
 import { googleRedirectUri, verifyGoogle } from "@sentrello/auth/providers";
 import { db, eq, schema } from "@sentrello/db";
 import { record } from "@sentrello/db/security-events";
+import { asText } from "@sentrello/db/text-columns";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import { secrets } from "@sentrello/module-sdk";
 
@@ -79,10 +80,8 @@ export function registerSocialSignIn(ctx: ModuleContext) {
         unknown
       >;
 
-      const clientId = String(body.clientId ?? "")
-        .trim()
-        .slice(0, 255);
-      const clientSecret = String(body.clientSecret ?? "").trim();
+      const clientId = asText(body.clientId, "clientId").trim().slice(0, 255);
+      const clientSecret = asText(body.clientSecret, "clientSecret").trim();
       if (!clientId || !clientSecret) {
         return c.json(
           { error: "both the client ID and the client secret" },

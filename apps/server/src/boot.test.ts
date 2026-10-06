@@ -1001,6 +1001,44 @@ test("a patch with nothing in it is a 400, not a 500", async () => {
   }
 });
 
+/**
+ * The other thing a body can be that the driver would have accepted.
+ *
+ * A text column takes whatever the driver hands it and the driver stringifies
+ * an object, so `{"name": {}}` used to be *saved*: a view, a form, an invoice
+ * note or a contact called "[object Object]", drawn on every screen, with
+ * nothing anywhere having failed. Four routes refused it and 27 did not, which
+ * is what a rule kept in the callers looks like after a few months.
+ *
+ * Asked of a route that had no check of its own, through the real server, so
+ * what is proved is the floor and its answer rather than one handler.
+ */
+test("an object where text belongs is a 400 that names the field", async () => {
+  process.env.SENTRELLO_LICENSE_TOKEN_PATH = "secrets/does-not-exist.jwt";
+  const server = (await import("./index")).default;
+  const { headers, cleanUp } = await signedIn();
+  try {
+    headers.set("content-type", "application/json");
+    const res = await server.fetch(
+      new Request("http://localhost/api/views", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          resource: "contacts",
+          name: {},
+          view: { filters: {} },
+        }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    const { error } = (await res.json()) as { error: string };
+    expect(error).toContain("name");
+    expect(error).toContain("[object Object]");
+  } finally {
+    await cleanUp();
+  }
+});
+
 test("a body that is not JSON is a 400, not a crash", async () => {
   // Routes parse with `c.req.json()`; before the onError mapping, a stray
   // byte in the body answered "something went wrong" with a 500 and a stack

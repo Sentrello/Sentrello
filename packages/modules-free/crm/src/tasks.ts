@@ -18,6 +18,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { and, db, eq, schema } from "@sentrello/db";
+import { asText } from "@sentrello/db/text-columns";
 import type { ModuleContext } from "@sentrello/module-sdk";
 
 const DAY_MS = 86_400_000;
@@ -81,7 +82,7 @@ export function registerTaskActions(ctx: ModuleContext) {
     async (c) => {
       const orgId = activeOrganizationId(c.get("session"));
       const body = (await c.req.json().catch(() => ({}))) as { by?: unknown };
-      const step = INTERVALS[String(body.by)];
+      const step = INTERVALS[asText(body.by, "by")];
       if (!step) {
         return c.json({ error: "postpone by a day or by a week" }, 400);
       }

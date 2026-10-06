@@ -13,6 +13,7 @@ import {
 } from "@sentrello/db/ledger";
 import { MoneyError, invoiceStatus } from "@sentrello/db/money";
 import { nextDocumentNumber } from "@sentrello/db/numbering";
+import { asText } from "@sentrello/db/text-columns";
 import { dayFrom, timezoneFor } from "@sentrello/db/timezone";
 import type { ModuleContext } from "@sentrello/module-sdk";
 import { creditedAgainst, shareToken, writeTaxBands } from "./documents";
@@ -483,7 +484,7 @@ export function registerLifecycle(ctx: ModuleContext) {
             // As above: a credit note is dated the day it was raised, and the
             // day is the business's.
             issueDate: dayIn(new Date(), await timezoneFor(orgId)),
-            notes: String(body.reason ?? "").trim() || null,
+            notes: asText(body.reason, "reason").trim() || null,
             subtotalCents: netCents,
             taxCents,
             totalCents: amount,

@@ -28,6 +28,7 @@ import {
 import { organizationMember } from "@sentrello/db/membership";
 import { sumCents } from "@sentrello/db/money";
 import { recordChanged } from "@sentrello/db/record-events";
+import { asText, checkedText, notText } from "@sentrello/db/text-columns";
 import { timezoneFor } from "@sentrello/db/timezone";
 import { dateFrom, dayFrom, demandDate } from "@sentrello/db/timezone";
 import type {
@@ -144,39 +145,6 @@ function dateColumnsOf(table: CrudTable): {
   return { moments, days };
 }
 
-/**
- * A value the column would take and should not.
- *
- * The refusals above are the ones Postgres makes for us. This is the other
- * half: an object sent as a contact's `name` is *accepted* — the driver
- * stringifies it — so the record is saved as `[object Object]` and the list
- * draws it. Nothing fails, and the only sign is a row in somebody's book
- * that cannot be searched for or corrected by name.
- *
- * Only text columns, and only objects and arrays. A number or a boolean
- * where text belongs reads back as "123" or "true", which is what somebody
- * meant; `{}` and `[]` never are. jsonb columns take objects by design, so
- * asking the table which is which is the whole of the check.
- */
-function withCheckedText(
-  table: CrudTable,
-  value: Record<string, unknown>,
-): { ok: true } | { ok: false; field: string } {
-  const columns = getTableColumns(table) as Record<
-    string,
-    { columnType?: string } | undefined
-  >;
-  for (const [field, raw] of Object.entries(value)) {
-    if (raw === null || typeof raw !== "object") continue;
-    if (raw instanceof Date) continue;
-    const kind = columns[field]?.columnType;
-    if (kind === "PgText" || kind === "PgVarchar" || kind === "PgChar") {
-      return { ok: false, field };
-    }
-  }
-  return { ok: true };
-}
-
 function withParsedDates(
   body: Record<string, unknown>,
   table?: CrudTable,
@@ -234,7 +202,7 @@ const DAY_FIELDS = new Set(["expectedCloseOn"]);
  * looking perfectly normal in the list.
  */
 export function normaliseStatus(body: Record<string, unknown>): void {
-  if ("status" in body && String(body.status ?? "").trim() === "") {
+  if ("status" in body && asText(body.status, "status").trim() === "") {
     // `undefined` rather than removing the key: Drizzle skips undefined
     // values, so the column default applies on insert and the column is left
     // alone on update — which is what "they did not say" should mean.
@@ -568,12 +536,9 @@ function crud<T extends keyof typeof tables>(
         fillNameParts(parsed.value);
         normaliseStatus(parsed.value);
       }
-      const shaped = withCheckedText(table, parsed.value);
+      const shaped = checkedText(table, parsed.value);
       if (!shaped.ok) {
-        return c.json(
-          { error: `${shaped.field} has to be text, not a list or an object.` },
-          400,
-        );
+        return c.json({ error: notText(shaped.field) }, 400);
       }
       await withCustomValues(resource, orgId, parsed.value);
       if (resource === "deals") await withDecidedAt(orgId, parsed.value);
@@ -670,12 +635,9 @@ function crud<T extends keyof typeof tables>(
             : null;
         }
       }
-      const shaped = withCheckedText(table, parsed.value);
+      const shaped = checkedText(table, parsed.value);
       if (!shaped.ok) {
-        return c.json(
-          { error: `${shaped.field} has to be text, not a list or an object.` },
-          400,
-        );
+        return c.json({ error: notText(shaped.field) }, 400);
       }
       await withCustomValues(resource, orgId, parsed.value);
       if (resource === "deals") await withDecidedAt(orgId, parsed.value);
@@ -2035,7 +1997,7 @@ export function fillNameParts(body: Record<string, unknown>): void {
   if (has(body.firstName) || has(body.lastName)) return;
   if (!has(body.name)) return;
 
-  const parts = String(body.name).trim().split(/\s+/).filter(Boolean);
+  const parts = asText(body.name, "name").trim().split(/\s+/).filter(Boolean);
   const [first, ...rest] = parts;
   body.firstName = first ?? null;
   body.lastName = rest.length > 0 ? rest.join(" ") : null;
@@ -2092,9 +2054,17 @@ function registerCrmScreens(
       let companiesCreated = 0;
       const skipped: { row: number; why: string }[] = [];
 
+      /*
+       * Every cell read as text rather than trusted to be text.
+       *
+       * The type above says `Record<string, string>`, which is a claim about
+       * what a caller sends and not a check on it. A cell of `{}` met `.trim()`
+       * and threw: a 500 and "something went wrong" for a spreadsheet with one
+       * odd cell in it, where the honest answer names the column.
+       */
       for (const [index, raw] of rows.entries()) {
-        const firstName = (raw.firstName ?? "").trim();
-        const lastName = (raw.lastName ?? "").trim();
+        const firstName = asText(raw.firstName, "firstName").trim();
+        const lastName = asText(raw.lastName, "lastName").trim();
         const name = [firstName, lastName].filter(Boolean).join(" ");
         if (!name) {
           // Nameless rows are the blank lines at the bottom of every
@@ -2104,7 +2074,7 @@ function registerCrmScreens(
         }
 
         let companyId: string | null = null;
-        const companyName = (raw.company ?? "").trim();
+        const companyName = asText(raw.company, "company").trim();
         if (companyName) {
           const key = companyName.toLowerCase();
           const found = byName.get(key);
@@ -2128,10 +2098,10 @@ function registerCrmScreens(
           name,
           firstName: firstName || null,
           lastName: lastName || null,
-          title: (raw.title ?? "").trim() || null,
-          email: (raw.email ?? "").trim() || null,
-          phone: (raw.phone ?? "").trim() || null,
-          linkedinUrl: (raw.linkedinUrl ?? "").trim() || null,
+          title: asText(raw.title, "title").trim() || null,
+          email: asText(raw.email, "email").trim() || null,
+          phone: asText(raw.phone, "phone").trim() || null,
+          linkedinUrl: asText(raw.linkedinUrl, "linkedinUrl").trim() || null,
           companyId,
         });
         imported += 1;

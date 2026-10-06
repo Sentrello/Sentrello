@@ -12,6 +12,7 @@ import {
   recent,
   record,
 } from "@sentrello/db/security-events";
+import { asText } from "@sentrello/db/text-columns";
 import type { ModuleContext } from "@sentrello/module-sdk";
 import { and, asc, desc, eq, ilike, inArray, not, or, sql } from "drizzle-orm";
 import { temporaryPassword } from "./password";
@@ -456,7 +457,7 @@ export function registerPeople(ctx: ModuleContext) {
       const body = (await c.req.json().catch(() => ({}))) as {
         role?: unknown;
       };
-      const role = String(body.role ?? "").trim();
+      const role = asText(body.role, "role").trim();
       if (!role) return c.json({ error: "a role is required" }, 400);
 
       // An administrator who demotes themselves has locked the business out

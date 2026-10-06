@@ -5,6 +5,7 @@ import {
 } from "@sentrello/auth/hono";
 import { db, schema } from "@sentrello/db";
 import { record } from "@sentrello/db/security-events";
+import { asText } from "@sentrello/db/text-columns";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import { mayCall, secrets, signOutbound } from "@sentrello/module-sdk";
 import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
@@ -304,9 +305,7 @@ export function registerWebhooks(ctx: ModuleContext) {
         unknown
       >;
 
-      const url = String(body.url ?? "")
-        .trim()
-        .slice(0, 2048);
+      const url = asText(body.url, "url").trim().slice(0, 2048);
       const allowInsecure = body.allowInsecure === true;
       const allowed = await mayCall(url, { allowInsecure });
       if (!allowed.ok) return c.json({ error: allowed.why }, 400);

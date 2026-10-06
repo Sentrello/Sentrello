@@ -5,7 +5,7 @@ import {
 } from "@sentrello/auth/hono";
 import { and, db, eq, inArray, isNull, isUuid, schema } from "@sentrello/db";
 import { ensureAccount, ownedAccount } from "@sentrello/db/ledger";
-import { checkedText, notText } from "@sentrello/db/text-columns";
+import { asText, checkedText, notText } from "@sentrello/db/text-columns";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 
 /**
@@ -204,9 +204,9 @@ export function registerChart(ctx: ModuleContext) {
       const shaped = checkedText(schema.accounts, body);
       if (!shaped.ok) return c.json({ error: notText(shaped.field) }, 400);
 
-      const code = String(body.code ?? "").trim();
-      const name = String(body.name ?? "").trim();
-      const type = String(body.type ?? "");
+      const code = asText(body.code, "code").trim();
+      const name = asText(body.name, "name").trim();
+      const type = asText(body.type, "type");
 
       if (!code || !name) return c.json({ error: "code and name" }, 400);
       if (!(ACCOUNT_TYPES as readonly string[]).includes(type)) {
@@ -254,7 +254,7 @@ export function registerChart(ctx: ModuleContext) {
       const body = await c.req.json();
 
       if (body.code !== undefined) {
-        const code = String(body.code).trim();
+        const code = asText(body.code, "code").trim();
         if (!code) return c.json({ error: "Give the account a code." }, 400);
         const [clash] = await db
           .select({ id: schema.accounts.id })
@@ -275,7 +275,7 @@ export function registerChart(ctx: ModuleContext) {
         if (!(await ownedAccount(orgId, body.parentId))) {
           return c.json({ error: "unknown parent account" }, 400);
         }
-        if (await wouldCycle(orgId, id, String(body.parentId))) {
+        if (await wouldCycle(orgId, id, asText(body.parentId, "parentId"))) {
           return c.json({ error: "an account cannot sit under itself" }, 400);
         }
       }
@@ -289,7 +289,9 @@ export function registerChart(ctx: ModuleContext) {
        */
       if (
         body.type !== undefined &&
-        !(ACCOUNT_TYPES as readonly string[]).includes(String(body.type))
+        !(ACCOUNT_TYPES as readonly string[]).includes(
+          asText(body.type, "type"),
+        )
       ) {
         return c.json({ error: "unknown type" }, 400);
       }
@@ -304,12 +306,14 @@ export function registerChart(ctx: ModuleContext) {
         .update(schema.accounts)
         .set({
           ...(body.code !== undefined
-            ? { code: String(body.code).trim() }
+            ? { code: asText(body.code, "code").trim() }
             : {}),
           ...(body.name !== undefined
-            ? { name: String(body.name).trim() }
+            ? { name: asText(body.name, "name").trim() }
             : {}),
-          ...(body.type !== undefined ? { type: String(body.type) } : {}),
+          ...(body.type !== undefined
+            ? { type: asText(body.type, "type") }
+            : {}),
           ...(body.description !== undefined
             ? { description: body.description || null }
             : {}),

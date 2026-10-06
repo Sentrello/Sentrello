@@ -10,6 +10,7 @@ import { contactHasEmail } from "@sentrello/db/crm";
 import { dayIn } from "@sentrello/db/day";
 import { lineTotals } from "@sentrello/db/money";
 import { nextDocumentNumber } from "@sentrello/db/numbering";
+import { asText } from "@sentrello/db/text-columns";
 import { timezoneFor } from "@sentrello/db/timezone";
 import { emailAdapter, systemFrom } from "@sentrello/email";
 import type { ModuleContext } from "@sentrello/module-sdk";
@@ -1024,7 +1025,7 @@ export function registerForms(ctx: ModuleContext) {
      * string, and the module that minted it is the one that can resolve it.
      */
     const clickId =
-      String(payload.sr_id ?? payload.clickId ?? "")
+      (asText(payload.sr_id, "sr_id") || asText(payload.clickId, "clickId"))
         .trim()
         .slice(0, 64) || null;
     for (const key of ["sr_id", "clickId"]) delete payload[key];
