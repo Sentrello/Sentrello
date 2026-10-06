@@ -421,7 +421,12 @@ function NavRows({
           <div key={node.id}>
             <button
               type="button"
-              className={`nav-link nav-parent${depth > 0 ? " nav-child" : ""}${node.heading ? " nav-section" : ""}`}
+              // Spaces before the `${`s, like every class list here: a class
+              // name ends where its characters end, and one with an
+              // interpolation welded to it is a class Tailwind emits no rule
+              // for. These three are hand-written in `index.css` so nothing was
+              // broken by it, but the rule has no exceptions worth remembering.
+              className={`nav-link nav-parent ${depth > 0 ? "nav-child" : ""} ${node.heading ? "nav-section" : ""}`}
               aria-current={node.entry?.id === currentId ? "page" : undefined}
               aria-expanded={node.children.length ? open : undefined}
               onClick={() => {
