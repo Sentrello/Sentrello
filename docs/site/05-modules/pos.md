@@ -386,6 +386,31 @@ So seating a party on somebody else's table never quietly moves the bill, and a
 shared counter with nobody identified attributes to the section rather than to
 the business.
 
+## Eat in, takeaway, delivery
+
+Most of what a till rings up is the same food at a different price, and the thing
+that decides which price is how it leaves the building. Set those up under Point
+of sale → Serving → **Ways you sell**: a name for the button, whether it asks how
+many sat down, whether it fires a ticket to the kitchen. One of them is the usual
+one, and that is what a sale is rung under unless somebody says otherwise.
+
+Switch on two or more and the till has to ask. **When** it asks is yours:
+
+- **On the first item.** The keypad opens straight away and the answer sits in a
+  row above the basket, one tap, changeable until the money goes in. A counter
+  wants this — the queue is four deep and the question is almost always the same.
+- **Before the sale starts.** Nothing can be rung until somebody has answered.
+  One extra tap on every sale, which a counter feels and a dining room does not —
+  and in a dining room the answer decides the price band and whether the kitchen
+  sees the order, so being asked after three items is being asked too late.
+
+Pick under Point of sale → Serving → **When the till asks**. With one way of
+selling switched on the till never asks either way, which is the screen a shop
+that has set none of this up has always seen.
+
+A bill already open is never asked about again: it was rung under something when
+it was started, and picking it back up takes you straight to it.
+
 ## Who is at the till
 
 Some places give every server their own device. Some share one. Both work, and
