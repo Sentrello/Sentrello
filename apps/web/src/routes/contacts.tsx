@@ -270,14 +270,24 @@ export function Contacts() {
             />
 
             <div className="ml-auto flex flex-wrap items-center gap-(--gap-toolbar)">
+              {/*
+                Both gated, because both write. Finding duplicates ends in
+                merging two people into one and importing creates rows by the
+                hundred, and a role holding `crm:["read"]` was offered both —
+                then refused at the end, which is the rule this screen's own
+                New contact already follows a few lines up. Export is a read
+                and stays.
+              */}
               <Button
                 variant="secondary"
+                needs={{ crm: ["update"] }}
                 onClick={() => setFindingDuplicates((v) => !v)}
               >
                 Duplicates
               </Button>
               <Button
                 variant="secondary"
+                needs={{ crm: ["create"] }}
                 onClick={() => setImporting((v) => !v)}
               >
                 Import

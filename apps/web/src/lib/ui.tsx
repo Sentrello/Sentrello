@@ -332,6 +332,49 @@ function useBlockedReason(blocked: string | undefined) {
   };
 }
 
+/**
+ * A whole form somebody may read and not change.
+ *
+ * `needs` existed on every control that *writes* and on none that *types*. So a
+ * role holding `invoicing:["read"]` opened the invoicing settings screen — which
+ * it is shown on purpose, because knowing the tax rates is part of reading an
+ * invoice — and found forty-one live boxes above a row of dead buttons: a tax
+ * rate's name, a letterhead to edit, every reminder's wording, five payment
+ * terms. Nothing could be saved and nothing said so until the press. A walk as
+ * a narrowed role is how that was found; no screenshot of the screen as its
+ * owner could have shown it.
+ *
+ * A `fieldset` rather than a prop on each control, because HTML already does
+ * this: `disabled` on a fieldset disables every control inside it, including
+ * ones added next month by somebody who never read this comment. The reason is
+ * said once, above the form, where it belongs — a sentence per box would be
+ * forty-one copies of the same sentence.
+ */
+export function Writable({
+  children,
+  needs,
+  className = "",
+}: {
+  children: ReactNode;
+  needs: Needs;
+  className?: string;
+}) {
+  const blocked = blockedBy(needs);
+  return (
+    <fieldset
+      disabled={blocked !== undefined}
+      className={`min-w-0 ${blocked ? "opacity-70" : ""} ${className}`}
+    >
+      {blocked ? (
+        <p className="mb-3 text-sm" style={{ color: "var(--text-muted)" }}>
+          {blocked} You can read this; changing it needs a colleague.
+        </p>
+      ) : null}
+      {children}
+    </fieldset>
+  );
+}
+
 export function Button({
   children,
   variant = "primary",

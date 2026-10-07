@@ -21,6 +21,7 @@ import {
   Textarea,
   Toolbar,
   Warning,
+  Writable,
   formatDate,
   formatMoney,
   muted,
@@ -119,21 +120,43 @@ export function InvoicingSettings() {
         Show retired ones
       </label>
 
-      <TaxRates
-        taxes={visible(taxes.data?.taxes ?? [])}
-        categories={taxes.data?.categories ?? []}
-        onDone={() => qc.invalidateQueries({ queryKey: ["invoicing-taxes"] })}
-      />
+      {/*
+        A reader sees this screen and may not change it.
+        
+        That is deliberate — knowing which rate an invoice was charged at is
+        part of reading the invoice — and it was only half built: every save
+        asked `invoicing:["update"]` and not one box did, so a role holding
+        read alone was shown forty-one live fields above a row of dead
+        buttons, and nothing said why until the press. One fieldset says it
+        once and HTML disables the rest, including whatever is added here
+        next.
+        
+        Peppol is outside it, because testing the connection is a read and a
+        reader may do it; its own form carries the same wrapper inside.
+      */}
+      <Writable needs={{ invoicing: ["update"] }}>
+        <div className="flex flex-col gap-(--gap-stack)">
+          <TaxRates
+            taxes={visible(taxes.data?.taxes ?? [])}
+            categories={taxes.data?.categories ?? []}
+            onDone={() =>
+              qc.invalidateQueries({ queryKey: ["invoicing-taxes"] })
+            }
+          />
 
-      <Catalogue
-        items={visible(items.data?.items ?? [])}
-        taxes={(taxes.data?.taxes ?? []).filter((t) => t.active)}
-        onDone={() => qc.invalidateQueries({ queryKey: ["invoicing-items"] })}
-      />
+          <Catalogue
+            items={visible(items.data?.items ?? [])}
+            taxes={(taxes.data?.taxes ?? []).filter((t) => t.active)}
+            onDone={() =>
+              qc.invalidateQueries({ queryKey: ["invoicing-items"] })
+            }
+          />
 
-      <Letterhead />
+          <Letterhead />
 
-      <BillingRules />
+          <BillingRules />
+        </div>
+      </Writable>
 
       <PeppolDelivery />
     </Page>
@@ -311,7 +334,9 @@ function PeppolDelivery() {
       ) : null}
 
       {editing ? (
-        <>
+        // The same rule as the rest of the screen; the test above stays live
+        // because asking whether the connection works is a read.
+        <Writable needs={{ invoicing: ["update"] }}>
           <Toolbar>
             <Field label="Access point">
               <Select
@@ -382,7 +407,7 @@ function PeppolDelivery() {
           </Toolbar>
           {/* Their words: a refused key names which half is wrong. */}
           {save.error ? <ErrorNote error={save.error} /> : null}
-        </>
+        </Writable>
       ) : null}
     </Card>
   );

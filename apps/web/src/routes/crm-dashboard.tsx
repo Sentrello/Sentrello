@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { api } from "../lib/api";
+import { api, may } from "../lib/api";
 import { Avatar } from "../lib/avatar";
 import { PairedBars } from "../lib/charts";
 import { filterIntent } from "../lib/drill";
@@ -11,6 +11,7 @@ import {
   Card,
   ErrorNote,
   Loading,
+  REFUSED,
   SectionHeading,
   briefMoney,
   formatMoney,
@@ -111,15 +112,27 @@ function TasksPanel({ tasks }: { tasks: CrmDashboard["tasks"] }) {
 
   return (
     <Card>
-      {/* The heading and the thing that acts on it: `trailing`, not a
-          hand-built row. Six spellings of this were in the product. */}
+      {/*
+        The heading and the thing that acts on it: `trailing`, not a
+        hand-built row. Six spellings of this were in the product.
+
+        Gated, like every other control that writes. This and the New contact
+        below are raw buttons rather than the `Button` primitive — an icon
+        beside a heading — so they carried no `needs` and nothing disabled
+        them. A role holding `crm:["read"]` was offered both: Add a task
+        opened the adder and was refused at the save, and New contact sent
+        them to a screen whose own New contact is correctly dead. Which is
+        the product's rule about a control you cannot use, broken at the two
+        entrances to it.
+      */}
       <SectionHeading
         trailing={
           <button
             type="button"
             className="link-muted"
             aria-label="Add a task"
-            title="Add a task"
+            title={may("crm", "create") ? "Add a task" : REFUSED}
+            disabled={!may("crm", "create")}
             onClick={() => setAdding(true)}
           >
             <Icon name="plus" size={16} />
@@ -128,21 +141,21 @@ function TasksPanel({ tasks }: { tasks: CrmDashboard["tasks"] }) {
       >
         Your tasks
       </SectionHeading>
-      {tasks.length ? (
-        <ul>
-          {tasks.map((task) => (
-            <TaskRow
-              key={task.id}
-              task={task}
-              invalidate={[["crm-dashboard"], ["tasks"]]}
-            />
-          ))}
-        </ul>
+      tasks.length ? (
+      <ul>
+        {tasks.map((task) => (
+          <TaskRow
+            key={task.id}
+            task={task}
+            invalidate={[["crm-dashboard"], ["tasks"]]}
+          />
+        ))}
+      </ul>
       ) : (
-        <p className="text-sm" style={muted}>
-          Nothing due. Tasks you add to a contact, company or deal appear here.
-        </p>
-      )}
+      <p className="text-sm" style={muted}>
+        Nothing due. Tasks you add to a contact, company or deal appear here.
+      </p>
+      )
       <TaskDialog
         open={adding}
         onClose={() => setAdding(false)}
@@ -269,7 +282,8 @@ export function CrmDashboard() {
                 type="button"
                 className="link-muted"
                 aria-label="New contact"
-                title="New contact"
+                title={may("crm", "create") ? "New contact" : REFUSED}
+                disabled={!may("crm", "create")}
                 onClick={() => go("contacts", "Contacts", "new")}
               >
                 <Icon name="plus" size={16} />

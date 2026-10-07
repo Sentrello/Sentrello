@@ -167,6 +167,20 @@ export interface SentrelloUi {
   /** A sentence we wrote, in the colour of something being wrong. */
   Warning: React.ComponentType<{ children: React.ReactNode }>;
   NeedsPro: React.ComponentType<{ what: string }>;
+  /**
+   * A form somebody may read and not change.
+   *
+   * `needs` is on every control that writes and on none that types, so a
+   * settings screen shown to a reader — which is right, knowing the tax rates
+   * is part of reading an invoice — offered live boxes above dead buttons.
+   * This is a `fieldset`: one sentence above the form, and the browser
+   * disables everything inside it including whatever is added later.
+   */
+  Writable: React.ComponentType<{
+    children: React.ReactNode;
+    needs: Record<string, string[]>;
+    className?: string;
+  }>;
   /** What every screen says when a policy refuses, so no module writes its own. */
   REFUSED: string;
   StatusBadge: React.ComponentType<{ status: string }>;
@@ -273,6 +287,7 @@ export const UI_MEMBERS = [
   "ErrorNote",
   "Warning",
   "NeedsPro",
+  "Writable",
   // The one sentence the whole product says when a policy refuses. A module
   // with a checkbox that writes has no primitive to hang `needs` on and asks
   // `may` directly, and three of them were each carrying their own copy.
