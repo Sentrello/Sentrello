@@ -33,6 +33,20 @@ export interface CrawlableSurface {
   /** A sitemap for that surface, when the module publishes one. */
   sitemap?: string;
   /**
+   * Paths under the prefix that stay shut, longest-match style.
+   *
+   * A prefix is the right unit for "the shop is public" and the wrong one for
+   * what sits inside it. `/shop` covers `/shop/cart`, which is worth nobody's
+   * crawl budget, and `/shop/orders/<token>` — somebody's name, address, order
+   * lines and download links, addressed by a token. robots.txt only stops a
+   * *fetch*; a URL that escapes by referrer or gets pasted into a forum can
+   * still be indexed, and this one was being invited.
+   *
+   * Each entry must sit under the prefix and must not be the prefix itself:
+   * closing the whole surface is what not declaring it does.
+   */
+  closed?: string[];
+  /**
    * Whether the surface is actually open, on the host being asked.
    *
    * Declared at load, which is not the same as published: the documentation
@@ -58,11 +72,25 @@ export function addCrawlable(surface: CrawlableSurface): void {
   // A prefix that allows everything is not a public surface, it is the absence
   // of one — and it would turn the whole file into "help yourself".
   if (!surface.prefix.startsWith("/") || surface.prefix === "/") return;
-  const at = registry.findIndex(
-    (s) => s.moduleId === surface.moduleId && s.prefix === surface.prefix,
+  /*
+   * A closed path that is not under the prefix closes nothing, and one equal to
+   * the prefix closes everything. Both are a module saying something it did not
+   * mean, so both are dropped rather than honoured — and the surface itself
+   * still registers, because the alternative is a typo in an exclusion taking a
+   * published storefront off the web.
+   */
+  const meant = surface.closed?.filter((path) =>
+    path.startsWith(`${surface.prefix}/`),
   );
-  if (at >= 0) registry[at] = surface;
-  else registry.push(surface);
+  const declared: CrawlableSurface = {
+    ...surface,
+    closed: meant?.length ? meant : undefined,
+  };
+  const at = registry.findIndex(
+    (s) => s.moduleId === declared.moduleId && s.prefix === declared.prefix,
+  );
+  if (at >= 0) registry[at] = declared;
+  else registry.push(declared);
 }
 
 export function allCrawlable(): CrawlableSurface[] {
@@ -72,6 +100,34 @@ export function allCrawlable(): CrawlableSurface[] {
 /** For tests and for a host that loads its modules more than once. */
 export function clearCrawlable(): void {
   registry.length = 0;
+}
+
+/**
+ * May a crawler index this path?
+ *
+ * Asked by `/robots.txt` and by the `x-robots-tag` header on every response,
+ * which is the point: the header exists because a CDN can prepend its own
+ * permissive robots.txt to ours, so the two have to agree about every path or
+ * the stricter one is decoration. They did not agree. Each computed "under a
+ * published prefix" for itself, and only one of them had ever heard of an
+ * exclusion.
+ *
+ * Deliberately **not** asking `live`. That is a database question and this runs
+ * on every response; a surface that is switched off serves 404s under its
+ * prefix, and a 404 with no `noindex` on it costs nothing. Do not turn this
+ * into a per-request query.
+ */
+export function crawlablePath(pathname: string): boolean {
+  for (const surface of registry) {
+    const under =
+      pathname === surface.prefix || pathname.startsWith(`${surface.prefix}/`);
+    if (!under) continue;
+    const shut = surface.closed?.some(
+      (path) => pathname === path || pathname.startsWith(`${path}/`),
+    );
+    if (!shut) return true;
+  }
+  return false;
 }
 
 /**
@@ -137,6 +193,13 @@ export async function robotsTxt(origin: string | null): Promise<string> {
     a.prefix.localeCompare(b.prefix),
   )) {
     lines.push(`Allow: ${surface.prefix}`);
+    /*
+     * And the parts of it that stay shut, immediately under their own allow so
+     * a person reads them together. A crawler reads them by length: `Disallow:
+     * /shop/orders` is longer than `Allow: /shop`, so it wins for every order
+     * page and loses for every product page, which is the whole arrangement.
+     */
+    for (const path of surface.closed ?? []) lines.push(`Disallow: ${path}`);
   }
   if (origin) {
     for (const surface of open) {

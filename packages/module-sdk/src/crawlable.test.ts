@@ -3,6 +3,7 @@ import {
   addCrawlable,
   allCrawlable,
   clearCrawlable,
+  crawlablePath,
   robotsTxt,
 } from "./crawlable";
 
@@ -192,4 +193,86 @@ test("a surface closed on this host leaves the root closed", async () => {
     "User-agent: *\nDisallow: /\n",
   );
   expect(await robotsTxt("https://open.example.test")).toContain("Allow: /$");
+});
+
+/*
+ * A prefix is the wrong unit for what sits inside it.
+ *
+ * The shop's storefront is public and `/shop/orders/<token>` is somebody's
+ * name, address and download links. Both were invited in, by the file and by
+ * the header, because each read the prefix alone.
+ */
+
+test("a surface can shut part of itself, and the file says so", async () => {
+  addCrawlable({
+    moduleId: "shop",
+    prefix: "/shop",
+    closed: ["/shop/cart", "/shop/orders"],
+  });
+  expect(await robotsTxt(null)).toBe(
+    [
+      "User-agent: *",
+      "Disallow: /",
+      "Allow: /$",
+      "Allow: /shop",
+      // Under their own allow, and longer than it, which is how a crawler
+      // decides: /shop/orders/abc matches this and not the line above.
+      "Disallow: /shop/cart",
+      "Disallow: /shop/orders",
+      "",
+    ].join("\n"),
+  );
+});
+
+test("the header and the file agree about every path", () => {
+  addCrawlable({
+    moduleId: "shop",
+    prefix: "/shop",
+    closed: ["/shop/cart", "/shop/orders"],
+  });
+  // The storefront and a product page: crawl away.
+  expect(crawlablePath("/shop")).toBe(true);
+  expect(crawlablePath("/shop/brass-kettle")).toBe(true);
+  // The cart, the order page, and anything under it.
+  expect(crawlablePath("/shop/cart")).toBe(false);
+  expect(crawlablePath("/shop/orders")).toBe(false);
+  expect(crawlablePath("/shop/orders/9f3c-not-a-real-token")).toBe(false);
+  // And the application, which is almost all of it.
+  expect(crawlablePath("/crm")).toBe(false);
+  expect(crawlablePath("/")).toBe(false);
+});
+
+test("a path that only looks like a closed one is still open", () => {
+  addCrawlable({
+    moduleId: "shop",
+    prefix: "/shop",
+    closed: ["/shop/orders"],
+  });
+  // A product whose slug begins with the closed path's name. Prefix matching on
+  // the raw string would shut it; matching on path segments does not.
+  expect(crawlablePath("/shop/orders-ledger-2024")).toBe(true);
+});
+
+test("an exclusion a module did not mean closes nothing", async () => {
+  addCrawlable({
+    moduleId: "muddle",
+    prefix: "/shop",
+    // Not under the prefix, so it would disallow a path this surface does not
+    // own; and the prefix itself, which would close the whole storefront. A
+    // typo in an exclusion must not take a published shop off the web.
+    closed: ["/docs/secret", "/shop"],
+  });
+  const txt = await robotsTxt(null);
+  expect(txt).toBe("User-agent: *\nDisallow: /\nAllow: /$\nAllow: /shop\n");
+  expect(crawlablePath("/shop")).toBe(true);
+  expect(crawlablePath("/shop/anything")).toBe(true);
+});
+
+test("a closed path is shut even when the module is asked about twice", () => {
+  // Re-registering replaces, which is what a host that loads its modules twice
+  // does — and the replacement must not quietly drop the exclusions.
+  addCrawlable({ moduleId: "shop", prefix: "/shop", closed: ["/shop/cart"] });
+  addCrawlable({ moduleId: "shop", prefix: "/shop", closed: ["/shop/cart"] });
+  expect(allCrawlable()).toHaveLength(1);
+  expect(crawlablePath("/shop/cart")).toBe(false);
 });

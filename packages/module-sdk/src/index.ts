@@ -440,6 +440,7 @@ export * from "./widgets";
 export * from "./personal-data";
 export * from "./computed-columns";
 export * from "./crawlable";
+export * from "./origin";
 export * from "./onboarding";
 export * from "./unread-fields";
 

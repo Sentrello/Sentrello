@@ -32,10 +32,11 @@ import money from "@sentrello/module-money";
 import profile from "@sentrello/module-profile";
 import type { SentrelloEnv, SentrelloModule } from "@sentrello/module-sdk";
 import {
-  allCrawlable,
+  crawlablePath,
   isEmptyUpdate,
   isMalformedUuid,
   isStatementTimeout,
+  requestOrigin,
   robotsTxt,
   searchEverything,
   searchProviders,
@@ -224,18 +225,19 @@ app.use("*", async (c, next) => {
    * that reason on the day the file was written.
    *
    * A header travels with the response and nothing prepends to it. So the same
-   * registry decides both: a path under a prefix a module published is left
-   * alone, and everything else says no. `/robots.txt` itself is exempt — a
-   * crawler has to be able to read the thing that tells it what to read.
+   * registry decides both — `crawlablePath`, one function asked here and by
+   * `/robots.txt`, because this used to be its own copy of "under a prefix" and
+   * a copy only has to be right once. It was not: a surface may now shut parts
+   * of itself, and the shop shuts the cart and `/shop/orders/<token>`, which
+   * carries somebody's name and address. The file disallowed them and the
+   * header, reading the prefix alone, said nothing.
+   *
+   * `/robots.txt` itself is exempt — a crawler has to be able to read the thing
+   * that tells it what to read.
    */
   const requested = new URL(c.req.url).pathname;
-  if (requested !== "/robots.txt") {
-    const published = allCrawlable().some(
-      (surface) =>
-        requested === surface.prefix ||
-        requested.startsWith(`${surface.prefix}/`),
-    );
-    if (!published) set("x-robots-tag", "noindex, nofollow");
+  if (requested !== "/robots.txt" && !crawlablePath(requested)) {
+    set("x-robots-tag", "noindex, nofollow");
   }
 
   const path = new URL(c.req.url).pathname;
@@ -431,23 +433,16 @@ app.get("/.well-known/security.txt", (c) =>
  * not the one anybody typed.
  */
 app.get("/robots.txt", async (c) => {
-  const host = c.req.header("host");
   /*
-   * The proxy's word first, then the request's own scheme — not a hardcoded
+   * The proxy's word for the scheme, then the request's own — not a hardcoded
    * https. Behind nginx the request arrives over http and the reader is on
    * https, which is what the forwarded header is for; on an instance served
    * plainly on a local network there is no proxy and no header, and claiming
-   * https there advertises a sitemap nobody can fetch.
+   * https there advertises a sitemap nobody can fetch. Shared with the canonical
+   * link on every published page, because a sitemap entry and a canonical that
+   * disagree about where a page lives are worse than neither.
    */
-  const forwarded = c.req.header("x-forwarded-proto")?.split(",")[0]?.trim();
-  const own = (() => {
-    try {
-      return new URL(c.req.url).protocol.replace(":", "");
-    } catch {
-      return "https";
-    }
-  })();
-  const origin = host ? `${forwarded || own}://${host}` : null;
+  const origin = requestOrigin(c);
   return c.text(await robotsTxt(origin), 200, {
     "content-type": "text/plain; charset=utf-8",
   });

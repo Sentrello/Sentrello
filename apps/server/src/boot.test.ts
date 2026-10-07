@@ -1610,7 +1610,7 @@ test("a path under a published prefix is left alone", async () => {
   const server = (await import("./index")).default;
 
   try {
-    for (const path of ["/shop", "/shop/thing", "/shop/cart"]) {
+    for (const path of ["/shop", "/shop/thing", "/shop/thing/detail"]) {
       const res = await server.fetch(new Request(`http://localhost${path}`));
       expect(res.headers.get("x-robots-tag")).toBeNull();
     }
@@ -1618,6 +1618,50 @@ test("a path under a published prefix is left alone", async () => {
     // A path that merely begins with the same letters is not the shop.
     const other = await server.fetch(new Request("http://localhost/shopping"));
     expect(other.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+  } finally {
+    clearCrawlable();
+  }
+});
+
+/**
+ * And the parts of a published prefix that a module shut.
+ *
+ * This header exists because a CDN can prepend its own permissive robots.txt to
+ * ours, so it has to agree with the file about every path. It did not: both
+ * computed "under a published prefix" separately and only the file had ever
+ * heard of an exclusion, so `/shop/orders/<token>` — a name, an address, order
+ * lines and download links — was advertised as crawlable by the header while
+ * robots.txt disallowed it. Tested through a real response, because a header is
+ * a thing the middleware either sets or does not.
+ */
+test("a path a module shut inside its own prefix says noindex", async () => {
+  const { addCrawlable, clearCrawlable } = await import(
+    "@sentrello/module-sdk"
+  );
+  clearCrawlable();
+  addCrawlable({
+    moduleId: "shop",
+    prefix: "/shop",
+    closed: ["/shop/cart", "/shop/orders"],
+  });
+  const server = (await import("./index")).default;
+
+  try {
+    for (const path of [
+      "/shop/cart",
+      "/shop/orders",
+      "/shop/orders/9f3c-not-a-real-token",
+    ]) {
+      const res = await server.fetch(new Request(`http://localhost${path}`));
+      expect(res.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+    }
+
+    // The storefront itself, and a product, stay open — the point of the
+    // exclusion is that it is narrower than the prefix, not instead of it.
+    for (const path of ["/shop", "/shop/brass-kettle"]) {
+      const res = await server.fetch(new Request(`http://localhost${path}`));
+      expect(res.headers.get("x-robots-tag")).toBeNull();
+    }
   } finally {
     clearCrawlable();
   }
