@@ -601,6 +601,22 @@ beside.
 The till uses the same people, roles and permissions as the rest of Sentrello.
 It never has its own logins.
 
+**Three policies arrive with your instance**, so nobody has to invent a cashier:
+
+| Policy | For |
+|---|---|
+| **Till** | Rings up sales. No cancelling, no refunds, and no sight of what the drawer should hold |
+| **Till Supervisors** | The same, plus cancelling a ticket and giving money back — the two doors money leaves by |
+| **Till Managers** | The same again, plus setting the till up and seeing the drawer's expected total |
+
+Put your counter staff in the **Till** group and give the person standing behind
+them the supervisor policy. Each tier includes the one below it, because a
+supervisor who cannot sell is no use on a counter.
+
+Each of those grants read access to the Shop's catalogue as well, which is not
+optional: the till's menu *is* that catalogue, and without it the screen is a
+refusal rather than a till.
+
 | Permission | What it allows |
 |---|---|
 | `pos:read` | See the till and the drawer |

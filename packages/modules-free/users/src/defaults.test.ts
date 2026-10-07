@@ -5,13 +5,27 @@ import { db, eq, schema } from "@sentrello/db";
 import {
   DEFAULT_GROUPS,
   DEFAULT_GROUP_POLICIES,
+  DEFAULT_TILL_POLICIES,
   DEFAULT_USER_POLICIES,
   policyLabel,
   seedDefaults,
 } from "./defaults";
 import { BUILT_IN } from "./roles";
 
-const all = [...DEFAULT_USER_POLICIES, ...DEFAULT_GROUP_POLICIES];
+/*
+ * Every seeded policy, and the till ones have to be in here.
+ *
+ * This was the two older lists, so the three added for a counter on 7 October
+ * were outside the reserved-name check and outside "every policy can reach the
+ * page it lands on" — a policy that signs in to nowhere would have seeded
+ * happily. The checks below are about *what the seed writes*, so the list is
+ * what the seed writes.
+ */
+const all = [
+  ...DEFAULT_USER_POLICIES,
+  ...DEFAULT_GROUP_POLICIES,
+  ...DEFAULT_TILL_POLICIES,
+];
 const byName = new Map(all.map((p) => [p.name, p]));
 
 /**
@@ -307,6 +321,17 @@ test("the seeded defaults are the ones the documentation promises", async () => 
     "accounting",
     "customer service",
   ]);
+  /*
+   * And the three for a counter, which are given to a person like a seniority
+   * rather than backing a department. Nothing seeded here granted a single `pos`
+   * permission until 7 October 2026, so the only person who could work a till
+   * was the instance owner.
+   */
+  expect(DEFAULT_TILL_POLICIES.map((p) => p.name)).toEqual([
+    "till",
+    "till supervisors",
+    "till managers",
+  ]);
   expect(DEFAULT_GROUPS.map((g) => g.name)).toEqual([
     "Admins",
     "Sales",
@@ -314,6 +339,7 @@ test("the seeded defaults are the ones the documentation promises", async () => 
     "Accounting",
     "Customer Service",
     "Customers",
+    "Till",
   ]);
 
   /*
@@ -339,6 +365,6 @@ test("the seeded defaults are the ones the documentation promises", async () => 
   // loud — the Free-versus-Pro table says nine and six, and the two pages
   // disagreeing about one number is the fault this pins.
   expect(named).toContain("five policies");
-  expect(named).toContain("six groups");
-  expect(named).toContain("nine policies and six groups");
+  expect(named).toContain("seven groups");
+  expect(named).toContain("twelve policies and seven groups");
 });

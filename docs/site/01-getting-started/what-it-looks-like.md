@@ -74,10 +74,19 @@ internet by design.
 Five policies you give to a person: Admins, Executives, Managers, Staff, and an
 external Customers policy that opens the dashboard and nothing else — a
 customer reads their own invoices through the link you send them, which needs
-no account at all. Six groups as well: Sales, Marketing, Accounting and
-Customer Service, plus an Admins group and a Customers one, each backed by a
-policy of its own. Nine policies and six groups in total, and all of it is data
-you can edit, copy or throw away.
+no account at all. Seven groups as well: Sales, Marketing, Accounting and
+Customer Service, plus an Admins group, a Customers one and a Till, each backed
+by a policy of its own.
+
+And three for a counter, because selling face to face divides differently. Till
+rings up sales. Till Supervisors cancel a ticket or give money back, which are
+the two doors money leaves by and belong to somebody standing behind the
+counter rather than at it. Till Managers set the till up and may see what the
+drawer is expected to hold — the one figure a blind count depends on nobody
+seeing beforehand.
+
+Twelve policies and seven groups in total, and all of it is data you can edit,
+copy or throw away.
 
 A **policy** is how senior somebody is, given to a person directly. A **group**
 is what department they are in, so moving somebody between departments is one

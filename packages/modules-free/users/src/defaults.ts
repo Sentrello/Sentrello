@@ -174,6 +174,69 @@ export const DEFAULT_USER_POLICIES: DefaultPolicy[] = [
 ];
 
 /** What department somebody is in. Attached to a group. */
+/**
+ * Working a counter, in three tiers.
+ *
+ * Nothing seeded here granted a single `pos` permission until 7 October 2026, so
+ * on a business using the till the only person who could work it was the
+ * instance owner. The till's own vocabulary assumed otherwise all along — the
+ * drawer screen is written for "a counter shift" who sees the drawer and not its
+ * expected total — and the permissions to express that existed; the policies did
+ * not. A business that buys a till and finds it single-user has bought the wrong
+ * thing.
+ *
+ * Three tiers rather than two, because that is what the five permissions already
+ * describe and what a counter actually needs:
+ *
+ * - **Till** rings up sales and nothing else. No cancelling, no refunds, and no
+ *   sight of what the drawer should hold.
+ * - **Till supervisors** cancel a ticket and give money back. These are the two
+ *   actions money leaves by, which is why they are a tier of their own rather
+ *   than part of selling — the standard answer in this trade, and the reason our
+ *   permission list separates them.
+ * - **Till managers** set the till up and may see the drawer's expected total,
+ *   which is the one figure a blind count depends on nobody seeing.
+ *
+ * Cumulative, because a supervisor who cannot sell is no use on a counter.
+ *
+ * **`shop: ["read"]` is not optional.** The till's menu *is* the Shop's
+ * catalogue: without it the screen is a refusal rather than a till, which is how
+ * this gap was found — a role holding every `pos` permission opened the till and
+ * was told it needed something else.
+ *
+ * Seeded on every instance, including the ones with no till. A permission for a
+ * module that is not installed grants nothing, and the alternative — seeding
+ * when the module arrives — is a mechanism that does not exist: `seedDefaults`
+ * runs once per organization, before anybody buys anything.
+ */
+const COUNTER = {
+  ...LANDS,
+  // Reading the catalogue it sells from, and nothing else of the Shop's.
+  shop: ["read"],
+};
+
+export const DEFAULT_TILL_POLICIES: DefaultPolicy[] = [
+  {
+    name: "till",
+    description: "Rings up sales at the counter.",
+    permission: { ...COUNTER, pos: ["read", "sell"] },
+  },
+  {
+    name: "till supervisors",
+    description: "Rings up sales, and cancels or refunds one.",
+    permission: { ...COUNTER, pos: ["read", "sell", "void", "refund"] },
+  },
+  {
+    name: "till managers",
+    description:
+      "Sets the till up, and may see what the drawer is expected to hold.",
+    permission: {
+      ...COUNTER,
+      pos: ["read", "sell", "void", "refund", "manage"],
+    },
+  },
+];
+
 export const DEFAULT_GROUP_POLICIES: DefaultPolicy[] = [
   {
     name: "sales",
@@ -296,6 +359,20 @@ export const DEFAULT_GROUPS: {
     description: "People who buy from this business.",
     roles: ["customers"],
   },
+  {
+    /*
+     * One group for the counter, not three.
+     *
+     * A group is what department somebody is in and a policy is how senior they
+     * are, so the people on a counter are one department and the supervisor
+     * standing behind them holds a policy — the same shape as Sales being a
+     * group while Managers is a policy. Three groups for one counter would be
+     * three places to move somebody between on a Tuesday.
+     */
+    name: "Till",
+    description: "Works the counter.",
+    roles: ["till"],
+  },
 ];
 
 /** "customer service" is what is stored; "Customer Service" is what is read. */
@@ -307,6 +384,9 @@ export function policyLabel(name: string): string {
 export function policyKind(name: string): "user" | "group" | "custom" {
   if (DEFAULT_USER_POLICIES.some((p) => p.name === name)) return "user";
   if (DEFAULT_GROUP_POLICIES.some((p) => p.name === name)) return "group";
+  // Given to a person, like a seniority: a counter shift and the supervisor
+  // standing behind them are the same department.
+  if (DEFAULT_TILL_POLICIES.some((p) => p.name === name)) return "user";
   return "custom";
 }
 
@@ -345,6 +425,7 @@ export async function seedDefaults(
     for (const policy of [
       ...DEFAULT_USER_POLICIES,
       ...DEFAULT_GROUP_POLICIES,
+      ...DEFAULT_TILL_POLICIES,
     ]) {
       await auth.api
         .createOrgRole({

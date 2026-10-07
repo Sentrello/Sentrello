@@ -10,8 +10,8 @@ import * as schema from "./schema";
  * row — and no business table has a foreign key to it, so the rows it owned
  * simply stay. A single full run used to leave 72 `organization_role` rows and
  * 24 `user_groups` behind, which is how a test database reaches twenty-five
- * thousand orphaned roles: every suite that calls `seedDefaults` writes nine
- * policies and eight groups, and nothing took them away again.
+ * thousand orphaned roles: every suite that calls `seedDefaults` writes a dozen
+ * policies and a handful of groups, and nothing took them away again.
  *
  * That is slow rather than wrong — but it also makes `select count(*) from
  * organizations = 0`, which this project uses as its "the suite cleaned up
