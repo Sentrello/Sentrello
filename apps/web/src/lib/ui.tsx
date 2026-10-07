@@ -1346,9 +1346,27 @@ export function ErrorNote({ error }: { error: unknown }) {
    */
   const bareNotFound =
     status === 404 && (!fromServer || /^not found\.?$/i.test(fromServer));
+  /*
+   * A 403 that names the permission beats the flat sentence.
+   *
+   * `requirePermission` answered a bare "forbidden", so this said "Your role
+   * does not allow this" for every refusal — right when there is nothing better
+   * and wrong when there is. It now says what it wanted, and the case that
+   * showed why is the till: a role holding every `pos` permission is refused
+   * because the catalogue behind the screen is the Shop's. "Your role does not
+   * allow this" sent that person to look at the till's permissions, which were
+   * fine. "this needs shop: read" sends them to the right place.
+   *
+   * The flat sentence stays for a refusal that says nothing useful — the old
+   * "forbidden", or a module that has not been rebuilt yet.
+   */
+  const named =
+    status === 403 && fromServer && !/^forbidden\.?$/i.test(fromServer.trim())
+      ? fromServer
+      : undefined;
   const message =
     status === 403
-      ? "Your role does not allow this."
+      ? (named ?? "Your role does not allow this.")
       : status === 401
         ? "Your session has expired. Sign in again."
         : bareNotFound

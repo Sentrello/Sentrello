@@ -347,7 +347,26 @@ export function requirePermission(permissions: Record<string, string[]>) {
     } catch {
       granted = false; // not a member, no active org, malformed request
     }
-    if (!granted) return c.json({ error: "forbidden" }, 403);
+    if (!granted) {
+      /*
+       * Say what was required, because the screen cannot work it out.
+       *
+       * This answered a flat "forbidden", so the client said "Your role does
+       * not allow this" — which is the right sentence when there is nothing
+       * better and sends somebody to the wrong place when there is. The till is
+       * the case that showed it: a role holding every `pos` permission opens it
+       * and is refused, because the catalogue behind it is the Shop's and needs
+       * `shop: read`. Told only that their role does not allow this, they look
+       * at the till's permissions, which are fine.
+       *
+       * The names are in the published documentation, so there is nothing here
+       * a member should not read.
+       */
+      const wanted = Object.entries(permissions)
+        .map(([resource, actions]) => `${resource}: ${actions.join(", ")}`)
+        .join("; ");
+      return c.json({ error: `this needs ${wanted}` }, 403);
+    }
     await next();
   });
   return Object.assign(middleware, { [DECLARES]: permissions });
