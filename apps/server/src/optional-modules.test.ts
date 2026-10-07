@@ -213,35 +213,42 @@ test("Free gaining nothing (no licence at all) reports nothing", () => {
 });
 
 /**
- * And a module bought without Pro, which is a whole tier of customer.
+ * A module named by a licence with no Pro on it is nothing to alarm about.
  *
- * Modules are sold on their own — the redirect module has been since
- * 2026-09-12 — so a business on Free can be entitled to one, and the loader
- * agrees: `tier === "module"` asks only whether the licence names it, never
- * what tier the licence is. This did not: it answered nothing at all unless
- * the tier read `pro`, so a Free customer whose paid module never reached the
- * image got silence from /healthz, silence on the settings screen and silence
- * in the banner — the exact failure the function exists to end, on the exact
- * shape of licence it was never asked about.
+ * This test used to assert the opposite, on the strength of a belief that
+ * modules were sold on their own. They are not: an optional module is sold to a
+ * Pro subscriber, `makeEntitlementGate` refuses a module entitlement without
+ * Pro underneath it, checkout only ever issues Pro beside the modules, and the
+ * distribution answer serves no bundle at all to a licence whose tier is not
+ * Pro. Asked and answered on 6 October 2026.
+ *
+ * So the old behaviour was an alarm with nothing behind it: a bundle reported
+ * missing and entitled, on /healthz and on the settings screen and in the
+ * banner, for a module that could not have loaded if it had arrived. Telling
+ * somebody to run `sentrello update` for a thing no update will fetch is worse
+ * than silence, because they will run it.
  */
-test("a module bought without Pro is expected too", () => {
+test("a module named without Pro is not expected", () => {
   const free = {
     valid: true,
     claims: { tier: "free", modules: ["mod-links"] },
   };
-  expect(
-    missingEntitledBundles(free, ["dashboard", "crm"]).map((m) => m.name),
-  ).toEqual(["mod-links"]);
-  // And present, it is not a fault.
-  expect(missingEntitledBundles(free, ["dashboard", "mod-links"])).toEqual([]);
-  // What comes with a tier is still only claimed by the tier that has one: a
-  // Free token carrying `with_tier` is a shape this core should not act on.
+  expect(missingEntitledBundles(free, ["dashboard", "crm"])).toEqual([]);
+  // And what comes with a tier is only claimed by the tier that has one.
   expect(
     missingEntitledBundles(
       { valid: true, claims: { tier: "free", with_tier: ["pro-core"] } },
       [],
     ),
   ).toEqual([]);
+  // The same module on a Pro licence is expected, which is what keeps this
+  // from passing by checking nothing.
+  expect(
+    missingEntitledBundles(
+      { valid: true, claims: { tier: "pro", modules: ["mod-links"] } },
+      ["dashboard", "crm"],
+    ).map((m) => m.name),
+  ).toEqual(["mod-links"]);
 });
 
 /**

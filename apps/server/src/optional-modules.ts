@@ -46,8 +46,10 @@ export const OPTIONAL_MODULE_PACKAGES = [
   "@sentrello/mod-docs",
   "@sentrello/mod-seo",
   "@sentrello/mod-subscriptions",
-  // Sold on its own since 2026-09-12; it rode with Pro before that. A public
-  // redirect service with a database behind it, sharing nothing with pro-core.
+  // Bought separately since 2026-09-12 rather than riding with Pro — which is
+  // not the same as being sold without Pro, and this comment used to be read
+  // that way. Every module needs Pro underneath it. A public redirect service
+  // with a database behind it, sharing nothing with pro-core.
   "@sentrello/mod-links",
 ];
 
@@ -121,30 +123,26 @@ export function missingEntitledBundles(
     Array.isArray(value) ? value.filter((id) => typeof id === "string") : [];
 
   /*
-   * What comes with the tier is claimed only by a tier that has one; what was
-   * bought is claimed whatever the tier says.
+   * Nothing is claimed unless the tier is Pro, which is the rule the whole
+   * platform runs on: an optional module is sold to a Pro subscriber, so a
+   * module entitlement is worth nothing on its own. `makeEntitlementGate` says
+   * so and enforces it, the control plane's checkout only ever issues Pro with
+   * the modules beside it, and the distribution answer serves no bundle at all
+   * to a licence whose tier is not Pro.
    *
-   * That second half is the part this got wrong. Modules are sold on their
-   * own — the redirect module has been since 2026-09-12 — so a business on
-   * Free can be entitled to one, and the loader agrees: a `module` tier asks
-   * only whether the licence names it. This asked the tier first and answered
-   * nothing at all unless it read `pro`, so a Free customer whose paid module
-   * never reached the image got silence from /healthz, silence on the settings
-   * screen and silence in the banner.
-   *
-   * **What can be bought today is narrower than what this allows**, and the two
-   * should not be read as agreeing. Checkout issues `["pro", ...modules]` and
-   * the distribution answer serves no bundles at all to a licence whose tier is
-   * not `pro`, so a module-only licence would be entitled here and would never
-   * receive the bundle — which this function would then report as missing, for
-   * ever. Nothing issues such a licence, so nobody is in that state; the
-   * permissiveness here is defence and not a sold arrangement. Selling a module
-   * on its own is a decision about the catalogue, and it needs the distribution
-   * side changed in the same breath.
+   * This read `claims.modules` whatever the tier said, on the strength of a
+   * comment here claiming modules were sold on their own. They are not — asked
+   * and answered on 6 October 2026 — and the consequence of the mismatch was an
+   * alarm: a licence naming a module without Pro reported a bundle as missing
+   * and entitled, on /healthz, on the settings screen and in the banner, for a
+   * module the gate would have refused to load if it had arrived.
    */
-  const withTier = claims.tier === "pro" ? named(claims.with_tier) : [];
+  if (claims.tier !== "pro") return [];
   const here = new Set(present);
-  const entitled = new Set([...withTier, ...named(claims.modules)]);
+  const entitled = new Set([
+    ...named(claims.with_tier),
+    ...named(claims.modules),
+  ]);
   return [...entitled]
     .filter((id) => !here.has(id))
     .map((name) => ({
