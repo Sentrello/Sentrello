@@ -32,7 +32,7 @@ test("a module that publishes pages gets its prefix allowed", async () => {
   const txt = await robotsTxt(null);
   // Disallow first and Allow after: longest match wins, so this is "the shop
   // and nothing else" however a person reads the order.
-  expect(txt).toBe("User-agent: *\nDisallow: /\nAllow: /shop\n");
+  expect(txt).toBe("User-agent: *\nDisallow: /\nAllow: /$\nAllow: /shop\n");
 });
 
 test("a sitemap is written absolute, against the address the reader used", async () => {
@@ -80,7 +80,7 @@ test("two modules each get a line, in an order a person can read", async () => {
   addCrawlable({ moduleId: "shop", prefix: "/shop" });
   addCrawlable({ moduleId: "docs", prefix: "/docs" });
   expect(await robotsTxt(null)).toBe(
-    "User-agent: *\nDisallow: /\nAllow: /docs\nAllow: /shop\n",
+    "User-agent: *\nDisallow: /\nAllow: /$\nAllow: /docs\nAllow: /shop\n",
   );
 });
 
@@ -139,4 +139,57 @@ test("a surface that cannot answer counts as closed", async () => {
     },
   });
   expect(await robotsTxt(null)).toBe("User-agent: *\nDisallow: /\n");
+});
+
+/**
+ * The root, when there is anything behind it.
+ *
+ * `Disallow: /` closed the one address anybody links to or submits. The
+ * documentation host redirects `/` to `/docs/intro`, and a crawler will not
+ * fetch a disallowed URL even to learn that it redirects — so a site whose every
+ * page was allowed under `/docs` had its front door shut, which is what
+ * "robots.txt is blocking search engines from the docs" turned out to mean on
+ * 7 October 2026.
+ */
+test("the root is opened once something is published behind it", async () => {
+  clearCrawlable();
+  addCrawlable({ moduleId: "docs", prefix: "/docs" });
+  const txt = await robotsTxt("https://help.example.test");
+  // `/$` is the root and nothing else, so this opens one URL rather than undoing
+  // the default.
+  expect(txt).toContain("Allow: /$");
+  expect(txt.split("\n")).toEqual([
+    "User-agent: *",
+    "Disallow: /",
+    "Allow: /$",
+    "Allow: /docs",
+    "",
+  ]);
+});
+
+test("and an instance with nothing published still refuses even that", async () => {
+  clearCrawlable();
+  // The whole point of the file: a business running an application and
+  // publishing nothing is not asking to be crawled at all.
+  expect(await robotsTxt("https://app.example.test")).not.toContain("Allow:");
+});
+
+/**
+ * A surface that is closed on *this* host does not open the root either.
+ *
+ * The documentation module answers per host — a site its owner marked not
+ * indexable is closed — and an opened root with everything else disallowed would
+ * be a door to one redirect nobody may follow.
+ */
+test("a surface closed on this host leaves the root closed", async () => {
+  clearCrawlable();
+  addCrawlable({
+    moduleId: "docs",
+    prefix: "/docs",
+    live: (hostname) => hostname === "open.example.test",
+  });
+  expect(await robotsTxt("https://shut.example.test")).toBe(
+    "User-agent: *\nDisallow: /\n",
+  );
+  expect(await robotsTxt("https://open.example.test")).toContain("Allow: /$");
 });

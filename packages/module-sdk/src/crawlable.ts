@@ -111,6 +111,28 @@ export async function robotsTxt(origin: string | null): Promise<string> {
   }
 
   const lines = ["User-agent: *", "Disallow: /"];
+  /*
+   * The front door, when there is anything behind it.
+   *
+   * `Disallow: /` closes the root, and the root is the only address anybody
+   * links to or submits: `https://docs.sentrello.com/` redirects to
+   * `/docs/intro`, and a crawler will not fetch a disallowed URL *even to find
+   * out that it redirects*. So a documentation site whose every page was allowed
+   * under `/docs` had its one entry point shut, and that is what "robots.txt is
+   * blocking search engines from the docs" turned out to mean — reported on
+   * 7 October 2026, measured rather than assumed: the file allowed /docs all
+   * along.
+   *
+   * `/$` matches the root and nothing else, so this opens one URL rather than
+   * undoing the default. A parser that does not understand `$` reads it as a
+   * literal path that matches nothing, which leaves it exactly where it was.
+   *
+   * Only when a surface is open on this host. An instance with nothing published
+   * still refuses the lot, which is the whole point of the file; on a host that
+   * publishes something, the worst a crawler finds at the root is whatever the
+   * root serves, because every other path is still disallowed.
+   */
+  if (open.length > 0) lines.push("Allow: /$");
   for (const surface of [...open].sort((a, b) =>
     a.prefix.localeCompare(b.prefix),
   )) {

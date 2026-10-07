@@ -280,3 +280,18 @@ test("before anything has landed, nothing is hidden", () => {
   setGrants(undefined, ["payments"]);
   expect(may("payments", "connect")).toBe(true);
 });
+
+/**
+ * And an empty set of grants is not a set of refusals.
+ *
+ * `/api/_meta` fills `can` only for somebody with an active organization and a
+ * membership, and answers `{}` otherwise. `{}` is truthy, so the first spelling
+ * of the rule above read it as "holds nothing anywhere" and turned every control
+ * in the product off for exactly those people — the moment after signing in, an
+ * account that belongs to no business yet.
+ */
+test("somebody with no grants at all is not refused everything", () => {
+  setGrants({}, ["crm", "bookkeeping", "payments"]);
+  expect(may("crm", "read")).toBe(true);
+  expect(may("payments", "send")).toBe(true);
+});

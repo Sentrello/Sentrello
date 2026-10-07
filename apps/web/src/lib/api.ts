@@ -358,6 +358,18 @@ export function may(resource: string, action: string): boolean {
   if (held) return held.includes(action);
   // Nothing held on a resource this instance knows about is a refusal, not an
   // absence. Anything else keeps the benefit of the doubt — see above.
+  /*
+   * An *empty* set of grants is not a set of refusals.
+   *
+   * `/api/_meta` fills `can` only for somebody with an active organization and a
+   * membership, and answers `{}` otherwise — the moment after signing in before
+   * an active organization is set, an account that belongs to no business yet.
+   * `{}` is truthy, so without this line that reads as "holds nothing anywhere"
+   * and turns every control in the product off for exactly those people,
+   * including whatever they would need to put it right. Caught by reading the
+   * change back, which is later than a test should have caught it.
+   */
+  if (grants && Object.keys(grants).length === 0) return true;
   if (grants && known?.has(resource)) return false;
   return true;
 }
