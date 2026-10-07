@@ -245,3 +245,38 @@ test("money is punctuated the way the business punctuates it", () => {
   setFormats({ countryCode: "", currency: "USD" });
   expect(formatMoney(127997, "USD")).toBe("$1,279.97");
 });
+
+/**
+ * Holding nothing on a resource is a refusal; never having heard of it is not.
+ *
+ * `can` omits a resource the person holds nothing on, which is exactly how it
+ * reports one this build never compiled — so `may` read both as "allow", and
+ * every `needs` in the product only bit where the role held some *other* action
+ * on the same resource. A role with no `payments` at all was offered every
+ * payments control, found by walking the accounts as a books reader on
+ * 7 October 2026 and seeing a correctly-gated button live.
+ */
+test("a resource this instance knows, held by nobody, is refused", () => {
+  setGrants({ bookkeeping: ["read"] }, ["bookkeeping", "payments", "crm"]);
+  // Held, and the action is not among them.
+  expect(may("bookkeeping", "update")).toBe(false);
+  // Known to the instance, nothing held on it at all: the case that was allowed.
+  expect(may("payments", "connect")).toBe(false);
+  expect(may("crm", "read")).toBe(false);
+  // Not named by the instance: a module declaring something an older core never
+  // compiled keeps the benefit of the doubt.
+  expect(may("cellar", "read")).toBe(true);
+});
+
+test("without the resource list, everything keeps the benefit of the doubt", () => {
+  // An older server, or meta that has not landed. The old behaviour exactly.
+  setGrants({ bookkeeping: ["read"] });
+  expect(may("bookkeeping", "read")).toBe(true);
+  expect(may("bookkeeping", "update")).toBe(false);
+  expect(may("payments", "connect")).toBe(true);
+});
+
+test("before anything has landed, nothing is hidden", () => {
+  setGrants(undefined, ["payments"]);
+  expect(may("payments", "connect")).toBe(true);
+});

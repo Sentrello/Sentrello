@@ -663,6 +663,7 @@ export function CrmSettings() {
           that cannot save is worse than one that is not there. */}
       {tier === "pro" ? (
         <CustomFieldEditor
+          needs={{ crm: ["update"] }}
           subjects={CRM_SUBJECTS}
           fields={fields ?? settings.data.customFields ?? []}
           onChange={setFields}

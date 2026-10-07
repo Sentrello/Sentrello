@@ -43,6 +43,14 @@ export type Meta = {
    * and the data. A screen that reads this is being polite, not being a gate.
    */
   can?: Record<string, string[]>;
+  /**
+   * Every resource this instance's access control knows about.
+   *
+   * Which is not what this person holds: it is how `may` tells "holds nothing
+   * on `payments`" from "has never heard of `payments`", two cases `can`
+   * reports identically by omitting the key.
+   */
+  resources?: string[];
   /** The business's own country, and the whole of how it writes a number. */
   countryCode?: string;
   /** The release this instance runs, used to key module scripts by version. */
@@ -315,24 +323,43 @@ export type FormDefinition = {
  * Permissions do not change while somebody is looking at a screen, and when
  * the meta query does answer again the shell re-renders the tree under it.
  *
- * **Unknown means allowed.** A resource absent from the set — because the
- * fetch has not landed, because this person belongs to no organization yet,
- * because a module declared a resource the server has not compiled — comes
- * back `true`. Hiding a control from somebody entitled to it is the worse of
- * the two mistakes, and it is the rule the sidebar already follows. The route
- * refuses what it must; this only decides what looks available.
+ * **Unknown means allowed; not granted means not allowed.** The two used to be
+ * one case, and that was the quiet hole under every `needs` in the product.
+ *
+ * `can` omits a resource the person holds nothing on, which is exactly how it
+ * reports a resource this build has never heard of. Reading both as "allow" was
+ * deliberate — hiding a control from somebody entitled to it is the worse
+ * mistake, the route refuses what it must, and this only decides what looks
+ * available. The cost was that a gate only bit where the role held some *other*
+ * action on the same resource: a role with no `payments` at all was offered
+ * every payments control, and on 7 October a walk as a books reader found
+ * precisely that, on a button whose `needs` was correct.
+ *
+ * So `/api/_meta` sends the resources this instance's access control knows, and
+ * the two questions are now different. Named and absent from `can` means
+ * refused. Not named at all — a module declaring a resource an older core never
+ * compiled, or meta that has not landed — keeps the benefit of the doubt.
  */
 let grants: Record<string, string[]> | null = null;
+/** Every resource this instance knows, which is not the same as holds. */
+let known: Set<string> | null = null;
 
 /** Called by the shell when `/api/_meta` answers. */
-export function setGrants(next: Record<string, string[]> | undefined): void {
+export function setGrants(
+  next: Record<string, string[]> | undefined,
+  resources?: string[],
+): void {
   grants = next ?? null;
+  known = resources?.length ? new Set(resources) : null;
 }
 
 export function may(resource: string, action: string): boolean {
   const held = grants?.[resource];
-  if (!held) return true;
-  return held.includes(action);
+  if (held) return held.includes(action);
+  // Nothing held on a resource this instance knows about is a refusal, not an
+  // absence. Anything else keeps the benefit of the doubt — see above.
+  if (grants && known?.has(resource)) return false;
+  return true;
 }
 
 /**

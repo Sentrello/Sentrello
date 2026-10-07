@@ -6,6 +6,7 @@ import {
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
+import { statement } from "@sentrello/auth/permissions";
 import { db, schema } from "@sentrello/db";
 import { instanceCredit } from "@sentrello/db/credit";
 import { PeriodClosedError } from "@sentrello/db/ledger";
@@ -796,6 +797,26 @@ app.get("/api/_meta", requireSession(), async (c) => {
      * decide what is safe, which stays the route's job and is enforced there.
      */
     can,
+    /**
+     * Every resource this instance's access control knows about.
+     *
+     * Without it a screen cannot tell "this role holds nothing on `payments`"
+     * from "this build has never heard of `payments`", because `can` omits the
+     * key in both cases — and `may` has to guess. It guessed *allow*, for the
+     * stated and good reason that hiding a control from somebody entitled to it
+     * is the worse mistake. The cost was that every gate only bit where the role
+     * held some *other* action on the same resource: a role with no `payments`
+     * at all was offered every payments control in the product, and on
+     * 7 October a walk as a books reader found exactly that.
+     *
+     * With the list, the two cases are different questions: a resource named
+     * here and absent from `can` is refused, and one that is not named here at
+     * all keeps the old benefit of the doubt.
+     *
+     * Static and public — these are the names in the published permission
+     * tables, not anybody's grants.
+     */
+    resources: Object.keys(statement),
     /**
      * Paid modules that are not running, for the shell to say so where an
      * administrator actually looks. A licence screen deep in Settings and a

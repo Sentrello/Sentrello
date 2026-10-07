@@ -548,7 +548,7 @@ export default function App() {
    * context through every primitive — is the cost this avoids. Same shape as
    * `setFormats`, a few lines below.
    */
-  setGrants(data?.can);
+  setGrants(data?.can, data?.resources);
   /*
    * And how this business punctuates a figure, for the same reason and in
    * the same breath: it is a fact about the instance, the same on every

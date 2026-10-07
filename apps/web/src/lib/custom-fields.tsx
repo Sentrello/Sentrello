@@ -5,7 +5,9 @@ import {
   Card,
   Field,
   Input,
+  type Needs,
   Select,
+  Writable,
   border,
   formatDate,
   muted,
@@ -150,6 +152,7 @@ export function CustomFieldEditor({
   fields,
   onChange,
   subjects,
+  needs,
   title = "Your own fields",
   hint,
 }: {
@@ -157,6 +160,18 @@ export function CustomFieldEditor({
   onChange: (next: CustomField[]) => void;
   /** What a field can be attached to, in the order they should be offered. */
   subjects: { value: string; label: string }[];
+  /**
+   * What changing these takes, which is not the same on both screens.
+   *
+   * Required rather than optional, because the whole of this is a form and a
+   * caller who forgot would hand a reader every box in it. There was no such
+   * prop at all until 7 October: a role holding `bookkeeping:["read"]` opened
+   * the bills screen and was offered Add a field and every control under it,
+   * and the same was true on the CRM's settings. Both callers now say what
+   * their own route asks for — `crm:["update"]` there, `bookkeeping:["update"]`
+   * on the accounting side.
+   */
+  needs: Needs;
   title?: string;
   hint?: string;
 }) {
@@ -170,106 +185,108 @@ export function CustomFieldEditor({
 
   return (
     <Card>
-      <p className="font-medium">{title}</p>
-      <p className="mb-3 text-sm" style={muted}>
-        {hint ??
-          "Anything this business needs to know that the product does not ship with. They appear on the form and on the record."}
-      </p>
-
-      {fields.length === 0 ? (
+      <Writable needs={needs}>
+        <p className="font-medium">{title}</p>
         <p className="mb-3 text-sm" style={muted}>
-          None yet.
+          {hint ??
+            "Anything this business needs to know that the product does not ship with. They appear on the form and on the record."}
         </p>
-      ) : (
-        <ul className="mb-3 flex flex-col gap-(--gap-toolbar)">
-          {fields.map((field, index) => (
-            <li
-              key={`${field.appliesTo}-${field.id}-${index}`}
-              className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,8rem)_minmax(0,8rem)_auto]"
-            >
-              <Input
-                value={field.label}
-                aria-label="Field name"
-                onChange={(e) => set(index, { label: e.target.value })}
-              />
-              <select
-                value={field.type}
-                aria-label="Kind of field"
-                className="rounded border px-2 py-1.5 text-sm"
-                style={{ ...border, background: "var(--surface-raised)" }}
-                onChange={(e) =>
-                  set(index, { type: e.target.value as CustomField["type"] })
-                }
+
+        {fields.length === 0 ? (
+          <p className="mb-3 text-sm" style={muted}>
+            None yet.
+          </p>
+        ) : (
+          <ul className="mb-3 flex flex-col gap-(--gap-toolbar)">
+            {fields.map((field, index) => (
+              <li
+                key={`${field.appliesTo}-${field.id}-${index}`}
+                className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,8rem)_minmax(0,8rem)_auto]"
               >
-                <option value="text">Text</option>
-                <option value="number">Number</option>
-                <option value="date">Date</option>
-                <option value="select">List</option>
-                <option value="checkbox">Yes or no</option>
-              </select>
-              <select
-                value={field.appliesTo}
-                aria-label="Where it appears"
-                className="rounded border px-2 py-1.5 text-sm"
-                style={{ ...border, background: "var(--surface-raised)" }}
-                onChange={(e) =>
-                  set(index, {
-                    appliesTo: e.target.value as CustomField["appliesTo"],
-                  })
-                }
-              >
-                {subjects.map((subject) => (
-                  <option key={subject.value} value={subject.value}>
-                    {subject.label}
-                  </option>
-                ))}
-              </select>
-              {/* Named by field, because a screen with eight custom fields has
+                <Input
+                  value={field.label}
+                  aria-label="Field name"
+                  onChange={(e) => set(index, { label: e.target.value })}
+                />
+                <select
+                  value={field.type}
+                  aria-label="Kind of field"
+                  className="rounded border px-2 py-1.5 text-sm"
+                  style={{ ...border, background: "var(--surface-raised)" }}
+                  onChange={(e) =>
+                    set(index, { type: e.target.value as CustomField["type"] })
+                  }
+                >
+                  <option value="text">Text</option>
+                  <option value="number">Number</option>
+                  <option value="date">Date</option>
+                  <option value="select">List</option>
+                  <option value="checkbox">Yes or no</option>
+                </select>
+                <select
+                  value={field.appliesTo}
+                  aria-label="Where it appears"
+                  className="rounded border px-2 py-1.5 text-sm"
+                  style={{ ...border, background: "var(--surface-raised)" }}
+                  onChange={(e) =>
+                    set(index, {
+                      appliesTo: e.target.value as CustomField["appliesTo"],
+                    })
+                  }
+                >
+                  {subjects.map((subject) => (
+                    <option key={subject.value} value={subject.value}>
+                      {subject.label}
+                    </option>
+                  ))}
+                </select>
+                {/* Named by field, because a screen with eight custom fields has
                   eight controls saying "Remove" and the row is the only thing
                   that says which one — which a screen reader does not get. */}
-              <button
-                type="button"
-                className="text-sm"
-                style={{ color: "var(--text-danger)" }}
-                aria-label={`Remove the ${field.label || "unnamed"} field`}
-                onClick={() => onChange(fields.filter((_, i) => i !== index))}
-              >
-                Remove
-              </button>
+                <button
+                  type="button"
+                  className="text-sm"
+                  style={{ color: "var(--text-danger)" }}
+                  aria-label={`Remove the ${field.label || "unnamed"} field`}
+                  onClick={() => onChange(fields.filter((_, i) => i !== index))}
+                >
+                  Remove
+                </button>
 
-              {field.type === "select" ? (
-                <div className="sm:col-span-4">
-                  <ChoiceOptionsInput
-                    options={field.options ?? []}
-                    label={field.label}
-                    placeholder="Key safe, Tenant lets us in"
-                    onChange={(options) => set(index, { options })}
-                  />
-                </div>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      )}
+                {field.type === "select" ? (
+                  <div className="sm:col-span-4">
+                    <ChoiceOptionsInput
+                      options={field.options ?? []}
+                      label={field.label}
+                      placeholder="Key safe, Tenant lets us in"
+                      onChange={(options) => set(index, { options })}
+                    />
+                  </div>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
 
-      <Button
-        variant="secondary"
-        onClick={() =>
-          onChange([
-            ...fields,
-            {
-              id: "",
-              label: "",
-              type: "text",
-              // The first one offered, so a new field is attached to something
-              // rather than to an empty string the server will refuse.
-              appliesTo: subjects[0]?.value ?? "",
-            },
-          ])
-        }
-      >
-        Add a field
-      </Button>
+        <Button
+          variant="secondary"
+          onClick={() =>
+            onChange([
+              ...fields,
+              {
+                id: "",
+                label: "",
+                type: "text",
+                // The first one offered, so a new field is attached to something
+                // rather than to an empty string the server will refuse.
+                appliesTo: subjects[0]?.value ?? "",
+              },
+            ])
+          }
+        >
+          Add a field
+        </Button>
+      </Writable>
     </Card>
   );
 }

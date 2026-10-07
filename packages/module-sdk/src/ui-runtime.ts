@@ -254,6 +254,14 @@ export interface SentrelloUi {
     onChange: (next: CustomField[]) => void;
     /** What a field can be attached to, in the order they should be offered. */
     subjects: { value: string; label: string }[];
+    /**
+     * What changing these takes, which differs by the screen they are on.
+     *
+     * Required, because the whole of that component is a form: a caller who
+     * forgot would hand a reader every box in it, which is what both callers
+     * did until 7 October 2026.
+     */
+    needs: Record<string, string[]>;
     title?: string;
     hint?: string;
   }>;
