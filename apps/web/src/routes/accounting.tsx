@@ -44,6 +44,7 @@ import {
   Tabs,
   Toolbar,
   Warning,
+  Writable,
   formatCount,
   formatDate,
   formatMoney,
@@ -825,81 +826,92 @@ export function Money() {
   return (
     <Page>
       <Card>
-        <div className="grid gap-(--gap-toolbar) sm:grid-cols-[minmax(0,8rem)_minmax(0,1fr)_minmax(0,8rem)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,9rem)_auto]">
-          <Field label="Kind">
-            <Select
-              value={kind}
-              onChange={(e) => setKind(e.target.value as "expense" | "income")}
-            >
-              <option value="expense">Money out</option>
-              <option value="income">Money in</option>
-            </Select>
-          </Field>
-          <Field label={kind === "expense" ? "Paid to" : "Received from"}>
-            <Input
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
+        {/*
+          Recording money asks `bookkeeping:["create"]` on the button and asked
+          nothing of the seven boxes in front of it, so somebody who may read
+          the books could fill the whole row in — kind, who it was paid to, the
+          amount, which account — and be refused at Record. The tabs and the
+          search below are reads and stay outside this.
+        */}
+        <Writable needs={{ bookkeeping: ["create"] }}>
+          <div className="grid gap-(--gap-toolbar) sm:grid-cols-[minmax(0,8rem)_minmax(0,1fr)_minmax(0,8rem)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,9rem)_auto]">
+            <Field label="Kind">
+              <Select
+                value={kind}
+                onChange={(e) =>
+                  setKind(e.target.value as "expense" | "income")
+                }
+              >
+                <option value="expense">Money out</option>
+                <option value="income">Money in</option>
+              </Select>
+            </Field>
+            <Field label={kind === "expense" ? "Paid to" : "Received from"}>
+              <Input
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </Field>
+            <Field label="Amount">
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="0.00"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+              />
+            </Field>
+            <Field label="Category">
+              <Select
+                value={accountId}
+                onChange={(e) => setAccountId(e.target.value)}
+              >
+                <option value="">Unassigned</option>
+                {categoryAccounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.code} {a.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label={kind === "expense" ? "Paid from" : "Paid into"}>
+              <Select
+                value={paidThroughAccountId}
+                onChange={(e) => setPaidThrough(e.target.value)}
+              >
+                <option value="">Cash</option>
+                {cashAccounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.code} {a.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Date">
+              <Input
+                type="date"
+                value={occurredAt}
+                onChange={(e) => setOccurredAt(e.target.value)}
+              />
+            </Field>
+            <CustomFields
+              fields={transactionFields}
+              values={custom}
+              onChange={setCustom}
             />
-          </Field>
-          <Field label="Amount">
-            <Input
-              type="number"
-              step="0.01"
-              min="0"
-              placeholder="0.00"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
-          </Field>
-          <Field label="Category">
-            <Select
-              value={accountId}
-              onChange={(e) => setAccountId(e.target.value)}
-            >
-              <option value="">Unassigned</option>
-              {categoryAccounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.code} {a.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label={kind === "expense" ? "Paid from" : "Paid into"}>
-            <Select
-              value={paidThroughAccountId}
-              onChange={(e) => setPaidThrough(e.target.value)}
-            >
-              <option value="">Cash</option>
-              {cashAccounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.code} {a.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Date">
-            <Input
-              type="date"
-              value={occurredAt}
-              onChange={(e) => setOccurredAt(e.target.value)}
-            />
-          </Field>
-          <CustomFields
-            fields={transactionFields}
-            values={custom}
-            onChange={setCustom}
-          />
-          <div className="flex items-end">
-            <Button
-              needs={{ bookkeeping: ["create"] }}
-              onClick={() => add.mutate()}
-              disabled={add.isPending || !amount}
-            >
-              Record
-            </Button>
+            <div className="flex items-end">
+              <Button
+                needs={{ bookkeeping: ["create"] }}
+                onClick={() => add.mutate()}
+                disabled={add.isPending || !amount}
+              >
+                Record
+              </Button>
+            </div>
           </div>
-        </div>
-        {add.error ? <ErrorNote error={add.error} /> : null}
+          {add.error ? <ErrorNote error={add.error} /> : null}
+        </Writable>
       </Card>
 
       <Tabs tabs={MONEY_TABS} active={tab} onChange={setTab} />

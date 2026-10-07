@@ -20,6 +20,7 @@ import {
   Textarea,
   Toolbar,
   Warning,
+  Writable,
   formatCount,
   formatDate,
   muted,
@@ -353,47 +354,57 @@ export function Settings() {
     <Page width="prose">
       <Card>
         <SectionHeading>Your business</SectionHeading>
-        <div className="flex flex-col gap-(--gap-stack)">
-          <Field
-            label="Name"
-            hint="Appears on invoices, the customer portal and your storefront."
-          >
-            <Input
-              value={name ?? data.business.name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </Field>
+        {/*
+          A reader may look at this and not change it.
+          
+          Every save here asks `settings:["update"]` and not one box did, so a
+          role holding read alone was given the business's name, its address,
+          its country, its tax number, its bank details and a live Use mine
+          button — all of it typeable, none of it saveable, and nothing saying
+          so until the press. One fieldset says it once.
+        */}
+        <Writable needs={{ settings: ["update"] }}>
+          <div className="flex flex-col gap-(--gap-stack)">
+            <Field
+              label="Name"
+              hint="Appears on invoices, the customer portal and your storefront."
+            >
+              <Input
+                value={name ?? data.business.name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </Field>
 
-          {/*
+            {/*
             An invoice with only a name is not a valid document in the UK or
             the EU, and a business paid by transfer whose invoices omit its
             account details answers "where do I send this?" on every one.
           */}
-          <Field
-            label="Address"
-            hint="Required on invoices in the UK and EU. Appears at the foot of every one."
-          >
-            <Textarea
-              rows={3}
-              value={form.address}
-              onChange={(e) => patch({ address: e.target.value })}
-            />
-          </Field>
+            <Field
+              label="Address"
+              hint="Required on invoices in the UK and EU. Appears at the foot of every one."
+            >
+              <Textarea
+                rows={3}
+                value={form.address}
+                onChange={(e) => patch({ address: e.target.value })}
+              />
+            </Field>
 
-          {/*
+            {/*
             The same address, in the parts a machine reads. A structured
             e-invoice cannot take a country out of a line somebody typed, and
             Germany will not accept one without the city and postcode stated
             as themselves.
           */}
-          <div className="grid gap-(--gap-toolbar) sm:grid-cols-[minmax(0,1fr)_minmax(0,12rem)_minmax(0,8rem)]">
-            <Field label="City" hint="For structured e-invoices.">
-              <Input
-                value={form.city}
-                onChange={(e) => patch({ city: e.target.value })}
-              />
-            </Field>
-            {/*
+            <div className="grid gap-(--gap-toolbar) sm:grid-cols-[minmax(0,1fr)_minmax(0,12rem)_minmax(0,8rem)]">
+              <Field label="City" hint="For structured e-invoices.">
+                <Input
+                  value={form.city}
+                  onChange={(e) => patch({ city: e.target.value })}
+                />
+              </Field>
+              {/*
               The single most load-bearing field on this screen, and it was a
               text box: it decides how every figure on every document this
               business sends is written, which tax label its receipts carry,
@@ -405,38 +416,38 @@ export function Settings() {
               British word on an American screen, and the US is the first
               market this sells into.
             */}
-            <Field
-              label="Country"
-              hint="Sets how money is written on everything you send."
-            >
-              <CountrySelect
-                value={form.countryCode}
-                onChange={(countryCode) => {
-                  /*
-                   * And the currency, while the books are still empty.
-                   *
-                   * Most people set the country — the tax rules need it — and
-                   * never think about the currency at all, which is how every
-                   * instance outside the United States came to keep its books
-                   * in dollars. Filled in rather than written: the field is
-                   * directly below and shows the answer, so nothing is decided
-                   * behind anybody's back.
-                   *
-                   * Null where there is no good guess — Poland and Sweden are
-                   * in the EU and not in the euro — and null leaves it alone.
-                   */
-                  const guess = data.business.baseCurrencyLocked
-                    ? null
-                    : currencyForCountry(countryCode);
-                  patch(
-                    guess
-                      ? { countryCode, baseCurrency: guess }
-                      : { countryCode },
-                  );
-                }}
-              />
-            </Field>
-            {/*
+              <Field
+                label="Country"
+                hint="Sets how money is written on everything you send."
+              >
+                <CountrySelect
+                  value={form.countryCode}
+                  onChange={(countryCode) => {
+                    /*
+                     * And the currency, while the books are still empty.
+                     *
+                     * Most people set the country — the tax rules need it — and
+                     * never think about the currency at all, which is how every
+                     * instance outside the United States came to keep its books
+                     * in dollars. Filled in rather than written: the field is
+                     * directly below and shows the answer, so nothing is decided
+                     * behind anybody's back.
+                     *
+                     * Null where there is no good guess — Poland and Sweden are
+                     * in the EU and not in the euro — and null leaves it alone.
+                     */
+                    const guess = data.business.baseCurrencyLocked
+                      ? null
+                      : currencyForCountry(countryCode);
+                    patch(
+                      guess
+                        ? { countryCode, baseCurrency: guess }
+                        : { countryCode },
+                    );
+                  }}
+                />
+              </Field>
+              {/*
               What the books are kept in, beside where the business is.
               
               The column defaulted to USD and only Accounting's own Pro route
@@ -448,124 +459,124 @@ export function Settings() {
               not relabel the books, it restates every figure in them at rates
               nobody recorded. Said on the field rather than refused on save.
             */}
-            <Field
-              label="Currency"
-              hint={
-                data.business.baseCurrencyLocked
-                  ? "Set once the books are empty. Yours already have entries in it."
-                  : "What your books are kept in. Fixed once anything has been posted."
-              }
-            >
-              <Select
-                value={form.baseCurrency}
-                disabled={data.business.baseCurrencyLocked}
-                onChange={(e) => patch({ baseCurrency: e.target.value })}
+              <Field
+                label="Currency"
+                hint={
+                  data.business.baseCurrencyLocked
+                    ? "Set once the books are empty. Yours already have entries in it."
+                    : "What your books are kept in. Fixed once anything has been posted."
+                }
               >
-                {/* The one in use first, in case it is not one of the four. */}
-                {[
-                  form.baseCurrency,
-                  /*
-                   * `?? []`, because a browser and a server are not always the
-                   * same age. A bundle cached across an update — or a reload in
-                   * the seconds while the container restarts — talks to a
-                   * server that has never heard of this field, and
-                   * `undefined.filter` takes the whole screen down with
-                   * "Your business stopped working". Found by opening the page
-                   * against a server started before the field existed, which is
-                   * exactly the shape of that minute.
-                   */
-                  ...(data.business.currencyChoices ?? []).filter(
-                    (code) => code !== form.baseCurrency,
-                  ),
-                ]
-                  .filter(Boolean)
-                  .map((code) => (
-                    <option key={code} value={code}>
-                      {code}
-                    </option>
-                  ))}
-              </Select>
-            </Field>
-            <Field label={postcodeLabel(form.countryCode)}>
-              <Input
-                value={form.postcode}
-                onChange={(e) => patch({ postcode: e.target.value })}
-              />
-            </Field>
-          </div>
+                <Select
+                  value={form.baseCurrency}
+                  disabled={data.business.baseCurrencyLocked}
+                  onChange={(e) => patch({ baseCurrency: e.target.value })}
+                >
+                  {/* The one in use first, in case it is not one of the four. */}
+                  {[
+                    form.baseCurrency,
+                    /*
+                     * `?? []`, because a browser and a server are not always the
+                     * same age. A bundle cached across an update — or a reload in
+                     * the seconds while the container restarts — talks to a
+                     * server that has never heard of this field, and
+                     * `undefined.filter` takes the whole screen down with
+                     * "Your business stopped working". Found by opening the page
+                     * against a server started before the field existed, which is
+                     * exactly the shape of that minute.
+                     */
+                    ...(data.business.currencyChoices ?? []).filter(
+                      (code) => code !== form.baseCurrency,
+                    ),
+                  ]
+                    .filter(Boolean)
+                    .map((code) => (
+                      <option key={code} value={code}>
+                        {code}
+                      </option>
+                    ))}
+                </Select>
+              </Field>
+              <Field label={postcodeLabel(form.countryCode)}>
+                <Input
+                  value={form.postcode}
+                  onChange={(e) => patch({ postcode: e.target.value })}
+                />
+              </Field>
+            </div>
 
-          <div className="grid gap-(--gap-toolbar) sm:grid-cols-2">
-            <Field
-              label="Email"
-              hint="A contact point for invoices. Some EU countries require one."
-            >
-              <Input
-                value={form.email}
-                onChange={(e) => patch({ email: e.target.value })}
-              />
-            </Field>
-            <Field label="Phone">
-              <Input
-                value={form.phone}
-                onChange={(e) => patch({ phone: e.target.value })}
-              />
-            </Field>
-          </div>
+            <div className="grid gap-(--gap-toolbar) sm:grid-cols-2">
+              <Field
+                label="Email"
+                hint="A contact point for invoices. Some EU countries require one."
+              >
+                <Input
+                  value={form.email}
+                  onChange={(e) => patch({ email: e.target.value })}
+                />
+              </Field>
+              <Field label="Phone">
+                <Input
+                  value={form.phone}
+                  onChange={(e) => patch({ phone: e.target.value })}
+                />
+              </Field>
+            </div>
 
-          <div className="grid gap-(--gap-toolbar) sm:grid-cols-[minmax(0,10rem)_minmax(0,1fr)]">
-            <Field label="Tax number label" hint="e.g. VAT number, ABN, EIN.">
-              <Input
-                value={form.taxIdLabel}
-                placeholder="VAT number"
-                onChange={(e) => patch({ taxIdLabel: e.target.value })}
-              />
-            </Field>
-            {/* Only the last four characters ever leave the server, the way a
+            <div className="grid gap-(--gap-toolbar) sm:grid-cols-[minmax(0,10rem)_minmax(0,1fr)]">
+              <Field label="Tax number label" hint="e.g. VAT number, ABN, EIN.">
+                <Input
+                  value={form.taxIdLabel}
+                  placeholder="VAT number"
+                  onChange={(e) => patch({ taxIdLabel: e.target.value })}
+                />
+              </Field>
+              {/* Only the last four characters ever leave the server, the way a
                 tax file number or an SSN is shown anywhere else. Typing over
                 the mask replaces it; leaving it alone keeps what is stored. */}
-            <Field
-              label="Tax number"
-              hint={
-                data.business.taxId
-                  ? "Hidden for safety. Type a new one to replace it."
-                  : "Leave blank if you are not registered."
-              }
-            >
-              <Input
-                value={form.taxId}
-                onChange={(e) => patch({ taxId: e.target.value })}
-              />
-            </Field>
-          </div>
+              <Field
+                label="Tax number"
+                hint={
+                  data.business.taxId
+                    ? "Hidden for safety. Type a new one to replace it."
+                    : "Leave blank if you are not registered."
+                }
+              >
+                <Input
+                  value={form.taxId}
+                  onChange={(e) => patch({ taxId: e.target.value })}
+                />
+              </Field>
+            </div>
 
-          {/* The machine-readable half of "how to pay": an e-invoice carries
+            {/* The machine-readable half of "how to pay": an e-invoice carries
               the account itself, and Germany refuses one without it. Kept as
               an IBAN example because an IBAN is a European thing — a US
               business leaves this empty, which is why the hint says who it
               is for rather than that it is required. */}
-          <Field
-            label="IBAN"
-            hint="Where bank transfers go, if you are paid in Europe. Some EU countries need it on an e-invoice."
-          >
-            <Input
-              value={form.iban}
-              placeholder="DE89 3704 0044 0532 0130 00"
-              onChange={(e) => patch({ iban: e.target.value })}
-            />
-          </Field>
+            <Field
+              label="IBAN"
+              hint="Where bank transfers go, if you are paid in Europe. Some EU countries need it on an e-invoice."
+            >
+              <Input
+                value={form.iban}
+                placeholder="DE89 3704 0044 0532 0130 00"
+                onChange={(e) => patch({ iban: e.target.value })}
+              />
+            </Field>
 
-          <Field
-            label="How to pay"
-            hint="Bank details or instructions, shown on the customer's page."
-          >
-            <Textarea
-              rows={3}
-              value={form.paymentInstructions}
-              onChange={(e) => patch({ paymentInstructions: e.target.value })}
-            />
-          </Field>
+            <Field
+              label="How to pay"
+              hint="Bank details or instructions, shown on the customer's page."
+            >
+              <Textarea
+                rows={3}
+                value={form.paymentInstructions}
+                onChange={(e) => patch({ paymentInstructions: e.target.value })}
+              />
+            </Field>
 
-          {/*
+            {/*
             The line at the foot of a page a visitor lands on.
 
             Free carries "Powered by Sentrello" and cannot change it — that is
@@ -576,72 +587,72 @@ export function Settings() {
             Offered only where it does something. A field that silently did
             nothing is a setting somebody sets and then wonders about.
           */}
-          {data.business.canSetCredit ? (
-            <>
-              <Field
-                label="Credit on your public pages"
-                hint="The line at the foot of your sign-in and thank-you pages."
-              >
-                <Select
-                  value={
-                    form.creditText === null
-                      ? "sentrello"
-                      : form.creditText === ""
-                        ? "none"
-                        : "own"
-                  }
-                  onChange={(e) => {
-                    const mode = e.target.value;
-                    if (mode === "sentrello") {
-                      patch({ creditText: null, creditUrl: "" });
-                    } else if (mode === "none") {
-                      patch({ creditText: "" });
-                    } else {
-                      // Seeded with the business's name so "your own line" is
-                      // never an empty box — an empty line is a removed one.
-                      patch({ creditText: data.business.name });
-                    }
-                  }}
+            {data.business.canSetCredit ? (
+              <>
+                <Field
+                  label="Credit on your public pages"
+                  hint="The line at the foot of your sign-in and thank-you pages."
                 >
-                  <option value="sentrello">Powered by Sentrello</option>
-                  <option value="own">Your own line</option>
-                  <option value="none">No line at all</option>
-                </Select>
-              </Field>
-              {form.creditText !== null ? (
-                <div className="grid gap-(--gap-toolbar) sm:grid-cols-2">
-                  <Field
-                    label="Your line"
-                    hint="Clearing it removes the line entirely."
+                  <Select
+                    value={
+                      form.creditText === null
+                        ? "sentrello"
+                        : form.creditText === ""
+                          ? "none"
+                          : "own"
+                    }
+                    onChange={(e) => {
+                      const mode = e.target.value;
+                      if (mode === "sentrello") {
+                        patch({ creditText: null, creditUrl: "" });
+                      } else if (mode === "none") {
+                        patch({ creditText: "" });
+                      } else {
+                        // Seeded with the business's name so "your own line" is
+                        // never an empty box — an empty line is a removed one.
+                        patch({ creditText: data.business.name });
+                      }
+                    }}
                   >
-                    <Input
-                      value={form.creditText}
-                      placeholder="Built by Pike & Co"
-                      onChange={(e) => patch({ creditText: e.target.value })}
-                    />
-                  </Field>
-                  <Field
-                    label="Where it links"
-                    hint="Optional. Opens in a new tab."
-                  >
-                    <Input
-                      value={form.creditUrl ?? ""}
-                      placeholder="https://pike.example"
-                      onChange={(e) => patch({ creditUrl: e.target.value })}
-                    />
-                  </Field>
-                </div>
-              ) : null}
-            </>
-          ) : (
-            <p className="text-sm" style={muted}>
-              Your sign-in and thank-you pages carry{" "}
-              <strong>Powered by Sentrello</strong>. Pro replaces it with your
-              own line, or removes it.
-            </p>
-          )}
+                    <option value="sentrello">Powered by Sentrello</option>
+                    <option value="own">Your own line</option>
+                    <option value="none">No line at all</option>
+                  </Select>
+                </Field>
+                {form.creditText !== null ? (
+                  <div className="grid gap-(--gap-toolbar) sm:grid-cols-2">
+                    <Field
+                      label="Your line"
+                      hint="Clearing it removes the line entirely."
+                    >
+                      <Input
+                        value={form.creditText}
+                        placeholder="Built by Pike & Co"
+                        onChange={(e) => patch({ creditText: e.target.value })}
+                      />
+                    </Field>
+                    <Field
+                      label="Where it links"
+                      hint="Optional. Opens in a new tab."
+                    >
+                      <Input
+                        value={form.creditUrl ?? ""}
+                        placeholder="https://pike.example"
+                        onChange={(e) => patch({ creditUrl: e.target.value })}
+                      />
+                    </Field>
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <p className="text-sm" style={muted}>
+                Your sign-in and thank-you pages carry{" "}
+                <strong>Powered by Sentrello</strong>. Pro replaces it with your
+                own line, or removes it.
+              </p>
+            )}
 
-          {/*
+            {/*
             Where the business is, in time.
 
             Anything that acts at a time of day depends on it: an automation
@@ -657,43 +668,44 @@ export function Settings() {
             office, which is exactly the instance it would go wrong on, and the
             published page repeated it because it was written from this screen.
           */}
-          <Field
-            label="Timezone"
-            hint="What 'nine o'clock' means for this business. Blank means UTC."
-          >
-            <Toolbar>
-              <Input
-                value={form.timezone}
-                placeholder="Europe/London"
-                onChange={(e) => patch({ timezone: e.target.value })}
-              />
-              <Button
-                variant="secondary"
-                onClick={() =>
-                  patch({
-                    timezone:
-                      Intl.DateTimeFormat().resolvedOptions().timeZone ?? "",
-                  })
-                }
-              >
-                Use mine
-              </Button>
-            </Toolbar>
-          </Field>
+            <Field
+              label="Timezone"
+              hint="What 'nine o'clock' means for this business. Blank means UTC."
+            >
+              <Toolbar>
+                <Input
+                  value={form.timezone}
+                  placeholder="Europe/London"
+                  onChange={(e) => patch({ timezone: e.target.value })}
+                />
+                <Button
+                  variant="secondary"
+                  onClick={() =>
+                    patch({
+                      timezone:
+                        Intl.DateTimeFormat().resolvedOptions().timeZone ?? "",
+                    })
+                  }
+                >
+                  Use mine
+                </Button>
+              </Toolbar>
+            </Field>
 
-          <Button
-            needs={{ settings: ["update"] }}
-            onClick={() =>
-              rename.mutate({ name: name ?? data.business.name, ...form })
-            }
-            disabled={
-              rename.isPending || !(name ?? data.business.name) || !dirty
-            }
-          >
-            {rename.isPending ? "Saving…" : "Save"}
-          </Button>
-        </div>
-        {rename.error ? <ErrorNote error={rename.error} /> : null}
+            <Button
+              needs={{ settings: ["update"] }}
+              onClick={() =>
+                rename.mutate({ name: name ?? data.business.name, ...form })
+              }
+              disabled={
+                rename.isPending || !(name ?? data.business.name) || !dirty
+              }
+            >
+              {rename.isPending ? "Saving…" : "Save"}
+            </Button>
+          </div>
+          {rename.error ? <ErrorNote error={rename.error} /> : null}
+        </Writable>
       </Card>
 
       <TaxRegimesCard />
@@ -794,21 +806,29 @@ function TaxRegimesCard() {
         turning one off keeps everything already filed under it, it only hides
         the screen.
       </p>
-      <div className="flex flex-col gap-(--gap-toolbar)">
-        {data.regimes.map((r) => (
-          <label
-            key={r.id}
-            className="flex items-center gap-(--gap-tight) text-sm"
-          >
-            <input
-              type="checkbox"
-              checked={chosen.includes(r.id)}
-              onChange={(e) => toggle(r.id, e.target.checked)}
-            />
-            {r.label}
-          </label>
-        ))}
-      </div>
+      {/*
+        Turning a regime on or off is `settings:["update"]` on the route, and
+        this checkbox asked nothing — the last live write on a screen a reader
+        is shown. A checkbox has no primitive here to hang `needs` on, which is
+        exactly what the fieldset is for.
+      */}
+      <Writable needs={{ settings: ["update"] }}>
+        <div className="flex flex-col gap-(--gap-toolbar)">
+          {data.regimes.map((r) => (
+            <label
+              key={r.id}
+              className="flex items-center gap-(--gap-tight) text-sm"
+            >
+              <input
+                type="checkbox"
+                checked={chosen.includes(r.id)}
+                onChange={(e) => toggle(r.id, e.target.checked)}
+              />
+              {r.label}
+            </label>
+          ))}
+        </div>
+      </Writable>
       {save.error ? <ErrorNote error={save.error} /> : null}
       {/*
         The checkbox has already sprung back, because `chosen` never changed.
@@ -1287,37 +1307,44 @@ function Connection({
         The publishable key on its own row, and the two secrets beside each
         other. Three equal columns read tidily and gave the longest string on
         the screen the same room as `sk_…`.
-      */}
-      <div className="mt-3">
-        <Field label="Publishable key" hint="Not a secret.">
-          <Input
-            value={publicKey ?? account?.publicKey ?? ""}
-            placeholder="pk_…"
-            spellCheck={false}
-            onChange={(e) => setPublicKey(e.target.value)}
-          />
-        </Field>
-      </div>
 
-      <div className="mt-(--gap-toolbar) grid gap-(--gap-toolbar) sm:grid-cols-2">
-        <Field label="Secret key" hint="Leave blank to keep the stored one.">
-          <SecretInput
-            value={secretKey}
-            placeholder="sk_…"
-            onChange={(e) => setSecretKey(e.target.value)}
-          />
-        </Field>
-        <Field
-          label="Webhook secret"
-          hint="Usually blank — we set this up with the processor for you."
-        >
-          <SecretInput
-            value={webhookSecret}
-            placeholder="whsec_…"
-            onChange={(e) => setWebhookSecret(e.target.value)}
-          />
-        </Field>
-      </div>
+        Wrapped, because a reader could type a processor's keys into all three
+        and only discover at the press that the save was never theirs to make.
+        The mode buttons above stay live: switching between sandbox and live is
+        looking at a different stored account, which is a read.
+      */}
+      <Writable needs={{ settings: ["update"] }}>
+        <div className="mt-3">
+          <Field label="Publishable key" hint="Not a secret.">
+            <Input
+              value={publicKey ?? account?.publicKey ?? ""}
+              placeholder="pk_…"
+              spellCheck={false}
+              onChange={(e) => setPublicKey(e.target.value)}
+            />
+          </Field>
+        </div>
+
+        <div className="mt-(--gap-toolbar) grid gap-(--gap-toolbar) sm:grid-cols-2">
+          <Field label="Secret key" hint="Leave blank to keep the stored one.">
+            <SecretInput
+              value={secretKey}
+              placeholder="sk_…"
+              onChange={(e) => setSecretKey(e.target.value)}
+            />
+          </Field>
+          <Field
+            label="Webhook secret"
+            hint="Usually blank — we set this up with the processor for you."
+          >
+            <SecretInput
+              value={webhookSecret}
+              placeholder="whsec_…"
+              onChange={(e) => setWebhookSecret(e.target.value)}
+            />
+          </Field>
+        </div>
+      </Writable>
 
       {connect.data && !connect.data.ok && !connect.data.steps.length ? (
         <Warning className="mt-3">
@@ -1624,25 +1651,35 @@ export function SettingsLicence() {
             */}
             {!licence.data.valid || licence.data.tier !== "pro" ? (
               <div className="mt-3 border-t pt-3 border-line">
-                <Field
-                  label="License key"
-                  hint="From the email you were sent after buying. Paid features appear once it is checked."
-                >
-                  <Input
-                    value={keyInput}
-                    placeholder="SENT-XXXX-XXXX-XXXX-XXXX"
-                    onChange={(e) => setKeyInput(e.target.value)}
-                  />
-                </Field>
-                <div className="mt-2">
-                  <Button
-                    needs={{ settings: ["update"] }}
-                    onClick={() => enterKey.mutate()}
-                    disabled={enterKey.isPending || keyInput.trim().length < 24}
+                {/*
+                  Activating asks `settings:["update"]` and the box did not, so
+                  a reader could paste a licence key and be refused by the
+                  button beside it. The link to look the key up again is
+                  outside this, because reading your own licence is a read.
+                */}
+                <Writable needs={{ settings: ["update"] }}>
+                  <Field
+                    label="License key"
+                    hint="From the email you were sent after buying. Paid features appear once it is checked."
                   >
-                    {enterKey.isPending ? "Checking…" : "Activate"}
-                  </Button>
-                </div>
+                    <Input
+                      value={keyInput}
+                      placeholder="SENT-XXXX-XXXX-XXXX-XXXX"
+                      onChange={(e) => setKeyInput(e.target.value)}
+                    />
+                  </Field>
+                  <div className="mt-2">
+                    <Button
+                      needs={{ settings: ["update"] }}
+                      onClick={() => enterKey.mutate()}
+                      disabled={
+                        enterKey.isPending || keyInput.trim().length < 24
+                      }
+                    >
+                      {enterKey.isPending ? "Checking…" : "Activate"}
+                    </Button>
+                  </div>
+                </Writable>
                 {/*
                   Where to get the key again.
 
