@@ -20,7 +20,7 @@ run.
 | [Subscriptions](/modules/subscriptions) | Sell the same thing every month, and let a customer manage their own |
 | [Shop on your own website](/modules/shop-frontend) | Put the shop on a site built with anything |
 | [Newsletter](/modules/newsletter) | Mailing lists and campaigns, done lawfully |
-| [Docs](/modules/docs) | Publish documentation from your own repository |
+| [Documentation](/modules/docs) | Publish documentation from your own repository |
 | [Links](/modules/links) | Short links on your own domain, and what became of the people who followed them |
 | [SEO](/modules/seo) | Be found, and know whether you are |
 

@@ -1,11 +1,11 @@
 ---
-title: Docs
+title: Documentation
 sidebar_position: 7
 description: Publish a documentation site or a wiki from your own repository.
 tags: [module, docs]
 ---
 
-# Docs
+# Documentation
 
 Publish documentation from markdown files in **your own GitHub repository**,
 public or private. A product manual. A staff handbook. An internal wiki.
@@ -23,7 +23,7 @@ flowchart LR
   classDef pub fill:#fff4ec,stroke:#c4470f,color:#5a2207
   REPO["Your repository<br/><small>markdown, in folders</small>"]:::out
   SYNC["Sync<br/><small>every hour, or when you press it</small>"]:::own
-  subgraph OWN[" Docs "]
+  subgraph OWN[" Documentation "]
     PAGES["Pages<br/><small>drafts, unlisted, published</small>"]:::own
     NAV["Sidebar and search"]:::own
   end

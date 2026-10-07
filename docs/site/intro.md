@@ -38,7 +38,7 @@ knows about the others.
 |---|---|
 | **Core** | Contacts, invoicing, bookkeeping, forms, users — and the tax returns that come out of the ledger. Free. |
 | **Pro** | Deeper versions of the same: recurring invoices, bills, banking, budgets, multi-currency, dimensions, the fuller report set. |
-| **Modules** | Optional applications — Booking, Documents, Shop, Newsletter, Docs. |
+| **Modules** | Optional applications — Booking, Shop, Projects, Storage, Links, Newsletter, Subscriptions, Documentation, SEO. |
 
 A quote becomes an invoice. The invoice posts to the ledger. A payment against
 it reconciles on the bank screen, and a booking made this morning sits against
