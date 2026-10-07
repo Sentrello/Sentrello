@@ -17,6 +17,7 @@ run.
 | [Storage](/modules/storage) | The business's files, and warnings before one expires |
 | [Shop](/modules/shop) | Sell online, with orders and money landing in the same books |
 | [POS](/modules/pos) | Sell face to face, on the same products, prices and books — **in development, not for sale** |
+| [Projects](/modules/projects) | The work you have promised — tasks, time and budgets, and the invoice the hours become |
 | [Subscriptions](/modules/subscriptions) | Sell the same thing every month, and let a customer manage their own |
 | [Shop on your own website](/modules/shop-frontend) | Put the shop on a site built with anything |
 | [Newsletter](/modules/newsletter) | Mailing lists and campaigns, done lawfully |

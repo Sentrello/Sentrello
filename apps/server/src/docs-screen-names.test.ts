@@ -62,6 +62,7 @@ const HEADS_ELSEWHERE = [
   "Booking",
   "Documentation",
   "Point of sale",
+  "Projects",
   "Search",
   "Shop",
 ];
