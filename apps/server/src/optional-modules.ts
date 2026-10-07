@@ -131,6 +131,16 @@ export function missingEntitledBundles(
    * nothing at all unless it read `pro`, so a Free customer whose paid module
    * never reached the image got silence from /healthz, silence on the settings
    * screen and silence in the banner.
+   *
+   * **What can be bought today is narrower than what this allows**, and the two
+   * should not be read as agreeing. Checkout issues `["pro", ...modules]` and
+   * the distribution answer serves no bundles at all to a licence whose tier is
+   * not `pro`, so a module-only licence would be entitled here and would never
+   * receive the bundle — which this function would then report as missing, for
+   * ever. Nothing issues such a licence, so nobody is in that state; the
+   * permissiveness here is defence and not a sold arrangement. Selling a module
+   * on its own is a decision about the catalogue, and it needs the distribution
+   * side changed in the same breath.
    */
   const withTier = claims.tier === "pro" ? named(claims.with_tier) : [];
   const here = new Set(present);

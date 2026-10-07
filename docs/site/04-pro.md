@@ -10,15 +10,17 @@ tags: [pro]
 Pro deepens the modules you already use rather than replacing them. Nothing
 moves. The screens you know stay where they are, and more of them work.
 
-Paste a license key into **Settings → License and updates** and the features appear. No
-second installation, nothing to migrate.
+Paste a license key into **Settings → License and updates** and the screen
+fetches what the subscription now covers. Nothing to migrate, and no second
+installation in the sense that matters: the database, the data and the screens
+you know stay exactly as they are.
 
-Pro's own code is already in the image, so there is nothing to fetch for it.
-Buying an optional module is different — that code is a bundle your instance
-downloads — and the License screen fetches it for you where the update agent is
-installed. Where it is not, the screen says so and asks you to run
-`sentrello activate` on the server, which syncs the instance with whatever the
-subscription now covers.
+**The code does have to arrive.** Pro is bundles your instance downloads, the
+same way an optional module is — the installer only unpacks what a license
+entitles, so buying Pro means fetching the bundles and restarting once for them
+to be registered. Where the update agent is installed the License screen does
+all of that for you and tells you when to restart. Where it is not, it says so
+and asks you to run `sentrello activate` on the server.
 
 ## Invoicing
 

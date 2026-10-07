@@ -196,7 +196,7 @@ return. Neither of those is distance selling.
 
 **The return.** Rather than registering in every country you sell into, you
 file one quarterly *One Stop Shop* return through your own member state, and it
-covers all of them. **Money → EU OSS return** shows exactly what that return
+covers all of them. **Money → Tax → EU OSS return** shows exactly what that return
 asks for, for any quarter: for each member state, at each rate you applied, the
 taxable amount and the VAT due, in euro, with the total and the date it has to
 be in by, which is the last day of the month after the quarter ends. Save it as

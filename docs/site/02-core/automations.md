@@ -24,11 +24,16 @@ has to change and what has to be true.
 
 **Do this.** Steps, in order. Each one runs only if the one before it did.
 
-## Two kinds of rule
+## Three kinds of rule
 
 **Something changes.** A deal is won, a contact is created, a field moves.
 
 **A time comes round.** Every day, every week on a day, every month on a date.
+
+**An outside system calls.** Publishing the rule mints a secret address; a
+request to it starts the rule with whatever was posted. For the shop cart on
+somebody else's site, the form on a landing page, the tool nobody has an
+integration for.
 
 The second is the one people forget they need, and it covers the other half of
 the work: a quote nobody answered, a deal gone quiet, a renewal three weeks out.
@@ -80,8 +85,8 @@ A condition is a field, a test, and a value. Two of the tests are about the
 - **changes to**: true once, on the save that made it so
 - **changes from**: true once, on the save that moved it away
 
-The rest (*is*, *is not*, *contains*, *is empty*, *is more than*) ask about the
-record as it now stands.
+The rest ask about the record as it now stands: *is*, *is not*, *contains*,
+*is empty*, *is not empty*, *is more than*, *is less than*.
 
 You can reach into a record's shape with a dot: `address.city`.
 
@@ -94,6 +99,9 @@ You can reach into a record's shape with a dot: `address.city`.
 | **Put a task on somebody's list** | With a title and a due date |
 | **Send an email** | To an address, or to the record's contact |
 | **Change a field** | On the record the rule is about |
+| **Take one path or another** | A choice, with steps under each answer |
+| **Ask a person first** | Waits for a yes. A week by default, and silence is a no |
+| **For each matching record** | Runs the steps under it once per record found |
 | **Tell another system** | Calls a web address of yours with what happened |
 
 ### One rule that does two things
@@ -140,6 +148,13 @@ contact screen shows it. An automation is checked against the same record.
 If a contact has not agreed, the rule **stops and says so**: *that contact has
 not agreed to marketing email*. It is recorded as the automation working
 correctly, not as a failure, because it is.
+
+**That holds however the address got there.** Leave the address blank and the
+rule looks up the record's contact; type one in, and it is looked up among your
+own contacts and held to the same rule. An address belonging to nobody here
+stops too — there is no agreement on file to read, and marketing to a list this
+instance cannot account for is the thing the rule exists to prevent. The run log
+names the address and what to change.
 
 Set **What kind of message** to *About something they bought* for messages that
 are not marketing: "your invoice is attached", "your order has shipped". Those
@@ -202,7 +217,11 @@ mistake happens.
 
 ## Seeing what it did
 
-Every firing is kept, with each step, what it produced, and why anything stopped.
+Every firing is kept, with each step, what it produced, and why anything
+stopped — for ninety days. After that the detail is emptied and the line itself
+stays for two years, which is what keeps "how often did this run" answerable
+without holding on to everybody's data to answer it. Both windows are yours to
+change on the Automations screen, and nought means for ever.
 
 ![A run, step by step](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/crm-automation-run.png)
 
@@ -244,9 +263,11 @@ means nine where you are rather than where your server is.
 
 ## What is not here yet
 
-- **Branches within branches.** One rule handling two cases is covered by a
-  condition on each step (above). What is not there is nesting: a choice inside
-  a choice. Say if you need one.
+- **Anything that pauses, inside a *for each*.** A wait, an approval, a choice
+  or another loop inside a loop would need the rule's one resume marker to
+  remember a place inside a place, so each is refused by name when you add it
+  rather than failing halfway through a run. Everywhere else a choice inside a
+  choice is fine.
 - **Choosing your own times** beyond daily, weekly and monthly: the fourth
   Tuesday, or twice a day. Ask if you need one.
 

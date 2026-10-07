@@ -44,7 +44,7 @@ Views are available on:
 
 - **Customers**, **companies** and **deals**
 - **Invoices** and **quotes**
-- The **journal** and **bills** (Pro)
+- The **journal**, and **bills** (Pro)
 - The **bank feed** (Pro)
 
 ## What is not here
