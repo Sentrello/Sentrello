@@ -148,30 +148,54 @@ function TaskMenu({
     <RowMenu label="this task">
       {(close) => (
         <>
-          {[
-            ["Postpone to tomorrow", () => onPostpone("day"), false],
-            ["Postpone to next week", () => onPostpone("week"), false],
-            ["Edit", onEdit, false],
-            ["Delete", onDelete, true],
-          ].map(([label, onClick, danger]) => (
+          {(
+            [
+              [
+                "Postpone to tomorrow",
+                () => onPostpone("day"),
+                false,
+                "update",
+              ],
+              [
+                "Postpone to next week",
+                () => onPostpone("week"),
+                false,
+                "update",
+              ],
+              ["Edit", onEdit, false, "update"],
+              /*
+               * Deleting asks for `delete`, and this asked for `update` with
+               * the other three.
+               *
+               * Which is the right permission for three of the four and the
+               * wrong one for the fourth: a deleted task goes through the
+               * generic CRUD, whose own route requires `crm:["delete"]`. So a
+               * role holding read and update — a perfectly ordinary one, the
+               * person who works the pipeline and does not remove things from
+               * it — was offered Delete and refused by the server afterwards.
+               * Found by walking the product as exactly that role.
+               */
+              ["Delete", onDelete, true, "delete"],
+            ] as const
+          ).map(([label, onClick, danger, action]) => (
             /*
              * Every item here writes the task — postponing it, editing it,
-             * deleting it — so every one takes the permission. Built in a
+             * deleting it — so every one takes a permission. Built in a
              * loop, which is why the scanner that reads handlers never saw
              * them: there is one handler for four controls and it calls a
              * prop rather than a mutation. A read-only role was offered all
              * four.
              */
             <MenuItem
-              key={label as string}
-              needs={{ crm: ["update"] }}
+              key={label}
+              needs={{ crm: [action] }}
               style={danger ? { color: "var(--text-danger)" } : undefined}
               onClick={() => {
                 close();
-                (onClick as () => void)();
+                onClick();
               }}
             >
-              {label as string}
+              {label}
             </MenuItem>
           ))}
         </>
