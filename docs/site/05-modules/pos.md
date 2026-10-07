@@ -621,9 +621,15 @@ report a manager takes mid-shift.
 Said plainly, because a list of what a product cannot do is more useful than a
 list of what it can.
 
+- **A single hour over a real counter.** The printer, the drawer and the card
+  reader are driven end to end by a test harness, which proves the conversation
+  and proves nothing about a device: a printer declining a media type, a drawer
+  that ignores a kick, a reader with somebody's thumb on it. The devices are
+  expected in the middle of November 2026, and this is the entry the other four
+  are waiting behind.
 - **A printer plugged into the till by USB.** Both ways of reaching a printer are
   addresses on a network, and a printer hanging off a cable has none. One with a
-  small network adapter in front of it works today.
+  small network adapter in front of it is the shape this module is built for.
 - **A drawer on a printer that only takes plain text.** Opening a drawer is a
   command, and there is nowhere in a line of text to put one. Most printers take
   commands and this does not come up; where it does, the printers screen says so
