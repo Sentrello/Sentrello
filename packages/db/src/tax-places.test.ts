@@ -100,3 +100,22 @@ test("a sale is named once, and named the same way the second time", async () =>
   expect(splitCharge(11, bc ?? []).map((p) => p.cents)).toEqual([4, 7]);
   expect(splitCharge(-11, bc ?? []).map((p) => p.cents)).toEqual([-4, -7]);
 });
+
+test("a rate kept for purchases is not reused as a sales tax", async () => {
+  const [bought] = await db
+    .insert(schema.taxDefinitions)
+    .values({
+      organizationId: orgId,
+      name: "TX use tax",
+      rateBp: 625,
+      ratePpm: 62_500,
+      regime: "us",
+      jurisdiction: "US-TX",
+      appliesTo: "purchases",
+    })
+    .returning();
+  const [sold] =
+    (await saleTaxesFor(orgId, { country: "US", region: "TX" }, 62_500)) ?? [];
+  expect(sold?.taxDefinitionId).toBeDefined();
+  expect(sold?.taxDefinitionId).not.toBe(bought?.id);
+});

@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import { db, schema } from "./index";
 import { ensureAccount } from "./ledger";
 
@@ -115,6 +115,9 @@ async function ensureDefinition(
         eq(schema.taxDefinitions.jurisdiction, want.jurisdiction),
         eq(schema.taxDefinitions.ratePpm, want.ratePpm),
         eq(schema.taxDefinitions.active, true),
+        // A rate kept for purchases only is not the sales tax it shares a
+        // number with.
+        ne(schema.taxDefinitions.appliesTo, "purchases"),
       ),
     )
     .limit(1);
@@ -250,19 +253,21 @@ export function splitCharge(
 }
 
 /**
- * Where a posted entry put its tax, account by account.
+ * Where a posted entry put its tax, account by account, and at what rate.
  *
  * Read from the entry rather than worked out again, so whatever later takes a
  * share of that tax back — a discount at the till, a part refund — takes it
- * off the accounts the sale actually credited.
+ * off the accounts the sale actually credited. `ratePpm` is the named tax's
+ * own rate, and null on the shared account, which names nothing.
  */
 export async function taxAccountsOf(
   orgId: string,
   source: string,
-): Promise<{ accountId: string; cents: number }[]> {
+): Promise<{ accountId: string; cents: number; ratePpm: number | null }[]> {
   const rows = await db
     .select({
       accountId: schema.journalLines.accountId,
+      code: schema.accounts.code,
       cents: sql<string>`sum(${schema.journalLines.creditCents} - ${schema.journalLines.debitCents})`,
     })
     .from(schema.journalLines)
@@ -281,8 +286,27 @@ export async function taxAccountsOf(
         sql`(${schema.accounts.code} = '2200' or ${schema.accounts.code} like '2200-%')`,
       ),
     )
-    .groupBy(schema.journalLines.accountId);
+    .groupBy(schema.journalLines.accountId, schema.accounts.code);
+  const definitions = await db
+    .select({
+      id: schema.taxDefinitions.id,
+      ratePpm: schema.taxDefinitions.ratePpm,
+      rateBp: schema.taxDefinitions.rateBp,
+    })
+    .from(schema.taxDefinitions)
+    .where(eq(schema.taxDefinitions.organizationId, orgId));
+  const rateOf = (code: string) => {
+    const prefix = code.startsWith("2200-") ? code.slice(5) : null;
+    const def = prefix
+      ? definitions.find((d) => d.id.startsWith(prefix))
+      : undefined;
+    return def ? (def.ratePpm ?? def.rateBp * 100) : null;
+  };
   return rows
-    .map((r) => ({ accountId: r.accountId, cents: Number(r.cents) }))
+    .map((r) => ({
+      accountId: r.accountId,
+      cents: Number(r.cents),
+      ratePpm: rateOf(r.code),
+    }))
     .filter((r) => r.cents !== 0);
 }

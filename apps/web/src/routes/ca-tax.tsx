@@ -277,10 +277,10 @@ export function CanadianTax() {
             of the figures above.
           </p>
           <p className="mt-2">
-            Shop orders carry one combined rate rather than a named GST, PST or
-            QST, so nothing here can say which return it belongs on. Work the
-            split out from your shop's own rates and add it by hand before you
-            file.
+            It is usually a shop or till sale whose rate is not what its
+            province charges, so it could not be split into GST and the
+            province's own tax. Check your shop's tax rate for that province,
+            work out the split, and add it by hand before you file.
           </p>
         </Warning>
       ) : null}

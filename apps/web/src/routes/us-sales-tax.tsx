@@ -292,9 +292,10 @@ function FilingCard() {
             in any figure above.
           </p>
           <p className="mt-2">
-            Shop orders carry one combined rate rather than a named tax, so
-            nothing here can say which state to file them in. Work out the split
-            from your shop's own rates and add it by hand before you file.
+            It is usually a shop or till sale taken before shop sales named
+            their state, or a sale outside the United States whose tax could not
+            be named. Work out which state it belongs to and add it by hand
+            before you file.
           </p>
         </Warning>
       ) : null}
