@@ -532,3 +532,50 @@ test("an unpriced currency stops the whole instalment plan, not half of it", asy
     .where(eq(schema.invoices.organizationId, orgId));
   expect(after).toHaveLength(before.length);
 });
+
+/**
+ * Converting one quote twice at the same moment.
+ *
+ * `convertedInvoiceId` is what stops a quote becoming a second invoice, and the
+ * check that reads it is a read: the update that set it wrote on the quote's id
+ * alone, so two conversions arriving together both passed and both got through.
+ * Two bills for the same work, two journal entries for the same revenue, and a
+ * customer who has to be talked down.
+ *
+ * The same shape as issuing a draft, where five concurrent requests put five
+ * entries and five times the money into the books — measured on a running
+ * instance, which is the only place either of them shows.
+ *
+ * Two routes convert, the staff screen and a customer accepting in their own
+ * portal, so the gate belongs where they both pass through.
+ */
+test("converting one quote twice at once makes one invoice", async () => {
+  const quote = await euroQuote(120_000);
+
+  const results = await Promise.all(
+    [1, 2, 3, 4].map(() =>
+      app.request(`http://localhost/api/quotes/${quote.id}/convert`, {
+        method: "POST",
+        headers,
+      }),
+    ),
+  );
+  const codes = results.map((r) => r.status);
+  expect(codes.filter((c) => c === 201)).toHaveLength(1);
+  expect(codes.filter((c) => c === 201 || c === 409)).toHaveLength(4);
+
+  const invoices = await db
+    .select({ id: schema.invoices.id })
+    .from(schema.invoices)
+    .where(eq(schema.invoices.quoteId, quote.id));
+  expect(invoices).toHaveLength(1);
+
+  // And the revenue once. A rolled-back attempt must take its entry with it.
+  const entries = await db
+    .select({ id: schema.journalEntries.id })
+    .from(schema.journalEntries)
+    .where(
+      eq(schema.journalEntries.source, `invoice:${invoices[0]?.id ?? ""}`),
+    );
+  expect(entries).toHaveLength(1);
+});

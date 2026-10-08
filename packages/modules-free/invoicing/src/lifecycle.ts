@@ -196,16 +196,52 @@ export function registerLifecycle(ctx: ModuleContext) {
        * credited income with subtotal-less-discount and ignored the exchange
        * rate entirely, so a euro invoice put euro cents into dollar books.
        */
+      /*
+       * And the transition itself is the gate, not the check above it.
+       *
+       * The status was read, compared with "draft", and then written on `id`
+       * alone — a check and then a write, with everything that posts to the
+       * books in between. Five requests to issue one draft arriving together
+       * all passed the check and all posted: a £700 invoice became five journal
+       * entries and £3,500 of receivables, with the document still saying £700
+       * and nothing in the ledger disagreeing with itself. Measured on a running
+       * instance; the 409 above is right and is only ever as good as the gap
+       * behind it.
+       *
+       * `and(id, status = 'draft')` closes the gap in the statement that does
+       * the work. Exactly one caller gets a row back however many arrive, and
+       * the rest post nothing at all. Same reasoning as `nextSequenceNumber`,
+       * whose comment says a number must never be worked out by reading the
+       * last row and adding one.
+       *
+       * The posting stays *inside* the transaction, which is what the paragraph
+       * above is about: a posting refused for a closed period has to take the
+       * status back with it, or the document reads `open` with nothing behind
+       * it.
+       */
       const issued = await db.transaction(async (tx) => {
         const [row] = await tx
           .update(schema.invoices)
           .set({ status: "open", issueDate: issuedOn, updatedAt: new Date() })
-          .where(eq(schema.invoices.id, invoice.id))
+          .where(
+            and(
+              eq(schema.invoices.id, invoice.id),
+              eq(schema.invoices.status, "draft"),
+            ),
+          )
           .returning();
-        if (!row) throw new Error("issue returned no row");
+        // Lost the race. Nothing posted, and the status is whatever the caller
+        // that won it wrote.
+        if (!row) return null;
         await postInvoiceIssued(orgId, row, undefined, issuedOn, { tx });
         return row;
       });
+
+      // Somebody else issued it between the check and here. Their entry is the
+      // one in the books, and this request has posted nothing.
+      if (!issued) {
+        return c.json({ error: "that invoice has already been issued" }, 409);
+      }
 
       return c.json({ invoice: issued });
     },

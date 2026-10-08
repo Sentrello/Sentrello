@@ -3,7 +3,7 @@ import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, schema } from "@sentrello/db";
 import type { SentrelloEnv } from "@sentrello/module-sdk";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import invoicing from "./index";
 
@@ -265,4 +265,57 @@ test("a quote refuses one too", async () => {
     notes: "Mine",
   });
   expect(res.status).toBe(400);
+});
+
+/**
+ * And two people issuing one draft at the same moment.
+ *
+ * Saving a draft is a conflict somebody can recover from. Issuing one is an
+ * accounting event, and the route guarded it by reading `status`, comparing it
+ * with "draft" and then writing on `id` alone — a check and then a write, with
+ * the posting to the books in between. Five requests arriving together all
+ * passed the check and all posted: a £700 invoice became five journal entries
+ * and £3,500 of receivables, with the document still reading £700 and nothing
+ * in the ledger disagreeing with itself.
+ *
+ * Measured on a running instance. The sequential version of this is already
+ * refused with a 409, and that 409 was only ever as good as the gap behind it.
+ */
+test("five people issuing one draft post it to the books once", async () => {
+  const draft = await aDraft();
+
+  const results = await Promise.all(
+    [1, 2, 3, 4, 5].map(() =>
+      call(`/api/invoices/${draft.id}/issue`, "POST", {}),
+    ),
+  );
+  const codes = results.map((r) => r.status);
+  expect(codes.filter((c) => c === 200)).toHaveLength(1);
+  expect(codes.filter((c) => c === 409)).toHaveLength(4);
+
+  const entries = await db
+    .select({ id: schema.journalEntries.id })
+    .from(schema.journalEntries)
+    .where(eq(schema.journalEntries.source, `invoice:${draft.id}`));
+  expect(entries).toHaveLength(1);
+
+  /*
+   * And the figure, because one entry of the right shape is the claim worth
+   * making: a count of one with five times the money in it would satisfy the
+   * assertion above and be the same bug.
+   */
+  const [line] = await db
+    .select({ debit: schema.journalLines.debitCents })
+    .from(schema.journalLines)
+    .innerJoin(
+      schema.accounts,
+      eq(schema.accounts.id, schema.journalLines.accountId),
+    )
+    .where(
+      and(
+        eq(schema.journalLines.entryId, entries[0]?.id ?? ""),
+        eq(schema.accounts.code, "1100"),
+      ),
+    );
+  expect(line?.debit).toBe(50_000);
 });

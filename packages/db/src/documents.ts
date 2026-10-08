@@ -113,6 +113,15 @@ export async function invoiceDefaultsFor(
   };
 }
 
+/**
+ * A quote that was converted by somebody else while this one was working.
+ *
+ * Private to this file: it exists to roll a transaction back, and the caller
+ * sees the `null` this function has always answered with. Not an error anybody
+ * should have to handle.
+ */
+class AlreadyConverted extends Error {}
+
 export async function convertQuoteToInvoice(
   organizationId: string,
   quoteId: string,
@@ -164,6 +173,26 @@ export async function convertQuoteToInvoice(
     .from(schema.quoteLines)
     .where(eq(schema.quoteLines.quoteId, quoteId));
 
+  const invoice = await convertInside(
+    organizationId,
+    quote,
+    quoteId,
+    lines,
+    rateMicro,
+  ).catch((err) => {
+    if (err instanceof AlreadyConverted) return null;
+    throw err;
+  });
+  return invoice;
+}
+
+async function convertInside(
+  organizationId: string,
+  quote: typeof schema.quotes.$inferSelect,
+  quoteId: string,
+  lines: (typeof schema.quoteLines.$inferSelect)[],
+  rateMicro: number,
+) {
   const invoice = await db.transaction(async (tx) => {
     const fromSettings = await invoiceDefaultsFor(organizationId);
     const [inv] = await tx
@@ -241,15 +270,37 @@ export async function convertQuoteToInvoice(
       );
     }
 
-    await tx
+    /*
+     * What it became, so it cannot become a second one — and the `is null` is
+     * what makes that true rather than intended.
+     *
+     * The check at the top of this function is a read, and this wrote on
+     * `quoteId` alone, so two conversions arriving together both passed it and
+     * both got here: two invoices for one quote, two journal entries for the
+     * same revenue, and a customer who has to be talked down. The same shape as
+     * issuing a draft, where five requests put five entries and five times the
+     * money in the books — measured on a running instance.
+     *
+     * Throwing rather than returning, because the invoice is already inserted
+     * above: only a rollback takes it back out. `AlreadyConverted` is caught
+     * outside the transaction and becomes the `null` this function has always
+     * answered with, so both routes that convert behave exactly as before.
+     */
+    const marked = await tx
       .update(schema.quotes)
       .set({
         status: "accepted",
-        // What it became, so it cannot become a second one.
         convertedInvoiceId: inv.id,
         updatedAt: new Date(),
       })
-      .where(eq(schema.quotes.id, quoteId));
+      .where(
+        and(
+          eq(schema.quotes.id, quoteId),
+          isNull(schema.quotes.convertedInvoiceId),
+        ),
+      )
+      .returning({ id: schema.quotes.id });
+    if (marked.length === 0) throw new AlreadyConverted();
 
     /*
      * An invoice from an accepted quote is an invoice: it posts the same entry
