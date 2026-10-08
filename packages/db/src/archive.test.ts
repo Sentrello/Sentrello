@@ -20,7 +20,7 @@ import {
   ledgerTotals,
   postJournalEntry,
 } from "./ledger";
-import { eq, inArray, sql } from "./orm";
+import { and, eq, inArray, sql } from "./orm";
 import * as schema from "./schema";
 
 /**
@@ -214,6 +214,88 @@ test("an archive whose manifest disagrees with the database is refused", async (
 // ---------------------------------------------------------------------------
 // The statutory floor
 // ---------------------------------------------------------------------------
+
+/**
+ * And the delete itself counts what it is deleting, inside the transaction.
+ *
+ * The test above stages this race by faking the plan's counts and stops at
+ * `verifyArchive`. This one stages it for real and goes all the way into
+ * `removeArchived`: a verification that genuinely matched its archive, and then
+ * a row written into the period before the delete runs.
+ *
+ * **On the change history, because that is the set where it can happen.** The
+ * ledger cannot be archived unless the books are closed through the period, and
+ * a closed period refuses a posting — so for `ledger` this race is prevented
+ * twice over. `activity` and `documents` have no lock of any kind, and a
+ * business is still trading while somebody archives 2015 from another screen.
+ *
+ * What makes "nothing has been deleted" true is that the comparison happens
+ * *after* the delete and throws, so the transaction rolls back and takes the
+ * delete with it. Nothing asserted that, and a comparison that threw before the
+ * delete — or counted rows by reading rather than from what the delete
+ * returned — would read exactly the same in the source.
+ */
+test("a row that appears after the plan rolls the whole delete back", async () => {
+  const inJanuary = (day: number) => new Date(Date.UTC(2015, 0, day, 9, 0, 0));
+  const event = async (field: string, on: Date) => {
+    const [row] = await db
+      .insert(schema.recordEvents)
+      .values({
+        organizationId: orgId,
+        entity: "contact",
+        entityId: crypto.randomUUID(),
+        action: "updated",
+        changed: [field],
+        at: on,
+      })
+      .returning();
+    if (!row) throw new Error("record event insert returned no row");
+    return row;
+  };
+
+  await event("name", inJanuary(4));
+  await event("email", inJanuary(5));
+
+  const plan = await planArchive(
+    orgId,
+    "activity",
+    YEAR_2015.from,
+    YEAR_2015.to,
+  );
+  expect(plan.blockers).toEqual([]);
+  expect(plan.counts.find((c) => c.table === "record_events")?.rows).toBe(2);
+  const verified = await verifyArchive([await bytesOf(plan)], plan.counts);
+
+  // Still trading: a third change, inside the period, after the archive was
+  // written and verified. Nothing refuses this, because nothing can.
+  const late = await event("phone", inJanuary(6));
+
+  const stillHere = async () =>
+    (
+      await db
+        .select({ id: schema.recordEvents.id })
+        .from(schema.recordEvents)
+        .where(eq(schema.recordEvents.organizationId, orgId))
+    ).length;
+  expect(await stillHere()).toBe(3);
+
+  expect(removeArchived(plan, verified)).rejects.toBeInstanceOf(
+    VerificationFailed,
+  );
+
+  // All three. A rollback that spared only the late row would leave a business
+  // with two changes deleted and an archive that names them — which is the
+  // tidier-looking half of the same disaster.
+  expect(await stillHere()).toBe(3);
+
+  // Put the suite back: the ledger tests after this read five entries and no
+  // change history of their own.
+  await db
+    .delete(schema.recordEvents)
+    .where(eq(schema.recordEvents.organizationId, orgId));
+  expect(await stillHere()).toBe(0);
+  expect(late.id).toBeTruthy();
+});
 
 test("each market's floor is the one its own authority sets", () => {
   expect(retentionYears("GB")).toBe(7);
