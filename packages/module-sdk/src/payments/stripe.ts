@@ -96,7 +96,9 @@ function form(values: Record<string, string | undefined>): URLSearchParams {
  * different currencies together. In both cases the sale posts exactly as one
  * with no fee, which understates costs rather than misstating cash.
  */
-function feeFrom(session: Record<string, unknown>): number | undefined {
+export function stripeFeeFrom(
+  session: Record<string, unknown>,
+): number | undefined {
   const intent = session.payment_intent as
     | { latest_charge?: { balance_transaction?: Record<string, unknown> } }
     | undefined;
@@ -474,12 +476,12 @@ export function stripeProvider(credentials: Credentials): PaymentProvider {
               ? res.body.amount_received
               : undefined,
           /*
-           * The currency travels with it. `feeFrom` refuses a fee settled in a
+           * The currency travels with it. `stripeFeeFrom` refuses a fee settled in a
            * different currency from the one the sale was priced in, and without
            * this it had nothing to compare against — so a converted fee would
            * have gone into the books as if it were the same money.
            */
-          feeCents: feeFrom({
+          feeCents: stripeFeeFrom({
             payment_intent: res.body,
             currency: res.body.currency,
           }),
@@ -500,7 +502,7 @@ export function stripeProvider(credentials: Credentials): PaymentProvider {
           typeof res.body.amount_total === "number"
             ? res.body.amount_total
             : undefined,
-        feeCents: feeFrom(res.body),
+        feeCents: stripeFeeFrom(res.body),
       };
     },
 
