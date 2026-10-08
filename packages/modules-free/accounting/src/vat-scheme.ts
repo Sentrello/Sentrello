@@ -278,6 +278,16 @@ export function registerVatScheme(ctx: ModuleContext) {
         boxes: out.boxes,
         asSubmitted: forHmrc(out.boxes),
         scheme: out.scheme,
+        /*
+         * The same three figures the limited cost note spells out, structured.
+         *
+         * No screen reads this and that is deliberate: the note is what a person
+         * reads, because the figures are useless without the sentence saying
+         * what they do and do not prove. It stays for a script filing from this
+         * endpoint, which should not have to parse prose to get a number — and
+         * if a screen ever draws them, it draws them from here and the note
+         * stops repeating them, rather than both.
+         */
         limitedCost: out.limitedCost ?? null,
         notCovered: vatReturnNotes(out),
       });

@@ -114,24 +114,35 @@ function GoogleSignIn() {
       }>("/api/users/social-sign-in"),
   });
 
+  /*
+   * Whether a restart is needed is the server's to say, and it does say.
+   *
+   * Both routes answer `restartRequired`, and this screen set the notice itself
+   * and ignored it — two copies of one fact, where the copy that is read is the
+   * one that cannot know. The day the provider list stops being resolved at
+   * startup, the server stops saying so and this screen would still be telling
+   * people to restart their instance.
+   */
   const connect = useMutation({
     mutationFn: () =>
-      api("/api/users/social-sign-in/google", {
+      api<{ restartRequired?: boolean }>("/api/users/social-sign-in/google", {
         method: "PUT",
         body: JSON.stringify({ clientId, clientSecret }),
       }),
-    onSuccess: () => {
+    onSuccess: (answer) => {
       setClientSecret("");
-      setRestart(true);
+      setRestart(answer?.restartRequired === true);
       qc.invalidateQueries({ queryKey: ["social-sign-in"] });
     },
   });
 
   const disconnect = useMutation({
     mutationFn: () =>
-      api("/api/users/social-sign-in/google", { method: "DELETE" }),
-    onSuccess: () => {
-      setRestart(true);
+      api<{ restartRequired?: boolean }>("/api/users/social-sign-in/google", {
+        method: "DELETE",
+      }),
+    onSuccess: (answer) => {
+      setRestart(answer?.restartRequired === true);
       qc.invalidateQueries({ queryKey: ["social-sign-in"] });
     },
   });
