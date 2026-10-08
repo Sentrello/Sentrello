@@ -23,7 +23,7 @@ import {
   owingInvoices,
 } from "@sentrello/db/documents";
 import { sumCents } from "@sentrello/db/money";
-import { timezoneFor } from "@sentrello/db/timezone";
+import { momentAt, partsIn, timezoneFor } from "@sentrello/db/timezone";
 import type { ModuleContext, SummaryFigure } from "@sentrello/module-sdk";
 import { scoreFor } from "@sentrello/module-sdk";
 import { sixMonthsFrom } from "./months";
@@ -46,17 +46,33 @@ export async function invoicingFigures(
   organizationId: string,
 ): Promise<SummaryFigure[]> {
   const now = new Date();
+  const zone = await timezoneFor(organizationId);
   /*
-   * The month in UTC, as every other period in this product is.
+   * The month the business is in, and two bounds for it.
    *
-   * It was the server's own month. On a host west of Greenwich that puts the
-   * boundary at, say, 06:00 UTC on the 1st — and `issueDate` is a date, which
-   * compares as midnight UTC, so every invoice issued *on* the 1st fell out
-   * of "this month". The books panel beside this one counts a UTC month and
-   * so do the reports; one word meant two things on one screen.
+   * This was the server's own month, then a UTC month — the second on the
+   * reasoning that every other period in the product was UTC too, so that the
+   * books panel beside this card could not disagree with it. That reasoning was
+   * right and has expired: the reports and the ledger's own period bounds now end
+   * a day where the business's day ends, so a UTC month here would put this card
+   * back in disagreement with the one next to it.
+   *
+   * Which month it is, is asked where the business is. At eight in the evening on
+   * 30 September in Honolulu the server's clock already says October, and the
+   * card would have been headed "this month" while counting the next one.
+   *
+   * Then two bounds, because the two comparisons below are not the same kind.
+   * `issueDate` is a day stored at midnight UTC, so it takes the month's first
+   * day as a plain date. `receivedAt` is an instant, so it takes the moment that
+   * day began where the business is — otherwise a payment taken on the afternoon
+   * of their 30 September counts as October's, and one taken after midnight on
+   * their 1 October does not count at all until UTC catches up.
    */
-  const monthStart = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
+  const here = partsIn(now, zone);
+  const monthStart = new Date(Date.UTC(here.year, here.month - 1, 1));
+  const monthBegan = momentAt(
+    { year: here.year, month: here.month, day: 1, hours: 0, minutes: 0 },
+    zone,
   );
 
   const [row] = await db
@@ -97,7 +113,7 @@ export async function invoicingFigures(
    * invoice because there is one definition of "owed" and both read it.
    */
   const owing = owingInvoices(organizationId);
-  const overdue = isOverdueSql(owing, now, await timezoneFor(organizationId));
+  const overdue = isOverdueSql(owing, now, zone);
   const [outstanding] = await db
     .select({
       owedCents: sumCents(owing.owedCents),
@@ -128,7 +144,7 @@ export async function invoicingFigures(
     .where(
       and(
         eq(schema.invoices.organizationId, organizationId),
-        gte(schema.payments.receivedAt, monthStart),
+        gte(schema.payments.receivedAt, monthBegan),
       ),
     );
 

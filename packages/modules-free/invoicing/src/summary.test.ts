@@ -2,6 +2,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, schema, watchQueries } from "@sentrello/db";
+import { momentAt, partsIn } from "@sentrello/db/timezone";
 import type { SentrelloEnv } from "@sentrello/module-sdk";
 import { eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
@@ -341,6 +342,99 @@ test("the dashboard's invoicing panel reads figures, not invoices", async () => 
     await db
       .delete(schema.invoices)
       .where(eq(schema.invoices.organizationId, org.id));
+    await db
+      .delete(schema.organizations)
+      .where(eq(schema.organizations.id, org.id));
+  }
+});
+
+/**
+ * "This month" is the business's month, on both sides of its first midnight.
+ *
+ * This card used the server's month, then a UTC month — the second deliberately,
+ * so the books panel beside it could not disagree. That reasoning expired when
+ * the reports and the ledger's period bounds started ending a day where the
+ * business's day ends: a UTC month here would put the two cards on one screen
+ * back into disagreement, which is the fault the old comment existed to prevent.
+ *
+ * Two bounds, because the two comparisons are not the same kind. `issueDate` is a
+ * day stored at midnight UTC and takes the month's first day as a date;
+ * `receivedAt` is an instant and takes the moment that day began where the
+ * business is.
+ */
+test("a payment taken before their month began is not this month's", async () => {
+  const org = await auth.api.createOrganization({
+    body: { name: `Month ${suffix}`, slug: `month-${suffix}` },
+    headers,
+  });
+  if (!org) throw new Error("could not create organization");
+  try {
+    await db
+      .update(schema.organizations)
+      .set({ timezone: "Pacific/Honolulu" })
+      .where(eq(schema.organizations.id, org.id));
+
+    const [invoice] = await db
+      .insert(schema.invoices)
+      .values({
+        organizationId: org.id,
+        number: `INV-MONTH-${suffix}`,
+        status: "paid",
+        totalCents: 10_000,
+      })
+      .returning();
+    if (!invoice) throw new Error("no invoice");
+
+    /*
+     * The month the business is in right now, and the two hours either side of
+     * the moment it began. Honolulu is ten hours behind, so their month starts at
+     * 10:00 UTC on the 1st.
+     */
+    const now = new Date();
+    const hereMonth = partsIn(now, "Pacific/Honolulu");
+    const began = momentAt(
+      {
+        year: hereMonth.year,
+        month: hereMonth.month,
+        day: 1,
+        hours: 0,
+        minutes: 0,
+      },
+      "Pacific/Honolulu",
+    );
+
+    // An hour before their month began — the afternoon of the last day of the
+    // previous one, and UTC already calls it the new month.
+    await db.insert(schema.payments).values({
+      organizationId: org.id,
+      invoiceId: invoice.id,
+      amountCents: 3_000,
+      method: "bank_transfer",
+      receivedAt: new Date(began.getTime() - 60 * 60 * 1000),
+    });
+    // And an hour after it began, which is theirs.
+    await db.insert(schema.payments).values({
+      organizationId: org.id,
+      invoiceId: invoice.id,
+      amountCents: 7_000,
+      method: "bank_transfer",
+      receivedAt: new Date(began.getTime() + 60 * 60 * 1000),
+    });
+
+    const figures = await invoicingFigures(org.id);
+    const paid = figures.find((f) => f.label === "Paid this month")?.value;
+    // Only the second one. A UTC month would have counted both.
+    expect(paid).toBe(7_000);
+  } finally {
+    await db
+      .delete(schema.payments)
+      .where(eq(schema.payments.organizationId, org.id));
+    await db
+      .delete(schema.invoices)
+      .where(eq(schema.invoices.organizationId, org.id));
+    await db
+      .delete(schema.member)
+      .where(eq(schema.member.organizationId, org.id));
     await db
       .delete(schema.organizations)
       .where(eq(schema.organizations.id, org.id));
