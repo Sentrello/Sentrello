@@ -3,7 +3,7 @@ import {
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
-import { and, db, eq, isNull, schema } from "@sentrello/db";
+import { and, db, eq, isNull, ne, schema } from "@sentrello/db";
 import { dayIn, dayOf } from "@sentrello/db/day";
 import { copyInvoice } from "@sentrello/db/documents";
 import {
@@ -342,11 +342,28 @@ export function registerLifecycle(ctx: ModuleContext) {
         );
       }
 
+      /*
+       * And "not already void" belongs in the statement, not above it.
+       *
+       * Same shape as issuing: the check at the top of this route is a read,
+       * and writing on the id alone left a gap two voids arriving together both
+       * passed — so the reversal below posted twice and took the income out
+       * twice, which is a negative sale on every report that counts them.
+       */
       const [voided] = await db
         .update(schema.invoices)
         .set({ status: "void", updatedAt: new Date() })
-        .where(eq(schema.invoices.id, invoice.id))
+        .where(
+          and(
+            eq(schema.invoices.id, invoice.id),
+            ne(schema.invoices.status, "void"),
+          ),
+        )
         .returning();
+      // Somebody else voided it first. Their reversal is the one in the books.
+      if (!voided) {
+        return c.json({ error: "that invoice is already void" }, 409);
+      }
 
       // A draft was never in the books, so there is nothing to reverse.
       //

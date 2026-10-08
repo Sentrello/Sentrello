@@ -319,3 +319,51 @@ test("five people issuing one draft post it to the books once", async () => {
     );
   expect(line?.debit).toBe(50_000);
 });
+
+/**
+ * And two people voiding one issued invoice.
+ *
+ * Voiding posts the issued entry back with its sides swapped, so doing it twice
+ * takes the income out twice: a negative sale on every report that counts them.
+ * The route refuses an invoice that is already void, and that refusal read the
+ * status and then wrote on the id — the same gap as issuing, with the reversal
+ * in it rather than the sale.
+ */
+test("two people voiding one invoice reverse it once", async () => {
+  const made = await json<{ invoice: { id: string } }>(
+    await call("/api/invoices", "POST", {
+      contactId,
+      lines: [
+        { description: "Issued work", quantity: 1, unitPriceCents: 40_000 },
+      ],
+    }),
+  );
+  const id = made.invoice.id;
+
+  const results = await Promise.all(
+    [1, 2, 3].map(() => call(`/api/invoices/${id}/void`, "POST", {})),
+  );
+  const codes = results.map((r) => r.status);
+  expect(codes.filter((c) => c === 200)).toHaveLength(1);
+  expect(codes.filter((c) => c === 409)).toHaveLength(2);
+
+  /*
+   * One sale and one reversal, which is what "voided once" means in the books.
+   * Counting entries is the assertion: a second reversal balances on its own
+   * and is invisible to everything except the income figure.
+   */
+  const [issued] = await db
+    .select({ id: schema.journalEntries.id })
+    .from(schema.journalEntries)
+    .where(eq(schema.journalEntries.source, `invoice:${id}`));
+  expect(issued?.id).toBeTruthy();
+
+  // A reversal is keyed on the entry it undoes, so this is "that sale, undone
+  // once". Two of them balance on their own and are invisible to everything
+  // except the income figure.
+  const reversals = await db
+    .select({ id: schema.journalEntries.id })
+    .from(schema.journalEntries)
+    .where(eq(schema.journalEntries.source, `reversal:${issued?.id ?? ""}`));
+  expect(reversals).toHaveLength(1);
+});

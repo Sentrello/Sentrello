@@ -873,135 +873,165 @@ export async function convertQuoteToInstalments(
   // One day for the whole plan, where the business is: the instalments are
   // dated from it, and the first one is dated *on* it.
   const today = dayIn(new Date(), await timezoneFor(organizationId));
-  const made = await db.transaction(async (tx) => {
-    const invoices: (typeof schema.invoices.$inferSelect)[] = [];
+  const made = await db
+    .transaction(async (tx) => {
+      const invoices: (typeof schema.invoices.$inferSelect)[] = [];
 
-    for (const [index, part] of plan.entries()) {
-      const label = part.label?.trim() || instalmentLabel(index, plan.length);
-      const subtotal = overlapping
-        ? (netShares[index] ?? 0)
-        : split.reduce((sum, band) => sum + (band.taxables[index] ?? 0), 0);
-      const tax = split.reduce(
-        (sum, band) => sum + (band.taxes[index] ?? 0),
-        0,
-      );
+      for (const [index, part] of plan.entries()) {
+        const label = part.label?.trim() || instalmentLabel(index, plan.length);
+        const subtotal = overlapping
+          ? (netShares[index] ?? 0)
+          : split.reduce((sum, band) => sum + (band.taxables[index] ?? 0), 0);
+        const tax = split.reduce(
+          (sum, band) => sum + (band.taxes[index] ?? 0),
+          0,
+        );
 
-      // A date, for the reason `defaultDueDate` is one.
-      const due = new Date(
-        today.getTime() + Math.max(0, part.dueInDays) * 86_400_000,
-      );
+        // A date, for the reason `defaultDueDate` is one.
+        const due = new Date(
+          today.getTime() + Math.max(0, part.dueInDays) * 86_400_000,
+        );
 
-      const [invoice] = await tx
-        .insert(schema.invoices)
-        .values({
-          organizationId,
-          contactId: quote.contactId,
-          quoteId: quote.id,
-          currency: quote.currency,
-          rateMicro,
-          number: await nextDocumentNumber(tx, organizationId, "invoice"),
-          status: "draft",
-          issueDate: today,
-          // Quoted gross stays quoted gross, on its own letterhead — the same
-          // two fields the single conversion carries.
-          pricesIncludeTax: quote.pricesIncludeTax,
-          templateId: quote.templateId,
-          dueDate: due,
-          subtotalCents: subtotal,
-          discountCents: 0,
-          taxCents: tax,
-          totalCents: subtotal + tax,
-          notes: quote.notes,
-        })
-        .returning();
-      if (!invoice) throw new Error("invoice insert returned no row");
+        const [invoice] = await tx
+          .insert(schema.invoices)
+          .values({
+            organizationId,
+            contactId: quote.contactId,
+            quoteId: quote.id,
+            currency: quote.currency,
+            rateMicro,
+            number: await nextDocumentNumber(tx, organizationId, "invoice"),
+            status: "draft",
+            issueDate: today,
+            // Quoted gross stays quoted gross, on its own letterhead — the same
+            // two fields the single conversion carries.
+            pricesIncludeTax: quote.pricesIncludeTax,
+            templateId: quote.templateId,
+            dueDate: due,
+            subtotalCents: subtotal,
+            discountCents: 0,
+            taxCents: tax,
+            totalCents: subtotal + tax,
+            notes: quote.notes,
+          })
+          .returning();
+        if (!invoice) throw new Error("invoice insert returned no row");
 
-      /**
-       * One line per tax band, so the lines and the bands agree.
-       *
-       * A single line for a mixed-rate quote would have to name one rate and
-       * be wrong about the rest, and the document a customer reads would not
-       * add up to the tax printed under it.
-       */
-      await tx.insert(schema.invoiceLines).values(
-        overlapping
-          ? [
-              {
-                invoiceId: invoice.id,
-                description: `${label} — ${quote.number}`,
-                quantityMilli: 1000,
-                unit: "lump sum",
-                unitPriceCents: netShares[index] ?? 0,
-                taxDefinitionId: split[0]?.taxDefinitionId ?? null,
-                taxRateBp: split[0]?.rateBp ?? 0,
-                taxRatePpm: split[0]?.ratePpm ?? 0,
-                // Every tax on the quote rides on the one line, so the
-                // document reads as taxed the way it actually is.
-                taxes: split.map((band) => ({
+        /**
+         * One line per tax band, so the lines and the bands agree.
+         *
+         * A single line for a mixed-rate quote would have to name one rate and
+         * be wrong about the rest, and the document a customer reads would not
+         * add up to the tax printed under it.
+         */
+        await tx.insert(schema.invoiceLines).values(
+          overlapping
+            ? [
+                {
+                  invoiceId: invoice.id,
+                  description: `${label} — ${quote.number}`,
+                  quantityMilli: 1000,
+                  unit: "lump sum",
+                  unitPriceCents: netShares[index] ?? 0,
+                  taxDefinitionId: split[0]?.taxDefinitionId ?? null,
+                  taxRateBp: split[0]?.rateBp ?? 0,
+                  taxRatePpm: split[0]?.ratePpm ?? 0,
+                  // Every tax on the quote rides on the one line, so the
+                  // document reads as taxed the way it actually is.
+                  taxes: split.map((band) => ({
+                    taxDefinitionId: band.taxDefinitionId,
+                    name: band.name,
+                    rateBp: band.rateBp,
+                    ratePpm: band.ratePpm,
+                    categoryCode: band.categoryCode,
+                    compound: false,
+                  })),
+                  sortOrder: 0,
+                },
+              ]
+            : split
+                .map((band, at) => ({ band, at }))
+                .filter(({ band }) => (band.taxables[index] ?? 0) !== 0)
+                .map(({ band, at }) => ({
+                  invoiceId: invoice.id,
+                  description:
+                    split.length > 1
+                      ? `${label} — ${quote.number} (${band.name})`
+                      : `${label} — ${quote.number}`,
+                  quantityMilli: 1000,
+                  unit: "lump sum",
+                  unitPriceCents: band.taxables[index] ?? 0,
                   taxDefinitionId: band.taxDefinitionId,
-                  name: band.name,
-                  rateBp: band.rateBp,
-                  ratePpm: band.ratePpm,
-                  categoryCode: band.categoryCode,
-                  compound: false,
+                  taxRateBp: band.rateBp,
+                  taxRatePpm: band.ratePpm,
+                  sortOrder: at,
                 })),
-                sortOrder: 0,
-              },
-            ]
-          : split
-              .map((band, at) => ({ band, at }))
-              .filter(({ band }) => (band.taxables[index] ?? 0) !== 0)
-              .map(({ band, at }) => ({
-                invoiceId: invoice.id,
-                description:
-                  split.length > 1
-                    ? `${label} — ${quote.number} (${band.name})`
-                    : `${label} — ${quote.number}`,
-                quantityMilli: 1000,
-                unit: "lump sum",
-                unitPriceCents: band.taxables[index] ?? 0,
-                taxDefinitionId: band.taxDefinitionId,
-                taxRateBp: band.rateBp,
-                taxRatePpm: band.ratePpm,
-                sortOrder: at,
-              })),
-      );
+        );
 
-      const rows = split
-        .filter(
-          (band) =>
-            (band.taxables[index] ?? 0) !== 0 || (band.taxes[index] ?? 0) !== 0,
+        const rows = split
+          .filter(
+            (band) =>
+              (band.taxables[index] ?? 0) !== 0 ||
+              (band.taxes[index] ?? 0) !== 0,
+          )
+          .map((band) => ({
+            organizationId,
+            documentType: "invoice",
+            documentId: invoice.id,
+            taxDefinitionId: band.taxDefinitionId,
+            name: band.name,
+            rateBp: band.rateBp,
+            ratePpm: band.ratePpm,
+            categoryCode: band.categoryCode,
+            taxableCents: band.taxables[index] ?? 0,
+            taxCents: band.taxes[index] ?? 0,
+          }));
+        if (rows.length > 0) await tx.insert(schema.documentTaxes).values(rows);
+
+        invoices.push(invoice);
+      }
+
+      /*
+       * The first of them, so the quote cannot be converted twice. The rest are
+       * found through their own `quoteId`.
+       *
+       * `is null` for the same reason as the single-invoice path above: the check
+       * near the top of this function is a read, and writing on the quote's id
+       * alone left a gap two requests arriving together both passed. This is the
+       * mirror that fix nearly landed on only one side of.
+       */
+      const marked = await tx
+        .update(schema.quotes)
+        .set({
+          status: "accepted",
+          convertedInvoiceId: invoices[0]?.id ?? null,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(schema.quotes.id, quoteId),
+            isNull(schema.quotes.convertedInvoiceId),
+          ),
         )
-        .map((band) => ({
-          organizationId,
-          documentType: "invoice",
-          documentId: invoice.id,
-          taxDefinitionId: band.taxDefinitionId,
-          name: band.name,
-          rateBp: band.rateBp,
-          ratePpm: band.ratePpm,
-          categoryCode: band.categoryCode,
-          taxableCents: band.taxables[index] ?? 0,
-          taxCents: band.taxes[index] ?? 0,
-        }));
-      if (rows.length > 0) await tx.insert(schema.documentTaxes).values(rows);
+        .returning({ id: schema.quotes.id });
+      if (marked.length === 0) throw new AlreadyConverted();
 
-      invoices.push(invoice);
-    }
-
-    await tx
-      .update(schema.quotes)
-      .set({
-        status: "accepted",
-        // The first of them, so the quote cannot be converted twice. The rest
-        // are found through their own `quoteId`.
-        convertedInvoiceId: invoices[0]?.id ?? null,
-        updatedAt: new Date(),
-      })
-      .where(eq(schema.quotes.id, quoteId));
-
-    return invoices;
-  });
+      return invoices;
+    })
+    .catch((err) => {
+      /*
+       * Somebody else converted it while this was building the schedule.
+       *
+       * The same sentinel the single-invoice path uses, turned into this
+       * function's own shape: it answers with an error object rather than null,
+       * and the words are the ones the check at the top of it already uses.
+       */
+      if (err instanceof AlreadyConverted) return null;
+      throw err;
+    });
+  if (made === null) {
+    return { error: "that quote has already been turned into an invoice" };
+  }
 
   // Nothing is posted to the ledger here: these are drafts, and a draft is not
   // revenue. Issuing one posts it, the same as any other invoice.

@@ -579,3 +579,38 @@ test("converting one quote twice at once makes one invoice", async () => {
     );
   expect(entries).toHaveLength(1);
 });
+
+/**
+ * And the instalments path, which is the same quote and the same gap.
+ *
+ * Two routes convert a quote and two shapes come out: one invoice, or the
+ * schedule that was agreed with it. Both marked the quote on its id alone, and
+ * the fix for the first nearly landed on only one side — which is how a fix
+ * stops being one.
+ */
+test("splitting one quote twice at once makes one schedule", async () => {
+  const quote = await euroQuote(300_000);
+
+  const results = await Promise.all(
+    [1, 2, 3].map(() =>
+      app.request(`http://localhost/api/quotes/${quote.id}/convert`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          instalments: [
+            { shareBp: 5_000, dueInDays: 0, label: "Deposit" },
+            { shareBp: 5_000, dueInDays: 30, label: "On completion" },
+          ],
+        }),
+      }),
+    ),
+  );
+  expect(results.filter((r) => r.status === 201)).toHaveLength(1);
+
+  // Two instalments, from one conversion — not two per attempt.
+  const invoices = await db
+    .select({ id: schema.invoices.id })
+    .from(schema.invoices)
+    .where(eq(schema.invoices.quoteId, quote.id));
+  expect(invoices).toHaveLength(2);
+});
