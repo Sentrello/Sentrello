@@ -68,6 +68,17 @@ export const CORE_ACCOUNTS = {
    * Card money lands here; the payout moves it to the bank.
    */
   inTransit: { code: "1080", name: "Payments in Transit", type: "asset" },
+  /**
+   * What a till gave away, passing between the sale and the discount.
+   *
+   * The Shop posts a till sale at the price of the goods and the till then
+   * posts what came off — the discount, anything on the house. Both halves
+   * went through Cash, so a discounted card sale put the discount into Cash
+   * and straight back out, and a cash-flow statement counted it once arriving
+   * and once leaving. They meet here instead, and it nets to nought on every
+   * sale; Cash moves only by money somebody handed over.
+   */
+  tillRelief: { code: "1085", name: "Till Discounts Clearing", type: "asset" },
   accountsReceivable: {
     code: "1100",
     name: "Accounts Receivable",

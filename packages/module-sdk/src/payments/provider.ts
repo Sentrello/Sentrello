@@ -75,6 +75,13 @@ export interface PaymentEvent {
    * nobody did and it was cash.
    */
   cardCents?: number;
+  /**
+   * What a till took off the goods — a discount, something on the house —
+   * which the till posts against Till Discounts Clearing, not Cash. The sale
+   * posts the same figure there, so the two meet and Cash moves only by money
+   * that changed hands.
+   */
+  reliefCents?: number;
 }
 
 /**

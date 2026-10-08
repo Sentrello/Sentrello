@@ -301,8 +301,9 @@ twenty-pound note sits a person and a box.
 So the drawer counts notes, and so does the ledger. A cash sale goes to
 **Cash**. A card sale goes to **Payments in Transit**, where it waits until your
 processor pays it out to the bank. A sale paid half each way is split the same
-way, to the cent. Money off and anything on the house come off the cash side,
-just as they come out of the drawer.
+way, to the cent. Money off and anything on the house never pass through Cash
+at all: they show as Sales Discounts and Comps, and Cash moves only by money
+somebody handed over.
 
 ## Stock: what a counter sale does
 
