@@ -67,17 +67,22 @@ date, and a receipt if you have one.
 Money goes to the account it is actually in:
 
 - **Cash** for notes and coins.
-- **Payments in Transit** for anything a card processor took: a card at the
-  counter, a card payment on an invoice, a subscription charge. It sits there
-  until the processor pays out. When the payout reaches your bank, categorise
-  that bank line to Payments in Transit and the money moves across. It is not
-  income a second time.
-- **Your bank account** for a bank transfer, a cheque, a bill you paid, or a
-  line on your bank statement you matched to an invoice or a bill. If you have
-  marked one account as a bank, that is the one. Otherwise it is Bank Account.
+- **Payments in Transit** for anything a card processor took, until the
+  processor pays it out to your bank.
+- **Your bank account** for everything else: a bank transfer, a cheque, a
+  payment nobody described. If you have marked one account as a bank, that is
+  the one. Otherwise it is Bank Account.
 
-When you record a bill payment or money in and out, you can choose the account
-yourself.
+When you record a payment against an invoice, the method you pick decides
+which. When you record money in and out, you choose the account yourself.
+
+With [Pro](/pro), the same rule follows the money further. A bill you pay comes
+out of the bank unless you say otherwise. A line on your bank statement that
+you match to an invoice, a bill or a payment you already recorded lands in the
+bank that statement belongs to. And when a payout arrives under your
+processor's name (Stripe, PayPal, Square), the bank screen offers it as a
+payout. Confirm it and the money moves from Payments in Transit to the bank,
+rather than being counted as income a second time.
 
 ## The journal
 
