@@ -296,8 +296,19 @@ export function dateFrom(value: unknown): Date | null {
  * error path. `app.onError` turns this into a 400 carrying the value that was
  * wrong, which is the difference between a form somebody can correct and a
  * filter that quietly went missing.
+ *
+ * **It carries its own status**, so the module SDK's test harness answers it
+ * the way the host does. That handler reads a `status` off the error rather
+ * than matching a list of classes — deliberately, so the SDK keeps its one
+ * dependency — and this class had none, so the host said 400 and every module
+ * test app said 500. A date refusal in Pro was therefore unassertable: the
+ * test either claimed the wrong status or stopped covering the rule, which is
+ * exactly what the comment above that handler warns about. Found on
+ * 2026-10-08 writing a test for two routes that are 400 in production.
  */
-export class UnreadableDateError extends Error {}
+export class UnreadableDateError extends Error {
+  readonly status = 400;
+}
 
 /** `dateFrom`, insisting. */
 export function demandDate(value: unknown): Date {
