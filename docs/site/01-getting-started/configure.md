@@ -47,6 +47,21 @@ and storing it that way keeps it exact rather than rounded, three decimal
 places and all. Money itself is held in whole cents and never as a fraction.
 That is why a total always agrees with the sum of its lines.
 
+**Which tax screens you see** comes from **Settings → Your business → Tax
+regimes**. Sentrello holds returns for four: UK VAT, Canada's GST/HST with QST
+and PST beside it, US sales tax, and the EU One Stop Shop. A business that trades
+in one wants one screen, and a business that sells into all four wants all four
+at once, so this is a set of tick boxes rather than a single choice.
+
+Until you tick anything, your country answers it: a Canadian instance starts with
+the Canadian return and nothing else. Set the country and leave this alone and it
+will be right for most businesses. Come back here when you start selling
+somewhere new — the screens appear and the figures are computed from the rates
+you have already charged, so nothing has to be entered twice.
+
+Turning a regime off hides its screen. It never changes a figure and never
+touches a return you have already filed.
+
 :::info[Every financial event is double-entry]
 An invoice, a payment, a bill, an expense: each posts a balanced journal entry.
 The ledger is the source of truth. Reports are read from it rather than
