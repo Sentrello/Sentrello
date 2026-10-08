@@ -43,6 +43,24 @@ export const FIELDS = [
   },
   { key: "title", label: "Job title", aliases: ["role", "position"] },
   { key: "linkedinUrl", label: "LinkedIn", aliases: ["linkedin url"] },
+  /*
+   * The two columns our own export writes and this could not read.
+   *
+   * A CCPA opt-out and the day it was made. Nobody else's export has them, so
+   * the guess will miss on a file from another system and that is fine — what
+   * matters is the Sentrello-to-Sentrello move, where dropping them silently
+   * brings every contact across as though nobody had opted out.
+   */
+  {
+    key: "doNotSell",
+    label: "Do not sell or share",
+    aliases: ["do not sell", "opted out"],
+  },
+  {
+    key: "doNotSellOn",
+    label: "Do not sell recorded on",
+    aliases: ["opted out on"],
+  },
 ];
 
 interface Result {

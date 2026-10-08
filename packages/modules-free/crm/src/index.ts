@@ -2093,6 +2093,35 @@ function registerCrmScreens(
           }
         }
 
+        /*
+         * An opt-out carried in, because losing one is not a tidy failure.
+         *
+         * `doNotSell` is a CCPA opt-out, and the export writes it along with the
+         * day it was made. The importer had no field for either, so a business
+         * moving its contacts between instances — a self-host changing servers,
+         * or a business splitting in two — brought every record across with
+         * nobody opted out, and then sold or shared their data. `merge.ts` is
+         * careful about exactly this and keeps the stricter of two records; the
+         * asymmetry between the two paths is what gave it away.
+         *
+         * Only ever restricting. An import can set an opt-out and can never
+         * clear one, which is why no `false` is honoured here: a blank cell is a
+         * spreadsheet nobody filled in, not consent.
+         */
+        const optOut = /^(1|y|yes|true|do not sell)/i.test(
+          asText(raw.doNotSell, "doNotSell").trim(),
+        );
+        /*
+         * And the day it was made, which is a day. `doNotSellOn` stands for a
+         * whole date and is stored at midnight UTC, so it comes through
+         * `dayFrom` rather than `new Date` — and falls back to today, because an
+         * opt-out with no date is still an opt-out.
+         */
+        const optOutOn = optOut
+          ? (dayFrom(asText(raw.doNotSellOn, "doNotSellOn").trim()) ??
+            dayIn(new Date(), await timezoneFor(orgId)))
+          : null;
+
         await db.insert(schema.contacts).values({
           organizationId: orgId,
           name,
@@ -2103,6 +2132,7 @@ function registerCrmScreens(
           phone: asText(raw.phone, "phone").trim() || null,
           linkedinUrl: asText(raw.linkedinUrl, "linkedinUrl").trim() || null,
           companyId,
+          ...(optOut ? { doNotSell: true, doNotSellOn: optOutOn } : {}),
         });
         imported += 1;
       }

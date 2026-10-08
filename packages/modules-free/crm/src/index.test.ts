@@ -2820,3 +2820,88 @@ test("a note records who wrote it, and the timeline says so", async () => {
   await db.delete(schema.notes).where(eq(schema.notes.id, note.id));
   await db.delete(schema.contacts).where(eq(schema.contacts.id, contact.id));
 });
+
+/**
+ * An opt-out survives the move, because losing one is not a tidy failure.
+ *
+ * `doNotSell` is a CCPA opt-out and the export writes it with the day it was
+ * made. The importer had no field for either, so a business moving its contacts
+ * between instances — a self-host changing servers, or a business splitting in
+ * two — brought everybody across with nobody opted out, and then sold or shared
+ * their data. `merge.ts` keeps the stricter of two records for exactly this
+ * reason; the asymmetry between the two paths is what gave it away.
+ */
+test("an imported opt-out arrives as an opt-out", async () => {
+  const res = await app.request("http://localhost/api/contacts/import", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      rows: [
+        {
+          firstName: "Opted",
+          lastName: "Out",
+          email: "optout@example.com",
+          doNotSell: "DO NOT SELL OR SHARE",
+          doNotSellOn: "2026-03-04",
+        },
+        {
+          firstName: "Dated",
+          lastName: "Nowhere",
+          email: "undated@example.com",
+          doNotSell: "yes",
+        },
+        { firstName: "Ordinary", lastName: "Contact", email: "ok@example.com" },
+      ],
+    }),
+  });
+  expect(res.status).toBe(200);
+
+  const [out] = await db
+    .select({
+      doNotSell: schema.contacts.doNotSell,
+      doNotSellOn: schema.contacts.doNotSellOn,
+    })
+    .from(schema.contacts)
+    .where(
+      and(
+        eq(schema.contacts.organizationId, orgId),
+        eq(schema.contacts.email, "optout@example.com"),
+      ),
+    );
+  expect(out?.doNotSell).toBe(true);
+  // A day, stored as midnight UTC, because it stands for the whole day the
+  // opt-out was made rather than for an instant in it.
+  expect(out?.doNotSellOn?.toISOString()).toBe("2026-03-04T00:00:00.000Z");
+
+  // An opt-out with no date is still an opt-out, dated today.
+  const [undated] = await db
+    .select({
+      doNotSell: schema.contacts.doNotSell,
+      doNotSellOn: schema.contacts.doNotSellOn,
+    })
+    .from(schema.contacts)
+    .where(
+      and(
+        eq(schema.contacts.organizationId, orgId),
+        eq(schema.contacts.email, "undated@example.com"),
+      ),
+    );
+  expect(undated?.doNotSell).toBe(true);
+  expect(undated?.doNotSellOn).not.toBeNull();
+
+  /*
+   * And a blank cell is a spreadsheet nobody filled in, not consent. The
+   * importer may only ever restrict: it can set an opt-out and must never be
+   * able to clear one.
+   */
+  const [plain] = await db
+    .select({ doNotSell: schema.contacts.doNotSell })
+    .from(schema.contacts)
+    .where(
+      and(
+        eq(schema.contacts.organizationId, orgId),
+        eq(schema.contacts.email, "ok@example.com"),
+      ),
+    );
+  expect(plain?.doNotSell).toBe(false);
+});
