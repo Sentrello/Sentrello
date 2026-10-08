@@ -1974,3 +1974,62 @@ test("and an ordinary page is not reported", () => {
   }
   expect(said.filter((l) => l.includes("hangs off"))).toEqual([]);
 });
+
+/**
+ * A refusal keeps its status on the way out of the host, not only the harness.
+ *
+ * `createModuleApp`'s error handler reads `status` off any error and answers with
+ * it, and its comment says "the host answers those with the status the error
+ * names rather than 500". The host did not: it matched a list of classes, and
+ * anything not on that list was a clean refusal in every test and a 500 in
+ * production. A harness more forgiving than the host is the one direction
+ * testing cannot catch.
+ *
+ * `/api/archive/plan` is the shortest way to show it. Ask it what a period holds
+ * without naming which archive and `ArchiveError` — which has carried
+ * `status = 400` since it was written — reached somebody as "something went
+ * wrong", on a module every instance has.
+ */
+test("a domain error's own status reaches the client", async () => {
+  const { headers, cleanUp } = await signedIn();
+  const server = (await import("./index")).default;
+
+  try {
+    const res = await server.fetch(
+      new Request("http://localhost/api/archive/plan?from=2019-01&to=2019-12", {
+        headers,
+      }),
+    );
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    // Its own words, and the choices, so somebody can fix the request.
+    expect(body.error).toContain("which archive?");
+    expect(body.error).toContain("activity");
+    expect(body.error).not.toBe("something went wrong");
+  } finally {
+    await cleanUp();
+  }
+});
+
+/**
+ * And the period it asks about is still read strictly.
+ *
+ * The generic branch sits below every named one, so nothing it already answered
+ * changes — this is the assertion that says so.
+ */
+test("a period it cannot read is still a 400 about the period", async () => {
+  const { headers, cleanUp } = await signedIn();
+  const server = (await import("./index")).default;
+
+  try {
+    const res = await server.fetch(
+      new Request("http://localhost/api/archive/plan?from=nonsense", {
+        headers,
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: string }).error).toContain("period");
+  } finally {
+    await cleanUp();
+  }
+});

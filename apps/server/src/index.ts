@@ -114,6 +114,39 @@ app.onError((err, c) => {
     return c.json({ error: "the request body is not valid JSON" }, 400);
   }
   /*
+   * A refusal that already knows what answer it deserves.
+   *
+   * The harness a module is tested against reads `status` off any error and
+   * answers with it, and says in its own comment that "the host answers those
+   * with the status the error names rather than 500". **The host did not** — it
+   * matched a list of classes, and anything not on that list was a 500 in
+   * production and a clean refusal in every test. A harness more forgiving than
+   * the host is the one direction that cannot be caught by testing.
+   *
+   * Three classes were in that gap. `ArchiveError` carries 400 and has nine
+   * messages — "there is no archive called …", "the period ends before it
+   * starts" — every one of which reached somebody as "something went wrong";
+   * asking the archive what a period holds without naming which archive
+   * answered 500 on a fresh install, on a module every instance has.
+   * `VerificationFailed` carries 409 and is what refuses to delete rows it could
+   * not prove were safely archived. And a module in another repository can throw
+   * its own, which is what the harness's comment promises will work.
+   *
+   * Below the specific branches, so nothing they already answer changes, and
+   * only for a 4xx with something to say: a 5xx is ours to own and a blank
+   * message is not an explanation.
+   */
+  const said = (err as { status?: unknown }).status;
+  if (
+    typeof said === "number" &&
+    said >= 400 &&
+    said < 500 &&
+    err instanceof Error &&
+    err.message.trim() !== ""
+  ) {
+    return c.json({ error: err.message }, said as 400);
+  }
+  /*
    * An id that cannot be an id, for every route at once.
    *
    * Postgres answers a malformed uuid with an error rather than an empty

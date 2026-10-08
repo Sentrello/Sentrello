@@ -4,6 +4,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import {
+  archiveSet,
   archiveSets,
   planArchive,
   restoreArchive,
@@ -167,12 +168,26 @@ export default defineModule({
           to: c.req.query("to"),
         });
         if ("error" in period) return c.json({ error: period.error }, 400);
-        const plan = await planArchive(
-          orgId,
-          c.req.query("set") ?? "",
-          period.from,
-          period.to,
-        );
+        /*
+         * Named up front, with the choices.
+         *
+         * Missing, this reached `planArchive` and came back as `there is no
+         * archive called ""` — accurate, and no help to somebody who did not
+         * know there was a name to give. The period check above it says what a
+         * period looks like; this says what an archive is called.
+         */
+        const setId = c.req.query("set") ?? "";
+        if (!archiveSet(setId)) {
+          return c.json(
+            {
+              error: `which archive? one of ${archiveSets()
+                .map((s) => s.id)
+                .join(", ")}`,
+            },
+            400,
+          );
+        }
+        const plan = await planArchive(orgId, setId, period.from, period.to);
         return c.json({
           set: plan.set.id,
           from: plan.from.toISOString(),
