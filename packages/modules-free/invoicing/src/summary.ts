@@ -16,6 +16,7 @@ import {
   schema,
   sql,
 } from "@sentrello/db";
+import { marketFor } from "@sentrello/db/countries";
 import { dayIn, daysLate } from "@sentrello/db/day";
 import {
   creditedAgainst,
@@ -279,6 +280,51 @@ export function registerInvoicingSummary(ctx: ModuleContext) {
             .where(eq(schema.organizations.id, orgId))
             .limit(1);
           return Boolean(org?.paymentInstructions?.trim());
+        },
+      },
+      {
+        /*
+         * Whether a price already contains the tax, where that is the local
+         * convention and the default is the other one.
+         *
+         * `invoicingSettings.pricesIncludeTax` defaults to false, which is net —
+         * how the US quotes, and not how the UK or the EU do. A price list that
+         * says £120 means £120, with £20 of VAT inside it; typed into a net
+         * instance it bills £144. The document then agrees with itself — net
+         * line, net flag, totals that reconcile — so nothing is ever
+         * inconsistent and the only thing wrong is the amount.
+         *
+         * The default is not changed, because it decides arithmetic rather than
+         * a sidebar: flipping it under a business that has been quoting net
+         * would change what its next invoice means. Asked instead, and only
+         * where the default is the wrong way round — a US or Canadian instance
+         * has nothing to answer here, and a country we have no rules for has
+         * nothing we could tell it.
+         *
+         * Completed by having saved the screen rather than by any particular
+         * answer: a British wholesaler that genuinely quotes net has answered
+         * this correctly, and a dismissal would put away the whole of Getting
+         * paid rather than one line of it.
+         */
+        id: "gross-or-net",
+        label: "Say whether your prices include tax",
+        detail:
+          "Here a price list usually quotes the figure a customer pays, with the VAT inside it. Sentrello starts the other way round — a price plus tax on top, which is how the US quotes — so a £120 price would be billed as £144 until you say otherwise.",
+        opens: "invoicing-settings",
+        done: async (orgId) => {
+          const [org] = await db
+            .select({ countryCode: schema.organizations.countryCode })
+            .from(schema.organizations)
+            .where(eq(schema.organizations.id, orgId))
+            .limit(1);
+          const market = marketFor(org?.countryCode);
+          if (market !== "GB" && market !== "EU") return true;
+          const [row] = await db
+            .select({ organizationId: schema.invoicingSettings.organizationId })
+            .from(schema.invoicingSettings)
+            .where(eq(schema.invoicingSettings.organizationId, orgId))
+            .limit(1);
+          return Boolean(row);
         },
       },
       {
