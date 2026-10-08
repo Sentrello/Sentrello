@@ -981,6 +981,17 @@ async function carryForward(
   archiveId: string,
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
 ): Promise<string[]> {
+  /*
+   * The month label is UTC's, deliberately, and it is the one place in the
+   * product that now is.
+   *
+   * Every report ends a period where the business's day ends. This does not,
+   * because the label is only a grouping key for carry-forward rows: an entry on
+   * the boundary moves between two adjacent months' opening balances and the sum
+   * of them is unchanged, so no trial balance and no return can disagree with
+   * itself over it. Changing it would rewrite the keys of archives already taken,
+   * which is a migration of somebody's closed history for a label nobody files.
+   */
   const rows = (await tx.execute(sql`
     select
       to_char(date_trunc('month', e.posted_at), 'YYYY-MM') as month,
