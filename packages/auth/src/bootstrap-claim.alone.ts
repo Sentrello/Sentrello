@@ -203,10 +203,10 @@ test("an instance with no token configured is still claimable", async () => {
  * organizations on an instance built for one, each with its own owner.
  * Measured on a running instance rather than reasoned about.
  *
- * A double-pressed button does it. So does an instance reachable before its
- * operator claims it: a stranger claiming at the same moment gets an
- * organization of their own and an account that works, and nothing the operator
- * sees afterwards says so.
+ * What reaches it in practice is two submissions at once from whoever is
+ * claiming. A stranger needs the setup token, which the installer generates —
+ * so on an ordinary install this is an accident, and on one deployed without a
+ * token it is a second owner the operator never sees.
  *
  * `Promise.all` is a real race here, because the handler awaits the database
  * several times and the gap between the read and the write is where every

@@ -77,8 +77,10 @@ export async function ensureBootstrapped(owner?: OwnerDetails) {
    * on its own it is a check-then-act: five concurrent claims all passed it and
    * all answered 201, leaving five organizations on an instance built for one,
    * each with its own owner. Measured rather than reasoned about — a
-   * double-pressed button does it, and so does a stranger claiming an instance
-   * that is reachable before its operator gets to it.
+   * double-pressed button does it, or a client that retries. A stranger needs
+   * the setup token, which the installer generates — so this is an accident on
+   * an ordinary install, and on one deployed without a token it is a second
+   * owner the operator never sees.
    *
    * `insert … on conflict do nothing` is atomic however many arrive together.
    * The winner gets the row back; a loser gets nothing and is told the instance

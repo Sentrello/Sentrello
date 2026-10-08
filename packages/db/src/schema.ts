@@ -62,10 +62,13 @@ export const licenseCache = pgTable("license_cache", {
  * about, on 8 October 2026 — so an instance built for one business ended up
  * with five, each with its own owner.
  *
- * A double-pressed button does it. So does an instance reachable from the
- * internet before its operator has claimed it: a stranger claiming at the same
- * moment gets an organization of their own and an account that works, and
- * nothing the operator sees afterwards says so.
+ * What reaches it in practice is two submissions at once from whoever is
+ * claiming — a double-pressed button, a client that retries. The setup token is
+ * what keeps strangers out of this route, and the installer generates one, so
+ * an ordinary install is not open to anybody who finds the address. An instance
+ * deployed without a token is, and there the race is worse than an accident: a
+ * second claimant lands beside the operator with an organization and a working
+ * account, and nothing the operator sees afterwards says so.
  *
  * The singleton row is the gate. `insert … on conflict do nothing` is one
  * statement, so exactly one caller can win it however many arrive together, and
