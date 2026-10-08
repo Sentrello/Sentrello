@@ -167,16 +167,50 @@ export async function usFilingReport(
    * books. Collected on a sale is a credit; a credit note's reversal is a
    * debit; the difference is what is owed for the period.
    */
-  const wantedCodes = new Map<string, string>(); // code -> jurisdiction
-  for (const entry of byJurisdiction.values()) {
-    for (const id of entry.definitionIds) {
-      wantedCodes.set(`2200-${id.slice(0, 8)}`, entry.jurisdiction);
-    }
+  /*
+   * Every US definition's account, not only the ones an invoice used.
+   *
+   * This read the accounts of definitions found in invoice bands, so a sale
+   * through the Shop or the till — posted to its state's own account since 8
+   * October, with no invoice behind it — was in no jurisdiction at all, and
+   * no longer counted as unassigned either.
+   */
+  const usDefinitions = await db
+    .select({
+      id: schema.taxDefinitions.id,
+      jurisdiction: schema.taxDefinitions.jurisdiction,
+      name: schema.taxDefinitions.name,
+      ratePpm: schema.taxDefinitions.ratePpm,
+      rateBp: schema.taxDefinitions.rateBp,
+    })
+    .from(schema.taxDefinitions)
+    .where(
+      and(
+        eq(schema.taxDefinitions.organizationId, orgId),
+        or(
+          eq(schema.taxDefinitions.regime, "us"),
+          like(schema.taxDefinitions.jurisdiction, "US-%"),
+        ),
+        isNotNull(schema.taxDefinitions.jurisdiction),
+      ),
+    );
+  const wantedCodes = new Map<
+    string,
+    { jurisdiction: string; name: string; ratePpm: number }
+  >();
+  for (const def of usDefinitions) {
+    if (!def.jurisdiction) continue;
+    wantedCodes.set(`2200-${def.id.slice(0, 8)}`, {
+      jurisdiction: def.jurisdiction.toUpperCase(),
+      name: def.name,
+      ratePpm: def.ratePpm ?? def.rateBp * 100,
+    });
   }
   if (wantedCodes.size > 0) {
     const movements = await db
       .select({
         code: schema.accounts.code,
+        source: schema.journalEntries.source,
         debitCents: schema.journalLines.debitCents,
         creditCents: schema.journalLines.creditCents,
       })
@@ -199,11 +233,32 @@ export async function usFilingReport(
         ),
       );
     for (const line of movements) {
-      const jurisdiction = wantedCodes.get(line.code);
-      if (!jurisdiction) continue;
-      const entry = byJurisdiction.get(jurisdiction);
-      if (!entry) continue;
-      entry.ledgerTaxCents += line.creditCents - line.debitCents;
+      const def = wantedCodes.get(line.code);
+      if (!def) continue;
+      const entry = byJurisdiction.get(def.jurisdiction) ?? {
+        jurisdiction: def.jurisdiction,
+        names: [],
+        taxableCents: 0,
+        taxCents: 0,
+        ledgerTaxCents: 0,
+        definitionIds: new Set<string>(),
+      };
+      const net = line.creditCents - line.debitCents;
+      entry.ledgerTaxCents += net;
+      /*
+       * A Shop or till sale has no invoice and so no band: its own entries are
+       * the document. Its tax is what it posted, and its taxable sales are
+       * that tax at the definition's rate — a sale, a refund taking a share
+       * back, a discount at the till taking its tax with it.
+       */
+      if (/^(shop-|pos-)/.test(line.source ?? "")) {
+        entry.taxCents += net;
+        if (def.ratePpm > 0) {
+          entry.taxableCents += Math.round((net * 1_000_000) / def.ratePpm);
+        }
+        if (!entry.names.includes(def.name)) entry.names.push(def.name);
+      }
+      byJurisdiction.set(def.jurisdiction, entry);
     }
   }
 
@@ -263,15 +318,12 @@ export async function usFilingReport(
    * Tax this return cannot see, stated rather than dropped.
    *
    * Every figure above comes from a tax definition's own account, because a
-   * filing needs to know which jurisdiction a cent belongs to. The Shop has
-   * no tax definitions — one blended rate per place — so its tax posts to the
-   * shared account and appears in none of the numbers above, in either
-   * column. The ledger cross-check agreed with the bands because both were
-   * short by the same amount.
-   *
-   * So it is read separately and named. Not folded into a jurisdiction: the
-   * platform genuinely cannot say which one it belongs to, and guessing would
-   * be worse than saying so. Found 2026-09-28.
+   * filing needs to know which jurisdiction a cent belongs to. A Shop or till
+   * sale names its state's tax from where it was made, since 8 October, so it
+   * is above. What is still on the shared account is tax nothing could name —
+   * a sale with no state, or one posted before then — and it is read
+   * separately and named. Not folded into a jurisdiction: guessing which one
+   * it belongs to would be worse than saying so. Found 2026-09-28.
    */
   const unbandedCents = unbandedSalesTaxCents(
     await ledgerRows(orgId, { from, to }),

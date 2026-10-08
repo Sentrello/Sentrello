@@ -3,7 +3,12 @@ import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, schema } from "@sentrello/db";
 import { caReturnsFor, caTaxAccountCode } from "@sentrello/db/ca-tax";
-import { postJournalEntry } from "@sentrello/db/ledger";
+import {
+  CORE_ACCOUNTS,
+  ensureAccount,
+  postJournalEntry,
+} from "@sentrello/db/ledger";
+import { saleTaxesFor, taxAccountFor } from "@sentrello/db/tax-places";
 import type { SentrelloEnv } from "@sentrello/module-sdk";
 import { and, eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
@@ -506,8 +511,10 @@ test("a period bounds the return: last year's sale is not on this quarter's form
  * filed short, with nothing saying so. An understated return is worse than a
  * refused one, because it gets filed. Found 2026-09-28.
  *
- * The figure is stated and deliberately not distributed: the platform cannot
- * know whether a blended 12% is five points federal and seven provincial, and
+ * Since 8 October a Shop or till sale names its taxes from where it was made,
+ * and a rate whose parts add up — BC's 12% as GST 5 and PST 7 — goes to each
+ * tax's own account. What is left on the shared account is a rate that could
+ * not be named, and that is still stated and deliberately not distributed:
  * splitting it on a guess would put a wrong number on a signed declaration.
  */
 test("tax collected against no named tax is reported as unplaced", async () => {
@@ -571,4 +578,80 @@ test("tax collected against no named tax is reported as unplaced", async () => {
   expect(after.qst?.line205CollectedCents).toBe(
     before.qst?.line205CollectedCents,
   );
+});
+
+/**
+ * A till sale in British Columbia reaches both governments' returns, and its
+ * discount comes off what was collected — never onto input tax credits.
+ *
+ * The sale names its taxes from where it was made. The till's discount entry
+ * has Sales Discounts and the tax that came off with it and no income line, and
+ * was read as a purchase: its GST counted as a credit claimed.
+ */
+test("a till sale in BC files to both returns, and its discount reduces what was collected", async () => {
+  const before = await caReturnsFor(orgId);
+  const taxes = await saleTaxesFor(
+    orgId,
+    { country: "CA", region: "BC" },
+    120_000,
+  );
+  if (!taxes) throw new Error("BC's 12% should split");
+  const [gst, pst] = await Promise.all(
+    taxes.map((t) => taxAccountFor(orgId, t)),
+  );
+  const cash = await ensureAccount(orgId, CORE_ACCOUNTS.cash);
+  const income = await ensureAccount(orgId, CORE_ACCOUNTS.salesIncome);
+  const given = await ensureAccount(orgId, CORE_ACCOUNTS.salesDiscounts);
+  if (!gst || !pst) throw new Error("no accounts");
+
+  await postJournalEntry(orgId, "Till sale", `shop-order:bc-${suffix}`, [
+    { accountId: cash, debitCents: 11_200 },
+    { accountId: income, creditCents: 10_000 },
+    { accountId: gst, creditCents: 500 },
+    { accountId: pst, creditCents: 700 },
+  ]);
+  await postJournalEntry(orgId, "Discount", `pos-discount:bc-${suffix}`, [
+    { accountId: given, debitCents: 1_000 },
+    { accountId: gst, debitCents: 50 },
+    { accountId: pst, debitCents: 70 },
+    { accountId: cash, creditCents: 1_120 },
+  ]);
+
+  const after = await caReturnsFor(orgId);
+  expect(
+    (after.gstHst?.line105CollectedCents ?? 0) -
+      (before.gstHst?.line105CollectedCents ?? 0),
+  ).toBe(450);
+  // Not a credit claimed on a purchase.
+  expect(after.gstHst?.line108ItcsCents).toBe(
+    before.gstHst?.line108ItcsCents ?? 0,
+  );
+  const bc = (r: typeof after) =>
+    r.pst.find((p) => p.jurisdiction === "CA-BC")?.collectedCents ?? 0;
+  expect(bc(after) - bc(before)).toBe(630);
+  // Nothing here was left unplaced.
+  expect(after.unbandedCents).toBe(before.unbandedCents);
+});
+
+/**
+ * And a sale whose tax could not be named still counts as unplaced when the
+ * same entry gives a discount or pays a processor's fee. Both are typed as
+ * expenses, and the entry was skipped as a purchase: the warning undercounted.
+ */
+test("an unplaced sale with a discount and a fee is still counted as unplaced", async () => {
+  const before = await caReturnsFor(orgId);
+  const cash = await ensureAccount(orgId, CORE_ACCOUNTS.cash);
+  const income = await ensureAccount(orgId, CORE_ACCOUNTS.salesIncome);
+  const shared = await ensureAccount(orgId, CORE_ACCOUNTS.taxPayable);
+  const given = await ensureAccount(orgId, CORE_ACCOUNTS.salesDiscounts);
+  const fees = await ensureAccount(orgId, CORE_ACCOUNTS.paymentFees);
+  await postJournalEntry(orgId, "Shop order", `shop-order:fee-${suffix}`, [
+    { accountId: cash, debitCents: 10_200 },
+    { accountId: fees, debitCents: 300 },
+    { accountId: given, debitCents: 1_000 },
+    { accountId: income, creditCents: 10_000 },
+    { accountId: shared, creditCents: 1_500 },
+  ]);
+  const after = await caReturnsFor(orgId);
+  expect(after.unbandedCents - before.unbandedCents).toBe(1_500);
 });

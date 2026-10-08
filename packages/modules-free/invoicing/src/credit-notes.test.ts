@@ -2,8 +2,14 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, schema } from "@sentrello/db";
-import { ledgerRows } from "@sentrello/db/ledger";
+import {
+  CORE_ACCOUNTS,
+  ensureAccount,
+  ledgerRows,
+  postJournalEntry,
+} from "@sentrello/db/ledger";
 import { flatRateVatReturn, vatReturn } from "@sentrello/db/tax";
+import { saleTaxesFor, taxAccountFor } from "@sentrello/db/tax-places";
 import type { SentrelloEnv } from "@sentrello/module-sdk";
 import { and, eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
@@ -583,4 +589,48 @@ test("a credited sale reduces the UK VAT return boxes, standard and flat rate", 
   expect(flat.vatDueSales).toBe(
     Math.round((flat.totalValueSalesExVAT * 145_000) / 1_000_000),
   );
+});
+
+/**
+ * A sale through the Shop or the till is on the US filing, under its state.
+ *
+ * It has no invoice and so no tax band, and the report found its jurisdictions
+ * in invoice bands only: a New York till sale posted to New York's own account
+ * was in no jurisdiction, and — no longer on the shared account — not even
+ * named as unassigned. Its tax is what it posted; its taxable sales that tax at
+ * the rate; a refund takes its share back.
+ */
+test("a till sale and its refund are on the US filing under their state", async () => {
+  const year = new Date().getUTCFullYear();
+  const from = new Date(`${year}-01-01T00:00:00Z`);
+  const to = new Date(`${year}-12-31T23:59:59Z`);
+  const before = await usFilingReport(orgId, from, to);
+  const ny = (r: typeof before) =>
+    r.jurisdictions.find((j) => j.jurisdiction === "US-NY");
+
+  const [tax] =
+    (await saleTaxesFor(orgId, { country: "US", region: "NY" }, 88_750)) ?? [];
+  if (!tax) throw new Error("NY should be named");
+  const owed = await taxAccountFor(orgId, tax);
+  const cash = await ensureAccount(orgId, CORE_ACCOUNTS.cash);
+  const income = await ensureAccount(orgId, CORE_ACCOUNTS.salesIncome);
+  await postJournalEntry(orgId, "Till sale", `shop-order:ny-${orgId}`, [
+    { accountId: cash, debitCents: 10_888 },
+    { accountId: income, creditCents: 10_000 },
+    { accountId: owed, creditCents: 888 },
+  ]);
+  await postJournalEntry(orgId, "Refund", `shop-refund:ny-${orgId}:5444`, [
+    { accountId: income, debitCents: 5_000 },
+    { accountId: owed, debitCents: 444 },
+    { accountId: cash, creditCents: 5_444 },
+  ]);
+
+  const after = await usFilingReport(orgId, from, to);
+  const was = ny(before);
+  const now = ny(after);
+  expect((now?.taxCents ?? 0) - (was?.taxCents ?? 0)).toBe(444);
+  expect((now?.taxableCents ?? 0) - (was?.taxableCents ?? 0)).toBe(5_003);
+  // The books and the filing agree, as they do for invoices.
+  expect(now?.ledgerTaxCents).toBe(now?.taxCents);
+  expect(after.unbandedCents).toBe(before.unbandedCents);
 });

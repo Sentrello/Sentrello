@@ -1,7 +1,12 @@
 import { and, eq, gte, inArray, like, lte, or } from "drizzle-orm";
 import { db } from "./client";
 import { RATE_SCALE, toBaseCents } from "./currency";
-import { type LedgerRow, ledgerRows, unbandedSalesTaxCents } from "./ledger";
+import {
+  type LedgerRow,
+  ledgerRows,
+  saleOrPurchase,
+  unbandedSalesTaxCents,
+} from "./ledger";
 import * as schema from "./schema";
 
 /**
@@ -120,8 +125,9 @@ export function caTaxMovements(
       purchase: false,
       taxes: new Map<string, { credit: number; debit: number }>(),
     };
-    if (row.type === "income") entry.sale = true;
-    if (row.type === "expense") entry.purchase = true;
+    const side = saleOrPurchase(row);
+    if (side === "sale") entry.sale = true;
+    if (side === "purchase") entry.purchase = true;
     const definitionId = codes.get(row.code);
     if (definitionId) {
       const tax = entry.taxes.get(definitionId) ?? { credit: 0, debit: 0 };

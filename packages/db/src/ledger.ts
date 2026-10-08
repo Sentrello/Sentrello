@@ -415,12 +415,13 @@ export class PeriodClosedError extends Error {
  * shared account cannot say which authority a cent belongs to. Anything that
  * posts tax to the bare `2200` is therefore invisible to them.
  *
- * Which is fine for a UK business, whose return matches both codes, and is
- * not fine for the Shop. A shop order carries one blended rate and no tax
- * definition, so `postSale` credits the shared account — and a Canadian or
+ * Which is fine for a UK business, whose return matches both codes, and was
+ * not fine for the Shop. A shop order carried one blended rate and no tax
+ * definition, so `postSale` credited the shared account — and a Canadian or
  * American business selling through the Shop had those sales missing from its
  * return with nothing saying so. An understated return is worse than a
- * refused one: it is filed.
+ * refused one: it is filed. Since 8 October the Shop names its taxes from the
+ * place of sale (`saleTaxesFor`), and only a rate it cannot name lands here.
  *
  * So the figure is computed and shown. Not folded into a box — the platform
  * genuinely cannot say which authority it belongs to, and inventing a split
@@ -431,10 +432,28 @@ export class PeriodClosedError extends Error {
  * is a purchase, which a return's recovery side reads from elsewhere, and
  * counting it here would name a shortfall that is not one.
  *
- * Found 2026-09-28. The full answer is for the Shop's rates to name a tax
- * definition, which is a change to the module's money path and not one to
- * make in the week of a launch.
+ * Found 2026-09-28; the Shop's sales were named on 8 October.
  */
+/**
+ * Which side of a sale or a purchase a ledger line puts its entry on.
+ *
+ * Income makes it a sale. So does Sales Discounts: it is typed an expense so a
+ * P&L can show what was given away, but it is income handed back, and a till's
+ * discount entry — Sales Discounts and the tax that came off with it, and no
+ * income line — was being read as a purchase. Its tax then counted as tax
+ * reclaimed on a purchase, or not at all. Processor fees ride inside a sale's
+ * own entry and say nothing about a purchase either.
+ */
+export function saleOrPurchase(row: {
+  type: string;
+  code: string;
+}): "sale" | "purchase" | null {
+  if (row.type === "income") return "sale";
+  if (row.code === CORE_ACCOUNTS.salesDiscounts.code) return "sale";
+  if (row.code === CORE_ACCOUNTS.paymentFees.code) return null;
+  return row.type === "expense" ? "purchase" : null;
+}
+
 export function unbandedSalesTaxCents(rows: LedgerRow[]): number {
   const entries = new Map<
     string,
@@ -446,8 +465,9 @@ export function unbandedSalesTaxCents(rows: LedgerRow[]): number {
       purchase: false,
       cents: 0,
     };
-    if (row.type === "income") entry.sale = true;
-    if (row.type === "expense") entry.purchase = true;
+    const side = saleOrPurchase(row);
+    if (side === "sale") entry.sale = true;
+    if (side === "purchase") entry.purchase = true;
     // The shared account exactly, never an authority's own.
     if (row.code === CORE_ACCOUNTS.taxPayable.code) {
       entry.cents += row.creditCents - row.debitCents;
