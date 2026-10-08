@@ -1485,6 +1485,83 @@ export async function ledgerTotals(
 }
 
 /**
+ * Whether an account holds money the business can spend.
+ *
+ * The cash codes, any account the business has marked as a bank, and an asset
+ * with "bank" in its name — a deposit account somebody added by hand. A bank
+ * account brought in by a feed is marked a bank and named whatever the bank
+ * calls it, "Chase Checking", which the name test alone never saw. Asset only,
+ * because the starter chart's Bank Charges is an expense.
+ */
+export function isCashAccount(account: {
+  code: string;
+  name: string;
+  type: string;
+  isBank?: boolean | null;
+}): boolean {
+  if (account.type !== "asset") return false;
+  return (
+    CASH_ACCOUNT_CODES.includes(account.code) ||
+    account.isBank === true ||
+    account.name.toLowerCase().includes("bank")
+  );
+}
+
+/**
+ * Money that only moved between two cash accounts, in a period.
+ *
+ * A payout from the processor to the bank, a float taken out of the bank, a
+ * transfer between two banks: the business has exactly as much cash after as
+ * before. Added up per account, each one is money in on one side and money out
+ * on the other, so a cash-flow statement reported both rising by every
+ * transfer. Measured per entry, it is the smaller of the cash debited and the
+ * cash credited, which is the part that never left.
+ */
+export async function cashMovedWithinCash(
+  orgId: string,
+  period: {
+    from?: Date;
+    to?: Date;
+    classId?: string;
+    locationId?: string;
+  } = {},
+): Promise<number> {
+  const cash = sql`(${schema.accounts.type} = 'asset' and (
+    ${inArray(schema.accounts.code, [...CASH_ACCOUNT_CODES])}
+    or ${schema.accounts.isBank}
+    or ${schema.accounts.name} ilike '%bank%'))`;
+  const perEntry = db
+    .select({
+      debit:
+        sql<number>`coalesce(sum(case when ${cash} then ${schema.journalLines.debitCents} else 0 end), 0)`.as(
+          "debit",
+        ),
+      credit:
+        sql<number>`coalesce(sum(case when ${cash} then ${schema.journalLines.creditCents} else 0 end), 0)`.as(
+          "credit",
+        ),
+    })
+    .from(schema.journalLines)
+    .innerJoin(
+      schema.journalEntries,
+      eq(schema.journalLines.entryId, schema.journalEntries.id),
+    )
+    .innerJoin(
+      schema.accounts,
+      eq(schema.journalLines.accountId, schema.accounts.id),
+    )
+    .where(ledgerWhere(orgId, period))
+    .groupBy(schema.journalEntries.id)
+    .as("per_entry");
+  const [row] = await db
+    .select({
+      cents: sql<string>`coalesce(sum(least(${perEntry.debit}, ${perEntry.credit})), 0)::bigint`,
+    })
+    .from(perEntry);
+  return Number(row?.cents ?? 0);
+}
+
+/**
  * The filter both readers share, written once.
  *
  * Deliberately not duplicated. The two have to select the same lines or a
