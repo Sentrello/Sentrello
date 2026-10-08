@@ -1558,6 +1558,29 @@ export const ledgerSettings = pgTable("ledger_settings", {
     .$type<string[]>()
     .notNull()
     .default(["us-sales-tax"]),
+  /**
+   * When the business chose those regimes, and null when it never has.
+   *
+   * `taxRegimes` has a column default of `["us-sales-tax"]`, which stores an
+   * answer nobody gave — and the row itself is created by closing a period,
+   * defining a custom field or setting a VAT scheme, none of which is a
+   * statement about where the business trades. So a joinery in Toronto that
+   * closed September was handed the American sales tax screen and had its own
+   * GST/HST one taken away, and the country-derived default added on
+   * 2026-10-08 could not fire for it: the row existed, so it looked like a
+   * choice. Measured on a running instance, because reading the code says the
+   * default works.
+   *
+   * A marker rather than making `taxRegimes` nullable, which would be the
+   * tidier shape and is not backward-compatible: an instance rolled back to
+   * the release before this one reads the column directly and a null there
+   * takes its sidebar down. This column is additive and older code ignores it.
+   *
+   * The one business this is wrong for is a non-American one that deliberately
+   * chose US sales tax alone before this release — it sees its own country's
+   * screen instead, once. Ticking what it wants sets this, and then it sticks.
+   */
+  taxRegimesChosenAt: timestamp("tax_regimes_chosen_at"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 

@@ -102,17 +102,32 @@ export function cleanTaxRegimes(input: unknown): string[] | null {
  */
 export async function taxRegimesFor(orgId: string): Promise<string[]> {
   const [row] = await db
-    .select({ taxRegimes: schema.ledgerSettings.taxRegimes })
+    .select({
+      taxRegimes: schema.ledgerSettings.taxRegimes,
+      chosenAt: schema.ledgerSettings.taxRegimesChosenAt,
+    })
     .from(schema.ledgerSettings)
     .where(eq(schema.ledgerSettings.organizationId, orgId))
     .limit(1);
-  // No row at all is "never chosen" and gets the default. A row with an
-  // empty array is a business that chose to turn everything off, which is
-  // its call to make and stays exactly that — an empty sidebar section, not
-  // a silent fallback to what a fresh instance starts with.
-  if (row) return row.taxRegimes;
-  // Never chosen, so the country stands in — one more read, on the path that
-  // only a business which has not been to this setting ever takes.
+  /*
+   * A choice, which is the row *and* the stamp saying somebody made it.
+   *
+   * The row on its own is not an answer. `ledgerSettings` is created by closing
+   * a period, defining a custom field or setting a VAT scheme, and
+   * `taxRegimes` has a column default of `["us-sales-tax"]` — so a business in
+   * Toronto that closed September looked, to this function, exactly like one
+   * that had chosen to file American sales tax. It was handed the US screen and
+   * its own GST/HST one was taken away. The country-derived default below could
+   * not fire for it, which made that fix inert for every instance that has done
+   * any bookkeeping. Found by closing a period on a running instance; reading
+   * this function says it works.
+   *
+   * An empty array *with* the stamp stays empty: a business that turned
+   * everything off made a decision, and this must not quietly undo it.
+   */
+  if (row?.chosenAt) return row.taxRegimes;
+  // Nobody has said, so the country stands in — one more read, on the path only
+  // a business that has never been to this setting takes.
   const [org] = await db
     .select({ countryCode: schema.organizations.countryCode })
     .from(schema.organizations)
@@ -121,16 +136,30 @@ export async function taxRegimesFor(orgId: string): Promise<string[]> {
   return defaultTaxRegimesFor(org?.countryCode);
 }
 
-/** Saves the regimes a business has chosen. Never deletes anything else's row. */
+/**
+ * Saves the regimes a business has chosen. Never deletes anything else's row.
+ *
+ * And stamps that somebody chose, which is what tells a choice from the column
+ * default on a row that exists for another reason entirely.
+ */
 export async function setTaxRegimes(
   orgId: string,
   regimes: string[],
 ): Promise<void> {
+  const chosen = new Date();
   await db
     .insert(schema.ledgerSettings)
-    .values({ organizationId: orgId, taxRegimes: regimes })
+    .values({
+      organizationId: orgId,
+      taxRegimes: regimes,
+      taxRegimesChosenAt: chosen,
+    })
     .onConflictDoUpdate({
       target: schema.ledgerSettings.organizationId,
-      set: { taxRegimes: regimes, updatedAt: new Date() },
+      set: {
+        taxRegimes: regimes,
+        taxRegimesChosenAt: chosen,
+        updatedAt: new Date(),
+      },
     });
 }

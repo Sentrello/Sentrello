@@ -1,0 +1,1 @@
+ALTER TABLE "ledger_settings" ADD COLUMN "tax_regimes_chosen_at" timestamp;
