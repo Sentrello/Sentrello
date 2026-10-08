@@ -4,7 +4,6 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import {
-  DEFAULT_TAX_REGIMES,
   TAX_REGIMES,
   cleanTaxRegimes,
   setTaxRegimes,
@@ -27,7 +26,6 @@ export function registerTaxRegimes(ctx: ModuleContext) {
       return c.json({
         regimes: TAX_REGIMES.map(({ id, label }) => ({ id, label })),
         chosen: await taxRegimesFor(orgId),
-        default: DEFAULT_TAX_REGIMES,
       });
     },
   );

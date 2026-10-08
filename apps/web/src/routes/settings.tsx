@@ -738,7 +738,6 @@ export function Settings() {
 interface TaxRegimesResponse {
   regimes: { id: string; label: string }[];
   chosen: string[];
-  default: string[];
 }
 
 /**

@@ -1,50 +1,18 @@
 /**
  * Who the European VAT rules apply to, in one list.
  *
- * Pulled out of `distance-selling.ts` on 2026-09-28 so the e-invoice
- * generator could ask the same question. That file reaches the database and
- * the module context; `einvoice.ts` deliberately reaches neither, and a
- * second copy of the member states in it would be a list that drifts the day
- * one of them changes.
+ * Pulled out of `distance-selling.ts` on 2026-09-28 so the e-invoice generator
+ * could ask the same question, and moved into `@sentrello/db/countries` on
+ * 2026-10-08 so the ledger could ask it too: which tax regime a business
+ * operates in, before it has chosen, is the same question about the same
+ * country. Re-exported from here because every caller in this module already
+ * asks it of this file, and the import it reaches for is pure — no database
+ * client, which is what `einvoice.ts` needs it to stay.
  */
 
-/** The member states, by the atlas codes company records carry. */
-const EU_MEMBERS = new Set([
-  "AT",
-  "BE",
-  "BG",
-  "HR",
-  "CY",
-  "CZ",
-  "DK",
-  "EE",
-  "FI",
-  "FR",
-  "DE",
-  "GR",
-  "EL", // Greece as the VAT register spells it, for the record typed that way
-  "HU",
-  "IE",
-  "IT",
-  "LV",
-  "LT",
-  "LU",
-  "MT",
-  "NL",
-  "PL",
-  "PT",
-  "RO",
-  "SK",
-  "SI",
-  "ES",
-  "SE",
-]);
+import { euCountry } from "@sentrello/db/countries";
 
-export const euCountry = (raw: string | null | undefined): string | null => {
-  const code = raw?.trim().toUpperCase() ?? "";
-  if (!EU_MEMBERS.has(code)) return null;
-  return code === "EL" ? "GR" : code;
-};
+export { euCountry };
 
 /**
  * Whether a business in this country issues invoices under EN 16931 at all.

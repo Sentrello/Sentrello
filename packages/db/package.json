@@ -12,6 +12,7 @@
     "./request-values": "./src/request-values.ts",
     "./request-coercion-sweep": "./src/request-coercion-sweep.ts",
     "./text-columns": "./src/text-columns.ts",
+    "./countries": "./src/countries.ts",
     "./currency": "./src/currency.ts",
     "./crm": "./src/crm.ts",
     "./ledger": "./src/ledger.ts",
