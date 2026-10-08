@@ -5,6 +5,7 @@ import {
 } from "@sentrello/auth/hono";
 import { db, eq, schema } from "@sentrello/db";
 import { percentFromPpm } from "@sentrello/db/money";
+import { timezoneFor } from "@sentrello/db/timezone";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import { cashBasisVatRowsFor } from "./cash-basis";
 import { ledgerRows, periodFrom } from "./reports";
@@ -263,7 +264,10 @@ export function registerVatScheme(ctx: ModuleContext) {
     requirePermission({ bookkeeping: ["read"] }),
     async (c: RouteContext) => {
       const orgId = activeOrganizationId(c.get("session"));
-      const period = periodFrom((name) => c.req.query(name));
+      const period = periodFrom(
+        (name) => c.req.query(name),
+        await timezoneFor(orgId),
+      );
       let out: Awaited<ReturnType<typeof vatBoxesFor>>;
       try {
         out = await vatBoxesFor(orgId, period);

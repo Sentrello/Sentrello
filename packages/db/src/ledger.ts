@@ -21,7 +21,7 @@ import { RATE_SCALE, toBaseCents } from "./currency";
 import { db, schema } from "./index";
 import { sumCents } from "./money";
 import { recordSalePlace } from "./sale-place";
-import { UnreadableDateError, demandDate } from "./timezone";
+import { UnreadableDateError, demandDate, momentAt } from "./timezone";
 
 type Posting = {
   accountId: string;
@@ -546,13 +546,30 @@ export async function taggingFrom(
  * 23 August" written by somebody means everything up to the end of the 23rd,
  * and reading it as midnight is how a report run this afternoon showed none of
  * this morning's takings — which reads as a broken report, not a boundary.
+ *
+ * **In the business's own day, not the server's.** The bounds this returns are
+ * compared against `journalEntries.postedAt`, which is an instant, and the days
+ * they came from were being stretched in UTC. So for a business west of UTC the
+ * last hours of every local day fell into the next period: a profit and loss to
+ * 30 September missed what a shop in New York sold on the evening of the 30th,
+ * and a VAT quarter or a US filing period lost the same hours at its edge. East
+ * of UTC it goes the other way, and the first hours of a local day land in a
+ * period that may already have been filed.
+ *
+ * Pass the zone from `timezoneFor(orgId)`. No zone means UTC, which is what
+ * every figure did before this and is still right for a business that has not
+ * said where it is.
  */
-export function periodFrom(query: (name: string) => string | undefined): {
+export function periodFrom(
+  query: (name: string) => string | undefined,
+  zone: string | null = null,
+): {
   from?: Date;
   to?: Date;
   classId?: string;
   locationId?: string;
 } {
+  const BARE_DAY = /^\d{4}-\d{2}-\d{2}$/;
   const parse = (value: string | undefined, endOfDay = false) => {
     if (!value) return undefined;
     /*
@@ -566,11 +583,37 @@ export function periodFrom(query: (name: string) => string | undefined): {
      * with every figure downstream agreeing with itself.
      */
     const date = demandDate(value);
-    // Only a bare date is stretched. A caller who sent a time meant that time.
-    if (endOfDay && /^\d{4}-\d{2}-\d{2}$/.test(value.trim())) {
-      return new Date(date.getTime() + 24 * 60 * 60 * 1000 - 1);
-    }
-    return date;
+    // Only a bare date is a day. A caller who sent a time meant that time.
+    if (!BARE_DAY.test(value.trim())) return date;
+
+    /*
+     * Built from the parts rather than by adding hours, because a day is not
+     * always twenty-four of them: the clocks move, and a period edge that falls
+     * on the night they do would be an hour out either side of it.
+     */
+    const parts = {
+      year: date.getUTCFullYear(),
+      month: date.getUTCMonth() + 1,
+      day: date.getUTCDate(),
+      hours: 0,
+      minutes: 0,
+    };
+    const startOfDay = momentAt(parts, zone);
+    if (!endOfDay) return startOfDay;
+    const nextDay = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
+    nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+    return new Date(
+      momentAt(
+        {
+          year: nextDay.getUTCFullYear(),
+          month: nextDay.getUTCMonth() + 1,
+          day: nextDay.getUTCDate(),
+          hours: 0,
+          minutes: 0,
+        },
+        zone,
+      ).getTime() - 1,
+    );
   };
   /**
    * The dimension filters travel with the period.

@@ -1100,3 +1100,100 @@ test("the journal answers a page of whole entries", async () => {
   expect(nextIds.has(posted[2]?.id as string)).toBe(false);
   expect(nextIds.has(posted[1]?.id as string)).toBe(true);
 });
+
+/**
+ * A period ends at the end of the business's day, not the server's.
+ *
+ * The bounds a report is given are compared against `journalEntries.postedAt`,
+ * which is an instant, and a bare date was being stretched to the end of the day
+ * **in UTC**. So for a shop in Honolulu — ten hours behind — everything rung up
+ * after two in the afternoon fell outside "to today" and landed in the next
+ * period: a profit and loss for the month missed the last evening of it, and so
+ * did a VAT quarter and a US filing period at their edges. East of UTC it goes
+ * the other way, and the first hours of a local day land in a period that may
+ * already have been filed.
+ *
+ * Measured at the two boundaries that matter: the last hour of the local day,
+ * and the hour after it.
+ */
+test("a period's edge is the business's own midnight", async () => {
+  const chart = await get<{ accounts: { id: string; code: string }[] }>(
+    "/api/accounts",
+  );
+  const cash = chart.accounts.find((a) => a.code === "1000");
+  const sales = chart.accounts.find((a) => a.code === "4000");
+  if (!cash || !sales)
+    throw new Error("the chart has no cash or sales account");
+
+  /*
+   * 2031-03-20, 23:30 in Honolulu is 2031-03-21 09:30 UTC. A UTC day boundary
+   * puts it in the 21st; the business calls it the 20th, and so should its books.
+   */
+  const lateOnTheTwentieth = new Date("2031-03-21T09:30:00.000Z");
+  // And half an hour the other side of their midnight, which is the 21st.
+  const earlyOnTheTwentyFirst = new Date("2031-03-21T10:30:00.000Z");
+
+  await postJournalEntry(
+    orgId,
+    "Rung up at half past eleven at night",
+    `test:honolulu-late-${suffix}`,
+    [
+      { accountId: cash.id, debitCents: 4_000 },
+      { accountId: sales.id, creditCents: 4_000 },
+    ],
+    lateOnTheTwentieth,
+  );
+  await postJournalEntry(
+    orgId,
+    "Rung up after midnight",
+    `test:honolulu-early-${suffix}`,
+    [
+      { accountId: cash.id, debitCents: 700 },
+      { accountId: sales.id, creditCents: 700 },
+    ],
+    earlyOnTheTwentyFirst,
+  );
+
+  /*
+   * Straight onto the organization, because the screen that sets this belongs to
+   * the settings module and this app has only the accounting one registered —
+   * the first version of this test went through `PUT /api/settings` and was
+   * reading a 404 as "the timezone did not change anything".
+   */
+  const sayWhere = (timezone: string | null) =>
+    db
+      .update(schema.organizations)
+      .set({ timezone })
+      .where(eq(schema.organizations.id, orgId));
+
+  try {
+    await sayWhere("Pacific/Honolulu");
+    const theTwentieth = await pnl("?from=2031-03-20&to=2031-03-20");
+    // The late sale belongs to the 20th where the business is, and only it.
+    expect(theTwentieth.incomeCents).toBe(4_000);
+
+    const theTwentyFirst = await pnl("?from=2031-03-21&to=2031-03-21");
+    expect(theTwentyFirst.incomeCents).toBe(700);
+
+    // And the two days together are the two sales, with nothing counted twice.
+    const both = await pnl("?from=2031-03-20&to=2031-03-21");
+    expect(both.incomeCents).toBe(4_700);
+  } finally {
+    await sayWhere(null);
+  }
+});
+
+/**
+ * And a business that has not said where it is still gets UTC.
+ *
+ * Which is what every figure did before this, and is the honest answer when
+ * nobody has told us: the alternative is guessing from the server's clock, which
+ * is the fault this is fixing.
+ */
+test("with no timezone set, a period is still measured in UTC", async () => {
+  // The late sale above is 2031-03-21 09:30 UTC, so in UTC it is the 21st.
+  const utcTwentyFirst = await pnl("?from=2031-03-21&to=2031-03-21");
+  expect(utcTwentyFirst.incomeCents).toBe(4_700);
+  const utcTwentieth = await pnl("?from=2031-03-20&to=2031-03-20");
+  expect(utcTwentieth.incomeCents).toBe(0);
+});

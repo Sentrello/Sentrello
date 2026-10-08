@@ -12,6 +12,7 @@ import {
   periodFrom,
   totalsByAccount,
 } from "@sentrello/db/ledger";
+import { timezoneFor } from "@sentrello/db/timezone";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import { type CashBasisRow, cashBasisRowsFor } from "./cash-basis";
 
@@ -156,7 +157,12 @@ export function registerReports(ctx: ModuleContext) {
     requirePermission({ reports: ["read"] }),
     async (c: RouteContext) => {
       const orgId = activeOrganizationId(c.get("session"));
-      const period = periodFrom((name) => c.req.query(name));
+      // In the business's own day: these bounds are compared against an
+      // instant, so a UTC day loses the evening for anybody west of it.
+      const period = periodFrom(
+        (name) => c.req.query(name),
+        await timezoneFor(orgId),
+      );
 
       /**
        * Accrual unless somebody asks for cash, which is the safe default.
@@ -210,8 +216,9 @@ export function registerReports(ctx: ModuleContext) {
        * A balance sheet is as at a date, not for a period: it is a photograph
        * of everything that has ever been posted up to that moment.
        */
-      const to = periodFrom((name) =>
-        name === "to" ? c.req.query("asOf") : undefined,
+      const to = periodFrom(
+        (name) => (name === "to" ? c.req.query("asOf") : undefined),
+        await timezoneFor(orgId),
       ).to;
       return c.json({
         asOf: to ?? new Date(),

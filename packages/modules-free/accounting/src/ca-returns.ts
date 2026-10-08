@@ -4,6 +4,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { type CaReturns, caReturnsFor } from "@sentrello/db/ca-tax";
+import { timezoneFor } from "@sentrello/db/timezone";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import { periodFrom } from "./reports";
 
@@ -91,7 +92,10 @@ export function registerCaReturns(ctx: ModuleContext) {
     requirePermission({ bookkeeping: ["read"] }),
     async (c: RouteContext) => {
       const orgId = activeOrganizationId(c.get("session"));
-      const period = periodFrom((name) => c.req.query(name));
+      const period = periodFrom(
+        (name) => c.req.query(name),
+        await timezoneFor(orgId),
+      );
       const out = await caReturnsFor(orgId, period);
       return c.json({ ...out, notes: caReturnNotes(out) });
     },

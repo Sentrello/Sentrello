@@ -7,6 +7,7 @@ import {
 import { db, eq, schema } from "@sentrello/db";
 import { record as recordSecurityEvent } from "@sentrello/db/security-events";
 import { asText } from "@sentrello/db/text-columns";
+import { timezoneFor } from "@sentrello/db/timezone";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import { secrets } from "@sentrello/module-sdk";
 import {
@@ -297,12 +298,14 @@ export function registerMtd(ctx: ModuleContext) {
       try {
         ({ boxes } = await vatBoxesFor(
           orgId,
-          periodFrom((name) =>
-            name === "from"
-              ? asText(body.from, "from")
-              : name === "to"
-                ? asText(body.to, "to")
-                : undefined,
+          periodFrom(
+            (name) =>
+              name === "from"
+                ? asText(body.from, "from")
+                : name === "to"
+                  ? asText(body.to, "to")
+                  : undefined,
+            await timezoneFor(orgId),
           ),
         ));
       } catch (err) {
