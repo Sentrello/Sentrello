@@ -1,6 +1,7 @@
 import { clientIp } from "@sentrello/auth";
 import {
   activeOrganizationId,
+  mayAccess,
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
@@ -1976,12 +1977,54 @@ export default defineModule({
      * `?rotate=1` reissues it, which is how a business takes a shared link out
      * of circulation.
      */
+    /*
+     * **Three decisions, not one.**
+     *
+     * The whole route asked for `invoicing: ["read"]`, which made a read-only
+     * role able to do two things a reader must not. `?rotate=1` **revokes** the
+     * link a customer is already using — a working address stops working, and
+     * nothing on the business's side says it happened. `?send=1` puts a message
+     * in that customer's inbox over the business's name.
+     *
+     * So each is asked for separately, the way the till's void, discount and
+     * comp are. Handing somebody the link they already have stays a read,
+     * because answering "where do I see my invoices?" is what a reader is for.
+     */
     ctx.app.post(
       "/api/contacts/:id/portal-link",
       requireSession(),
       requirePermission({ invoicing: ["read"] }),
       async (c) => {
         const orgId = activeOrganizationId(c.get("session"));
+        /*
+         * Checked here rather than by a second guard on the route, because what
+         * is being asked for depends on the query and a middleware cannot see
+         * which. `may` is the same resolver the route guard uses.
+         */
+        if (
+          c.req.query("rotate") === "1" &&
+          !(await mayAccess(c.req.raw.headers, { invoicing: ["update"] }))
+        ) {
+          return c.json(
+            {
+              error:
+                "reissuing this link stops the one your customer is using; that needs invoicing: update",
+            },
+            403,
+          );
+        }
+        if (
+          c.req.query("send") === "1" &&
+          !(await mayAccess(c.req.raw.headers, { invoicing: ["send"] }))
+        ) {
+          return c.json(
+            {
+              error:
+                "sending this to your customer needs invoicing: send; the link itself is yours to copy",
+            },
+            403,
+          );
+        }
         const [contact] = await db
           .select()
           .from(schema.contacts)

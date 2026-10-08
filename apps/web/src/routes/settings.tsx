@@ -902,6 +902,8 @@ function SettingUpRestore() {
       </p>
       <Button
         className="mt-3"
+        // Bringing it back shows it to everybody, so it asks what hiding asks.
+        needs={{ settings: ["update"] }}
         onClick={() => restore.mutate()}
         disabled={restore.isPending}
       >

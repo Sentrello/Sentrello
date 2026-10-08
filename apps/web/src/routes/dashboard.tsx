@@ -1650,14 +1650,21 @@ function SettingUp() {
     <Card>
       <SectionHeading
         trailing={
-          <button
-            type="button"
-            className="link text-sm"
-            style={muted}
+          /*
+           * The primitive rather than a bare `<button>`, because this is the
+           * only form that can carry `needs` — and the route behind it asks for
+           * `settings: ["update"]` now that putting the checklist away is
+           * understood to put it away for the whole business. A raw button
+           * would have gone on looking pressable and answered 403.
+           */
+          <Button
+            variant="secondary"
+            needs={{ settings: ["update"] }}
             onClick={() => hide.mutate()}
+            disabled={hide.isPending}
           >
-            Hide
-          </button>
+            {hide.isPending ? "Hiding…" : "Hide"}
+          </Button>
         }
       >
         Setting up

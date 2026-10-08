@@ -383,6 +383,13 @@ export function Privacy() {
             />
           </Field>
           <Button
+            /*
+             * The export is an administrative act and the server asks for
+             * `settings: ["update"]`, the same as the erase below. Saying so
+             * here means a reader sees it dimmed with the reason rather than
+             * typing an email, pressing, and being refused.
+             */
+            needs={{ settings: ["update"] }}
             disabled={!email.trim() || gather.isPending}
             onClick={() => gather.mutate()}
           >

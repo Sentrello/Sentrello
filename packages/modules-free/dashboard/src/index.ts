@@ -651,14 +651,27 @@ export default defineModule({
      *
      * One press hides every guide this reader can currently see, which is
      * both of James's asks at once: hide the block, and end onboarding
-     * part-way. Safe to offer freely because nothing is lost — done is
-     * derived, so Settings can bring the list back exactly where the data
-     * says it is.
+     * part-way. Nothing is lost — done is derived, so Settings can bring the
+     * list back exactly where the data says it is.
+     *
+     * **But it is hidden for the whole business.** `onboarding_dismissals` is
+     * keyed by organization and guide, with no person on it, and this asked for
+     * `dashboard: ["read"]` — which every policy in the product carries, because
+     * it is the grant that lets somebody see a dashboard at all. So anybody at
+     * all could take the setup checklist away from the owner who still has
+     * steps left on it.
+     *
+     * `settings: ["update"]` instead, the same reading as the privacy export:
+     * this is a statement about how the business is set up, and the people who
+     * make those hold that permission. The alternative is to key a dismissal by
+     * person, which would make it a preference rather than a decision — a fair
+     * choice, and a migration, so it is left to be made deliberately rather
+     * than arrived at by accident.
      */
     ctx.app.post(
       "/api/dashboard/onboarding/hide",
       requireSession(),
-      requirePermission({ dashboard: ["read"] }),
+      requirePermission({ settings: ["update"] }),
       async (c) => {
         const orgId = activeOrganizationId(c.get("session"));
         const guides = await Promise.all(
@@ -690,7 +703,9 @@ export default defineModule({
     ctx.app.post(
       "/api/dashboard/onboarding/restore",
       requireSession(),
-      requirePermission({ dashboard: ["read"] }),
+      // Bringing it back for everybody is the same kind of decision as putting
+      // it away, so it asks for the same permission.
+      requirePermission({ settings: ["update"] }),
       async (c) => {
         const orgId = activeOrganizationId(c.get("session"));
         // Both spellings: the key rows written since guides were scoped by

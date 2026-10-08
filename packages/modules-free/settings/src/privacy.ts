@@ -87,10 +87,27 @@ export function registerPrivacy(ctx: ModuleContext) {
    * out silently: an export missing a module's records is a legal answer that
    * is wrong, and the business needs to know which part did not answer.
    */
+  /*
+   * **An administrative act, not a read.**
+   *
+   * This asked for `settings: ["read"]`, which is the mild permission a business
+   * grants somebody so they can look up its address and tax number. It returns
+   * everything every module holds about a named person — the CRM's notes, the
+   * invoices, a shop's orders, a booking diary, the documents — whether or not
+   * the caller has any permission for those modules. One module's read
+   * permission was therefore a way around every other module's gating, which is
+   * the opposite of what per-module permissions are for.
+   *
+   * `settings: ["update"]` now, the same as the erase beside it: answering a
+   * subject access request is an act somebody is accountable for, and the
+   * security log records who did it. Reading the record of processing
+   * (`/api/privacy/sources`) and the log of what was done
+   * (`/api/privacy/requests`) stay at read — neither carries anybody's data.
+   */
   ctx.app.post(
     "/api/privacy/export",
     requireSession(),
-    requirePermission({ settings: ["read"] }),
+    requirePermission({ settings: ["update"] }),
     async (c: RouteContext) => {
       const orgId = activeOrganizationId(c.get("session"));
       const body = (await c.req.json().catch(() => ({}))) as Record<
