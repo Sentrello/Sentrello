@@ -83,3 +83,101 @@ test("clearing it asks again", async () => {
   await setZone(null);
   expect(await askedFor()(orgId)).toBe(false);
 });
+
+/**
+ * And the one whose window closes: which country, and therefore which currency.
+ *
+ * `baseCurrency` is `notNull` with a default of USD, and the first journal entry
+ * locks it. So a business in Toronto that never opens the business screen keeps
+ * its books in dollars permanently, and the first thing that tells it so is the
+ * refusal when it tries to change them. Three of the four markets this product
+ * is sold into.
+ *
+ * The step's predicate is the interesting half. "Has a country" is not enough —
+ * the countries where the screen cannot guess a currency leave the default
+ * standing — so what it actually looks for is the shape the default produces:
+ * dollar books outside the United States.
+ */
+const askedForCountry = () => {
+  const guide = allOnboarding().find((g) => g.id === "settings");
+  if (!guide) throw new Error("the settings module registered no guide");
+  const step = guide.steps.find((s) => s.id === "country");
+  if (!step?.done) throw new Error("no country step that can answer");
+  return step.done;
+};
+
+const setMarket = (countryCode: string | null, baseCurrency = "USD") =>
+  db
+    .update(schema.organizations)
+    .set({ countryCode, baseCurrency })
+    .where(eq(schema.organizations.id, orgId));
+
+test("a business that has not said where it is, is asked", async () => {
+  await setMarket(null);
+  expect(await askedForCountry()(orgId)).toBe(false);
+  await setMarket("");
+  expect(await askedForCountry()(orgId)).toBe(false);
+
+  /*
+   * And on a currency that is not the default, which is where the country half
+   * of this predicate is the only thing doing any work. Asserted because the
+   * first two expectations above pass whether or not the country is checked at
+   * all: an empty country is also "not the United States", so the currency
+   * branch answers them by accident. Removing the country check left this file
+   * green, which is how it came to be written.
+   */
+  await setMarket(null, "CAD");
+  expect(await askedForCountry()(orgId)).toBe(false);
+});
+
+test("the United States on dollars is a complete answer", async () => {
+  await setMarket("US", "USD");
+  expect(await askedForCountry()(orgId)).toBe(true);
+});
+
+/** The whole point: a country filled in while the currency stayed behind. */
+test("Canada on dollars is not", async () => {
+  await setMarket("CA", "USD");
+  expect(await askedForCountry()(orgId)).toBe(false);
+
+  await setMarket("GB", "USD");
+  expect(await askedForCountry()(orgId)).toBe(false);
+
+  await setMarket("CA", "CAD");
+  expect(await askedForCountry()(orgId)).toBe(true);
+});
+
+/**
+ * Euro books in Delaware is a choice, not the default's doing.
+ *
+ * A predicate that demanded the country's own currency would nag for ever at
+ * every business that keeps its books in something else on purpose, and a step
+ * that cannot be completed is read once and then ignored.
+ */
+test("a currency that is nobody's default is left alone", async () => {
+  await setMarket("US", "EUR");
+  expect(await askedForCountry()(orgId)).toBe(true);
+});
+
+/**
+ * And once the ledger has an entry the field is disabled, so the step stops.
+ *
+ * Sending somebody to a control they cannot use is worse than saying nothing:
+ * the screen already explains why it is fixed. Asserted by posting an entry
+ * under the business that is in the wrong state, so the only thing that changes
+ * between the two expectations is whether the books are empty.
+ */
+test("a business whose books are already in dollars is not sent anywhere", async () => {
+  await setMarket("CA", "USD");
+  expect(await askedForCountry()(orgId)).toBe(false);
+
+  await db.insert(schema.journalEntries).values({
+    organizationId: orgId,
+    memo: "whatever locked it",
+  });
+  expect(await askedForCountry()(orgId)).toBe(true);
+
+  await db
+    .delete(schema.journalEntries)
+    .where(eq(schema.journalEntries.organizationId, orgId));
+});

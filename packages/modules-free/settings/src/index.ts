@@ -146,6 +146,57 @@ export default defineModule({
             return Boolean(org?.timezone && knownTimezone(org.timezone));
           },
         },
+        /*
+         * And which country it trades in, because that is also the currency.
+         *
+         * `baseCurrency` is `notNull` and defaults to USD, and the first journal
+         * entry locks it — so a business in Toronto that never opens this screen
+         * keeps its books in dollars for ever, and the only thing that ever says
+         * so is the refusal it gets if it tries to change them later. Three of
+         * the four markets this is sold into, decided by a column default.
+         *
+         * The screen itself handles it well: choosing a country fills the
+         * currency in while the ledger is still empty, with both fields in view.
+         * Nothing sent anybody to the screen. A checklist step is the mechanism
+         * that exists for a setting whose cost is invisible — the timezone above
+         * is here for the same reason — and this one's window closes, which the
+         * timezone's does not.
+         */
+        {
+          id: "country",
+          label: "Say where your business trades, and in what",
+          detail:
+            "Your country sets how money is written on everything you send, and fills in the currency your books are kept in. That currency is fixed as soon as anything is posted to the ledger, so it is worth a minute now: changing it afterwards would mean restating every figure in the books at rates nobody recorded.",
+          opens: "settings-business",
+          done: async (orgId) => {
+            const [org] = await db
+              .select({
+                countryCode: schema.organizations.countryCode,
+                baseCurrency: schema.organizations.baseCurrency,
+              })
+              .from(schema.organizations)
+              .where(eq(schema.organizations.id, orgId))
+              .limit(1);
+            const country = (org?.countryCode ?? "").trim().toUpperCase();
+            if (!country) return false;
+            /*
+             * Dollar books outside the United States is the one shape worth
+             * nagging about, and it is the shape the default produces. Any other
+             * combination is a choice somebody could have made on purpose —
+             * including euro books in Delaware — and a step that second-guesses
+             * those would never clear.
+             *
+             * Asked only in that case, so the ordinary instance pays one query
+             * for this step rather than two. And once the ledger has entries the
+             * field is disabled, so the step would be sending somebody to a
+             * control they cannot use: done, and the screen explains why.
+             */
+            if (org?.baseCurrency === "USD" && country !== "US") {
+              return await baseCurrencyLocked(orgId);
+            }
+            return true;
+          },
+        },
       ],
     });
 
