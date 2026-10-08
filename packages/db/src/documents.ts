@@ -642,17 +642,68 @@ export async function raiseInvoice(
     );
   }
 
+  /*
+   * The named rates, so the tax bands can be written the way the invoice
+   * screen writes them.
+   *
+   * This wrote no bands at all, and the posting reads them to decide where the
+   * tax goes: with none, every subscription, proration, usage and booking
+   * invoice put US and Canadian tax on the shared 2200, and the returns read
+   * only the per-authority accounts. So the tax was charged, collected and
+   * missing from the return. A rate from another business is refused, as the
+   * screen refuses it.
+   */
+  const ids = [
+    ...new Set(
+      input.lines
+        .map((l) => l.taxDefinitionId)
+        .filter((id): id is string => !!id),
+    ),
+  ];
+  const definitions = new Map(
+    (ids.length === 0
+      ? []
+      : await (input.tx ?? db)
+          .select({
+            id: schema.taxDefinitions.id,
+            name: schema.taxDefinitions.name,
+            categoryCode: schema.taxDefinitions.categoryCode,
+          })
+          .from(schema.taxDefinitions)
+          .where(
+            and(
+              eq(schema.taxDefinitions.organizationId, organizationId),
+              inArray(schema.taxDefinitions.id, ids),
+            ),
+          )
+    ).map((d) => [d.id, d]),
+  );
+  if (definitions.size !== ids.length) {
+    throw new MoneyError("that tax rate does not exist");
+  }
+
   const pricesIncludeTax = await quotesGross(organizationId);
   const totals = documentTotals(
-    input.lines.map((l) => ({
-      quantity: l.quantity,
-      unitPrice: l.unitPriceCents,
-      taxRatePpm: l.taxRatePpm ?? bpToPpm(l.taxRateBp ?? 0),
-      taxDefinitionId: l.taxDefinitionId ?? null,
-    })),
+    input.lines.map((l) => {
+      const definition = l.taxDefinitionId
+        ? definitions.get(l.taxDefinitionId)
+        : undefined;
+      return {
+        quantity: l.quantity,
+        unitPrice: l.unitPriceCents,
+        taxRatePpm: l.taxRatePpm ?? bpToPpm(l.taxRateBp ?? 0),
+        taxDefinitionId: l.taxDefinitionId ?? null,
+        taxName: definition?.name ?? null,
+        categoryCode: definition?.categoryCode ?? null,
+      };
+    }),
     null,
     { pricesIncludeTax },
   );
+  // A day, in the business's own zone. The column defaults to now(), and a
+  // billing run at 02:00 UTC dated a New York business's invoices the evening
+  // before.
+  const issueDate = dayIn(new Date(), await timezoneFor(organizationId));
 
   const fromSettings = await invoiceDefaultsFor(organizationId);
   const write = async (tx: DbTx) => {
@@ -665,6 +716,7 @@ export async function raiseInvoice(
         status: "open",
         currency,
         rateMicro: rate,
+        issueDate,
         dueDate: input.dueDate ?? fromSettings.dueDate,
         paymentTerms: fromSettings.paymentTerms,
         notes: input.notes ?? null,
@@ -692,6 +744,23 @@ export async function raiseInvoice(
         sortOrder: i,
       })),
     );
+    // Before the posting, which reads them on this transaction.
+    if (totals.bands.length > 0) {
+      await tx.insert(schema.documentTaxes).values(
+        totals.bands.map((band) => ({
+          organizationId,
+          documentType: "invoice",
+          documentId: inv.id,
+          taxDefinitionId: band.taxDefinitionId,
+          name: band.name,
+          rateBp: band.rateBp,
+          ratePpm: band.ratePpm,
+          categoryCode: band.categoryCode,
+          taxableCents: band.taxableCents,
+          taxCents: band.taxCents,
+        })),
+      );
+    }
     // In the books, or the revenue exists on a document and nowhere else —
     // and in the same commit, so a refusal takes the document with it.
     await postInvoiceIssued(organizationId, inv, undefined, undefined, { tx });
