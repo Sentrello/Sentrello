@@ -197,10 +197,14 @@ function Details({
               <option value="ISO">Year first (2026-08-09)</option>
             </Select>
           </Field>
-          <Field label="Currency" hint="How money is shown to you.">
+          <Field
+            label="Currency"
+            hint="How money is shown to you. Leave it empty to read your business's own figures in the currency its books are kept in."
+          >
             <Input
               value={prefs.currency}
               maxLength={3}
+              placeholder="Your business's own"
               onChange={(e) => set("currency", e.target.value.toUpperCase())}
             />
           </Field>

@@ -90,7 +90,17 @@ export const raised = {
  * preference to each one would touch every file to change a comma.
  */
 let formats = {
-  currency: "USD",
+  /**
+   * What this *person* asked to read money in, which is usually nothing.
+   *
+   * Empty means "whatever the business keeps its books in", below. It defaulted
+   * to USD, so every figure the shell drew without a currency of its own — a
+   * dashboard, a report, a summary card, around a hundred of them — was in
+   * dollars on a British or Canadian instance until each person went to their
+   * profile and typed three letters. Correctly punctuated dollars, which is the
+   * part that made it look deliberate.
+   */
+  currency: "",
   dateFormat: "MDY",
   timezone: "",
   /**
@@ -106,7 +116,30 @@ let formats = {
    * before the field was read.
    */
   countryCode: "",
+  /**
+   * And what the business's books are actually kept in.
+   *
+   * From `/api/_meta`, beside the country, because it is the same kind of fact:
+   * one per instance, the same for everybody signed into it. A document with a
+   * currency of its own still passes it in — an invoice raised in euros is in
+   * euros whoever is reading it.
+   */
+  businessCurrency: "",
 };
+
+/**
+ * What a figure is written in when nobody has said.
+ *
+ * The person's own choice, then the business's books, then the dollar — which
+ * is now only what an instance that has told us nothing falls back to, rather
+ * than what three of our four markets got.
+ */
+const displayCurrency = () =>
+  // dollar-default: the last resort for an instance that has told us nothing at
+  // all — no personal choice and no currency on the business. `baseCurrency` on
+  // the server is defined the same way, and this is the browser's copy of that
+  // one definition rather than a fourth place guessing.
+  formats.currency || formats.businessCurrency || "USD";
 
 /** `de-DE`, `en-CA`, `en-US` — and `en-US` for a country nobody has given. */
 const numberLocale = () => moneyLocale(formats.countryCode);
@@ -118,7 +151,7 @@ export function setFormats(next: Partial<typeof formats>) {
 /** Cents to "$1,234.56". Money never arrives as a float and never becomes one. */
 export function formatMoney(
   cents: number,
-  currency = formats.currency,
+  currency = displayCurrency(),
 ): string {
   /**
    * A figure that is not a number is never printed as one.
@@ -153,7 +186,10 @@ export function formatMoney(
  * Built on `Intl` rather than by dividing and appending a symbol, so the
  * currency is the reader's and not a dollar sign written into a chart.
  */
-export function briefMoney(cents: number, currency = formats.currency): string {
+export function briefMoney(
+  cents: number,
+  currency = displayCurrency(),
+): string {
   if (!Number.isFinite(cents)) return "—";
   return new Intl.NumberFormat(numberLocale(), {
     style: "currency",

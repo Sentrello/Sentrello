@@ -15,7 +15,12 @@ export interface Preferences {
   /** IANA name, e.g. "America/Denver". Empty means the browser decides. */
   timezone: string;
   dateFormat: "ISO" | "DMY" | "MDY";
-  /** ISO 4217, e.g. "USD". What money is shown in, not what it is stored as. */
+  /**
+   * ISO 4217, e.g. "USD". What money is shown in, not what it is stored as.
+   *
+   * Empty is the ordinary answer: the business's own books. Only somebody who
+   * wants their employer's figures in a different currency sets this.
+   */
   currency: string;
   /** Module id to open after signing in. Empty means whatever comes first. */
   landingPage: string;
@@ -25,7 +30,17 @@ export interface Preferences {
 export const DEFAULTS: Preferences = {
   timezone: "",
   dateFormat: "MDY",
-  currency: "USD",
+  /*
+   * Nothing, which means the currency the business keeps its books in.
+   *
+   * This was "USD", and it is read by every figure the shell draws without a
+   * currency of its own — roughly a hundred of them, a dashboard and a report
+   * and a summary card at a time. So on a British or Canadian instance all of
+   * them were in dollars, correctly punctuated, until each person went to their
+   * profile and typed three letters. Three of the four markets this sells into,
+   * decided by a personal preference nobody knew they had.
+   */
+  currency: "",
   landingPage: "",
   // Monday to Friday, nine to five. Wrong for a lot of trades, which is why it
   // is a preference — but it is the answer that needs changing least often.
@@ -61,8 +76,12 @@ export function normalize(input: unknown): Preferences {
       ? raw.dateFormat
       : DEFAULTS.dateFormat;
 
+  // Three letters, or nothing at all — which is the business's own currency and
+  // what almost everybody wants. Anything else falls back to nothing, so a
+  // person who types two letters reads their employer's figures rather than an
+  // arbitrary third currency.
   const currency =
-    typeof raw.currency === "string" && /^[A-Za-z]{3}$/.test(raw.currency)
+    typeof raw.currency === "string" && /^([A-Za-z]{3})?$/.test(raw.currency)
       ? raw.currency.toUpperCase()
       : DEFAULTS.currency;
 

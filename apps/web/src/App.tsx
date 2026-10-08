@@ -555,7 +555,10 @@ export default function App() {
    * screen, and reading it during the render is what stops money being
    * drawn the American way for a moment and then corrected.
    */
-  setFormats({ countryCode: data?.countryCode ?? "" });
+  setFormats({
+    countryCode: data?.countryCode ?? "",
+    businessCurrency: data?.baseCurrency ?? "",
+  });
   // And which modules are here at all, so a screen can decline to ask a
   // Pro endpoint on an instance that does not have one.
   setLoadedModules(data?.loaded);

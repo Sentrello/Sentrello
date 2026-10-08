@@ -120,7 +120,11 @@ test("nonsense falls back rather than being stored", () => {
   });
   expect(p.timezone).toBe("");
   expect(p.dateFormat).toBe(DEFAULTS.dateFormat);
-  expect(p.currency).toBe("USD");
+  // Nothing, which means the business's own books. It was "USD", and that
+  // default was read by every figure the shell drew without a currency of its
+  // own — so a British instance showed dollars until each person typed three
+  // letters here.
+  expect(p.currency).toBe("");
   expect(p.landingPage).toBe("");
   expect(p.workingHours.start).toBe(DEFAULTS.workingHours.start);
   expect(p.workingHours.days).toEqual([2]);
@@ -489,4 +493,21 @@ test("with no mail server configured, changing email says so instead of pretendi
     process.env.RESEND_API_KEY = savedKey;
     process.env.SMTP_HOST = savedHost;
   }
+});
+
+/**
+ * And a currency somebody did choose is kept, because some people want one.
+ *
+ * The default is the business's own books — empty — and the point of the field
+ * is reading your employer's figures in your own money. Both halves asserted,
+ * because a validator that accepted only the empty string would be the same bug
+ * with the dollar taken out.
+ */
+test("a currency a person chooses is theirs to choose", () => {
+  expect(normalize({ currency: "gbp" }).currency).toBe("GBP");
+  expect(normalize({ currency: "CAD" }).currency).toBe("CAD");
+  expect(normalize({ currency: "" }).currency).toBe("");
+  // Two letters is a slip, and it reads as "the business's" rather than as some
+  // third currency nobody asked for.
+  expect(normalize({ currency: "GB" }).currency).toBe("");
 });

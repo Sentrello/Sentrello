@@ -632,14 +632,18 @@ app.get("/api/_meta", requireSession(), async (c) => {
    * single role name was wrong.
    */
   /*
-   * The business's country, for how its figures are punctuated.
+   * The business's country and the currency it keeps its books in, for how its
+   * figures are punctuated and what sign is in front of them.
    *
-   * One column, on a route the shell already waits for, rather than a query
-   * of its own on every screen that draws money.
+   * Two columns, on a route the shell already waits for, rather than a query of
+   * its own on every screen that draws money.
    */
   const [business] = orgId
     ? await db
-        .select({ countryCode: schema.organizations.countryCode })
+        .select({
+          countryCode: schema.organizations.countryCode,
+          baseCurrency: schema.organizations.baseCurrency,
+        })
         .from(schema.organizations)
         .where(eq(schema.organizations.id, orgId))
         .limit(1)
@@ -819,6 +823,22 @@ app.get("/api/_meta", requireSession(), async (c) => {
      * business `CA$` on its own invoices.
      */
     countryCode: business?.countryCode ?? "",
+    /**
+     * And what its money actually is, which the punctuation was only half of.
+     *
+     * The symbol in front of a figure came from a *person's* preference, which
+     * defaults to USD — so on a British instance every total the shell drew
+     * without naming a currency of its own was in dollars, correctly
+     * punctuated, until each person went to their profile and typed GBP. Around
+     * a hundred of the free core's figures are drawn that way: a dashboard, a
+     * report, a summary card, anything that is not a document with a currency
+     * of its own.
+     *
+     * A person's own choice still wins, for somebody who wants to read their
+     * employer's figures in their own money. It is simply no longer the dollar
+     * by default.
+     */
+    baseCurrency: business?.baseCurrency ?? "",
     /**
      * The actions this person holds, by resource. Absent actions are absent
      * permissions — a screen reads this to decide what to disable, never to

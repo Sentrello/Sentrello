@@ -53,6 +53,8 @@ export type Meta = {
   resources?: string[];
   /** The business's own country, and the whole of how it writes a number. */
   countryCode?: string;
+  /** What its books are kept in, and so what sign goes in front of a figure. */
+  baseCurrency?: string;
   /** The release this instance runs, used to key module scripts by version. */
   version?: string;
   /** `moduleId` is which module registered the entry, and owns its screens. */
