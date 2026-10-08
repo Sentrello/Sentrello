@@ -5628,3 +5628,48 @@ test("a quote is raised in the business's own currency, not the dollar", async (
     .set({ baseCurrency: "USD" })
     .where(eq(schema.organizations.id, orgId));
 });
+
+/**
+ * And the quote it drafts is in the business's own money.
+ *
+ * `quotes.currency` defaults to USD and this writer did not state it, so a deal
+ * worth £2,400 on a British instance became a quote for $2,400 — the right
+ * figure with the wrong currency beside it, which is the shape that survives
+ * every check because the document agrees with itself.
+ *
+ * The currency is put back at the end, because this suite's other tests are
+ * written against a dollar business.
+ */
+test("a deal quoted on a pound instance is quoted in pounds", async () => {
+  await db
+    .update(schema.organizations)
+    .set({ baseCurrency: "GBP" })
+    .where(eq(schema.organizations.id, orgId));
+
+  const [deal] = await db
+    .insert(schema.deals)
+    .values({
+      organizationId: orgId,
+      name: "Replace the back fence",
+      amountCents: 240_000,
+      contactIds: [contactId],
+    })
+    .returning();
+  if (!deal) throw new Error("could not create the deal");
+
+  const res = await app.request(`http://localhost/api/deals/${deal.id}/quote`, {
+    method: "POST",
+    headers,
+  });
+  expect(res.status).toBe(201);
+  const { quote } = (await res.json()) as {
+    quote: { currency: string; totalCents: number };
+  };
+  expect(quote.currency).toBe("GBP");
+  expect(quote.totalCents).toBe(240_000);
+
+  await db
+    .update(schema.organizations)
+    .set({ baseCurrency: "USD" })
+    .where(eq(schema.organizations.id, orgId));
+});

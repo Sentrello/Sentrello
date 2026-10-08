@@ -1425,6 +1425,9 @@ export default defineModule({
               dealId: deal.id,
               number: await nextDocumentNumber(tx, orgId, "quote"),
               issueDate: dayIn(new Date(), await timezoneFor(orgId)),
+              // The column defaults to USD, so a deal quoted on a GBP instance
+              // came out in dollars at the figure the deal was worth in pounds.
+              currency: await baseCurrency(orgId),
               pricesIncludeTax,
               notes: deal.description,
               subtotalCents: prepared.subtotalCents,

@@ -108,7 +108,19 @@ test("every invoice written says whether its prices contain the tax", () => {
     lines.forEach((line, i) => {
       if (!WRITES_AN_INVOICE.test(line) || IS_COMMENT.test(line)) return;
 
-      const block = valuesBlock(lines, i);
+      /*
+       * Read off the code, not off the prose beside it.
+       *
+       * This matched the whole block, comments included, so a writer that
+       * *explained* why it set `pricesIncludeTax` satisfied the guard whether or
+       * not it still did. Found on 8 October 2026 while writing the sibling that
+       * sweeps for an unstated currency: that one passed a writer it should have
+       * reported, because the comment above the fix used the word.
+       */
+      const block = valuesBlock(lines, i)
+        .split("\n")
+        .filter((l) => !IS_COMMENT.test(l))
+        .join("\n");
       if (/pricesIncludeTax/.test(block)) return;
 
       /*

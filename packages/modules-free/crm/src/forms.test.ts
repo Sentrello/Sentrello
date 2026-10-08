@@ -1136,3 +1136,42 @@ test("the embed script is cached briefly, and the edge is told separately", asyn
   // of every page that embeds a form, and no-store would put all of them here.
   expect(cache).toContain("public");
 });
+
+/**
+ * And it drafts it in the business's own money, with its own tax convention.
+ *
+ * Both columns on `quotes` default to the American answer — dollars, and prices
+ * with the tax added on top — and this writer stated neither, so a website
+ * enquiry on a London instance became a draft quote in USD, quoted net. The
+ * lines are at zero, so nothing is wrong until somebody prices it up and sends
+ * it, which is exactly when nobody is looking at the currency beside the total.
+ */
+test("a drafted quote is in the business's own currency", async () => {
+  await db
+    .update(schema.organizations)
+    .set({ baseCurrency: "GBP" })
+    .where(eq(schema.organizations.id, orgId));
+  await db
+    .insert(schema.invoicingSettings)
+    .values({ organizationId: orgId, pricesIncludeTax: true })
+    .onConflictDoUpdate({
+      target: schema.invoicingSettings.organizationId,
+      set: { pricesIncludeTax: true },
+    });
+
+  const res = await submit(quoteFormKey, {
+    name: "Pound Payer",
+    email: "pounds@buyer.example",
+    message: "Guttering, the whole back of the house",
+  });
+  expect(res.status).toBe(201);
+
+  const [quote] = await db
+    .select()
+    .from(schema.quotes)
+    .where(eq(schema.quotes.organizationId, orgId))
+    .orderBy(desc(schema.quotes.createdAt))
+    .limit(1);
+  expect(quote?.currency).toBe("GBP");
+  expect(quote?.pricesIncludeTax).toBe(true);
+});

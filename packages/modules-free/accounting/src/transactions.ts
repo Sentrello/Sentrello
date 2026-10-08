@@ -4,6 +4,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { and, db, desc, eq, gte, ilike, lte, schema, sql } from "@sentrello/db";
+import { baseCurrency } from "@sentrello/db/currency";
 import { dayIn } from "@sentrello/db/day";
 import {
   CORE_ACCOUNTS,
@@ -243,6 +244,33 @@ export async function createTransaction(
   if ("error" in tags) return { error: tags.error };
   const tagging = tags;
 
+  /*
+   * The business's own money, and only that.
+   *
+   * The column defaulted to USD and the caller could name anything, while the
+   * amount below is posted into the journal at face value with no conversion —
+   * so a cash expense on a Canadian instance was recorded as a dollar one, and a
+   * caller that said `EUR` put euro cents into the books as base cents. The
+   * trial balance, the profit and loss and every return built on them were then
+   * out by the exchange rate, with nothing anywhere disagreeing.
+   *
+   * Refused rather than converted, because this record carries no rate: an
+   * invoice and a bill each have a `rateMicro` column fixed at the moment they
+   * were raised, and this table has nothing to hold one. A purchase in another
+   * currency is a bill, which is also where somebody wants it — with the
+   * supplier, the rate and the tax on it.
+   */
+  const base = await baseCurrency(orgId);
+  const currency =
+    typeof body.currency === "string" && body.currency.trim()
+      ? body.currency.trim().toUpperCase()
+      : base;
+  if (currency !== base) {
+    return {
+      error: `Your books are kept in ${base}, and this record cannot carry an exchange rate. Enter it in ${base}, or record it as a bill — a bill keeps the rate it was raised at.`,
+    };
+  }
+
   const [categoryAccountId, paidThroughAccountId] = await Promise.all([
     body.accountId
       ? Promise.resolve(asText(body.accountId, "accountId"))
@@ -263,7 +291,7 @@ export async function createTransaction(
       paidThroughAccountId,
       contactId: await ownedContact(orgId, body.contactId),
       amountCents: amountCents as number,
-      currency: typeof body.currency === "string" ? body.currency : "USD",
+      currency,
       occurredAt,
       reference: (body.reference as string) ?? null,
       method: (body.method as string) ?? null,

@@ -7,7 +7,9 @@ import {
 import { and, asc, db, eq, lt, schema, sql } from "@sentrello/db";
 import { creditFor } from "@sentrello/db/credit";
 import { contactHasEmail } from "@sentrello/db/crm";
+import { baseCurrency } from "@sentrello/db/currency";
 import { dayIn } from "@sentrello/db/day";
+import { quotesGross } from "@sentrello/db/documents";
 import { lineTotals } from "@sentrello/db/money";
 import { nextDocumentNumber } from "@sentrello/db/numbering";
 import { asText } from "@sentrello/db/text-columns";
@@ -1344,6 +1346,17 @@ async function draftQuote(
         // sent at eight in the evening in New York is dated that evening.
         issueDate: dayIn(new Date(), await timezoneFor(orgId)),
         status: "draft",
+        /*
+         * This business's own money, and its own convention about tax.
+         *
+         * Both columns default to the American answer — dollars, and prices
+         * with tax added on top — so a website enquiry on a London instance
+         * became a draft quote in USD, quoted net. The lines are at zero, so
+         * nothing is wrong until somebody prices it up and sends it, which is
+         * exactly when nobody is looking at the currency beside the total.
+         */
+        currency: await baseCurrency(orgId),
+        pricesIncludeTax: await quotesGross(orgId),
         subtotalCents: totals.subtotal,
         taxCents: totals.tax,
         totalCents: totals.total,
