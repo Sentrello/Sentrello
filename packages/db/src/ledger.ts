@@ -21,7 +21,12 @@ import { RATE_SCALE, toBaseCents } from "./currency";
 import { db, schema } from "./index";
 import { sumCents } from "./money";
 import { recordSalePlace } from "./sale-place";
-import { UnreadableDateError, demandDate, momentAt } from "./timezone";
+import {
+  UnreadableDateError,
+  demandDate,
+  momentAt,
+  timezoneFor,
+} from "./timezone";
 
 type Posting = {
   accountId: string;
@@ -717,13 +722,38 @@ export async function postJournalEntry(
    * the last day that is closed, so an entry timestamped anywhere inside it is
    * inside the closed period — storing the boundary as a date and comparing
    * instants is how a lock lets in everything after breakfast on its last day.
+   *
+   * **The whole of the day where the business is.** This ended it at 23:59:59.999
+   * UTC, which is a different moment from the end of their day for everybody
+   * else, and it went wrong in both directions. A shop in London or Berlin that
+   * had closed September rang up a sale at half past midnight on 1 October —
+   * 23:30 UTC on the 30th — and was told the books were closed, so the till
+   * refused a customer standing at the counter. A shop in New York or Honolulu
+   * got the opposite: an evening sale on the last closed day posted after the UTC
+   * day had ended, so it was allowed into the books of a period already filed.
+   *
+   * The zone is read only when there is a lock, so a business that has never
+   * closed a period pays nothing for this.
    */
   const closed = options?.intoClosedPeriod
     ? null
     : await closedThrough(orgId, { tx: options?.tx });
   if (closed) {
-    const endOfClosedDay = new Date(closed);
-    endOfClosedDay.setUTCHours(23, 59, 59, 999);
+    const zone = await timezoneFor(orgId);
+    const nextDay = new Date(closed);
+    nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+    const endOfClosedDay = new Date(
+      momentAt(
+        {
+          year: nextDay.getUTCFullYear(),
+          month: nextDay.getUTCMonth() + 1,
+          day: nextDay.getUTCDate(),
+          hours: 0,
+          minutes: 0,
+        },
+        zone,
+      ).getTime() - 1,
+    );
     if ((postedAt ?? new Date()) <= endOfClosedDay) {
       throw new PeriodClosedError(closed);
     }

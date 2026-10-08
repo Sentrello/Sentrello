@@ -273,3 +273,69 @@ test("a reopen interrupted between the unlock and the relock leaves the year clo
   expect(await lockNow()).toBe("2026-06-30");
   expect(await reversals()).toBe(before);
 });
+
+/**
+ * The closed day ends where the business's day ends.
+ *
+ * The lock compared `postedAt` against 23:59:59.999 **UTC** on the last closed
+ * day, which is a different moment from the end of that day for everybody not on
+ * UTC — and it went wrong in both directions.
+ *
+ * East of UTC the till refused a customer. A shop in Berlin that had closed
+ * September rang up a sale at half past midnight on 1 October, which is 23:30 UTC
+ * on the 30th, and was told the books were closed.
+ *
+ * West of it the opposite: an evening sale on the last closed day posted after
+ * the UTC day had ended, so it was let into the books of a period already filed.
+ */
+test("a sale after midnight in Berlin is not inside a closed September", async () => {
+  expect((await put({ closedThrough: "2026-09-30" })).status).toBe(200);
+  await db
+    .update(schema.organizations)
+    .set({ timezone: "Europe/Berlin" })
+    .where(eq(schema.organizations.id, orgId));
+
+  try {
+    // 00:30 on 1 October in Berlin (UTC+2 in summer) is 22:30 UTC on the 30th.
+    const entry = await post(new Date("2026-09-30T22:30:00.000Z"));
+    expect(entry.id).toBeTruthy();
+
+    // And their own 30th is still shut, which is the asymmetry that makes this
+    // a lock rather than an absence of one.
+    await expect(post(new Date("2026-09-30T21:30:00.000Z"))).rejects.toThrow(
+      PeriodClosedError,
+    );
+  } finally {
+    await db
+      .update(schema.organizations)
+      .set({ timezone: null })
+      .where(eq(schema.organizations.id, orgId));
+  }
+});
+
+test("and an evening sale in Honolulu is still inside it", async () => {
+  expect((await put({ closedThrough: "2026-09-30" })).status).toBe(200);
+  await db
+    .update(schema.organizations)
+    .set({ timezone: "Pacific/Honolulu" })
+    .where(eq(schema.organizations.id, orgId));
+
+  try {
+    /*
+     * 20:00 on 30 September in Honolulu is 06:00 UTC on 1 October. By the UTC
+     * reckoning that day had ended, so this was allowed into a filed period.
+     */
+    await expect(post(new Date("2026-10-01T06:00:00.000Z"))).rejects.toThrow(
+      PeriodClosedError,
+    );
+
+    // Their 1 October — ten hours behind — opens at 10:00 UTC on the 1st.
+    const entry = await post(new Date("2026-10-01T10:30:00.000Z"));
+    expect(entry.id).toBeTruthy();
+  } finally {
+    await db
+      .update(schema.organizations)
+      .set({ timezone: null })
+      .where(eq(schema.organizations.id, orgId));
+  }
+});
