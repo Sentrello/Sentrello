@@ -819,8 +819,17 @@ export function Money() {
   const categoryAccounts = (accounts.data?.accounts ?? []).filter((a) =>
     kind === "expense" ? a.type === "expense" : a.type === "income",
   );
+  /*
+   * Where money can actually be: a bank the business has named, or the cash
+   * block of the chart (1000–1099: cash, the bank, payments in transit). It was
+   * every asset, so a payment could be "paid into" Receivables or Inventory and
+   * the books would carry money nobody could spend.
+   */
   const cashAccounts = (accounts.data?.accounts ?? []).filter(
-    (a) => a.type === "asset",
+    (a) =>
+      a.type === "asset" &&
+      !a.archivedAt &&
+      (a.isBank || /^10\d\d$/.test(a.code)),
   );
 
   return (

@@ -46,6 +46,12 @@ export const STANDARD_CHART: {
   { code: "1000", name: "Cash", type: "asset" },
   { code: "1010", name: "Bank Account", type: "asset" },
   {
+    code: "1080",
+    name: "Payments in Transit",
+    type: "asset",
+    description: "Taken by card, not yet paid out to the bank",
+  },
+  {
     code: "1100",
     name: "Accounts Receivable",
     type: "asset",

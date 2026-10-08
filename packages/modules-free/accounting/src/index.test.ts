@@ -997,9 +997,10 @@ test("every core account matches the starter chart it shares a code with", () =>
 test("every cash code is an account the starter chart actually opens", () => {
   const codes = new Set(STANDARD_CHART.map((a) => a.code));
   expect(CASH_ACCOUNT_CODES.filter((code) => !codes.has(code))).toEqual([]);
-  // Both of them, so removing one from the list is a decision rather than a
-  // typo that still passes.
-  expect([...CASH_ACCOUNT_CODES]).toEqual(["1000", "1010"]);
+  // All three, so removing one from the list is a decision rather than a
+  // typo that still passes. Payments in Transit is the business's money held
+  // by its processor for a few days, which a cash-flow statement counts.
+  expect([...CASH_ACCOUNT_CODES]).toEqual(["1000", "1010", "1080"]);
 });
 
 /**
@@ -1014,7 +1015,7 @@ test("every cash code is an account the starter chart actually opens", () => {
  */
 test("cash accounts are read from the business's own chart, and gaps are named", async () => {
   const held = await cashAccounts(orgId);
-  expect(held.ids.length).toBe(2);
+  expect(held.ids.length).toBe(3);
   expect(held.missing).toEqual([]);
 
   // A code nobody opened comes back as missing rather than as silence.
@@ -1025,7 +1026,7 @@ test("cash accounts are read from the business's own chart, and gaps are named",
   // And never another business's rows, whatever the codes say.
   const elsewhere = await cashAccounts(crypto.randomUUID());
   expect(elsewhere.ids).toEqual([]);
-  expect(elsewhere.missing).toEqual(["1000", "1010"]);
+  expect(elsewhere.missing).toEqual(["1000", "1010", "1080"]);
 });
 
 /**

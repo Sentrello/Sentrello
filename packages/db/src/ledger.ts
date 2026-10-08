@@ -8,6 +8,7 @@ import {
   exists,
   gte,
   inArray,
+  isNull,
   lt,
   lte,
   or,
@@ -56,6 +57,17 @@ export const CORE_ACCOUNTS = {
    * "1010" down from memory — see `CASH_ACCOUNT_CODES`.
    */
   bank: { code: "1010", name: "Bank Account", type: "asset" },
+  /**
+   * Money a card processor or terminal has taken and not yet paid out.
+   *
+   * A card sale is not in the bank the moment it is made: the processor holds
+   * it, takes its fee, and pays a batch out days later. Every card receipt was
+   * posted to Cash, so Cash never matched the drawer and the bank never matched
+   * the statement — and when the payout arrived on the bank feed there was
+   * nothing for it to clear, so it was categorised as income a second time.
+   * Card money lands here; the payout moves it to the bank.
+   */
+  inTransit: { code: "1080", name: "Payments in Transit", type: "asset" },
   accountsReceivable: {
     code: "1100",
     name: "Accounts Receivable",
@@ -219,6 +231,8 @@ export const CORE_ACCOUNTS = {
 export const CASH_ACCOUNT_CODES: readonly string[] = [
   CORE_ACCOUNTS.cash.code,
   CORE_ACCOUNTS.bank.code,
+  // A cash equivalent: the business's money, held by its processor for days.
+  CORE_ACCOUNTS.inTransit.code,
 ];
 
 /**
@@ -254,6 +268,53 @@ export async function cashAccounts(
     ids: rows.map((r) => r.id),
     missing: codes.filter((code) => !found.has(code)),
   };
+}
+
+/**
+ * The business's bank account, for money that moved through a bank.
+ *
+ * The one account it has said is a bank, when there is exactly one; otherwise
+ * the starter chart's Bank Account. Two or more and this cannot know which, so
+ * the screens that move money between them ask.
+ */
+export async function bankAccountFor(orgId: string): Promise<string> {
+  const banks = await db
+    .select({ id: schema.accounts.id })
+    .from(schema.accounts)
+    .where(
+      and(
+        eq(schema.accounts.organizationId, orgId),
+        eq(schema.accounts.isBank, true),
+        isNull(schema.accounts.archivedAt),
+      ),
+    )
+    .limit(2);
+  if (banks.length === 1 && banks[0]) return banks[0].id;
+  return ensureAccount(orgId, CORE_ACCOUNTS.bank);
+}
+
+/** Methods a card processor or terminal settles, whatever its name. */
+const PROCESSED = new Set(["card", "stripe", "paypal"]);
+
+/**
+ * Where money that came in or went out actually is.
+ *
+ * Every receipt and payment debited Cash, whatever the method: a card sale, a
+ * bank transfer, a Stripe charge. So Cash never matched the drawer and the
+ * bank never matched its statement. Cash is for cash; anything a processor
+ * took is in transit until it pays out; everything else — a transfer, a
+ * cheque, a payment nobody described — went through the bank.
+ */
+export async function moneyAccount(
+  orgId: string,
+  how: { method?: string | null; provider?: string | null },
+): Promise<string> {
+  const method = (how.method ?? "").trim().toLowerCase();
+  if (method === "cash") return ensureAccount(orgId, CORE_ACCOUNTS.cash);
+  if (how.provider || PROCESSED.has(method)) {
+    return ensureAccount(orgId, CORE_ACCOUNTS.inTransit);
+  }
+  return bankAccountFor(orgId);
 }
 
 /** The account currency movement lands in. */

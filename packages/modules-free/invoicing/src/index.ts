@@ -29,6 +29,7 @@ import {
   type LedgerTx,
   ensureAccount,
   exchangeAccount,
+  moneyAccount,
   ownedContact,
   postInvoiceIssued,
   postJournalEntry,
@@ -791,8 +792,12 @@ export default defineModule({
          * Creating one is a write of its own on its own connection, and it
          * would sit behind the locks the transaction below is about to take.
          */
+        // Where the money is: cash for cash, in transit for a card, the bank
+        // for a transfer or a cheque. It was Cash whatever the method said.
         const [cash, ar] = await Promise.all([
-          ensureAccount(orgId, CORE_ACCOUNTS.cash),
+          moneyAccount(orgId, {
+            method: typeof method === "string" ? method : null,
+          }),
           ensureAccount(orgId, CORE_ACCOUNTS.accountsReceivable),
         ]);
         /**

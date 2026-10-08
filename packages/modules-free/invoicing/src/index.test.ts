@@ -7,7 +7,7 @@ import { daysLate } from "@sentrello/db/day";
 import { dropOrganization, makeOrganization } from "@sentrello/db/testing";
 import type { SentrelloEnv } from "@sentrello/module-sdk";
 import { resetRateLimits } from "@sentrello/module-sdk";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, gt, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import invoicing from "./index";
 
@@ -679,6 +679,54 @@ const ledgerFor = async (source: string) => {
     .from(schema.journalLines)
     .where(eq(schema.journalLines.entryId, entry.id));
 };
+
+/**
+ * A payment lands where the money is.
+ *
+ * Every one debited Cash, whatever the method: a card, a transfer, a cheque.
+ * Cash then never matched the drawer, and the bank never matched its statement.
+ */
+test("a payment is debited to cash, the bank or in transit by how it was paid", async () => {
+  const landed: Record<string, string> = {};
+  for (const method of ["cash", "manual", "cheque", "card"]) {
+    const { body } = await createInvoice([
+      { description: method, quantity: 1, unitPrice: 1000, taxRateBp: 0 },
+    ]);
+    const res = await app.request(
+      `http://localhost/api/invoices/${body.invoice.id}/payments`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ amountCents: 1000, method }),
+      },
+    );
+    expect(res.status).toBe(201);
+    const [debited] = await db
+      .select({ code: schema.accounts.code })
+      .from(schema.journalLines)
+      .innerJoin(
+        schema.journalEntries,
+        eq(schema.journalEntries.id, schema.journalLines.entryId),
+      )
+      .innerJoin(
+        schema.accounts,
+        eq(schema.accounts.id, schema.journalLines.accountId),
+      )
+      .where(
+        and(
+          eq(schema.journalEntries.memo, `Payment for ${body.invoice.number}`),
+          gt(schema.journalLines.debitCents, 0),
+        ),
+      );
+    landed[method] = debited?.code ?? "";
+  }
+  expect(landed).toEqual({
+    cash: "1000",
+    manual: "1010",
+    cheque: "1010",
+    card: "1080",
+  });
+});
 
 test("one invoice comes back with its lines, payments and true balance", async () => {
   const created = await app.request("http://localhost/api/invoices", {
