@@ -65,6 +65,16 @@ export interface PaymentEvent {
    * that nobody would ever think to check.
    */
   feeCents?: number;
+  /**
+   * How much of this went through a card, when the caller knows and it was
+   * not all one way.
+   *
+   * A till sells for cash, on a card, or half of each, and the two land in
+   * different places: notes in the drawer, card money with the processor until
+   * it pays out. Undefined means the order says: a processor took the lot, or
+   * nobody did and it was cash.
+   */
+  cardCents?: number;
 }
 
 /**

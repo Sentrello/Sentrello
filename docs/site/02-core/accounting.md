@@ -62,6 +62,23 @@ The main screen answers the question a business actually asks. What came in,
 what went out, what is left. Expenses are recorded here with a category, a
 date, and a receipt if you have one.
 
+## Where a payment lands
+
+Money goes to the account it is actually in:
+
+- **Cash** for notes and coins.
+- **Payments in Transit** for anything a card processor took: a card at the
+  counter, a card payment on an invoice, a subscription charge. It sits there
+  until the processor pays out. When the payout reaches your bank, categorise
+  that bank line to Payments in Transit and the money moves across. It is not
+  income a second time.
+- **Your bank account** for a bank transfer, a cheque, a bill you paid, or a
+  line on your bank statement you matched to an invoice or a bill. If you have
+  marked one account as a bank, that is the one. Otherwise it is Bank Account.
+
+When you record a bill payment or money in and out, you can choose the account
+yourself.
+
 ## The journal
 
 Every entry, in order, with both sides of each. This is where you look when a
