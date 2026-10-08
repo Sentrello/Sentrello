@@ -85,6 +85,13 @@ export const NON_STATUTORY_TABLES = [
   "document_templates",
   "form_submissions",
   "forms",
+  /*
+   * Who claimed this instance, and the row that makes claiming it happen once.
+   * It is a fact about the installation rather than about the business's
+   * trading: losing it would let the instance be claimed again, which is a
+   * security property and not something an auditor asks after.
+   */
+  "instance_claim",
   "invitation",
   "invoicing_settings",
   "ledger_settings",

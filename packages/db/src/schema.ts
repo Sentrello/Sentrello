@@ -53,6 +53,42 @@ export const licenseCache = pgTable("license_cache", {
   refreshedAt: timestamp("refreshed_at").defaultNow().notNull(),
 });
 
+/**
+ * Who claimed this instance, and the row that makes claiming it happen once.
+ *
+ * First-run claiming was a read and then a write: `needsBootstrap()` asked
+ * whether any organization existed, and the claim created one. Five concurrent
+ * claims all passed that check and all answered 201 — measured, not reasoned
+ * about, on 8 October 2026 — so an instance built for one business ended up
+ * with five, each with its own owner.
+ *
+ * A double-pressed button does it. So does an instance reachable from the
+ * internet before its operator has claimed it: a stranger claiming at the same
+ * moment gets an organization of their own and an account that works, and
+ * nothing the operator sees afterwards says so.
+ *
+ * The singleton row is the gate. `insert … on conflict do nothing` is one
+ * statement, so exactly one caller can win it however many arrive together, and
+ * the loser is told the instance is already claimed.
+ *
+ * **It holds the claimant's address because a failed claim must stay
+ * recoverable.** Claiming is two steps — an account, then an organization — and
+ * if the second fails the instance is unclaimed with the account already made;
+ * the claim path handles that by signing the same credentials in rather than up.
+ * The row is removed when a claim does not complete, so that retry still works
+ * and a stranger still cannot take the instance in between.
+ *
+ * Not `organizations` with a one-row constraint: one business per instance is
+ * how this is sold today and not a property of the schema, which keeps a hosted
+ * multi-tenant tier possible later.
+ */
+export const instanceClaim = pgTable("instance_claim", {
+  id: integer("id").primaryKey().default(1), // singleton row
+  /** Folded, so a retry recognises the same operator however they typed it. */
+  email: text("email").notNull(),
+  claimedAt: timestamp("claimed_at").defaultNow().notNull(),
+});
+
 // ---------------------------------------------------------------------------
 // CRM
 // ---------------------------------------------------------------------------

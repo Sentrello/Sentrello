@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
-import { db, eq, schema } from "@sentrello/db";
+import { db, eq, inArray, schema } from "@sentrello/db";
 import { registerForTest, resetRateLimits } from "@sentrello/module-sdk";
 import { Hono } from "hono";
 import { registerBootstrapRoutes } from "./bootstrap";
@@ -56,20 +56,45 @@ const owner = {
   organizationName: "Claim Ltd",
 };
 
-async function wipe() {
+/**
+ * Every address these tests claim with.
+ *
+ * In `wipe` rather than at the end of a test body, because a test body that
+ * fails an assertion never reaches its own cleanup — and then the *next* run
+ * sees the leftover account and fails for a reason that has nothing to do with
+ * what it is asking. That cost half an hour on 8 October: two owner accounts
+ * where the gate allows one, from a previous run of this file rather than from
+ * the product.
+ */
+const addresses = [
+  owner.email,
+  "Owner@Claim.test",
+  "attacker@evil.test",
+  ...[1, 2, 3, 4, 5].map((n) => `owner${n}@claim.test`),
+];
+
+async function forget(email: string) {
   const [u] = await db
     .select({ id: schema.user.id })
     .from(schema.user)
-    .where(eq(schema.user.email, owner.email));
-  if (u) {
-    await db.delete(schema.member).where(eq(schema.member.userId, u.id));
-    await db.delete(schema.session).where(eq(schema.session.userId, u.id));
-    await db.delete(schema.account).where(eq(schema.account.userId, u.id));
-    await db.delete(schema.user).where(eq(schema.user.id, u.id));
-  }
+    .where(eq(schema.user.email, email));
+  if (!u) return;
+  await db.delete(schema.member).where(eq(schema.member.userId, u.id));
+  await db.delete(schema.session).where(eq(schema.session.userId, u.id));
+  await db.delete(schema.account).where(eq(schema.account.userId, u.id));
+  await db.delete(schema.user).where(eq(schema.user.id, u.id));
+}
+
+async function wipe() {
+  for (const email of addresses) await forget(email);
   await db
     .delete(schema.organizations)
     .where(eq(schema.organizations.slug, "claim-ltd"));
+  /*
+   * And the row that makes claiming happen once, or the next test inherits a
+   * claimed instance and is answered by the gate rather than by what it asks.
+   */
+  await db.delete(schema.instanceClaim);
 }
 
 beforeEach(async () => {
@@ -166,4 +191,100 @@ test("an instance with no token configured is still claimable", async () => {
   process.env.SENTRELLO_SETUP_TOKEN = undefined;
   const res = await claim(owner);
   expect(res.status).toBe(201);
+});
+
+/**
+ * Claiming it twice at the same moment, which is not the same question.
+ *
+ * "Nobody can claim it twice" above asks it sequentially, and the check that
+ * answers it is a read: `needsBootstrap()` asks whether any organization
+ * exists, and everything that creates one runs after. Five claims arriving
+ * together all passed that read and all answered 201, leaving five
+ * organizations on an instance built for one, each with its own owner.
+ * Measured on a running instance rather than reasoned about.
+ *
+ * A double-pressed button does it. So does an instance reachable before its
+ * operator claims it: a stranger claiming at the same moment gets an
+ * organization of their own and an account that works, and nothing the operator
+ * sees afterwards says so.
+ *
+ * `Promise.all` is a real race here, because the handler awaits the database
+ * several times and the gap between the read and the write is where every
+ * extra claim got in.
+ */
+test("five claims at once make one business, not five", async () => {
+  const token = "the-real-setup-token";
+  const results = await Promise.all(
+    [1, 2, 3, 4, 5].map((n) =>
+      claim({
+        ...owner,
+        email: `owner${n}@claim.test`,
+        organizationName: "Claim Ltd",
+        setupToken: token,
+      }),
+    ),
+  );
+  const codes = results.map((r) => r.status).sort();
+  expect(codes.filter((c) => c === 201)).toHaveLength(1);
+  expect(codes.filter((c) => c === 409)).toHaveLength(4);
+
+  const orgs = await db
+    .select({ id: schema.organizations.id })
+    .from(schema.organizations);
+  expect(orgs).toHaveLength(1);
+
+  /*
+   * And one owner account, not five with one of them holding the business.
+   *
+   * Counted among the five addresses rather than over the table: the whole
+   * suite shares one database and leaves twenty thousand users in it, so
+   * "exactly one user exists" is a different and untrue claim. The
+   * organizations assertion above can be absolute because `verify.sh` runs
+   * this file only once the leftovers check has proved that table empty.
+   */
+  const made = await db
+    .select({ email: schema.user.email })
+    .from(schema.user)
+    .where(
+      inArray(
+        schema.user.email,
+        [1, 2, 3, 4, 5].map((n) => `owner${n}@claim.test`),
+      ),
+    );
+  expect(made).toHaveLength(1);
+});
+
+/**
+ * And a claim that fell over part-way is still the same operator's to finish.
+ *
+ * Claiming is two steps — an account, then an organization — so a failure
+ * between them leaves the instance unclaimed with the account already made.
+ * The gate must not turn that into an instance nobody can claim, and must not
+ * hand it to the next person who asks.
+ */
+test("a half-finished claim is recoverable by its owner and nobody else", async () => {
+  await db.delete(schema.instanceClaim);
+  await db
+    .insert(schema.instanceClaim)
+    .values({ id: 1, email: "owner@claim.test" });
+
+  const stranger = await claim({
+    ...owner,
+    email: "attacker@evil.test",
+    setupToken: "the-real-setup-token",
+  });
+  expect(stranger.status).toBe(409);
+
+  // However they typed it the second time.
+  const theirs = await claim({
+    ...owner,
+    email: "Owner@Claim.test",
+    setupToken: "the-real-setup-token",
+  });
+  expect(theirs.status).toBe(201);
+
+  const orgs = await db
+    .select({ id: schema.organizations.id })
+    .from(schema.organizations);
+  expect(orgs).toHaveLength(1);
 });

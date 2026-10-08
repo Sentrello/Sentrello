@@ -70,6 +70,61 @@ export async function ensureBootstrapped(owner?: OwnerDetails) {
   if (!(await needsBootstrap())) return { bootstrapped: false as const };
   if (!owner) return { bootstrapped: false as const }; // waiting for the operator
 
+  /*
+   * One claim, decided by one statement.
+   *
+   * `needsBootstrap()` above is a read, and everything below it is a write, so
+   * on its own it is a check-then-act: five concurrent claims all passed it and
+   * all answered 201, leaving five organizations on an instance built for one,
+   * each with its own owner. Measured rather than reasoned about — a
+   * double-pressed button does it, and so does a stranger claiming an instance
+   * that is reachable before its operator gets to it.
+   *
+   * `insert … on conflict do nothing` is atomic however many arrive together.
+   * The winner gets the row back; a loser gets nothing and is told the instance
+   * is already claimed — unless the row is already theirs, which is the retry
+   * the comment below is about.
+   */
+  const folded = owner.email.trim().toLowerCase();
+  const [claimed] = await db
+    .insert(schema.instanceClaim)
+    .values({ id: 1, email: folded })
+    .onConflictDoNothing()
+    .returning();
+
+  if (!claimed) {
+    const [held] = await db
+      .select({ email: schema.instanceClaim.email })
+      .from(schema.instanceClaim)
+      .limit(1);
+    /*
+     * Somebody else is part-way through claiming it, or did and it failed.
+     *
+     * The same operator retrying is let through, because a claim that fell over
+     * between the account and the organization has to be recoverable and the
+     * credentials are the only thing that says who they are. Anybody else is
+     * refused, which is the whole point of the row.
+     */
+    if (held?.email !== folded) return { bootstrapped: false as const };
+  }
+
+  /*
+   * And the row comes back out if this does not finish.
+   *
+   * Otherwise a claim that failed on the way through would leave the instance
+   * permanently unclaimable by anybody whose address is not the one in the row —
+   * including an operator who mistyped theirs. On the way out rather than in a
+   * `finally`, because a claim that succeeded must keep its row.
+   */
+  try {
+    return await claim(owner);
+  } catch (err) {
+    await db.delete(schema.instanceClaim).where(eq(schema.instanceClaim.id, 1));
+    throw err;
+  }
+}
+
+async function claim(owner: OwnerDetails) {
   // Setup is two steps: create the account, then create the organization. If
   // the second fails, the account exists but the instance is still unclaimed —
   // and a naive retry dies on "email already taken", leaving the instance
