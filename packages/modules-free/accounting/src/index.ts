@@ -16,6 +16,7 @@ import {
   schema,
   sql,
 } from "@sentrello/db";
+import { periodFrom } from "@sentrello/db/ledger";
 import {
   allConditions,
   countExpression,
@@ -23,6 +24,7 @@ import {
   searchCondition,
 } from "@sentrello/db/list-query";
 import type { ListSpec } from "@sentrello/db/list-query";
+import { timezoneFor } from "@sentrello/db/timezone";
 import { defineModule } from "@sentrello/module-sdk";
 import { registerCaReturns } from "./ca-returns";
 import { registerChart } from "./chart";
@@ -76,21 +78,25 @@ const JOURNAL: ListSpec = {
   defaultSort: { field: "postedAt", order: "desc" },
 };
 
-/** A day, as the browser sends it, or nothing if it sent something else. */
-function day(raw: string | undefined): Date | undefined {
-  if (!raw || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return undefined;
-  const parsed = new Date(`${raw}T00:00:00.000Z`);
-  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
-}
-
-/** Everything the request asked to narrow the ledger by. */
+/**
+ * Everything the request asked to narrow the ledger by.
+ *
+ * `zone` is the business's, because the bounds below land on `postedAt`, which
+ * is an instant: a UTC day edge cut a shop in New York off four hours before
+ * their day ended, so "entries to 30 September" lost that evening's takings.
+ * No zone means UTC, which is what it always did.
+ */
 function journalWhere(
   orgId: string,
   params: ReturnType<typeof listParams>,
   query: Record<string, string | undefined>,
+  zone: string | null,
 ) {
-  const from = day(query.from);
-  const to = day(query.to);
+  const { from, to } = periodFrom(
+    (name) =>
+      name === "from" ? query.from : name === "to" ? query.to : undefined,
+    zone,
+  );
   const accountId = query.accountId?.trim();
 
   return allConditions([
@@ -104,12 +110,9 @@ function journalWhere(
      * 2026-03-31)` excludes everything posted on the 31st — which is every
      * entry a quarter-end actually turns on.
      */
-    to
-      ? lte(
-          schema.journalEntries.postedAt,
-          new Date(to.getTime() + 24 * 60 * 60 * 1000 - 1),
-        )
-      : undefined,
+    // `periodFrom` has already stretched this to the end of the day where the
+    // business is, which is what `postedAt` has to be compared against.
+    to ? lte(schema.journalEntries.postedAt, to) : undefined,
     /*
      * Entries touching one account, without joining to its lines.
      *
@@ -266,7 +269,12 @@ export default defineModule({
          */
         const params = listParams(c.req.query());
         const page = params.page ?? 1;
-        const where = journalWhere(orgId, params, c.req.query());
+        const where = journalWhere(
+          orgId,
+          params,
+          c.req.query(),
+          await timezoneFor(orgId),
+        );
         const [entries, [counted]] = await Promise.all([
           db
             .select({ id: schema.journalEntries.id })

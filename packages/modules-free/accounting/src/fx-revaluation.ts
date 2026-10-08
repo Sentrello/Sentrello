@@ -28,7 +28,7 @@ import {
   postJournalEntry,
 } from "@sentrello/db/ledger";
 import { sumCents } from "@sentrello/db/money";
-import { dayFrom } from "@sentrello/db/timezone";
+import { dayFrom, momentAt, timezoneFor } from "@sentrello/db/timezone";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 
 /**
@@ -93,6 +93,35 @@ export interface Revaluation {
 }
 
 /**
+ * The last instant of a day where the business is, from a day held in UTC.
+ *
+ * Built from the next day's parts so a day that the clocks shortened or
+ * lengthened still ends where it ends.
+ */
+const endOfDayWhereTheyAre = async (
+  organizationId: string,
+  utcEndOfDay: Date,
+): Promise<Date> => {
+  const zone = await timezoneFor(organizationId);
+  if (!zone) return utcEndOfDay;
+  const next = new Date(utcEndOfDay);
+  next.setUTCHours(0, 0, 0, 0);
+  next.setUTCDate(next.getUTCDate() + 1);
+  return new Date(
+    momentAt(
+      {
+        year: next.getUTCFullYear(),
+        month: next.getUTCMonth() + 1,
+        day: next.getUTCDate(),
+        hours: 0,
+        minutes: 0,
+      },
+      zone,
+    ).getTime() - 1,
+  );
+};
+
+/**
  * The walk, with no side effects, so the screen and the posting agree.
  *
  * A preview that recomputes differently from the thing it previews is worse
@@ -104,6 +133,20 @@ export async function revalueOpenBalances(
   asOf: Date,
 ): Promise<Revaluation> {
   const base = await baseCurrency(orgId);
+  /**
+   * Two edges for one day, because this compares against two kinds of column.
+   *
+   * `asOf` arrives as the last instant of the day in **UTC**, which is right for
+   * `issueDate` and `billDate` — those are days stored at midnight UTC, and
+   * stretching the bound into the business's own evening would pull in a
+   * document dated tomorrow.
+   *
+   * It is wrong for `receivedAt` and `paidAt`, which are instants. A payment
+   * taken at six in the evening in New York lands at 22:00 UTC, so a
+   * revaluation as at that day did not know it had been paid and revalued a
+   * balance the customer had already settled.
+   */
+  const endOfDayThere = await endOfDayWhereTheyAre(orgId, asOf);
   const lines: RevaluationLine[] = [];
   const missing = new Set<string>();
   const rates = new Map<string, number | null>();
@@ -153,7 +196,7 @@ export async function revalueOpenBalances(
         and(
           eq(schema.payments.organizationId, orgId),
           inArray(schema.payments.invoiceId, ids),
-          lte(schema.payments.receivedAt, asOf),
+          lte(schema.payments.receivedAt, endOfDayThere),
         ),
       )
       .groupBy(schema.payments.invoiceId)) {
@@ -249,7 +292,7 @@ export async function revalueOpenBalances(
         and(
           eq(schema.billPayments.organizationId, orgId),
           inArray(schema.billPayments.billId, ids),
-          lte(schema.billPayments.paidAt, asOf),
+          lte(schema.billPayments.paidAt, endOfDayThere),
         ),
       )
       .groupBy(schema.billPayments.billId)) {

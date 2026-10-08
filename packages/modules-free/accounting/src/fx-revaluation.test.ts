@@ -6,6 +6,7 @@ import { CORE_ACCOUNTS } from "@sentrello/db/ledger";
 import type { SentrelloEnv } from "@sentrello/module-sdk";
 import { eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
+import { revalueOpenBalances } from "./fx-revaluation";
 import accounting from "./index";
 
 /**
@@ -301,4 +302,84 @@ test("a currency with no rate on or before the date is refused, not guessed", as
   // nothing to revalue at. Posting at 1:1 would be a plausible wrong number.
   expect(res.status).toBe(400);
   expect(((await res.json()) as { error: string }).error).toContain("EUR");
+});
+
+/**
+ * A payment taken in the evening counts on the day it was taken.
+ *
+ * This compares against two kinds of column with one date. `issueDate` and
+ * `billDate` are days stored at midnight UTC; `receivedAt` and `paidAt` are
+ * instants. One bound served both, stretched to the end of the day in **UTC** —
+ * so a payment taken at six in the evening in New York, which lands at 22:00
+ * UTC, was invisible to a revaluation as at that day. The balance was revalued
+ * as though the customer had not paid.
+ *
+ * The two bounds are separate now, which is the only way both columns can be
+ * right: the day columns keep the UTC edge, and the instants get the end of the
+ * day where the business is.
+ */
+test("a payment taken that evening is seen by a revaluation as at that day", async () => {
+  const [invoice] = await db
+    .insert(schema.invoices)
+    .values({
+      organizationId: orgId,
+      number: `FX-EVE-${suffix}`,
+      status: "open",
+      currency: EUR,
+      rateMicro: RAISED_AT,
+      issueDate: new Date("2026-02-02T00:00:00.000Z"),
+      subtotalCents: 20_000,
+      totalCents: 20_000,
+    })
+    .returning();
+  if (!invoice) throw new Error("no invoice");
+
+  /*
+   * Settled in full at nine in the evening on 31 March in New York, which is
+   * 01:00 UTC on 1 April — four hours behind in summer.
+   *
+   * The hour is the whole fixture. A payment at 22:00 UTC on the 31st would be
+   * inside the UTC day as well, so both the old bound and the new one would see
+   * it and this test could not fail; the first version of it was written that
+   * way and passed against the behaviour it was meant to catch.
+   */
+  await db.insert(schema.payments).values({
+    organizationId: orgId,
+    invoiceId: invoice.id,
+    amountCents: 20_000,
+    receivedAt: new Date("2026-04-01T01:00:00.000Z"),
+    method: "bank",
+  });
+
+  await db
+    .update(schema.organizations)
+    .set({ timezone: "America/New_York" })
+    .where(eq(schema.organizations.id, orgId));
+
+  try {
+    const movement = await revalueOpenBalances(
+      orgId,
+      new Date("2026-03-31T23:59:59.999Z"),
+    );
+    /*
+     * The field is `number`, not `documentNumber`. Spelled wrong, this `find`
+     * returned undefined whatever the code did and the test passed against the
+     * behaviour it was written to catch — so the invoice is asserted present
+     * first, under its own name, before anything is concluded from its absence.
+     */
+    const ours = (n: string) => movement.lines.filter((l) => l.number === n);
+    expect(ours(`FX-INV-${suffix}`)).toHaveLength(1);
+
+    // And nothing of the evening-paid one is left to revalue.
+    expect(ours(`FX-EVE-${suffix}`)).toHaveLength(0);
+  } finally {
+    await db
+      .update(schema.organizations)
+      .set({ timezone: null })
+      .where(eq(schema.organizations.id, orgId));
+    await db
+      .delete(schema.payments)
+      .where(eq(schema.payments.invoiceId, invoice.id));
+    await db.delete(schema.invoices).where(eq(schema.invoices.id, invoice.id));
+  }
 });
