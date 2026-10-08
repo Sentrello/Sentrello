@@ -124,6 +124,20 @@ export const CORE_ACCOUNTS = {
     name: "Service Charges",
     type: "income",
   },
+  /**
+   * Goods that arrived before their bill.
+   *
+   * A delivery puts stock on the shelf and a debt on the books, and it was
+   * credited straight to Accounts Payable — a debt with no bill behind it,
+   * which nothing could pay, and which the supplier's real bill then put on
+   * the books a second time. It waits here instead, and the bill, coded to
+   * this account, moves it to Accounts Payable when it arrives.
+   */
+  receivedNotBilled: {
+    code: "2050",
+    name: "Stock Received, Not Billed",
+    type: "liability",
+  },
   taxPayable: { code: "2200", name: "Tax Payable", type: "liability" },
   /** Where an expense lands when it has not been given an account of its own. */
   generalExpense: { code: "6000", name: "General Expenses", type: "expense" },

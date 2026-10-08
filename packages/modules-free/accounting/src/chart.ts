@@ -71,6 +71,12 @@ export const STANDARD_CHART: {
     description: "Billed by suppliers and not yet paid",
   },
   {
+    code: "2050",
+    name: "Stock Received, Not Billed",
+    type: "liability",
+    description: "Delivered and counted; the supplier's bill has not come",
+  },
+  {
     code: "2200",
     name: "Tax Payable",
     type: "liability",

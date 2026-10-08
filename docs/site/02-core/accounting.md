@@ -96,9 +96,13 @@ If you sell physical things through the [Shop](/modules/shop) or over the
 counter, your books follow the stock as well as the money.
 
 A delivery puts the goods on your balance sheet as **Inventory**, an asset,
-because that is what stock on a shelf is, and it records what you owe the
-supplier. Nothing is an expense yet. You have swapped a debt for goods rather
-than spent anything.
+because that is what stock on a shelf is. What you owe for them waits in
+**Stock Received, Not Billed** until the supplier's bill arrives. Nothing is an
+expense yet. You have swapped a debt for goods rather than spent anything.
+
+When you enter that bill (with [Pro](/pro)), choose Stock Received, Not Billed
+as its category. The debt then moves to what you owe suppliers, once, instead
+of being recorded a second time beside the first.
 
 When one of those goods is sold and leaves, its cost moves out of Inventory and
 into **Cost of Sales**, against the sale that took it. That is what makes gross
