@@ -64,6 +64,36 @@ export interface CrawlableSurface {
    * configure wants.
    */
   live?: (hostname: string | null) => Promise<boolean> | boolean;
+  /**
+   * Whether this surface is the whole of what that hostname serves.
+   *
+   * One instance can answer on several names, and a proxy decides what each one
+   * reaches. A business that points a domain at its documentation gets both that
+   * domain and its ordinary address answering the same application — but on the
+   * first, the proxy serves the documentation site and nothing else, so a
+   * storefront prefix there is a 404.
+   *
+   * The instance cannot read its own proxy configuration, and said so for a long
+   * time by advertising every open surface on every name: an allow for a prefix
+   * that name does not serve, which costs a crawler one request, and then, once
+   * the storefront published a sitemap, a `Sitemap:` line pointing at an address
+   * that 404s. An allow for a dead path is untidy. A sitemap for one is a
+   * stronger claim, in the file whose whole job is to be believed.
+   *
+   * So a surface that knows a hostname is *its* says so, and the others drop off
+   * that hostname. A documentation site knows because its owner named the
+   * hostname on it, which is what pointing a domain at your documentation
+   * means.
+   *
+   * **The error lands on the quiet side.** Claim this wrongly and a surface that
+   * does answer on that name goes unadvertised, which costs crawl coverage.
+   * Leave it unclaimed and the file says something untrue. Of the two, a
+   * believable file is worth more, and the same reasoning sits above `live`.
+   *
+   * Left out means "shares the name with whatever else is open", which is what
+   * nearly every surface wants.
+   */
+  only?: (hostname: string | null) => Promise<boolean> | boolean;
 }
 
 const registry: CrawlableSurface[] = [];
@@ -100,6 +130,24 @@ export function allCrawlable(): CrawlableSurface[] {
 /** For tests and for a host that loads its modules more than once. */
 export function clearCrawlable(): void {
   registry.length = 0;
+}
+
+/**
+ * Take one surface back out.
+ *
+ * For a test that adds a second module's surface to see how two of them read
+ * together. `clearCrawlable` is the wrong tool for that and quietly wrong: the
+ * registry is one array for the whole process, so clearing it also throws away
+ * what the module under test registered when it loaded, and the next test in
+ * the file gets an instance that publishes nothing. That is how it went on
+ * 7 October — a test asserting `Allow: /docs` failed because its neighbour had
+ * tidied up after itself too thoroughly.
+ */
+export function removeCrawlable(moduleId: string, prefix: string): void {
+  const at = registry.findIndex(
+    (s) => s.moduleId === moduleId && s.prefix === prefix,
+  );
+  if (at >= 0) registry.splice(at, 1);
 }
 
 /**
@@ -152,7 +200,7 @@ export async function robotsTxt(origin: string | null): Promise<string> {
    * crawls; the cost the other way is a crawl of something somebody asked us
    * not to publish.
    */
-  const open = [];
+  let open = [];
   for (const surface of allCrawlable()) {
     if (!surface.live) {
       open.push(surface);
@@ -165,6 +213,25 @@ export async function robotsTxt(origin: string | null): Promise<string> {
       // per fetch is a log nobody reads.
     }
   }
+
+  /*
+   * And if one of them holds this hostname outright, it is the only one on it.
+   *
+   * Asked after `live`, because a surface that is not serving here cannot hold
+   * the name either. More than one claimant keeps all the claimants rather than
+   * picking: two surfaces each certain they own the name is a disagreement to
+   * surface by leaving both, not to resolve by coin toss.
+   */
+  const holders = [];
+  for (const surface of open) {
+    if (!surface.only) continue;
+    try {
+      if (await surface.only(hostname)) holders.push(surface);
+    } catch {
+      // Cannot say, so it does not claim. Same silence as `live`, same reason.
+    }
+  }
+  if (holders.length > 0) open = holders;
 
   const lines = ["User-agent: *", "Disallow: /"];
   /*

@@ -4,6 +4,7 @@ import {
   allCrawlable,
   clearCrawlable,
   crawlablePath,
+  removeCrawlable,
   robotsTxt,
 } from "./crawlable";
 
@@ -275,4 +276,90 @@ test("a closed path is shut even when the module is asked about twice", () => {
   addCrawlable({ moduleId: "shop", prefix: "/shop", closed: ["/shop/cart"] });
   expect(allCrawlable()).toHaveLength(1);
   expect(crawlablePath("/shop/cart")).toBe(false);
+});
+
+/*
+ * One instance, several names, and a proxy that sends each one somewhere.
+ *
+ * A documentation host served `Allow: /shop` and then a shop sitemap, both 404
+ * on that name. Measured on a real host on 7 October, not reasoned about.
+ */
+
+test("a surface that holds a hostname is the only one on it", async () => {
+  addCrawlable({
+    moduleId: "docs",
+    prefix: "/docs",
+    sitemap: "/docs/sitemap.xml",
+    only: (hostname) => hostname === "docs.example.test",
+  });
+  addCrawlable({
+    moduleId: "shop",
+    prefix: "/shop",
+    sitemap: "/shop/sitemap.xml",
+    closed: ["/shop/cart"],
+  });
+
+  // On the documentation's own name: the documentation, and nothing of the shop.
+  const docs = await robotsTxt("https://docs.example.test");
+  expect(docs).toContain("Allow: /docs");
+  expect(docs).toContain("Sitemap: https://docs.example.test/docs/sitemap.xml");
+  expect(docs).not.toContain("/shop");
+
+  // On the instance's own name, where the proxy serves the application and the
+  // shop: both, because nobody there claims to be the whole of it.
+  const app = await robotsTxt("https://books.example.test");
+  expect(app).toContain("Allow: /shop");
+  expect(app).toContain("Disallow: /shop/cart");
+  expect(app).toContain("Allow: /docs");
+});
+
+test("two surfaces both claiming a name keep both", async () => {
+  // A disagreement to leave visible rather than resolve by coin toss: dropping
+  // one of them would hide a surface on the word of a module that may be wrong.
+  addCrawlable({ moduleId: "a", prefix: "/alpha", only: () => true });
+  addCrawlable({ moduleId: "b", prefix: "/beta", only: () => true });
+  const txt = await robotsTxt("https://both.example.test");
+  expect(txt).toContain("Allow: /alpha");
+  expect(txt).toContain("Allow: /beta");
+});
+
+test("a claim that cannot be answered is not a claim", async () => {
+  addCrawlable({
+    moduleId: "docs",
+    prefix: "/docs",
+    only: () => {
+      throw new Error("the table this wants is not migrated yet");
+    },
+  });
+  addCrawlable({ moduleId: "shop", prefix: "/shop" });
+  // The throw closes nothing: a surface that cannot say whether it holds the
+  // name has said nothing, so the shop stays where it was.
+  const txt = await robotsTxt("https://books.example.test");
+  expect(txt).toContain("Allow: /docs");
+  expect(txt).toContain("Allow: /shop");
+});
+
+test("holding a name it is not serving on claims nothing", async () => {
+  addCrawlable({
+    moduleId: "docs",
+    prefix: "/docs",
+    // Switched off here, and certain it owns the place. The first answer wins:
+    // a surface that is not serving cannot be the whole of what is served.
+    live: () => false,
+    only: () => true,
+  });
+  addCrawlable({ moduleId: "shop", prefix: "/shop" });
+  const txt = await robotsTxt("https://books.example.test");
+  expect(txt).not.toContain("/docs");
+  expect(txt).toContain("Allow: /shop");
+});
+
+test("one surface can be taken back out without flattening the rest", () => {
+  addCrawlable({ moduleId: "docs", prefix: "/docs" });
+  addCrawlable({ moduleId: "shop", prefix: "/shop" });
+  removeCrawlable("shop", "/shop");
+  expect(allCrawlable().map((s) => s.prefix)).toEqual(["/docs"]);
+  // And asking for one that was never there changes nothing.
+  removeCrawlable("shop", "/shop");
+  expect(allCrawlable()).toHaveLength(1);
 });
