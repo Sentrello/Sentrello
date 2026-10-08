@@ -631,6 +631,11 @@ test("a till sale in BC files to both returns, and its discount reduces what was
   expect(bc(after) - bc(before)).toBe(630);
   // Nothing here was left unplaced.
   expect(after.unbandedCents).toBe(before.unbandedCents);
+  // And line 101 is the sale net of what was given away.
+  expect(
+    (after.gstHst?.line101SalesCents ?? 0) -
+      (before.gstHst?.line101SalesCents ?? 0),
+  ).toBe(9_000);
 });
 
 /**

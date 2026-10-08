@@ -300,8 +300,11 @@ export function caReturns(
    * the figure. The federal line 101, Quebec's 201 and BC's box A all ask
    * this same question, so it is computed once.
    */
+  // Net of what was given away: Sales Discounts is income handed back, typed
+  // an expense only so a P&L can show it, and a sale's figure counted it as
+  // though the discount had been paid.
   const salesCents = rows
-    .filter((row) => row.type === "income")
+    .filter((row) => saleOrPurchase(row) === "sale")
     .reduce((sum, row) => sum + row.creditCents - row.debitCents, 0);
 
   const lineFor = (def: CaTaxDefinition): CaReturnLine => {
