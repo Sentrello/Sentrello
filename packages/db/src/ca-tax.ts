@@ -1,9 +1,11 @@
-import { and, eq, gte, inArray, like, lte, or } from "drizzle-orm";
+import { and, eq, gte, inArray, like, lt, or } from "drizzle-orm";
 import { db } from "./client";
 import { RATE_SCALE, toBaseCents } from "./currency";
 import {
+  type LedgerPeriod,
   type LedgerRow,
   ledgerRows,
+  periodDays,
   saleOrPurchase,
   unbandedSalesTaxCents,
 } from "./ledger";
@@ -425,7 +427,7 @@ export function caReturns(
  */
 export async function caReturnsFor(
   orgId: string,
-  period: { from?: Date; to?: Date } = {},
+  period: LedgerPeriod = {},
 ): Promise<CaReturns> {
   const definitionRows = await db
     .select({
@@ -462,6 +464,7 @@ export async function caReturnsFor(
     .limit(1);
 
   const rows = await ledgerRows(orgId, period);
+  const { first, last } = periodDays(period);
 
   /*
    * The document side: every band of Canadian tax on an invoice issued in
@@ -498,8 +501,23 @@ export async function caReturnsFor(
           "paid",
           "credited",
         ]),
-        ...(period.from ? [gte(schema.invoices.issueDate, period.from)] : []),
-        ...(period.to ? [lte(schema.invoices.issueDate, period.to)] : []),
+        /*
+         * An issue date is a day, stored at midnight UTC, and the period names
+         * days (`periodDays`). Compared as days: against the period's first
+         * moment in New York, an invoice issued on the 1st fell outside it —
+         * while the ledger side, read on the entry's day, counted it. Before
+         * the day after, so an issue date stamped later on its UTC day, as a
+         * document raised before dates were days can be, is still in.
+         */
+        ...(first ? [gte(schema.invoices.issueDate, first)] : []),
+        ...(last
+          ? [
+              lt(
+                schema.invoices.issueDate,
+                new Date(last.getTime() + 86_400_000),
+              ),
+            ]
+          : []),
       ),
     );
 

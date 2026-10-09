@@ -4,6 +4,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { db, eq, schema } from "@sentrello/db";
+import type { LedgerPeriod } from "@sentrello/db/ledger";
 import { percentFromPpm } from "@sentrello/db/money";
 import { timezoneFor } from "@sentrello/db/timezone";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
@@ -78,7 +79,7 @@ export async function vatSchemeFor(orgId: string): Promise<VatScheme> {
  */
 export async function vatBoxesFor(
   orgId: string,
-  period: { from?: Date; to?: Date },
+  period: LedgerPeriod,
 ): Promise<{
   scheme: VatScheme;
   boxes: VatReturn;

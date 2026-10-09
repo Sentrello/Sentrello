@@ -15,10 +15,13 @@ import {
   lte,
   ne,
   schema,
+  sql,
 } from "@sentrello/db";
 import { RATE_SCALE } from "@sentrello/db/currency";
+import { entryDay } from "@sentrello/db/ledger";
 import { percentFromPpm } from "@sentrello/db/money";
 import { postedSales } from "@sentrello/db/sale-place";
+import { timezoneFor } from "@sentrello/db/timezone";
 import { csvDownload, toCsv } from "@sentrello/module-sdk";
 import type { ModuleContext } from "@sentrello/module-sdk";
 import { euCountry, isConsumerSupply } from "./distance-selling";
@@ -703,10 +706,12 @@ async function correctedPeriods(
 ): Promise<Map<string, { year: number; quarter: number }>> {
   const periods = new Map<string, { year: number; quarter: number }>();
   if (invoiceIds.length === 0) return periods;
+  const zone = await timezoneFor(orgId);
   const entries = await db
     .select({
       source: schema.journalEntries.source,
-      postedAt: schema.journalEntries.postedAt,
+      // The day the sale was booked on, as the return itself reads it.
+      day: sql<string>`${entryDay(zone)}::text`,
     })
     .from(schema.journalEntries)
     .where(
@@ -721,10 +726,8 @@ async function correctedPeriods(
   for (const entry of entries) {
     const id = entry.source?.split(":")[1];
     if (!id) continue;
-    periods.set(id, {
-      year: entry.postedAt.getUTCFullYear(),
-      quarter: quarterOf(entry.postedAt),
-    });
+    const day = new Date(`${entry.day}T00:00:00Z`);
+    periods.set(id, { year: day.getUTCFullYear(), quarter: quarterOf(day) });
   }
   return periods;
 }

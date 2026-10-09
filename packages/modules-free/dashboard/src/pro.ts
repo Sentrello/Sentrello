@@ -1,8 +1,9 @@
 import { db, schema } from "@sentrello/db";
 import { dayIn, daysLate } from "@sentrello/db/day";
 import { creditedAgainst } from "@sentrello/db/documents";
+import { entryDay, entryDayWithin } from "@sentrello/db/ledger";
 import { timezoneFor } from "@sentrello/db/timezone";
-import { and, eq, gte, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 
 /**
  * The half of the dashboard a licence pays for.
@@ -38,39 +39,33 @@ export interface Insights {
   aging: { bucket: string; cents: number; count: number }[];
 }
 
-/** `2026-08`, so months sort as strings and group without a date library. */
 /**
- * Which month a moment belongs to, where the business is.
- *
- * `postedAt` defaults to the instant an entry was posted — the ledger's own
- * comment says so, and says why — so taking its UTC month puts everything a
- * business west of Greenwich records in the last hours of a month into the
- * next one. In Denver that is every sale after six in the evening on the 31st,
- * which for a shop is the busy part of the day.
- *
- * The zone was already fetched two lines below this and used for the ageing of
- * receivables and nothing else. The chart it feeds sits beside a profit and
- * loss for the same month, and two figures for one month that disagree is the
- * fault this project keeps writing down.
+ * Months are keyed `2026-08`, so they sort as strings, and an entry lands in
+ * the month of its own day where the business is (`entryDay`): a sale after
+ * six in the evening on the 31st in Denver is the 31st's, and a bill dated the
+ * 1st is the 1st's, though its midnight UTC is the evening before there.
  */
-function monthKey(d: Date, zone: string | null): string {
-  const day = dayIn(d, zone);
-  return `${day.getUTCFullYear()}-${String(day.getUTCMonth() + 1).padStart(2, "0")}`;
-}
-
 export async function readInsights(organizationId: string): Promise<Insights> {
   const now = new Date();
   const zone = await timezoneFor(organizationId);
-  const from = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 11, 1),
-  );
+  /*
+   * This month is the business's month. Taken from UTC, a business in New
+   * York read the 1st's midnight as the evening of the month before, and the
+   * twelve buckets ran from a year ago to last month.
+   */
+  const today = dayIn(now, zone);
+  const monthStart = (back: number) =>
+    new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - back, 1));
+  // A day, by its UTC date: the first of the month eleven months back.
+  const from = monthStart(11);
 
   const [ledger, deals, invoices, contacts, payments] = await Promise.all([
     // The ledger, not the invoice table. A reported figure that disagrees with
     // the books is worse than no figure, and the books are the ones defended.
     db
       .select({
-        postedAt: schema.journalEntries.postedAt,
+        // The entry's day, the rule every report reads it by — see `entryDay`.
+        day: sql<string>`${entryDay(zone)}::text`,
         type: schema.accounts.type,
         debitCents: schema.journalLines.debitCents,
         creditCents: schema.journalLines.creditCents,
@@ -88,7 +83,7 @@ export async function readInsights(organizationId: string): Promise<Insights> {
         and(
           eq(schema.journalEntries.organizationId, organizationId),
           eq(schema.accounts.organizationId, organizationId),
-          gte(schema.journalEntries.postedAt, from),
+          entryDayWithin({ from }, zone),
         ),
       ),
     db
@@ -161,10 +156,8 @@ export async function readInsights(organizationId: string): Promise<Insights> {
     }
   >();
   for (let i = 11; i >= 0; i -= 1) {
-    const d = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1),
-    );
-    const key = monthKey(d, zone);
+    const d = monthStart(i);
+    const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
     months.set(key, {
       month: key,
       incomeCents: 0,
@@ -173,7 +166,7 @@ export async function readInsights(organizationId: string): Promise<Insights> {
     });
   }
   for (const line of ledger) {
-    const bucket = months.get(monthKey(new Date(line.postedAt), zone));
+    const bucket = months.get(line.day.slice(0, 7));
     if (!bucket) continue;
     // Income accounts carry credit balances, expense accounts debit balances.
     if (line.type === "income")

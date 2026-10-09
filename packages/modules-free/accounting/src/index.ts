@@ -4,19 +4,8 @@ import {
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
-import {
-  and,
-  asc,
-  db,
-  desc,
-  eq,
-  gte,
-  inArray,
-  lte,
-  schema,
-  sql,
-} from "@sentrello/db";
-import { periodFrom } from "@sentrello/db/ledger";
+import { and, asc, db, desc, eq, inArray, schema, sql } from "@sentrello/db";
+import { entryDayWithin, periodFrom } from "@sentrello/db/ledger";
 import {
   allConditions,
   countExpression,
@@ -81,10 +70,10 @@ const JOURNAL: ListSpec = {
 /**
  * Everything the request asked to narrow the ledger by.
  *
- * `zone` is the business's, because the bounds below land on `postedAt`, which
- * is an instant: a UTC day edge cut a shop in New York off four hours before
- * their day ended, so "entries to 30 September" lost that evening's takings.
- * No zone means UTC, which is what it always did.
+ * `zone` is the business's, because the bounds name its days: a UTC day edge
+ * cut a shop in New York off four hours before their day ended, so "entries
+ * to 30 September" lost that evening's takings. No zone means UTC, which is
+ * what it always did.
  */
 function journalWhere(
   orgId: string,
@@ -102,17 +91,13 @@ function journalWhere(
   return allConditions([
     eq(schema.journalEntries.organizationId, orgId),
     searchCondition(JOURNAL, params.q),
-    from ? gte(schema.journalEntries.postedAt, from) : undefined,
     /*
-     * To the end of the day named, not to its first instant.
-     *
-     * `postedAt` is a timestamp and the filter is a date, so `lte(postedAt,
-     * 2026-03-31)` excludes everything posted on the 31st — which is every
-     * entry a quarter-end actually turns on.
+     * By the entry's day, the rule every report reads it by: a bill dated the
+     * 1st is in "from the 1st" in New York, though its `postedAt` is the
+     * evening before there. `periodFrom` gives the first and last moments of
+     * the days named; `entryDayWithin` reads each as its day.
      */
-    // `periodFrom` has already stretched this to the end of the day where the
-    // business is, which is what `postedAt` has to be compared against.
-    to ? lte(schema.journalEntries.postedAt, to) : undefined,
+    entryDayWithin({ from, to, zone }, zone),
     /*
      * Entries touching one account, without joining to its lines.
      *

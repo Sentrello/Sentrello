@@ -1047,7 +1047,11 @@ async function carryForward(
       // The one caller allowed through the period lock, and only because the
       // only periods it touches are closed ones — that is the precondition for
       // archiving a ledger at all.
-      { intoClosedPeriod: true, tx },
+      //
+      // A day, the month's last: read as an instant, 23:59 UTC is already the
+      // 1st in Berlin, and every report there moved the summary into the next
+      // month. The month it is keyed by is UTC's, and so is this day.
+      { intoClosedPeriod: true, tx, day: true },
     );
     created.push(entry.id);
   }

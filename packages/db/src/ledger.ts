@@ -10,7 +10,6 @@ import {
   inArray,
   isNull,
   lt,
-  lte,
   or,
   sql,
 } from "drizzle-orm";
@@ -26,6 +25,7 @@ import { recordSalePlace } from "./sale-place";
 import {
   UnreadableDateError,
   demandDate,
+  knownTimezone,
   momentAt,
   timezoneFor,
 } from "./timezone";
@@ -671,16 +671,14 @@ export async function taggingFrom(
  * Pass the zone from `timezoneFor(orgId)`. No zone means UTC, which is what
  * every figure did before this and is still right for a business that has not
  * said where it is.
+ *
+ * The zone travels with the bounds, so a ledger reader handed this period
+ * reads them as the days they were typed as (`periodDays`).
  */
 export function periodFrom(
   query: (name: string) => string | undefined,
   zone: string | null = null,
-): {
-  from?: Date;
-  to?: Date;
-  classId?: string;
-  locationId?: string;
-} {
+): LedgerPeriod {
   const BARE_DAY = /^\d{4}-\d{2}-\d{2}$/;
   const parse = (value: string | undefined, endOfDay = false) => {
     if (!value) return undefined;
@@ -760,9 +758,107 @@ export function periodFrom(
   return {
     from,
     to,
+    zone,
     ...(classId ? { classId } : {}),
     ...(locationId ? { locationId } : {}),
   };
+}
+
+/**
+ * A period a ledger reader is asked about.
+ *
+ * The bounds name **days**. `zone` is where they were placed — `periodFrom`
+ * sets it — so the first moment of 1 October in New York is read as 1 October,
+ * not as the 4am UTC it is. Without one a bound is read by its UTC date, which
+ * is how every day here is stored and how a caller writes one by hand:
+ * `Date.UTC(2026, 0, 1)` is 1 January, wherever the business is.
+ */
+export interface LedgerPeriod {
+  from?: Date;
+  to?: Date;
+  zone?: string | null;
+  classId?: string;
+  locationId?: string;
+}
+
+/** The first and last days a period names, as midnight UTC. */
+export function periodDays(period: LedgerPeriod): {
+  first?: Date;
+  last?: Date;
+} {
+  const zone = period.zone ?? null;
+  return {
+    ...(period.from ? { first: dayIn(period.from, zone) } : {}),
+    ...(period.to ? { last: dayIn(period.to, zone) } : {}),
+  };
+}
+
+const DAY_MS = 86_400_000;
+
+/**
+ * A zone name Postgres will read the way `Intl` does, or UTC.
+ *
+ * Named zones only. An offset such as "+05:00" means the opposite hemisphere
+ * to Postgres's POSIX reading of it, and a name neither side knows would make
+ * every report throw; a report a day out is a complaint, a report that throws
+ * is a screen with nothing on it.
+ */
+function sqlZone(zone: string | null): string {
+  return zone &&
+    /^[A-Za-z_]+(?:\/[A-Za-z0-9_+-]+)*$/.test(zone) &&
+    knownTimezone(zone)
+    ? zone
+    : "UTC";
+}
+
+/**
+ * The day a journal entry belongs to, where the business is. One rule, read by
+ * every report.
+ *
+ * An entry dated by a day carries that day in `posted_on`, and it is that day
+ * everywhere: a bill dated the 1st is the 1st in New York and in Berlin, though
+ * its `posted_at` — midnight UTC — is the evening of the 31st in New York. An
+ * entry stamped with a moment has no `posted_on`, and its day is the one the
+ * business was having when it happened: a sale at half past eleven on the 31st
+ * in New York is the 31st, though UTC has already reached the 1st.
+ *
+ * `posted_at` is a `timestamp` holding UTC, so it is read as UTC first and
+ * then moved into the zone.
+ */
+export function entryDay(zone: string | null): SQL<string> {
+  return sql<string>`coalesce(${schema.journalEntries.postedOn}, ((${schema.journalEntries.postedAt} at time zone 'UTC') at time zone ${sqlZone(zone)})::date)`;
+}
+
+/**
+ * Entries whose day falls inside a period, both ends included.
+ *
+ * Days compared with days: the entry's (`entryDay`, in `zone`, the business's)
+ * with the period's (`periodDays`). A bare `posted_at` comparison is made as
+ * well, a day wider either side than any zone can move it, so the
+ * `(organization_id, posted_at)` index keeps narrowing a month's read.
+ *
+ * Undefined for a period with neither bound, which `and()` drops.
+ */
+export function entryDayWithin(
+  period: LedgerPeriod,
+  zone: string | null,
+): SQL | undefined {
+  const iso = (day: Date) => day.toISOString().slice(0, 10);
+  const { first, last } = periodDays(period);
+  const parts: SQL[] = [];
+  if (first) {
+    parts.push(
+      gte(schema.journalEntries.postedAt, new Date(first.getTime() - DAY_MS)),
+      sql`${entryDay(zone)} >= ${iso(first)}::date`,
+    );
+  }
+  if (last) {
+    parts.push(
+      lt(schema.journalEntries.postedAt, new Date(last.getTime() + 2 * DAY_MS)),
+      sql`${entryDay(zone)} <= ${iso(last)}::date`,
+    );
+  }
+  return parts.length ? and(...parts) : undefined;
 }
 
 /**
@@ -880,6 +976,11 @@ export async function postJournalEntry(
          */
         createdBy: currentActor(),
         ...(postedAt ? { postedAt } : {}),
+        // The day itself, so a report reads it as that day wherever the
+        // business is — see `entryDay`.
+        ...(options?.day && postedAt
+          ? { postedOn: dayOf(postedAt).toISOString().slice(0, 10) }
+          : {}),
       })
       .returning();
     if (!entry) throw new Error("journal entry insert returned no row");
@@ -1423,12 +1524,7 @@ export interface LedgerRow {
  */
 export async function ledgerRows(
   orgId: string,
-  period: {
-    from?: Date;
-    to?: Date;
-    classId?: string;
-    locationId?: string;
-  } = {},
+  period: LedgerPeriod = {},
 ): Promise<LedgerRow[]> {
   return db
     .select({
@@ -1452,7 +1548,7 @@ export async function ledgerRows(
       schema.accounts,
       eq(schema.journalLines.accountId, schema.accounts.id),
     )
-    .where(ledgerWhere(orgId, period));
+    .where(ledgerWhere(orgId, period, await zoneIfBounded(orgId, period)));
 }
 
 /**
@@ -1490,12 +1586,7 @@ export type LedgerAmounts = Pick<
  */
 export async function ledgerTotals(
   orgId: string,
-  period: {
-    from?: Date;
-    to?: Date;
-    classId?: string;
-    locationId?: string;
-  } = {},
+  period: LedgerPeriod = {},
 ): Promise<LedgerAmounts[]> {
   return (
     db
@@ -1522,7 +1613,7 @@ export async function ledgerTotals(
         schema.accounts,
         eq(schema.journalLines.accountId, schema.accounts.id),
       )
-      .where(ledgerWhere(orgId, period))
+      .where(ledgerWhere(orgId, period, await zoneIfBounded(orgId, period)))
       // The account's primary key: its code, name and type follow from it.
       .groupBy(schema.accounts.id)
   );
@@ -1563,12 +1654,7 @@ export function isCashAccount(account: {
  */
 export async function cashMovedWithinCash(
   orgId: string,
-  period: {
-    from?: Date;
-    to?: Date;
-    classId?: string;
-    locationId?: string;
-  } = {},
+  period: LedgerPeriod = {},
 ): Promise<number> {
   const cash = sql`(${schema.accounts.type} = 'asset' and (
     ${inArray(schema.accounts.code, [...CASH_ACCOUNT_CODES])}
@@ -1594,7 +1680,7 @@ export async function cashMovedWithinCash(
       schema.accounts,
       eq(schema.journalLines.accountId, schema.accounts.id),
     )
-    .where(ledgerWhere(orgId, period))
+    .where(ledgerWhere(orgId, period, await zoneIfBounded(orgId, period)))
     .groupBy(schema.journalEntries.id)
     .as("per_entry");
   const [row] = await db
@@ -1613,22 +1699,22 @@ export async function cashMovedWithinCash(
  * never drift: a faster query that reaches another business's entries is not
  * a faster query.
  */
-function ledgerWhere(
+/** The business's zone, read only when a period has an edge to place. */
+async function zoneIfBounded(
   orgId: string,
-  period: {
-    from?: Date;
-    to?: Date;
-    classId?: string;
-    locationId?: string;
-  },
-) {
+  period: LedgerPeriod,
+): Promise<string | null> {
+  return period.from || period.to ? timezoneFor(orgId) : null;
+}
+
+function ledgerWhere(orgId: string, period: LedgerPeriod, zone: string | null) {
   return and(
     eq(schema.journalEntries.organizationId, orgId),
     // Both sides are scoped: a line joined to an account belonging to
     // another business would be somebody else's figure in these totals.
     eq(schema.accounts.organizationId, orgId),
-    ...(period.from ? [gte(schema.journalEntries.postedAt, period.from)] : []),
-    ...(period.to ? [lte(schema.journalEntries.postedAt, period.to)] : []),
+    // On the entry's day, never its instant — see `entryDay`.
+    entryDayWithin(period, zone),
     ...(period.classId
       ? [eq(schema.journalLines.classId, period.classId)]
       : []),
@@ -1662,6 +1748,13 @@ export interface CashBasisEntry {
   id: string;
   postedAt: Date;
   rows: CashBasisLine[];
+  /**
+   * Whether the entry's day is inside the period read, when the database
+   * answered that. A day-dated entry on the 1st is in a New York month though
+   * its `postedAt` is the evening before, so the walk asks this rather than
+   * comparing instants; entries built from rows in hand leave it unset.
+   */
+  inPeriod?: boolean;
 }
 
 /**
@@ -1710,6 +1803,7 @@ const CONTROL_CODES = [
 function cashBasisQuery(
   orgId: string,
   tax: boolean,
+  zone: string | null,
   ...extra: (SQL | undefined)[]
 ) {
   return db
@@ -1768,6 +1862,8 @@ function cashBasisQuery(
       ),
     )
     .orderBy(
+      // By day first, so a day-dated entry sits among the rest of its day.
+      asc(entryDay(zone)),
       asc(schema.journalEntries.postedAt),
       asc(schema.journalEntries.id),
     );
@@ -1823,12 +1919,13 @@ function touchesControl(orgId: string) {
  */
 export async function* cashBasisEntries(
   orgId: string,
-  period: { from?: Date; to?: Date } = {},
+  period: LedgerPeriod = {},
   /** Whether the reader is going to look at the tax lines. */
   options: { tax?: boolean; chunkRows?: number } = {},
 ): AsyncGenerator<CashBasisEntry> {
   const tax = options.tax ?? false;
   const chunkRows = options.chunkRows ?? 5000;
+  const zone = await zoneIfBounded(orgId, period);
   /*
    * Two statements rather than one with an `or` across them. The opening
    * position and the period are disjoint by date, so nothing is read twice —
@@ -1842,22 +1939,22 @@ export async function* cashBasisEntries(
       cashBasisQuery(
         orgId,
         tax,
-        lt(schema.journalEntries.postedAt, period.from),
+        zone,
+        // Every day before the first: up to its last moment, read as a day.
+        entryDayWithin(
+          { to: new Date(period.from.getTime() - 1), zone: period.zone },
+          zone,
+        ),
         touchesControl(orgId),
       ),
       chunkRows,
+      false,
     );
   }
   yield* streamEntries(
-    cashBasisQuery(
-      orgId,
-      tax,
-      period.from
-        ? gte(schema.journalEntries.postedAt, period.from)
-        : undefined,
-      period.to ? lte(schema.journalEntries.postedAt, period.to) : undefined,
-    ),
+    cashBasisQuery(orgId, tax, zone, entryDayWithin(period, zone)),
     chunkRows,
+    true,
   );
 }
 
@@ -1877,6 +1974,7 @@ export async function* cashBasisEntries(
 async function* streamEntries(
   query: ReturnType<typeof cashBasisQuery>,
   chunkRows: number,
+  inPeriod: boolean,
 ): AsyncGenerator<CashBasisEntry> {
   const { sql: text, params } = query.toSQL();
   const client = db.$client as unknown as {
@@ -1900,7 +1998,9 @@ async function* streamEntries(
         yield current;
         current = null;
       }
-      if (!current) current = { id: rest.entryId, postedAt, rows: [] };
+      if (!current) {
+        current = { id: rest.entryId, postedAt, rows: [], inPeriod };
+      }
       current.rows.push({ ...rest, postedAt });
     }
   }

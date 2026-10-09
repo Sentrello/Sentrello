@@ -2176,6 +2176,17 @@ export const journalEntries = pgTable(
      */
     createdBy: text("created_by"),
     postedAt: timestamp("posted_at").defaultNow().notNull(),
+    /**
+     * The day the entry belongs to, when it was dated by a day.
+     *
+     * A bill dated the 1st is stored at midnight UTC on the 1st, and read as
+     * an instant that is the evening of the 31st in New York — so a monthly
+     * report put it in the wrong month. `postedAt` alone cannot say whether it
+     * was a day or a moment; this can. Set by `postJournalEntry` when it is
+     * told `day: true`, null for an instant, whose day is wherever the
+     * business is. Every report reads both through `entryDay`.
+     */
+    postedOn: date("posted_on"),
   },
   (t) => [
     index("journal_entries_org_idx").on(t.organizationId),

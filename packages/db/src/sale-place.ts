@@ -1,8 +1,14 @@
-import { and, eq, gte, lte } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { DbTx } from "./client";
 import { db, schema } from "./index";
-import { CORE_ACCOUNTS, isTaxPayableCode } from "./ledger";
+import {
+  CORE_ACCOUNTS,
+  type LedgerPeriod,
+  entryDayWithin,
+  isTaxPayableCode,
+} from "./ledger";
 import type { PlaceEvidence } from "./schema";
+import { timezoneFor } from "./timezone";
 
 /**
  * Recording where a sale happened, once, for every module that sells.
@@ -129,8 +135,9 @@ export interface PostedSale {
 
 export async function postedSales(
   organizationId: string,
-  period: { from?: Date; to?: Date } = {},
+  period: LedgerPeriod = {},
 ): Promise<PostedSale[]> {
+  const zone = await timezoneFor(organizationId);
   const lines = await db
     .select({
       source: schema.journalEntries.source,
@@ -169,10 +176,8 @@ export async function postedSales(
       and(
         eq(schema.journalEntries.organizationId, organizationId),
         eq(schema.accounts.organizationId, organizationId),
-        ...(period.from
-          ? [gte(schema.journalEntries.postedAt, period.from)]
-          : []),
-        ...(period.to ? [lte(schema.journalEntries.postedAt, period.to)] : []),
+        // On the entry's day, as every report reads it.
+        entryDayWithin(period, zone),
       ),
     );
 

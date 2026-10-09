@@ -3,7 +3,9 @@ import {
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
+import { dayIn } from "@sentrello/db/day";
 import { ledgerTotals, totalsByAccount } from "@sentrello/db/ledger";
+import { timezoneFor } from "@sentrello/db/timezone";
 import type { ModuleContext } from "@sentrello/module-sdk";
 
 /**
@@ -38,26 +40,25 @@ const total = (accounts: { balanceCents: number }[]) =>
 /**
  * Six months of it, oldest first, with the quiet ones present.
  *
- * `to` is the first instant of the following month rather than the last day
- * of this one: a period that ends "2026-09-30" drops everything posted on the
- * 30th, which is the day a month's work is most likely to be posted on.
- *
- * **UTC, because the platform dashboard's twelve-month series is UTC.** Two
- * screens one click apart, both reading the journal, both naming a month —
- * and a server an hour west of Greenwich would have put an entry posted late
- * on the 31st into different months on each of them. `money-books-agree`
- * holds the two together.
+ * Each month is its first to its last day, whole, in the business's zone, and
+ * each entry is on its own day (`entryDay`). That is the rule the platform
+ * dashboard's twelve-month series reads by too: two screens one click apart,
+ * both naming a month, must put an entry late on the 31st — or a bill dated
+ * the 1st — in the same one. `money-books-agree` holds the two together.
  */
 export async function booksByMonth(
   organizationId: string,
   now = new Date(),
 ): Promise<BooksMonth[]> {
+  const zone = await timezoneFor(organizationId);
+  const today = dayIn(now, zone);
   const windows = Array.from({ length: 6 }, (_, i) => {
+    // Days, by their UTC dates: the month's first and last.
     const from = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (5 - i), 1),
+      Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - (5 - i), 1),
     );
     const to = new Date(
-      Date.UTC(from.getUTCFullYear(), from.getUTCMonth() + 1, 1),
+      Date.UTC(from.getUTCFullYear(), from.getUTCMonth() + 1, 0),
     );
     return {
       month: `${from.getUTCFullYear()}-${String(from.getUTCMonth() + 1).padStart(2, "0")}`,

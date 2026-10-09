@@ -17,10 +17,12 @@ import {
 } from "@sentrello/db";
 import { RATE_SCALE, toBaseCents } from "@sentrello/db/currency";
 import {
+  entryDayWithin,
   ledgerRows,
   periodFrom,
   unbandedSalesTaxCents,
 } from "@sentrello/db/ledger";
+import { timezoneFor } from "@sentrello/db/timezone";
 import type { ModuleContext } from "@sentrello/module-sdk";
 
 /**
@@ -206,6 +208,12 @@ export async function usFilingReport(
       ratePpm: def.ratePpm ?? def.rateBp * 100,
     });
   }
+  /*
+   * `from` and `to` name days by their UTC dates, as the documents above store
+   * theirs, and the ledger is read on each entry's own day where the business
+   * is (`entryDay`) — a bill dated the 1st is the 1st in New York.
+   */
+  const zone = await timezoneFor(orgId);
   if (wantedCodes.size > 0) {
     const movements = await db
       .select({
@@ -228,8 +236,7 @@ export async function usFilingReport(
           eq(schema.journalEntries.organizationId, orgId),
           eq(schema.accounts.organizationId, orgId),
           inArray(schema.accounts.code, [...wantedCodes.keys()]),
-          gte(schema.journalEntries.postedAt, from),
-          lte(schema.journalEntries.postedAt, to),
+          entryDayWithin({ from, to }, zone),
         ),
       );
     for (const line of movements) {

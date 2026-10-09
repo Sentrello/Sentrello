@@ -2,6 +2,7 @@ import {
   CORE_ACCOUNTS,
   type CashBasisEntry,
   type CashBasisLine,
+  type LedgerPeriod,
   cashBasisEntries,
   isTaxPayableCode,
 } from "@sentrello/db/ledger";
@@ -148,7 +149,7 @@ export function cashBasisRows(
  */
 export async function cashBasisRowsFor(
   orgId: string,
-  period: { from?: Date; to?: Date } = {},
+  period: LedgerPeriod = {},
   vatOut?: CashBasisRow[],
 ): Promise<CashBasisRow[]> {
   const walk = cashBasisWalk(period, vatOut);
@@ -202,7 +203,9 @@ function cashBasisWalk(
     amountCents: number,
     entry: Entry,
   ) => {
-    if (amountCents === 0 || !inPeriod(entry.postedAt)) return;
+    if (amountCents === 0 || !(entry.inPeriod ?? inPeriod(entry.postedAt))) {
+      return;
+    }
     const named = names.get(accountId);
     if (!named) return;
     to.push({
@@ -415,7 +418,7 @@ export function cashBasisVatRows(
 /** The same, read from the database rather than from an array. */
 export async function cashBasisVatRowsFor(
   orgId: string,
-  period: { from?: Date; to?: Date } = {},
+  period: LedgerPeriod = {},
 ): Promise<LedgerRow[]> {
   const vat: CashBasisRow[] = [];
   return asLedgerRows(await cashBasisRowsFor(orgId, period, vat), vat);

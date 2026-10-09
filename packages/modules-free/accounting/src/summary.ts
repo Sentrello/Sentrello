@@ -1,5 +1,7 @@
 import { db, eq, schema, sql } from "@sentrello/db";
+import { dayIn } from "@sentrello/db/day";
 import { ledgerTotals, totalsByAccount } from "@sentrello/db/ledger";
+import { timezoneFor } from "@sentrello/db/timezone";
 import type { ModuleContext, SummaryFigure } from "@sentrello/module-sdk";
 
 /**
@@ -17,10 +19,9 @@ import type { ModuleContext, SummaryFigure } from "@sentrello/module-sdk";
  * called The books and was the one screen in the product not reading them.
  *
  * The journal now, in the same words the Summary screen and Money's front
- * page use, so three screens carrying one figure carry one figure. UTC
- * month, for the reason written up beside the other two: a local month puts
- * an entry posted just after midnight on the 1st in a different month
- * depending on where the server is.
+ * page use, so three screens carrying one figure carry one figure. The
+ * business's month, in its own zone and never the server's, with each entry
+ * on its own day (`entryDay`) — the rule the reports read by.
  *
  * The third figure is the one that asks for something, and it stays with the
  * register because that is where it happens: money recorded against no
@@ -34,12 +35,16 @@ const total = (accounts: { balanceCents: number }[]) =>
 export async function accountingFigures(
   organizationId: string,
 ): Promise<SummaryFigure[]> {
-  const now = new Date();
-  const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  const to = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+  const zone = await timezoneFor(organizationId);
+  const today = dayIn(new Date(), zone);
+  // Days, by their UTC dates: the 1st to the last of the business's month.
+  const month = {
+    from: new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1)),
+    to: new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 0)),
+  };
 
   const [rows, [row]] = await Promise.all([
-    ledgerTotals(organizationId, { from, to }),
+    ledgerTotals(organizationId, month),
     db
       .select({
         unfiled: sql<number>`count(*) filter (

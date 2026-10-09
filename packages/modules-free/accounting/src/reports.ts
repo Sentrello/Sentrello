@@ -216,13 +216,15 @@ export function registerReports(ctx: ModuleContext) {
        * A balance sheet is as at a date, not for a period: it is a photograph
        * of everything that has ever been posted up to that moment.
        */
+      const zone = await timezoneFor(orgId);
       const to = periodFrom(
         (name) => (name === "to" ? c.req.query("asOf") : undefined),
-        await timezoneFor(orgId),
+        zone,
       ).to;
       return c.json({
         asOf: to ?? new Date(),
-        ...balanceSheet(await ledgerTotals(orgId, { to })),
+        // With the zone the day was placed in, so it is read as that day.
+        ...balanceSheet(await ledgerTotals(orgId, { to, zone })),
       });
     },
   );
