@@ -10,13 +10,14 @@ tags: [platform, license]
 Sentrello Core is public at
 [github.com/Sentrello/Sentrello](https://github.com/Sentrello/Sentrello) under
 the GNU Affero General Public License v3: run it, study it, modify it, share
-it. The AGPL makes one demand in return. Modify it, offer it to others over a
-network, and your changes have to be published under the same license.
+it. The AGPL makes one demand in return. Modify it and offer it to others over
+a network, and the people using it are owed your changes, under the same
+license.
 
 ## The free tier is not a trial
 
-No license key, no expiry, no nag, and no cap on how many people use it. What
-you get is a working business system rather than a demonstration of one:
+No license key, no expiry, no nag, and nothing charged per person. (There is
+one ceiling, the same on Pro: five hundred people on an instance.) What you get is a working business system rather than a demonstration of one:
 
 - the dashboard
 - CRM — contacts, companies and deals

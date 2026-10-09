@@ -18,9 +18,9 @@ sudo sentrello backup
 ```
 
 That writes `backups/sentrello-<stamp>.sql.gz` in your installation
-directory. If you have uploaded files, a `-files.tar.gz` lands beside it,
-named after the same moment so putting back last Tuesday's database does not
-bring back today's documents.
+directory. If anybody has uploaded files, a `-files.tar.gz` lands beside it,
+named after the same moment so putting back last Tuesday's database brings
+back last Tuesday's documents with it.
 
 Sentrello also takes one for you before anything that could go wrong:
 `update`, `rollback` and `restore` each begin with a backup and refuse to
@@ -51,14 +51,15 @@ rest, so much the better; `restic` and `borg` do.
 ## What runs on its own
 
 The installer sets up a nightly backup and turns it on: a systemd timer,
-`sentrello-backup.timer`, which runs `sentrello backup scheduled` once a day
-at a randomised time and keeps the last fourteen. You do not have to arrange
+`sentrello-backup.timer`, which runs `sentrello backup scheduled` once a day,
+at a random moment in the hour after midnight on the server's clock, and keeps
+the last fourteen. You do not have to arrange
 that part, and the installer says so as it finishes.
 
 **It also takes the first one there and then**, so you can see where they land
 and so a timer that cannot run says so while you are still watching. If that
-first run fails, the installer prints why in red — the nightly one would have
-failed the same way, quietly.
+first run fails, the installer says so in red and gives you the command that
+shows why. The nightly one would have failed the same way, quietly.
 
 ```bash
 systemctl status sentrello-backup.timer
@@ -68,21 +69,22 @@ systemctl list-timers sentrello-backup.timer
 **And you can see it without leaving the product.** The dashboard's *This
 server* panel has a Backups line: how many are being kept when the last one
 worked, the reason when it did not, and how long ago when the timer has stopped.
-"None reported" means nothing has ever told the application a backup was taken —
+"none reported" means nothing has ever told the application a backup was taken —
 which is what an instance installed some other way looks like, and what a timer
 that was never enabled looks like too.
 
 If you installed some other way, or the timer failed to enable — the
 installer prints a line in red when it does — the cron equivalent is the same
-one command:
+one command, in root's crontab (`sudo crontab -e`), with the full path because
+cron's own PATH leaves `/usr/local/bin` out:
 
 ```bash
-15 2 * * * cd /opt/sentrello && ./sentrello backup scheduled
+15 2 * * * cd /opt/sentrello && /usr/local/bin/sentrello backup scheduled
 ```
 
 **Two instances on one machine** get a timer each: the second one's units are
-named after its directory — `sentrello-backup-<directory>.timer` and so on — so
-neither can take over the other's schedule. The plain names belong to an instance
+named after its directory, so `/opt/sentrello-demo` gets
+`sentrello-backup-demo.timer`, and neither can take over the other's schedule. The plain names belong to an instance
 at `/opt/sentrello`, which is where the installer puts one unless you say
 otherwise.
 
@@ -125,10 +127,10 @@ want to be learning on the day.
 
 ## What is not in the database
 
-**Uploaded files** live on disk in the data directory. Documents, product
-images, receipts. `sentrello backup` archives them beside the dump, but only
-what is under `data/attachments` — if you point Sentrello's file storage
-somewhere else, back that up yourself.
+**Uploaded files** live on disk in the data directory: documents, receipts,
+logos, product images, files people sent through a form. `sentrello backup`
+archives every folder under `data` beside the dump. If you have pointed
+Storage's files somewhere outside `data`, that location is yours to back up.
 
 ## Moving to another server
 
@@ -151,6 +153,9 @@ people skip, and they are steps 1 and 4.
      provider, a Peppol access point. Nothing is lost that cannot be pasted in
      again, but you will be pasting all of it, and the audit log will read as
      though somebody had altered it.
+   - `SENTRELLO_SECRET_KEY`, if you ever set one. It takes the place of
+     `BETTER_AUTH_SECRET` for the credentials, so the same thing happens
+     without it.
    - `SENTRELLO_INSTANCE_ID` — how your license knows this is the same install
      rather than a second one. Carry it and step 7 is already done.
 

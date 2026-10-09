@@ -113,13 +113,15 @@ one module that can be asked to send more — see
 ## Where the state lives
 
 One database. A schema per module, and every business table carries an
-`organizationId`. Every query filters on it, and a test reads the queries
-rather than trusting them: one that would return another organization's rows
-fails the build. That is the difference between a rule and a habit.
+`organizationId`. Every query filters on it, and two tests check rather than
+trust that: one reads the SQL each free-core route sends and fails the build on
+a read that leaves the organization out, and one plants a record in a second
+business and fails if the first can see it. That is the difference between a
+rule and a habit.
 
 It is not PostgreSQL row-level security, and saying "at the data layer" makes
 people think it is. The filter is in the query; what makes it dependable is
-that the queries are written in one place and checked there.
+that every query passes through one database client, where the test watches it.
 
 Jobs run through pg-boss, in that same PostgreSQL. No Redis, no second thing to
 back up, no second thing to be down.

@@ -21,15 +21,19 @@ What software can do is give you the tools and the evidence.
 
 The database runs on a server you choose: your own building, or any host, in
 whatever jurisdiction your obligations require. Business data stays on that
-server. A free instance contacts nobody. A paid instance sends one license
-check an hour, carrying a key and an instance id; see
-[Security](/platform/security).
+server unless you connect something that needs it: the mail provider that
+delivers what you send, a payment processor, a bank feed. A free instance
+contacts Sentrello only when somebody presses **Check for updates**, or once a
+day if its owner said yes to usage reports. A paid
+instance sends one license check an hour, carrying a key and an instance id, and
+asks which release it may update to; see [Security](/platform/security) for
+exactly what each call carries.
 
 There is one exception, and it is worth stating before anybody else finds it.
 The SEO module can look keywords up through SEO Cloud instead of through a
 provider account of your own. Chosen, that makes Sentrello a processor for the
 domains and keywords being researched, and nothing else. Every other module
-runs with nothing leaving the instance.
+sends nothing to Sentrello.
 
 ## Retention and access belong to you
 
@@ -60,8 +64,10 @@ and business associate agreements.
 **PCI DSS.** The card number and the security code never touch your server.
 Payment goes straight to the processor, and what comes back is a token plus
 the brand, the last four digits and the expiry — enough to show somebody
-which card is on file, and nothing a thief could spend. That is what keeps
-you on the shortest self-assessment there is, SAQ A.
+which card is on file, and nothing a thief could spend. For cards taken
+online, that is what makes you eligible for the shortest self-assessment there
+is, SAQ A. A card machine on the counter is assessed on its own terms, whatever
+the till beside it does.
 
 **SOC 2.** An exportable evidence pack: the access list, every change to it,
 second-factor coverage, and the personal-data inventory. Whatever it cannot

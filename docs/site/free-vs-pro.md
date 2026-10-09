@@ -23,7 +23,7 @@ same on both tiers, and a business with twenty-five staff will never meet it.
 | | Free | Pro |
 |---|:---:|:---:|
 | **Users** | no per-person charge | no per-person charge |
-| **Dashboard**: money owed, overdue, what needs answering, server health | ● | ● |
+| **Dashboard**: money owed and how late it is, what needs answering, server health | ● | ● |
 | **CRM**: contacts, companies, deals board, activities, tasks, notes, tags, attachments, inbound email, CSV in and out | ● | ● |
 | Defining a custom field. Values in the fields you already have stay readable and editable on Free | — | ● |
 | 360° customer timeline: activities, invoices and payments in one stream | — | ● |
@@ -33,7 +33,7 @@ same on both tiers, and a business with twenty-five staff will never meet it.
 | Recurring invoices | — | ● |
 | Credit notes | ● | ● |
 | Online payments: card checkout straight from the invoice | — | ● |
-| Customer statements and AR aging | — | ● |
+| Customer statements, and the aged receivables and payables reports | — | ● |
 | **Accounting**: chart of accounts, money in and out, double-entry journal, profit & loss, balance sheet, cash *or* accrual basis | ● | ● |
 | Bills, vendors and vendor credits: the purchase side of the books | — | ● |
 | Live bank feeds, CSV import and reconciliation | — | ● |
@@ -53,8 +53,11 @@ same on both tiers, and a business with twenty-five staff will never meet it.
 Paying moves nothing. Same instance, same database, same server; more of the
 screens work, and no per-seat charge ever appears.
 
-Drop back to free and every record you created stays where it is, readable and
-exportable. The Pro screens stop. That is the whole of what stops.
+Drop back to free and nothing is deleted. Every record stays in your database,
+and every entry Pro posted stays in the books. The Pro screens stop, so what
+only they show (a bill, a budget, a recurring schedule) waits there until a
+license is back, and a backup carries all of it in the meantime. That is the
+whole of what stops.
 
 ## The optional modules
 

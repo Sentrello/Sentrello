@@ -40,7 +40,7 @@ flowchart LR
   NAV["What this person may see"]:::leaf
   SESSION["Sign in, sessions, two-factor"]:::leaf
   WORK["The module's own routes"]:::leaf
-  PUBLIC["Public, and deliberately so<br/>forms and storefronts, no session"]:::leaf
+  PUBLIC["Public, and deliberately so<br/>forms on your website, no session"]:::leaf
 
   ROOT --> API
   API --> META --> NAV
@@ -66,14 +66,16 @@ machine rather than by memory, and a reviewer argues with an entry instead of
 rediscovering a route.
 
 A request passes a session check and a permission check before any handler
-runs. Every business table carries an organization, every query filters on it,
-and a test reads the queries themselves and fails the build on one that does
-not — so the rule is checked by a machine rather than remembered by a person.
+runs. Every business table carries an organization and every query filters on
+it. Two tests hold that rule, so it is checked by a machine rather than
+remembered by a person. One watches the SQL each free-core route sends and fails
+the build on a read that leaves the organization out. The other puts a marked
+record in a second business and fails if it ever turns up in the first.
 
 To be exact about the mechanism, because "at the data layer" gets read as
 database row-level security and this is not that: the filter is in the query,
-and what makes it reliable is that the queries are built in one place and
-inspected there.
+and what makes it reliable is that every query passes through one database
+client, where the test can see it.
 
 Paid features are gated twice more, and the two gates answer differently on
 purpose:
@@ -90,9 +92,9 @@ bought.
 
 ## Where the reference stands
 
-There is no published API reference yet. The platform is still moving ahead of
-v1, and endpoints published today would change under anybody who relied on
-them. So this page describes what exists without listing routes.
+There is no published API reference yet. Routes still change between releases,
+and a reference published today would break under anybody who relied on it. So
+this page describes what exists without listing routes.
 
 Until the reference lands, the source is the reference. Every endpoint in the
 free core is readable in

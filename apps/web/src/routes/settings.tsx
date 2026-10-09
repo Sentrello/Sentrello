@@ -2022,9 +2022,10 @@ function Telemetry({
       <SectionHeading>Usage reporting</SectionHeading>
       <p className="text-sm" style={muted}>
         Once a day, if you allow it, this instance sends: the version it runs,
-        whether it is Free or Pro, which modules are loaded, and a band for how
-        many people use it (1, 2–5, 6–10, 11–20, 21+). Nothing else — no
-        customer records, no names, no figures, no business identifier.
+        whether it is Free or Pro, which modules are loaded, the instance id the
+        installer made up for it, and a band for how many people use it (1, 2–5,
+        6–10, 11–20, 21+). Nothing else — no customer records, no names, no
+        figures, no business identifier.
       </p>
       <Toolbar className="mt-2">
         <State

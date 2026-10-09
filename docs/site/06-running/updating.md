@@ -95,9 +95,9 @@ would rather not open a terminal. Same code path.
 sudo sentrello rollback
 ```
 
-The rollback target is recorded before anything is pulled, and the database
-dump from step 1 is on disk, so both halves of the way back exist from the
-first second of the update. Use them.
+The rollback target is recorded before the new version is started, and the
+database dump from step 1 is on disk, so both halves of the way back exist
+before anything you are running has changed. Use them.
 
 The reason to go back rather than retry in place: the new image is already
 running by the time migrations run, so a failed migration leaves the new

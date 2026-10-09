@@ -126,16 +126,19 @@ done it from the screen. Anyone who can run them already has shell on the
 machine holding your database, so they grant nothing that was not already
 available. What they save is doing it by hand with a SQL client.
 
-If the lock keeps coming back for everybody at once, the lock is not your
-problem. Your reverse proxy is not passing the visitor's address, so every
-attempt looks like it comes from the same place. **Users → Authentication**
-shows which header is trusted and what the current request resolved to.
+If sign-in starts refusing everybody at once, with too many attempts rather
+than a wrong password, the lock is not your problem. Your reverse proxy is not
+passing the visitor's address, so every attempt looks like it comes from the
+same place and they all share one rate limit. **Users → Authentication** shows
+which header is trusted and what the current request resolved to.
 
 ## Email does not arrive
 
-**Settings → Connections** first: with no mail server connected nothing is
-sent, nothing is queued, and nothing says so on the screen that asked for it.
-It is set on the server, in the same environment file as the database.
+**Settings → Connections** first. With no mail server connected nothing is
+sent and nothing is queued. Send an invoice by hand and the screen tells you
+so; the mail nobody presses a button for, reminders and overdue chasing, just
+doesn't go. Mail is set on the server, in the same environment file as the
+database.
 
 If it says mail is working, send an invoice to yourself. If Sentrello accepts it
 and nothing arrives, the message left here and the problem is between your
@@ -147,13 +150,14 @@ spam filter.
 
 ## The license says the server cannot be reached
 
-The instance keeps working on its last good token through a grace period, then
-falls back to Free. It does not stop.
+The instance keeps working on its last good license, which lasts up to three
+days from its last successful check, then falls back to Free. It does not stop.
 
 Check the server can reach `sentrello.com` over HTTPS. If it can and the
-message persists, check the key itself in Settings → License and updates. A key that is set
-but malformed reports as a network problem, which sends people looking in the
-wrong place entirely.
+message persists, look at Settings → License and updates, which shows what the
+license server last said. A key typed with the wrong shape is named there as
+exactly that, and a key the server refused says why, so you are not left
+chasing a network fault that isn't there.
 
 ## Everything is slow
 

@@ -8,7 +8,8 @@ tags: [platform, modules, sdk]
 # Extending Sentrello
 
 Sentrello is one deployable service that discovers its feature modules at
-startup. One container to run, one database to back up. For a business with no
+startup. One application to run beside its database, and one database to back
+up. For a business with no
 operations team, that is the right trade.
 
 Every feature implements the same contract, free and paid alike. The CRM in the
@@ -25,7 +26,7 @@ flowchart TD
   MOD["A module<br/><small>SentrelloModule</small>"]:::screen
 
   subgraph DEC[" What it declares — about itself "]
-    ID["id and name"]:::own
+    ID["its id"]:::own
     NEED["what it needs<br/><small>a tier, or a purchase</small>"]:::own
     MIG["its migrations"]:::own
   end
@@ -101,10 +102,10 @@ access request can answer across every installed module at once. See
 ## Modules combine
 
 Each module is a whole application rather than a feature, and is built so
-another module can consume what it produces. The Shop's orders reach
-Accounting. A booking becomes an invoice. Neither module was written knowing
-about the other, and there is nothing to wire up: install both and the join is
-already there.
+another module can consume what it produces. The Shop's sales post into the
+same books Accounting reports from. A booking can raise its own invoice. Both
+are written against the ledger and the invoicing that Core already has, so
+there is nothing to wire up: add the module and the join is already there.
 
 ## Write a module of your own
 
@@ -125,23 +126,36 @@ module will not change.
 
 ### What a module has to be
 
+Give it `tier: "free"`. The other two tiers are decided by a Sentrello license:
+`"pro"` loads only on a Pro instance, and `"module"` only when the license
+names that module's id, which no license will for a module of your own. How
+you charge for yours is between you and whoever runs it.
+
 A directory. Inside it, a `package.json` and a `src/index.ts` whose default
 export is a `SentrelloModule`:
 
 ```
 my-module/
-  package.json      # "sentrelloCore": ">=1.0.0" if it needs a minimum
+  package.json      # "sentrelloCore": "1.0.0" if it needs a minimum
   src/index.ts      # export default defineModule({ ... })
 ```
 
-Point the instance at the directory that holds it:
+`sentrelloCore` is a plain version number, the oldest Core the module runs on.
+Write it as a range (`>=1.0.0`, `^1.0.0`) and the check is skipped.
 
-```
-SENTRELLO_BUNDLES_DIR=/srv/sentrello/bundles
-```
+The host looks for modules in one directory, named by `SENTRELLO_BUNDLES_DIR`
+inside the container. On an instance the installer set up, it is already set:
+on the server, it's the `bundles` directory in the Sentrello home
+(`/opt/sentrello/bundles` unless you chose another home). Copy your module's
+directory in there and restart.
 
 Every directory in there is loaded at startup. A bundle that names a Core
 version newer than the one running is skipped with that said out loud rather
 than half-loaded, and a bundle that throws on import is named on `/healthz`
 and on the settings screen — so a module that did not load looks like a module
 that did not load, rather than like a missing feature.
+
+One catch on a licensed instance. `sentrello update` treats that directory as
+the license's: anything in it the license does not name is removed, so a
+module of your own goes with it. Copy it back after each update until that
+changes.

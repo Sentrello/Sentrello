@@ -156,3 +156,33 @@ test("the page names every field the usage report carries", () => {
     `the usage report carries ${unsaid.join(", ")} and the security page does not say so`,
   ).toEqual([]);
 });
+
+/**
+ * And the screen where the owner turns it on says the same.
+ *
+ * Settings → License and updates listed four of the five fields and then said
+ * "Nothing else" — the instance id was sent and not named, on the one screen a
+ * person reads before pressing **Start sending**.
+ */
+test("the Settings screen names every field the usage report carries", () => {
+  const screen = readFileSync(
+    `${ROOT}/apps/web/src/routes/settings.tsx`,
+    "utf8",
+  );
+  const card =
+    /<SectionHeading>Usage reporting<\/SectionHeading>([\s\S]*?)<\/p>/.exec(
+      screen,
+    );
+  expect(
+    card,
+    "the usage reporting card is not where this looked",
+  ).toBeTruthy();
+  const words = (card?.[1] ?? "").replace(/\s+/g, " ");
+  const unsaid = Object.entries(SAID_ON_THE_PAGE)
+    .filter(([, says]) => !says.test(words))
+    .map(([field]) => field);
+  expect(
+    unsaid,
+    `the usage report carries ${unsaid.join(", ")} and the Settings screen does not say so`,
+  ).toEqual([]);
+});

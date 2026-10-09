@@ -13,8 +13,8 @@ import type { SentrelloModule } from "@sentrello/module-sdk";
  */
 export const OPTIONAL_MODULE_PACKAGES = [
   "@sentrello/pro-core",
-  // Ships with Pro, and a package of its own: a business's plan
-  // should not come and go with its bookkeeping features.
+  // Project Management, sold as a module of its own rather than riding with
+  // the tier, and a package of its own for the same reason.
   "@sentrello/pro-projects",
   // The paid half of Bookkeeping, moving here from the public repo's own
   // `pro.ts` group by group. Empty for now — no routes, no nav, no jobs — so

@@ -10,7 +10,9 @@ tags: [platform, security, licensing]
 ## Where the data lives
 
 The database runs on your own server. Customer records, invoices, ledger
-entries and user logs never leave the instance.
+entries and user logs are never sent to Sentrello. The only places they go are
+the ones you connect yourself: the mail provider that delivers an invoice you
+send, a payment processor, a bank feed, a tax authority.
 
 A free instance never has to contact Sentrello at all. A paid instance sends
 one license check an hour. That check carries a license key and an instance id,
@@ -26,15 +28,18 @@ business. **Settings → License and updates** shows the answer and changes it, 
 `SENTRELLO_TELEMETRY=off` fixes it on the server for an operator who would
 rather it were not a choice anybody can make from a browser.
 
-Checking for a newer version is the other call, and only when somebody presses
-the button. On a paid instance it asks what your license entitles; on a free one
-it asks the public release number and carries nothing at all — no key, no
-instance id, not even the version you are on.
+Checking for a newer version is the other call. A free instance makes it only
+when somebody presses the button, and it asks for the public release number
+carrying nothing at all: no key, no instance id, not even the version you are
+on. A paid instance asks each time somebody opens the dashboard or **Settings →
+License and updates**, sending your license key and the kind of processor to
+download for, and gets back the release your license entitles. The same call
+fetches a module you have just bought.
 
 One module can be told to send more, and only if you ask it to. Choose SEO
 Cloud over a provider account of your own and the domains and keywords you
-research reach Sentrello under your license key. Every other module runs with
-nothing leaving the instance.
+research reach Sentrello under your license key. Every other module sends
+nothing to Sentrello.
 
 ## The license check
 
@@ -90,10 +95,12 @@ not a stopped one.
 
 - The installer generates the instance's own database password and signing
   secrets. Nothing ships with a default.
-- TLS terminates at a reverse proxy on **your** certificate, not one issued or
-  held by Sentrello.
-- Every update takes a database backup before it starts, and refuses to
-  continue without one.
+- The app listens only on the server itself. TLS is yours to put in front of
+  it: your reverse proxy, **your** certificate, not one issued or held by
+  Sentrello.
+- Every update takes a database backup before it starts, and stops if the
+  backup fails. Only `sentrello update --no-backup` skips it, and you have to
+  type that.
 - Sign-up is closed by default. A fresh instance is claimed once, using a setup
   token from the server's own `.env` file.
 - Roles, two-factor authentication and a per-account device list limit what each
