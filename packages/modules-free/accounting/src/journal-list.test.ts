@@ -232,3 +232,58 @@ test("the rows within an ascending page are ascending too", async () => {
   const dates = memosOf(body);
   expect(dates).toEqual(["Diesel for the van", "March rent"]);
 });
+
+/**
+ * The day an entry belongs to, not the instant it is stamped with.
+ *
+ * An entry dated the 15th is stored as midnight UTC on the 15th, which a
+ * browser in New York formats as the evening of the 14th. The route says the
+ * day, by the same rule every report files the entry by: the day it was dated
+ * with where it has one, and otherwise the business's day of the instant.
+ */
+test("each entry arrives with its day, in the business's zone", async () => {
+  await db
+    .update(schema.organizations)
+    .set({ timezone: "America/New_York" })
+    .where(eq(schema.organizations.id, orgId));
+  try {
+    await postJournalEntry(
+      orgId,
+      "Dated bill",
+      "expense",
+      [
+        { accountId: fuel, debitCents: 1_000 },
+        { accountId: cash, creditCents: 1_000 },
+      ],
+      new Date("2026-05-15T00:00:00.000Z"),
+      { day: true },
+    );
+    await postJournalEntry(
+      orgId,
+      "Late till close",
+      "expense",
+      [
+        { accountId: fuel, debitCents: 1_000 },
+        { accountId: cash, creditCents: 1_000 },
+      ],
+      // Two in the morning in London, ten the night before in New York.
+      new Date("2026-06-01T02:00:00.000Z"),
+    );
+    const body = (await (
+      await req("/api/journal?page=1&perPage=25&q=Dated%20bill")
+    ).json()) as { lines: { postedOn: string }[] };
+    expect(body.lines.map((l) => l.postedOn)).toEqual([
+      "2026-05-15",
+      "2026-05-15",
+    ]);
+    const late = (await (
+      await req("/api/journal?page=1&perPage=25&q=Late%20till")
+    ).json()) as { lines: { postedOn: string }[] };
+    expect(late.lines[0]?.postedOn).toBe("2026-05-31");
+  } finally {
+    await db
+      .update(schema.organizations)
+      .set({ timezone: null })
+      .where(eq(schema.organizations.id, orgId));
+  }
+});

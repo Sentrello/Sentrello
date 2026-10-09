@@ -11,6 +11,7 @@ import {
   DEFAULT_TILL_POLICIES,
   DEFAULT_USER_POLICIES,
   PROJECTS_POLICIES_SHIPPED,
+  SUPERVISE_SHIPPED,
   policyKind,
   policyLabel,
   seedDefaults,
@@ -676,6 +677,105 @@ test("an organization seeded before Projects' defaults gets them, once", async (
     await db.delete(roles).where(role("logs time"));
     await seedDefaults(org.id, headers);
     expect(await permissionOf("logs time")).toBeNull();
+  } finally {
+    await db
+      .delete(schema.organizations)
+      .where(eq(schema.organizations.id, org.id));
+  }
+});
+
+/**
+ * `supervise` reaches the till's senior policies on an organization seeded
+ * before it existed, and nowhere an administrator has decided otherwise.
+ *
+ * Seeded today, then made to look like one seeded the day before: Till
+ * Supervisors back to the four it shipped with, Till Managers cut down by an
+ * administrator to no refunds, and the stamp put back. The first gains it; the
+ * second is theirs. And a `supervise` taken away afterwards stays away.
+ */
+test("an organization seeded before supervise gets it, once", async () => {
+  const suffix = crypto.randomUUID().slice(0, 8);
+  const signUp = await signUpAsOwner({
+    email: `supervise-catch-up-${suffix}@example.test`,
+    password: "correct-horse-battery-staple",
+    name: "Owner",
+  });
+  const cookie = signUp.headers.get("set-cookie");
+  if (!cookie) throw new Error("sign-up returned no session cookie");
+  const headers = new Headers({ cookie, "content-type": "application/json" });
+  const org = await auth.api.createOrganization({
+    body: {
+      name: `Supervise catch-up ${suffix}`,
+      slug: `supervise-catch-up-${suffix}`,
+    },
+    headers,
+  });
+  if (!org) throw new Error("could not create organization");
+  await auth.api.setActiveOrganization({
+    body: { organizationId: org.id },
+    headers,
+  });
+
+  const roles = schema.organizationRole;
+  const role = (name: string) =>
+    and(eq(roles.organizationId, org.id), eq(roles.role, name));
+  const permissionOf = async (name: string) => {
+    const [row] = await db
+      .select({ permission: roles.permission })
+      .from(roles)
+      .where(role(name));
+    return row
+      ? (JSON.parse(row.permission) as Record<string, string[]>)
+      : null;
+  };
+  const setPos = async (name: string, pos: string[]) =>
+    db
+      .update(roles)
+      .set({
+        permission: JSON.stringify({ ...(await permissionOf(name)), pos }),
+      })
+      .where(role(name));
+  const stampBefore = () =>
+    db
+      .update(schema.organizations)
+      .set({ accessSeededAt: new Date("2026-10-08T12:00:00Z") })
+      .where(eq(schema.organizations.id, org.id));
+
+  try {
+    expect((await seedDefaults(org.id, headers)).seeded).toBe(true);
+    expect((await permissionOf("till supervisors"))?.pos).toContain(
+      "supervise",
+    );
+
+    await setPos("till supervisors", ["read", "sell", "void", "refund"]);
+    const managersTheirs = ["read", "sell", "void", "manage"];
+    await setPos("till managers", managersTheirs);
+    await stampBefore();
+
+    await seedDefaults(org.id, headers);
+
+    expect((await permissionOf("till supervisors"))?.pos).toEqual([
+      "read",
+      "sell",
+      "void",
+      "refund",
+      "supervise",
+    ]);
+    expect((await permissionOf("till managers"))?.pos).toEqual(managersTheirs);
+    // Everything else on the policy is as it was.
+    expect((await permissionOf("till supervisors"))?.shop).toEqual(["read"]);
+    const [stamp] = await db
+      .select({ at: schema.organizations.accessSeededAt })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, org.id));
+    expect((stamp?.at ?? new Date(0)) >= SUPERVISE_SHIPPED).toBe(true);
+
+    // Caught up once. Taking it away now is a decision, and it stays made.
+    await setPos("till supervisors", ["read", "sell", "void", "refund"]);
+    await seedDefaults(org.id, headers);
+    expect((await permissionOf("till supervisors"))?.pos).not.toContain(
+      "supervise",
+    );
   } finally {
     await db
       .delete(schema.organizations)

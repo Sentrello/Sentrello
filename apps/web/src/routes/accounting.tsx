@@ -1498,6 +1498,8 @@ type JournalLine = {
   memo: string | null;
   source: string | null;
   postedAt: string;
+  /** The day it belongs to, `YYYY-MM-DD`: what the screen shows. */
+  postedOn: string;
   /** Who put it in the books, where a person did. */
   postedBy: string | null;
   debitCents: number;
@@ -1512,6 +1514,7 @@ type JournalEntry = {
   memo: string | null;
   source: string | null;
   postedAt: string;
+  postedOn: string;
   postedBy: string | null;
   lines: JournalLine[];
 };
@@ -1534,6 +1537,7 @@ function asEntries(lines: JournalLine[]): JournalEntry[] {
         memo: line.memo,
         source: line.source,
         postedAt: line.postedAt,
+        postedOn: line.postedOn,
         postedBy: line.postedBy,
         lines: [],
       };
@@ -1833,7 +1837,7 @@ function EntryCard({
       <div className="flex flex-wrap items-baseline justify-between gap-(--gap-toolbar)">
         <div>
           <span className="font-medium">{entry.memo ?? "—"}</span>{" "}
-          <span style={muted}>{formatDate(entry.postedAt)}</span>
+          <span style={muted}>{formatDate(entry.postedOn)}</span>
           {/**
            * Who put the figure in the books, where a person did.
            *
@@ -1886,7 +1890,7 @@ function EntryCard({
         // Every entry on the journal draws one of these, so a screen reader
         // listing the tables on that page otherwise gets "table, table,
         // table" — each one a different day's posting.
-        label={`${entry.memo ?? "Entry"}, ${formatDate(entry.postedAt)}`}
+        label={`${entry.memo ?? "Entry"}, ${formatDate(entry.postedOn)}`}
       >
         {entry.lines.map((line, i) => (
           <Row key={`${line.id}-${i}`}>

@@ -5,7 +5,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { and, asc, db, desc, eq, inArray, schema, sql } from "@sentrello/db";
-import { entryDayWithin, periodFrom } from "@sentrello/db/ledger";
+import { entryDay, entryDayWithin, periodFrom } from "@sentrello/db/ledger";
 import {
   allConditions,
   countExpression,
@@ -254,12 +254,8 @@ export default defineModule({
          */
         const params = listParams(c.req.query());
         const page = params.page ?? 1;
-        const where = journalWhere(
-          orgId,
-          params,
-          c.req.query(),
-          await timezoneFor(orgId),
-        );
+        const zone = await timezoneFor(orgId);
+        const where = journalWhere(orgId, params, c.req.query(), zone);
         const [entries, [counted]] = await Promise.all([
           db
             .select({ id: schema.journalEntries.id })
@@ -284,6 +280,14 @@ export default defineModule({
                   memo: schema.journalEntries.memo,
                   source: schema.journalEntries.source,
                   postedAt: schema.journalEntries.postedAt,
+                  /**
+                   * The day the entry belongs to, which is what the screen
+                   * shows. `postedAt` is the instant, and an entry dated the
+                   * 1st is stamped midnight UTC: the evening of the 30th in
+                   * a browser west of Greenwich. The same rule every report
+                   * files it by, so the journal and the reports agree.
+                   */
+                  postedOn: sql<string>`${entryDay(zone)}::text`,
                   /**
                    * Who put the figure in the books, where a person did.
                    *

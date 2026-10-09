@@ -86,7 +86,7 @@ export const statement = {
    * Its own resource rather than actions on `shop` for that reason: a till
    * operator sells all day and should never be able to reprice anything.
    */
-  pos: ["read", "sell", "void", "refund", "manage"],
+  pos: ["read", "sell", "void", "refund", "supervise", "manage"],
   /**
    * Selling the same thing every month.
    *
@@ -175,7 +175,7 @@ export const admin = ac.newRole({
   settings: ["read", "update"],
   scheduling: ["read", "create", "update", "delete"],
   shop: ["read", "create", "update", "delete"],
-  pos: ["read", "sell", "void", "refund", "manage"],
+  pos: ["read", "sell", "void", "refund", "supervise", "manage"],
   subscriptions: ["read", "manage", "meter"],
   documents: ["read", "create", "update", "delete"],
   newsletter: ["read", "create", "update", "delete", "send"],

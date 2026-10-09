@@ -1,5 +1,5 @@
 import { auth, roles } from "@sentrello/auth";
-import { and, db, eq, schema, sql } from "@sentrello/db";
+import { and, db, eq, inArray, schema, sql } from "@sentrello/db";
 
 /**
  * The access a business starts with.
@@ -230,15 +230,16 @@ export const DEFAULT_USER_POLICIES: DefaultPolicy[] = [
  * not. A business that buys a till and finds it single-user has bought the wrong
  * thing.
  *
- * Three tiers rather than two, because that is what the five permissions already
- * describe and what a counter actually needs:
+ * Three tiers rather than two, because that is what the till's permissions
+ * already describe and what a counter actually needs:
  *
  * - **Till** rings up sales and nothing else. No cancelling, no refunds, and no
  *   sight of what the drawer should hold.
  * - **Till supervisors** cancel a ticket and give money back. These are the two
  *   actions money leaves by, which is why they are a tier of their own rather
  *   than part of selling — the standard answer in this trade, and the reason our
- *   permission list separates them.
+ *   permission list separates them. They also `supervise`: the name a drawer
+ *   records against a pay-out, a drop or a count somebody signs off.
  * - **Till managers** set the till up and may see the drawer's expected total,
  *   which is the one figure a blind count depends on nobody seeing.
  *
@@ -273,7 +274,10 @@ export const DEFAULT_TILL_POLICIES: DefaultPolicy[] = [
   {
     name: "till supervisors",
     description: "Rings up sales, and cancels or refunds one.",
-    permission: { ...COUNTER, pos: ["read", "sell", "void", "refund"] },
+    permission: {
+      ...COUNTER,
+      pos: ["read", "sell", "void", "refund", "supervise"],
+    },
   },
   {
     name: "till managers",
@@ -281,7 +285,7 @@ export const DEFAULT_TILL_POLICIES: DefaultPolicy[] = [
       "Sets the till up, and may see what the drawer is expected to hold.",
     permission: {
       ...COUNTER,
-      pos: ["read", "sell", "void", "refund", "manage"],
+      pos: ["read", "sell", "void", "refund", "supervise", "manage"],
     },
   },
 ];
@@ -489,13 +493,30 @@ export async function seedDefaults(
       .limit(1);
     if (!org) return { seeded: false };
     if (org.seededAt) {
-      if (org.seededAt < TILL_POLICIES_SHIPPED) {
-        await catchUpTill(tx, organizationId, headers);
+      /*
+       * Against the stamp as it was read, so a business several catch-ups
+       * behind gets all of them on one visit. Stamped once, after all of
+       * them, and only when none was refused: a catch-up that could not write
+       * (the caller may not create roles) has to find the stamp still behind
+       * it next time, and a later one moving it on would lose it for good.
+       */
+      const at = org.seededAt;
+      let done = true;
+      if (at < TILL_POLICIES_SHIPPED) {
+        done = (await catchUpTill(tx, organizationId, headers)) && done;
       }
-      // Against the stamp as it was read, so a business two catch-ups behind
-      // gets both on one visit.
-      if (org.seededAt < PROJECTS_POLICIES_SHIPPED) {
-        await catchUpProjects(tx, organizationId, headers);
+      if (at < PROJECTS_POLICIES_SHIPPED) {
+        done = (await catchUpProjects(tx, organizationId, headers)) && done;
+      }
+      // The latest cutoff, so every catch-up above ran inside this.
+      if (at < SUPERVISE_SHIPPED) {
+        await catchUpSupervise(tx, organizationId);
+        if (done) {
+          await tx
+            .update(schema.organizations)
+            .set({ accessSeededAt: new Date() })
+            .where(eq(schema.organizations.id, organizationId));
+        }
       }
       return { seeded: false };
     }
@@ -621,12 +642,17 @@ export const TILL_POLICIES_SHIPPED = new Date("2026-10-07T13:32:00Z");
  * the first seed did, on the next visit to the screen, by name — anything
  * already called `till` or `Till` is the business's and is left alone.
  *
- * Then the stamp moves forward, which makes this once as well. A business that
- * deletes these afterwards has decided, and does not find them back tomorrow.
- * Not stamped when nothing could be written: the caller was not allowed to
- * create roles, and an administrator opening the screen still can.
+ * Then `seedDefaults` moves the stamp forward, which makes this once as well.
+ * A business that deletes these afterwards has decided, and does not find them
+ * back tomorrow. False when nothing could be written, which keeps the stamp
+ * where it was: the caller was not allowed to create roles, and an
+ * administrator opening the screen still can.
  */
-async function catchUpTill(tx: Tx, organizationId: string, headers: Headers) {
+async function catchUpTill(
+  tx: Tx,
+  organizationId: string,
+  headers: Headers,
+): Promise<boolean> {
   await createPolicies(organizationId, headers, DEFAULT_TILL_POLICIES);
 
   const names = DEFAULT_TILL_POLICIES.map((p) => p.name);
@@ -634,17 +660,14 @@ async function catchUpTill(tx: Tx, organizationId: string, headers: Headers) {
     .select({ role: schema.organizationRole.role })
     .from(schema.organizationRole)
     .where(eq(schema.organizationRole.organizationId, organizationId));
-  if (!present.some((row) => names.includes(row.role))) return;
+  if (!present.some((row) => names.includes(row.role))) return false;
 
   await createGroups(
     tx,
     organizationId,
     DEFAULT_GROUPS.filter((g) => g.roles.some((r) => names.includes(r))),
   );
-  await tx
-    .update(schema.organizations)
-    .set({ accessSeededAt: new Date() })
-    .where(eq(schema.organizations.id, organizationId));
+  return true;
 }
 
 /**
@@ -671,13 +694,14 @@ export const PROJECTS_POLICIES_SHIPPED = new Date("2026-10-09T13:30:00Z");
  * Gated on the new policy being there afterwards, which is the evidence the
  * caller was allowed to create roles: a visitor who is not leaves the stamp
  * where it was and changes nothing, and an administrator opening the screen
- * still can. Then the stamp moves forward, which makes this once.
+ * still can; false says so. Then `seedDefaults` moves the stamp forward, which
+ * makes this once.
  */
 async function catchUpProjects(
   tx: Tx,
   organizationId: string,
   headers: Headers,
-) {
+): Promise<boolean> {
   await createPolicies(organizationId, headers, DEFAULT_PROJECTS_POLICIES);
 
   const rows = await tx
@@ -689,7 +713,7 @@ async function catchUpProjects(
     .from(schema.organizationRole)
     .where(eq(schema.organizationRole.organizationId, organizationId));
   const names = DEFAULT_PROJECTS_POLICIES.map((p) => p.name);
-  if (!rows.some((row) => names.includes(row.role))) return;
+  if (!rows.some((row) => names.includes(row.role))) return false;
 
   const grants: Record<string, Permissions> = {
     admins: { projects: PROJECTS_IN_FULL },
@@ -720,8 +744,65 @@ async function catchUpProjects(
       .where(eq(schema.organizationRole.id, row.id));
   }
 
-  await tx
-    .update(schema.organizations)
-    .set({ accessSeededAt: new Date() })
-    .where(eq(schema.organizations.id, organizationId));
+  return true;
+}
+
+/**
+ * When the till's `supervise` permission was added: 9 October 2026.
+ *
+ * Not a release time, for the reason `PROJECTS_POLICIES_SHIPPED` gives: the
+ * catch-up stamps "now", and a cutoff still in the future would run it again
+ * on every visit.
+ */
+export const SUPERVISE_SHIPPED = new Date("2026-10-09T14:30:00Z");
+
+/** The seeded policies that supervise a counter. */
+const SUPERVISING = ["till supervisors", "till managers"];
+
+/**
+ * `supervise` for the till's senior policies, on an organization seeded
+ * before it existed.
+ *
+ * Only on a policy still under its seeded name, and only one that still
+ * refunds: the drawer checks a supervisor by `refund` until it checks
+ * `supervise`, so a policy that refunds already does everything this grants,
+ * and one an administrator took `refund` (or the whole of `pos`) away from
+ * has been decided about. A renamed or deleted policy is not looked for.
+ *
+ * Writes directly, so it needs nothing of the caller, and is safe to run
+ * again: a policy that has `supervise` is passed over.
+ */
+async function catchUpSupervise(tx: Tx, organizationId: string) {
+  const rows = await tx
+    .select({
+      id: schema.organizationRole.id,
+      permission: schema.organizationRole.permission,
+    })
+    .from(schema.organizationRole)
+    .where(
+      and(
+        eq(schema.organizationRole.organizationId, organizationId),
+        inArray(schema.organizationRole.role, SUPERVISING),
+      ),
+    );
+  for (const row of rows) {
+    let permission: Permissions;
+    try {
+      permission = JSON.parse(row.permission) as Permissions;
+    } catch {
+      continue;
+    }
+    const pos = permission.pos;
+    if (!Array.isArray(pos) || pos.includes("supervise")) continue;
+    if (!pos.includes("refund")) continue;
+    await tx
+      .update(schema.organizationRole)
+      .set({
+        permission: JSON.stringify({
+          ...permission,
+          pos: [...pos, "supervise"],
+        }),
+      })
+      .where(eq(schema.organizationRole.id, row.id));
+  }
 }
