@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { db, eq, schema } from "@sentrello/db";
+import { auth } from "@sentrello/auth";
+import { signUpAsOwner } from "@sentrello/auth/testing";
+import { and, db, eq, inArray, schema } from "@sentrello/db";
 import {
   DEFAULT_GROUPS,
   DEFAULT_GROUP_POLICIES,
@@ -367,4 +369,113 @@ test("the seeded defaults are the ones the documentation promises", async () => 
   expect(named).toContain("five policies");
   expect(named).toContain("seven groups");
   expect(named).toContain("twelve policies and seven groups");
+});
+
+/**
+ * An organization seeded before the till's policies gets them, once.
+ *
+ * Seeded today and then made to look like one seeded in September: the three
+ * till policies and the Till group taken away, the stamp put back before they
+ * shipped. One of the three is left in place and edited, the way an
+ * administrator might have made their own "till supervisors" — it has to come
+ * through untouched. And once caught up, a policy deleted again stays deleted.
+ */
+test("an organization seeded before the till's policies gets them, once", async () => {
+  const suffix = crypto.randomUUID().slice(0, 8);
+  const signUp = await signUpAsOwner({
+    email: `till-catch-up-${suffix}@example.test`,
+    password: "correct-horse-battery-staple",
+    name: "Owner",
+  });
+  const cookie = signUp.headers.get("set-cookie");
+  if (!cookie) throw new Error("sign-up returned no session cookie");
+  const headers = new Headers({ cookie, "content-type": "application/json" });
+  const org = await auth.api.createOrganization({
+    body: { name: `Till catch-up ${suffix}`, slug: `till-catch-up-${suffix}` },
+    headers,
+  });
+  if (!org) throw new Error("could not create organization");
+  await auth.api.setActiveOrganization({
+    body: { organizationId: org.id },
+    headers,
+  });
+
+  const roles = schema.organizationRole;
+  const tillRole = (name: string) =>
+    and(eq(roles.organizationId, org.id), eq(roles.role, name));
+  const roleNames = async () =>
+    (
+      await db
+        .select({ role: roles.role })
+        .from(roles)
+        .where(eq(roles.organizationId, org.id))
+    ).map((r) => r.role);
+
+  try {
+    expect((await seedDefaults(org.id, headers)).seeded).toBe(true);
+
+    const theirs = JSON.stringify({ dashboard: ["read"], pos: ["read"] });
+    await db
+      .update(roles)
+      .set({ permission: theirs })
+      .where(tillRole("till supervisors"));
+    await db
+      .delete(roles)
+      .where(
+        and(
+          eq(roles.organizationId, org.id),
+          inArray(roles.role, ["till", "till managers"]),
+        ),
+      );
+    await db
+      .delete(schema.userGroups)
+      .where(
+        and(
+          eq(schema.userGroups.organizationId, org.id),
+          eq(schema.userGroups.name, "Till"),
+        ),
+      );
+    await db
+      .update(schema.organizations)
+      .set({ accessSeededAt: new Date("2026-09-15T12:00:00Z") })
+      .where(eq(schema.organizations.id, org.id));
+
+    await seedDefaults(org.id, headers);
+
+    const after = await roleNames();
+    for (const policy of DEFAULT_TILL_POLICIES) {
+      expect(after).toContain(policy.name);
+    }
+    const [kept] = await db
+      .select({ permission: roles.permission })
+      .from(roles)
+      .where(tillRole("till supervisors"));
+    expect(kept?.permission).toBe(theirs);
+    const [group] = await db
+      .select({ roles: schema.userGroups.roles })
+      .from(schema.userGroups)
+      .where(
+        and(
+          eq(schema.userGroups.organizationId, org.id),
+          eq(schema.userGroups.name, "Till"),
+        ),
+      );
+    expect(group?.roles).toEqual(["till"]);
+    const [stamp] = await db
+      .select({ at: schema.organizations.accessSeededAt })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, org.id));
+    expect((stamp?.at ?? new Date(0)) > new Date("2026-10-07T13:32:00Z")).toBe(
+      true,
+    );
+
+    // Caught up once. Deleting one now is a decision, and it stays made.
+    await db.delete(roles).where(tillRole("till"));
+    await seedDefaults(org.id, headers);
+    expect(await roleNames()).not.toContain("till");
+  } finally {
+    await db
+      .delete(schema.organizations)
+      .where(eq(schema.organizations.id, org.id));
+  }
 });

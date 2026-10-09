@@ -208,6 +208,10 @@ export const DEFAULT_USER_POLICIES: DefaultPolicy[] = [
  * module that is not installed grants nothing, and the alternative — seeding
  * when the module arrives — is a mechanism that does not exist: `seedDefaults`
  * runs once per organization, before anybody buys anything.
+ *
+ * Which left every organization seeded before these existed without them, and
+ * nothing that would ever add them: the marker said "seeded" and meant a list
+ * that no longer was the list. `catchUpTill` below is the one catch-up.
  */
 const COUNTER = {
   ...LANDS,
@@ -420,26 +424,19 @@ export async function seedDefaults(
       .from(schema.organizations)
       .where(eq(schema.organizations.id, organizationId))
       .limit(1);
-    if (!org || org.seededAt) return { seeded: false };
+    if (!org) return { seeded: false };
+    if (org.seededAt) {
+      if (org.seededAt < TILL_POLICIES_SHIPPED) {
+        await catchUpTill(tx, organizationId, headers);
+      }
+      return { seeded: false };
+    }
 
-    for (const policy of [
+    await createPolicies(organizationId, headers, [
       ...DEFAULT_USER_POLICIES,
       ...DEFAULT_GROUP_POLICIES,
       ...DEFAULT_TILL_POLICIES,
-    ]) {
-      await auth.api
-        .createOrgRole({
-          body: {
-            organizationId,
-            role: policy.name,
-            permission: policy.permission,
-          },
-          headers,
-        })
-        // A name already taken is a business that got there first, which is
-        // the outcome this wants anyway.
-        .catch(() => undefined);
-    }
+    ]);
 
     /**
      * Nothing was written, so nothing is marked as written.
@@ -470,26 +467,7 @@ export async function seedDefaults(
       return { seeded: false };
     }
 
-    for (const group of DEFAULT_GROUPS) {
-      const [exists] = await tx
-        .select({ id: schema.userGroups.id })
-        .from(schema.userGroups)
-        .where(
-          and(
-            eq(schema.userGroups.organizationId, organizationId),
-            eq(schema.userGroups.name, group.name),
-          ),
-        )
-        .limit(1);
-      if (exists) continue;
-
-      await tx.insert(schema.userGroups).values({
-        organizationId,
-        name: group.name,
-        description: group.description,
-        roles: group.roles,
-      });
-    }
+    await createGroups(tx, organizationId, DEFAULT_GROUPS);
 
     await tx
       .update(schema.organizations)
@@ -498,4 +476,104 @@ export async function seedDefaults(
 
     return { seeded: true };
   });
+}
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Each policy, unless the name is already somebody's.
+ *
+ * A name already taken is a business that got there first, which is the
+ * outcome this wants anyway — and it is what keeps a policy an administrator
+ * has edited exactly as they left it.
+ */
+async function createPolicies(
+  organizationId: string,
+  headers: Headers,
+  policies: DefaultPolicy[],
+) {
+  for (const policy of policies) {
+    await auth.api
+      .createOrgRole({
+        body: {
+          organizationId,
+          role: policy.name,
+          permission: policy.permission,
+        },
+        headers,
+      })
+      .catch(() => undefined);
+  }
+}
+
+/** Each group, unless one of that name is already there. */
+async function createGroups(
+  tx: Tx,
+  organizationId: string,
+  groups: typeof DEFAULT_GROUPS,
+) {
+  for (const group of groups) {
+    const [exists] = await tx
+      .select({ id: schema.userGroups.id })
+      .from(schema.userGroups)
+      .where(
+        and(
+          eq(schema.userGroups.organizationId, organizationId),
+          eq(schema.userGroups.name, group.name),
+        ),
+      )
+      .limit(1);
+    if (exists) continue;
+
+    await tx.insert(schema.userGroups).values({
+      organizationId,
+      name: group.name,
+      description: group.description,
+      roles: group.roles,
+    });
+  }
+}
+
+/**
+ * When the till's policies reached a release: v1.12.1, 7 October 2026.
+ *
+ * An organization stamped before this was seeded from a list that did not
+ * have them. One stamped after it was seeded from one that did, and has
+ * whatever its administrator has since made of them.
+ */
+export const TILL_POLICIES_SHIPPED = new Date("2026-10-07T13:32:00Z");
+
+/**
+ * The till's policies and its group, for an organization seeded before them.
+ *
+ * Without this a business that had been using the till since September found
+ * the counter single-user for good: the marker said its defaults were in
+ * place, so nothing would ever put these three in. They arrive the same way
+ * the first seed did, on the next visit to the screen, by name — anything
+ * already called `till` or `Till` is the business's and is left alone.
+ *
+ * Then the stamp moves forward, which makes this once as well. A business that
+ * deletes these afterwards has decided, and does not find them back tomorrow.
+ * Not stamped when nothing could be written: the caller was not allowed to
+ * create roles, and an administrator opening the screen still can.
+ */
+async function catchUpTill(tx: Tx, organizationId: string, headers: Headers) {
+  await createPolicies(organizationId, headers, DEFAULT_TILL_POLICIES);
+
+  const names = DEFAULT_TILL_POLICIES.map((p) => p.name);
+  const present = await tx
+    .select({ role: schema.organizationRole.role })
+    .from(schema.organizationRole)
+    .where(eq(schema.organizationRole.organizationId, organizationId));
+  if (!present.some((row) => names.includes(row.role))) return;
+
+  await createGroups(
+    tx,
+    organizationId,
+    DEFAULT_GROUPS.filter((g) => g.roles.some((r) => names.includes(r))),
+  );
+  await tx
+    .update(schema.organizations)
+    .set({ accessSeededAt: new Date() })
+    .where(eq(schema.organizations.id, organizationId));
 }

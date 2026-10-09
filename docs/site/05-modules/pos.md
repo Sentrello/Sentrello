@@ -618,6 +618,11 @@ It never has its own logins.
 | **Till Supervisors** | The same, plus cancelling a ticket and giving money back — the two doors money leaves by |
 | **Till Managers** | The same again, plus setting the till up and seeing the drawer's expected total |
 
+Running an instance set up before version 1.12.1? You get the three, and the
+**Till** group, the next time an administrator opens Users. It happens once. If
+you already have a policy or a group by one of those names, yours stays exactly
+as you left it, and if you delete one of the three afterwards it stays deleted.
+
 Put your counter staff in the **Till** group and give the person standing behind
 them the supervisor policy. Each tier includes the one below it, because a
 supervisor who cannot sell is no use on a counter.

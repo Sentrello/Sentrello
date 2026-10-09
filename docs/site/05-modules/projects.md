@@ -76,7 +76,8 @@ needs converting when a milestone turns out to have work in it after all.
 finishes on the Monday, not the Saturday. Which days your business works, and
 which days it is shut, are set once on Projects → Settings, under *The working
 week* and *Days the business is shut*; the default is Monday to Friday. Clearing the whole week is refused, because every date in
-the module is derived from it.
+the module is derived from it. Each shut day has a **Remove** beside it, for
+the bank holiday that went into the wrong year.
 
 ### What waits on what
 
@@ -123,7 +124,9 @@ than four tabs. A screen nobody can find is a feature nobody has.
   day it runs, and weeks start on Monday.
 - **Team** (Projects → Team and cost → Team) — who is on what this week,
   booked against capacity, with a *Push out a week* control for the Monday when
-  nothing has gone to plan.
+  nothing has gone to plan. This week means your business's week: it turns
+  over at midnight on Sunday in the timezone on your organization, not the
+  server's.
 
 A way of looking can be saved — with its grouping, and either privately or for
 everybody.
@@ -218,8 +221,12 @@ because "every 90 days" and "every quarter" drift apart within a year.
 
 A template is copied with its board columns, its tasks, its structure and its
 estimates, and **every date is shifted** by the gap between the template's start
-and the new one. Assignees and progress are deliberately not carried over: a
-template that quietly books somebody who left is worse than one that asks.
+and the new one, counted in working days. The template's third working day is
+the copy's third working day, so a copy that starts on a Thursday doesn't put
+anybody on site on a Saturday. Assignees and progress are deliberately not
+carried over, and every task starts in the board's first column: a copy is work
+nobody has begun, and a template that quietly books somebody who left is worse
+than one that asks.
 Nor are the links between tasks, so an automatic task arrives with its
 shifted dates and nothing to follow until you link it again.
 
