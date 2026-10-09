@@ -84,7 +84,12 @@ test("documentation images are absolute URLs, because only .md files sync", () =
   // image path has nothing to resolve against once the page leaves the repo.
   const relativeImages: string[] = [];
   for (const page of pages) {
-    for (const target of linksIn(readFileSync(join(SITE, page), "utf8"))) {
+    // Code is left out, fenced or inline: the Docs module's page shows a
+    // relative image as an example of what a customer's own repository holds.
+    const prose = readFileSync(join(SITE, page), "utf8")
+      .replace(/^```[\s\S]*?^```/gm, "")
+      .replace(/`[^`\n]*`/g, "");
+    for (const target of linksIn(prose)) {
       if (
         /\.(png|gif|jpe?g|svg|webp)$/i.test(target) &&
         !/^https?:/.test(target)

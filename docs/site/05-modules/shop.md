@@ -67,6 +67,13 @@ across the top is the one you give the shop in **Shop → Settings**, or your
 business's own name if you leave that blank. Prices are written the way your
 country writes them.
 
+Beside the name sits your logo: the one on your default invoice template, so
+the shop looks like the business your customers already get bills from. Selling
+under a different name? Upload the shop its own logo under **Shop → Settings**,
+and **Use the business logo** puts the original back. Whatever you upload is
+converted and resized on the way in, the same as a product photograph. With no
+logo in either place, the name stands on its own.
+
 ## Orders
 
 An order records what was bought, by whom, at what price, and where it is

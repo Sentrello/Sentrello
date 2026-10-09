@@ -206,7 +206,7 @@ Everything the tags do goes through a public API, and you can call it too:
 
 | Endpoint | What it gives |
 |---|---|
-| `GET /api/shop/storefront/shop` | The shop's name, currency, categories and collections |
+| `GET /api/shop/storefront/shop` | The shop's name, its logo (`logoUrl`, a path on your instance, or null when there is none), currency, categories and collections |
 | `GET /api/shop/storefront/products` | Published products, with prices |
 | `GET /api/shop/storefront/products/:slug` | One product |
 | `POST /api/shop/storefront/checkout` | Start a cart, optionally with its first item |

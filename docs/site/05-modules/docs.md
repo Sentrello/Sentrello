@@ -117,9 +117,28 @@ are the only reason a page ever loads a script file, only on a page that has a
 diagram or a formula, and the files come from your own server, never somebody
 else's.
 
-Images are the one thing a sync doesn't copy. It reads markdown and
-`_category_.json` files only, so a picture sitting in your repository and linked
-by a relative path won't show up. Link images by their full address instead.
+### Pictures
+
+Link a picture by a relative path, like `![The settings screen](./img/settings.png)`,
+and the sync brings it along. It reads the file from the same repository,
+stores a copy on your instance, and points the page at that copy, so the
+picture shows on the site without you changing a line.
+
+What it copies, and what it leaves:
+
+- **PNG, JPEG, GIF and WebP.** Each one is converted to WebP on the way in and
+  scaled down if it's wider or taller than 2,400 pixels. A GIF arrives as a
+  still of its first frame.
+- **Not SVG.** An SVG can carry script, so it's left as it was written and
+  the sync tells you which ones it skipped.
+- **Up to 5 MB a picture, and 50 MB of pictures each sync** (per version and
+  language, when you have more than one). Past either limit the picture keeps
+  its original link, and the sync's report names it.
+- **Only inside the synced folder.** A path that climbs out of it with `..`
+  isn't followed, and neither is one starting with `/`.
+
+Stop using a picture and the next sync removes its copy. A picture linked by
+its full address, `https://…`, is loaded from wherever it lives, as before.
 
 ## Drafts and unlisted pages
 

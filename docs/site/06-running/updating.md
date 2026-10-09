@@ -22,7 +22,8 @@ minutes.
 2. **Pulls the image** for the release your license is offered.
 3. **Fetches your modules** at that same version. Modules and Core move
    together, because a module several versions behind its Core is a screen
-   missing whatever changed.
+   missing whatever changed. A Sentrello module your license no longer
+   includes is removed. A module you added yourself is left alone.
 4. **Starts the new version**, then runs the platform's migrations against it,
    then restarts the app so it picks up the schema it just got.
 5. **Waits for the instance to answer**, and says so when it does.

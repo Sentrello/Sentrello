@@ -20,7 +20,8 @@ sudo sentrello backup
 That writes `backups/sentrello-<stamp>.sql.gz` in your installation
 directory. If anybody has uploaded files, a `-files.tar.gz` lands beside it,
 named after the same moment so putting back last Tuesday's database brings
-back last Tuesday's documents with it.
+back last Tuesday's documents with it. Moved Storage off the data directory?
+Then a `-storage.tar.gz` joins them, with the same stamp.
 
 Sentrello also takes one for you before anything that could go wrong:
 `update`, `rollback` and `restore` each begin with a backup and refuse to
@@ -116,7 +117,8 @@ sudo sentrello restore backups/sentrello-<stamp>.sql.gz
 ```
 
 This stops the app, clears the database, puts the backup in its place, and
-restores the files archive if it is beside the dump. It is deliberately loud
+restores the files archives that sit beside the dump. Storage's archive goes
+back to wherever Storage keeps its files now. It is deliberately loud
 about that, and it takes a backup of what is there now before it starts.
 
 :::warning[Restore onto a spare server first]
@@ -129,8 +131,14 @@ want to be learning on the day.
 
 **Uploaded files** live on disk in the data directory: documents, receipts,
 logos, product images, files people sent through a form. `sentrello backup`
-archives every folder under `data` beside the dump. If you have pointed
-Storage's files somewhere outside `data`, that location is yours to back up.
+archives every folder under `data` beside the dump.
+
+Storage can live somewhere else. Set `SENTRELLO_FILES_DIR` in
+`secrets/.env` to a path inside the container, mount a folder of the server's
+there in `docker-compose.yml`, and the backup follows it: it reads the mount to
+find the folder on the server and archives that as `-storage.tar.gz`. If it
+can't find one, because nothing is mounted at that path, the backup still
+takes the dump and tells you those files are not in it.
 
 ## Moving to another server
 

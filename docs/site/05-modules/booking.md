@@ -49,6 +49,11 @@ one? Untick **Public** and it leaves the page while the bookings already made
 against it stay where they are. A service that has ever been booked can't be
 deleted, so the diary never ends up naming something nobody can look up.
 
+Stopped offering it altogether? Open the service and untick **Taking
+bookings**. Nobody can book it after that, not from the page and not through a
+private link either. It stays in your list marked *Inactive*, its old bookings
+stay in the diary, and ticking the box again brings it straight back.
+
 ## Availability
 
 Set your working hours per day — several stretches where you want them, so
@@ -108,9 +113,10 @@ won't show it.
 
 ## Service areas
 
-If you travel to customers, list the codes you cover under *Postcodes you
-travel to* in Booking → Settings. A prefix covers everything under it, so 802
-covers 80202. Then tick *We come to the customer* on each service that happens
+If you travel to customers, list the codes you cover in Booking → Settings.
+The field is named the way your country names them: *ZIP codes you travel to*
+in the US, *Postal codes* in Canada, *Postcodes* in the UK and the EU. A prefix
+covers everything under it, so 802 covers 80202. Then tick *We come to the customer* on each service that happens
 at their address. That service asks for an address, and somebody outside your
 area is told so and the booking isn't taken, rather than you finding out after
 driving there.
@@ -128,14 +134,23 @@ driving there.
   bills the way it already does. Book six weekly sessions in one go and the
   invoice is one for the course, not six. A service that waits for your yes
   raises its invoice when you confirm, not when somebody asks. The invoice
-  lands open in Invoicing and isn't emailed by itself: send it from there like
-  any other, and where a card processor is connected it carries a payment link.
+  lands open in Invoicing, and the customer's confirmation email carries a
+  link to view it. That's the same link Invoicing's own Share button hands
+  out, not a second email. Want it sent as a proper invoice too, with the
+  payment link a connected card processor adds? Send it from Invoicing like
+  any other.
 - The appointment counts toward *Today* and *Next seven days* on your
   dashboard.
 
-Raising that invoice is never allowed to fail the booking. A booking with no
-invoice in its history is something you can spot and raise by hand; a booking
-that vanished is a customer standing outside a locked door.
+Raising that invoice is never allowed to fail the booking. A booking whose
+invoice was refused (no exchange rate recorded for the currency, say, or a
+period you've closed) still stands, and says so: the row in Booking → Bookings
+reads **Invoice not raised**, with the reason beside it. Put the reason right
+and press **Retry**. It raises the invoice once, however many times it's
+pressed, and needs permission to update bookings. Until then the booking is
+counted under *Invoices not raised* on your dashboard, so nothing gets missed
+because nobody opened the diary. A booking that vanished would be worse: that's
+a customer standing outside a locked door.
 
 ## Cancellations
 

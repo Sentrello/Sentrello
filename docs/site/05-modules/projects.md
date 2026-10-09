@@ -145,10 +145,17 @@ costs you, and what you charge for it.
 More than twenty-four hours in one entry is refused. It is not a judgement about
 anybody's day; it is almost always two days typed as one.
 
+**Your timesheet is yours.** The time permission lets you log, correct and
+remove your own hours, and nobody else's. Putting in the gang's day, or fixing a
+colleague's, is the job of whoever plans the work: with `projects:update` the
+form gains a **Who** box and the hours can be anybody's on the team.
+
 **Projects → Team and cost → Time** opens on your own week. Switch it to
 everybody's hours to see the whole team, filtered by person or to what is still
-to bill. Anyone who can open Projects can read those, because reading the
-module is one permission; booking time takes the time permission on top.
+to bill. That switch is there only for whoever plans the work or sets its
+budget (`projects:update` or `projects:budget`). Everybody's hours carry
+everybody's cost, and an hour's cost is close enough to a wage that opening
+Projects shouldn't be what shows it.
 
 ## Costs that are not time
 
@@ -264,12 +271,12 @@ business that needs that number exact needs a rota rather than a planner.
 
 | Permission | What it allows |
 |---|---|
-| `projects:read` | See the module and everything in it, including everybody's timesheet |
+| `projects:read` | See the module and everything in it, including each person's total on the Team screen, but not anybody else's timesheet line by line |
 | `projects:create` | Start a project, add tasks, copy a template, add a schedule |
-| `projects:update` | Change a project or a task, move dates, arrange a board, share a job, set the working week |
+| `projects:update` | Change a project or a task, move dates, arrange a board, share a job, set the working week, and book, change or read anybody's hours |
 | `projects:delete` | Delete a project, a budget or a schedule |
-| `projects:log-time` | Book time, your own or somebody else's, and record costs |
-| `projects:budget` | Set rates, cost types and budgets |
+| `projects:log-time` | Book, correct and remove your own time, and record costs |
+| `projects:budget` | Set rates, cost types and budgets, and read anybody's hours |
 
 Time is separated from everything else on purpose: everybody on the job books
 their hours, and far fewer people move dates or set a budget. Raising the
