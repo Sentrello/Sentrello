@@ -93,14 +93,21 @@ export function cancellation(
   nextRunAt: Date,
   immediately: boolean,
 ): {
-  status: SubscriptionStatus;
+  status?: SubscriptionStatus;
   cancelAt: Date;
   cancelledAt: Date;
-  active: boolean;
+  active?: boolean;
 } {
+  /*
+   * At the end of the period, only the dates are written. A subscription on
+   * trial is still on trial until then, one in arrears is still in arrears,
+   * and a paused one stays paused: writing "active" took a trial out of the
+   * trial count, a debt out of the dunning queue, and restarted billing on a
+   * pause.
+   */
   return immediately
     ? { status: "cancelled", cancelAt: now, cancelledAt: now, active: false }
-    : { status: "active", cancelAt: nextRunAt, cancelledAt: now, active: true };
+    : { cancelAt: nextRunAt, cancelledAt: now };
 }
 
 /** Every interval a schedule can run on, including the daily one only recurring invoices use. */
