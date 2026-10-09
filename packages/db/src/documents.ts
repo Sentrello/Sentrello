@@ -164,7 +164,7 @@ export async function convertQuoteToInvoice(
   const rateMicro = await rateOn(organizationId, quote.currency, new Date());
   if (rateMicro === null) {
     throw new MoneyError(
-      `no exchange rate recorded for ${quote.currency} — set one under Accounting first`,
+      `no exchange rate recorded for ${quote.currency} — record one under Money, in Tax and currency, first`,
     );
   }
 
@@ -438,7 +438,7 @@ export async function copyInvoice(
     (await rateOn(organizationId, source.currency, issueDate));
   if (rateMicro === null) {
     throw new MoneyError(
-      `no exchange rate recorded for ${source.currency} — set one under Accounting first`,
+      `no exchange rate recorded for ${source.currency} — record one under Money, in Tax and currency, first`,
     );
   }
 
@@ -638,7 +638,7 @@ export async function raiseInvoice(
   const rate = await rateOn(organizationId, currency, new Date());
   if (rate === null) {
     throw new MoneyError(
-      `no exchange rate recorded for ${currency} — set one under Accounting first`,
+      `no exchange rate recorded for ${currency} — record one under Money, in Tax and currency, first`,
     );
   }
 
@@ -870,7 +870,7 @@ export async function convertQuoteToInstalments(
   const rateMicro = await rateOn(organizationId, quote.currency, new Date());
   if (rateMicro === null) {
     return {
-      error: `no exchange rate recorded for ${quote.currency} — set one under Accounting first`,
+      error: `no exchange rate recorded for ${quote.currency} — record one under Money, in Tax and currency, first`,
     };
   }
 

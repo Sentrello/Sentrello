@@ -380,7 +380,7 @@ export default defineModule({
         if (rateMicro === null) {
           return c.json(
             {
-              error: `no exchange rate recorded for ${documentCurrency} — set one under Accounting first`,
+              error: `no exchange rate recorded for ${documentCurrency} — record one under Money, in Tax and currency, first`,
             },
             400,
           );
@@ -1278,7 +1278,7 @@ export default defineModule({
         if ((await rateOn(orgId, documentCurrency, new Date())) === null) {
           return c.json(
             {
-              error: `no exchange rate recorded for ${documentCurrency} — set one under Accounting first`,
+              error: `no exchange rate recorded for ${documentCurrency} — record one under Money, in Tax and currency, first`,
             },
             400,
           );

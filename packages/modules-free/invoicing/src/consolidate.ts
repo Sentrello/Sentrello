@@ -227,7 +227,7 @@ export function registerConsolidate(ctx: ModuleContext) {
       if (rateMicro === null) {
         return c.json(
           {
-            error: `no exchange rate recorded for ${currency} — set one under Accounting first`,
+            error: `no exchange rate recorded for ${currency} — record one under Money, in Tax and currency, first`,
           },
           400,
         );

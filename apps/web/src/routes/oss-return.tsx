@@ -197,7 +197,7 @@ export function OssReturn() {
                 ? ` Converted from ${data.conversion.from} at the European Central Bank rate for ${formatDate(data.conversion.asOf)}${
                     data.conversion.prescribed
                       ? "."
-                      : " — which is not the quarter-end rate the rules prescribe. Record that day's rate under Accounting and these figures will be exact."
+                      : " — which is not the quarter-end rate the rules prescribe. Record that day's rate under Money, in Tax and currency, and these figures will be exact."
                   }`
                 : ""}
             </p>
