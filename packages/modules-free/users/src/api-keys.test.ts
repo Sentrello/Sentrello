@@ -312,7 +312,7 @@ test("a bearer token that is not ours leaves the cookie to answer", async () => 
   // An identity proxy in front of an instance can add its own bearer token to
   // every request; reading that as a wrong key would sign everybody out.
   const headers = new Headers(ownerA);
-  headers.set("authorization", "Bearer eyJhbGciOiJSUzI1NiJ9.proxy.token");
+  headers.set("authorization", "Bearer issued-by-the-proxy");
   const res = await app.request("/api/users/groups", { headers });
   expect(res.status).toBe(200);
 });
