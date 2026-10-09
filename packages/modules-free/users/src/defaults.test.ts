@@ -7,8 +7,11 @@ import { and, db, eq, inArray, schema } from "@sentrello/db";
 import {
   DEFAULT_GROUPS,
   DEFAULT_GROUP_POLICIES,
+  DEFAULT_PROJECTS_POLICIES,
   DEFAULT_TILL_POLICIES,
   DEFAULT_USER_POLICIES,
+  PROJECTS_POLICIES_SHIPPED,
+  policyKind,
   policyLabel,
   seedDefaults,
 } from "./defaults";
@@ -27,6 +30,7 @@ const all = [
   ...DEFAULT_USER_POLICIES,
   ...DEFAULT_GROUP_POLICIES,
   ...DEFAULT_TILL_POLICIES,
+  ...DEFAULT_PROJECTS_POLICIES,
 ];
 const byName = new Map(all.map((p) => [p.name, p]));
 
@@ -368,7 +372,7 @@ test("the seeded defaults are the ones the documentation promises", async () => 
   // disagreeing about one number is the fault this pins.
   expect(named).toContain("five policies");
   expect(named).toContain("seven groups");
-  expect(named).toContain("twelve policies and seven groups");
+  expect(named).toContain("thirteen policies and seven groups");
 });
 
 /**
@@ -473,6 +477,206 @@ test("an organization seeded before the till's policies gets them, once", async 
     await db.delete(roles).where(tillRole("till"));
     await seedDefaults(org.id, headers);
     expect(await roleNames()).not.toContain("till");
+  } finally {
+    await db
+      .delete(schema.organizations)
+      .where(eq(schema.organizations.id, org.id));
+  }
+});
+
+/**
+ * Somebody besides the owner can use Projects on a new business.
+ *
+ * Until 9 October 2026 no seeded policy granted a single `projects` permission,
+ * so the module was the instance owner's alone. Exact sets, so a widening has
+ * to be argued for: managers plan the work and book anybody's hours, and
+ * neither delete nor set a budget.
+ */
+test("projects is granted to admins, managers, and whoever logs time", () => {
+  const projects = (name: string) => byName.get(name)?.permission.projects;
+  expect(projects("admins")).toEqual([
+    "read",
+    "create",
+    "update",
+    "delete",
+    "log-time",
+    "budget",
+  ]);
+  expect(projects("managers")).toEqual([
+    "read",
+    "create",
+    "update",
+    "log-time",
+  ]);
+  expect(DEFAULT_PROJECTS_POLICIES.map((p) => p.name)).toEqual(["logs time"]);
+  expect(projects("logs time")).toEqual(["read", "log-time"]);
+  // Given to a person, and with no department of its own.
+  expect(policyKind("logs time")).toBe("user");
+  expect(DEFAULT_GROUPS.flatMap((g) => g.roles)).not.toContain("logs time");
+});
+
+/**
+ * Executives sees everything: read on every resource that has one, and nothing
+ * but read.
+ *
+ * It named ten resources by hand, and Projects, the till, the mailing list,
+ * links and SEO arrived later and were never added, so the policy described as
+ * "sees everything" could not open five modules. Pinned as an exact set: a new
+ * resource in the statement list fails this until somebody decides whether
+ * Executives should see it. Archive is out on purpose; its read downloads a
+ * copy of old records.
+ *
+ * The catch-up test below reads it back from a real seed, because a role
+ * holding anything the caller lacks is refused by `createOrgRole` and the seed
+ * swallows the refusal: the first version of this held three dead statement
+ * keys and Executives quietly did not exist.
+ */
+test("executives reads every module and changes nothing", () => {
+  const executives = byName.get("executives")?.permission ?? {};
+  expect(Object.keys(executives).sort()).toEqual(
+    [
+      "bookkeeping",
+      "crm",
+      "dashboard",
+      "docs",
+      "documents",
+      "invoicing",
+      "links",
+      "newsletter",
+      "payments",
+      "pos",
+      "projects",
+      "reports",
+      "scheduling",
+      "seo",
+      "settings",
+      "shop",
+      "subscriptions",
+      "time",
+    ].sort(),
+  );
+  for (const actions of Object.values(executives)) {
+    expect(actions).toEqual(["read"]);
+  }
+});
+
+/**
+ * An organization seeded before Projects' defaults gets them, once, and keeps
+ * every decision its administrator made.
+ *
+ * Seeded today, then made to look like September: "logs time" removed, the
+ * projects grant taken off Admins, and Managers edited the way an administrator
+ * might have — an explicit empty `projects`, meaning "none" — which has to come
+ * through untouched. Executives is put back to the ten resources it used to
+ * read, with the till refused outright: it gains read on the rest and the till
+ * stays refused. And a deleted "logs time" stays deleted afterwards.
+ */
+test("an organization seeded before Projects' defaults gets them, once", async () => {
+  const suffix = crypto.randomUUID().slice(0, 8);
+  const signUp = await signUpAsOwner({
+    email: `projects-catch-up-${suffix}@example.test`,
+    password: "correct-horse-battery-staple",
+    name: "Owner",
+  });
+  const cookie = signUp.headers.get("set-cookie");
+  if (!cookie) throw new Error("sign-up returned no session cookie");
+  const headers = new Headers({ cookie, "content-type": "application/json" });
+  const org = await auth.api.createOrganization({
+    body: {
+      name: `Projects catch-up ${suffix}`,
+      slug: `projects-catch-up-${suffix}`,
+    },
+    headers,
+  });
+  if (!org) throw new Error("could not create organization");
+  await auth.api.setActiveOrganization({
+    body: { organizationId: org.id },
+    headers,
+  });
+
+  const roles = schema.organizationRole;
+  const role = (name: string) =>
+    and(eq(roles.organizationId, org.id), eq(roles.role, name));
+  const permissionOf = async (name: string) => {
+    const [row] = await db
+      .select({ permission: roles.permission })
+      .from(roles)
+      .where(role(name));
+    return row
+      ? (JSON.parse(row.permission) as Record<string, string[]>)
+      : null;
+  };
+
+  try {
+    expect((await seedDefaults(org.id, headers)).seeded).toBe(true);
+
+    const { projects: _, ...adminsBefore } =
+      (await permissionOf("admins")) ?? {};
+    await db
+      .update(roles)
+      .set({ permission: JSON.stringify(adminsBefore) })
+      .where(role("admins"));
+    const managersTheirs = JSON.stringify({
+      dashboard: ["read"],
+      projects: [],
+    });
+    await db
+      .update(roles)
+      .set({ permission: managersTheirs })
+      .where(role("managers"));
+    const executivesBefore = {
+      dashboard: ["read"],
+      docs: ["read"],
+      crm: ["read"],
+      invoicing: ["read"],
+      bookkeeping: ["read"],
+      reports: ["read"],
+      settings: ["read"],
+      scheduling: ["read"],
+      shop: ["read"],
+      documents: ["read"],
+      pos: [],
+    };
+    await db
+      .update(roles)
+      .set({ permission: JSON.stringify(executivesBefore) })
+      .where(role("executives"));
+    await db.delete(roles).where(role("logs time"));
+    await db
+      .update(schema.organizations)
+      .set({ accessSeededAt: new Date("2026-09-15T12:00:00Z") })
+      .where(eq(schema.organizations.id, org.id));
+
+    await seedDefaults(org.id, headers);
+
+    expect((await permissionOf("logs time"))?.projects).toEqual([
+      "read",
+      "log-time",
+    ]);
+    expect(await permissionOf("admins")).toEqual({
+      ...adminsBefore,
+      projects: ["read", "create", "update", "delete", "log-time", "budget"],
+    });
+    const [kept] = await db
+      .select({ permission: roles.permission })
+      .from(roles)
+      .where(role("managers"));
+    expect(kept?.permission).toBe(managersTheirs);
+    const executives = byName.get("executives")?.permission ?? {};
+    expect(await permissionOf("executives")).toEqual({
+      ...executives,
+      pos: [],
+    });
+    const [stamp] = await db
+      .select({ at: schema.organizations.accessSeededAt })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, org.id));
+    expect((stamp?.at ?? new Date(0)) >= PROJECTS_POLICIES_SHIPPED).toBe(true);
+
+    // Caught up once. Deleting it now is a decision, and it stays made.
+    await db.delete(roles).where(role("logs time"));
+    await seedDefaults(org.id, headers);
+    expect(await permissionOf("logs time")).toBeNull();
   } finally {
     await db
       .delete(schema.organizations)

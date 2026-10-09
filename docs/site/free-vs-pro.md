@@ -41,7 +41,7 @@ same on both tiers, and a business with twenty-five staff will never meet it.
 | **Tax returns**: UK VAT in the Making Tax Digital boxes, Canadian GST/HST, US sales tax with state nexus thresholds, EU One Stop Shop | ● | ● |
 | **Structured e-invoices**: EN 16931, in the Peppol BIS and XRechnung profiles — for a business selling from the EU or the UK | ● | ● |
 | Tax summary, cash flow and multi-currency | — | ● |
-| **Accounts and access**: twelve policies and seven groups, all editable; sessions, sign-in providers, two-factor, event log | ● | ● |
+| **Accounts and access**: thirteen policies and seven groups, all editable; sessions, sign-in providers, two-factor, event log | ● | ● |
 | **Settings**: business details on every document, third-party connections, one-click update and rollback | ● | ● |
 | **Automations**: rules on your own records, so that when a deal is won a task appears, an email goes out, and a field updates itself, without anybody remembering to do it | — | ● |
 | Your own credit on public pages: replace or remove "Powered by Sentrello" on the sign-in screen and thank-you pages | — | ● |

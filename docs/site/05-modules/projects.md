@@ -283,6 +283,22 @@ their hours, and far fewer people move dates or set a budget. Raising the
 invoice needs Invoicing's own create permission as well — the money stays where
 the money is.
 
+Four of the policies a business starts with already carry these, so Projects
+works for more than the owner on day one:
+
+| Policy | Gets |
+|---|---|
+| **Admins** | All six |
+| **Executives** | `read`. They see every job and change none |
+| **Managers** | `read`, `create`, `update` and `log-time`. They plan the job and book anybody's hours, but don't delete or set a budget |
+| **Logs time** | `read` and `log-time`. They see the jobs and fill in their own timesheet |
+
+Everybody else sees nothing of Projects until you give them one of these, or
+add `projects` to a policy of your own. A business set up before these existed
+gets them on the next visit to **Users → Policies**, unless it has already
+decided otherwise: a policy you renamed, deleted, or gave its own `projects`
+access is left as you left it.
+
 ## What it does not do
 
 - **No status workflow.** Which role may move which type of task from which

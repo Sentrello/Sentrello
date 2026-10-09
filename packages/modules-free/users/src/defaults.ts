@@ -1,4 +1,4 @@
-import { auth } from "@sentrello/auth";
+import { auth, roles } from "@sentrello/auth";
 import { and, db, eq, schema, sql } from "@sentrello/db";
 
 /**
@@ -52,6 +52,61 @@ export interface DefaultPolicy {
 /** Every role needs the landing page, or its holder signs in to nothing. */
 const LANDS = { dashboard: ["read"] };
 
+/**
+ * Projects, for the two seniorities that plan work.
+ *
+ * Nothing seeded here granted a `projects` permission until 9 October 2026, so
+ * on a new business the only person who could open Projects was the instance
+ * owner. Administrators get all six. Managers plan the job and book anybody's
+ * hours, but neither delete nor set a budget: the first for the reason they
+ * delete nothing in the books, the second because a budget is a figure about
+ * money, and their bookkeeping is read-only.
+ */
+const PROJECTS_IN_FULL = [
+  "read",
+  "create",
+  "update",
+  "delete",
+  "log-time",
+  "budget",
+];
+const PROJECTS_FOR_MANAGERS = ["read", "create", "update", "log-time"];
+
+/**
+ * Read on every resource that has a read, and nothing else: what "sees
+ * everything" has to mean for Executives to be true.
+ *
+ * Taken from what the instance owner's compiled `admin` holds rather than
+ * written out, because the written list was the bug: it named ten resources,
+ * and Projects, the till, the mailing list, links and SEO arrived after it and
+ * were never added. A resource granted there now reaches Executives on a new
+ * business; the test that pins this set exactly is where somebody decides
+ * whether it should.
+ *
+ * From `admin` and not the whole statement list, for two reasons. The statement
+ * keeps dead keys for withdrawn modules (`hr`, `inventory`, `make-deal`), which
+ * nothing reads. And `createOrgRole` refuses to create a role holding anything
+ * its caller lacks, so one dead key in here and the seed silently skipped
+ * Executives altogether, which is how this was found.
+ *
+ * Two are left out on purpose:
+ *
+ * - `ac` is Better Auth's own, for reading the access-control roles. Not a
+ *   module, and Policies already sits behind `settings`.
+ * - `archive` reads, and *downloads*, whole sets of old records written off
+ *   the server. Looking at the business is the Executives' job; walking out
+ *   with a copy of it is not, and no default but Admins holds any of it.
+ */
+const NOT_SEEN_BY_EXECUTIVES = new Set(["ac", "archive"]);
+const READS_EVERYTHING: Permissions = Object.fromEntries(
+  Object.entries(roles.admin.statements as Record<string, readonly string[]>)
+    .filter(
+      ([resource, actions]) =>
+        actions.includes("read") && !NOT_SEEN_BY_EXECUTIVES.has(resource),
+    )
+    .map(([resource]) => [resource, ["read"]]),
+);
+
 /** How senior somebody is. Given to a person. */
 export const DEFAULT_USER_POLICIES: DefaultPolicy[] = [
   {
@@ -84,6 +139,7 @@ export const DEFAULT_USER_POLICIES: DefaultPolicy[] = [
       newsletter: ["read", "create", "update", "delete", "send"],
       links: ["read", "create", "update", "delete", "domains"],
       seo: ["read", "create", "update", "delete"],
+      projects: PROJECTS_IN_FULL,
     },
   },
   {
@@ -96,18 +152,7 @@ export const DEFAULT_USER_POLICIES: DefaultPolicy[] = [
      */
     name: "executives",
     description: "Sees everything across the business, and changes little.",
-    permission: {
-      ...LANDS,
-      docs: ["read"],
-      crm: ["read"],
-      invoicing: ["read"],
-      bookkeeping: ["read"],
-      reports: ["read"],
-      settings: ["read"],
-      scheduling: ["read"],
-      shop: ["read"],
-      documents: ["read"],
-    },
+    permission: READS_EVERYTHING,
   },
   {
     /**
@@ -129,6 +174,7 @@ export const DEFAULT_USER_POLICIES: DefaultPolicy[] = [
       scheduling: ["read", "create", "update", "delete"],
       shop: ["read", "create", "update"],
       documents: ["read", "create", "update"],
+      projects: PROJECTS_FOR_MANAGERS,
     },
   },
   {
@@ -238,6 +284,23 @@ export const DEFAULT_TILL_POLICIES: DefaultPolicy[] = [
       ...COUNTER,
       pos: ["read", "sell", "void", "refund", "manage"],
     },
+  },
+];
+
+/**
+ * Somebody on the job who books their own hours, and nothing more.
+ *
+ * The commonest person in Projects and the one no default described: they see
+ * the work and fill in their timesheet, and plan nothing. Given to a person,
+ * like the till's, and with no group of its own, because booking hours is not a
+ * department. Seeded on every instance for the same reason the till's are; a
+ * permission for a module that is not installed grants nothing.
+ */
+export const DEFAULT_PROJECTS_POLICIES: DefaultPolicy[] = [
+  {
+    name: "logs time",
+    description: "Sees the jobs, and logs their own hours on them.",
+    permission: { ...LANDS, projects: ["read", "log-time"] },
   },
 ];
 
@@ -391,6 +454,7 @@ export function policyKind(name: string): "user" | "group" | "custom" {
   // Given to a person, like a seniority: a counter shift and the supervisor
   // standing behind them are the same department.
   if (DEFAULT_TILL_POLICIES.some((p) => p.name === name)) return "user";
+  if (DEFAULT_PROJECTS_POLICIES.some((p) => p.name === name)) return "user";
   return "custom";
 }
 
@@ -429,6 +493,11 @@ export async function seedDefaults(
       if (org.seededAt < TILL_POLICIES_SHIPPED) {
         await catchUpTill(tx, organizationId, headers);
       }
+      // Against the stamp as it was read, so a business two catch-ups behind
+      // gets both on one visit.
+      if (org.seededAt < PROJECTS_POLICIES_SHIPPED) {
+        await catchUpProjects(tx, organizationId, headers);
+      }
       return { seeded: false };
     }
 
@@ -436,6 +505,7 @@ export async function seedDefaults(
       ...DEFAULT_USER_POLICIES,
       ...DEFAULT_GROUP_POLICIES,
       ...DEFAULT_TILL_POLICIES,
+      ...DEFAULT_PROJECTS_POLICIES,
     ]);
 
     /**
@@ -572,6 +642,85 @@ async function catchUpTill(tx: Tx, organizationId: string, headers: Headers) {
     organizationId,
     DEFAULT_GROUPS.filter((g) => g.roles.some((r) => names.includes(r))),
   );
+  await tx
+    .update(schema.organizations)
+    .set({ accessSeededAt: new Date() })
+    .where(eq(schema.organizations.id, organizationId));
+}
+
+/**
+ * When Projects' defaults were written: 9 October 2026.
+ *
+ * Not a release time, because it has to be no later than the first moment this
+ * code can run anywhere: the catch-up stamps the organization with "now", and a
+ * cutoff still in the future would find that stamp behind it and run again on
+ * every visit, putting back a policy an administrator had just deleted.
+ */
+export const PROJECTS_POLICIES_SHIPPED = new Date("2026-10-09T13:30:00Z");
+
+/**
+ * Projects' defaults, for an organization seeded before them.
+ *
+ * Two halves. The "logs time" policy arrives the way the till's did, by name,
+ * so one the business already has is left alone. Then Admins and Managers gain
+ * their `projects` grant, and Executives read on everything it was missing,
+ * but only where it cannot overwrite anybody's decision: a policy still under
+ * its seeded name, and a resource it does not mention at all. One an
+ * administrator has given or refused any access to is theirs, and a policy
+ * they renamed or deleted is not looked for.
+ *
+ * Gated on the new policy being there afterwards, which is the evidence the
+ * caller was allowed to create roles: a visitor who is not leaves the stamp
+ * where it was and changes nothing, and an administrator opening the screen
+ * still can. Then the stamp moves forward, which makes this once.
+ */
+async function catchUpProjects(
+  tx: Tx,
+  organizationId: string,
+  headers: Headers,
+) {
+  await createPolicies(organizationId, headers, DEFAULT_PROJECTS_POLICIES);
+
+  const rows = await tx
+    .select({
+      id: schema.organizationRole.id,
+      role: schema.organizationRole.role,
+      permission: schema.organizationRole.permission,
+    })
+    .from(schema.organizationRole)
+    .where(eq(schema.organizationRole.organizationId, organizationId));
+  const names = DEFAULT_PROJECTS_POLICIES.map((p) => p.name);
+  if (!rows.some((row) => names.includes(row.role))) return;
+
+  const grants: Record<string, Permissions> = {
+    admins: { projects: PROJECTS_IN_FULL },
+    managers: { projects: PROJECTS_FOR_MANAGERS },
+    executives: READS_EVERYTHING,
+  };
+  for (const row of rows) {
+    const grant = grants[row.role];
+    if (!grant) continue;
+    let permission: Permissions;
+    try {
+      permission = JSON.parse(row.permission) as Permissions;
+    } catch {
+      continue; // Not ours to repair, and not worth failing the screen over.
+    }
+    // Resource by resource: any key already there, even an empty one, is a
+    // decision somebody made and stays as they made it.
+    const missing = Object.entries(grant).filter(([r]) => !(r in permission));
+    if (missing.length === 0) continue;
+    await tx
+      .update(schema.organizationRole)
+      .set({
+        permission: JSON.stringify({
+          ...permission,
+          ...Object.fromEntries(missing),
+        }),
+      })
+      .where(eq(schema.organizationRole.id, row.id));
+  }
+
   await tx
     .update(schema.organizations)
     .set({ accessSeededAt: new Date() })

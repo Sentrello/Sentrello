@@ -94,7 +94,7 @@ What somebody can do is decided by the **policies** attached to them. A policy
 grants specific permissions on specific modules: read invoices, create
 contacts, update settings.
 
-Nine are set up for you, in two kinds, and the screen shows them as two tables.
+Thirteen are set up for you, in two kinds, and the screen shows them as two tables.
 
 The first five say **how senior somebody is**, and are given to a person
 directly:
@@ -102,10 +102,25 @@ directly:
 | Policy | Roughly |
 |---|---|
 | **Admins** | Everything, including settings and other people's access |
-| **Executives** | Everything operational; reads the money screens |
+| **Executives** | Reads every module, and changes nothing. The one thing kept back is Archive, because reading an archive means downloading a copy of old records |
 | **Managers** | Their team's work, and the customers behind it |
 | **Staff** | Day-to-day work; no settings, no books |
 | **Customers** | Signs in and sees the dashboard. Their own documents come through a link, not a login |
+
+Four more are given to a person the same way, for jobs that divide differently
+from seniority:
+
+| Policy | Roughly |
+|---|---|
+| **Till** | Rings up sales at the counter, and nothing else |
+| **Till supervisors** | Rings up sales, and cancels or refunds one — the two doors money leaves by |
+| **Till managers** | Sets the till up, and may see what the drawer is expected to hold |
+| **Logs time** | Sees the jobs in Projects and logs their own hours on them; plans nothing |
+
+In Projects, Admins hold every permission, Executives can look, and Managers
+plan the work and book anybody's hours but cannot delete a job or set its
+budget. A policy for a
+module you haven't installed grants nothing until you do.
 
 The other four say **what department somebody is in**, and are carried by a
 group rather than handed out one at a time:
@@ -125,7 +140,9 @@ own Access tab, which answers the same question about the policies it carries.
 Two more groups arrive with them — **Admins** and **Customers** — which are
 a group *and* a policy of the same name. A business puts its owners in a
 group and hands the same access to one person directly, and two things
-meaning the same would be two places to edit it. Six groups in all.
+meaning the same would be two places to edit it. A **Till** group carries the
+Till policy, because the people on a counter are a department. Seven groups in
+all.
 
 Every one of these is yours to change, copy or delete. They are data, not
 something compiled into the product.

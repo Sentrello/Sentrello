@@ -85,7 +85,12 @@ counter rather than at it. Till Managers set the till up and may see what the
 drawer is expected to hold — the one figure a blind count depends on nobody
 seeing beforehand.
 
-Twelve policies and seven groups in total, and all of it is data you can edit,
+And one for Projects: Logs Time, for whoever is on the job but not planning it.
+They see the work and fill in their own hours, and that's all. Admins already
+hold everything in Projects; Managers plan the work but can't delete a job or
+set its budget.
+
+Thirteen policies and seven groups in total, and all of it is data you can edit,
 copy or throw away.
 
 A **policy** is how senior somebody is, given to a person directly. A **group**
