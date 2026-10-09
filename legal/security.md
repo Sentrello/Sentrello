@@ -21,11 +21,12 @@ public.
 
 ## Business data stays put
 
-Never leaves the instance:
+Never sent to Sentrello:
 
 - Customer records, invoices, ledger entries — everything anybody types into the instance
 - User logs and system content
 - Everything a free instance holds, which never has to phone home in the first place
+- What you send to services you connect yourself, such as your mail provider, card processor or bank feed, goes there from your server and never through us
 
 ## SEO Cloud, if you choose it
 
@@ -33,7 +34,7 @@ The one exception, and it is stated here rather than footnoted:
 
 - Only if SEO Cloud is chosen instead of a provider account of your own
 - What is sent is the domains and keywords being researched, under the license key
-- Every other module runs entirely on the instance, with nothing leaving it
+- Every other module sends nothing to Sentrello
 
 ## What a paid instance sends
 
@@ -41,6 +42,7 @@ The hourly check:
 
 - A license key and instance id, nothing else
 - Runs once an hour, only on a paid instance
+- Opening the dashboard or the license screen also asks which version is newest, sending the license key and the processor type
 - A missing or expired result degrades that instance to Free rather than breaking it
 
 ## License checks verify offline

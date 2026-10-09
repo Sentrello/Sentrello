@@ -127,8 +127,8 @@ not a processor for us — the privacy policy says why.
 
 The volume is worth stating plainly: the personal data crossing the Atlantic
 because of Sentrello is a business contact, a billing address and a license
-record. Your customers' data does not cross anything, because it never leaves
-your server.
+record. Your customers' data crosses nothing on our account, because it never
+reaches us.
 
 ---
 
