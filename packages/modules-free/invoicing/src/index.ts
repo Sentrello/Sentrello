@@ -50,6 +50,7 @@ import {
   ensurePortalToken,
   moneyLocale,
 } from "@sentrello/db/portal";
+import { asTextOrNothing } from "@sentrello/db/request-values";
 import { asText } from "@sentrello/db/text-columns";
 import { dayFrom, demandDay } from "@sentrello/db/timezone";
 import { timezoneFor } from "@sentrello/db/timezone";
@@ -525,6 +526,7 @@ export default defineModule({
         // when the form left them alone.
         const fromSettings = await invoiceDefaultsFor(orgId);
 
+        const discount = parseDiscount(body);
         const invoice = await db.transaction(async (tx) => {
           const [inv] = await tx
             .insert(schema.invoices)
@@ -563,14 +565,8 @@ export default defineModule({
               buyerReference:
                 asText(body.buyerReference, "buyerReference").trim() || null,
               templateId: await ownedTemplateId(orgId, body.templateId),
-              discountType:
-                (body.discountType as string) === "percent" ||
-                (body.discountType as string) === "amount"
-                  ? (body.discountType as string)
-                  : null,
-              discountValue: Number.isInteger(body.discountValue)
-                ? (body.discountValue as number)
-                : 0,
+              discountType: discount?.type ?? null,
+              discountValue: discount?.value ?? 0,
               discountCents: prepared.discountCents,
               pricesIncludeTax,
               rateMicro,
@@ -1330,6 +1326,7 @@ export default defineModule({
           throw err;
         }
 
+        const discount = parseDiscount(body);
         const quote = await db.transaction(async (tx) => {
           const [q] = await tx
             .insert(schema.quotes)
@@ -1345,14 +1342,8 @@ export default defineModule({
               pricesIncludeTax,
               notes: asText(body.notes, "notes").trim() || null,
               templateId: await ownedTemplateId(orgId, body.templateId),
-              discountType:
-                (body.discountType as string) === "percent" ||
-                (body.discountType as string) === "amount"
-                  ? (body.discountType as string)
-                  : null,
-              discountValue: Number.isInteger(body.discountValue)
-                ? (body.discountValue as number)
-                : 0,
+              discountType: discount?.type ?? null,
+              discountValue: discount?.value ?? 0,
               discountCents: prepared.discountCents,
               subtotalCents: prepared.subtotalCents,
               taxCents: prepared.taxCents,
@@ -1543,9 +1534,10 @@ export default defineModule({
         const templateId = await templateChoice(orgId, body.templateId);
 
         // Same rule as creation: a reassigned customer has to be one of ours.
+        const reassignedTo = asTextOrNothing(body.contactId, "contactId");
         if (
-          typeof body.contactId === "string" &&
-          !(await ownedContact(orgId, body.contactId))
+          reassignedTo !== null &&
+          !(await ownedContact(orgId, reassignedTo))
         ) {
           return c.json({ error: "no such customer" }, 404);
         }
@@ -1565,9 +1557,7 @@ export default defineModule({
           try {
             exemptionCertificateId = await exemptionForInvoice(
               orgId,
-              typeof body.contactId === "string"
-                ? body.contactId
-                : invoice.contactId,
+              reassignedTo ?? invoice.contactId,
               body.exemptionCertificateId,
               invoice.issueDate,
             );
@@ -1637,9 +1627,7 @@ export default defineModule({
         try {
           updated = await db.transaction(async (tx) => {
             const values: Record<string, unknown> = { updatedAt: new Date() };
-            if (typeof body.contactId === "string") {
-              values.contactId = body.contactId;
-            }
+            if (reassignedTo !== null) values.contactId = reassignedTo;
             if (body.notes !== undefined) {
               values.notes = asText(body.notes, "notes").trim() || null;
             }
@@ -1891,9 +1879,10 @@ export default defineModule({
         }
 
         // Same rule as creation: a reassigned customer has to be one of ours.
+        const reassignedTo = asTextOrNothing(body.contactId, "contactId");
         if (
-          typeof body.contactId === "string" &&
-          !(await ownedContact(orgId, body.contactId))
+          reassignedTo !== null &&
+          !(await ownedContact(orgId, reassignedTo))
         ) {
           return c.json({ error: "no such customer" }, 404);
         }
@@ -1902,9 +1891,7 @@ export default defineModule({
         try {
           updated = await db.transaction(async (tx) => {
             const values: Record<string, unknown> = { updatedAt: new Date() };
-            if (typeof body.contactId === "string") {
-              values.contactId = body.contactId;
-            }
+            if (reassignedTo !== null) values.contactId = reassignedTo;
             if (body.notes !== undefined) {
               values.notes = asText(body.notes, "notes").trim() || null;
             }

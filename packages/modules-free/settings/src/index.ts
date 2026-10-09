@@ -9,7 +9,7 @@ import {
   baseCurrencyLocked,
   setBaseCurrency,
 } from "@sentrello/db/currency";
-import { asFlag } from "@sentrello/db/request-values";
+import { asFlag, asTextOrNothing } from "@sentrello/db/request-values";
 import { asText } from "@sentrello/db/text-columns";
 import { knownTimezone } from "@sentrello/db/timezone";
 import { mailConfigured } from "@sentrello/email";
@@ -533,7 +533,7 @@ export default defineModule({
       requirePermission({ settings: ["update"] }),
       async (c) => {
         const body = await c.req.json().catch(() => ({}) as { key?: string });
-        const key = typeof body.key === "string" ? body.key.trim() : "";
+        const key = asTextOrNothing(body.key, "key")?.trim() ?? "";
 
         if (!isValidLicenseKey(key.toUpperCase())) {
           // Deliberately says nothing about which part is wrong: this is the

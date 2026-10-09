@@ -6,7 +6,11 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { and, db, eq, schema } from "@sentrello/db";
-import { asChoice, asIdOrNothing } from "@sentrello/db/request-values";
+import {
+  asChoice,
+  asIdOrNothing,
+  asTextOrNothing,
+} from "@sentrello/db/request-values";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import {
   AVATAR_RULES,
@@ -72,7 +76,7 @@ export function validateTemplate(body: Record<string, unknown>): {
     layout: string;
   };
 } {
-  const name = typeof body.name === "string" ? body.name.trim() : "";
+  const name = asTextOrNothing(body.name, "name")?.trim() ?? "";
   if (!name) return { error: "give it a name" };
 
   if (body.accentColor && !validColour(body.accentColor)) {

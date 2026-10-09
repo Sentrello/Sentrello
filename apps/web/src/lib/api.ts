@@ -22,13 +22,13 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     headers: { "content-type": "application/json", ...init?.headers },
   });
   if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as {
+    const answer = (await res.json().catch(() => null)) as {
       error?: string;
     } | null;
     throw new ApiError(
       res.status,
       `${init?.method ?? "GET"} ${path} failed`,
-      typeof body?.error === "string" ? body.error : undefined,
+      typeof answer?.error === "string" ? answer.error : undefined,
     );
   }
   return (await res.json()) as T;

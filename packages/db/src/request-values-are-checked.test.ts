@@ -14,12 +14,14 @@ import { resolve } from "node:path";
 import {
   WHY_NOT_DEFAULTED,
   WHY_NOT_FLAG,
+  WHY_NOT_GUESSED,
   WHY_NOT_NUMBER,
   WHY_NOT_STRING,
   coercedFlagSites,
   coercedNumberSites,
   coercedTextSites,
   defaultedChoiceSites,
+  guessedShapeSites,
   sourcesUnder,
 } from "@sentrello/db/request-coercion-sweep";
 
@@ -118,5 +120,40 @@ test("the flag sweep sees all three spellings, and not the fix", () => {
     "src/route.ts:1",
     "src/route.ts:2",
     "src/route.ts:3",
+  ]);
+});
+
+test("and none reads a value only when it is already the right type", () => {
+  const offenders = guessedShapeSites(REPO, WHERE);
+  expect(
+    offenders,
+    `${WHY_NOT_GUESSED}:\n    ${offenders.join("\n    ")}`,
+  ).toEqual([]);
+});
+
+test("the shape sweep sees text, numbers and a run-time field, and not a refusal", () => {
+  const { mkdtempSync, writeFileSync, mkdirSync } = require("node:fs");
+  const { join } = require("node:path");
+  const { tmpdir } = require("node:os");
+  const repo = mkdtempSync(join(tmpdir(), "sweep-"));
+  mkdirSync(join(repo, "src"));
+  writeFileSync(
+    join(repo, "src", "route.ts"),
+    [
+      'const a = typeof body.email === "string" ? body.email : null;',
+      "const b = Number.isInteger(body.seats) ? body.seats : 1;",
+      "if (Number.isFinite(payload[field])) patch[field] = payload[field];",
+      'if (typeof body?.position === "number") patch.position = body.position;',
+      'if (typeof body.name !== "string") throw new Error();',
+      "if (!Number.isInteger(body.seats)) throw new Error();",
+      'const c = asTextOrNothing(body.email, "email");',
+      'const d = typeof answer.error === "string" ? answer.error : "";',
+    ].join("\n"),
+  );
+  expect(guessedShapeSites(repo, ["src"])).toEqual([
+    "src/route.ts:1",
+    "src/route.ts:2",
+    "src/route.ts:3",
+    "src/route.ts:4",
   ]);
 });

@@ -178,6 +178,48 @@ export function asIdOrNothing(value: unknown, field: string): string | null {
   );
 }
 
+/**
+ * Text, or nothing (absent or null), or a refusal naming the field.
+ *
+ * `typeof body.x === "string" ? body.x : null` reads like a check and is a
+ * default: `{}`, `[]` and `5` all become "nothing", and on an edit nothing is
+ * what gets stored — a contact's email sent as a list cleared the email and
+ * answered 200. A string is the only text; anything else that is present is
+ * refused, so a route keeps its own rule for what an empty string means.
+ */
+export function asTextOrNothing(value: unknown, field: string): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value === "string") return value;
+  throw new RequestFieldError(
+    field,
+    `${field} has to be text, and what arrived was ${describe(value)}.`,
+  );
+}
+
+/**
+ * A whole number, or nothing (absent, null or ""), or a refusal naming the
+ * field. `Number.isInteger(body.x) ? body.x : 1` is the numeric default:
+ * "three" and `[3]` became 1 and the caller was told it worked. Write
+ * `asWholeNumberOrNothing(body.x, "x") ?? 1` and keep the default for the
+ * case it was meant for.
+ */
+export function asWholeNumberOrNothing(
+  value: unknown,
+  field: string,
+): number | null {
+  if (value === undefined || value === null || value === "") return null;
+  return asWholeNumber(value, field);
+}
+
+/** The same for a number that may have a fractional part. */
+export function asNumberOrNothing(
+  value: unknown,
+  field: string,
+): number | null {
+  if (value === undefined || value === null || value === "") return null;
+  return asNumber(value, field);
+}
+
 /** What the caller sent, said in words rather than printed back at them. */
 function describe(value: unknown): string {
   if (Array.isArray(value)) return "a list";

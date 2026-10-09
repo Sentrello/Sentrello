@@ -123,14 +123,14 @@ export function identifyPaymentEvent(raw: string): {
   eventType: string;
 } {
   try {
-    const body = JSON.parse(raw) as Record<string, unknown>;
+    const event = JSON.parse(raw) as Record<string, unknown>;
     return {
-      eventId: typeof body.id === "string" ? body.id : "",
+      eventId: typeof event.id === "string" ? event.id : "",
       eventType:
-        typeof body.type === "string"
-          ? body.type
-          : typeof body.event_type === "string"
-            ? body.event_type
+        typeof event.type === "string"
+          ? event.type
+          : typeof event.event_type === "string"
+            ? event.event_type
             : "",
     };
   } catch {

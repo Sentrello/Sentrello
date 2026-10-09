@@ -9,7 +9,9 @@ import {
   asChoice,
   asFlag,
   asIdOrNothing,
+  asTextOrNothing,
   asWholeNumber,
+  asWholeNumberOrNothing,
 } from "@sentrello/db/request-values";
 import { asText, checkedText, notText } from "@sentrello/db/text-columns";
 import type { ModuleContext } from "@sentrello/module-sdk";
@@ -532,9 +534,8 @@ export function registerCatalogue(ctx: ModuleContext) {
       >;
 
       const patch: Record<string, unknown> = {};
-      if (typeof body.name === "string" && body.name.trim()) {
-        patch.name = body.name.trim();
-      }
+      const name = asTextOrNothing(body.name, "name")?.trim();
+      if (name) patch.name = name;
       if (body.description !== undefined) {
         patch.description =
           asText(body.description, "description").trim() || null;
@@ -554,9 +555,8 @@ export function registerCatalogue(ctx: ModuleContext) {
         }
         patch.unitPriceCents = body.unitPriceCents;
       }
-      if (typeof body.unit === "string" && body.unit.trim()) {
-        patch.unit = body.unit.trim();
-      }
+      const unit = asTextOrNothing(body.unit, "unit")?.trim();
+      if (unit) patch.unit = unit;
       if (body.kind !== undefined) {
         patch.kind = asChoice(body.kind, "kind", ["product", "service"]);
       }
@@ -820,18 +820,14 @@ export function registerBillingRules(ctx: ModuleContext) {
       >;
 
       const patch: Record<string, unknown> = {};
-      if (typeof body.name === "string" && body.name.trim()) {
-        patch.name = body.name.trim();
-      }
-      if (typeof body.subject === "string" && body.subject.trim()) {
-        patch.subject = body.subject.trim();
-      }
-      if (typeof body.body === "string" && body.body.trim()) {
-        patch.body = body.body.trim();
-      }
-      if (Number.isInteger(body.daysOffset)) {
-        patch.daysOffset = body.daysOffset;
-      }
+      const name = asTextOrNothing(body.name, "name")?.trim();
+      if (name) patch.name = name;
+      const subject = asTextOrNothing(body.subject, "subject")?.trim();
+      if (subject) patch.subject = subject;
+      const text = asTextOrNothing(body.body, "body")?.trim();
+      if (text) patch.body = text;
+      const daysOffset = asWholeNumberOrNothing(body.daysOffset, "daysOffset");
+      if (daysOffset !== null) patch.daysOffset = daysOffset;
       if (body.active !== undefined)
         patch.active = asFlag(body.active, "active");
 

@@ -6,6 +6,7 @@ import {
 import { and, asc, db, eq, schema } from "@sentrello/db";
 import { dayIn, dayLabel } from "@sentrello/db/day";
 import type { PaymentAccount } from "@sentrello/db/payments";
+import { asTextOrNothing } from "@sentrello/db/request-values";
 import { timezoneFor } from "@sentrello/db/timezone";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import {
@@ -269,13 +270,10 @@ export function registerPaymentAccounts(ctx: ModuleContext) {
       const existing = await accountFor(orgId, provider, mode);
 
       const secretKey =
-        typeof body.secretKey === "string" && body.secretKey.trim()
-          ? body.secretKey.trim()
-          : null;
+        asTextOrNothing(body.secretKey, "secretKey")?.trim() || null;
       const webhookSecret =
-        typeof body.webhookSecret === "string" && body.webhookSecret.trim()
-          ? body.webhookSecret.trim()
-          : null;
+        asTextOrNothing(body.webhookSecret, "webhookSecret")?.trim() || null;
+      const publicKey = asTextOrNothing(body.publicKey, "publicKey");
       /*
        * `null` clears it; blank leaves it alone.
        *
@@ -293,8 +291,8 @@ export function registerPaymentAccounts(ctx: ModuleContext) {
         provider,
         mode,
         publicKey:
-          typeof body.publicKey === "string"
-            ? body.publicKey.trim() || null
+          publicKey !== null
+            ? publicKey.trim() || null
             : (existing?.publicKey ?? null),
         secretKey: secretKey
           ? secrets.seal(secretKey)

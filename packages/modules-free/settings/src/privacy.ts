@@ -5,6 +5,7 @@ import {
 } from "@sentrello/auth/hono";
 import { db, desc, eq, schema } from "@sentrello/db";
 import { businessIdentity } from "@sentrello/db/portal";
+import { asTextOrNothing } from "@sentrello/db/request-values";
 import { record as recordSecurityEvent } from "@sentrello/db/security-events";
 import type {
   DataSubject,
@@ -41,10 +42,10 @@ import { personalDataSources, retentionText } from "@sentrello/module-sdk";
  */
 export function registerPrivacy(ctx: ModuleContext) {
   const subjectFrom = (body: Record<string, unknown>): DataSubject => ({
-    email: typeof body.email === "string" ? body.email.trim() : undefined,
-    phone: typeof body.phone === "string" ? body.phone.trim() : undefined,
-    address: typeof body.address === "string" ? body.address.trim() : undefined,
-    id: typeof body.subjectId === "string" ? body.subjectId : undefined,
+    email: asTextOrNothing(body.email, "email")?.trim(),
+    phone: asTextOrNothing(body.phone, "phone")?.trim(),
+    address: asTextOrNothing(body.address, "address")?.trim(),
+    id: asTextOrNothing(body.subjectId, "subjectId") ?? undefined,
   });
 
   const named = (subject: DataSubject) =>
@@ -210,7 +211,7 @@ export function registerPrivacy(ctx: ModuleContext) {
        * the business write down how they checked is the cheapest control there
        * is, and it is the thing a regulator asks for afterwards.
        */
-      const note = typeof body.note === "string" ? body.note.trim() : "";
+      const note = asTextOrNothing(body.note, "note")?.trim() ?? "";
       if (!note) {
         return c.json(
           { error: "say how you checked this is really them" },

@@ -2,8 +2,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, eq, schema } from "@sentrello/db";
-import type { SentrelloEnv } from "@sentrello/module-sdk";
-import { Hono } from "hono";
+import { registerForTest } from "@sentrello/module-sdk";
 import crm from "./index";
 
 /**
@@ -17,29 +16,16 @@ import crm from "./index";
  *
  * Scoped to this wrapper on purpose. The same violation elsewhere could be
  * our own bug, which is why it is not answered globally.
+ *
+ * Through `registerForTest`, so a field refused by name before the write is
+ * answered 400 as the host answers it, rather than the bare app's 500.
  */
 const suffix = crypto.randomUUID().slice(0, 8);
-const app = new Hono<SentrelloEnv>();
+const app = registerForTest(crm);
 let orgId: string;
 let headers: Headers;
 
 beforeAll(async () => {
-  crm.register({
-    app,
-    entitled: () => true,
-    registerNav: () => {},
-    registerPermission: () => {},
-    registerSummary: () => {},
-    registerWidget: () => {},
-    registerAccountSection: () => {},
-    registerSearch: () => {},
-    registerPersonalData: () => {},
-    registerOnboarding: () => {},
-    registerCrawlable: () => {},
-    provide: () => {},
-    registerJob: () => {},
-  } as never);
-
   const signUp = await signUpAsOwner({
     email: `refused-${suffix}@example.test`,
     password: "correct-horse-battery-staple",

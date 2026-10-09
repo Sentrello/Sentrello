@@ -57,9 +57,9 @@ export function useRecordSearch<T extends PickableRecord>(
     queryFn: () =>
       api<Record<string, T[] | number>>(
         `${path}?q=${encodeURIComponent(settled)}&perPage=${PAGE}&page=1&sort=name&order=asc`,
-      ).then((body) => ({
-        rows: (body[resource] as T[]) ?? [],
-        total: typeof body.total === "number" ? body.total : 0,
+      ).then((answer) => ({
+        rows: (answer[resource] as T[]) ?? [],
+        total: typeof answer.total === "number" ? answer.total : 0,
       })),
   });
 }

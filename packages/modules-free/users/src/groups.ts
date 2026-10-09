@@ -5,6 +5,7 @@ import {
 } from "@sentrello/auth/hono";
 import { and, asc, db, eq, schema } from "@sentrello/db";
 import { organizationMember } from "@sentrello/db/membership";
+import { asTextOrNothing } from "@sentrello/db/request-values";
 import { record } from "@sentrello/db/security-events";
 import { asText, checkedText, notText } from "@sentrello/db/text-columns";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
@@ -235,9 +236,8 @@ export function registerGroups(ctx: ModuleContext) {
       >;
       const patch: Record<string, unknown> = {};
 
-      if (typeof body.name === "string" && body.name.trim()) {
-        patch.name = body.name.trim().slice(0, 60);
-      }
+      const name = asTextOrNothing(body.name, "name")?.trim();
+      if (name) patch.name = name.slice(0, 60);
       if (body.description !== undefined) {
         patch.description =
           asText(body.description, "description").trim() || null;

@@ -29,7 +29,11 @@ import {
 import { organizationMember } from "@sentrello/db/membership";
 import { sumCents } from "@sentrello/db/money";
 import { recordChanged } from "@sentrello/db/record-events";
-import { RequestFieldError } from "@sentrello/db/request-values";
+import {
+  RequestFieldError,
+  asNumberOrNothing,
+  asTextOrNothing,
+} from "@sentrello/db/request-values";
 import { asText, checkedText, notText } from "@sentrello/db/text-columns";
 import { timezoneFor } from "@sentrello/db/timezone";
 import { dateFrom, dayFrom, demandDate } from "@sentrello/db/timezone";
@@ -728,7 +732,10 @@ function crud<T extends keyof typeof tables>(
        * Ignoring it would be the quiet kind of wrong: the request looks
        * protected, the answer is 200, and the protection was never there.
        */
-      if (!keepsVersion && typeof body.expectedUpdatedAt === "string") {
+      if (
+        !keepsVersion &&
+        asTextOrNothing(body.expectedUpdatedAt, "expectedUpdatedAt") !== null
+      ) {
         return c.json(
           {
             error: `A ${singular} does not keep a modification time, so a save cannot be checked against one.`,
@@ -2147,14 +2154,18 @@ async function customColumns(
 }
 
 export function displayName(body: Record<string, unknown>): string | undefined {
-  const first = typeof body.firstName === "string" ? body.firstName.trim() : "";
-  const last = typeof body.lastName === "string" ? body.lastName.trim() : "";
+  // `asText`, as the generic CRUD writes these columns: a number is the name
+  // somebody meant, and an object or a list is refused by name.
+  const first = asText(body.firstName, "firstName").trim();
+  const last = asText(body.lastName, "lastName").trim();
   const joined = [first, last].filter(Boolean).join(" ");
   if (joined) return joined;
   // Neither name given: leave whatever `name` was sent alone, so a contact
   // recorded as a single string — which is most of them, historically — is not
   // wiped by an edit that never mentioned it.
-  return typeof body.name === "string" ? body.name : undefined;
+  return body.name === undefined || body.name === null
+    ? undefined
+    : asText(body.name, "name");
 }
 
 /**
@@ -2559,11 +2570,10 @@ function registerCrmScreens(
         position?: number;
       };
 
-      const stage = typeof body.stage === "string" ? body.stage : undefined;
+      const stage = asTextOrNothing(body.stage, "stage") || undefined;
+      const asked = asNumberOrNothing(body.position, "position");
       const position =
-        typeof body.position === "number" && Number.isFinite(body.position)
-          ? Math.max(0, Math.trunc(body.position))
-          : undefined;
+        asked === null ? undefined : Math.max(0, Math.trunc(asked));
       if (!stage && position === undefined) {
         return c.json({ error: "a stage or a position is required" }, 400);
       }

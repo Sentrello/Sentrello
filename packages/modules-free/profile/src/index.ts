@@ -1,6 +1,7 @@
 import { auth } from "@sentrello/auth";
 import { activeOrganizationId, requireSession } from "@sentrello/auth/hono";
 import { db, schema } from "@sentrello/db";
+import { asTextOrNothing } from "@sentrello/db/request-values";
 import { asText } from "@sentrello/db/text-columns";
 import { NO_MAIL_SERVER, mailConfigured } from "@sentrello/email";
 import { defineModule, rateLimit } from "@sentrello/module-sdk";
@@ -134,10 +135,11 @@ export default defineModule({
         preferences?: unknown;
       };
 
-      if (typeof body.name === "string" && body.name.trim()) {
+      const name = asTextOrNothing(body.name, "name")?.trim();
+      if (name) {
         await db
           .update(schema.user)
-          .set({ name: body.name.trim().slice(0, 100) })
+          .set({ name: name.slice(0, 100) })
           .where(eq(schema.user.id, session.user.id));
       }
 

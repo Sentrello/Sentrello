@@ -6,6 +6,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { db, schema } from "@sentrello/db";
+import { asTextOrNothing } from "@sentrello/db/request-values";
 import { record } from "@sentrello/db/security-events";
 import { asText } from "@sentrello/db/text-columns";
 import {
@@ -299,7 +300,7 @@ export function registerInvitations(ctx: ModuleContext) {
       name?: unknown;
       password?: unknown;
     };
-    const password = typeof body.password === "string" ? body.password : "";
+    const password = asTextOrNothing(body.password, "password") ?? "";
     const name = asText(body.name, "name").trim();
 
     // A session as the invited address, however they can honestly get one.

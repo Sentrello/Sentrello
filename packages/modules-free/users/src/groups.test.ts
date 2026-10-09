@@ -692,3 +692,22 @@ test("somebody taken off the instance leaves their groups behind", async () => {
   });
   expect(await listed.text()).not.toContain(staffId);
 });
+
+test("a group's name sent as a list is refused, and the rest of the edit with it", async () => {
+  const group = await makeGroup(`Typed ${suffix}`, []);
+  const res = await app.request(`http://localhost/api/users/groups/${group}`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify({ name: ["Other"], description: "changed" }),
+  });
+  expect(res.status).toBe(400);
+  const [row] = await db
+    .select({
+      name: schema.userGroups.name,
+      description: schema.userGroups.description,
+    })
+    .from(schema.userGroups)
+    .where(eq(schema.userGroups.id, group));
+  expect(row?.name).toBe(`Typed ${suffix}`);
+  expect(row?.description).toBeNull();
+});

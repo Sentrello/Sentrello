@@ -10,7 +10,7 @@ import {
   restoreArchive,
   retentionYears,
 } from "@sentrello/db/archive";
-import { asFlag } from "@sentrello/db/request-values";
+import { asFlag, asTextOrNothing } from "@sentrello/db/request-values";
 import {
   type RouteContext,
   allowLongRequest,
@@ -228,7 +228,7 @@ export default defineModule({
         allowLongRequest(c, 255);
         const plan = await planArchive(
           orgId,
-          typeof body.set === "string" ? body.set : "",
+          asTextOrNothing(body.set, "set") ?? "",
           period.from,
           period.to,
         );
@@ -424,7 +424,7 @@ export default defineModule({
           string,
           unknown
         >;
-        const id = typeof body.id === "string" ? body.id : "";
+        const id = asTextOrNothing(body.id, "id") ?? "";
         const values = (body.values ?? {}) as Record<string, string>;
         try {
           await saveDestination(orgId, id, values);
@@ -452,9 +452,7 @@ export default defineModule({
           unknown
         >;
         const id =
-          typeof body.id === "string"
-            ? body.id
-            : (await destinationFor(orgId)).id;
+          asTextOrNothing(body.id, "id") ?? (await destinationFor(orgId)).id;
         const destination = archiveDestination(id);
         if (!destination)
           return c.json({

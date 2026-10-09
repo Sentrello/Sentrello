@@ -14,7 +14,10 @@ import {
   asFlag,
   asIdOrNothing,
   asNumber,
+  asNumberOrNothing,
+  asTextOrNothing,
   asWholeNumber,
+  asWholeNumberOrNothing,
 } from "./request-values";
 
 test("a list is not a number, however well it coerces", () => {
@@ -102,6 +105,36 @@ test("an id is an id, nothing is null, and anything else is refused", () => {
   expect(asIdOrNothing("", "categoryId")).toBeNull();
   for (const nonsense of [{}, [], [id], "shoes", 7]) {
     expect(() => asIdOrNothing(nonsense, "categoryId")).toThrow(
+      RequestFieldError,
+    );
+  }
+});
+
+test("text is a string, nothing is null, and anything else is refused, not emptied", () => {
+  expect(asTextOrNothing("Ada", "name")).toBe("Ada");
+  expect(asTextOrNothing("", "name")).toBe("");
+  expect(asTextOrNothing(undefined, "name")).toBeNull();
+  expect(asTextOrNothing(null, "name")).toBeNull();
+  for (const nonsense of [{}, [], ["Ada"], 7, true]) {
+    expect(() => asTextOrNothing(nonsense, "name")).toThrow(RequestFieldError);
+  }
+});
+
+test("a number or nothing: absent is null, a wrong shape is refused, not defaulted", () => {
+  expect(asWholeNumberOrNothing(3, "seats")).toBe(3);
+  expect(asWholeNumberOrNothing("3", "seats")).toBe(3);
+  expect(asWholeNumberOrNothing(undefined, "seats")).toBeNull();
+  expect(asWholeNumberOrNothing(null, "seats")).toBeNull();
+  expect(asWholeNumberOrNothing("", "seats")).toBeNull();
+  expect(asNumberOrNothing(1.5, "position")).toBe(1.5);
+  expect(asNumberOrNothing(undefined, "position")).toBeNull();
+  for (const nonsense of [{}, [], [3], "three", true, 1.5]) {
+    expect(() => asWholeNumberOrNothing(nonsense, "seats")).toThrow(
+      RequestFieldError,
+    );
+  }
+  for (const nonsense of [{}, [2], "two", Number.NaN]) {
+    expect(() => asNumberOrNothing(nonsense, "position")).toThrow(
       RequestFieldError,
     );
   }

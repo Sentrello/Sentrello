@@ -6,7 +6,7 @@ import {
 import { forgetPasswordFloor } from "@sentrello/auth/password-floor";
 import { and, db, eq, schema } from "@sentrello/db";
 import { policyFor } from "@sentrello/db/lockout";
-import { asFlag } from "@sentrello/db/request-values";
+import { asFlag, asWholeNumberOrNothing } from "@sentrello/db/request-values";
 import {
   forgetSessionLength,
   forgetTwoFactorPolicy,
@@ -146,9 +146,14 @@ export function registerAuthentication(ctx: ModuleContext) {
        * make decisions from. Twelve is also what 800-63B asks of a memorised
        * secret standing on its own, which is not a business's to waive.
        */
-      const minPasswordLength = Number.isInteger(body.minPasswordLength)
-        ? Math.min(Math.max(body.minPasswordLength as number, 12), 72)
-        : current.minPasswordLength;
+      const askedLength = asWholeNumberOrNothing(
+        body.minPasswordLength,
+        "minPasswordLength",
+      );
+      const minPasswordLength =
+        askedLength === null
+          ? current.minPasswordLength
+          : Math.min(Math.max(askedLength, 12), 72);
 
       /*
        * Thirty days at the top, not a year.
@@ -159,12 +164,13 @@ export function registerAuthentication(ctx: ModuleContext) {
        * which is the mistake this whole setting was an instance of. Null
        * still means "leave it alone", and the default is thirty minutes.
        */
+      const askedDays = asWholeNumberOrNothing(body.sessionDays, "sessionDays");
       const sessionDays =
         body.sessionDays === null
           ? null
-          : Number.isInteger(body.sessionDays)
-            ? Math.min(Math.max(body.sessionDays as number, 1), 30)
-            : current.sessionDays;
+          : askedDays === null
+            ? current.sessionDays
+            : Math.min(Math.max(askedDays, 1), 30);
 
       /**
        * Bounded at both ends, like `minPasswordLength` and `sessionDays`

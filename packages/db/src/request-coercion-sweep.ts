@@ -143,3 +143,24 @@ export function coercedFlagSites(repo: string, where: string[]): string[] {
 
 export const WHY_NOT_FLAG =
   'these read true or false by comparing or coercing, so {}, "yes" and [true] are quietly one or the other and the caller is told it worked — use asFlag(body.x, "x", fallback) from @sentrello/db/request-values';
+
+/*
+ * A value read only when it is already the right type, and everything else
+ * quietly becoming nothing or a default. `typeof body.email === "string" ?
+ * body.email : null` turns `{}` into null, and on an edit null is what gets
+ * stored; `Number.isInteger(body.seats) ? body.seats : 1` turns "three" into
+ * one; `if (typeof body.name === "string") patch.name = body.name` keeps the
+ * old name and answers 200. All three tell the caller it worked. The negated
+ * spellings, `typeof body.x !== "string"` and `!Number.isInteger(body.x)`, are
+ * refusals and pass.
+ */
+const SHAPE_GUESSED =
+  /(?<![A-Za-z])typeof (body|payload)\??(\.[A-Za-z_]\w*|\[[^\]]+\])\s*===\s*"(string|number)"|(?<!!\s*)Number\.is(Integer|SafeInteger|Finite)\(\s*(body|payload)\??(\.[A-Za-z_]|\[)/;
+
+/** Each `file:line` that turns a wrongly typed request value into nothing or a default. */
+export function guessedShapeSites(repo: string, where: string[]): string[] {
+  return sitesMatching(repo, where, SHAPE_GUESSED);
+}
+
+export const WHY_NOT_GUESSED =
+  'these read a request value only when it is already the right type, so {}, [] or "three" quietly become nothing or a default — on an edit that wipes what was stored — and the caller is told it worked; use asTextOrNothing, asIdOrNothing, asWholeNumberOrNothing or asNumberOrNothing from @sentrello/db/request-values, which keep absent as absent and refuse a wrong type with a 400 naming the field';

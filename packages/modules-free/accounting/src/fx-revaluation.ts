@@ -28,6 +28,7 @@ import {
   postJournalEntry,
 } from "@sentrello/db/ledger";
 import { sumCents } from "@sentrello/db/money";
+import { asTextOrNothing } from "@sentrello/db/request-values";
 import { dayFrom, momentAt, timezoneFor } from "@sentrello/db/timezone";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 
@@ -441,9 +442,7 @@ export function registerFxRevaluation(ctx: ModuleContext) {
       const body = (await c.req.json().catch(() => ({}))) as {
         asOf?: unknown;
       };
-      const asOf = endOfDay(
-        typeof body.asOf === "string" ? body.asOf : undefined,
-      );
+      const asOf = endOfDay(asTextOrNothing(body.asOf, "asOf") ?? undefined);
       if (!asOf) return c.json({ error: "unreadable date" }, 400);
 
       /*

@@ -115,3 +115,89 @@ test("the invoicing settings refuse a word or a number of the wrong kind", async
     expect(res.status, JSON.stringify(wrong)).toBe(400);
   }
 });
+
+/**
+ * A field of the wrong type is refused by name, and what was stored stays.
+ *
+ * Each of these read the field only when it was already the right type, so a
+ * list or an object where a name, a number of days or a customer belonged was
+ * quietly skipped: nothing changed, and the answer was 200.
+ */
+test("an edit with a wrongly typed field is refused, not quietly skipped", async () => {
+  const item = (await (
+    await app.request("http://localhost/api/invoicing/items", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ name: `Typed ${suffix}`, unitPriceCents: 500 }),
+    })
+  ).json()) as { item: { id: string } };
+  const renamed = await app.request(
+    `http://localhost/api/invoicing/items/${item.item.id}`,
+    {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ name: ["Other"], sku: "X1" }),
+    },
+  );
+  expect(renamed.status).toBe(400);
+  expect(((await renamed.json()) as { error: string }).error).toContain("name");
+  const [kept] = await db
+    .select({ name: schema.billableItems.name })
+    .from(schema.billableItems)
+    .where(eq(schema.billableItems.id, item.item.id));
+  expect(kept?.name).toBe(`Typed ${suffix}`);
+
+  const rule = (await (
+    await app.request("http://localhost/api/invoicing/reminders", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        name: "Nudge",
+        subject: "A reminder",
+        body: "It is due",
+        daysOffset: 3,
+      }),
+    })
+  ).json()) as { rule: { id: string } };
+  const moved = await app.request(
+    `http://localhost/api/invoicing/reminders/${rule.rule.id}`,
+    {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ daysOffset: "three", name: "Renamed" }),
+    },
+  );
+  expect(moved.status).toBe(400);
+  const [still] = await db
+    .select({ daysOffset: schema.reminderRules.daysOffset })
+    .from(schema.reminderRules)
+    .where(eq(schema.reminderRules.id, rule.rule.id));
+  expect(still?.daysOffset).toBe(3);
+
+  const quote = (await (
+    await app.request("http://localhost/api/quotes", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        contactId,
+        lines: [
+          { description: "Typed", quantityMilli: 1000, unitPriceCents: 100 },
+        ],
+      }),
+    })
+  ).json()) as { quote: { id: string } };
+  const reassigned = await app.request(
+    `http://localhost/api/quotes/${quote.quote.id}`,
+    {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ contactId: {}, notes: "Moved" }),
+    },
+  );
+  expect(reassigned.status).toBe(400);
+  const [same] = await db
+    .select({ contactId: schema.quotes.contactId })
+    .from(schema.quotes)
+    .where(eq(schema.quotes.id, quote.quote.id));
+  expect(same?.contactId).toBe(contactId);
+});

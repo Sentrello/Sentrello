@@ -10,6 +10,7 @@ import { invoiceDefaultsFor } from "@sentrello/db/documents";
 import { ownedContact } from "@sentrello/db/ledger";
 import { MoneyError } from "@sentrello/db/money";
 import { nextDocumentNumber } from "@sentrello/db/numbering";
+import { asTextOrNothing } from "@sentrello/db/request-values";
 import { timezoneFor } from "@sentrello/db/timezone";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import {
@@ -130,17 +131,11 @@ export function registerConsolidate(ctx: ModuleContext) {
       }
       // The sources are already this organisation's; a customer named in the
       // body has to be too, or the merged invoice would go to a stranger.
-      if (
-        typeof body.contactId === "string" &&
-        body.contactId &&
-        !(await ownedContact(orgId, body.contactId))
-      ) {
+      const asked = asTextOrNothing(body.contactId, "contactId") || null;
+      if (asked && !(await ownedContact(orgId, asked))) {
         return c.json({ error: "no such customer" }, 404);
       }
-      const contactId =
-        (typeof body.contactId === "string" ? body.contactId : null) ??
-        sources[0]?.contactId ??
-        null;
+      const contactId = asked ?? sources[0]?.contactId ?? null;
 
       /**
        * In the order they were raised, so the merged document reads
@@ -235,6 +230,7 @@ export function registerConsolidate(ctx: ModuleContext) {
 
       const fromSettings = await invoiceDefaultsFor(orgId);
 
+      const discount = parseDiscount(body);
       const merged = await db.transaction(async (tx) => {
         const [invoice] = await tx
           .insert(schema.invoices)
@@ -250,14 +246,8 @@ export function registerConsolidate(ctx: ModuleContext) {
             issueDate: dayIn(new Date(), zone),
             dueDate: fromSettings.dueDate,
             paymentTerms: fromSettings.paymentTerms,
-            discountType:
-              (body.discountType as string) === "percent" ||
-              (body.discountType as string) === "amount"
-                ? (body.discountType as string)
-                : null,
-            discountValue: Number.isInteger(body.discountValue)
-              ? (body.discountValue as number)
-              : 0,
+            discountType: discount?.type ?? null,
+            discountValue: discount?.value ?? 0,
             discountCents: prepared.discountCents,
             subtotalCents: prepared.subtotalCents,
             taxCents: prepared.taxCents,
