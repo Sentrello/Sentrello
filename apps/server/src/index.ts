@@ -63,6 +63,37 @@ import {
 } from "./optional-modules";
 import { serveWeb } from "./static";
 
+/**
+ * Stopping when asked.
+ *
+ * The container runs this process as PID 1, and Linux delivers no signal to
+ * PID 1 that the process has not asked for. Nothing asked, so a `stop`, an
+ * update or a restart sent SIGTERM, heard nothing back for ten seconds, and
+ * then killed the server outright, a job half way through with it: every
+ * update on every install took ten seconds longer than it needed to and ended
+ * in SIGKILL. Now the queue is given a few seconds to let a running job finish
+ * and the process leaves on its own, inside the engine's ten.
+ *
+ * Before anything else boots. Resolving the licence and migrating the modules'
+ * tables take seconds, and a stop that arrived in them was still ignored and
+ * ended in the same kill, mid-migration; the demo's reset, which restarts and
+ * stops again soon after, hit it every time.
+ */
+let queue: Awaited<ReturnType<typeof startJobs>> | undefined;
+if (import.meta.main) {
+  let stopping = false;
+  const stop = async () => {
+    if (stopping) return;
+    stopping = true;
+    await queue
+      ?.stop({ graceful: true, timeout: 7000, wait: true })
+      .catch(() => {});
+    process.exit(0);
+  };
+  process.on("SIGTERM", stop);
+  process.on("SIGINT", stop);
+}
+
 const app = new Hono<SentrelloEnv>();
 
 /**
@@ -1115,32 +1146,6 @@ serveWeb(app);
  */
 const jobsEnabled =
   (process.env.SENTRELLO_JOBS ?? "on").toLowerCase() !== "off";
-
-/**
- * Stopping when asked.
- *
- * The container runs this process as PID 1, and Linux delivers no signal to
- * PID 1 that the process has not asked for. Nothing asked, so a `stop`, an
- * update or a restart sent SIGTERM, heard nothing back for ten seconds, and
- * then killed the server outright, a job half way through with it: every
- * update on every install took ten seconds longer than it needed to and ended
- * in SIGKILL. Now the queue is given a few seconds to let a running job finish
- * and the process leaves on its own, inside the engine's ten.
- */
-let queue: Awaited<ReturnType<typeof startJobs>> | undefined;
-if (import.meta.main) {
-  let stopping = false;
-  const stop = async () => {
-    if (stopping) return;
-    stopping = true;
-    await queue
-      ?.stop({ graceful: true, timeout: 7000, wait: true })
-      .catch(() => {});
-    process.exit(0);
-  };
-  process.on("SIGTERM", stop);
-  process.on("SIGINT", stop);
-}
 
 // Jobs run only in the real server process, never when a test imports this file.
 if (import.meta.main && jobsEnabled) {
