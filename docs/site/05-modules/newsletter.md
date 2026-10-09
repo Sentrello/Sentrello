@@ -53,27 +53,32 @@ spreadsheet, export them in full whenever you like.
 
 **An import does not resubscribe somebody who asked to stop.** An import is the
 business speaking. A subscribe form is the person speaking, and only the second
-of those undoes an unsubscribe.
+of those undoes an unsubscribe. Even then they aren't back on the list until
+they've clicked the confirmation we email them, because anybody can type
+somebody else's address into a form.
 
 ## Signup forms
 
-The usual way anybody joins a mailing list is a form on your own website. Build
-one, choose the lists a signup joins, paste the snippet into any page, even a
-page on a site that has nothing else to do with Sentrello.
+The usual way anybody joins a mailing list is a form on your own website. Pick
+the lists a signup joins, copy the snippet, paste it into any page, even a
+page on a site that has nothing else to do with Sentrello. Only public lists
+can go on a form; a private one is yours to fill.
 
-A form asks for an email address, and for a name if you want one — that is a
-setting per list, and a one-field form is the one people finish. Tick several
+A form asks for an email address, and for a name if you want one. That's a
+setting on each list, and on a form that joins several. A one-field form is
+the one people finish. Tick several
 lists and you get one form that joins all of them. Lists set to
 double opt-in still send their confirmation email, so a signup here joins on
 exactly the terms the list already has.
 
-**A signup can also become a CRM contact**, per form, and it stays off unless
-you turn it on. Whether that is worth turning on depends on what the form asks
-for. An address on its own makes a contact with no name against it, which is a
-record somebody has to tidy later; an address and a name makes one worth
-keeping. The builder tells you which of the two you have, and a list that
-feeds the CRM asks for a name whatever else you have set. It needs the CRM
-installed, and without it the switch does nothing.
+**A signup can also become a CRM contact.** That's a switch on the list rather
+than the form, and it stays off unless you turn it on. Whether it's worth
+turning on depends on what the form asks for. An address on its own makes a
+contact with no name against it, which is a record somebody has to tidy later;
+an address and a name makes one worth keeping. The Forms screen tells you which
+of the two you have, and a list that feeds the CRM asks for a name whatever
+else you have set. It needs the CRM installed, and without it the switch does
+nothing.
 
 ## Campaigns
 

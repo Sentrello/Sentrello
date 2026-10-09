@@ -62,8 +62,10 @@ profit figure that means something and one that is just your takings. See
 
 ## The storefront
 
-A public shop, listing pages and product pages, working on a phone. It takes
-your business's name, logo and details from Settings.
+A public shop, listing pages and product pages, working on a phone. The name
+across the top is the one you give the shop in **Shop → Settings**, or your
+business's own name if you leave that blank. Prices are written the way your
+country writes them.
 
 ## Orders
 
@@ -147,6 +149,7 @@ out of the software rather than out of a spreadsheet.
 So Cash matches the bank. A card sale of $100.00 puts about $96.80 in your
 account, and that is what the books say — with the $3.20 in **Payment
 Processing Fees** — rather than $100.00 and a gap for you to reconcile by hand.
-Where a processor has not reported its fee yet, the sale posts without one.
-Nothing is guessed.
+Card processors often report the fee a little after the payment itself. When
+that happens the sale posts without one, and the shop asks again every hour for
+the next week, moving the fee out of Cash once it is known. Nothing is guessed.
 :::

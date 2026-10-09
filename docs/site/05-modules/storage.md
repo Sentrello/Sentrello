@@ -35,8 +35,9 @@ flowchart LR
 
 ## Folders and files
 
-A normal folder tree. Upload anything. Whatever the browser can preview, it
-previews, so you are not downloading a file to find out what it is.
+A normal folder tree. Upload anything up to 100 MB a file. Images, PDFs,
+audio, video and plain text open in place, so you are not downloading a file to
+find out what it is, and a text file can be edited right there.
 
 Folders are how you find things again, not how you keep them apart: anybody
 with access to Storage can open every file in it. Access is granted once, for
@@ -45,16 +46,18 @@ the whole module, on the person's role.
 A file can also say **which customer it is about**, picked from your CRM on the
 way in or added afterwards — most filing happens later, when somebody goes
 looking for the contract rather than on the day it was signed. The row then
-reads "For Ridgeline Roofing", and an erasure request for that customer reaches
-the file with it.
+reads "For Ridgeline Roofing". An erasure request for that customer finds the
+file and lists it by name: the link to the person goes, and the file stays,
+because a signed contract is often one you're required to keep. Which of them
+to delete is your call.
 
 ## Expiry
 
 This is the point of the module.
 
 Give a file an **expiry date** and a category: insurance, certificate, license,
-contract. Anything approaching its date appears on the dashboard. Anything past
-it appears in red — and a certificate expiring *today* is still good today, in
+contract. The dashboard counts what expires within a month and what has
+already lapsed, and in Storage itself a lapsed file reads in red — and a certificate expiring *today* is still good today, in
 your own timezone, so it reads as expiring rather than expired.
 
 **And you are emailed about it**, which matters more than either, because the

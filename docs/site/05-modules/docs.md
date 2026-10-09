@@ -96,22 +96,30 @@ sidebar, tags, a description, and whether it is a draft.
 
 Markdown, plus:
 
-- **Admonitions** in five severities (note, tip, info, warning, danger), with
-  your own titles.
-- **Tabs**, which remember the reader's choice across pages.
+- **Admonitions** in six kinds (note, tip, info, warning, danger, caution),
+  with your own titles.
+- **Tabs.** Give a set of tabs a `groupId` and the reader's choice carries
+  across every page that uses the same group.
 - **Code blocks** with syntax highlighting, a title, highlighted lines and a
   copy button.
 - **Diagrams** and **mathematics**.
 
-The page itself is rendered on the server: text, headings, tables, code,
-navigation and search are all there before any script runs, and read correctly
-with JavaScript turned off entirely.
+The page itself is rendered on the server. Text, headings, tables, code and
+the sidebar are all there before any script runs, and they read correctly with
+JavaScript turned off entirely. What needs the small script on the page is the
+interactive part: the search box, switching tabs, the dark mode toggle and the
+copy button. Without it, every tab's content is still on the page.
 
 Two things are drawn in the browser, because drawing them anywhere else means
 shipping a rendering engine with the module. A diagram falls back to its own
-source, which is readable prose; a formula falls back to what you typed. Both
-are also the only two places this module loads a script — from your own
-server, never somebody else's.
+source, which is readable prose; a formula falls back to what you typed. They
+are the only reason a page ever loads a script file, only on a page that has a
+diagram or a formula, and the files come from your own server, never somebody
+else's.
+
+Images are the one thing a sync doesn't copy. It reads markdown and
+`_category_.json` files only, so a picture sitting in your repository and linked
+by a relative path won't show up. Link images by their full address instead.
 
 ## Drafts and unlisted pages
 
@@ -125,6 +133,8 @@ Search, a sidebar, versions with banners for old ones, more than one language,
 dark mode, a contents panel, previous and next, breadcrumbs, tags, and a
 sitemap.
 
-Nothing on a published page is fetched from anybody else's server. Your own
+Nothing the site itself needs is fetched from anybody else's server. Your own
 instance serves the mathematics and diagram libraries, which keeps your readers
-out of a third party's logs and keeps the site working behind a firewall.
+out of a third party's logs and keeps the site working behind a firewall. The
+only exception is one you choose: an image you link from somewhere else is
+loaded from there.

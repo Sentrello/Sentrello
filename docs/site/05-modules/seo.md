@@ -35,7 +35,7 @@ flowchart LR
 
 ## The one thing it does differently
 
-Every other module runs entirely on your server. **SEO cannot.** Keyword
+Every other module works from records you already hold. **SEO cannot.** Keyword
 volumes, rankings and backlink graphs come from a search-data provider, because
 nobody self-hosts a search index.
 

@@ -20,8 +20,8 @@ taken its serif — that is the font they inherit.*
 
 ## Two things to set up
 
-**1. Add your website's domain to the shop.** Shop → Settings → the list of
-sites allowed to use this shop. Until a domain is listed there, the browser
+**1. Add your website's domain to the shop.** In Shop → Settings, under
+**Where it can be sold from**, put one address per line. Until a domain is listed there, the browser
 refuses every request from it. Which is the point: your products, your prices
 and your customers' carts are readable only by sites you have named.
 
@@ -127,10 +127,6 @@ document.addEventListener('sentrello-shop:checkout', (e) => {
 });
 ```
 
-The button used to link to the hosted cart page either way, which meant the
-combination this page recommends sent somebody to a 404 on the one button that
-matters. Fixed on 28 September 2026.
-
 ## How it looks
 
 Every tag renders inside a **shadow root**. Your site's CSS cannot accidentally
@@ -192,7 +188,7 @@ SentrelloShop.products("category=coffee").then((data) => {
 
 SentrelloShop.cart.add(variantId, 1);
 SentrelloShop.cart.load();
-SentrelloShop.money(320); // "$3.20"
+SentrelloShop.money(320, "USD"); // "$3.20"; leave the currency off and it is dollars
 ```
 
 The cart announces itself whenever it changes, so a header you wrote yourself
@@ -206,14 +202,16 @@ window.addEventListener("sentrello-shop:cart", (e) => {
 
 ## The API directly
 
-Everything the tags do is a public, read-only API you can call from a server:
+Everything the tags do goes through a public API, and you can call it too:
 
 | Endpoint | What it gives |
 |---|---|
-| `GET /api/shop/storefront/shop` | The shop's name, currency and settings |
+| `GET /api/shop/storefront/shop` | The shop's name, currency, categories and collections |
 | `GET /api/shop/storefront/products` | Published products, with prices |
 | `GET /api/shop/storefront/products/:slug` | One product |
-| `POST /api/shop/storefront/checkout` | Start or change a cart |
+| `POST /api/shop/storefront/checkout` | Start a cart, optionally with its first item |
+| `GET /api/shop/storefront/checkout/:token` | A cart you already started |
+| `POST /api/shop/storefront/checkout/:token/lines` | Set how many of something are in it; zero takes it out |
 
 **Prices and availability, never counts.** The API says whether something can
 be bought, not how many are left. A number in stock on a public page tells a

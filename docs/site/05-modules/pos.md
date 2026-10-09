@@ -140,7 +140,7 @@ since *Milk* belongs on every coffee, and a product can be asked several.
 ### What it looks like at the counter
 
 When a product has questions, the till asks them before the item goes on the
-ticket. One at a time, in front of everything else.
+ticket. All of them on one panel, in front of everything else.
 
 **A required question cannot be skipped.** The button says what is still
 missing, *Choose milk*, rather than letting somebody carry on and sending a
@@ -170,9 +170,11 @@ sale to your books.
 cash on one sale.
 
 **The till can send the figure to the machine.** Pair a card reader to a
-terminal under Point of sale → Serving, and *Card* sends the amount to it: the
-customer taps, and the till shows what the reader reported. Nobody types a
-total twice, and nobody can type it wrong.
+terminal under Point of sale → Serving, choose *Card*, and press *Take it on the
+reader*: the amount goes to the reader, the customer taps, and the till shows
+what the reader reported. Nobody types a
+total twice, and nobody can type it wrong. A till with no reader paired never
+shows the button.
 
 The cashier still completes the sale. The reader's job ends at "taken"; one
 path leads from a sale to the books and it is the same press that takes cash,
@@ -229,7 +231,7 @@ learns to ignore, and then it is worth nothing on the night it is large.
 
 Add a printer under **Point of sale → Serving → Printers**: a name, how it is
 reached, and whether the cash drawer is wired to it. Then press **Test**, which
-sends a receipt and a drawer kick — the only way to know a printer works is to
+prints a test page and, if a drawer is wired to the printer, kicks it. The only way to know a printer works is to
 have it print, and that is also why this part of the till is not finished: it
 has printed for a test harness and not yet for a printer.
 
@@ -268,8 +270,8 @@ drawer on one printer goes.
 card, so a drawer that opened for every tap would spend the day open. A sale the
 till is told about twice — a queue draining after an outage — does not open it
 either: a drawer that springs open on its own is the one thing on a counter
-nobody can explain. Open it by hand with a **no-sale**, which is logged with who
-did it.
+nobody can explain. Open it by hand with a **no-sale**, which is logged against the open drawer
+with who did it.
 
 **A printer never holds up a sale.** The money is taken, the sale is finished,
 and the paper is a second copy of something already true. A printer with no paper
@@ -302,8 +304,8 @@ So the drawer counts notes, and so does the ledger. A cash sale goes to
 **Cash**. A card sale goes to **Payments in Transit**, where it waits until your
 processor pays it out to the bank. A sale paid half each way is split the same
 way, to the cent. Money off and anything on the house never pass through Cash
-at all: they show as Sales Discounts and Comps, and Cash moves only by money
-somebody handed over.
+at all: they show as Sales Discounts, or as Comps and Staff Meals, and Cash moves only
+by money somebody handed over.
 
 ## Stock: what a counter sale does
 
@@ -382,15 +384,15 @@ A counter serves whoever is in front of it. A dining room does not, and the
 difference is most of what a restaurant needs from a till.
 
 **Draw the room once** under Point of sale → Floor plan: areas, tables, how
-many each seats. Point of sale → Room is then the floor as it stands — which
-tables are taken, what each bill has come to, how long they have been sitting
+many each seats. Point of sale → Room is then the floor as it stands: which
+tables are taken, whose they are, and how long each party has been sitting
 there.
 
 **Put a bill on a table** and it stays with that table through everything else:
 a second round, a split, a handover at the end of a shift.
 
 **Give a server their section.** On the Room screen, *Looked after by* assigns
-tables to one person for their shift. A bill opened on one of their tables is
+tables to one person, and they stay theirs until somebody changes it. A bill opened on one of their tables is
 theirs without anybody choosing from a list — which matters at eight in the
 evening, when the answer somebody picks in a hurry is whoever is at the top of
 it.
@@ -401,15 +403,16 @@ Three things can have an opinion about whose bill it is, and they rank:
 2. **The table's own server**, where nobody has signed in.
 3. **The account the device holds**, which is a fallback rather than a person.
 
-So seating a party on somebody else's table never quietly moves the bill, and a
-shared counter with nobody identified attributes to the section rather than to
-the business.
+So a server who has signed in keeps their bill wherever they seat the party,
+and a shared counter with nobody identified attributes to the section rather
+than to the business. Only the first table counts, too. Move the party across
+the room later and the bill stays with whoever has been looking after them.
 
 ## Eat in, takeaway, delivery
 
-Most of what a till rings up is the same food at a different price, and the thing
-that decides which price is how it leaves the building. Set those up under Point
-of sale → Serving → **Ways you sell**: a name for the button, whether it asks how
+Most of what a till rings up is the same food leaving the building in different
+ways, and how it leaves decides what the till needs to know. Set those up under
+Point of sale → Serving → **Ways you sell**: a name for the button, whether it asks how
 many sat down, whether it fires a ticket to the kitchen. One of them is the usual
 one, and that is what a sale is rung under unless somebody says otherwise.
 
@@ -420,8 +423,9 @@ Switch on two or more and the till has to ask. **When** it asks is yours:
   wants this — the queue is four deep and the question is almost always the same.
 - **Before the sale starts.** Nothing can be rung until somebody has answered.
   One extra tap on every sale, which a counter feels and a dining room does not —
-  and in a dining room the answer decides the price band and whether the kitchen
-  sees the order, so being asked after three items is being asked too late.
+  and in a dining room the answer decides how many sat down and whether the
+  kitchen sees the order, so being asked after three items is being asked too
+  late.
 
 Pick under Point of sale → Serving → **When the till asks**. With one way of
 selling switched on the till never asks either way, which is the screen a shop
@@ -446,7 +450,9 @@ What that does, and does not, do:
 - It **opens their shift** if one is not already open, so hours are recorded
   without a second thing to remember.
 - Signing in at another device **moves** their shift rather than opening a
-  second one, and ends anybody else's on the till they have just left.
+  second one, and ends the shift of whoever was signed in at the till they have
+  just walked up to. Tapping in again at the till you're already on changes
+  nothing.
 - Codes are stored sealed, compared without telling a guesser how close they
   were, and **capped at ten tries a minute from one network address** — so two
   tills behind one router share a budget, and the same till on two networks has
@@ -471,7 +477,7 @@ Everything here lives under Point of sale → **Tips & charges**.
 - **Any amount**, always. Zero is as easy to give as a suggestion, because a
   customer who does not want to tip should not have to work at it.
 - **Suggested on the goods before tax, or on the whole bill** — your call, and
-  the receipt says which.
+  the till says which, right under the tip box.
 - A tip **reaches the person who served**, which is why the section above
   exists. It posts as money held for them rather than as takings, and the
   Shifts screen is where somebody hands it over.
@@ -594,9 +600,10 @@ own card takings. That is correct, and the count knows. Each person's figure is
 their share under the arrangement in force when the tip was taken, not the whole
 gratuity: the bar's slice is the bar's, and paying the server does not settle it.
 
-Somebody may read their own shift without `pos:manage`. A till that makes a
-server ask a manager what they earned is a till people keep their own notes
-beside.
+Somebody may read their own shift without `pos:manage`, and the till shows it
+under **Your shift**: bills, what they sold, and their tips earned and still
+owed. A till that makes a server ask a manager what they earned is a till
+people keep their own notes beside.
 
 ## Who can use it
 

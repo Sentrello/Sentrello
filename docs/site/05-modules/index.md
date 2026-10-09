@@ -9,14 +9,14 @@ description: Optional applications, each a working product on its own.
 Each of these is a complete application in its own right. What separates them
 from ten separate products is that every one of them knows about the rest of
 Sentrello. Buy one, buy several; they turn up inside the instance you already
-run.
+run. They sit on top of [Pro](/free-vs-pro), so you'll need that first.
 
 | Module | What it does |
 |---|---|
 | [Booking](/modules/booking) | A booking page customers use themselves, and a diary that stays honest |
 | [Storage](/modules/storage) | The business's files, and warnings before one expires |
 | [Shop](/modules/shop) | Sell online, with orders and money landing in the same books |
-| [POS](/modules/pos) | Sell face to face, on the same products, prices and books — **in development, not for sale** |
+| [POS](/modules/pos) | Sell face to face, on the same products, prices and books. An add-on to Shop, **in development, not for sale** |
 | [Projects](/modules/projects) | The work you have promised — tasks, time and budgets, and the invoice the hours become |
 | [Subscriptions](/modules/subscriptions) | Sell the same thing every month, and let a customer manage their own |
 | [Shop on your own website](/modules/shop-frontend) | Put the shop on a site built with anything |

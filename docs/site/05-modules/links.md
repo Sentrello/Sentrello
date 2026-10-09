@@ -41,9 +41,9 @@ Two things make a short link worth having: it is short, and it carries your own
 name. Point a domain at your instance, add the TXT record it gives you, and
 your links are served on it.
 
-**Until that record is there, nothing is served on the domain.** An unverified
-host answers nothing at all. Nobody gets to point a domain they do not own at
-your instance and have it serve links.
+**Until that record is there, not one link is served on the domain.** Nobody
+gets to point a domain they do not own at your instance and have it serve your
+links.
 
 You can also set where a bare visit goes, for somebody who saw the domain on a
 van and typed it on its own, and where an unknown link goes, for a typo or a
@@ -70,6 +70,8 @@ report does not change underneath you.
 - **Campaign source, medium and campaign.** The usual tags, added to the
   destination
 - **Send iPhones and Android somewhere else**, for app store links
+- **Send a country somewhere else**, one address per country. This needs your
+  instance to know where visitors are; see the last section
 - **An expiry date**, and where somebody who follows it afterwards lands. Blank
   is a dead end
 - **A password.** Anyone with the link is asked for it
@@ -98,13 +100,12 @@ flowchart LR
   S --> R --> D --> F --> C --> I
 ```
 
-That last step is the part other link shorteners cannot do. They stop at the
-click, because the click is all they have — the money is in a system they have
-no access to. Yours is on the same machine.
+That last step is the part a shortener does not do. It stops at the click,
+because the click is all it has; the money is in a system it can't see. Yours
+is on the same machine.
 
-This is the part a shortener does not do.
-
-Paste a snippet on your own site, then have **your own server** tell your
+Tick **Follow people past the click, to signups and sales** on each link you
+want followed. Paste a snippet on your own site, then have **your own server** tell your
 instance when somebody signs up or buys. The reports then put clicks, people,
 signups, sales and revenue side by side, per link.
 
@@ -143,5 +144,12 @@ which link earned what: clicks, signups, sales and revenue per link.
 
 ## What it needs
 
-Pro underneath it, like every module. Nothing else. The redirect, the tracking
-and the reports all run on your own instance.
+Pro underneath it, like every module. The redirect, the tracking and the
+reports all run on your own instance.
+
+Grouping by country, region or city, and sending a country somewhere else, need
+one more thing: a way to tell where a visitor is. Either a reverse proxy in
+front of your instance that sets a country header, as most CDNs do, or a
+geography file you download and point `SENTRELLO_GEOIP_CSV` at. Your instance
+never asks an outside service where a visitor is, so without either of those,
+every click's location reads as unknown and the reports say so.

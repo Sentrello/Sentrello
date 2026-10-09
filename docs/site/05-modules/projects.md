@@ -57,8 +57,9 @@ numbered from that: `KITCHEN-14`. That is the thing people say out loud on site,
 and it is why the key is asked for when the project is made rather than offered
 as a setting afterwards.
 
-A project can sit under another one. A portfolio is not a separate kind of
-object here — it is a project with projects in it.
+A project can sit under another one: open it and choose the job it is *Part
+of*. A portfolio is not a separate kind of object here. It is a project with
+projects in it.
 
 ## Tasks, phases and milestones
 
@@ -71,10 +72,10 @@ Both are a *type* on a task rather than their own object, so a milestone can be
 assigned, commented on, blocked and reported like anything else, and nothing
 needs converting when a milestone turns out to have work in it after all.
 
-**Duration is in working days.** Add five days to a Thursday and you get the
-following Thursday, not the Tuesday. Which days your business works, and which
-days it is shut, are set once on Projects → Settings → the calendar; the default
-is Monday to Friday. Clearing the whole week is refused, because every date in
+**Duration is in working days.** A three-day job that starts on a Thursday
+finishes on the Monday, not the Saturday. Which days your business works, and
+which days it is shut, are set once on Projects → Settings, under *The working
+week* and *Days the business is shut*; the default is Monday to Friday. Clearing the whole week is refused, because every date in
 the module is derived from it.
 
 ### What waits on what
@@ -84,7 +85,8 @@ Three relationships, and only the first one moves dates:
 - **Comes before.** The successor starts after this one finishes, plus or minus
   a lag — a negative lag is an overlap, which is how a second trade starts
   before the first has quite finished. Move the predecessor and every automatic
-  task downstream moves with it, with a note on each saying why it moved.
+  task downstream moves with it, and each one's history shows its start and
+  finish being changed by Sentrello rather than by a person.
 - **Blocks.** A task with an unfinished blocker cannot be closed. You are told
   how many are in the way.
 - **Relates.** A link, and nothing else. There is no fourth kind: duplicates,
@@ -105,16 +107,19 @@ The same work, arranged for four different questions, as four screens rather
 than four tabs. A screen nobody can find is a feature nobody has.
 
 - **Board** (Projects → Views → Board) — cards in columns. Group by status,
-  by who has it, by phase or by sub-project, and dragging a card sets that
-  field. Every card also carries a plain dropdown, so the board can be driven
-  from a keyboard or read out by a screen reader. Or make the columns yourself
-  and drag cards between them.
+  by who has it, by phase, by milestone or by sub-project. On a board grouped
+  by status, by person or by phase, dragging a card moves it: into that
+  column, to that person, or under that phase. Grouped by milestone or by
+  sub-project, the board is there to read, and the cards stay put. Every card also
+  carries a plain dropdown, so the board can be driven from a keyboard or read
+  out by a screen reader. Or make the columns yourself and drag cards between
+  them.
 - **Plan** (Projects → Views → Plan) — the Gantt. Drag a bar or move it with
   the arrow keys; click a name to say what it waits on. There is no charting
   library behind it, which means nothing between the dates and the pixels can
   disagree with the scheduler.
-- **Calendar** (Projects → Views → Calendar) — every job's dates across one
-  month, which is the one thing the plan cannot show. A task appears on every
+- **Calendar** (Projects → Views → Calendar) — every job's dates, four weeks
+  at a time, which is the one thing the plan cannot show. A task appears on every
   day it runs, and weeks start on Monday.
 - **Team** (Projects → Team and cost → Team) — who is on what this week,
   booked against capacity, with a *Push out a week* control for the Monday when
@@ -137,16 +142,17 @@ costs you, and what you charge for it.
 More than twenty-four hours in one entry is refused. It is not a judgement about
 anybody's day; it is almost always two days typed as one.
 
-**Projects → Team and cost → Time** opens on your own week. Reading everybody
-else's days takes the module's read permission, and recording your own takes the
-time permission — which is the whole of who can see whose timesheet.
+**Projects → Team and cost → Time** opens on your own week. Switch it to
+everybody's hours to see the whole team, filtered by person or to what is still
+to bill. Anyone who can open Projects can read those, because reading the
+module is one permission; booking time takes the time permission on top.
 
 ## Costs that are not time
 
 Skip hire, scaffold, counsel's fee, the part that had to be couriered. Set up
 the kinds of thing you buy once — a unit, what it costs, what you charge for it,
 and which expense account it belongs in — and then record them against a job in
-thousandths of a unit, so half a day is 500.
+whole or part units, down to a thousandth, so half a day is 0.5.
 
 **Every cost posts a balanced journal entry**, tagged with the project's
 accounting class, in the same transaction as the cost itself. If the ledger
@@ -171,9 +177,9 @@ booking their day over a missing rate is how a timesheet stops being filled in.
 
 **Projects → Team and cost → Budgets** is one row per job: planned, labour
 spent, other costs, what is not yet invoiced, and the percentage of the budget
-gone. That percentage is one definition, shared by the list, the money screen,
-the warning and the customer's own page, so none of them can disagree with
-another.
+gone. Planned and spent are added up the same way everywhere they appear — the
+list, the job's own money panel, the over-budget warning and the customer's own
+page — so none of them can disagree with another.
 
 Over budget is said where somebody will see it: on the screen of the person who
 just recorded the cost or logged the hour. There is no approval queue. Correcting
@@ -194,13 +200,15 @@ Three things follow from that, and they are the useful part:
 
 - An invoiced hour cannot be edited or deleted. You credit the invoice instead,
   which is what the books require anyway.
-- A project with invoiced time cannot be deleted. Archive it.
+- A project with invoiced time, or with costs already in your books, cannot
+  be deleted. Archive it.
 - If marking the hours fails after the invoice was raised, the invoice is
   voided rather than left half-done. In the one case where even the void fails,
   you get the invoice number and a sentence telling you to look at it.
 
-A job with nobody to bill is refused before any of that happens: set who it is
-for first.
+A job with nobody to bill is refused before any of that happens. The invoice
+goes to the person on the job, so set the person it is for first; a company on
+its own is not enough.
 
 ## Work that comes round again
 
@@ -212,9 +220,12 @@ A template is copied with its board columns, its tasks, its structure and its
 estimates, and **every date is shifted** by the gap between the template's start
 and the new one. Assignees and progress are deliberately not carried over: a
 template that quietly books somebody who left is worse than one that asks.
+Nor are the links between tasks, so an automatic task arrives with its
+shifted dates and nothing to follow until you link it again.
 
-The copies are ordinary projects. A schedule owns nothing it has made, so
-deleting the schedule leaves the work alone. A schedule whose template has gone
+The copies are ordinary projects. A copy made by a schedule starts with nobody
+to bill, so set who it is for before you invoice it. A schedule owns nothing it
+has made, so deleting the schedule leaves the work alone. A schedule whose template has gone
 pauses itself rather than failing every night.
 
 ## The customer's own page
@@ -227,8 +238,9 @@ The link is the whole credential, so it is revoked rather than deleted, and the
 page records when it was last opened. If that customer also has an account with
 you, the page links on to it.
 
-Customers who do have an account see their live jobs there under **Your jobs**,
-with how each one is going. That section never creates a share link of its own;
+Customers who do have an account see their live jobs there under **Your jobs**:
+how many are in progress and how many are finished, and when there is only one
+in progress, how it is going and when it is due. That section never creates a share link of its own;
 it reuses one you have already made.
 
 ## Settings
@@ -247,9 +259,9 @@ business that needs that number exact needs a rota rather than a planner.
 |---|---|
 | `projects:read` | See the module and everything in it, including everybody's timesheet |
 | `projects:create` | Start a project, add tasks, copy a template, add a schedule |
-| `projects:update` | Change a project or a task, move dates, arrange a board, share a job |
+| `projects:update` | Change a project or a task, move dates, arrange a board, share a job, set the working week |
 | `projects:delete` | Delete a project, a budget or a schedule |
-| `projects:log-time` | Book time and record costs |
+| `projects:log-time` | Book time, your own or somebody else's, and record costs |
 | `projects:budget` | Set rates, cost types and budgets |
 
 Time is separated from everything else on purpose: everybody on the job books

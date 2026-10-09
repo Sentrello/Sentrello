@@ -44,8 +44,10 @@ A **service** is something bookable: a consultation, a site visit, a treatment.
 Each one has a duration and its own availability, plus a price if you charge
 for it.
 
-Duplicate a service when you offer the same thing at three lengths. Retire one
-and the bookings already made against it stay where they are.
+Duplicate a service when you offer the same thing at three lengths. Done with
+one? Untick **Public** and it leaves the page while the bookings already made
+against it stay where they are. A service that has ever been booked can't be
+deleted, so the diary never ends up naming something nobody can look up.
 
 ## Availability
 
@@ -53,7 +55,9 @@ Set your working hours per day — several stretches where you want them, so
 nine to twelve and two to five is a lunch break rather than a compromise —
 and block out holidays. The booking page then offers only what is genuinely
 free, because it reads your existing
-bookings before it draws the grid. Two people cannot take the same slot.
+bookings before it draws the grid. Two people cannot take the same slot,
+unless you gave the service more than one place under **Places**: a class of
+twelve stays on the page until the twelfth person takes it.
 
 **How far ahead the page goes** is sixty days unless you say otherwise, under
 Booking → Settings. Set that figure to 0 and there is no limit at all.
@@ -63,10 +67,11 @@ season with a start and an end. Where it does, the service wins. Leave all
 three boxes empty and the instance figure applies — which is the part nobody
 guesses, and the reason a date that should be free reads as unavailable.
 
-A private link ignores every one of them. The whole point of one is to book
-something the page does not offer.
+A private link ignores the instance figure, because the whole point of one is
+to book something the page does not offer. The service's own window still
+holds: that's a fact about the service, not about the page.
 
-Past the last month with anything in it, the arrow forward stops rather than
+Past the last month the window reaches, the arrow forward stops rather than
 handing somebody an empty grid, which reads as "fully booked" and is the
 opposite of what you meant.
 
@@ -93,36 +98,47 @@ flowchart LR
 
 A public page that works on a phone, with no account and no app. One per
 service, or one for everything. It shows a month at a time, then the times
-available on the day somebody picks, and it asks for nothing you did not say
-you needed.
+available on the day somebody picks. Beyond a name and an email it asks only
+for the questions you added, plus an optional phone number and note.
 
 You can also **embed** it in your own website, inline in a page or behind a
-button.
+button. Booking → Share writes the code for you. Add your site to *Sites
+allowed to embed booking* under Booking → Settings first, or the browser
+won't show it.
 
 ## Service areas
 
-If you travel to customers, set the ZIP or postal codes you cover. Somebody
-outside them is told so before they book, rather than after you have driven
-there.
+If you travel to customers, list the codes you cover under *Postcodes you
+travel to* in Booking → Settings. A prefix covers everything under it, so 802
+covers 80202. Then tick *We come to the customer* on each service that happens
+at their address. That service asks for an address, and somebody outside your
+area is told so and the booking isn't taken, rather than you finding out after
+driving there.
 
 ## What happens after a booking
 
-- The customer gets a confirmation, then a reminder before the appointment.
+- The customer gets a confirmation, then a reminder before the appointment:
+  24 hours ahead unless you change *Remind customers* in Settings, and never
+  if you set it to 0.
 - A **contact is created or matched** in the CRM. A repeat customer stays one
   person instead of becoming a new record each time.
 - An invoice is raised automatically **if you asked for one**: tick *Raise an
   invoice when it is booked* on the service, which needs a price on it and is
   off to begin with. Leave it off and the price is shown while the business
   bills the way it already does. Book six weekly sessions in one go and the
-  invoice is one for the course, not six. Where a card processor is connected,
-  it carries a payment link like any other.
-- The appointment appears on your dashboard.
+  invoice is one for the course, not six. A service that waits for your yes
+  raises its invoice when you confirm, not when somebody asks. The invoice
+  lands open in Invoicing and isn't emailed by itself: send it from there like
+  any other, and where a card processor is connected it carries a payment link.
+- The appointment counts toward *Today* and *Next seven days* on your
+  dashboard.
 
-Raising that invoice is never allowed to fail the booking. An invoice that did
-not go out is something you can see and fix; a booking that vanished is a
-customer standing outside a locked door.
+Raising that invoice is never allowed to fail the booking. A booking with no
+invoice in its history is something you can spot and raise by hand; a booking
+that vanished is a customer standing outside a locked door.
 
 ## Cancellations
 
-Both sides can cancel through the link in the confirmation. A canceled slot
-returns to the pool immediately.
+Your customer can move or cancel through the link in their confirmation, with
+no account and no password. You cancel from the booking itself, under Booking →
+Bookings. Either way, a canceled slot returns to the pool immediately.

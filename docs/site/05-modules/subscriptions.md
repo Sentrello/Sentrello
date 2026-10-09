@@ -45,10 +45,12 @@ flowchart LR
 
 ## What it is built on
 
-Nothing new. A subscription raises an invoice on the schedule Invoicing already
-owns, and that invoice posts to the ledger like any other: one set of books,
-and one place money is both recognized and chased from.
+Nothing new. A subscription raises an ordinary invoice, numbered and posted to
+the ledger like any other: one set of books, and one place money is both
+recognized and chased from.
 
+The run that raises it belongs to this module, and it is the only thing that
+bills a subscription, even with Pro's recurring invoices running beside it.
 That is deliberate. Two things that each believe they own a renewal is how
 somebody gets charged twice.
 
@@ -88,7 +90,13 @@ Wednesday.
 
 Cancelling sets the date it takes effect rather than stopping the billing that
 instant. Somebody who cancels on the 3rd of a month they have already paid for
-keeps the rest of it, which is what they expect and what avoids a refund.
+keeps the rest of it, which is what they expect and what avoids a refund. Until
+that date the subscription reads **ending**, and **Keep them** takes the
+cancellation back.
+
+When you do want it over today, a disputed or fraudulent one say, **Stop now**
+ends it on the spot. It refunds nothing; it only means no further invoice is
+raised.
 
 ## Tonight's billing
 
@@ -212,20 +220,22 @@ the wrong one for an annual plan: a year of usage sitting unbilled is a year of
 your costs carried as exposure, and your customer gets one alarming invoice
 instead of twelve ordinary ones.
 
-So a charge can settle on **a period of its own** — weekly, monthly, quarterly,
-yearly — whatever the subscription bills on. The subscription is annual; the usage
-is monthly, as its own small invoice. Where a settlement falls on the same day as
-the renewal it goes onto that invoice instead, because two invoices on one day for
-one customer is a support email.
+So a charge can settle on **a period of its own**, whatever the subscription
+bills on. The subscription is annual; the usage is monthly, as its own small
+invoice.
 
-A monthly charge closes on the first of the month **where your business is**, not
-wherever the server happens to be. The sweep runs nightly and does nothing on the
-days with no boundary behind them.
+A charge can settle weekly, monthly, quarterly or yearly. Monthly closes on the
+first of the month **where your business is**, not wherever the server happens to
+be; the others count from the day the subscription started, so a quarterly
+charge on a subscription that began in January settles in April, July and
+October. The sweep runs nightly and does nothing on the days with no boundary
+behind them.
 
 ### Recording what was used
 
 ```bash
 curl -X POST https://your-instance/api/subscriptions/SUBSCRIPTION_ID/readings \
+  -b session-cookies.txt \
   -H 'content-type: application/json' \
   -d '{
     "reference": "nightly-2026-12-01",
@@ -253,9 +263,15 @@ meter, where the tiers do the pricing. Send a fraction and it is refused rather
 than rounded: a silently dropped amount is a period that bills less than it
 should and says nothing about it.
 
-Recording usage needs **its own permission** — `subscriptions: meter` — and
-nothing else. A key in a cron job should be able to add up gigabytes without also
-being able to cancel every subscription you have.
+Recording usage needs **its own permission**, `subscriptions:meter`, and
+nothing else. Whatever posts readings signs in as a user like anybody else;
+there are no separate API keys. So give your script an account of its own, on a
+role that carries only that permission, and send its signed-in session with each
+batch. It should be able to add up gigabytes without also being able to cancel
+every subscription you have.
+
+A batch holds up to 200 readings. Send more in another batch, with its own
+reference.
 
 ### What you can see
 
@@ -263,7 +279,9 @@ being able to cancel every subscription you have.
   come to, beside the next invoice.
 - **Their record here** lists every reading, with the batch it arrived in, and
   lets you add one by hand when a collector was down.
-- **Tonight's billing** shows the usage that is about to be invoiced.
+- **Tonight's billing** counts the usage each renewal will carry into its
+  figure. A charge on its own clock isn't in there, because it arrives on an
+  invoice of its own.
 - **The invoice line** carries the counts — one line per charge, however many
   meters it prices — and the working behind it, tier by tier and meter by meter,
   is kept at the time the invoice is raised. So "why is this £21.40" has an answer
@@ -307,8 +325,8 @@ your business is how you want the thing to behave:
 
 | Setting | What it decides |
 |---|---|
-| **Allow pausing** | Whether a subscription can be paused at all. **Off until you turn it on.** |
-| **Proration** | Whether a mid-cycle plan change settles now or on the next bill. **Next bill until you change it.** |
+| **Pausing** | Whether a subscription can be paused at all. **Off until you turn it on.** |
+| **Changes made mid-period** | Whether a plan change is settled today or simply takes effect at the next renewal. **At their next renewal until you change it.** |
 | **Chasing a failed payment** | How long, and how often, a failed card is chased before the subscription is parked |
 
 **Pausing is off by default deliberately.** A paused subscriber pays nothing
@@ -333,9 +351,10 @@ pausing — on the link this module sends them, which works on its own. Run the
 Shop as well and the same two things are on your storefront, behind a sign-in,
 beside everything else they have bought from you. What the storefront can change
 it asks Subscriptions to change — a seat count goes through the proration policy
-you set here, and the customer sees the figure before agreeing to it. Without
-Subscriptions the Shop cannot quote or collect anything: the new count simply
-lands on the next invoice, which is the platform's default anyway.
+you set here, and the customer sees the figure before agreeing to it. If
+Subscriptions is not running, the Shop cannot quote or collect anything: it
+records the new count, and that count is on the next invoice the subscription
+raises.
 
 ## Permissions
 
@@ -352,23 +371,28 @@ Ending somebody's membership is not the same job as raising an invoice for work
 done, so it gets its own permission instead of riding on Invoicing's.
 
 **Metering has a third** because what holds it is usually not a person. Whatever
-counts your customers' usage posts readings on a schedule, with a key somebody
-put in a cron job — and a key that can add up gigabytes should not also be able
-to cancel every subscription you have.
+counts your customers' usage posts readings on a schedule, signed in as an
+account somebody set up for a cron job, and that account should be able to add
+up gigabytes without also being able to cancel every subscription you have.
 
 ## Changing a plan mid-cycle
 
-Two settings decide what happens, and the default is the one that cannot
-surprise a subscriber.
+You pick one of two answers under **Changes made mid-period**, and the default
+is the one that cannot surprise a subscriber.
 
-**Next bill** (the default) leaves today's invoice alone and settles the
-difference on the next one. **Immediate** raises the adjustment there and then.
-Either way the arithmetic is the same: the unused days on the old plan come off
-at the rate they were sold at, the new terms go on at the new plan's rate, and
-tax follows each half separately because tax follows the amount actually
-charged.
+**At their next renewal** (the default) charges nothing today. The change waits,
+and the new price is simply what the next invoice says. **Straight away**
+settles it now: the unused days on the old plan come off at the rate they were
+sold at, the days left go on at the new plan's rate, and tax follows each half
+separately because tax follows the amount actually charged. An upgrade becomes
+an invoice there and then. A downgrade becomes credit that comes off the next
+one. Where there is nothing yet to settle, during a trial or before the first
+invoice, a change made straight away waits for the renewal too, and the figure
+you are shown before confirming says so.
 
-That treatment is correct in all four markets. US sales tax is due on what was
+The arithmetic below is what **Straight away** does.
+
+It is correct in all four markets. US sales tax is due on what was
 charged. Canadian GST/HST, PST and QST are each a percentage of consideration,
 rounded per invoice line the way the CRA permits, and QST's 9.975% is held in
 millionths so it survives the arithmetic unrounded to the final cent. UK and EU
@@ -394,17 +418,17 @@ Splitting them inside a subscription is on the roadmap. The Shop has the same
 single rate for the same reason.
 :::
 
-:::caution[One US rate per state]
-A subscription resolves the buyer's address to a **state** — the fifty, DC and the
-five territories — and charges the rate written against it. Counties, cities and
-special districts have no key of their own here, so a business collecting
-Austin's tax enters the combined Texas-plus-Austin figure as its Texas rate. The
-customer is charged exactly what they owe, to the cent, and that figure reaches
-the books.
+:::caution[One US rate per plan]
+A subscription charges the one tax its plan carries, whoever the subscriber is.
+It does not look up where they live. So a business collecting Austin's tax
+on top of Texas's sets up a tax at the combined figure and puts it on the plan:
+the customer is charged exactly what they owe, to the cent, and that figure
+reaches the books under that one tax.
 
-What it cannot do afterwards is say which part of it was the state's and which
-the city's. The US filing report reads a subscription back by state, so a business
-filing with a city as well as a state does that split by hand.
+What it cannot do is say afterwards which part was the state's and which the
+city's, or charge a subscriber in another state that state's rate. Selling the
+same plan into several states means a plan for each rate, and a business filing
+with a city as well as a state does that split by hand.
 
 Invoicing has no such limit: a named rate there carries its own jurisdiction —
 `US-TX` and `US-TX-Austin` are two rates, banded and reported separately, and
@@ -445,16 +469,14 @@ and nothing is deleted or altered — but **billing stops**. The run that
 turns a subscription into an invoice belongs to this module, so when the
 module goes, the invoices stop being raised.
 
-That is the honest answer and it is worth saying plainly, because this page
-said the opposite until 28 September 2026: a business whose license lapsed
-would quietly stop billing every subscriber it had, and find out when
-somebody noticed the money had not arrived.
+It is worth saying plainly, because the alternative is finding out when
+somebody notices the money has not arrived.
 
 Nothing is lost by it. Every subscription stands, with its price, its
 discount and its next date, and the day the license comes back the run
 picks them up and carries on from where it stopped. If you would rather
 keep billing without the module, each one can be re-made as a recurring
-invoice before you let it go.
+invoice before you let it go. Recurring invoices come with Pro.
 
 **The subscriber's own page goes too**, and that is the part worth acting on
 before rather than after. Pause, resume and cancel reach a subscriber through a
