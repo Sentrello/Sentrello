@@ -8,7 +8,12 @@
  * quantity of `[2]` was two.
  */
 import { expect, test } from "bun:test";
-import { RequestFieldError, asNumber, asWholeNumber } from "./request-values";
+import {
+  RequestFieldError,
+  asFlag,
+  asNumber,
+  asWholeNumber,
+} from "./request-values";
 
 test("a list is not a number, however well it coerces", () => {
   expect(() => asWholeNumber([], "unitPriceCents")).toThrow(RequestFieldError);
@@ -54,4 +59,15 @@ test("the refusal names the field and says what arrived", () => {
     expect((err as RequestFieldError).field).toBe("unitPriceCents");
     expect((err as Error).message).toContain("a list");
   }
+});
+
+test("a flag is true or false, and nothing else reads as false", () => {
+  expect(asFlag(true, "askName")).toBe(true);
+  expect(asFlag(false, "askName", true)).toBe(false);
+  expect(asFlag(undefined, "askName", true)).toBe(true);
+  expect(asFlag(null, "askName", false)).toBe(false);
+  for (const nonsense of [{}, [], [true], "true", 1]) {
+    expect(() => asFlag(nonsense, "askName", true)).toThrow(RequestFieldError);
+  }
+  expect(() => asFlag(undefined, "askName")).toThrow(RequestFieldError);
 });

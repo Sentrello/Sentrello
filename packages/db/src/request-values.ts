@@ -97,6 +97,33 @@ export function asNumber(
   return n;
 }
 
+/**
+ * True or false, or a refusal naming the field.
+ *
+ * `body.x === true` reads like a check and is a default: anything that is not
+ * literally `true` is `false`. A list's "ask for a name", on by default, was
+ * switched off by `{}` on 9 October — accepted, stored, and nothing said.
+ *
+ * @param fallback what an absent value means. Without one, absent is refused.
+ */
+export function asFlag(
+  value: unknown,
+  field: string,
+  fallback?: boolean,
+): boolean {
+  if (value === undefined || value === null) {
+    if (fallback === undefined) {
+      throw new RequestFieldError(field, `${field} is required`);
+    }
+    return fallback;
+  }
+  if (typeof value === "boolean") return value;
+  throw new RequestFieldError(
+    field,
+    `${field} has to be true or false, and what arrived was ${describe(value)}.`,
+  );
+}
+
 /** What the caller sent, said in words rather than printed back at them. */
 function describe(value: unknown): string {
   if (Array.isArray(value)) return "a list";

@@ -2589,6 +2589,43 @@ test("a payment with an unreadable date is refused", async () => {
   expect(res.status).toBe(400);
 });
 
+test("a list sent for a payment's date is refused, not read as the year 500", async () => {
+  const { body } = await createInvoice([
+    { description: "Listed date", quantity: 1, unitPrice: 1000 },
+  ]);
+  const res = await app.request(
+    `http://localhost/api/invoices/${body.invoice.id}/payments`,
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ amountCents: 1000, receivedAt: ["500"] }),
+    },
+  );
+  expect(res.status).toBe(400);
+});
+
+test("a list sent for a new invoice's due date is refused, not read as the year 500", async () => {
+  const res = await app.request("http://localhost/api/invoices", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      contactId,
+      currency: "USD",
+      dueDate: ["500"],
+      lines: [{ description: "Listed date", quantity: 1, unitPrice: 1000 }],
+    }),
+  });
+  expect(res.status).toBe(400);
+  const named = await createInvoice(
+    [{ description: "Named date", quantity: 1, unitPrice: 1000 }],
+    "2026-11-15",
+  );
+  expect(named.res.status).toBe(201);
+  expect(
+    new Date(named.body.invoice.dueDate as unknown as string).toISOString(),
+  ).toBe("2026-11-15T00:00:00.000Z");
+});
+
 /**
  * Pay early, pay less — and the books still balance.
  *

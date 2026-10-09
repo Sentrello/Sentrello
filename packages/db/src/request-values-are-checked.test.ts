@@ -41,3 +41,17 @@ test("and none turns one into a number with Number()", () => {
     `${WHY_NOT_NUMBER}:\n    ${offenders.join("\n    ")}`,
   ).toEqual([]);
 });
+
+test("the sweep sees a field chosen at run time, not only one named", () => {
+  const { mkdtempSync, writeFileSync, mkdirSync } = require("node:fs");
+  const { join } = require("node:path");
+  const { tmpdir } = require("node:os");
+  const repo = mkdtempSync(join(tmpdir(), "sweep-"));
+  mkdirSync(join(repo, "src"));
+  writeFileSync(
+    join(repo, "src", "route.ts"),
+    'const a = String(body[name] ?? "");\nconst b = Number(payload[field]);\n',
+  );
+  expect(coercedTextSites(repo, ["src"])).toEqual(["src/route.ts:1"]);
+  expect(coercedNumberSites(repo, ["src"])).toEqual(["src/route.ts:2"]);
+});

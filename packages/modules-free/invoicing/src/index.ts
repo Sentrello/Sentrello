@@ -446,6 +446,12 @@ export default defineModule({
         if (body.issueDate && !issued) {
           return c.json({ error: "unreadable issue date" }, 400);
         }
+        // A day, read the way the edit reads it. A bare `new Date` took
+        // `["500"]` as the first of January in the year 500.
+        const due = typeof dueDate === "string" ? dayFrom(dueDate) : null;
+        if (dueDate && !due) {
+          return c.json({ error: "unreadable due date" }, 400);
+        }
         /*
          * Days, and the business's own — the same question the issue route
          * asks, asked the same way.
@@ -538,7 +544,7 @@ export default defineModule({
               // Defaulted rather than left null: overdue chasing skips an
               // invoice with no due date, so one created without a date is
               // money the business is never reminded to ask for.
-              dueDate: dueDate ? new Date(dueDate) : fromSettings.dueDate,
+              dueDate: due ?? fromSettings.dueDate,
               number: await nextDocumentNumber(tx, orgId, "invoice"),
               status: asDraft ? "draft" : "open",
               notes: asText(body.notes, "notes").trim() || null,
@@ -623,7 +629,13 @@ export default defineModule({
          * Friday, in the ledger as much as on the invoice — otherwise a
          * period's figures depend on when somebody got to their desk.
          */
-        const received = receivedAt ? new Date(receivedAt) : new Date();
+        // Text or nothing: `new Date(["500"])` is the year 500, a payment
+        // received fifteen centuries before the invoice was raised.
+        const received = !receivedAt
+          ? new Date()
+          : typeof receivedAt === "string"
+            ? new Date(receivedAt)
+            : new Date(Number.NaN);
         if (Number.isNaN(received.getTime())) {
           return c.json({ error: "unreadable date" }, 400);
         }

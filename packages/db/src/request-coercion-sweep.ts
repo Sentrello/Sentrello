@@ -19,13 +19,19 @@ import { join, relative } from "node:path";
  * version of this swept up the very call that fixes the bug — and found one
  * inside its own refusal message, in the file doing the sweeping.
  */
-const COERCED = /(?<![A-Za-z])String\(\s*(body|payload)\.[A-Za-z_]/;
+/*
+ * And a bracket after it as well as a dot. `String(body[name] ?? "")` is the
+ * same coercion with the field chosen at run time, and it was how every link's
+ * comment and five fields of a campaign stored "[object Object]" on 9 October
+ * while this sweep, reading only `body.`, reported nothing.
+ */
+const COERCED = /(?<![A-Za-z])String\(\s*(body|payload)(\.[A-Za-z_]|\[)/;
 /**
  * The same hole on the numeric side, and the worse of the two. `Number([])` is
  * 0, so an empty list sent where a price belongs passed every range check in
  * the product and bought a subscription for nothing.
  */
-const COUNTED = /(?<![A-Za-z])Number\(\s*(body|payload)\.[A-Za-z_]/;
+const COUNTED = /(?<![A-Za-z])Number\(\s*(body|payload)(\.[A-Za-z_]|\[)/;
 /**
  * Comments do not count, and this sweep found its own.
  *
