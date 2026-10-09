@@ -16,7 +16,7 @@ import { postInvoiceIssued } from "./ledger";
 import { MoneyError, bpToPpm, documentTotals, sumCents } from "./money";
 import { nextDocumentNumber } from "./numbering";
 import * as schema from "./schema";
-import { timezoneFor } from "./timezone";
+import { demandDay, timezoneFor } from "./timezone";
 
 /**
  * A quote becomes an invoice.
@@ -586,6 +586,19 @@ export async function raiseInvoice(
   input: {
     contactId: string | null;
     currency?: string;
+    /**
+     * The day the document is dated, and its journal entry with it: a
+     * `YYYY-MM-DD`, or a day as this platform stores one (midnight UTC).
+     *
+     * For a period billed after the fact — March's renewal is March's,
+     * whenever the run got to it. Absent is today where the business is. A day
+     * in a closed period is refused by the posting, exactly as the invoice
+     * screen's back-dated issue is, and nothing is written; a day in the future
+     * is refused as the screen refuses it. The exchange rate and the default
+     * due date are read for this day rather than today.
+     */
+    issueDate?: Date | string;
+    /** A day. Absent, the business's own terms counted from the issue date. */
     dueDate?: Date;
     notes?: string | null;
     lines: {
@@ -597,6 +610,15 @@ export async function raiseInvoice(
       /** @deprecated Basis points, read as `bp × 100`. */
       taxRateBp?: number;
       taxDefinitionId?: string | null;
+      /**
+       * Every named tax on the line, in charging order — GST beside a PST or
+       * QST, a state beside a city. Each is banded and posted to its own
+       * authority's account. When present and non-empty it is the whole truth
+       * and the three single-tax fields above are ignored, as the invoice
+       * screen reads its own list. `ratePpm` absent means the definition's own
+       * rate; whether a tax compounds is the definition's answer.
+       */
+      taxes?: { taxDefinitionId: string; ratePpm?: number }[];
       unit?: string;
     }[];
     /**
@@ -635,7 +657,32 @@ export async function raiseInvoice(
    * number in the books, and nothing downstream ever questions it. The same
    * refusal the invoice screen and the recurring job make.
    */
-  const rate = await rateOn(organizationId, currency, new Date());
+  const zone = await timezoneFor(organizationId);
+  // A day, in the business's own zone. The column defaults to now(), and a
+  // billing run at 02:00 UTC dated a New York business's invoices the evening
+  // before.
+  const today = dayIn(new Date(), zone);
+  const issueDate =
+    input.issueDate === undefined
+      ? today
+      : typeof input.issueDate === "string"
+        ? demandDay(input.issueDate)
+        : dayOf(input.issueDate);
+  if (Number.isNaN(issueDate.getTime())) {
+    throw new MoneyError("the issue date is not a real date");
+  }
+  // Revenue that has not happened yet — the same refusal as the screen's.
+  if (issueDate.getTime() > today.getTime()) {
+    throw new MoneyError(
+      "an invoice cannot be issued with a date in the future",
+    );
+  }
+  const backDated = issueDate.getTime() !== today.getTime();
+  const rate = await rateOn(
+    organizationId,
+    currency,
+    backDated ? issueDate : new Date(),
+  );
   if (rate === null) {
     throw new MoneyError(
       `no exchange rate recorded for ${currency} — record one under Money, in Tax and currency, first`,
@@ -653,10 +700,25 @@ export async function raiseInvoice(
    * missing from the return. A rate from another business is refused, as the
    * screen refuses it.
    */
+  for (const [i, l] of input.lines.entries()) {
+    const named = (l.taxes ?? []).map((t) => t.taxDefinitionId);
+    if (named.some((id) => typeof id !== "string" || !id)) {
+      throw new MoneyError(`line ${i + 1}: unreadable tax on the line`);
+    }
+    // Charging the same tax twice is a typo, not a stack — refused, as the
+    // screen refuses it.
+    if (new Set(named).size !== named.length) {
+      throw new MoneyError(`line ${i + 1}: the same tax is on the line twice`);
+    }
+  }
   const ids = [
     ...new Set(
       input.lines
-        .map((l) => l.taxDefinitionId)
+        .flatMap((l) =>
+          l.taxes?.length
+            ? l.taxes.map((t) => t.taxDefinitionId)
+            : [l.taxDefinitionId],
+        )
         .filter((id): id is string => !!id),
     ),
   ];
@@ -668,6 +730,9 @@ export async function raiseInvoice(
             id: schema.taxDefinitions.id,
             name: schema.taxDefinitions.name,
             categoryCode: schema.taxDefinitions.categoryCode,
+            ratePpm: schema.taxDefinitions.ratePpm,
+            rateBp: schema.taxDefinitions.rateBp,
+            compound: schema.taxDefinitions.compound,
           })
           .from(schema.taxDefinitions)
           .where(
@@ -682,9 +747,44 @@ export async function raiseInvoice(
     throw new MoneyError("that tax rate does not exist");
   }
 
+  /*
+   * Each line's named taxes frozen from their definitions, in the shape the
+   * invoice screen stores on `invoice_lines.taxes`, so the returns, the PDF and
+   * the e-invoice read a raised line exactly as they read a typed one. Null
+   * for a line on the single-tax fields, which is every caller before this.
+   */
+  const frozen = input.lines.map((l) =>
+    l.taxes?.length
+      ? l.taxes.map((t) => {
+          const d = definitions.get(t.taxDefinitionId);
+          if (!d) throw new MoneyError("that tax rate does not exist");
+          const ratePpm = t.ratePpm ?? d.ratePpm ?? bpToPpm(d.rateBp);
+          return {
+            taxDefinitionId: t.taxDefinitionId,
+            name: d.name,
+            rateBp: Math.round(ratePpm / 100),
+            ratePpm,
+            categoryCode: d.categoryCode,
+            compound: d.compound,
+          };
+        })
+      : null,
+  );
+  // The single-tax columns: the line's own, or its first named tax, so
+  // anything still reading them sees a tax rather than none.
+  const single = input.lines.map((l, i) => {
+    const first = frozen[i]?.[0];
+    return first
+      ? { taxDefinitionId: first.taxDefinitionId, taxRatePpm: first.ratePpm }
+      : {
+          taxDefinitionId: l.taxDefinitionId ?? null,
+          taxRatePpm: l.taxRatePpm ?? bpToPpm(l.taxRateBp ?? 0),
+        };
+  });
+
   const pricesIncludeTax = await quotesGross(organizationId);
   const totals = documentTotals(
-    input.lines.map((l) => {
+    input.lines.map((l, i) => {
       const definition = l.taxDefinitionId
         ? definitions.get(l.taxDefinitionId)
         : undefined;
@@ -695,17 +795,21 @@ export async function raiseInvoice(
         taxDefinitionId: l.taxDefinitionId ?? null,
         taxName: definition?.name ?? null,
         categoryCode: definition?.categoryCode ?? null,
+        taxes: frozen[i],
       };
     }),
     null,
     { pricesIncludeTax },
   );
-  // A day, in the business's own zone. The column defaults to now(), and a
-  // billing run at 02:00 UTC dated a New York business's invoices the evening
-  // before.
-  const issueDate = dayIn(new Date(), await timezoneFor(organizationId));
 
   const fromSettings = await invoiceDefaultsFor(organizationId);
+  // The business's terms counted from the issue date: the same number of
+  // days on from it as the default is from today.
+  const dueDate =
+    input.dueDate ??
+    new Date(
+      fromSettings.dueDate.getTime() - today.getTime() + issueDate.getTime(),
+    );
   const write = async (tx: DbTx) => {
     const [inv] = await tx
       .insert(schema.invoices)
@@ -717,7 +821,7 @@ export async function raiseInvoice(
         currency,
         rateMicro: rate,
         issueDate,
-        dueDate: input.dueDate ?? fromSettings.dueDate,
+        dueDate,
         paymentTerms: fromSettings.paymentTerms,
         notes: input.notes ?? null,
         pricesIncludeTax,
@@ -736,11 +840,10 @@ export async function raiseInvoice(
         quantityMilli: Math.round(l.quantity * 1000),
         unitPriceCents: l.unitPriceCents,
         unit: l.unit ?? "piece",
-        taxDefinitionId: l.taxDefinitionId ?? null,
-        taxRateBp: Math.round(
-          (l.taxRatePpm ?? bpToPpm(l.taxRateBp ?? 0)) / 100,
-        ),
-        taxRatePpm: l.taxRatePpm ?? bpToPpm(l.taxRateBp ?? 0),
+        taxDefinitionId: single[i]?.taxDefinitionId ?? null,
+        taxRateBp: Math.round((single[i]?.taxRatePpm ?? 0) / 100),
+        taxRatePpm: single[i]?.taxRatePpm ?? 0,
+        taxes: frozen[i] ?? null,
         sortOrder: i,
       })),
     );
@@ -762,8 +865,16 @@ export async function raiseInvoice(
       );
     }
     // In the books, or the revenue exists on a document and nowhere else —
-    // and in the same commit, so a refusal takes the document with it.
-    await postInvoiceIssued(organizationId, inv, undefined, undefined, { tx });
+    // and in the same commit, so a refusal takes the document with it. A
+    // back-dated document posts on its own day, as the screen's issue does,
+    // and a closed day throws `PeriodClosedError` and writes nothing.
+    await postInvoiceIssued(
+      organizationId,
+      inv,
+      undefined,
+      backDated ? issueDate : undefined,
+      { tx },
+    );
     return inv;
   };
   return input.tx ? await write(input.tx) : await db.transaction(write);
