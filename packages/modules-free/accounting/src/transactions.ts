@@ -105,7 +105,7 @@ export function sourceOf(kind: TransactionKind, id: string): string {
  */
 export function parseDate(value: unknown, today: Date): Date | null {
   if (value === undefined || value === null || value === "") return today;
-  return dayFrom(String(value));
+  return dayFrom(value);
 }
 
 async function defaultCategory(

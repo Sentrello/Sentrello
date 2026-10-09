@@ -169,6 +169,85 @@ test("an object where text belongs is refused, not stringified", async () => {
   await db.delete(schema.contacts).where(eq(schema.contacts.id, contact.id));
 });
 
+/**
+ * A list where a date belongs, which the language reads as a date.
+ *
+ * `String(["500"])` is "500", and "500" parses as the first of January in the
+ * year 500 — so a one-element list sent as a task's due date was stored as one,
+ * on every timestamp column the generic CRUD writes. Eight of them, found on a
+ * fresh instance by sending nonsense at every collection and reading back what
+ * moved. A list of one real day did the same thing to a plain date column.
+ */
+test("a list or an object where a date belongs is refused, not coerced", async () => {
+  for (const dueAt of [["500"], [], {}]) {
+    const res = await post("/api/tasks", { title: `Due ${suffix}`, dueAt });
+    expect(res.status, `${JSON.stringify(dueAt)} was accepted`).toBe(400);
+    expect((await res.json()).error).toContain("dueAt");
+  }
+  const res = await post("/api/deals", {
+    name: `Closing ${suffix}`,
+    expectedCloseOn: ["2026-11-02"],
+  });
+  expect(res.status, "a list of one day was accepted as the day").toBe(400);
+  expect((await res.json()).error).toContain("expectedCloseOn");
+});
+
+/**
+ * A list where a number belongs, read by the driver as its one element.
+ *
+ * `["500"]` became a deal worth $5 and a company of 500 people, on the same
+ * probe that found the year 500 in the dates above. A 400 naming the field.
+ */
+test("a list or an object where a number belongs is refused, not unwrapped", async () => {
+  const made = await post("/api/deals", { name: `Worth ${suffix}` });
+  const { deal } = (await made.json()) as { deal: { id: string } };
+  try {
+    for (const amountCents of [["500"], [], {}]) {
+      const res = await patch(`/api/deals/${deal.id}`, { amountCents });
+      expect(res.status, `${JSON.stringify(amountCents)} was accepted`).toBe(
+        400,
+      );
+      expect((await res.json()).error).toContain("amountCents");
+    }
+    const create = await post("/api/companies", {
+      name: `Size ${suffix}`,
+      size: ["500"],
+    });
+    expect(create.status).toBe(400);
+  } finally {
+    await db.delete(schema.deals).where(eq(schema.deals.id, deal.id));
+  }
+});
+
+/**
+ * A contact's other emails, in the shape everything that reads them expects.
+ *
+ * A jsonb column, so neither floor applies, and `{}` was stored as sent — the
+ * export then mapped over it and failed for every contact in the book.
+ */
+test("other emails and phones that are not labelled values are refused", async () => {
+  for (const emails of [{}, ["500"], [{ label: "Work" }]]) {
+    const res = await post("/api/contacts", {
+      name: `Listed ${suffix}`,
+      emails,
+    });
+    expect(res.status, `${JSON.stringify(emails)} was accepted`).toBe(400);
+    expect((await res.json()).error).toContain("emails");
+  }
+  const fine = await post("/api/contacts", {
+    name: `Listed ${suffix}`,
+    phones: [{ label: "Mobile", value: "212 555 0101" }],
+  });
+  expect(fine.status).toBe(201);
+  const { contact } = (await fine.json()) as { contact: { id: string } };
+  try {
+    const res = await patch(`/api/contacts/${contact.id}`, { phones: {} });
+    expect(res.status).toBe(400);
+  } finally {
+    await db.delete(schema.contacts).where(eq(schema.contacts.id, contact.id));
+  }
+});
+
 test("and an ordinary create still works", async () => {
   const res = await post("/api/deals", {
     name: `Real ${suffix}`,

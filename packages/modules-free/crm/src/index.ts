@@ -29,6 +29,7 @@ import {
 import { organizationMember } from "@sentrello/db/membership";
 import { sumCents } from "@sentrello/db/money";
 import { recordChanged } from "@sentrello/db/record-events";
+import { RequestFieldError } from "@sentrello/db/request-values";
 import { asText, checkedText, notText } from "@sentrello/db/text-columns";
 import { timezoneFor } from "@sentrello/db/timezone";
 import { dateFrom, dayFrom, demandDate } from "@sentrello/db/timezone";
@@ -161,7 +162,9 @@ function withParsedDates(
       continue;
     }
     if (raw instanceof Date) continue;
-    const parsed = dateFrom(String(raw));
+    // The value as sent, never `String(raw)`: a list of one reads as its
+    // element, and `["500"]` was stored as the first of January, 500 AD.
+    const parsed = dateFrom(raw);
     if (!parsed) return { ok: false, field };
     out[field] = parsed;
   }
@@ -180,8 +183,7 @@ function withParsedDates(
       out[field] = null;
       continue;
     }
-    if (!dayFrom(String(raw))) return { ok: false, field };
-    out[field] = String(raw);
+    if (typeof raw !== "string" || !dayFrom(raw)) return { ok: false, field };
   }
   return { ok: true, value: out };
 }
@@ -350,7 +352,35 @@ async function withDecidedAt(
  * `null` for anything else, so a genuine failure keeps the behaviour it had
  * and still reaches the log.
  */
+/**
+ * A contact's other addresses and numbers, in the one shape they are read in.
+ *
+ * `jsonb`, so the text floor rightly leaves them alone — and so `{}` or
+ * `["500"]` was stored as sent. The export maps over the list and the merge
+ * spreads it, so one contact holding an object made the whole export a 500.
+ */
+function notLabelledLists(body: Record<string, unknown>): string | null {
+  for (const field of ["emails", "phones"] as const) {
+    const value = body[field];
+    if (value === undefined || value === null) continue;
+    const pairs =
+      Array.isArray(value) &&
+      value.every(
+        (entry) =>
+          entry !== null &&
+          typeof entry === "object" &&
+          typeof (entry as { label?: unknown }).label === "string" &&
+          typeof (entry as { value?: unknown }).value === "string",
+      );
+    if (!pairs) return `${field} has to be a list of labelled values.`;
+  }
+  return null;
+}
+
 function refusedByTheDatabase(err: unknown): string | null {
+  // Refused on the way to the database rather than by it: a list where a
+  // number belongs, which the driver would otherwise read as its element.
+  if (err instanceof RequestFieldError) return err.message;
   const e = err as { code?: unknown; column_name?: unknown; cause?: unknown };
   const at = (e.code ? e : (e.cause as typeof e)) ?? e;
   const field =
@@ -609,6 +639,9 @@ function crud<T extends keyof typeof tables>(
       if (!shaped.ok) {
         return c.json({ error: notText(shaped.field) }, 400);
       }
+      const unlisted =
+        resource === "contacts" ? notLabelledLists(parsed.value) : null;
+      if (unlisted) return c.json({ error: unlisted }, 400);
       await withCustomValues(resource, orgId, parsed.value);
       if (resource === "deals") await withDecidedAt(orgId, parsed.value);
       const refError = await checkLinkedRecords(resource, orgId, parsed.value);
@@ -734,6 +767,9 @@ function crud<T extends keyof typeof tables>(
       if (!shaped.ok) {
         return c.json({ error: notText(shaped.field) }, 400);
       }
+      const unlisted =
+        resource === "contacts" ? notLabelledLists(parsed.value) : null;
+      if (unlisted) return c.json({ error: unlisted }, 400);
       await withCustomValues(resource, orgId, parsed.value);
       if (resource === "deals") await withDecidedAt(orgId, parsed.value);
       const refError = await checkLinkedRecords(

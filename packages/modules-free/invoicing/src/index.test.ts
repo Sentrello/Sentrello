@@ -4747,6 +4747,45 @@ test("the taxes endpoint stores millionths, and basis points still work", async 
   expect(fractional.status).toBe(400);
 });
 
+/**
+ * An edit in basis points is checked like a create in basis points.
+ *
+ * The create asks `Number.isInteger` of what was sent. The edit multiplied by
+ * a hundred first and asked afterwards — and `["5"] * 100` is 500, `[] * 100`
+ * is 0, both whole. So a rate edited with a list became 0.05%, or nothing,
+ * and every invoice raised against it after that charged it.
+ */
+test("a list sent as a rate on an edit is refused, not multiplied", async () => {
+  const made = await app.request("http://localhost/api/invoicing/taxes", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name: "Edited by list", ratePpm: 88_750 }),
+  });
+  const { tax } = (await made.json()) as { tax: { id: string } };
+  for (const rateBp of [["5"], [], {}]) {
+    const res = await app.request(
+      `http://localhost/api/invoicing/taxes/${tax.id}`,
+      { method: "PATCH", headers, body: JSON.stringify({ rateBp }) },
+    );
+    expect(res.status, `${JSON.stringify(rateBp)} was accepted`).toBe(400);
+  }
+  const [row] = await db
+    .select({ ratePpm: schema.taxDefinitions.ratePpm })
+    .from(schema.taxDefinitions)
+    .where(eq(schema.taxDefinitions.id, tax.id));
+  expect(row?.ratePpm).toBe(88_750);
+
+  // Basis points sent properly still mean what they meant.
+  const fine = await app.request(
+    `http://localhost/api/invoicing/taxes/${tax.id}`,
+    { method: "PATCH", headers, body: JSON.stringify({ rateBp: 800 }) },
+  );
+  expect(fine.status).toBe(200);
+  expect(
+    ((await fine.json()) as { tax: { ratePpm: number } }).tax.ratePpm,
+  ).toBe(80_000);
+});
+
 test("a definition saved before the finer unit invoices exactly as it did", async () => {
   // A pre-migration row: rate_bp alone, rate_ppm null — makeTax writes it the
   // way the old code did. The invoice it produces must total to the same cent

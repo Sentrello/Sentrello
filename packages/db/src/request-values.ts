@@ -21,6 +21,13 @@
 /** The one class the error handler maps, for both kinds of bad field. */
 export class RequestFieldError extends Error {
   readonly field: string;
+  /**
+   * The answer it deserves, said on the error itself. The host matches this
+   * class by name; the module test harness reads `status` and nothing else,
+   * so without it a refusal the host answers 400 was a 500 in every module's
+   * tests — and a test written against that asserts the wrong thing.
+   */
+  readonly status = 400;
   constructor(field: string, says: string) {
     super(says);
     this.name = "RequestFieldError";

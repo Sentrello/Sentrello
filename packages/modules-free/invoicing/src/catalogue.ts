@@ -362,11 +362,13 @@ export function registerCatalogue(ctx: ModuleContext) {
             patch,
             parseTaxDefinition({
               name: body.name ?? current.name,
-              ratePpm:
-                body.ratePpm ??
-                (body.rateBp !== undefined
-                  ? (body.rateBp as number) * 100
-                  : (current.ratePpm ?? current.rateBp * 100)),
+              // Handed over as sent, so the parser checks basis points
+              // before it multiplies them: `["5"] * 100` is a whole 500.
+              ...(body.ratePpm !== undefined && body.ratePpm !== null
+                ? { ratePpm: body.ratePpm }
+                : body.rateBp !== undefined
+                  ? { rateBp: body.rateBp }
+                  : { ratePpm: current.ratePpm ?? current.rateBp * 100 }),
               categoryCode: body.categoryCode ?? current.categoryCode,
               description: body.description ?? current.description,
               jurisdiction: body.jurisdiction ?? current.jurisdiction,

@@ -76,6 +76,52 @@ export class TextColumnError extends RequestFieldError {
   }
 }
 
+/**
+ * The same floor under every other single-value column.
+ *
+ * A list sent where a number belongs is not flattened into words; it is read
+ * as its one element. `["500"]` was stored as 500 in a deal's amount and a
+ * company's size, through the CRM's generic CRUD, on 9 October — a probe sent
+ * nonsense at every collection and read back what moved. A number, a flag, a
+ * day, an id: none of them is ever a list or an object, so the table is asked
+ * which columns are those, the same way it is asked which are text. `jsonb`,
+ * arrays and custom types are left alone, because there a list is the point.
+ */
+const SINGLE_VALUE = new Set([
+  "PgInteger",
+  "PgSmallInt",
+  "PgBigInt53",
+  "PgBigInt64",
+  "PgSerial",
+  "PgSmallSerial",
+  "PgBigSerial53",
+  "PgBigSerial64",
+  "PgNumeric",
+  "PgNumericNumber",
+  "PgNumericBigInt",
+  "PgReal",
+  "PgDoublePrecision",
+  "PgBoolean",
+  "PgUUID",
+  "PgDate",
+  "PgDateString",
+  "PgTimestamp",
+  "PgTimestampString",
+  "PgTime",
+  "PgInterval",
+  "PgEnumColumn",
+]);
+
+export class ValueColumnError extends RequestFieldError {
+  constructor(field: string) {
+    super(
+      field,
+      `${field} has to be a single value, and what arrived was a list or an object.`,
+    );
+    this.name = "ValueColumnError";
+  }
+}
+
 function tableColumns(
   table: Table,
 ): Record<string, { columnType?: string } | undefined> | null {
@@ -109,6 +155,7 @@ function refuseObjects(table: Table, value: unknown): void {
       if (kind === "PgText" || kind === "PgVarchar" || kind === "PgChar") {
         throw new TextColumnError(field);
       }
+      if (kind && SINGLE_VALUE.has(kind)) throw new ValueColumnError(field);
     }
   }
 }

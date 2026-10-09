@@ -67,7 +67,7 @@ test("the refusal names the field and says what would happen", () => {
  * too.
  */
 import { sql } from "drizzle-orm";
-import { TextColumnError, guardWrites } from "./text-columns";
+import { TextColumnError, ValueColumnError, guardWrites } from "./text-columns";
 
 function pretend() {
   const seen: unknown[] = [];
@@ -153,4 +153,32 @@ test("a transaction's own handle is wrapped too", () => {
 test("a read is passed straight through", () => {
   const { handle } = pretend();
   expect(handle.select()).toBe("read");
+});
+
+/**
+ * A list where a number belongs, which a driver reads as its one element.
+ *
+ * `["500"]` was stored as 500 in a deal's amount through the CRM's generic
+ * CRUD — no text column anywhere near it, so the floor above walked past.
+ */
+test("a list or an object where a number, a flag or a moment belongs is refused", () => {
+  const { handle } = pretend();
+  for (const amountCents of [["500"], [], {}]) {
+    expect(() => handle.update(schema.deals).set({ amountCents })).toThrow(
+      ValueColumnError,
+    );
+  }
+  expect(() =>
+    handle.insert(schema.tasks).values({ title: "Call back", dueAt: ["500"] }),
+  ).toThrow(ValueColumnError);
+  expect(() =>
+    handle.update(schema.contacts).set({ hasNewsletter: [true] }),
+  ).toThrow(ValueColumnError);
+});
+
+test("and the plain values of those columns still pass", () => {
+  const { handle, seen } = pretend();
+  handle.update(schema.deals).set({ amountCents: 500, position: 0 });
+  handle.update(schema.tasks).set({ dueAt: new Date(), done: true });
+  expect(seen.length).toBe(2);
 });

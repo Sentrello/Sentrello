@@ -286,6 +286,34 @@ export function registerForms(ctx: ModuleContext) {
         if (body[field] !== undefined) patch[field] = body[field];
       }
 
+      // Checked as the create checks it: an edit was the way round that.
+      if (
+        "kind" in patch &&
+        !KIND.includes(patch.kind as (typeof KIND)[number])
+      ) {
+        return c.json({ error: `kind must be one of ${KIND.join("|")}` }, 400);
+      }
+      /*
+       * The look, as the embed reads it: a few words of text or nothing. The
+       * column is jsonb, so neither floor sees a list stored here, and a list
+       * of one or an accent that is an object was saved as sent.
+       */
+      if (patch.style !== undefined && patch.style !== null) {
+        const style = patch.style;
+        const plain =
+          typeof style === "object" &&
+          !Array.isArray(style) &&
+          Object.values(style).every(
+            (v) => v === null || typeof v === "string",
+          );
+        if (!plain) {
+          return c.json(
+            { error: "style is an accent, a radius and a font, each as text" },
+            400,
+          );
+        }
+      }
+
       // The one field on a form that decides whether it works at all, so it
       // is cleaned here as well as on the screen: a form is also editable by
       // anything holding a session, not only by our own page.

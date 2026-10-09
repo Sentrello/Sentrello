@@ -1175,3 +1175,37 @@ test("a drafted quote is in the business's own currency", async () => {
   expect(quote?.currency).toBe("GBP");
   expect(quote?.pricesIncludeTax).toBe(true);
 });
+
+/**
+ * An edit is checked the way a create is.
+ *
+ * `kind` was refused on the create and taken as sent on the edit, and `style`
+ * is jsonb, so a list where the look belongs was stored and nothing noticed.
+ */
+test("an edit refuses a kind there is not and a look that is not one", async () => {
+  const created = await app.request("http://localhost/api/forms", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name: "Checked edits", kind: "contact" }),
+  });
+  const { form } = (await created.json()) as { form: { id: string } };
+  for (const sent of [
+    { kind: "survey" },
+    { style: ["500"] },
+    { style: [] },
+    { style: { accent: {} } },
+  ]) {
+    const res = await app.request(`http://localhost/api/forms/${form.id}`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify(sent),
+    });
+    expect(res.status, `${JSON.stringify(sent)} was accepted`).toBe(400);
+  }
+  const fine = await app.request(`http://localhost/api/forms/${form.id}`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify({ kind: "quote", style: { accent: "#0a7" } }),
+  });
+  expect(fine.status).toBe(200);
+});
