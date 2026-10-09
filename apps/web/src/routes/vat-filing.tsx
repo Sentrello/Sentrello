@@ -187,6 +187,109 @@ function SchemeCard({
   );
 }
 
+/** The nine boxes, in HMRC's order and HMRC's names for the figures. */
+const VAT_BOXES: [string, string, string][] = [
+  ["1", "VAT due on sales", "vatDueSales"],
+  ["2", "VAT due on EU acquisitions", "vatDueAcquisitions"],
+  ["3", "Total VAT due", "totalVatDue"],
+  ["4", "VAT reclaimed on purchases", "vatReclaimedCurrPeriod"],
+  ["5", "Net VAT to pay or reclaim", "netVatDue"],
+  ["6", "Total sales, excluding VAT", "totalValueSalesExVAT"],
+  ["7", "Total purchases, excluding VAT", "totalValuePurchasesExVAT"],
+  ["8", "Supplies to the EU", "totalValueGoodsSuppliedExVAT"],
+  ["9", "Acquisitions from the EU", "totalAcquisitionsExVAT"],
+];
+
+/** The calendar quarter before this one, as the dates a return covers. */
+function lastQuarter(): { from: string; to: string } {
+  const now = new Date();
+  const q = Math.floor(now.getUTCMonth() / 3);
+  const start = new Date(Date.UTC(now.getUTCFullYear(), (q - 1) * 3, 1));
+  const end = new Date(Date.UTC(now.getUTCFullYear(), q * 3, 0));
+  const day = (d: Date) => d.toISOString().slice(0, 10);
+  return { from: day(start), to: day(end) };
+}
+
+/**
+ * The return itself, for an instance that cannot file it.
+ *
+ * Filing needs this instance registered with HMRC; working the return out
+ * needs nothing but the books, and the free core has always computed it. The
+ * screen said "you can still see the return under Reports", which is Pro, so
+ * a Free business in the UK never saw its own nine boxes. It sees them here,
+ * for whatever period it says, and can copy them into HMRC's own service.
+ */
+function ReturnWithoutFiling() {
+  const [period, setPeriod] = useState(lastQuarter);
+  const figures = useQuery({
+    queryKey: ["vat-return", period.from, period.to],
+    enabled: Boolean(period.from && period.to),
+    queryFn: () =>
+      api<{ asSubmitted: Record<string, number>; notCovered: string[] }>(
+        `/api/accounting/vat-return?from=${period.from}&to=${period.to}`,
+      ),
+  });
+  return (
+    <Page>
+      <Card>
+        <SectionHeading>Your VAT return</SectionHeading>
+        <p className="text-sm" style={muted}>
+          Worked out from your books for the period you choose. This instance is
+          not registered with HMRC, so it cannot file the return for you: copy
+          these figures into HMRC's online service, or ask whoever runs this
+          server to register it.
+        </p>
+        <Toolbar>
+          <Field label="From">
+            <Input
+              type="date"
+              value={period.from}
+              onChange={(e) => setPeriod({ ...period, from: e.target.value })}
+            />
+          </Field>
+          <Field label="To">
+            <Input
+              type="date"
+              value={period.to}
+              onChange={(e) => setPeriod({ ...period, to: e.target.value })}
+            />
+          </Field>
+        </Toolbar>
+        {figures.isLoading ? <Loading /> : null}
+        {figures.error ? <ErrorNote error={figures.error} /> : null}
+        {figures.data ? (
+          <>
+            <Table
+              headers={["Box", "What it is", { label: "Amount", money: true }]}
+            >
+              {VAT_BOXES.map(([box, label, key]) => (
+                <Row key={box}>
+                  <td style={muted}>{box}</td>
+                  <td>{label}</td>
+                  <td className="money">
+                    {formatMoney(
+                      Math.round((figures.data?.asSubmitted[key] ?? 0) * 100),
+                      "GBP",
+                    )}
+                  </td>
+                </Row>
+              ))}
+            </Table>
+            <p className="text-xs" style={muted}>
+              Boxes 6 to 9 are whole pounds, rounded down, as HMRC takes them.
+            </p>
+            {figures.data.notCovered.map((note) => (
+              <p key={note} className="text-xs" style={muted}>
+                {note}
+              </p>
+            ))}
+          </>
+        ) : null}
+      </Card>
+    </Page>
+  );
+}
+
 export function VatFiling() {
   const qc = useQueryClient();
   const [code, setCode] = useState("");
@@ -294,19 +397,7 @@ export function VatFiling() {
    * credentials cannot file, and a business pressing a button that does nothing
    * is worse off than one told so.
    */
-  if (!status.data?.available) {
-    return (
-      <Page>
-        <Card>
-          <SectionHeading>Filing to HMRC is not set up here</SectionHeading>
-          <p className="text-sm" style={muted}>
-            This instance has no HMRC credentials configured, so it cannot file
-            a VAT return. You can still see the return itself under Reports.
-          </p>
-        </Card>
-      </Page>
-    );
-  }
+  if (!status.data?.available) return <ReturnWithoutFiling />;
 
   return (
     <Page>
@@ -464,21 +555,7 @@ export function VatFiling() {
                   { label: "Amount", money: true },
                 ]}
               >
-                {[
-                  ["1", "VAT due on sales", "vatDueSales"],
-                  ["2", "VAT due on EU acquisitions", "vatDueAcquisitions"],
-                  ["3", "Total VAT due", "totalVatDue"],
-                  ["4", "VAT reclaimed on purchases", "vatReclaimedCurrPeriod"],
-                  ["5", "Net VAT to pay or reclaim", "netVatDue"],
-                  ["6", "Total sales, excluding VAT", "totalValueSalesExVAT"],
-                  [
-                    "7",
-                    "Total purchases, excluding VAT",
-                    "totalValuePurchasesExVAT",
-                  ],
-                  ["8", "Supplies to the EU", "totalValueGoodsSuppliedExVAT"],
-                  ["9", "Acquisitions from the EU", "totalAcquisitionsExVAT"],
-                ].map(([box, label, key]) => (
+                {VAT_BOXES.map(([box, label, key]) => (
                   <Row key={String(box)}>
                     <td style={muted}>{box}</td>
                     <td>{label}</td>

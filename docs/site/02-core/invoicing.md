@@ -253,8 +253,9 @@ HMRC issues software credentials to whoever runs the instance. Set
 `HMRC_CLIENT_ID` and `HMRC_CLIENT_SECRET` in the server's environment, and
 `SENTRELLO_PUBLIC_IP`, which HMRC requires on every submission. Returns go to
 HMRC's sandbox, under a **Test mode** banner, until `HMRC_LIVE=true` is set as
-well. Without credentials the screen says **Filing to HMRC is not set up
-here**, and the nine boxes are on [Pro](/pro)'s Reports screen instead.
+well. Without credentials the screen shows **Your VAT return** instead: pick
+the period, and the nine boxes are worked out from your books, ready to copy
+into HMRC's own online service.
 :::
 
 ## EU VAT and the One Stop Shop

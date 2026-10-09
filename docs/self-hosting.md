@@ -367,6 +367,19 @@ https://icanhazip.com` from the server, or the A record of your domain when
 no CDN sits in front, is the value to use — and it needs updating if the
 server's address ever changes.
 
+And the credentials HMRC issues for filing software. Register this server as
+an application on HMRC's developer hub; HMRC gives you a client id and secret.
+Without them the VAT screen still works out the nine boxes from the books for
+you to copy into HMRC's own service, and it cannot file:
+
+```sh
+# From HMRC's developer hub. Both or neither.
+HMRC_CLIENT_ID=
+HMRC_CLIENT_SECRET=
+# Returns go to HMRC's sandbox, under a Test mode banner, until this is true.
+HMRC_LIVE=false
+```
+
 ---
 
 ## Email

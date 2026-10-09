@@ -228,8 +228,9 @@ which account. The screen shows exactly what will be sent, and **Send it**
 asks the bank to authorize the payment before it goes. A payment can repeat
 weekly, monthly, quarterly or yearly. Sending needs its own permission.
 
-A payment sent from here is not yet tied to a bill. It posts as a general
-expense, and any bill it paid stays open until you deal with it.
+Pick the bill under **For a bill** and the payment settles it: what you owe
+the supplier comes down, and the bill shows as paid or part paid. Only an
+approved bill can be picked. A payment with no bill posts as a general expense.
 
 ### Fixed assets
 
