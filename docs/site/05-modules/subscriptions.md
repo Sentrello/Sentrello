@@ -130,8 +130,12 @@ A run catches up at most twelve periods for one subscription, a year of a
 monthly plan. Anything older is still owed and goes out the following night.
 The limit is there so a subscription imported with a start date years back
 can't send one customer eighty invoices before anybody has looked at it.
-**Tonight's billing** shows the oldest period due, which is the one the run
-starts with.
+
+**Tonight's billing** lists every invoice a catch-up will raise: each missed
+period, the day it will be dated, the day it falls due and what it comes to,
+tax included. The total is all of them, not just the first. Where a
+subscription is more than twelve periods behind, it tells you how many are
+left for the following night.
 
 ## Charging for what somebody used
 
