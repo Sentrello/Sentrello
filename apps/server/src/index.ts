@@ -1116,11 +1116,37 @@ serveWeb(app);
 const jobsEnabled =
   (process.env.SENTRELLO_JOBS ?? "on").toLowerCase() !== "off";
 
+/**
+ * Stopping when asked.
+ *
+ * The container runs this process as PID 1, and Linux delivers no signal to
+ * PID 1 that the process has not asked for. Nothing asked, so a `stop`, an
+ * update or a restart sent SIGTERM, heard nothing back for ten seconds, and
+ * then killed the server outright, a job half way through with it: every
+ * update on every install took ten seconds longer than it needed to and ended
+ * in SIGKILL. Now the queue is given a few seconds to let a running job finish
+ * and the process leaves on its own, inside the engine's ten.
+ */
+let queue: Awaited<ReturnType<typeof startJobs>> | undefined;
+if (import.meta.main) {
+  let stopping = false;
+  const stop = async () => {
+    if (stopping) return;
+    stopping = true;
+    await queue
+      ?.stop({ graceful: true, timeout: 7000, wait: true })
+      .catch(() => {});
+    process.exit(0);
+  };
+  process.on("SIGTERM", stop);
+  process.on("SIGINT", stop);
+}
+
 // Jobs run only in the real server process, never when a test imports this file.
 if (import.meta.main && jobsEnabled) {
   // The tier decides whether the overdue chase goes out under Sentrello's name
   // or the business's own; a job has no request to read the licence from.
-  await startJobs(jobs, {
+  queue = await startJobs(jobs, {
     tier: state.claims?.tier === "pro" ? "pro" : "free",
     // Only reaches anywhere if this instance was asked at install time and
     // said yes; the job checks that itself.
