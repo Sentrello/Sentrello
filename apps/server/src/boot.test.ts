@@ -491,7 +491,7 @@ test("/api/_meta exposes only the nav the loaded modules registered", async () =
   expect(body.nav.map((n) => n.id)).toEqual([
     "dashboard",
     "crm-dashboard",
-    // The Users console's seven screens sit at orders 1-7, so they land
+    // The Users console's eight screens sit at orders 1-8, so they land
     // among the CRM's pages here. `users` keeps its id so /users still opens
     // the people list rather than a heading.
     "users",
@@ -505,6 +505,7 @@ test("/api/_meta exposes only the nav the loaded modules registered", async () =
     "user-auth",
     "user-providers",
     "user-events",
+    "user-api-keys",
     /*
      * The CRM's settings moved from 5 to 9, which is why they sit here now
      * rather than three lines up.
@@ -1224,6 +1225,7 @@ test("Users opens out into the screens of a console, not one page", async () => 
     "user-auth",
     "user-providers",
     "user-events",
+    "user-api-keys",
   ]);
 
   // `users` stays the id of the people screen rather than becoming the

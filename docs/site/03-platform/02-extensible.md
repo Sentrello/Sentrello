@@ -62,8 +62,15 @@ rather than served and hidden.
 ## The module contract
 
 ```ts
-import { requirePermission, requireSession } from "@sentrello/auth/hono";
 import { defineModule } from "@sentrello/module-sdk";
+import {
+  activeOrganizationId,
+  db,
+  eq,
+  requirePermission,
+  requireSession,
+  schema,
+} from "@sentrello/module-sdk/server";
 
 export default defineModule({
   id: "crm",
@@ -75,13 +82,27 @@ export default defineModule({
       "/api/contacts",
       requireSession(),
       requirePermission({ crm: ["read"] }),
-      async (c) => c.json({ contacts: [] }),
+      async (c) => {
+        const orgId = activeOrganizationId(c.get("session"));
+        const contacts = await db
+          .select()
+          .from(schema.contacts)
+          .where(eq(schema.contacts.organizationId, orgId));
+        return c.json({ contacts });
+      },
     );
   },
 });
 ```
 
-Three things are worth reading off that:
+Everything comes from the SDK. The contract itself is in
+`@sentrello/module-sdk`; what a route needs from the running host — who is
+calling, what they may do, the business's tables and the query operators — is
+in `@sentrello/module-sdk/server`. Two entry points rather than one because the
+second loads the database and the sign-in machinery, and the first is also what
+the host's own packages are built on.
+
+Four things are worth reading off that:
 
 - **`id` and `tier` are what the host loads against.** A module whose tier the
   license does not cover is never registered. Its routes do not exist and its
@@ -92,6 +113,10 @@ Three things are worth reading off that:
   bought the module; permission says this account may use it. Both are
   required, and they answer differently. An unentitled request gets a 404,
   because the feature genuinely is not there. An unpermitted one gets a 403.
+- **Every query names the business.** `activeOrganizationId` is the
+  organization the caller is acting in, and it throws rather than return
+  nothing. Every table carries one, and a query that leaves it out reads
+  somebody else's records on an instance that holds two.
 
 Beyond routes and navigation, a module can register dashboard widgets, account
 sections, summary figures, computed columns, payment webhooks, background jobs,
@@ -111,7 +136,9 @@ there is nothing to wire up: add the module and the join is already there.
 
 The license carves this out deliberately. The **module linking exception** at
 the top of `LICENSE` lets you write a module against `@sentrello/module-sdk`,
-load it into Core, and license and sell it on whatever terms you like. Core
+load it into Core, and license and sell it on whatever terms you like. Both
+entry points above are part of that package, so a module that imports only
+from them is inside the exception. Core
 stays AGPL, so changes to Core remain copyleft, but the module belongs to
 whoever wrote it.
 
@@ -155,7 +182,8 @@ than half-loaded, and a bundle that throws on import is named on `/healthz`
 and on the settings screen — so a module that did not load looks like a module
 that did not load, rather than like a missing feature.
 
-One catch on a licensed instance. `sentrello update` treats that directory as
-the license's: anything in it the license does not name is removed, so a
-module of your own goes with it. Copy it back after each update until that
-changes.
+Your module survives updates. On a licensed instance, `sentrello update`
+removes a bundle the license no longer names, but only one it fetched itself.
+It keeps a list of those, so anything you copied in stays where you put it.
+Name your package outside the `@sentrello/` scope, though: an instance
+installed before that list existed starts it from the package names it finds.

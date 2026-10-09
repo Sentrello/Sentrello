@@ -85,6 +85,8 @@ const ACTIONS: { value: string; label: string }[] = [
   { value: "policy.changed", label: "Changed the sign-in rules" },
   { value: "sso.connected", label: "Connected sign-in" },
   { value: "sso.disconnected", label: "Disconnected sign-in" },
+  { value: "api-key.created", label: "Made an API key" },
+  { value: "api-key.revoked", label: "Revoked an API key" },
   { value: "events.pruned", label: "Removed old history" },
 ];
 

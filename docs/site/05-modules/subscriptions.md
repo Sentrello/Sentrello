@@ -235,7 +235,7 @@ behind them.
 
 ```bash
 curl -X POST https://your-instance/api/subscriptions/SUBSCRIPTION_ID/readings \
-  -b session-cookies.txt \
+  -H "Authorization: Bearer $SENTRELLO_METER_KEY" \
   -H 'content-type: application/json' \
   -d '{
     "reference": "nightly-2026-12-01",
@@ -264,11 +264,10 @@ than rounded: a silently dropped amount is a period that bills less than it
 should and says nothing about it.
 
 Recording usage needs **its own permission**, `subscriptions:meter`, and
-nothing else. Whatever posts readings signs in as a user like anybody else;
-there are no separate API keys. So give your script an account of its own, on a
-role that carries only that permission, and send its signed-in session with each
+nothing else. So make your script an API key under **Users → API keys** with
+only that permission ticked, and send it as `Authorization: Bearer` with each
 batch. It should be able to add up gigabytes without also being able to cancel
-every subscription you have.
+every subscription you have, and a key that carries one permission can't.
 
 A batch holds up to 200 readings. Send more in another batch, with its own
 reference.
@@ -371,9 +370,9 @@ Ending somebody's membership is not the same job as raising an invoice for work
 done, so it gets its own permission instead of riding on Invoicing's.
 
 **Metering has a third** because what holds it is usually not a person. Whatever
-counts your customers' usage posts readings on a schedule, signed in as an
-account somebody set up for a cron job, and that account should be able to add
-up gigabytes without also being able to cancel every subscription you have.
+counts your customers' usage posts readings on a schedule, with an API key
+somebody put in a cron job, and that key should be able to add up gigabytes
+without also being able to cancel every subscription you have.
 
 ## Changing a plan mid-cycle
 

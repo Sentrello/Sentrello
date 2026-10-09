@@ -63,6 +63,9 @@ import * as schema from "./schema";
 export const NON_STATUTORY_TABLES = [
   "account",
   "activities",
+  // Credentials for scripts. Revoked rows prove nothing to an auditor that
+  // the events log does not already say, with who and when.
+  "api_keys",
   "archive_runs",
   /*
    * Configuration for signing in through somebody else's identity provider.

@@ -5,9 +5,12 @@ import {
   rolesNeedingTwoFactor,
 } from "@sentrello/db/security-events";
 import type { SentrelloEnv, SentrelloSession } from "@sentrello/module-sdk";
-import type { Hono } from "hono";
+import { rateLimit, rateLimitSpent } from "@sentrello/module-sdk";
+import type { Context, Hono } from "hono";
 import { createMiddleware } from "hono/factory";
-import { auth } from "./index";
+import { matchedRoutes } from "hono/route";
+import { apiKeyMay, bearerKey, resolveApiKey } from "./api-keys";
+import { auth, clientIp } from "./index";
 
 export type Session = NonNullable<
   Awaited<ReturnType<typeof auth.api.getSession>>
@@ -59,6 +62,20 @@ export function mountAuth(app: Hono<AppEnv>) {
 /** Route guard: requires a session, attaches it to context. */
 export function requireSession() {
   return createMiddleware<AppEnv>(async (c, next) => {
+    /*
+     * A key, when one is presented, and nothing else.
+     *
+     * Checked before the cookie and never alongside it: a request carrying a
+     * key that does not work is refused even if a session cookie came with
+     * it, so a script cannot fall back to whoever is signed in on the same
+     * machine. Nothing about the cookie path changes — a browser never adds
+     * an `Authorization` header on its own, so a forged cross-site request
+     * cannot carry a key, and one that carries a cookie meets every check it
+     * met before.
+     */
+    const presented = bearerKey(c.req.raw.headers);
+    if (presented !== null) return keyCaller(c, presented, next);
+
     const session = await auth.api.getSession({ headers: c.req.raw.headers });
     if (!session) return c.json({ error: "unauthorized" }, 401);
     c.set("session", session as SentrelloSession);
@@ -87,6 +104,71 @@ export function requireSession() {
 
     await asActor(session.user.id, () => next());
   });
+}
+
+/**
+ * Wrong keys a caller may present before being refused without a lookup.
+ *
+ * The budget the invitation links use: thirty misses in fifteen minutes, per
+ * caller. Counted on misses only, so a meter posting with a good key every
+ * few seconds never meets it.
+ */
+const KEY_MISSES = 30;
+const KEY_MISS_WINDOW_MS = 15 * 60_000;
+
+async function keyCaller(
+  c: Context<AppEnv>,
+  presented: string,
+  next: () => Promise<void>,
+) {
+  const budget = `api-key:${clientIp(c)}`;
+  if (rateLimitSpent(budget, KEY_MISSES, KEY_MISS_WINDOW_MS)) {
+    return c.json(
+      { error: "too many attempts with a key that does not work" },
+      429,
+    );
+  }
+
+  const key = await resolveApiKey(presented);
+  if (!key) {
+    rateLimit(budget, KEY_MISSES, KEY_MISS_WINDOW_MS);
+    return c.json({ error: "unauthorized" }, 401);
+  }
+
+  /*
+   * Only where a route names the permission it needs.
+   *
+   * A route behind a session and nothing more is one that acts on whoever is
+   * signed in — their profile, their own security settings, their place in a
+   * list — and for a key that person is its maker. None of those are what a
+   * key was made for, and none of them check the key's own permissions, so a
+   * key carrying only `subscriptions:meter` could otherwise rename the person
+   * who made it. Read off the handlers Hono matched for this request, which
+   * is where `requirePermission` leaves its mark.
+   */
+  const declared = matchedRoutes(c).some((route) =>
+    Boolean((route.handler as unknown as Record<symbol, unknown>)[DECLARES]),
+  );
+  if (!declared) {
+    return c.json(
+      {
+        error:
+          "an API key can only call a route that names the permission it needs",
+      },
+      403,
+    );
+  }
+
+  c.set("session", {
+    session: {
+      id: `api-key:${key.id}`,
+      activeOrganizationId: key.organizationId,
+      userId: key.user.id,
+    },
+    user: key.user,
+    apiKey: { id: key.id, name: key.name, permissions: key.permissions },
+  });
+  await asActor(key.user.id, () => next());
 }
 
 /**
@@ -338,14 +420,28 @@ export const DECLARES = Symbol.for("sentrello.requirePermission");
 export function requirePermission(permissions: Record<string, string[]>) {
   const middleware = createMiddleware<AppEnv>(async (c, next) => {
     let granted = false;
-    try {
-      const result = await auth.api.hasPermission({
-        headers: c.req.raw.headers,
-        body: { permissions },
-      });
-      granted = result?.success === true;
-    } catch {
-      granted = false; // not a member, no active org, malformed request
+    const key = c.get("session")?.apiKey;
+    const orgId = c.get("session")?.session.activeOrganizationId;
+    if (key && orgId) {
+      // The key's own list, and its maker's access as it stands today.
+      granted = await apiKeyMay(
+        {
+          organizationId: orgId,
+          permissions: key.permissions,
+          user: c.get("session").user,
+        },
+        permissions,
+      );
+    } else {
+      try {
+        const result = await auth.api.hasPermission({
+          headers: c.req.raw.headers,
+          body: { permissions },
+        });
+        granted = result?.success === true;
+      } catch {
+        granted = false; // not a member, no active org, malformed request
+      }
     }
     if (!granted) {
       /*
@@ -385,6 +481,13 @@ export async function mayAccess(
   headers: Headers,
   permissions: Record<string, string[]>,
 ): Promise<boolean> {
+  // Asked again of the key rather than of the session it has none of, so a
+  // key caller is answered by the same rule `requirePermission` applies.
+  const presented = bearerKey(headers);
+  if (presented !== null) {
+    const key = await resolveApiKey(presented);
+    return key ? apiKeyMay(key, permissions) : false;
+  }
   try {
     const result = await auth.api.hasPermission({
       headers,

@@ -48,6 +48,7 @@ import {
 import { Setup } from "./routes/setup";
 import { SignIn } from "./routes/sign-in";
 import { UsSalesTax } from "./routes/us-sales-tax";
+import { ApiKeys } from "./routes/users/api-keys";
 import { Authentication } from "./routes/users/authentication";
 import { Events } from "./routes/users/events";
 import { GroupDetail } from "./routes/users/group";
@@ -127,6 +128,7 @@ const SCREENS: Record<string, () => React.ReactElement | null> = {
   "user-auth": Authentication,
   "user-providers": Providers,
   "user-events": Events,
+  "user-api-keys": ApiKeys,
   profile: ProfileScreen,
 };
 

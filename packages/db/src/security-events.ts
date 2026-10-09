@@ -186,7 +186,15 @@ export type SecurityAction =
    * says who decided the two were the same person, which is the half a
    * dispute is actually about.
    */
-  | "crm.contacts.merged";
+  | "crm.contacts.merged"
+  /**
+   * A key for a script, made or taken back.
+   *
+   * A way into the business that nobody signs in to, so both ends of its
+   * life belong beside the invitations and the role changes.
+   */
+  | "api-key.created"
+  | "api-key.revoked";
 
 /** What each one says in a sentence, for the screen and for support. */
 export const ACTION_TEXT: Record<SecurityAction, string> = {
@@ -234,6 +242,8 @@ export const ACTION_TEXT: Record<SecurityAction, string> = {
   "crm.webhook.created": "added an outbound webhook for record changes",
   "crm.webhook.deleted": "removed an outbound webhook for record changes",
   "crm.contacts.merged": "merged two contacts into one",
+  "api-key.created": "made the API key",
+  "api-key.revoked": "revoked the API key",
   "contractor.tax-id.set": "recorded a contractor\u2019s taxpayer number",
   "year.closed": "closed the year",
   "year.reopened": "reopened a closed year",

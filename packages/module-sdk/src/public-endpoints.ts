@@ -284,6 +284,25 @@ export function callerKey(c: Parameters<typeof callerAddress>[0]): string {
   return c.req.header("origin")?.slice(0, 80) ?? "anon";
 }
 
+/**
+ * Whether a key has spent its budget, without spending any of it.
+ *
+ * For a limit counted on failures only — a wrong API key — where the question
+ * before the work is "has this caller already guessed too often", and only a
+ * miss should be counted afterwards. A script calling with a good key every
+ * second must never be refused for succeeding.
+ */
+export function rateLimitSpent(
+  key: string,
+  limit: number,
+  windowMs: number,
+  now = Date.now(),
+): boolean {
+  return (
+    (hits.get(key) ?? []).filter((at) => now - at < windowMs).length >= limit
+  );
+}
+
 export function resetRateLimits() {
   hits.clear();
 }

@@ -3745,6 +3745,56 @@ export const userGroupMembers = pgTable(
 );
 
 /**
+ * A key a script uses in place of somebody signing in.
+ *
+ * A meter posting readings at midnight, a nightly export, a website build
+ * that asks what can be booked: none of them is a person, and the only way
+ * they had to call the API was to be given an account of their own and a
+ * password somebody pasted into a cron job. A key is narrower than that
+ * account could ever be — it carries a named set of permissions, never more
+ * than whoever made it holds — and it can be taken back without touching
+ * anybody's login.
+ *
+ * **The key itself is nowhere in here.** `tokenHash` is its SHA-256, which is
+ * all a lookup needs: the key is 32 random bytes, so there is nothing for a
+ * slow hash to protect against, and a fast one keeps the lookup an index
+ * probe rather than a scan. `prefix` is the first few characters, kept so a
+ * list of keys can say which one is which without showing any of them.
+ *
+ * `expiresOn` names a day, stored as that day's midnight UTC like every other
+ * day in the product, and a key works for the whole of it where the business
+ * is — `daysLate` decides, never a comparison with the clock.
+ */
+export const apiKeys = pgTable(
+  "api_keys",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    prefix: text("prefix").notNull(),
+    tokenHash: text("token_hash").notNull(),
+    /** What the key may do, as `{ resource: [action] }`. */
+    permissions: jsonb("permissions")
+      .$type<Record<string, string[]>>()
+      .notNull()
+      .default({}),
+    /** Who made it. The key acts for them, and never beyond what they hold. */
+    createdBy: text("created_by").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    lastUsedAt: timestamp("last_used_at"),
+    expiresOn: timestamp("expires_on"),
+    revokedAt: timestamp("revoked_at"),
+    revokedBy: text("revoked_by"),
+  },
+  (t) => [
+    uniqueIndex("api_keys_token_hash_idx").on(t.tokenHash),
+    index("api_keys_org_idx").on(t.organizationId),
+  ],
+);
+
+/**
  * The rules a business sets for how people get in.
  *
  * One row per organization. The reference calls these required actions and

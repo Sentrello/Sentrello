@@ -11,8 +11,8 @@ Every module uses these accounts. Nothing in Sentrello keeps a separate list of
 logins, so connect a new module and your existing colleagues can use it
 straight away, with the access they already have.
 
-**Users** is its own section in the sidebar, with seven screens: People,
-Groups, Policies, Sessions, Authentication, Providers and Events.
+**Users** is its own section in the sidebar, with eight screens: People,
+Groups, Policies, Sessions, Authentication, Providers, Events and API keys.
 
 ![Users → Policies: the seeded policies against what each may open, with the Customer role able to open the dashboard and nothing else](https://raw.githubusercontent.com/Sentrello/Sentrello/main/docs/images/roles.png)
 
@@ -251,6 +251,43 @@ disagree with it.
 Old entries are pruned to whatever you choose to keep, a year by default. The
 prune records itself, because history that could vanish without a trace would
 not be much of an audit log.
+
+## API keys
+
+Some things that call Sentrello are not people. A script that posts usage every
+night, an export that runs before anybody is in: you don't want to give either of
+them a person's login, and you don't want a password sitting in a cron job.
+
+**Users → API keys** makes a key for one of them. Give it a name, tick what it
+may do, and optionally pick the last day it works. The key is shown once, when
+you make it. We keep a fingerprint of it rather than the key itself, so a lost
+key is replaced, not recovered. The list shows the first few characters of each
+key, who made it, and when it was last used, which is what you check before
+revoking one.
+
+A script sends it on every request:
+
+```bash
+curl https://your-instance/api/... \
+  -H "Authorization: Bearer sntl_..."
+```
+
+A key can never do more than you can:
+
+- **You can only tick what you hold yourself.** Ask for a permission you
+  don't have and the key isn't made.
+- **It shrinks with you.** Every call checks the key's own list *and* your access
+  as it stands that day. If your role changes, or you're suspended or removed,
+  your keys lose that access with you.
+- **It only calls routes that name a permission.** The routes that act on
+  whoever is signed in, like your own profile and security settings, turn
+  keys away.
+- **It can't make or revoke keys**, even with `settings:update` on it.
+
+Revoking a key, or reaching the end of the day it was set to work until, stops
+it at once. "The end of the day" means the end of that day where your business
+is. Too many wrong keys from one address and that address is refused for a
+while. Making and revoking keys both appear in **Users → Events**.
 
 ## How permissions are enforced
 

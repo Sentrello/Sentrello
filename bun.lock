@@ -130,6 +130,8 @@
       "name": "@sentrello/module-sdk",
       "version": "0.0.0",
       "dependencies": {
+        "@sentrello/auth": "*",
+        "@sentrello/db": "*",
         "hono": "^4.13.5",
       },
       "devDependencies": {

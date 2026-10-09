@@ -189,3 +189,34 @@ describe("the fences in the published documentation", () => {
     ).toEqual([]);
   });
 });
+
+/**
+ * The extension guide's module imports from the SDK and nothing else.
+ *
+ * The module linking exception covers a module that reaches Core through
+ * `@sentrello/module-sdk`, so the example a stranger copies to start one has to
+ * stay inside it. It imported `requireSession` from `@sentrello/auth/hono` until
+ * 9 October, which taught every reader to step outside the exception on the
+ * first line they wrote. `@sentrello/module-sdk/server` hands those through.
+ */
+test("the extension guide's example imports only the module SDK", () => {
+  const page = readFileSync(
+    `${ROOT}/docs/site/03-platform/02-extensible.md`,
+    "utf8",
+  );
+  const specs = [...page.matchAll(/```(?:ts|tsx)\n([\s\S]*?)```/g)].flatMap(
+    ([, block]) =>
+      [...(block ?? "").matchAll(/from\s*"([^"]+)"/g)].map(
+        ([, spec]) => spec as string,
+      ),
+  );
+  expect(specs.length, "the guide has no imports to check").toBeGreaterThan(0);
+  expect(
+    specs.filter(
+      (spec) =>
+        spec !== "@sentrello/module-sdk" &&
+        !spec.startsWith("@sentrello/module-sdk/"),
+    ),
+  ).toEqual([]);
+  expect(specs).toContain("@sentrello/module-sdk/server");
+});

@@ -5,6 +5,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./hono": "./src/hono.ts",
+    "./api-keys": "./src/api-keys.ts",
     "./bootstrap": "./src/bootstrap.ts",
     "./permissions": "./src/permissions.ts",
     "./testing": "./src/testing.ts",

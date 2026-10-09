@@ -23,6 +23,15 @@ export interface SentrelloSession {
     userId: string;
   };
   user: { id: string; email?: string | null; name?: string | null };
+  /**
+   * Present when the caller is an API key rather than a person.
+   *
+   * `user` is then whoever made the key, because that is who it acts for, and
+   * `requirePermission` checks the key's own permissions as well as theirs —
+   * so a route that only needs to know *who* reads `user` as it always has,
+   * and one that cares whether a person is at the keyboard can ask here.
+   */
+  apiKey?: { id: string; name: string; permissions: Record<string, string[]> };
 }
 
 /** The Hono environment the host app and every module route share. */

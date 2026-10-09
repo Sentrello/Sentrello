@@ -1,5 +1,6 @@
 import { defineModule } from "@sentrello/module-sdk";
 import { registerAccess } from "./access";
+import { registerApiKeys } from "./api-keys";
 import { registerAuthentication } from "./authentication";
 import { registerDiagnostics } from "./diagnostics";
 import { registerEvents } from "./events";
@@ -31,7 +32,7 @@ export default defineModule({
   tier: "free",
   register(ctx) {
     /**
-     * One console, seven screens, rather than one page trying to be all of
+     * One console, eight screens, rather than one page trying to be all of
      * them.
      *
      * The heading is `users-console` and not `users`, because `users` stays
@@ -115,6 +116,16 @@ export default defineModule({
       icon: "clipboard",
       requires: { settings: ["update"] },
     });
+    // Last in the panel: keys are set up once and looked at rarely, which is
+    // where the settings-last rule puts the pages a business configures.
+    ctx.registerNav({
+      id: "user-api-keys",
+      label: "API keys",
+      order: 8,
+      parent: "users-console",
+      icon: "bolt",
+      requires: { settings: ["update"] },
+    });
 
     registerGroups(ctx);
     registerSessions(ctx);
@@ -162,6 +173,10 @@ export default defineModule({
     // here. The static route sits ahead of `registerPeople` on the same
     // reasoning as every static sibling above.
     registerInvitations(ctx);
+    // `GET`/`POST /api/users/api-keys` — two segments, static, and shadowed by
+    // `registerPeople`'s `GET /api/users/:userId` if registered after it, for
+    // the same reason as every static sibling above.
+    registerApiKeys(ctx);
     // Last, and it has to stay last: `registerPeople` registers
     // `GET /api/users/:userId`, and Hono matches routes in registration
     // order — a static route registered after it, say `GET /api/users/access`

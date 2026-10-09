@@ -90,6 +90,31 @@ license does not cover is never registered at all, so there is nothing to
 forbid. It also means an instance does not enumerate what its owner has not
 bought.
 
+## Calling it from a script
+
+A script has no browser and nobody to sign in. Give it an API key instead: an
+administrator makes one under **Users → API keys**, ticks the permissions it
+needs, and the script sends it with every request.
+
+```bash
+curl https://your-instance/api/users/groups \
+  -H "Authorization: Bearer sntl_..."
+```
+
+The key goes through the same two checks a person does. Where a person's
+access comes from their policies, a key's is its own list, and that list can
+never hold more than the person who made it. Both are checked on every call, so
+when the maker loses access, the key loses it too. A key that has been revoked,
+has passed its last day, or was never real gets a **401**. A key without the
+permission a route asks for gets a **403**, exactly as a person would. So does
+a key calling a route that names no permission at all, like the ones that act
+on your own profile, because those are about a person and a key isn't one.
+
+Cookie sign-in is unchanged by any of this. A browser never adds an
+`Authorization` header by itself, so another website can't make your browser
+send a key. And a request that carries a key is judged on the key alone, even
+if a session cookie came with it.
+
 ## Where the reference stands
 
 There is no published API reference yet. Routes still change between releases,
