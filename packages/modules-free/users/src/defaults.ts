@@ -83,11 +83,10 @@ const PROJECTS_FOR_MANAGERS = ["read", "create", "update", "log-time"];
  * business; the test that pins this set exactly is where somebody decides
  * whether it should.
  *
- * From `admin` and not the whole statement list, for two reasons. The statement
- * keeps dead keys for withdrawn modules (`hr`, `inventory`, `make-deal`), which
- * nothing reads. And `createOrgRole` refuses to create a role holding anything
- * its caller lacks, so one dead key in here and the seed silently skipped
- * Executives altogether, which is how this was found.
+ * From `admin` and not the whole statement list, because `createOrgRole`
+ * refuses to create a role holding anything its caller lacks: one key in here
+ * that `admin` does not carry and the seed silently skips Executives
+ * altogether, which is how this was found.
  *
  * Two are left out on purpose:
  *

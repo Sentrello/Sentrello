@@ -314,17 +314,14 @@ test("a custom row under a compiled name adds to it; it does not shadow it", asy
   const shadowOwnerId = signUp.response.user.id;
 
   try {
-    // admin's compiled statement has no `inventory` key at all — it names a
-    // withdrawn module's resource, granted by no built-in role
-    // (permissions.ts). crm:read is already part of admin's compiled grant,
-    // so it proves nothing on its own; inventory:read is this row's only
-    // real addition, and the one that tells a full override from a union
-    // apart.
+    // A row narrowing `admin` to crm:read. The compiled `admin` holds every
+    // resource in the statement, so the row can only ever narrow it — which
+    // is the case this test is for.
     await db.insert(schema.organizationRole).values({
       id: crypto.randomUUID(),
       organizationId: shadowOrgId,
       role: "admin",
-      permission: JSON.stringify({ crm: ["read"], inventory: ["read"] }),
+      permission: JSON.stringify({ crm: ["read"] }),
     });
 
     const { grants } = await resolveAccess(shadowOrgId, shadowOwnerId);
@@ -341,10 +338,6 @@ test("a custom row under a compiled name adds to it; it does not shadow it", asy
       { kind: "policy", name: "admin" },
     ]);
     expect(sourcesFor("bookkeeping", "delete")).toEqual([
-      { kind: "policy", name: "admin" },
-    ]);
-    // And the row can still add something the compiled role never had.
-    expect(sourcesFor("inventory", "read")).toEqual([
       { kind: "policy", name: "admin" },
     ]);
     // And where the row and the compiled role name the same resource, the

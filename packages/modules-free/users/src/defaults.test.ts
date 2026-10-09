@@ -552,7 +552,6 @@ test("executives reads every module and changes nothing", () => {
       "settings",
       "shop",
       "subscriptions",
-      "time",
     ].sort(),
   );
   for (const actions of Object.values(executives)) {

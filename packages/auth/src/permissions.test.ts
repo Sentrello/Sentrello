@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { db, schema } from "@sentrello/db";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { auth } from "./index";
 import { admin, customer, statement } from "./permissions";
 import { signUpAsOwner } from "./testing";
@@ -47,6 +49,7 @@ const emails = {
   owner: `owner-${suffix}@example.test`,
   accounting: `accounting-${suffix}@example.test`,
   staff: `staff-${suffix}@example.test`,
+  legacy: `legacy-${suffix}@example.test`,
 };
 
 let orgId: string;
@@ -205,4 +208,76 @@ test("a request with no session is not granted anything", async () => {
   // Better Auth throws for an unauthenticated caller; the Hono guard turns any
   // non-`success` outcome into a 403, so both shapes deny.
   await expect(check).rejects.toBeDefined();
+});
+
+/**
+ * A role saved while `hr`, `inventory`, `make-deal` and `time` were still in
+ * the statement.
+ *
+ * Better Auth would refuse to create this row now, so it is written straight to
+ * the table, the way an older instance already holds it. A permission check
+ * ignores the key nobody asks about, so the role keeps granting what it
+ * grants. What it could not do is be edited: `updateOrgRole` refuses a
+ * permission naming a resource the statement lacks, and the editor sends the
+ * whole stored permission back. Migration 0109 strips the dead keys, and this
+ * runs it against the row to prove the live grants come through untouched.
+ */
+test("a role holding a withdrawn module's key still loads, and the migration strips only that key", async () => {
+  const legacy = await signUp(emails.legacy, "Legacy");
+  await db.insert(schema.organizationRole).values({
+    id: crypto.randomUUID(),
+    organizationId: orgId,
+    role: "legacy",
+    permission: JSON.stringify({
+      crm: ["read", "update"],
+      hr: ["approve"],
+      time: ["read"],
+    }),
+  });
+  await db.insert(schema.member).values({
+    id: crypto.randomUUID(),
+    organizationId: orgId,
+    userId: legacy.userId,
+    role: "legacy",
+    createdAt: new Date(),
+  });
+  await auth.api.setActiveOrganization({
+    body: { organizationId: orgId },
+    headers: legacy.headers,
+  });
+  const may = async (permissions: Record<string, string[]>) =>
+    (
+      await auth.api.hasPermission({
+        headers: legacy.headers,
+        body: { permissions },
+      })
+    ).success;
+
+  expect(await may({ crm: ["update"] })).toBe(true);
+  expect(await may({ invoicing: ["read"] })).toBe(false);
+
+  await db.execute(
+    sql.raw(
+      readFileSync(
+        join(
+          import.meta.dir,
+          "../../db/drizzle/0109_roles_forget_withdrawn_modules.sql",
+        ),
+        "utf8",
+      ),
+    ),
+  );
+  const [row] = await db
+    .select({ permission: schema.organizationRole.permission })
+    .from(schema.organizationRole)
+    .where(
+      and(
+        eq(schema.organizationRole.organizationId, orgId),
+        eq(schema.organizationRole.role, "legacy"),
+      ),
+    );
+  expect(JSON.parse(row?.permission ?? "{}")).toEqual({
+    crm: ["read", "update"],
+  });
+  expect(await may({ crm: ["update"] })).toBe(true);
 });

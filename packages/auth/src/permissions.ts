@@ -65,7 +65,13 @@ export const statement = {
   // Optional modules declare their resources here too: the access-control
   // statement is compiled into the client as well as the server, so it cannot
   // be extended at runtime by a bundle.
-  time: ["read", "create", "update", "delete", "approve"],
+  //
+  // And only resources something guards. A module that is withdrawn takes its
+  // name out of here in the same change: a stored role still naming it keeps
+  // working, because a check ignores a key nobody asks about, and the data
+  // migration that removed `hr`, `inventory`, `make-deal` and `time` (0109)
+  // is the pattern for stripping it so the role can still be edited.
+  // `statement-is-guarded.test.ts` fails on a resource nothing checks.
   scheduling: ["read", "create", "update", "delete"],
   shop: ["read", "create", "update", "delete"],
   /**
@@ -148,29 +154,6 @@ export const statement = {
    * has no account. These are for the business's own screens.
    */
   docs: ["read", "create", "update", "delete"],
-  /**
-   * Withdrawn modules, kept as resources and granted by nothing.
-   *
-   * Inventory, Make Deal, HR and Time Tracking are gone for good — no code, no
-   * bundle, nothing on the price list. These names stay in the statement and
-   * nowhere else.
-   *
-   * `projects` used to be here too, for a module built and deleted the day
-   * after. It is a live resource again, listed above with the modules that
-   * exist, and granted by the roles that should have it.
-   *
-   * The reason is that a business can define its own roles, and one saved
-   * before the modules were withdrawn may still name them. A statement that no
-   * longer knows a resource is a role that fails to load, which locks somebody
-   * out of the modules that *are* installed — a worse outcome than a handful
-   * of dead keys. They appear in no built-in role, so they grant nothing.
-   *
-   * Delete them when the role loader ignores resources it does not recognise
-   * rather than refusing the whole statement.
-   */
-  inventory: ["read", "create", "update", "delete"],
-  hr: ["read", "create", "update", "delete", "approve"],
-  "make-deal": ["read", "create", "update"],
 } as const;
 
 export const ac = createAccessControl(statement);
@@ -190,7 +173,6 @@ export const admin = ac.newRole({
   archive: ["read", "create", "delete", "connect"],
   reports: ["read"],
   settings: ["read", "update"],
-  time: ["read", "create", "update", "delete", "approve"],
   scheduling: ["read", "create", "update", "delete"],
   shop: ["read", "create", "update", "delete"],
   pos: ["read", "sell", "void", "refund", "manage"],

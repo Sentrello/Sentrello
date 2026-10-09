@@ -62,8 +62,8 @@ export async function grantsFor(
    * the compiled role's own statements and unions each resource in the
    * custom row into them, so narrowing a stored `admin` row to `crm:read`
    * still leaves `settings:update` and `bookkeeping:delete` allowed, and a
-   * resource the compiled role does not mention at all — `inventory`, which
-   * no built-in role grants — is still allowed if the custom row adds it.
+   * resource the compiled role does not mention at all is still allowed if
+   * the custom row adds it.
    * The compiled statements are the floor, not a default that a same-named
    * row can lower.
    *
