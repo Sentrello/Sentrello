@@ -161,6 +161,25 @@ for (const { path, singular, field, make } of RESOURCES) {
     expect((after as unknown as Record<string, unknown>)[field]).toBe("Theirs");
   });
 
+  /*
+   * Five saves of one version together: one lands. The version was read
+   * without a lock and written by id, so all five passed and the last won.
+   */
+  test(`five saves of one ${singular} version at once: one lands`, async () => {
+    const row = await create();
+    const answers = await Promise.all(
+      Array.from({ length: 5 }, (_, i) =>
+        send("PATCH", `/api/${path}/${row.id}`, {
+          [field]: `Person ${i}`,
+          expectedUpdatedAt: row.updatedAt,
+        }),
+      ),
+    );
+    expect(answers.map((r) => r.status).sort()).toEqual([
+      200, 409, 409, 409, 409,
+    ]);
+  });
+
   test(`a save on a ${singular} that claims the current version is applied`, async () => {
     const row = await create();
     const res = await send("PATCH", `/api/${path}/${row.id}`, {

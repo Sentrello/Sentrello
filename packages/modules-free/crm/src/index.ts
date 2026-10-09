@@ -3,7 +3,7 @@ import {
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
-import { db, schema } from "@sentrello/db";
+import { at, db, schema } from "@sentrello/db";
 import { MOVED, UNUSABLE_CLAIM, versionClaim } from "@sentrello/db/concurrency";
 import { recordConsent } from "@sentrello/db/consent";
 import {
@@ -59,7 +59,7 @@ import {
   or,
   sql,
 } from "drizzle-orm";
-import type { SQL } from "drizzle-orm";
+import type { AnyColumn, SQL } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 import { registerAttachments } from "./attachments";
 import { type TrailRemoved, removeCrmTrail } from "./cascade";
@@ -723,11 +723,12 @@ function crud<T extends keyof typeof tables>(
          * Thrown rather than returned because a `c.json` here would leave the
          * transaction to commit around it.
          */
-        if (keepsVersion && before) {
-          const claim = versionClaim(before as { updatedAt: Date }, body);
-          if (claim === "moved") throw new RecordMoved();
-          if (claim === "unusable") throw new ClaimUnusable();
-        }
+        const claim =
+          keepsVersion && before
+            ? versionClaim(before as { updatedAt: Date }, body)
+            : "none";
+        if (claim === "moved") throw new RecordMoved();
+        if (claim === "unusable") throw new ClaimUnusable();
 
         /*
          * The display name is built from the record as it will be, not from
@@ -751,6 +752,12 @@ function crud<T extends keyof typeof tables>(
           if (merged) parsed.value.name = merged;
         }
 
+        /*
+         * And the version again, in the statement that writes. The read above
+         * takes no lock, so two saves of one version arriving together both
+         * passed it and the second silently replaced the first. To the
+         * millisecond, as the version was read.
+         */
         const updated = await tx
           .update(table)
           .set(parsed.value)
@@ -758,9 +765,15 @@ function crud<T extends keyof typeof tables>(
             and(
               eq(table.id, c.req.param("id")),
               eq(table.organizationId, orgId),
+              claim === "current" && before
+                ? sql`date_trunc('milliseconds', ${(table as unknown as { updatedAt: AnyColumn }).updatedAt}) = ${at((before as { updatedAt: Date }).updatedAt)}`
+                : undefined,
             ),
           )
           .returning();
+        if (claim === "current" && updated.length === 0) {
+          throw new RecordMoved();
+        }
 
         const saved = updated[0] as Record<string, unknown> | undefined;
         if (saved && before) {

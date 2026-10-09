@@ -5,7 +5,7 @@ import {
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
-import { db, isUuid, schema } from "@sentrello/db";
+import { at, db, isUuid, schema, sql } from "@sentrello/db";
 import { MOVED, UNUSABLE_CLAIM, versionClaim } from "@sentrello/db/concurrency";
 import { creditFor } from "@sentrello/db/credit";
 import {
@@ -225,6 +225,8 @@ async function postIssued(
   );
 }
 
+/** The row a write was guarded on changed under it; nothing was written. */
+class LostTheRow extends Error {}
 export default defineModule({
   id: "invoicing",
   tier: "free",
@@ -1588,75 +1590,107 @@ export default defineModule({
           }
         }
 
-        const updated = await db.transaction(async (tx) => {
-          const values: Record<string, unknown> = { updatedAt: new Date() };
-          if (typeof body.contactId === "string") {
-            values.contactId = body.contactId;
-          }
-          if (body.notes !== undefined) {
-            values.notes = asText(body.notes, "notes").trim() || null;
-          }
-          if (body.dueDate !== undefined) {
-            // `demandDate`, so "2026-02-30" is a 400 rather than an aging
-            // bucket two days out. It throws, which also unwinds this
-            // transaction rather than leaving half an edit behind.
-            values.dueDate = body.dueDate
-              ? demandDay(asText(body.dueDate, "dueDate"))
-              : null;
-          }
-          if (body.paymentTerms !== undefined) {
-            values.paymentTerms =
-              asText(body.paymentTerms, "paymentTerms").trim() || null;
-          }
-          if (body.buyerReference !== undefined) {
-            values.buyerReference =
-              asText(body.buyerReference, "buyerReference").trim() || null;
-          }
-          if (typeof body.templateId === "string") {
-            values.templateId = await ownedTemplateId(orgId, body.templateId);
-          }
-          if (exemptionCertificateId !== undefined) {
-            values.exemptionCertificateId = exemptionCertificateId;
-          }
-          if (prepared) {
-            values.discountType =
-              body.discountType === "percent" || body.discountType === "amount"
-                ? body.discountType
+        let updated: typeof schema.invoices.$inferSelect | undefined;
+        try {
+          updated = await db.transaction(async (tx) => {
+            const values: Record<string, unknown> = { updatedAt: new Date() };
+            if (typeof body.contactId === "string") {
+              values.contactId = body.contactId;
+            }
+            if (body.notes !== undefined) {
+              values.notes = asText(body.notes, "notes").trim() || null;
+            }
+            if (body.dueDate !== undefined) {
+              // `demandDate`, so "2026-02-30" is a 400 rather than an aging
+              // bucket two days out. It throws, which also unwinds this
+              // transaction rather than leaving half an edit behind.
+              values.dueDate = body.dueDate
+                ? demandDay(asText(body.dueDate, "dueDate"))
                 : null;
-            values.discountValue = Number.isInteger(body.discountValue)
-              ? body.discountValue
-              : 0;
-            values.discountCents = prepared.discountCents;
-            values.subtotalCents = prepared.subtotalCents;
-            values.taxCents = prepared.taxCents;
-            values.totalCents = prepared.totalCents;
-          }
+            }
+            if (body.paymentTerms !== undefined) {
+              values.paymentTerms =
+                asText(body.paymentTerms, "paymentTerms").trim() || null;
+            }
+            if (body.buyerReference !== undefined) {
+              values.buyerReference =
+                asText(body.buyerReference, "buyerReference").trim() || null;
+            }
+            if (typeof body.templateId === "string") {
+              values.templateId = await ownedTemplateId(orgId, body.templateId);
+            }
+            if (exemptionCertificateId !== undefined) {
+              values.exemptionCertificateId = exemptionCertificateId;
+            }
+            if (prepared) {
+              values.discountType =
+                body.discountType === "percent" ||
+                body.discountType === "amount"
+                  ? body.discountType
+                  : null;
+              values.discountValue = Number.isInteger(body.discountValue)
+                ? body.discountValue
+                : 0;
+              values.discountCents = prepared.discountCents;
+              values.subtotalCents = prepared.subtotalCents;
+              values.taxCents = prepared.taxCents;
+              values.totalCents = prepared.totalCents;
+            }
 
-          const [saved] = await tx
-            .update(schema.invoices)
-            .set(values)
-            .where(eq(schema.invoices.id, id))
-            .returning();
-
-          if (prepared) {
-            await tx
-              .delete(schema.invoiceLines)
-              .where(eq(schema.invoiceLines.invoiceId, id));
-            await tx
-              .insert(schema.invoiceLines)
-              .values(prepared.lines.map((l) => ({ invoiceId: id, ...l })));
-            await tx
-              .delete(schema.documentTaxes)
+            /*
+             * The conditions the route read, in the statement that writes. They
+             * were checked by reading first and written by id alone, so a change
+             * landing between the two — issued, converted, or simply saved by
+             * somebody else — was overwritten, and two saves together both
+             * passed the version check.
+             */
+            const [saved] = await tx
+              .update(schema.invoices)
+              .set(values)
               .where(
                 and(
-                  eq(schema.documentTaxes.documentType, "invoice"),
-                  eq(schema.documentTaxes.documentId, id),
+                  eq(schema.invoices.id, id),
+                  eq(schema.invoices.organizationId, orgId),
+                  eq(schema.invoices.status, "draft"),
+                  // To the millisecond, as the version was read: the column keeps
+                  // microseconds a JavaScript date does not.
+                  claim === "current"
+                    ? sql`date_trunc('milliseconds', ${schema.invoices.updatedAt}) = ${at(invoice.updatedAt)}`
+                    : undefined,
                 ),
-              );
-            await writeTaxBands(tx, orgId, "invoice", id, prepared.bands);
-          }
-          return saved;
-        });
+              )
+              .returning();
+            if (!saved) throw new LostTheRow();
+
+            if (prepared) {
+              await tx
+                .delete(schema.invoiceLines)
+                .where(eq(schema.invoiceLines.invoiceId, id));
+              await tx
+                .insert(schema.invoiceLines)
+                .values(prepared.lines.map((l) => ({ invoiceId: id, ...l })));
+              await tx
+                .delete(schema.documentTaxes)
+                .where(
+                  and(
+                    eq(schema.documentTaxes.documentType, "invoice"),
+                    eq(schema.documentTaxes.documentId, id),
+                  ),
+                );
+              await writeTaxBands(tx, orgId, "invoice", id, prepared.bands);
+            }
+            return saved;
+          });
+        } catch (error) {
+          if (!(error instanceof LostTheRow)) throw error;
+          return c.json(
+            {
+              error:
+                "This invoice was issued or changed by somebody else while you had it open, so nothing here has been saved. Open it again.",
+            },
+            409,
+          );
+        }
 
         return c.json({ invoice: updated });
       },
@@ -1824,63 +1858,95 @@ export default defineModule({
           return c.json({ error: "no such customer" }, 404);
         }
 
-        const updated = await db.transaction(async (tx) => {
-          const values: Record<string, unknown> = { updatedAt: new Date() };
-          if (typeof body.contactId === "string") {
-            values.contactId = body.contactId;
-          }
-          if (body.notes !== undefined) {
-            values.notes = asText(body.notes, "notes").trim() || null;
-          }
-          if (body.validUntil !== undefined) {
-            values.validUntil = body.validUntil
-              ? demandDay(asText(body.validUntil, "validUntil"))
-              : null;
-          }
-          if (typeof body.templateId === "string") {
-            values.templateId = await ownedTemplateId(orgId, body.templateId);
-          }
-          if (prepared) {
-            values.discountType =
-              body.discountType === "percent" || body.discountType === "amount"
-                ? body.discountType
+        let updated: typeof schema.quotes.$inferSelect | undefined;
+        try {
+          updated = await db.transaction(async (tx) => {
+            const values: Record<string, unknown> = { updatedAt: new Date() };
+            if (typeof body.contactId === "string") {
+              values.contactId = body.contactId;
+            }
+            if (body.notes !== undefined) {
+              values.notes = asText(body.notes, "notes").trim() || null;
+            }
+            if (body.validUntil !== undefined) {
+              values.validUntil = body.validUntil
+                ? demandDay(asText(body.validUntil, "validUntil"))
                 : null;
-            values.discountValue = Number.isInteger(body.discountValue)
-              ? body.discountValue
-              : 0;
-            values.discountCents = prepared.discountCents;
-            values.subtotalCents = prepared.subtotalCents;
-            values.taxCents = prepared.taxCents;
-            values.totalCents = prepared.totalCents;
-          }
+            }
+            if (typeof body.templateId === "string") {
+              values.templateId = await ownedTemplateId(orgId, body.templateId);
+            }
+            if (prepared) {
+              values.discountType =
+                body.discountType === "percent" ||
+                body.discountType === "amount"
+                  ? body.discountType
+                  : null;
+              values.discountValue = Number.isInteger(body.discountValue)
+                ? body.discountValue
+                : 0;
+              values.discountCents = prepared.discountCents;
+              values.subtotalCents = prepared.subtotalCents;
+              values.taxCents = prepared.taxCents;
+              values.totalCents = prepared.totalCents;
+            }
 
-          const [saved] = await tx
-            .update(schema.quotes)
-            .set(values)
-            .where(eq(schema.quotes.id, id))
-            .returning();
-
-          if (prepared) {
-            // Replaced rather than merged: working out which line the browser
-            // meant to change is a second source of truth about the document.
-            await tx
-              .delete(schema.quoteLines)
-              .where(eq(schema.quoteLines.quoteId, id));
-            await tx
-              .insert(schema.quoteLines)
-              .values(prepared.lines.map((l) => ({ quoteId: id, ...l })));
-            await tx
-              .delete(schema.documentTaxes)
+            /*
+             * The conditions the route read, in the statement that writes. They
+             * were checked by reading first and written by id alone, so a change
+             * landing between the two — issued, converted, or simply saved by
+             * somebody else — was overwritten, and two saves together both
+             * passed the version check.
+             */
+            const [saved] = await tx
+              .update(schema.quotes)
+              .set(values)
               .where(
                 and(
-                  eq(schema.documentTaxes.documentType, "quote"),
-                  eq(schema.documentTaxes.documentId, id),
+                  eq(schema.quotes.id, id),
+                  eq(schema.quotes.organizationId, orgId),
+                  isNull(schema.quotes.convertedInvoiceId),
+                  // To the millisecond, as the version was read: the column keeps
+                  // microseconds a JavaScript date does not.
+                  claim === "current"
+                    ? sql`date_trunc('milliseconds', ${schema.quotes.updatedAt}) = ${at(quote.updatedAt)}`
+                    : undefined,
                 ),
-              );
-            await writeTaxBands(tx, orgId, "quote", id, prepared.bands);
-          }
-          return saved;
-        });
+              )
+              .returning();
+            if (!saved) throw new LostTheRow();
+
+            if (prepared) {
+              // Replaced rather than merged: working out which line the browser
+              // meant to change is a second source of truth about the document.
+              await tx
+                .delete(schema.quoteLines)
+                .where(eq(schema.quoteLines.quoteId, id));
+              await tx
+                .insert(schema.quoteLines)
+                .values(prepared.lines.map((l) => ({ quoteId: id, ...l })));
+              await tx
+                .delete(schema.documentTaxes)
+                .where(
+                  and(
+                    eq(schema.documentTaxes.documentType, "quote"),
+                    eq(schema.documentTaxes.documentId, id),
+                  ),
+                );
+              await writeTaxBands(tx, orgId, "quote", id, prepared.bands);
+            }
+            return saved;
+          });
+        } catch (error) {
+          if (!(error instanceof LostTheRow)) throw error;
+          return c.json(
+            {
+              error:
+                "This quote was converted or changed by somebody else while you had it open, so nothing here has been saved. Open it again.",
+            },
+            409,
+          );
+        }
 
         return c.json({ quote: updated });
       },

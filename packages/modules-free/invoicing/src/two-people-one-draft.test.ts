@@ -367,3 +367,24 @@ test("two people voiding one invoice reverse it once", async () => {
     .where(eq(schema.journalEntries.source, `reversal:${issued?.id ?? ""}`));
   expect(reversals).toHaveLength(1);
 });
+
+/**
+ * Five people pressing Save on the same version at the same moment: one wins.
+ *
+ * The version was checked by reading the row and then written by id alone,
+ * so saves arriving together all passed the check and the last one silently
+ * replaced the rest — the exact thing the check exists to stop.
+ */
+test("five saves of one version at once: one lands, four are told", async () => {
+  const draft = await aDraft();
+  const answers = await Promise.all(
+    Array.from({ length: 5 }, (_, i) =>
+      call(`/api/invoices/${draft.id}`, "PATCH", {
+        expectedUpdatedAt: draft.updatedAt,
+        notes: `Person ${i}`,
+      }),
+    ),
+  );
+  const codes = answers.map((r) => r.status).sort();
+  expect(codes).toEqual([200, 409, 409, 409, 409]);
+});
