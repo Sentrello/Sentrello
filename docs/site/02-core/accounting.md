@@ -163,3 +163,136 @@ bills, bank statement reconciliation, budgets by month, multi-currency, and the
 further reports — trial balance, cash flow, tax summary, income and expenses by
 category, aged receivables and payables, and CSV export. Underneath, the free
 books stay exactly as they are.
+
+Everything below needs [Pro](/pro).
+
+### Bills and suppliers
+
+**Money → Spending → Bills** holds what you owe. A new bill is a draft, and
+nothing reaches the books until you **Approve** it, so a mistyped draft costs
+nothing to throw away. **Pay in full** records that you paid it; it does not
+move any money.
+
+A supplier's credit note goes in **Credits from suppliers** with **Record a
+credit**. It reduces what you owe straight away, and you put it against a bill
+when you know which one.
+
+**Repeat monthly**, on a bill, copies it into a new draft each month. Nothing
+is approved or paid for you; the drafts wait in the list like any other.
+**Bills that repeat** lists them, with **Stop** and **Start again**.
+
+A bill entered on screen has one line and is in your own currency.
+
+### The bank
+
+The **Banking** screen, under Money, is where your bank's side of the story
+comes in.
+
+**A live feed** brings transactions in every hour, with **Fetch now** for when
+you cannot wait. Feeds come through Plaid, on an account you open with them, for
+banks in the United States, Canada and the United Kingdom. Under **Your bank,
+brought in automatically**, set Plaid up with its client ID and secret, leave
+**These are test details, not my real bank** ticked while you try it with
+Plaid's sandbox, and press **Check they work**. Then **Connect a bank**.
+Connecting and disconnecting a bank is for an administrator.
+
+**A statement file** works with any bank. **Import a statement** takes a CSV
+with a date column and an amount column (a description is optional), up to
+8 MB. Rows whose date or amount cannot be read are listed back to you rather
+than imported as nothing.
+
+**Matching.** A line whose amount is exactly what an open invoice or bill is
+for shows under **These look like they settle something**. Confirm it and the
+payment is recorded against that invoice or bill. A payout from your card
+processor is offered the same way, and moves the money out of Payments in
+Transit. Anything else you **Put it in** an account yourself.
+
+**Rules** do that last part for you. A rule says *when the line contains these
+words, and the money went out, put it in Fuel*. While you write it, the screen
+counts the lines it would catch and shows some of them, using the same matching
+that will apply it. Rules run after each feed fetch, and over everything waiting
+when you press **Run them now**.
+
+**Reconciling.** Under **Reconcile against a statement**, pick the account,
+the date the statement closes and its closing balance, then tick the lines it
+shows. **It agrees** stays greyed out until the difference is nothing. There
+is no way to close one that is out by a penny, because a reconciliation you can
+force through tells you nothing.
+
+### Paying suppliers from the bank
+
+On a Plaid connection, **Paying from the bank** (on **Money → Settings → Tax
+and currency**) sends money over ACH, same-day ACH, RTP or wire. **Add somebody
+to pay** with their US routing and account number, then say how much and from
+which account. The screen shows exactly what will be sent, and **Send it**
+asks the bank to authorize the payment before it goes. A payment can repeat
+weekly, monthly, quarterly or yearly. Sending needs its own permission.
+
+A payment sent from here is not yet tied to a bill. It posts as a general
+expense, and any bill it paid stays open until you deal with it.
+
+### Fixed assets
+
+The **Assets** screen, under Money's Planning heading, holds what the business
+owns and uses up: the van, the machine, the laptops. **Add an asset** with what
+it cost, what it will be worth at the end, and how many months it lasts, and
+choose whether it loses value the same every month or faster at first.
+Depreciation posts on the first of each month. **Catch up on depreciation**
+posts any months that were missed.
+
+When it goes, mark it **sold or scrapped** and say what it sold for. Disposal
+posts three things together: the cost comes off the balance sheet, the
+depreciation built up against it comes off with it, and the difference between
+what it was still worth and what you got is a gain or a loss.
+
+### Budgets
+
+The **Budgets** screen sets figures against each income and expense account,
+for the whole year or for a single month. Choose a month and each line shows
+what was allowed for it (that month's own figure plus a twelfth of the yearly
+one), what actually happened, and what is left, in red when it has gone over.
+
+### Closing a period and a year
+
+On **Money → Settings → Tax and currency**, **Closing the books** sets a date.
+Nothing can post on or before it — no invoice, no payment, no expense — until
+you move it. That is how last quarter stays the figures you reported.
+
+**The end of a year** closes the year properly: **Close the year** posts a real
+journal entry that moves the year's income and expenses into what the business
+has kept, and closes the books through that date. Reopening the year reverses
+that entry rather than deleting it.
+
+On the journal, **New entry** posts an entry by hand, and **Reverse** undoes
+one. An entry can be reversed once.
+
+### Jobs, departments and places
+
+Pro can tag money with what it was for and where. Set up **Jobs and
+departments** and **Branches and sites** at the top of the Bills screen, then
+choose them on a bill line under **For** and **Where**. The tags travel on the
+journal lines themselves.
+
+Profit and loss on the Summary screen can then be read for one job or
+department rather than the whole business, on the accrual basis.
+
+### More than one currency
+
+Record exchange rates in the **Currency** card on **Money → Settings → Tax and
+currency**. Once a second currency has a rate, the invoice and quote forms
+offer a **Currency** picker. The rate is fixed on the document the day it is
+raised, so last year's figures do not move when a rate does, and when the
+payment arrives the difference goes to an exchange gain or loss. A document in
+a currency with no rate recorded is refused rather than converted at one to
+one.
+
+### Reports
+
+**Money → The books → Reports** adds, for any range of dates: the trial
+balance, **Cash in and out**, **Where the money goes** by category, the
+**Tax** you charged, reclaimed and owe, the UK **VAT return** boxes, **What is
+owed to this business** and **What this business owes** by age, and
+**Download the ledger as a spreadsheet**.
+
+A customer's statement of everything they owe opens from **Statement of
+account** beside their name on any invoice.

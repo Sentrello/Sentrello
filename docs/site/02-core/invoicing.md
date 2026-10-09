@@ -63,6 +63,27 @@ It creates a balanced journal entry: income, and the amount owed to you. There
 is no separate bookkeeping to do, and the two cannot disagree.
 :::
 
+## Correcting an invoice
+
+Once an invoice is issued it is in the books, and it cannot be edited. That is
+what makes it an invoice. What you can do instead depends on whether money has
+moved.
+
+- **Void it** cancels an invoice nothing has been paid against. Its entry in
+  the books is reversed line by line, and its number stays used, so the
+  sequence still accounts for it.
+- **Credit note** undoes an issued invoice, and is the only way once money has
+  been paid against it. It is a second document, numbered in the same series as your invoices, that takes the
+  sale back out of income and the tax back out of what you owe. From the screen
+  it credits the whole invoice.
+- **Duplicate** copies an invoice into a new draft, with a new number and
+  today's date. It is the quick way to bill the same work again, or to reissue
+  one you voided with the mistake fixed.
+- **Merge into one** joins several drafts for the same customer into a single
+  invoice. Tick them on the Invoices list. They have to share a currency and be
+  priced the same way, with or without tax. Each line remembers which draft it
+  came from, and the drafts you merged move to the **Deleted** tab.
+
 ## Payments
 
 Record a payment in full or in part. A part-paid invoice shows what is
@@ -71,6 +92,18 @@ outstanding, and the ledger shows the money received.
 **A payment belongs to the day the money arrived**, not the day you got round
 to entering it. That is what keeps a month's figures right when you catch up on
 a Friday.
+
+**Paid too much?** By default a payment bigger than what is owed is refused,
+so you can check the figure. If overpayments happen to you often, change **If
+a payment is more than what's owed** under **Money → Settings → Invoice
+settings** to hold the excess as credit. The invoice is then paid, the extra
+sits on the customer's account, and their next invoice offers to **Apply it**.
+
+**Paid early?** An invoice can offer a discount for paying within so many
+days: set **Pay early, pay less** on the invoice. The customer's page shows the
+offer and the date it ends. When you record a payment that arrived in time,
+tick the box that takes the saving off, and it posts to the books as a sales
+discount.
 
 Connect a card processor and an invoice can carry a payment link, then
 reconcile itself the moment the customer pays. That pair is **Pro**, and the
@@ -84,6 +117,20 @@ cannot take money.
 Overdue invoices are listed on the dashboard, and they can be chased on a
 schedule you set: how many days before or after the due date, and what each
 reminder says. All of that is in the free tier.
+
+The rules live under **Money → Settings → Invoice settings**, in **Chasing**.
+Each one has a name, a number of days from the due date (negative sends it
+before), a subject and a message, which can carry the invoice number, the
+amount, the due date and the link. A rule chases a given invoice once at most.
+With no rules at all, an overdue invoice is chased once a week.
+
+**Late fees** sit on the same screen, and are off until you set them: a
+percentage of what is still owed, or a fixed amount, after however many days
+late you choose. The fee is added to the invoice once, never more than the
+balance, and posts to the books as other income.
+
+Both need an instance that can send email. Without it nothing is chased and no
+fee is charged, rather than invoices being marked as chased when nobody was.
 
 **An invoice due today is not late today.** Your customer has the whole of the
 day the invoice names; it turns overdue the morning after, and the days counted
@@ -174,6 +221,41 @@ documents' figure side by side, so you can see them agree before you type
 anything into NETFILE or a provincial portal. A credited sale has already come
 back off the right return. Charge tax in one province and that one card is all
 you will ever see.
+
+## UK VAT
+
+A UK VAT return is nine boxes, filed to HMRC through Making Tax Digital
+software. **Money → Tax → VAT return** works those nine boxes out from the
+ledger and files them.
+
+Start with **Your VAT scheme** and set it to what you agreed with HMRC:
+**Standard** or **Flat Rate Scheme** (with your sector's flat rate), and
+whether VAT counts when the invoice is raised or when the money moves, which is
+cash accounting. Flat rate and cash accounting can be combined.
+
+Then connect: enter your VAT number, **Sign in at HMRC**, copy the code HMRC shows you back into the
+screen, and press **Connect**. From there:
+
+1. **What is due?** asks HMRC which periods are open.
+2. **Prepare it** shows the nine boxes for the period HMRC named, worked out
+   from the books at that moment. Boxes 6 to 9 are whole pounds, rounded down,
+   because that is HMRC's rule.
+3. Read the declaration, tick it, and **File this return**. The figures are
+   worked out again as it is sent, so what HMRC receives is the books as they
+   stand, and the screen shows HMRC's receipt number.
+
+Reverse charge, margin schemes and partial exemption are not modelled. If any
+of them applies to you, check the figures against your own records before
+filing.
+
+:::note[Filing needs HMRC credentials on the server]
+HMRC issues software credentials to whoever runs the instance. Set
+`HMRC_CLIENT_ID` and `HMRC_CLIENT_SECRET` in the server's environment, and
+`SENTRELLO_PUBLIC_IP`, which HMRC requires on every submission. Returns go to
+HMRC's sandbox, under a **Test mode** banner, until `HMRC_LIVE=true` is set as
+well. Without credentials the screen says **Filing to HMRC is not set up
+here**, and the nine boxes are on [Pro](/pro)'s Reports screen instead.
+:::
 
 ## EU VAT and the One Stop Shop
 
@@ -307,9 +389,30 @@ Products and services you invoice for repeatedly live in a price list, each with
 a code, a description and a kind. Add one to an invoice and the rest fills
 itself in.
 
+## What your documents look like
+
+Your invoices and quotes carry a **letterhead**, set under **Money → Settings →
+Invoice settings**. Press **Start from this** on one of the three shapes
+(Classic, Modern or Compact) or **New letterhead**, then give it:
+
+- a color for the headings and rules,
+- the paper, Letter or A4,
+- text **Above the lines** and **Below the totals**, which is where bank
+  details and terms usually go,
+- and, once it is saved, your logo.
+
+**Use this one** makes a letterhead the default. Keep more than one and the
+invoice form lets you pick which a document wears.
+
+There is no template language to learn, and nothing a customer typed can run
+as code on the page. When your customer opens the link, **Save as PDF** prints
+the page through their browser, at the paper size you chose. Sentrello does not
+make the PDF itself, so it looks the same as the page they are reading.
+
 ## Deleting
 
-Documents go to a trash you can restore from rather than disappearing. An
+Documents go to a trash you can restore from, the **Deleted** tab, rather than
+disappearing. An
 invoice that has posted to the ledger cannot vanish at all, since the books
 would stop balancing. It is credited instead, which is what an accountant
 expects to see.

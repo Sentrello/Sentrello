@@ -235,6 +235,18 @@ change on the Automations screen, and nought means for ever.
 An automation whose workings you cannot see is one nobody dares turn on. "It ran"
 is not an answer to "so why did nothing happen".
 
+### Running a firing again
+
+A run that failed because the other end was down, or stopped on something you
+have since fixed, can be sent through again. Open the run and press **Run it
+again**. It works from the record as that run saw it, and through the version
+of the automation that ran, not from the record as it looks now. A deal that
+was won on Tuesday is still the deal that was won on Tuesday.
+
+Like running one by hand, it does everything for real. It needs the run to
+have finished, the automation to be turned on, and the permission to manage
+automations.
+
 ## The safety rails
 
 Worth knowing, because they are the things that go wrong with automation
