@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { unlink } from "node:fs/promises";
+import { join } from "node:path";
 import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, inArray, schema } from "@sentrello/db";
@@ -2971,6 +2972,57 @@ test("deleting a note removes its file from the disk, and a missing one is no ob
     headers,
   });
   expect(still.status).toBe(200);
+});
+
+/**
+ * Without a trash nothing can bring a deleted contact back, and nothing would
+ * ever remove its files later: they go with it.
+ */
+test("deleting a contact with no trash to restore it takes its picture and note files", async () => {
+  const contactId = await makeContact({ name: "Leaves A Face" });
+  const dir = join(process.env.SENTRELLO_DATA_DIR ?? "", "crm-images");
+  mkdirSync(dir, { recursive: true });
+  const face = `${crypto.randomUUID()}.webp`;
+  writeFileSync(join(dir, face), "face");
+  await db
+    .update(schema.contacts)
+    .set({ avatarPath: face })
+    .where(eq(schema.contacts.id, contactId));
+
+  const made = await app.request("http://localhost/api/notes", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      entityType: "contact",
+      entityId: contactId,
+      text: "Signed sheet attached",
+    }),
+  });
+  const { note } = (await made.json()) as { note: { id: string } };
+  const form = new FormData();
+  form.append("file", new File(["signed"], "sheet.pdf"));
+  const up = await app.request(
+    `http://localhost/api/notes/${note.id}/attachments`,
+    {
+      method: "POST",
+      headers: { cookie: headers.get("cookie") ?? "" },
+      body: form,
+    },
+  );
+  const uploaded = (await up.json()) as {
+    note: { attachments: { path: string }[] };
+  };
+  const file =
+    attachmentFile(uploaded.note.attachments[0]?.path ?? "")?.name ?? "";
+  expect(existsSync(file)).toBe(true);
+
+  const gone = await app.request(`http://localhost/api/contacts/${contactId}`, {
+    method: "DELETE",
+    headers,
+  });
+  expect(gone.status).toBe(200);
+  expect(existsSync(file)).toBe(false);
+  expect(existsSync(join(dir, face))).toBe(false);
 });
 
 /**

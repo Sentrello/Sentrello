@@ -9,6 +9,7 @@ import {
   type PersonalDataSource,
   type SentrelloEnv,
   attachmentFile,
+  deletionsCanBeRestored,
   storeAttachment,
 } from "@sentrello/module-sdk";
 import { and, eq } from "drizzle-orm";
@@ -416,12 +417,18 @@ test("a contact deleted before the erasure loses its files to it too", async () 
   ).json()) as { contact: { id: string } };
   const file = await noteWithFile(contact.id);
 
-  await app.request(`http://localhost/api/contacts/${contact.id}`, {
-    method: "DELETE",
-    headers,
-  });
-  // An ordinary delete keeps the file: the paid tier can still put the note
-  // back, and a note restored without its file is a broken download.
+  // With a trash, an ordinary delete keeps the file: the note can still be
+  // put back, and a note restored without its file is a broken download.
+  // Switched off again at once, because the flag is the whole process's.
+  deletionsCanBeRestored();
+  try {
+    await app.request(`http://localhost/api/contacts/${contact.id}`, {
+      method: "DELETE",
+      headers,
+    });
+  } finally {
+    deletionsCanBeRestored(false);
+  }
   expect(existsSync(file)).toBe(true);
 
   await source.erase?.(orgId, { email: gone });

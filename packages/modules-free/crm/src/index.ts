@@ -39,6 +39,7 @@ import type {
 } from "@sentrello/module-sdk";
 import {
   defineModule,
+  deletedFilesAreKept,
   publicBodyLimit,
   scoreFor,
   toCsv,
@@ -68,7 +69,7 @@ import { registerCrmDashboard } from "./dashboard";
 import { CRM_ENTITY, type CrmResource } from "./entities";
 import { MAX_UPLOAD_BODY_BYTES, registerForms } from "./forms";
 import { registerCrmHistory } from "./history";
-import { registerCrmImages } from "./images";
+import { registerCrmImages, removeImage } from "./images";
 import { MAX_INBOUND_ATTACHMENT, registerInboundEmail } from "./inbound";
 import { registerCrmManagers } from "./managers";
 import { registerMerge } from "./merge";
@@ -979,6 +980,21 @@ function crud<T extends keyof typeof tables>(
        */
       if (resource === "notes") {
         await removeNoteFiles([row as { attachments?: { path: string }[] }]);
+      }
+      /*
+       * And the files that went with a contact, company or deal, when nothing
+       * can bring them back. With a trash they wait for its purge; without
+       * one, nothing else would ever remove them.
+       */
+      if (!deletedFilesAreKept()) {
+        // Assigned inside the transaction, which narrowing cannot see.
+        await removeNoteFiles((related as TrailRemoved | null)?.notes ?? []);
+        const pictured = row as {
+          avatarPath?: string | null;
+          logoPath?: string | null;
+        };
+        const picture = pictured.avatarPath ?? pictured.logoPath;
+        if (picture) await removeImage(picture);
       }
       /*
        * And what went with it, on the event rather than left to be looked up.

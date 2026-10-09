@@ -173,6 +173,24 @@ export function attachmentHeaders(name: string): Record<string, string> {
   };
 }
 
+/**
+ * Whether a deleted record's files must wait, because something can bring the
+ * record back.
+ *
+ * A contact, company or deal deleted on an instance with a trash keeps its
+ * notes' files and its picture, so a restore within the window brings them
+ * back whole, and the trash removes them when it purges. Without one, nothing
+ * would ever remove them: the files sat under the data directory for good, in
+ * every backup, after the screen said the record was deleted. The trash says
+ * it is here when it registers; the delete reads this and removes at once
+ * when nothing is.
+ */
+let deletionsRestorable = false;
+export function deletionsCanBeRestored(on = true): void {
+  deletionsRestorable = on;
+}
+export const deletedFilesAreKept = (): boolean => deletionsRestorable;
+
 /** Removing one, when the record that held it is gone. */
 export async function removeAttachment(
   path: string,
