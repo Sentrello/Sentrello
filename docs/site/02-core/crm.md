@@ -261,8 +261,16 @@ it, and **Restore** puts it back. After thirty days it is gone.
 is done from **Settings → Personal data**, across every module at once, and it
 is final: the record goes, and so does their personal data in the change
 history and the webhook delivery log. An erased record cannot be restored from
-Deleted records either. See [Compliance](/platform/compliance) for the rest of
-that screen.
+Deleted records either.
+
+One exception: a contact that an invoice, quote or subscription still names.
+The law makes you keep the invoice, and an invoice has to say who it was
+issued to, so that contact keeps its name and its company. Everything else
+goes: email addresses, phone numbers, picture, links, custom fields and the
+portal link. The record's background then says it was erased. Erasing someone
+doesn't cancel their subscriptions, though. If they've left, cancel those
+yourself; the erasure result tells you when any are still running. See
+[Compliance](/platform/compliance) for the rest of that screen.
 
 ## The customer portal
 

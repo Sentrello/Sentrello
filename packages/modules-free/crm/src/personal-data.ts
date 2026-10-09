@@ -11,6 +11,7 @@ import type {
 } from "@sentrello/module-sdk";
 import { removeNoteFiles } from "./attachments";
 import { removeCrmTrail } from "./cascade";
+import { removeImage } from "./images";
 
 /**
  * What the CRM holds about a person, and what it can do about it.
@@ -117,7 +118,10 @@ async function notesDeletedWith(
   );
 }
 
-export function registerCrmPersonalData(ctx: ModuleContext) {
+export function registerCrmPersonalData(
+  ctx: ModuleContext,
+  blocksDelete: (orgId: string, id: string) => Promise<string | null>,
+) {
   ctx.registerPersonalData({
     id: "crm",
     label: "Customer and contact records",
@@ -236,16 +240,89 @@ export function registerCrmPersonalData(ctx: ModuleContext) {
        */
       const trail = await removeCrmTrail(orgId, "contact", ids);
 
-      if (ids.length) {
+      /*
+       * Deleted, unless an invoice still names them.
+       *
+       * Nothing that points at a contact is a foreign key, and an invoice
+       * keeps no copy of who it was issued to: delete the row and an issued
+       * invoice names nobody, the shared invoice page shows no customer, and
+       * the tax rules that read the company through the contact lose it. The
+       * law that makes a business keep its invoices makes it keep who they
+       * were for (GDPR 17(3)(b)), so a contact the delete route would refuse
+       * is stripped instead: the name and the company link stay, everything
+       * else about the person goes. Asked of the delete route's own test
+       * rather than a list here, so the two cannot drift apart.
+       */
+      const named = new Set<string>();
+      for (const person of people) {
+        if (await blocksDelete(orgId, person.id)) named.add(person.id);
+      }
+      const gone = ids.filter((id) => !named.has(id));
+      if (gone.length) {
         await db
           .delete(schema.contacts)
           .where(
             and(
               eq(schema.contacts.organizationId, orgId),
-              inArray(schema.contacts.id, ids),
+              inArray(schema.contacts.id, gone),
             ),
           );
       }
+      if (named.size) {
+        await db
+          .update(schema.contacts)
+          .set({
+            email: null,
+            emails: [],
+            phone: null,
+            phones: [],
+            title: null,
+            avatarPath: null,
+            linkedinUrl: null,
+            gender: null,
+            hasNewsletter: false,
+            portalToken: null,
+            portalUserId: null,
+            customValues: {},
+            // Where the next person to open the record will look, and what
+            // the contact search reads: an empty record with no reason given
+            // reads as somebody's mistake, and invites them to fill it in.
+            background:
+              "Personal details erased at their request. The name and company stay because invoices name them.",
+          })
+          .where(
+            and(
+              eq(schema.contacts.organizationId, orgId),
+              inArray(schema.contacts.id, [...named]),
+            ),
+          );
+      }
+      // Their face, off the disk, whichever of the two happened to the row.
+      for (const person of people) {
+        if (person.avatarPath) await removeImage(person.avatarPath);
+      }
+
+      /*
+       * Billing that is still running, said rather than stopped.
+       *
+       * Cancelling a customer's subscription is a commercial decision with a
+       * refund question attached, and an erasure is not where it gets made.
+       * But a business told "erased" while a schedule goes on invoicing the
+       * same person next month deserves to hear it here.
+       */
+      const [running] = named.size
+        ? await db
+            .select({ n: sql<number>`count(*)::int` })
+            .from(schema.recurringProfiles)
+            .where(
+              and(
+                eq(schema.recurringProfiles.organizationId, orgId),
+                inArray(schema.recurringProfiles.contactId, [...named]),
+                sql`${schema.recurringProfiles.status} <> 'cancelled'`,
+              ),
+            )
+        : [];
+      const live = running?.n ?? 0;
 
       /*
        * And every log that kept a copy of them on the way past.
@@ -354,9 +431,12 @@ export function registerCrmPersonalData(ctx: ModuleContext) {
 
       return {
         removed: [
-          ...(people.length
+          ...(gone.length
+            ? [`${gone.length} contact record${gone.length === 1 ? "" : "s"}`]
+            : []),
+          ...(named.size
             ? [
-                `${people.length} contact record${people.length === 1 ? "" : "s"}`,
+                `everything but the name and company on ${named.size} contact record${named.size === 1 ? "" : "s"} that invoices still name: email addresses, phone numbers, picture, links, custom fields and the portal link`,
               ]
             : []),
           ...(trail.notes.length ? [`${trail.notes.length} notes`] : []),
@@ -385,6 +465,22 @@ export function registerCrmPersonalData(ctx: ModuleContext) {
          * ledger still names them would be a false statement made in writing.
          */
         kept: [
+          ...(named.size
+            ? [
+                {
+                  what: "Their name, and the company they were billed under",
+                  why: "an invoice has to say who it was issued to, and the law requires the business to keep its invoices; the record holds nothing else about them",
+                },
+              ]
+            : []),
+          ...(live
+            ? [
+                {
+                  what: `${live} subscription${live === 1 ? "" : "s"} or recurring invoice${live === 1 ? "" : "s"} still running for them`,
+                  why: "an erasure does not cancel anybody's billing; stop it on the subscription itself if they have left",
+                },
+              ]
+            : []),
           {
             what: "Deals this contact was named on",
             why: "the business's own record of its trading; the person is no longer named",

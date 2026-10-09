@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, schema } from "@sentrello/db";
@@ -93,6 +94,9 @@ beforeAll(async () => {
 
 afterAll(async () => {
   for (const [table, column] of [
+    [schema.invoices, schema.invoices.organizationId],
+    [schema.recurringProfiles, schema.recurringProfiles.organizationId],
+    [schema.companies, schema.companies.organizationId],
     [schema.crmWebhookDeliveries, schema.crmWebhookDeliveries.organizationId],
     [schema.crmWebhooks, schema.crmWebhooks.organizationId],
     [schema.contactMerges, schema.contactMerges.organizationId],
@@ -422,4 +426,135 @@ test("a contact deleted before the erasure loses its files to it too", async () 
 
   await source.erase?.(orgId, { email: gone });
   expect(existsSync(file)).toBe(false);
+});
+
+/**
+ * Somebody who was invoiced asks to be forgotten.
+ *
+ * Deleting the contact used to be the whole of it, and an issued invoice then
+ * named nobody: no foreign key refused, and the invoice keeps no copy of who
+ * it was for. The law that makes the business keep the invoice makes it keep
+ * who the invoice was issued to, so the name and the company stay and the rest
+ * of the person goes.
+ */
+test("a contact an invoice names keeps its name and company, and nothing else", async () => {
+  const billed = `invoiced-then-erased-${suffix}@example.test`;
+  const [company] = await db
+    .insert(schema.companies)
+    .values({
+      organizationId: orgId,
+      name: "Leaky Roofs Ltd",
+      address: "1 High Street",
+      city: "Leeds",
+      postcode: "LS1 1AA",
+      country: "GB",
+      taxIdentifier: "GB123456789",
+    })
+    .returning();
+  if (!company) throw new Error("no company");
+  const [contact] = await db
+    .insert(schema.contacts)
+    .values({
+      organizationId: orgId,
+      companyId: company.id,
+      name: "Dave Billed",
+      firstName: "Dave",
+      lastName: "Billed",
+      email: billed,
+      emails: [{ label: "home", value: `home-${billed}` }],
+      phone: "+44 113 000 0000",
+      phones: [{ label: "mobile", value: "+44 7700 900000" }],
+      linkedinUrl: "https://www.linkedin.com/in/dave",
+      portalToken: "a-portal-token",
+      customValues: { shoeSize: 11 },
+    })
+    .returning();
+  if (!contact) throw new Error("no contact");
+  await db.insert(schema.invoices).values({
+    organizationId: orgId,
+    contactId: contact.id,
+    number: `INV-${suffix}`,
+    status: "open",
+    currency: "GBP",
+    totalCents: 12000,
+  });
+  // A subscription still billing them, which the erasure must not cancel.
+  await db.insert(schema.recurringProfiles).values({
+    organizationId: orgId,
+    contactId: contact.id,
+    interval: "monthly",
+    nextRunAt: new Date(),
+    kind: "subscription",
+    currency: "GBP",
+  });
+
+  const outcome = await source.erase?.(orgId, { email: billed });
+
+  const [left] = await db
+    .select()
+    .from(schema.contacts)
+    .where(eq(schema.contacts.id, contact.id));
+  if (!left) throw new Error("the contact an invoice names was deleted");
+  expect(left.name).toBe("Dave Billed");
+  expect(left.companyId).toBe(company.id);
+  expect(left.email).toBeNull();
+  expect(left.phone).toBeNull();
+  expect(left.emails).toEqual([]);
+  expect(left.phones).toEqual([]);
+  expect(left.linkedinUrl).toBeNull();
+  expect(left.portalToken).toBeNull();
+  expect(left.customValues).toEqual({});
+  expect(left.background).toContain("erased");
+
+  // The billing address and tax number are the company's, and untouched.
+  const [firm] = await db
+    .select()
+    .from(schema.companies)
+    .where(eq(schema.companies.id, company.id));
+  expect(firm?.address).toBe("1 High Street");
+  expect(firm?.taxIdentifier).toBe("GB123456789");
+
+  // Counted as what happened, not as a deletion that did not happen.
+  expect(outcome?.removed).not.toContain("1 contact record");
+  expect(outcome?.removed.join(" ")).toContain("everything but the name");
+  const kept = outcome?.kept.map((k) => `${k.what}: ${k.why}`).join(" ");
+  expect(kept).toContain("Their name, and the company");
+  expect(kept).toContain("1 subscription");
+
+  const [profile] = await db
+    .select()
+    .from(schema.recurringProfiles)
+    .where(eq(schema.recurringProfiles.contactId, contact.id));
+  expect(profile?.status).toBe("active");
+});
+
+test("a contact nothing names is still deleted outright, face and all", async () => {
+  const plain = `never-invoiced-${suffix}@example.test`;
+  // A picture on disk, which an erasure used to leave behind the row.
+  const dir = join(process.env.SENTRELLO_DATA_DIR ?? "", "crm-images");
+  mkdirSync(dir, { recursive: true });
+  const avatar = `${crypto.randomUUID()}.webp`;
+  writeFileSync(join(dir, avatar), "face");
+  const [contact] = await db
+    .insert(schema.contacts)
+    .values({
+      organizationId: orgId,
+      name: "Never Billed",
+      email: plain,
+      avatarPath: avatar,
+    })
+    .returning();
+  if (!contact) throw new Error("no contact");
+
+  const outcome = await source.erase?.(orgId, { email: plain });
+  expect(outcome?.removed).toContain("1 contact record");
+  expect(outcome?.kept.map((k) => k.what).join(" ")).not.toContain(
+    "Their name",
+  );
+  const left = await db
+    .select()
+    .from(schema.contacts)
+    .where(eq(schema.contacts.id, contact.id));
+  expect(left).toHaveLength(0);
+  expect(existsSync(join(dir, avatar))).toBe(false);
 });

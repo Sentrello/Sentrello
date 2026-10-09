@@ -28,6 +28,15 @@ import {
 const imagesDir = () =>
   join(resolve(process.env.SENTRELLO_DATA_DIR ?? "/data"), "crm-images");
 
+/**
+ * A stored picture, off the disk.
+ *
+ * For an erasure, which empties the column and must not leave the face behind
+ * it. Quiet about a file already gone, as the replace and remove routes are.
+ */
+export const removeImage = (name: string) =>
+  unlink(join(imagesDir(), name)).catch(() => {});
+
 /** What a face or a logo may weigh on the way in. */
 export const MAX_IMAGE_BYTES = AVATAR_RULES.maxBytes;
 

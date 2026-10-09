@@ -3050,7 +3050,9 @@ export default defineModule({
       publicBodyLimit(MAX_INBOUND_ATTACHMENT + 1024 * 1024),
     );
 
-    registerCrmPersonalData(ctx);
+    // The delete route's own test of what a contact is still needed for, so
+    // an erasure and a delete cannot disagree about it.
+    registerCrmPersonalData(ctx, tables.contacts.blocksDelete);
     // How long the change feed is kept, and what is left of it. Beside the
     // erasure above because the two empty the same two columns and must not
     // drift.
