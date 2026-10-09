@@ -17,7 +17,7 @@ import {
   setModuleEnabled,
 } from "@sentrello/db/modules";
 import { and, eq, sql } from "@sentrello/db/orm";
-import { RequestFieldError } from "@sentrello/db/request-values";
+import { RequestFieldError, asFlag } from "@sentrello/db/request-values";
 import { lastRetentionSweep } from "@sentrello/db/retention";
 import { NAV_TAX_REGIME, taxRegimesFor } from "@sentrello/db/tax-regimes";
 import { UnreadableDateError } from "@sentrello/db/timezone";
@@ -1009,9 +1009,9 @@ app.post(
     await setModuleEnabled(
       activeOrganizationId(c.get("session")),
       id,
-      body.enabled === true,
+      asFlag(body.enabled, "enabled", false),
     );
-    return c.json({ id, enabled: body.enabled === true });
+    return c.json({ id, enabled: asFlag(body.enabled, "enabled", false) });
   },
 );
 

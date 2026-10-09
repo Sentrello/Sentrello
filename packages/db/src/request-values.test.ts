@@ -10,7 +10,9 @@
 import { expect, test } from "bun:test";
 import {
   RequestFieldError,
+  asChoice,
   asFlag,
+  asIdOrNothing,
   asNumber,
   asWholeNumber,
 } from "./request-values";
@@ -70,4 +72,37 @@ test("a flag is true or false, and nothing else reads as false", () => {
     expect(() => asFlag(nonsense, "askName", true)).toThrow(RequestFieldError);
   }
   expect(() => asFlag(undefined, "askName")).toThrow(RequestFieldError);
+});
+
+test("a choice is one of its words, and an unknown one is refused, not defaulted", () => {
+  const kinds = ["public", "private"] as const;
+  expect(asChoice("public", "visibility", kinds, "private")).toBe("public");
+  expect(asChoice(undefined, "visibility", kinds, "private")).toBe("private");
+  expect(asChoice("", "visibility", kinds, "private")).toBe("private");
+  for (const nonsense of ["pubic", "PUBLIC", {}, [], ["public"], true, 1]) {
+    expect(() => asChoice(nonsense, "visibility", kinds, "private")).toThrow(
+      RequestFieldError,
+    );
+  }
+  expect(() => asChoice(undefined, "visibility", kinds)).toThrow(
+    RequestFieldError,
+  );
+  try {
+    asChoice("pubic", "visibility", kinds, "private");
+  } catch (err) {
+    expect((err as Error).message).toContain("public, private");
+    expect((err as RequestFieldError).field).toBe("visibility");
+  }
+});
+
+test("an id is an id, nothing is null, and anything else is refused", () => {
+  const id = "0b7f3a52-4a8e-4c1e-9f55-2f3c1d9e8a10";
+  expect(asIdOrNothing(id, "categoryId")).toBe(id);
+  expect(asIdOrNothing(null, "categoryId")).toBeNull();
+  expect(asIdOrNothing("", "categoryId")).toBeNull();
+  for (const nonsense of [{}, [], [id], "shoes", 7]) {
+    expect(() => asIdOrNothing(nonsense, "categoryId")).toThrow(
+      RequestFieldError,
+    );
+  }
 });

@@ -672,6 +672,50 @@ test("a draft written under a certificate is re-checked on the day it is issued"
   );
 });
 
+test("putting a certificate on a draft keeps its discount", async () => {
+  // The re-price from the stored lines read the discount from the body, which
+  // had none, so the certificate took 10% off the customer's price back off.
+  await db
+    .update(schema.exemptionCertificates)
+    .set({ expiresAt: new Date(Date.now() + 30 * 86_400_000) })
+    .where(eq(schema.exemptionCertificates.id, certificateId));
+  const draft = await app.request("http://localhost/api/invoices", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      contactId,
+      currency: "USD",
+      status: "draft",
+      discountType: "percent",
+      discountValue: 1000,
+      lines: [{ description: "Discounted", quantity: 1, unitPrice: 10_000 }],
+    }),
+  });
+  expect(draft.status).toBe(201);
+  const { invoice } = (await draft.json()) as { invoice: { id: string } };
+  const patched = await app.request(
+    `http://localhost/api/invoices/${invoice.id}`,
+    {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ exemptionCertificateId: certificateId }),
+    },
+  );
+  expect(patched.status).toBe(200);
+  const [row] = await db
+    .select()
+    .from(schema.invoices)
+    .where(eq(schema.invoices.id, invoice.id));
+  expect(row?.exemptionCertificateId).toBe(certificateId);
+  expect(row?.discountType).toBe("percent");
+  expect(row?.discountCents).toBe(1_000);
+  // Taken away again: the filing report below sums every exempt sale.
+  await db
+    .delete(schema.invoiceLines)
+    .where(eq(schema.invoiceLines.invoiceId, invoice.id));
+  await db.delete(schema.invoices).where(eq(schema.invoices.id, invoice.id));
+});
+
 test("a revoked certificate refuses too", async () => {
   await db
     .update(schema.exemptionCertificates)

@@ -4,6 +4,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { db, schema } from "@sentrello/db";
+import { asFlag } from "@sentrello/db/request-values";
 import { record } from "@sentrello/db/security-events";
 import { asText } from "@sentrello/db/text-columns";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
@@ -306,7 +307,7 @@ export function registerWebhooks(ctx: ModuleContext) {
       >;
 
       const url = asText(body.url, "url").trim().slice(0, 2048);
-      const allowInsecure = body.allowInsecure === true;
+      const allowInsecure = asFlag(body.allowInsecure, "allowInsecure", false);
       const allowed = await mayCall(url, { allowInsecure });
       if (!allowed.ok) return c.json({ error: allowed.why }, 400);
 

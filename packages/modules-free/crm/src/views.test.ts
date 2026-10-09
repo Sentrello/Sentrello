@@ -202,6 +202,30 @@ test("updating a view replaces its state; deleting removes it", async () => {
   };
   expect(view.view.filters).toEqual({ status: "cold" });
 
+  // A rename keeps what it shows; it used to wipe the filters and answer 200.
+  const renamed = await app.request(`http://localhost/api/views/${id}`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify({ name: "Cold leads" }),
+  });
+  expect(renamed.status).toBe(200);
+  const after = (await renamed.json()) as {
+    view: { name: string; view: { filters: Record<string, string> } };
+  };
+  expect(after.view.name).toBe("Cold leads");
+  expect(after.view.view.filters).toEqual({ status: "cold" });
+
+  // Nothing this route writes, or an empty name: refused, not 200. (`{}` for a
+  // name is asText's refusal, which the host answers 400; this bare app 500s.)
+  for (const sent of [{ resource: "deals" }, { name: " " }]) {
+    const res = await app.request(`http://localhost/api/views/${id}`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify(sent),
+    });
+    expect(res.status, JSON.stringify(sent)).toBe(400);
+  }
+
   const deleted = await app.request(`http://localhost/api/views/${id}`, {
     method: "DELETE",
     headers,

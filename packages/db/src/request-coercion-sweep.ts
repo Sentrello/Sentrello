@@ -91,3 +91,55 @@ export const WHY_NOT_NUMBER =
 
 export const WHY_NOT_STRING =
   'these turn a request value into text with String(), which stores an object as the words "[object Object]" and refuses nothing — use asText(body.x, "x") from @sentrello/db/text-columns';
+
+/*
+ * A choice read by comparing it with one of its words, and every other word —
+ * a typo, `{}`, a list — becoming the default. `body.visibility === "public" ?
+ * "public" : "private"` answered 201 to "pubic" and made a private list; found
+ * on 9 October in a dozen places across the three repositories.
+ */
+const DEFAULTED_WORD =
+  /(?<![A-Za-z])(body|payload)\??\.[A-Za-z_]\w*\s*===\s*"[^"]*"\s*\?\s*"[^"]*"\s*:\s*"/;
+/*
+ * The same with a list of words: `KINDS.includes(body.kind) ? body.kind :
+ * "text"`. Read across a line break, because the formatter puts the `?` on the
+ * next one more often than not.
+ */
+const DEFAULTED_LIST =
+  /\.(includes|has)\(\s*(body|payload)\??\.[A-Za-z_]\w*[^)]*\)\s*\?/;
+
+/** Each `file:line` that turns an unknown choice into a default instead of refusing it. */
+export function defaultedChoiceSites(repo: string, where: string[]): string[] {
+  const out: string[] = [];
+  for (const file of sourcesUnder(repo, where)) {
+    const lines = readFileSync(file, "utf8").split("\n");
+    lines.forEach((line, i) => {
+      if (IS_COMMENT.test(line)) return;
+      const joined = `${line} ${(lines[i + 1] ?? "").trim()}`;
+      if (DEFAULTED_WORD.test(line) || DEFAULTED_LIST.test(joined)) {
+        out.push(`${relative(repo, file)}:${i + 1}`);
+      }
+    });
+  }
+  return out;
+}
+
+export const WHY_NOT_DEFAULTED =
+  'these turn a choice nobody offered into the default and answer 2xx, so the caller is told it worked — use asChoice(body.x, "x", [...choices], fallback) from @sentrello/db/request-values, which refuses an unknown word with a 400 naming the field';
+
+/*
+ * True or false read by comparing with one of them. `body.x === true` makes
+ * `{}`, "yes" and `[true]` all false, and `!!body.x` makes them all true; both
+ * answer 2xx. `typeof body.x === "boolean" ? body.x : current` is the third
+ * spelling, and the worst, because it keeps the old value and says it saved.
+ */
+const COERCED_FLAG =
+  /(?<![A-Za-z])(body|payload)\??\.[A-Za-z_]\w*\s*[!=]==\s*(true|false)\b|(!!|Boolean\()\s*(body|payload)\??(\.[A-Za-z_]|\[)|typeof (body|payload)\??\.[A-Za-z_]\w* === "boolean"/;
+
+/** Each `file:line` that reads a request flag by comparison or coercion instead of asking. */
+export function coercedFlagSites(repo: string, where: string[]): string[] {
+  return sitesMatching(repo, where, COERCED_FLAG);
+}
+
+export const WHY_NOT_FLAG =
+  'these read true or false by comparing or coercing, so {}, "yes" and [true] are quietly one or the other and the caller is told it worked — use asFlag(body.x, "x", fallback) from @sentrello/db/request-values';

@@ -16,6 +16,7 @@ import {
   taggingFrom,
 } from "@sentrello/db/ledger";
 import { sumCents } from "@sentrello/db/money";
+import { RequestFieldError, asIdOrNothing } from "@sentrello/db/request-values";
 import { asText } from "@sentrello/db/text-columns";
 import { dayFrom, demandDate, timezoneFor } from "@sentrello/db/timezone";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
@@ -149,18 +150,27 @@ async function ownedContact(
   orgId: string,
   contactId: unknown,
 ): Promise<string | null> {
-  if (!contactId || !isUuid(String(contactId))) return null;
+  // Nothing is nothing; anything that is not an id, or not one of ours, is
+  // refused. Both used to be stored as no contact, answered 200.
+  const wanted = asIdOrNothing(contactId, "contactId");
+  if (!wanted) return null;
   const [row] = await db
     .select({ id: schema.contacts.id })
     .from(schema.contacts)
     .where(
       and(
-        eq(schema.contacts.id, String(contactId)),
+        eq(schema.contacts.id, wanted),
         eq(schema.contacts.organizationId, orgId),
       ),
     )
     .limit(1);
-  return row?.id ?? null;
+  if (!row) {
+    throw new RequestFieldError(
+      "contactId",
+      "contactId is not a contact of yours",
+    );
+  }
+  return row.id;
 }
 
 /**
@@ -262,9 +272,7 @@ export async function createTransaction(
    */
   const base = await baseCurrency(orgId);
   const currency =
-    typeof body.currency === "string" && body.currency.trim()
-      ? body.currency.trim().toUpperCase()
-      : base;
+    asText(body.currency, "currency").trim().toUpperCase() || base;
   if (currency !== base) {
     return {
       error: `Your books are kept in ${base}, and this record cannot carry an exchange rate. Enter it in ${base}, or record it as a bill — a bill keeps the rate it was raised at.`,

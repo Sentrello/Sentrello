@@ -5,6 +5,12 @@ import {
 } from "@sentrello/auth/hono";
 import { and, asc, db, eq, schema } from "@sentrello/db";
 import { baseCurrency } from "@sentrello/db/currency";
+import {
+  asChoice,
+  asFlag,
+  asIdOrNothing,
+  asWholeNumber,
+} from "@sentrello/db/request-values";
 import { asText, checkedText, notText } from "@sentrello/db/text-columns";
 import type { ModuleContext } from "@sentrello/module-sdk";
 
@@ -319,7 +325,8 @@ export function registerCatalogue(ctx: ModuleContext) {
         .returning();
       if (!made) throw new Error("tax insert returned no row");
 
-      if (body.isDefault === true) await clearOtherDefaults(orgId, made.id);
+      if (asFlag(body.isDefault, "isDefault", false))
+        await clearOtherDefaults(orgId, made.id);
       return c.json({ tax: made }, 201);
     },
   );
@@ -386,7 +393,8 @@ export function registerCatalogue(ctx: ModuleContext) {
           throw err;
         }
       }
-      if (typeof body.active === "boolean") patch.active = body.active;
+      if (body.active !== undefined)
+        patch.active = asFlag(body.active, "active");
 
       const [row] = await db
         .update(schema.taxDefinitions)
@@ -400,7 +408,8 @@ export function registerCatalogue(ctx: ModuleContext) {
         .returning();
       if (!row) return c.json({ error: "not found" }, 404);
 
-      if (body.isDefault === true) await clearOtherDefaults(orgId, row.id);
+      if (asFlag(body.isDefault, "isDefault", false))
+        await clearOtherDefaults(orgId, row.id);
       return c.json({ tax: row });
     },
   );
@@ -481,10 +490,10 @@ export function registerCatalogue(ctx: ModuleContext) {
         );
       }
 
-      const taxDefinitionId =
-        typeof body.taxDefinitionId === "string" && body.taxDefinitionId
-          ? body.taxDefinitionId
-          : null;
+      const taxDefinitionId = asIdOrNothing(
+        body.taxDefinitionId,
+        "taxDefinitionId",
+      );
       // Has to be one of this business's own rates, not an id pointed at
       // another organisation's.
       if (
@@ -503,7 +512,7 @@ export function registerCatalogue(ctx: ModuleContext) {
           sku: asText(body.sku, "sku").trim() || null,
           unitPriceCents: unitPriceCents as number,
           unit: asText(body.unit, "unit", "piece").trim() || "piece",
-          kind: body.kind === "product" ? "product" : "service",
+          kind: asChoice(body.kind, "kind", ["product", "service"], "service"),
           taxDefinitionId,
         })
         .returning();
@@ -548,20 +557,18 @@ export function registerCatalogue(ctx: ModuleContext) {
       if (typeof body.unit === "string" && body.unit.trim()) {
         patch.unit = body.unit.trim();
       }
-      if (body.kind === "product" || body.kind === "service") {
-        patch.kind = body.kind;
+      if (body.kind !== undefined) {
+        patch.kind = asChoice(body.kind, "kind", ["product", "service"]);
       }
       if (body.taxDefinitionId !== undefined) {
-        const wanted =
-          typeof body.taxDefinitionId === "string" && body.taxDefinitionId
-            ? body.taxDefinitionId
-            : null;
+        const wanted = asIdOrNothing(body.taxDefinitionId, "taxDefinitionId");
         if (wanted && !(await ownedTaxDefinition(orgId, wanted))) {
           return c.json({ error: "no such tax rate" }, 404);
         }
         patch.taxDefinitionId = wanted;
       }
-      if (typeof body.active === "boolean") patch.active = body.active;
+      if (body.active !== undefined)
+        patch.active = asFlag(body.active, "active");
 
       const [row] = await db
         .update(schema.billableItems)
@@ -680,17 +687,19 @@ export function registerBillingRules(ctx: ModuleContext) {
         unknown
       >;
 
-      const defaultDueDays = Number.isInteger(body.defaultDueDays)
-        ? Math.max(0, Math.min(365, body.defaultDueDays as number))
-        : 30;
+      const defaultDueDays = Math.max(
+        0,
+        Math.min(365, asWholeNumber(body.defaultDueDays, "defaultDueDays", 30)),
+      );
 
+      // No late fee is a choice too, said with null or nothing at all.
       const lateFeeType =
-        body.lateFeeType === "percent" || body.lateFeeType === "amount"
-          ? body.lateFeeType
-          : null;
-      const lateFeeValue = Number.isInteger(body.lateFeeValue)
-        ? (body.lateFeeValue as number)
-        : 0;
+        body.lateFeeType === undefined ||
+        body.lateFeeType === null ||
+        body.lateFeeType === ""
+          ? null
+          : asChoice(body.lateFeeType, "lateFeeType", ["percent", "amount"]);
+      const lateFeeValue = asWholeNumber(body.lateFeeValue, "lateFeeValue", 0);
       if (lateFeeType && lateFeeValue <= 0) {
         return c.json(
           { error: "a late fee of nothing is not a late fee" },
@@ -702,8 +711,12 @@ export function registerBillingRules(ctx: ModuleContext) {
         return c.json({ error: "that is not a percentage" }, 400);
       }
 
-      const overpaymentPolicy =
-        body.overpaymentPolicy === "credit" ? "credit" : "refuse";
+      const overpaymentPolicy = asChoice(
+        body.overpaymentPolicy,
+        "overpaymentPolicy",
+        ["credit", "refuse"],
+        "refuse",
+      );
 
       /*
        * Gross or net, for documents raised from here on.
@@ -712,7 +725,11 @@ export function registerBillingRules(ctx: ModuleContext) {
        * carries its own answer, so February's invoices keep meaning what they
        * meant after a business switches in March.
        */
-      const pricesIncludeTax = body.pricesIncludeTax === true;
+      const pricesIncludeTax = asFlag(
+        body.pricesIncludeTax,
+        "pricesIncludeTax",
+        false,
+      );
 
       const values = {
         defaultDueDays,
@@ -723,9 +740,13 @@ export function registerBillingRules(ctx: ModuleContext) {
         units: cleanUnits(body.units),
         lateFeeType,
         lateFeeValue: lateFeeType ? lateFeeValue : 0,
-        lateFeeGraceDays: Number.isInteger(body.lateFeeGraceDays)
-          ? Math.max(0, Math.min(180, body.lateFeeGraceDays as number))
-          : 7,
+        lateFeeGraceDays: Math.max(
+          0,
+          Math.min(
+            180,
+            asWholeNumber(body.lateFeeGraceDays, "lateFeeGraceDays", 7),
+          ),
+        ),
         overpaymentPolicy,
         pricesIncludeTax,
         updatedAt: new Date(),
@@ -780,7 +801,7 @@ export function registerBillingRules(ctx: ModuleContext) {
           daysOffset: body.daysOffset as number,
           subject,
           body: text,
-          active: body.active === true,
+          active: asFlag(body.active, "active", false),
         })
         .returning();
       return c.json({ rule: made }, 201);
@@ -811,7 +832,8 @@ export function registerBillingRules(ctx: ModuleContext) {
       if (Number.isInteger(body.daysOffset)) {
         patch.daysOffset = body.daysOffset;
       }
-      if (typeof body.active === "boolean") patch.active = body.active;
+      if (body.active !== undefined)
+        patch.active = asFlag(body.active, "active");
 
       const [row] = await db
         .update(schema.reminderRules)

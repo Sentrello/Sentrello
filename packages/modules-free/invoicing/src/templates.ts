@@ -6,6 +6,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { and, db, eq, schema } from "@sentrello/db";
+import { asChoice, asIdOrNothing } from "@sentrello/db/request-values";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import {
   AVATAR_RULES,
@@ -78,22 +79,14 @@ export function validateTemplate(body: Record<string, unknown>): {
     return { error: "a color looks like #1d4ed8" };
   }
 
-  const paperSize =
-    typeof body.paperSize === "string" &&
-    (PAPER as readonly string[]).includes(body.paperSize)
-      ? body.paperSize
-      : "letter";
-
-  const appliesTo =
-    body.appliesTo === "quote" || body.appliesTo === "statement"
-      ? body.appliesTo
-      : "invoice";
-
-  const layout =
-    typeof body.layout === "string" &&
-    (LAYOUT_NAMES as readonly string[]).includes(body.layout)
-      ? body.layout
-      : "classic";
+  const paperSize = asChoice(body.paperSize, "paperSize", PAPER, "letter");
+  const appliesTo = asChoice(
+    body.appliesTo,
+    "appliesTo",
+    ["invoice", "quote", "statement"],
+    "invoice",
+  );
+  const layout = asChoice(body.layout, "layout", LAYOUT_NAMES, "classic");
 
   const text = (value: unknown) =>
     typeof value === "string" && value.trim() !== "" ? value.trim() : null;
@@ -151,6 +144,25 @@ export type Template = typeof schema.documentTemplates.$inferSelect;
  * What changes is the row: a foreign id is never stored again, and a dangling
  * one is cleared to the null the read already behaves as if it were.
  */
+/**
+ * The template an edit names: undefined when it names none, null to clear it.
+ *
+ * `typeof body.templateId === "string"` used to decide whether to look, so the
+ * form's null for "no template" was ignored and the old one stayed, and `{}`
+ * answered 200 with nothing changed. Something that is not an id at all is
+ * refused now. An id that is not ours is still cleared rather than refused —
+ * templates are deleted outright and the edit form sends the stored id back,
+ * so refusing would make every such draft unsaveable.
+ */
+export async function templateChoice(
+  orgId: string,
+  value: unknown,
+): Promise<string | null | undefined> {
+  if (value === undefined) return undefined;
+  const wanted = asIdOrNothing(value, "templateId");
+  return wanted ? await ownedTemplateId(orgId, wanted) : null;
+}
+
 export async function ownedTemplateId(
   orgId: string,
   templateId: unknown,

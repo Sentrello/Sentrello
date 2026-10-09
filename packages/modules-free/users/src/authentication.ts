@@ -6,6 +6,7 @@ import {
 import { forgetPasswordFloor } from "@sentrello/auth/password-floor";
 import { and, db, eq, schema } from "@sentrello/db";
 import { policyFor } from "@sentrello/db/lockout";
+import { asFlag } from "@sentrello/db/request-values";
 import {
   forgetSessionLength,
   forgetTwoFactorPolicy,
@@ -96,7 +97,10 @@ export function registerAuthentication(ctx: ModuleContext) {
        * Turning it *off* is always allowed, including with no mail, because
        * that is the way out if it was ever on.
        */
-      if (body.requireEmailVerified === true && !mailConfigured()) {
+      if (
+        asFlag(body.requireEmailVerified, "requireEmailVerified", false) &&
+        !mailConfigured()
+      ) {
         return refuse(
           c,
           "requireEmailVerified",
@@ -104,8 +108,8 @@ export function registerAuthentication(ctx: ModuleContext) {
         );
       }
       const requireEmailVerified =
-        typeof body.requireEmailVerified === "boolean"
-          ? body.requireEmailVerified
+        body.requireEmailVerified !== undefined
+          ? asFlag(body.requireEmailVerified, "requireEmailVerified")
           : current.requireEmailVerified;
 
       /*

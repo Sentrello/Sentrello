@@ -229,9 +229,27 @@ export function registerSavedViews(ctx: ModuleContext) {
         string,
         unknown
       >;
+      /*
+       * Only what was sent. This set `view` from the body whatever arrived, so
+       * an edit that sent only a name wiped the saved filters and answered
+       * 200 — and an edit naming nothing this route writes is refused.
+       */
+      const set: Record<string, unknown> = { updatedAt: new Date() };
+      if (body.view !== undefined) set.view = cleanView(body.view);
+      if (body.name !== undefined) {
+        const name = asText(body.name, "name").trim().slice(0, 80);
+        if (!name) return c.json({ error: "a view needs a name" }, 400);
+        set.name = name;
+      }
+      if (Object.keys(set).length === 1) {
+        return c.json(
+          { error: "a view's name and what it shows are what can be changed" },
+          400,
+        );
+      }
       const [row] = await db
         .update(schema.savedViews)
-        .set({ view: cleanView(body.view), updatedAt: new Date() })
+        .set(set)
         .where(
           and(
             eq(schema.savedViews.id, c.req.param("id") ?? ""),

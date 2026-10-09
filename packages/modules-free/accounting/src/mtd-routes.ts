@@ -5,6 +5,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { db, eq, schema } from "@sentrello/db";
+import { asFlag } from "@sentrello/db/request-values";
 import { record as recordSecurityEvent } from "@sentrello/db/security-events";
 import { asText } from "@sentrello/db/text-columns";
 import { timezoneFor } from "@sentrello/db/timezone";
@@ -274,7 +275,7 @@ export function registerMtd(ctx: ModuleContext) {
 
       const periodKey = asText(body.periodKey, "periodKey");
       if (!periodKey) return c.json({ error: "which period?" }, 400);
-      if (body.finalised !== true) {
+      if (!asFlag(body.finalised, "finalised", false)) {
         return c.json(
           { error: "the declaration has to be agreed to before filing" },
           400,

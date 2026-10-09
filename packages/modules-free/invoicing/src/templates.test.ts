@@ -40,9 +40,11 @@ test("paper is one of the two sizes anybody in these markets prints on", () => {
     validateTemplate({ name: "US", paperSize: "a4" }).values?.paperSize,
   ).toBe("a4");
   // Not "legal", not "8.5x11 sort of" — the page rule is generated from it.
-  expect(
-    validateTemplate({ name: "US", paperSize: "poster" }).values?.paperSize,
-  ).toBe("letter");
+  // Refused by name rather than quietly printed on letter.
+  expect(() => validateTemplate({ name: "US", paperSize: "poster" })).toThrow(
+    "paperSize",
+  );
+  expect(validateTemplate({ name: "US" }).values?.paperSize).toBe("letter");
 });
 
 test("empty wording is stored as nothing rather than as blanks", () => {
@@ -55,15 +57,19 @@ test("empty wording is stored as nothing rather than as blanks", () => {
   expect(values?.footerNote).toBe("Thank you for your business.");
 });
 
-test("a layout is one of the three we ship, or it is the plain one", () => {
+test("a layout is one of the three we ship, and anything else is refused", () => {
   expect(
     validateTemplate({ name: "Ours", layout: "modern" }).values?.layout,
   ).toBe("modern");
   // A name with no stylesheet behind it would render plain, and a business
-  // would have no way of seeing why its letterhead did nothing.
-  expect(
-    validateTemplate({ name: "Ours", layout: "handwritten" }).values?.layout,
-  ).toBe("classic");
+  // would have no way of seeing why its letterhead did nothing — so it is
+  // refused, naming the field, rather than quietly made the plain one.
+  expect(() =>
+    validateTemplate({ name: "Ours", layout: "handwritten" }),
+  ).toThrow("layout");
+  expect(() => validateTemplate({ name: "Ours", appliesTo: {} })).toThrow(
+    "appliesTo",
+  );
   expect(validateTemplate({ name: "Ours" }).values?.layout).toBe("classic");
 });
 

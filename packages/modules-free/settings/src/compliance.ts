@@ -4,7 +4,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { and, db, eq, schema } from "@sentrello/db";
-import { asWholeNumber } from "@sentrello/db/request-values";
+import { asFlag, asWholeNumber } from "@sentrello/db/request-values";
 import {
   forgetHipaaRules,
   record as recordSecurityEvent,
@@ -208,7 +208,7 @@ export function registerCompliance(ctx: ModuleContext) {
       regimes = (patch.regimes as string[]) ?? before?.regimes ?? [];
 
       const wantsTwoFactor =
-        body.requireTwoFactor === true ||
+        asFlag(body.requireTwoFactor, "requireTwoFactor", false) ||
         (regimes.includes("hipaa") &&
           !before?.hipaa &&
           body.requireTwoFactor === undefined);
@@ -225,9 +225,14 @@ export function registerCompliance(ctx: ModuleContext) {
         );
       }
 
-      if (body.logReads !== undefined) patch.logReads = body.logReads === true;
+      if (body.logReads !== undefined)
+        patch.logReads = asFlag(body.logReads, "logReads", false);
       if (body.requireTwoFactor !== undefined) {
-        patch.requireTwoFactor = body.requireTwoFactor === true;
+        patch.requireTwoFactor = asFlag(
+          body.requireTwoFactor,
+          "requireTwoFactor",
+          false,
+        );
       }
       if (body.idleTimeoutMinutes !== undefined) {
         const minutes = asWholeNumber(

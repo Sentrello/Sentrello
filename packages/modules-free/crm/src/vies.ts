@@ -108,20 +108,21 @@ export async function checkWithVies(
       signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) return { status: "unavailable", name: null };
-    const body = (await res.json()) as {
+    // VIES's answer, not a request: named so, for the request-value sweeps.
+    const answer = (await res.json()) as {
       valid?: unknown;
       actionSucceed?: unknown;
       name?: unknown;
     };
-    if (body.actionSucceed === false || typeof body.valid !== "boolean") {
+    if (answer.actionSucceed === false || typeof answer.valid !== "boolean") {
       return { status: "unavailable", name: null };
     }
     // "---" is VIES for "no name disclosed", not a name.
     const name =
-      body.valid && typeof body.name === "string" && body.name !== "---"
-        ? body.name
+      answer.valid && typeof answer.name === "string" && answer.name !== "---"
+        ? answer.name
         : null;
-    return { status: body.valid ? "valid" : "invalid", name };
+    return { status: answer.valid ? "valid" : "invalid", name };
   } catch {
     return { status: "unavailable", name: null };
   }

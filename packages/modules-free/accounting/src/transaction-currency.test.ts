@@ -163,3 +163,34 @@ test("a currency the books cannot hold is refused, not posted", async () => {
     .where(eq(schema.transactions.currency, "EUR"));
   expect(euro.length).toBe(0);
 });
+
+test("a contact or a currency of the wrong kind is refused, not stored as nothing", async () => {
+  // `{}` for a contact, or another business's contact, was quietly no contact;
+  // `{}` for the currency was quietly the books' own. All answered 201.
+  for (const wrong of [
+    { contactId: {} },
+    { contactId: crypto.randomUUID() },
+    { currency: ["CAD"] },
+  ]) {
+    const res = await post("/api/transactions", {
+      kind: "expense",
+      amountCents: 1500,
+      description: "Wrong kind",
+      ...wrong,
+    });
+    expect(res.status, JSON.stringify(wrong)).toBe(400);
+  }
+  const made = await post("/api/transactions", {
+    kind: "expense",
+    amountCents: 1500,
+    description: "Right kind",
+  });
+  const { transaction } = (await made.json()) as {
+    transaction: { id: string };
+  };
+  const edited = await req(`/api/transactions/${transaction.id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ contactId: ["x"] }),
+  });
+  expect(edited.status).toBe(400);
+});

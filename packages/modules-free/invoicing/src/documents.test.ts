@@ -1,7 +1,12 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { db, eq, inArray, schema } from "@sentrello/db";
 import { dropOrganization, makeOrganization } from "@sentrello/db/testing";
-import { creditedAgainst, writeTaxBands } from "./documents";
+import {
+  creditedAgainst,
+  parseDiscount,
+  parseEarlyPayment,
+  writeTaxBands,
+} from "./documents";
 
 /**
  * The two helpers in this file no route reaches directly.
@@ -102,4 +107,30 @@ test("rewriting one business's tax bands leaves another's alone", async () => {
     .from(schema.documentTaxes)
     .where(eq(schema.documentTaxes.documentId, documentId));
   expect(survivors.map((r) => r.organizationId)).toEqual([beta]);
+});
+
+test("a discount of a kind nobody offers is refused, not dropped", () => {
+  // "pct" used to mean no discount at all, answered 201 with the full price.
+  expect(() =>
+    parseDiscount({ discountType: "pct", discountValue: 500 }),
+  ).toThrow("discountType");
+  expect(() => parseDiscount({ discountType: {}, discountValue: 500 })).toThrow(
+    "discountType",
+  );
+  expect(parseDiscount({})).toBeNull();
+  expect(parseDiscount({ discountType: null })).toBeNull();
+  expect(
+    parseDiscount({ discountType: "percent", discountValue: 500 }),
+  ).toEqual({
+    type: "percent",
+    value: 500,
+  });
+  expect(() =>
+    parseEarlyPayment({
+      earlyDiscountType: ["percent"],
+      earlyDiscountValue: 200,
+      earlyDiscountDays: 10,
+    }),
+  ).toThrow("earlyDiscountType");
+  expect(parseEarlyPayment({}).type).toBeNull();
 });

@@ -9,6 +9,7 @@ import {
   baseCurrencyLocked,
   setBaseCurrency,
 } from "@sentrello/db/currency";
+import { asFlag } from "@sentrello/db/request-values";
 import { asText } from "@sentrello/db/text-columns";
 import { knownTimezone } from "@sentrello/db/timezone";
 import { mailConfigured } from "@sentrello/email";
@@ -383,8 +384,10 @@ export default defineModule({
         const body = (await c.req.json().catch(() => ({}))) as {
           enabled?: unknown;
         };
+        // Read outside the try, whose catch calls every failure a disk fault.
+        const enabled = asFlag(body.enabled, "enabled", false);
         try {
-          await setTelemetryEnabled(body.enabled === true);
+          await setTelemetryEnabled(enabled);
         } catch (err) {
           // A preference that cannot be written is a read-only or misplaced
           // data directory — which the person reading this can fix, but only

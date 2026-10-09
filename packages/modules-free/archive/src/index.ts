@@ -10,6 +10,7 @@ import {
   restoreArchive,
   retentionYears,
 } from "@sentrello/db/archive";
+import { asFlag } from "@sentrello/db/request-values";
 import {
   type RouteContext,
   allowLongRequest,
@@ -238,7 +239,7 @@ export default defineModule({
           );
         }
 
-        const remove = body.remove === true;
+        const remove = asFlag(body.remove, "remove", false);
         if (remove) {
           const { mayAccess } = await import("@sentrello/auth/hono");
           if (!(await mayAccess(c.req.raw.headers, { archive: ["delete"] }))) {

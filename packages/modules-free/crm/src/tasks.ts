@@ -18,6 +18,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { and, db, eq, schema } from "@sentrello/db";
+import { asFlag } from "@sentrello/db/request-values";
 import { asText } from "@sentrello/db/text-columns";
 import type { ModuleContext } from "@sentrello/module-sdk";
 
@@ -47,7 +48,8 @@ export function registerTaskActions(ctx: ModuleContext) {
     async (c) => {
       const orgId = activeOrganizationId(c.get("session"));
       const body = (await c.req.json().catch(() => ({}))) as { done?: unknown };
-      const done = body.done === undefined ? true : body.done !== false;
+      const done =
+        body.done === undefined ? true : asFlag(body.done, "done", true);
 
       const [row] = await db
         .update(schema.tasks)

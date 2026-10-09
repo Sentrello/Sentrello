@@ -124,6 +124,60 @@ export function asFlag(
   );
 }
 
+/**
+ * One of a fixed set of words, or a refusal naming the field and the set.
+ *
+ * `body.x === "public" ? "public" : "private"` reads like a check and is a
+ * default: "pubic", `{}` and `["public"]` all became "private", answered 201,
+ * and nobody was told the list they had just made was not the one they asked
+ * for. Found on 9 October on a list's visibility and opt-in and a site's
+ * device, and then in a dozen more places of the same shape.
+ *
+ * @param fallback what an absent value means. Without one, absent is refused.
+ */
+export function asChoice<const T extends string>(
+  value: unknown,
+  field: string,
+  choices: readonly T[],
+  fallback?: T,
+): T {
+  if (value === undefined || value === null || value === "") {
+    if (fallback === undefined) {
+      throw new RequestFieldError(field, `${field} is required`);
+    }
+    return fallback;
+  }
+  if (
+    typeof value === "string" &&
+    (choices as readonly string[]).includes(value)
+  ) {
+    return value as T;
+  }
+  throw new RequestFieldError(
+    field,
+    `${field} has to be one of ${choices.join(", ")}, and what arrived was ${describe(value)}.`,
+  );
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * A record's id, or nothing (null or ""), or a refusal naming the field.
+ *
+ * `typeof body.x === "string" && UUID.test(body.x) ? body.x : null` is the
+ * id-shaped default: `{}` sent for a product's category cleared it and
+ * answered 200. Whether the id is this business's is still the route's
+ * question; this only says it is an id.
+ */
+export function asIdOrNothing(value: unknown, field: string): string | null {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value === "string" && UUID.test(value)) return value;
+  throw new RequestFieldError(
+    field,
+    `${field} has to be an id, or null for none, and what arrived was ${describe(value)}.`,
+  );
+}
+
 /** What the caller sent, said in words rather than printed back at them. */
 function describe(value: unknown): string {
   if (Array.isArray(value)) return "a list";

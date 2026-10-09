@@ -16,6 +16,7 @@ import {
  * invoices.
  */
 import { and, db, eq, schema } from "@sentrello/db";
+import { asFlag } from "@sentrello/db/request-values";
 import { asText } from "@sentrello/db/text-columns";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import { secrets } from "@sentrello/module-sdk";
@@ -105,7 +106,7 @@ export function registerPeppol(ctx: ModuleContext) {
         );
       }
 
-      const sandbox = body.sandbox !== false;
+      const sandbox = asFlag(body.sandbox, "sandbox", true);
 
       /*
        * Tried before it is saved.

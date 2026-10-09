@@ -82,6 +82,7 @@ import {
   parseEarlyPayment,
   prepareDocument,
   quotesGross,
+  unsavedOnAnEdit,
   writeTaxBands,
 } from "./documents";
 import { registerEInvoice } from "./einvoice-route";
@@ -103,7 +104,11 @@ import { registerShare } from "./share";
 import { storecove } from "./storecove";
 import { registerInvoiceSearch, registerInvoicingSummary } from "./summary";
 import { registerDocumentTags, tagsFor } from "./tags";
-import { ownedTemplateId, registerTemplates } from "./templates";
+import {
+  ownedTemplateId,
+  registerTemplates,
+  templateChoice,
+} from "./templates";
 import { registerUsFiling } from "./us-filing";
 import { registerUsNexus } from "./us-nexus";
 import { registerUsRates } from "./us-rates";
@@ -1533,6 +1538,10 @@ export default defineModule({
           return c.json({ error: UNUSABLE_CLAIM }, 400);
         }
 
+        const refused = unsavedOnAnEdit(body, invoice);
+        if (refused) return c.json({ error: refused }, 400);
+        const templateId = await templateChoice(orgId, body.templateId);
+
         // Same rule as creation: a reassigned customer has to be one of ours.
         if (
           typeof body.contactId === "string" &&
@@ -1588,6 +1597,17 @@ export default defineModule({
           }));
         }
 
+        /*
+         * The discount sent, or — when the lines are the stored ones, re-priced
+         * for a certificate — the one already on the invoice. It was read from
+         * the body alone, so setting a certificate took the discount off.
+         */
+        const discount = Array.isArray(body.lines)
+          ? parseDiscount(body)
+          : parseDiscount({
+              discountType: invoice.discountType,
+              discountValue: invoice.discountValue,
+            });
         let prepared: Awaited<ReturnType<typeof prepareDocument>> | null = null;
         if (incomingLines) {
           try {
@@ -1599,7 +1619,7 @@ export default defineModule({
                     await ensureExemptDefinition(orgId),
                   )
                 : incomingLines,
-              parseDiscount(body),
+              discount,
               // The document's own answer, not the business's current setting:
               // a draft raised while quoting net stays net even if the setting
               // has been flipped since, or its total would change under it.
@@ -1639,21 +1659,13 @@ export default defineModule({
               values.buyerReference =
                 asText(body.buyerReference, "buyerReference").trim() || null;
             }
-            if (typeof body.templateId === "string") {
-              values.templateId = await ownedTemplateId(orgId, body.templateId);
-            }
+            if (templateId !== undefined) values.templateId = templateId;
             if (exemptionCertificateId !== undefined) {
               values.exemptionCertificateId = exemptionCertificateId;
             }
             if (prepared) {
-              values.discountType =
-                body.discountType === "percent" ||
-                body.discountType === "amount"
-                  ? body.discountType
-                  : null;
-              values.discountValue = Number.isInteger(body.discountValue)
-                ? body.discountValue
-                : 0;
+              values.discountType = discount?.type ?? null;
+              values.discountValue = discount?.value ?? 0;
               values.discountCents = prepared.discountCents;
               values.subtotalCents = prepared.subtotalCents;
               values.taxCents = prepared.taxCents;
@@ -1855,13 +1867,18 @@ export default defineModule({
           return c.json({ error: UNUSABLE_CLAIM }, 400);
         }
 
+        const refused = unsavedOnAnEdit(body, quote);
+        if (refused) return c.json({ error: refused }, 400);
+        const templateId = await templateChoice(orgId, body.templateId);
+        const discount = parseDiscount(body);
+
         let prepared: Awaited<ReturnType<typeof prepareDocument>> | null = null;
         if (Array.isArray(body.lines)) {
           try {
             prepared = await prepareDocument(
               orgId,
               body.lines as IncomingLine[],
-              parseDiscount(body),
+              discount,
               // The quote's own answer — see the invoice patch above.
               quote.pricesIncludeTax,
             );
@@ -1896,18 +1913,10 @@ export default defineModule({
                 ? demandDay(asText(body.validUntil, "validUntil"))
                 : null;
             }
-            if (typeof body.templateId === "string") {
-              values.templateId = await ownedTemplateId(orgId, body.templateId);
-            }
+            if (templateId !== undefined) values.templateId = templateId;
             if (prepared) {
-              values.discountType =
-                body.discountType === "percent" ||
-                body.discountType === "amount"
-                  ? body.discountType
-                  : null;
-              values.discountValue = Number.isInteger(body.discountValue)
-                ? body.discountValue
-                : 0;
+              values.discountType = discount?.type ?? null;
+              values.discountValue = discount?.value ?? 0;
               values.discountCents = prepared.discountCents;
               values.subtotalCents = prepared.subtotalCents;
               values.taxCents = prepared.taxCents;

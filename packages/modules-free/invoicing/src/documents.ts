@@ -6,6 +6,7 @@ import {
   bpToPpm,
   documentTotals,
 } from "@sentrello/db/money";
+import { asChoice, asIdOrNothing } from "@sentrello/db/request-values";
 
 /**
  * Writing an invoice or a quote, and the tax breakdown that goes with it.
@@ -325,13 +326,44 @@ export async function writeTaxBands(
   );
 }
 
+/**
+ * What an edit to a draft sent that it would not have saved, said in words.
+ *
+ * Each of these used to answer 200 with nothing changed: a customer sent as
+ * `{}`, a discount sent without the lines it is priced with, a currency other
+ * than the one the document was raised in. Null for a customer stays "leave it
+ * as it is", which is what the form sends for a draft with none chosen.
+ */
+export function unsavedOnAnEdit(
+  body: Record<string, unknown>,
+  doc: { currency: string },
+): string | null {
+  if (body.contactId !== undefined && body.contactId !== null) {
+    asIdOrNothing(body.contactId, "contactId");
+  }
+  if (
+    !Array.isArray(body.lines) &&
+    (body.discountType !== undefined || body.discountValue !== undefined)
+  ) {
+    return "send the lines with the discount — a discount is priced with them";
+  }
+  if (body.currency !== undefined && body.currency !== doc.currency) {
+    return `this was raised in ${doc.currency}, and a document's currency is fixed once raised — copy it to raise one in another`;
+  }
+  return null;
+}
+
 /** A discount as the browser sent it, or nothing. */
 export function parseDiscount(body: {
   discountType?: unknown;
   discountValue?: unknown;
 }): Discount {
-  const type = body.discountType;
-  if (type !== "percent" && type !== "amount") return null;
+  // No discount is said with nothing; an unknown kind is refused, not dropped.
+  if (body.discountType == null || body.discountType === "") return null;
+  const type = asChoice(body.discountType, "discountType", [
+    "percent",
+    "amount",
+  ]);
   const value = body.discountValue;
   if (!Number.isInteger(value)) {
     throw new MoneyError(
@@ -355,10 +387,13 @@ export function parseEarlyPayment(body: {
   earlyDiscountValue?: unknown;
   earlyDiscountDays?: unknown;
 }): { type: string | null; value: number; days: number | null } {
-  const type = body.earlyDiscountType;
-  if (type !== "percent" && type !== "amount") {
+  if (body.earlyDiscountType == null || body.earlyDiscountType === "") {
     return { type: null, value: 0, days: null };
   }
+  const type = asChoice(body.earlyDiscountType, "earlyDiscountType", [
+    "percent",
+    "amount",
+  ]);
   const value = body.earlyDiscountValue;
   if (!Number.isInteger(value) || (value as number) <= 0) {
     throw new MoneyError(
