@@ -1,9 +1,15 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
+import { existsSync } from "node:fs";
 import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, schema } from "@sentrello/db";
 import { dropOrganization, makeOrganization } from "@sentrello/db/testing";
-import type { PersonalDataSource, SentrelloEnv } from "@sentrello/module-sdk";
+import {
+  type PersonalDataSource,
+  type SentrelloEnv,
+  attachmentFile,
+  storeAttachment,
+} from "@sentrello/module-sdk";
 import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import crm from "./index";
@@ -27,6 +33,9 @@ import { fanOutDue } from "./webhooks";
  */
 
 process.env.SENTRELLO_SECRET_KEY ||= "a-test-instance-key";
+// Note files are written under the data directory, which defaults to /data —
+// not somewhere a test may write.
+process.env.SENTRELLO_DATA_DIR ||= `/tmp/sentrello-test-${crypto.randomUUID().slice(0, 8)}`;
 
 const suffix = crypto.randomUUID().slice(0, 8);
 const email = `crm-erasure-${suffix}@example.test`;
@@ -340,4 +349,77 @@ test("a contact deleted last week is still erased out of the feed", async () => 
               or related::text ilike '%${gone}%')`,
   );
   expect((trace[0] as { found: number }).found).toBe(0);
+});
+
+/**
+ * The files on their notes, as well as the notes.
+ *
+ * The rows went and the files did not: a quote, a photograph, a signed sheet,
+ * left under the data directory after the screen told the person they were
+ * forgotten. Both the contact still here and the one deleted earlier, whose
+ * notes went in that delete and whose files were left behind for a restore
+ * that an erasure means will never come.
+ */
+async function noteWithFile(contactId: string): Promise<string> {
+  const made = (await (
+    await app.request("http://localhost/api/notes", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        entityType: "contact",
+        entityId: contactId,
+        text: "Their passport scan",
+      }),
+    })
+  ).json()) as { note: { id: string } };
+  const stored = await storeAttachment(
+    orgId,
+    new File(["scan"], "passport.jpg"),
+  );
+  await db
+    .update(schema.notes)
+    .set({ attachments: [stored] })
+    .where(eq(schema.notes.id, made.note.id));
+  // The path on disk, checked with `existsSync`: a `Bun.file` remembers its
+  // first answer to whether it exists.
+  return attachmentFile(stored.path)?.name ?? "";
+}
+
+test("erasing somebody takes the files on their notes off the disk", async () => {
+  const here = `erased-with-files-${suffix}@example.test`;
+  const { contact } = (await (
+    await app.request("http://localhost/api/contacts", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ name: "Has Files", email: here }),
+    })
+  ).json()) as { contact: { id: string } };
+  const file = await noteWithFile(contact.id);
+  expect(existsSync(file)).toBe(true);
+
+  await source.erase?.(orgId, { email: here });
+  expect(existsSync(file)).toBe(false);
+});
+
+test("a contact deleted before the erasure loses its files to it too", async () => {
+  const gone = `deleted-with-files-${suffix}@example.test`;
+  const { contact } = (await (
+    await app.request("http://localhost/api/contacts", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ name: "Deleted With Files", email: gone }),
+    })
+  ).json()) as { contact: { id: string } };
+  const file = await noteWithFile(contact.id);
+
+  await app.request(`http://localhost/api/contacts/${contact.id}`, {
+    method: "DELETE",
+    headers,
+  });
+  // An ordinary delete keeps the file: the paid tier can still put the note
+  // back, and a note restored without its file is a broken download.
+  expect(existsSync(file)).toBe(true);
+
+  await source.erase?.(orgId, { email: gone });
+  expect(existsSync(file)).toBe(false);
 });

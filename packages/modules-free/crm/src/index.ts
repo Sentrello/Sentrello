@@ -10,6 +10,7 @@ import {
   type CRM_SUBJECTS,
   companyMarks,
   companyNames,
+  crmFieldsFor,
   crmValues,
 } from "@sentrello/db/crm";
 import { dayIn } from "@sentrello/db/day";
@@ -61,7 +62,7 @@ import {
 } from "drizzle-orm";
 import type { AnyColumn, SQL } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
-import { registerAttachments } from "./attachments";
+import { registerAttachments, removeNoteFiles } from "./attachments";
 import { type TrailRemoved, removeCrmTrail } from "./cascade";
 import { registerCrmDashboard } from "./dashboard";
 import { CRM_ENTITY, type CrmResource } from "./entities";
@@ -224,6 +225,63 @@ const CUSTOM_SUBJECTS: Partial<
   companies: "company",
   deals: "deal",
 };
+
+/**
+ * The two contact fields that are legal positions rather than preferences,
+ * and the purpose each one is evidence of.
+ *
+ * One list for every path that writes a contact, because the path that kept
+ * its own was the only one that recorded anything: a change on an existing
+ * contact wrote the evidence, and a contact created with the box already
+ * ticked — or imported opted out — had the tick and no record of how it got
+ * there.
+ */
+const CONSENT_FIELDS = [
+  ["hasNewsletter", "marketing.email"],
+  ["doNotSell", "data.sale"],
+] as const;
+
+/** One consent fact about a contact, written in the caller's transaction. */
+async function recordContactConsent(
+  tx: Parameters<typeof recordConsent>[1],
+  input: {
+    organizationId: string;
+    contact: Record<string, unknown>;
+    purpose: (typeof CONSENT_FIELDS)[number][1];
+    /** Whether the box is ticked now, which is not always consent given. */
+    ticked: boolean;
+    source: "staff" | "import";
+    session: SentrelloSession;
+    evidence?: Record<string, unknown>;
+  },
+): Promise<void> {
+  await recordConsent(
+    {
+      organizationId: input.organizationId,
+      subject: {
+        kind: "contact",
+        id: String(input.contact.id),
+        label:
+          (input.contact.name as string | null) ??
+          (input.contact.email as string | null),
+      },
+      purpose: input.purpose,
+      /*
+       * "Do not sell" reads backwards from every other consent here:
+       * ticking it is a refusal, so the record says consent was
+       * withdrawn rather than given.
+       */
+      granted: input.purpose === "data.sale" ? !input.ticked : input.ticked,
+      source: input.source,
+      evidence: input.evidence,
+      actor: {
+        id: input.session.user.id,
+        name: input.session.user.name ?? input.session.user.email,
+      },
+    },
+    tx,
+  );
+}
 
 async function withCustomValues(
   resource: keyof typeof tables,
@@ -535,6 +593,16 @@ function crud<T extends keyof typeof tables>(
         if (name) parsed.value.name = name;
         fillNameParts(parsed.value);
         normaliseStatus(parsed.value);
+        /*
+         * The day an opt-out arrived, stamped here as the change path stamps
+         * it. A contact created already opted out had the flag and no date,
+         * which is the half of the CCPA record that starts the clock.
+         */
+        if (parsed.value.doNotSell !== undefined) {
+          parsed.value.doNotSellOn = parsed.value.doNotSell
+            ? dayIn(new Date(), await timezoneFor(orgId))
+            : null;
+        }
       }
       const shaped = checkedText(table, parsed.value);
       if (!shaped.ok) {
@@ -560,10 +628,36 @@ function crud<T extends keyof typeof tables>(
 
       let row: Record<string, unknown> | undefined;
       try {
-        [row] = await db
-          .insert(table)
-          .values({ ...parsed.value, organizationId: orgId })
-          .returning();
+        row = await db.transaction(async (tx) => {
+          const [made] = await tx
+            .insert(table)
+            .values({ ...parsed.value, organizationId: orgId })
+            .returning();
+          /*
+           * A contact made with a box already ticked is consent given — or,
+           * for "do not sell", withheld — at the moment it was made, and the
+           * evidence is owed the same as for a tick changed later. Recorded
+           * against the row it describes, in the same transaction, so the
+           * contact and its evidence cannot disagree.
+           *
+           * Only a tick. Unticked is where every contact starts, and a record
+           * of nothing moving is a record nobody reads.
+           */
+          if (made && resource === "contacts") {
+            for (const [field, purpose] of CONSENT_FIELDS) {
+              if ((made as Record<string, unknown>)[field] !== true) continue;
+              await recordContactConsent(tx, {
+                organizationId: orgId,
+                contact: made as Record<string, unknown>,
+                purpose,
+                ticked: true,
+                source: "staff",
+                session: c.get("session"),
+              });
+            }
+          }
+          return made as Record<string, unknown> | undefined;
+        });
       } catch (err) {
         const refused = refusedByTheDatabase(err);
         if (!refused) throw err;
@@ -665,13 +759,7 @@ function crud<T extends keyof typeof tables>(
        * is not somebody consenting to anything, and a history full of
        * unchanged ticks is a history nobody reads.
        */
-      const consentFields =
-        resource === "contacts"
-          ? ([
-              ["hasNewsletter", "marketing.email"],
-              ["doNotSell", "data.sale"],
-            ] as const)
-          : [];
+      const consentFields = resource === "contacts" ? CONSENT_FIELDS : [];
       const watched = consentFields.filter(
         ([field]) => parsed.value[field] !== undefined,
       );
@@ -782,31 +870,14 @@ function crud<T extends keyof typeof tables>(
             const was = (before as Record<string, unknown>)[field] === true;
             const now = saved[field] === true;
             if (was === now) continue;
-            await recordConsent(
-              {
-                organizationId: orgId,
-                subject: {
-                  kind: "contact",
-                  id: String(saved.id),
-                  label:
-                    (saved.name as string | null) ??
-                    (saved.email as string | null),
-                },
-                purpose,
-                /*
-                 * "Do not sell" reads backwards from every other consent here:
-                 * ticking it is a refusal, so the record says consent was
-                 * withdrawn rather than given.
-                 */
-                granted: purpose === "data.sale" ? !now : now,
-                source: "staff",
-                actor: {
-                  id: session.user.id,
-                  name: session.user.name ?? session.user.email,
-                },
-              },
-              tx,
-            );
+            await recordContactConsent(tx, {
+              organizationId: orgId,
+              contact: saved,
+              purpose,
+              ticked: now,
+              source: "staff",
+              session,
+            });
           }
         }
         return [updated[0], before] as const;
@@ -898,6 +969,17 @@ function crud<T extends keyof typeof tables>(
         return deleted;
       });
       if (!row) return c.json({ error: "not found" }, 404);
+      /*
+       * A note's files, now the note is gone for good.
+       *
+       * Only a note deleted on its own. The notes a contact, company or deal
+       * took with it travel on the event below, and the paid tier can put them
+       * back for thirty days — a restored note pointing at a file this had
+       * already removed would be a download that answers 410.
+       */
+      if (resource === "notes") {
+        await removeNoteFiles([row as { attachments?: { path: string }[] }]);
+      }
       /*
        * And what went with it, on the event rather than left to be looked up.
        *
@@ -1981,6 +2063,37 @@ export const EXPORT_COLUMNS = [
   "Do not sell recorded on",
 ] as const;
 
+/**
+ * The fields a business added for itself, as columns on the end of an export.
+ *
+ * They were left out, so the one thing a business keeps that no other does —
+ * the boiler model, the site access note — was the one thing that did not
+ * come out with the rest. Headed by the field's own label, because that is
+ * what the business called it and what they will look for in the file.
+ *
+ * Read the way the record page shows them, a tick as "Yes" or "No", with one
+ * exception: a date stays a plain `2026-03-04`, as every other date in these
+ * files does, so a spreadsheet sorts it and an import reads it back.
+ */
+async function customColumns(
+  orgId: string,
+  subject: (typeof CRM_SUBJECTS)[number],
+) {
+  const fields = (await crmFieldsFor(orgId)).filter(
+    (field) => field.appliesTo === subject,
+  );
+  return {
+    headers: fields.map((field) => field.label),
+    cells: (values: Record<string, unknown> | null | undefined) =>
+      fields.map((field) => {
+        const value = values?.[field.id];
+        if (value === undefined || value === null || value === "") return "";
+        if (field.type === "checkbox") return value === true ? "Yes" : "No";
+        return String(value);
+      }),
+  };
+}
+
 export function displayName(body: Record<string, unknown>): string | undefined {
   const first = typeof body.firstName === "string" ? body.firstName.trim() : "";
   const last = typeof body.lastName === "string" ? body.lastName.trim() : "";
@@ -2135,17 +2248,44 @@ function registerCrmScreens(
             dayIn(new Date(), await timezoneFor(orgId)))
           : null;
 
-        await db.insert(schema.contacts).values({
-          organizationId: orgId,
-          name,
-          firstName: firstName || null,
-          lastName: lastName || null,
-          title: asText(raw.title, "title").trim() || null,
-          email: asText(raw.email, "email").trim() || null,
-          phone: asText(raw.phone, "phone").trim() || null,
-          linkedinUrl: asText(raw.linkedinUrl, "linkedinUrl").trim() || null,
-          companyId,
-          ...(optOut ? { doNotSell: true, doNotSellOn: optOutOn } : {}),
+        await db.transaction(async (tx) => {
+          const [made] = await tx
+            .insert(schema.contacts)
+            .values({
+              organizationId: orgId,
+              name,
+              firstName: firstName || null,
+              lastName: lastName || null,
+              title: asText(raw.title, "title").trim() || null,
+              email: asText(raw.email, "email").trim() || null,
+              phone: asText(raw.phone, "phone").trim() || null,
+              linkedinUrl:
+                asText(raw.linkedinUrl, "linkedinUrl").trim() || null,
+              companyId,
+              ...(optOut ? { doNotSell: true, doNotSellOn: optOutOn } : {}),
+            })
+            .returning();
+          /*
+           * And the evidence of it, marked as brought in.
+           *
+           * The day the spreadsheet gives goes in the evidence rather than in
+           * `at`: it names a day, and `at` is an instant — written there it
+           * would read as the evening before for a business west of London.
+           * `at` stays the moment this business recorded it, which is true.
+           */
+          if (made && optOut) {
+            await recordContactConsent(tx, {
+              organizationId: orgId,
+              contact: made,
+              purpose: "data.sale",
+              ticked: true,
+              source: "import",
+              session: c.get("session"),
+              evidence: {
+                optedOutOn: optOutOn?.toISOString().slice(0, 10) ?? null,
+              },
+            });
+          }
         });
         imported += 1;
       }
@@ -2176,17 +2316,18 @@ function registerCrmScreens(
         c.req.query(),
         c.get("session"),
       );
-      const [rows, allCompanies] = await Promise.all([
+      const [rows, allCompanies, custom] = await Promise.all([
         db.select().from(schema.contacts).where(where),
         db
           .select()
           .from(schema.companies)
           .where(eq(schema.companies.organizationId, orgId)),
+        customColumns(orgId, "contact"),
       ]);
       const companyName = new Map(allCompanies.map((co) => [co.id, co.name]));
 
       const csv = toCsv(
-        [...EXPORT_COLUMNS],
+        [...EXPORT_COLUMNS, ...custom.headers],
         rows.map((r) => [
           r.firstName ?? "",
           r.lastName ?? "",
@@ -2206,6 +2347,7 @@ function registerCrmScreens(
           // the millisecond is a column nobody reads, and the obligation is
           // dated in days.
           r.doNotSellOn ? r.doNotSellOn.toISOString().slice(0, 10) : "",
+          ...custom.cells(r.customValues),
         ]),
       );
 
@@ -2222,12 +2364,20 @@ function registerCrmScreens(
     requirePermission({ crm: ["read"] }),
     async (c) => {
       const orgId = activeOrganizationId(c.get("session"));
-      const rows = await db
-        .select()
-        .from(schema.companies)
-        .where(
-          await listWhere("companies", orgId, c.req.query(), c.get("session")),
-        );
+      const [rows, custom] = await Promise.all([
+        db
+          .select()
+          .from(schema.companies)
+          .where(
+            await listWhere(
+              "companies",
+              orgId,
+              c.req.query(),
+              c.get("session"),
+            ),
+          ),
+        customColumns(orgId, "company"),
+      ]);
 
       const csv = toCsv(
         [
@@ -2240,6 +2390,7 @@ function registerCrmScreens(
           "City",
           "Country",
           "Description",
+          ...custom.headers,
         ],
         rows.map((r) => [
           r.name,
@@ -2251,6 +2402,7 @@ function registerCrmScreens(
           r.city ?? "",
           r.country ?? "",
           r.description ?? "",
+          ...custom.cells(r.customValues),
         ]),
       );
 
@@ -2278,7 +2430,7 @@ function registerCrmScreens(
     requirePermission({ crm: ["read"] }),
     async (c) => {
       const orgId = activeOrganizationId(c.get("session"));
-      const [rows, allCompanies, allContacts] = await Promise.all([
+      const [rows, allCompanies, allContacts, custom] = await Promise.all([
         db
           .select()
           .from(schema.deals)
@@ -2294,6 +2446,7 @@ function registerCrmScreens(
           .select()
           .from(schema.contacts)
           .where(eq(schema.contacts.organizationId, orgId)),
+        customColumns(orgId, "deal"),
       ]);
 
       const companyName = new Map(allCompanies.map((co) => [co.id, co.name]));
@@ -2310,6 +2463,7 @@ function registerCrmScreens(
           "Expected close",
           "Archived",
           "Description",
+          ...custom.headers,
         ],
         rows.map((r) => [
           r.name,
@@ -2324,6 +2478,7 @@ function registerCrmScreens(
           r.expectedCloseOn ?? "",
           r.archivedAt ? "yes" : "",
           r.description ?? "",
+          ...custom.cells(r.customValues),
         ]),
       );
 

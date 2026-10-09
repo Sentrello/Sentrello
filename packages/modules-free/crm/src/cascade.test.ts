@@ -354,3 +354,38 @@ test("a company and a deal say what went with them too", async () => {
   expect((await deletedEvent(dealId))?.related?.activities).toHaveLength(1);
   expect(await duedTasks()).toEqual([]);
 });
+
+/**
+ * A company's notes go with it.
+ *
+ * The sweep said a company had no notes, while the company page listed them
+ * and took files on them — so a deleted company left every note about it
+ * behind, about nothing anybody could open.
+ */
+test("a deleted company takes its notes with it", async () => {
+  const companyId = await create("companies", { name: `Noted Co ${suffix}` });
+  await create("notes", {
+    entityType: "company",
+    entityId: companyId,
+    text: "Gate code is 4471",
+  });
+
+  const res = await app.request(`http://localhost/api/companies/${companyId}`, {
+    method: "DELETE",
+    headers,
+  });
+  expect(res.status).toBe(200);
+
+  const left = await db
+    .select({ id: schema.notes.id })
+    .from(schema.notes)
+    .where(
+      and(
+        eq(schema.notes.organizationId, orgId),
+        eq(schema.notes.entityId, companyId),
+      ),
+    );
+  expect(left).toEqual([]);
+  // And on the event, so a restore brings the note back with the company.
+  expect((await deletedEvent(companyId))?.related?.notes).toHaveLength(1);
+});

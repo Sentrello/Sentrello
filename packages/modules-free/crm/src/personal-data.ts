@@ -9,6 +9,7 @@ import type {
   ModuleContext,
   PersonalRecord,
 } from "@sentrello/module-sdk";
+import { removeNoteFiles } from "./attachments";
 import { removeCrmTrail } from "./cascade";
 
 /**
@@ -81,6 +82,39 @@ async function deletedIds(
       ),
     );
   return rows.map((row) => row.id);
+}
+
+/**
+ * The notes an earlier delete took with a contact, as the feed kept them.
+ *
+ * A contact deleted last week took its notes in that delete, and the files on
+ * them stayed on the disk — a delete the paid tier can still undo must leave
+ * them there to come back to. The feed's copy of those notes is the only thing
+ * left that says which files were theirs, and the redaction below empties it,
+ * so this is read first.
+ */
+async function notesDeletedWith(
+  orgId: string,
+  ids: string[],
+): Promise<{ attachments?: { path: string }[] | null }[]> {
+  if (!ids.length) return [];
+  const rows = await db
+    .select({ related: schema.recordEvents.related })
+    .from(schema.recordEvents)
+    .where(
+      and(
+        eq(schema.recordEvents.organizationId, orgId),
+        eq(schema.recordEvents.entity, "contact"),
+        eq(schema.recordEvents.action, "deleted"),
+        inArray(schema.recordEvents.entityId, ids),
+      ),
+    );
+  return rows.flatMap(
+    (row) =>
+      (row.related?.notes ?? []) as {
+        attachments?: { path: string }[] | null;
+      }[],
+  );
 }
 
 export function registerCrmPersonalData(ctx: ModuleContext) {
@@ -261,6 +295,24 @@ export function registerCrmPersonalData(ctx: ModuleContext) {
           phone: subject.phone,
         });
       }
+
+      /*
+       * And the files on their notes, off the disk.
+       *
+       * The rows went above, each delete committed on its own, so nothing can
+       * roll back under this and bring back a note whose file is gone. A note
+       * removed with a contact deleted earlier is found through the feed, and
+       * read before the feed is emptied — afterwards nothing says whose files
+       * they were.
+       */
+      await removeNoteFiles(
+        people.length
+          ? trail.notes
+          : await notesDeletedWith(
+              orgId,
+              known.map((who) => who.id).filter((id): id is string => !!id),
+            ),
+      );
       for (const who of known) {
         logs += await redactPayloads({
           table: schema.recordEvents,

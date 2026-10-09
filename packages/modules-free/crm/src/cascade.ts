@@ -61,24 +61,29 @@ export async function removeCrmTrail(
 
   /*
    * Notes and activities file themselves differently — a note by
-   * entity type and id, an activity by a column per kind — and a company has
-   * neither. Written out per subject rather than derived, for the reason
-   * `CRM_ENTITY` exists: a rule that guesses a column name from a word is a
-   * rule that is silently wrong about the fourth one.
+   * entity type and id, an activity by a column per kind. Written out per
+   * subject rather than derived, for the reason `CRM_ENTITY` exists: a rule
+   * that guesses a column name from a word is a rule that is silently wrong
+   * about the fourth one.
+   *
+   * A company has notes. This said it had neither, while the company page
+   * listed them and took files on them, so a deleted company left every note
+   * about it standing — and the files on those notes with them.
    */
-  if (subject !== "company") {
-    const notes = await conn
-      .delete(schema.notes)
-      .where(
-        and(
-          eq(schema.notes.organizationId, organizationId),
-          eq(schema.notes.entityType, subject),
-          inArray(schema.notes.entityId, ids),
-        ),
-      )
-      .returning();
-    removed.notes = notes;
+  const notes = await conn
+    .delete(schema.notes)
+    .where(
+      and(
+        eq(schema.notes.organizationId, organizationId),
+        eq(schema.notes.entityType, subject),
+        inArray(schema.notes.entityId, ids),
+      ),
+    )
+    .returning();
+  removed.notes = notes;
 
+  // A company has no activities: a call is with a person, or about a deal.
+  if (subject !== "company") {
     const column =
       subject === "contact"
         ? schema.activities.contactId

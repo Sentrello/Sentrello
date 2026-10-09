@@ -370,7 +370,7 @@ function CompanyCard({
 
 export function CompanyDetail() {
   const qc = useQueryClient();
-  const { current } = useNavigation();
+  const { current, open: openView } = useNavigation();
   const settings = useCrmSettings();
   const id = current.recordId;
   const [editing, setEditing] = useState(false);
@@ -404,6 +404,10 @@ export function CompanyDetail() {
           setEditing(false);
           qc.invalidateQueries({ queryKey: ["company-related", id] });
           qc.invalidateQueries({ queryKey: ["companies"] });
+        }}
+        onDeleted={() => {
+          qc.invalidateQueries({ queryKey: ["companies"] });
+          openView({ moduleId: "companies", title: "Companies" });
         }}
       />
     );

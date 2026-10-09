@@ -13,6 +13,7 @@ import { CountrySelect } from "../lib/ui";
 import {
   Button,
   Card,
+  ConfirmButton,
   ErrorNote,
   Field,
   Input,
@@ -157,11 +158,17 @@ export function CompanyForm({
   company,
   settings,
   onDone,
+  onDeleted,
 }: {
   /** Absent when creating. */
   company?: Company;
   settings: CrmSettings;
   onDone: (saved?: Company) => void;
+  /**
+   * Where to go once the company is gone. Not `onDone`, which goes back to a
+   * record that is no longer there — the deal form learned that first.
+   */
+  onDeleted?: () => void;
 }) {
   // Half a record typed and a click on the rail threw it away. The
   // guard is armed by a real edit inside this screen, and stood down
@@ -199,6 +206,15 @@ export function CompanyForm({
    */
   const [seenUpdatedAt] = useState(company?.updatedAt ?? null);
   const managers = useCrmManagers();
+
+  const remove = useMutation({
+    mutationFn: () =>
+      api(`/api/companies/${company?.id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      settled();
+      onDeleted?.();
+    },
+  });
 
   const save = useMutation({
     mutationFn: async () => {
@@ -416,6 +432,27 @@ export function CompanyForm({
             <Button variant="secondary" onClick={() => onDone()}>
               Cancel
             </Button>
+            {/*
+              A company could be made and never removed — one entered twice,
+              or a supplier somebody added as a customer, sat in the list for
+              good. The route was there and nothing called it. It refuses a
+              company that people or deals still name, and says which, so the
+              refusal is shown rather than swallowed.
+            */}
+            {company ? (
+              <ConfirmButton
+                title="Delete this company?"
+                message="Its notes, its follow-ups and its tags all go with it. A company that anybody works at, or that a deal names, is kept until those are moved or deleted."
+                confirmLabel="Delete it"
+                danger
+                variant="danger"
+                needs={{ crm: ["delete"] }}
+                disabled={remove.isPending}
+                onConfirm={() => remove.mutate()}
+              >
+                Delete
+              </ConfirmButton>
+            ) : null}
             {!name.trim() ? (
               <span className="text-sm" style={muted}>
                 A name is needed.
@@ -424,6 +461,7 @@ export function CompanyForm({
           </Toolbar>
 
           {save.error ? <ErrorNote error={save.error} /> : null}
+          {remove.error ? <ErrorNote error={remove.error} /> : null}
         </form>
       </Card>
     </Page>

@@ -184,7 +184,8 @@ read are listed rather than quietly skipped.
 
 **Export**, on the contacts, companies and deals lists, downloads a CSV of what
 the list is showing, with your search and filters applied, every matching row
-rather than the current page. The values in your own fields are not in it yet.
+rather than the current page. Your own fields come out too, one column each
+under the name you gave the field.
 
 ## Webhooks
 
@@ -241,12 +242,16 @@ A few things worth knowing before you connect one:
 
 **Deleting** removes a record along with its notes, activities and tasks.
 Contacts are deleted from the contacts list (select them, then **Delete**), and
-a deal from its own page. On a free instance that is final.
+a deal or a company from its own page, under **Edit**. On a free instance that
+is final.
 
 Sentrello refuses to delete a contact that money is attached to: an invoice, a
 quote, a subscription, a bookkeeping entry. Deleting them would leave those
 records without a customer. Delete several at once and the ones it could
 delete go, with the reason the others stayed.
+
+A company is kept while anybody works there or a deal names it. Move or delete
+those first, and the screen says which.
 
 With [Pro](/pro), **CRM → Records → Deleted records** keeps a deleted contact,
 company, deal or task for thirty days, with the notes and tags that went with

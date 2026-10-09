@@ -1,11 +1,13 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
+import { existsSync } from "node:fs";
+import { unlink } from "node:fs/promises";
 import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, inArray, schema } from "@sentrello/db";
 import { UNPAGED_MAX } from "@sentrello/db/list-query";
 import { dropOrganization, makeOrganization } from "@sentrello/db/testing";
-import type { SentrelloEnv } from "@sentrello/module-sdk";
-import { and, eq, like } from "drizzle-orm";
+import { type SentrelloEnv, attachmentFile } from "@sentrello/module-sdk";
+import { and, eq, like, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import crm, { displayName, toCsv } from "./index";
 
@@ -2904,4 +2906,254 @@ test("an imported opt-out arrives as an opt-out", async () => {
       ),
     );
   expect(plain?.doNotSell).toBe(false);
+});
+
+/**
+ * A deleted note takes its files with it.
+ *
+ * The confirmation has always said so, and the row went while the file stayed
+ * under the data directory for ever. And a file that is already gone — a
+ * half-restored backup, somebody tidying the disk — must not stop the note
+ * being deleted.
+ */
+test("deleting a note removes its file from the disk, and a missing one is no obstacle", async () => {
+  const contactId = await makeContact({ name: "Leaves Files" });
+  const note = async () =>
+    (
+      (await (
+        await app.request("http://localhost/api/notes", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            entityType: "contact",
+            entityId: contactId,
+            text: "Signed sheet attached",
+          }),
+        })
+      ).json()) as { note: { id: string } }
+    ).note.id;
+  const attach = async (noteId: string) => {
+    const form = new FormData();
+    form.append("file", new File(["signed"], "sheet.pdf"));
+    const up = await app.request(
+      `http://localhost/api/notes/${noteId}/attachments`,
+      {
+        method: "POST",
+        headers: { cookie: headers.get("cookie") ?? "" },
+        body: form,
+      },
+    );
+    const body = (await up.json()) as {
+      note: { attachments: { path: string }[] };
+    };
+    // The path on disk, asked afresh each time: a `Bun.file` remembers the
+    // answer it gave the first time it was asked whether it exists.
+    return attachmentFile(body.note.attachments[0]?.path ?? "")?.name ?? "";
+  };
+
+  const kept = await note();
+  const file = await attach(kept);
+  expect(existsSync(file)).toBe(true);
+
+  const gone = await app.request(`http://localhost/api/notes/${kept}`, {
+    method: "DELETE",
+    headers,
+  });
+  expect(gone.status).toBe(200);
+  expect(existsSync(file)).toBe(false);
+
+  // The file went first, by some other hand: the delete still goes through.
+  const orphan = await note();
+  const lost = await attach(orphan);
+  await unlink(lost);
+  const still = await app.request(`http://localhost/api/notes/${orphan}`, {
+    method: "DELETE",
+    headers,
+  });
+  expect(still.status).toBe(200);
+});
+
+/**
+ * A contact made with a box already ticked has consented — or, for "do not
+ * sell", refused — at the moment it was made. Only a change was written down,
+ * so the evidence existed for a tick moved later and not for one that arrived
+ * ticked, which is how most of them arrive.
+ */
+test("a contact created with consent ticked has it on record, and one without has nothing", async () => {
+  const consents = (id: string) =>
+    db
+      .select()
+      .from(schema.consentRecords)
+      .where(
+        and(
+          eq(schema.consentRecords.organizationId, orgId),
+          eq(schema.consentRecords.subjectId, id),
+        ),
+      );
+
+  const ticked = await app.request("http://localhost/api/contacts", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      name: "Ticked Both",
+      hasNewsletter: true,
+      doNotSell: true,
+    }),
+  });
+  expect(ticked.status).toBe(201);
+  const { contact } = (await ticked.json()) as {
+    contact: { id: string; doNotSellOn: string | null };
+  };
+  // And the day of the opt-out, stamped as the change path stamps it.
+  expect(contact.doNotSellOn).not.toBeNull();
+
+  const rows = await consents(contact.id);
+  expect(rows).toHaveLength(2);
+  const mail = rows.find((r) => r.purpose === "marketing.email");
+  expect(mail?.granted).toBe(true);
+  expect(mail?.source).toBe("staff");
+  expect(mail?.actorId).toBeTruthy();
+  // Ticking "do not sell" is consent withheld, never consent given.
+  expect(rows.find((r) => r.purpose === "data.sale")?.granted).toBe(false);
+
+  const plain = await makeContact({
+    name: "Ticked Nothing",
+    hasNewsletter: false,
+  });
+  expect(await consents(plain)).toEqual([]);
+});
+
+test("an opt-out brought in by an import is on record as imported", async () => {
+  const address = `imported-optout-${suffix}@example.com`;
+  const res = await app.request("http://localhost/api/contacts/import", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      rows: [
+        {
+          firstName: "Imported",
+          lastName: "Refusal",
+          email: address,
+          doNotSell: "yes",
+          doNotSellOn: "2026-03-04",
+        },
+        {
+          firstName: "Imported",
+          lastName: "Plainly",
+          email: `imported-plain-${suffix}@example.com`,
+        },
+      ],
+    }),
+  });
+  expect(res.status).toBe(200);
+
+  const records = await db
+    .select({
+      email: schema.contacts.email,
+      purpose: schema.consentRecords.purpose,
+      granted: schema.consentRecords.granted,
+      source: schema.consentRecords.source,
+      evidence: schema.consentRecords.evidence,
+    })
+    .from(schema.consentRecords)
+    .innerJoin(
+      schema.contacts,
+      sql`${schema.contacts.id}::text = ${schema.consentRecords.subjectId}`,
+    )
+    .where(
+      and(
+        eq(schema.consentRecords.organizationId, orgId),
+        like(schema.contacts.email, "imported-%"),
+      ),
+    );
+  expect(records).toEqual([
+    {
+      email: address,
+      purpose: "data.sale",
+      granted: false,
+      source: "import",
+      // The day the spreadsheet gave, kept as a day.
+      evidence: { optedOutOn: "2026-03-04" },
+    },
+  ]);
+});
+
+/**
+ * The fields a business added for itself come out with everything else.
+ *
+ * They were left out of all three exports, so the one thing a business keeps
+ * that no other does was the one thing a spreadsheet could not hold.
+ */
+test("every export carries the business's own fields, under their own labels", async () => {
+  const defined = [
+    {
+      id: "boiler_model",
+      label: "Boiler model",
+      type: "text" as const,
+      appliesTo: "contact",
+    },
+    {
+      id: "serviced",
+      label: "Serviced",
+      type: "checkbox" as const,
+      appliesTo: "contact",
+    },
+    {
+      id: "account_no",
+      label: "Account number",
+      type: "text" as const,
+      appliesTo: "company",
+    },
+    {
+      id: "site_visit",
+      label: "Site visit",
+      type: "date" as const,
+      appliesTo: "deal",
+    },
+  ];
+  await db
+    .insert(schema.crmSettings)
+    .values({ organizationId: orgId, customFields: defined })
+    .onConflictDoUpdate({
+      target: schema.crmSettings.organizationId,
+      set: { customFields: defined },
+    });
+
+  await makeContact({
+    firstName: "Custom",
+    lastName: `Export${suffix}`,
+    customValues: { boiler_model: "Vaillant ecoTEC", serviced: true },
+  });
+  await app.request("http://localhost/api/companies", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      name: `Custom Export Co ${suffix}`,
+      customValues: { account_no: "ACC-0042" },
+    }),
+  });
+  await app.request("http://localhost/api/deals", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      name: `Custom Export Deal ${suffix}`,
+      customValues: { site_visit: "2026-11-03" },
+    }),
+  });
+
+  const read = async (path: string) =>
+    (await app.request(`http://localhost${path}`, { headers })).text();
+
+  const contacts = await read("/api/contacts/export.csv");
+  const [contactHead] = contacts.split("\r\n");
+  expect(contactHead).toEndWith("Boiler model,Serviced");
+  expect(contacts).toContain("Vaillant ecoTEC,Yes");
+
+  const companies = await read("/api/companies/export.csv");
+  expect(companies.split("\r\n")[0]).toEndWith("Account number");
+  expect(companies).toContain("ACC-0042");
+
+  const deals = await read("/api/deals/export.csv");
+  expect(deals.split("\r\n")[0]).toEndWith("Site visit");
+  expect(deals).toContain("2026-11-03");
 });

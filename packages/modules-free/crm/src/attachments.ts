@@ -10,6 +10,7 @@ import {
   attachmentHeaders,
   attachmentsDir,
   displayFilename,
+  removeAttachment,
   safeExtension,
   storeAttachment,
 } from "@sentrello/module-sdk";
@@ -43,6 +44,34 @@ import { and, eq } from "drizzle-orm";
  * imported them from here has to change.
  */
 export { MAX_ATTACHMENT_BYTES, displayFilename, safeExtension };
+
+/**
+ * The files on notes that are gone, taken off the disk with them.
+ *
+ * The confirmation has said "any file attached to it goes with it" since the
+ * button was written, and nothing did: the row went and the quote, the photo
+ * and the signed sheet stayed under the data directory for ever, readable by
+ * anybody with a shell on the box and counted in every backup. On an erasure
+ * that is worse than litter — it is the person's own document, kept after the
+ * screen told them it was gone.
+ *
+ * **Only after the row has gone for good.** A file is not in the transaction,
+ * so removing it inside one means a delete that rolls back has still lost the
+ * file, and the note comes back pointing at nothing. Callers hand this the
+ * rows a committed delete returned, and nothing else.
+ *
+ * A file that is already missing is not a failure: `removeAttachment` shrugs
+ * at it, and a half-restored backup must not stop somebody deleting a note.
+ */
+export async function removeNoteFiles(
+  notes: { attachments?: { path: string }[] | null }[],
+): Promise<void> {
+  for (const note of notes) {
+    for (const file of note.attachments ?? []) {
+      await removeAttachment(file.path);
+    }
+  }
+}
 
 export function registerAttachments(ctx: ModuleContext) {
   ctx.app.post(
