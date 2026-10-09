@@ -65,8 +65,8 @@ says what each one does.
 The **POS is not among them.** It is in development, it is not for sale, and no
 date is promised for it — see [POS](/modules/pos). When it returns, it returns
 as a **plugin** rather than a module: it extends the Shop and does nothing
-without it, which is why it costs half a module's price and why the Shop has to
-sit alongside it.
+without it, which is why the Shop has to sit alongside it. Its price will be
+set when it returns.
 
 ## How money is handled
 
