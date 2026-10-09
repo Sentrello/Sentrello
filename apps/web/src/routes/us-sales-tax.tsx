@@ -17,6 +17,7 @@ import {
   Table,
   Toolbar,
   Warning,
+  Writable,
   formatDate,
   formatMoney,
   muted,
@@ -468,76 +469,80 @@ function CertificatesCard() {
         </p>
       )}
 
-      <Toolbar>
-        <Field label="Customer">
-          <div className="w-48">
-            <RecordPicker
-              path="/api/companies"
-              resource="companies"
-              value={company}
-              onChange={setCompany}
-              placeholder="Choose a company"
-              noun="company"
+      {/* Recording a certificate asks invoicing update, as its route does;
+          a reader had the whole form and was refused on save. */}
+      <Writable needs={{ invoicing: ["update"] }}>
+        <Toolbar>
+          <Field label="Customer">
+            <div className="w-48">
+              <RecordPicker
+                path="/api/companies"
+                resource="companies"
+                value={company}
+                onChange={setCompany}
+                placeholder="Choose a company"
+                noun="company"
+              />
+            </div>
+          </Field>
+          <Field label="Certificate number">
+            <Input
+              value={number}
+              placeholder="As printed on it"
+              className="w-40"
+              onChange={(e) => setNumber(e.target.value)}
             />
-          </div>
-        </Field>
-        <Field label="Certificate number">
-          <Input
-            value={number}
-            placeholder="As printed on it"
-            className="w-40"
-            onChange={(e) => setNumber(e.target.value)}
-          />
-        </Field>
-        <Field label="State">
-          <Input
-            value={state}
-            placeholder="TX"
-            className="w-20"
-            onChange={(e) => setState(e.target.value)}
-          />
-        </Field>
-        <Field label="Reason">
-          <Select
-            value={reason}
-            className="w-36"
-            onChange={(e) => setReason(e.target.value)}
+          </Field>
+          <Field label="State">
+            <Input
+              value={state}
+              placeholder="TX"
+              className="w-20"
+              onChange={(e) => setState(e.target.value)}
+            />
+          </Field>
+          <Field label="Reason">
+            <Select
+              value={reason}
+              className="w-36"
+              onChange={(e) => setReason(e.target.value)}
+            >
+              <option value="resale">Resale</option>
+              <option value="nonprofit">Non-profit</option>
+              <option value="government">Government</option>
+              <option value="direct-pay">Direct pay</option>
+              <option value="other">Other</option>
+            </Select>
+          </Field>
+          <Field label="Expires" hint="Leave blank if it has no stated expiry.">
+            <Input
+              type="date"
+              value={expiresAt}
+              onChange={(e) => setExpiresAt(e.target.value)}
+            />
+          </Field>
+          <Field
+            label="Scan"
+            hint="A link to the document — your drive, or anywhere it lives."
           >
-            <option value="resale">Resale</option>
-            <option value="nonprofit">Non-profit</option>
-            <option value="government">Government</option>
-            <option value="direct-pay">Direct pay</option>
-            <option value="other">Other</option>
-          </Select>
-        </Field>
-        <Field label="Expires" hint="Leave blank if it has no stated expiry.">
-          <Input
-            type="date"
-            value={expiresAt}
-            onChange={(e) => setExpiresAt(e.target.value)}
-          />
-        </Field>
-        <Field
-          label="Scan"
-          hint="A link to the document — your drive, or anywhere it lives."
-        >
-          <Input
-            value={documentPath}
-            placeholder="https://…"
-            className="w-52"
-            onChange={(e) => setDocumentPath(e.target.value)}
-          />
-        </Field>
-        <Button
-          needs={{ invoicing: ["update"] }}
-          onClick={() => add.mutate()}
-          disabled={
-            add.isPending || !companyId || !number.trim() || !state.trim()
-          }
-        >
-          Add it
-        </Button>
-      </Toolbar>
+            <Input
+              value={documentPath}
+              placeholder="https://…"
+              className="w-52"
+              onChange={(e) => setDocumentPath(e.target.value)}
+            />
+          </Field>
+          <Button
+            needs={{ invoicing: ["update"] }}
+            onClick={() => add.mutate()}
+            disabled={
+              add.isPending || !companyId || !number.trim() || !state.trim()
+            }
+          >
+            Add it
+          </Button>
+        </Toolbar>
+      </Writable>
       {add.error ? <ErrorNote error={add.error} /> : null}
       {revoke.error ? <ErrorNote error={revoke.error} /> : null}
     </Card>
