@@ -62,7 +62,9 @@ sell, because a second catalog would be a second answer to what a thing
 costs.
 
 Anything already on the price list can be promoted to a plan without retyping
-its price, and a plan can carry a tax like any other line.
+its price, and a plan can carry a tax like any other line. Which tax a
+subscriber actually pays depends on where they are, though, and that has a
+section of its own: [Tax, from where the subscriber is](#tax-from-where-the-subscriber-is).
 
 Withdraw a plan and nobody on it is disturbed. Subscribers keep the price and
 the dates they agreed to.
@@ -114,6 +116,22 @@ that say somebody has to fix something first are money you are not collecting.
 It is the same decision the night's run makes, not a description of one — the
 same function answers both — so the figure you read here is the figure that
 arrives.
+
+**A night that didn't run is caught up on the next one that does.** Say the
+server was down for a week, or your licence lapsed for a month. The next run
+bills every period that came round in the meantime, oldest first, each on its
+own invoice and each dated the day its period began, so March's invoice says
+March whenever it went out. It's due on your usual terms counted from the day
+it actually went out, though, not from March: your customer isn't late, or
+chased, for a bill your outage held back. Where the books are closed for the
+period's day, the invoice is dated the day it was raised instead.
+
+A run catches up at most twelve periods for one subscription, a year of a
+monthly plan. Anything older is still owed and goes out the following night.
+The limit is there so a subscription imported with a start date years back
+can't send one customer eighty invoices before anybody has looked at it.
+**Tonight's billing** shows the oldest period due, which is the one the run
+starts with.
 
 ## Charging for what somebody used
 
@@ -224,6 +242,13 @@ So a charge can settle on **a period of its own**, whatever the subscription
 bills on. The subscription is annual; the usage is monthly, as its own small
 invoice.
 
+When the two fall on the same day, you get one invoice. A monthly charge on a
+subscription that renews on the 1st rides on the renewal: the month ahead for
+the subscription, and the month just gone for the usage, together. A
+subscription that renews on the 15th settles its monthly usage on the 1st, on
+its own. Either way each period of usage is billed exactly once, however many
+times the night's jobs run.
+
 A charge can settle weekly, monthly, quarterly or yearly. Monthly closes on the
 first of the month **where your business is**, not wherever the server happens to
 be; the others count from the day the subscription started, so a quarterly
@@ -279,8 +304,8 @@ reference.
 - **Their record here** lists every reading, with the batch it arrived in, and
   lets you add one by hand when a collector was down.
 - **Tonight's billing** counts the usage each renewal will carry into its
-  figure. A charge on its own clock isn't in there, because it arrives on an
-  invoice of its own.
+  figure. A charge on its own clock is in there only when its period ends on
+  the renewal day; otherwise it arrives on an invoice of its own.
 - **The invoice line** carries the counts — one line per charge, however many
   meters it prices — and the working behind it, tier by tier and meter by meter,
   is kept at the time the invoice is raised. So "why is this £21.40" has an answer
@@ -293,8 +318,9 @@ and it carries no usage for the free period. "Free for 30 days" that arrives wit
 a bill for those 30 days is not free.
 
 **A customer who leaves is billed for what they used.** Ending a subscription
-raises one last usage invoice for the period just finished. Nothing else ever
-would, and the alternative is giving away every leaving customer's last month.
+raises one last usage invoice for the period just finished, including any
+charge that settles on a clock of its own. Nothing else ever would, and the
+alternative is giving away every leaving customer's last month.
 
 **A plan can cost nothing a month.** Pay-for-what-you-use is a plan priced at
 zero with a usage charge on it; the invoice carries the usage and no subscription
@@ -398,42 +424,42 @@ millionths so it survives the arithmetic unrounded to the final cent. UK and EU
 VAT is adjusted in the period the change is made — output VAT on an upgrade's
 extra consideration, and a reversal on the days a downgrade never supplied.
 
-:::caution[Two Canadian taxes, one rate]
-A subscription carries **one** tax rate. So a business in British Columbia or
-Quebec enters the combined figure — 12% for BC, 14.975% for Quebec — and the
-money is right to the cent: that is what the customer is charged and what
-reaches the books.
+## Tax, from where the subscriber is
 
-What the platform cannot yet do is tell those two taxes apart afterwards. GST
-and the provincial tax go to different authorities and want different returns,
-and a subscription's tax is one number. The split is arithmetic a bookkeeper
-can do — both are percentages of the same consideration, so BC's 12% is five
-twelfths GST and seven twelfths PST — but it is not a figure this produces for
-you.
+A plan used to carry one rate, and everybody on it paid that rate. Fine for a
+gym whose members all live in one town. Less fine when a Texas business bills a
+customer in New York, or a Vancouver business bills somebody in Toronto who
+owes HST rather than GST and PST.
 
-Invoicing itself has no such limit: raise the invoice there and a line can
-carry GST and PST as two named taxes, each banded and reported separately.
-Splitting them inside a subscription is on the roadmap. The Shop has the same
-single rate for the same reason.
-:::
+So every invoice a subscription raises works the tax out from the subscriber's
+address: the country and state or province on their company record. That's the
+same address your books copy onto the sale for your tax returns. Move a
+customer and their next invoice follows them.
 
-:::caution[One US rate per plan]
-A subscription charges the one tax its plan carries, whoever the subscriber is.
-It does not look up where they live. So a business collecting Austin's tax
-on top of Texas's sets up a tax at the combined figure and puts it on the plan:
-the customer is charged exactly what they owe, to the cent, and that figure
-reaches the books under that one tax.
+**Where you collect is what you've told us, in your own tax rates.** A rate
+with a jurisdiction on it (`US-TX`, `US-TX-AUSTIN`, `CA-BC`, `FR`) means you're
+registered there. Set them up under Invoicing, the same rates Invoicing offers
+on its own invoices. No rate for a place means you aren't registered there, and
+the subscriber is charged no tax.
 
-What it cannot do is say afterwards which part was the state's and which the
-city's, or charge a subscriber in another state that state's rate. Selling the
-same plan into several states means a plan for each rate, and a business filing
-with a city as well as a state does that split by hand.
+| Subscriber in | What they're charged |
+|---|---|
+| **A US state** | That state's rate, plus a city or ZIP code rate if you hold one for their address. No rate for the state, no tax. |
+| **Canada** | HST in Ontario and the Atlantic provinces. GST everywhere else, plus the province's own PST, RST or QST if you hold a rate for that province. |
+| **Your own VAT country** | Your plan's own rate. |
+| **Another EU country** | A business with a VAT number is reverse-charged at zero. A consumer pays their own country's rate if you hold one (you're registered for the One Stop Shop), and your home rate if you don't. |
+| **Anywhere else** | Nothing, unless you hold a rate for that country. |
 
-Invoicing has no such limit: a named rate there carries its own jurisdiction —
-`US-TX` and `US-TX-Austin` are two rates, banded and reported separately, and
-several can sit on one line. Raise the invoice there when the split has to come
-out of the software rather than out of a spreadsheet.
-:::
+**Your plan's own rate is the fallback.** It applies when the subscriber has no
+address on file, when their state or province isn't written as its two-letter
+code, when your business has no country set, and at home when you've set no
+rates with a jurisdiction for your own market. So if you've configured none of
+this, every subscriber is billed exactly what they were billed before.
+
+Each tax goes where its return reads it. Where two apply, the invoice line
+carries both by name: Texas's 6.25% and Austin's 2% in Austin, GST and QST in
+Montreal. Each posts to its own liability account, the one the US sales tax or
+Canadian return reads, so nothing needs splitting by hand.
 
 ## Chasing a failed card
 

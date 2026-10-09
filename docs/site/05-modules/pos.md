@@ -101,7 +101,9 @@ second row. That is what a second tap means at a counter.
 
 Everything on the ticket is priced as the shop prices it. Change a price under
 Shop → Products and the till uses the new one immediately. There is no separate
-menu to keep in step.
+menu to keep in step. The one exception is a price you set for a way of selling,
+a coffee dearer eaten in than taken away, and that's
+[covered below](#a-different-price-for-a-different-way).
 
 ### More than one sale at once
 
@@ -110,7 +112,8 @@ products — each one named for the terminal, the day and its place in the day,
 like `front-260928-6` — and tapping one brings it back. Take a coffee order,
 start a second while the first is being made, come back and take the money.
 
-A ticket stays open until it is paid for. Nothing expires it while somebody is
+A ticket stays open until it is paid for, or later where paying doesn't end
+it (a delivery out with the driver, say). Nothing expires it while somebody is
 still standing there.
 
 ## Questions: milk, sizes, extras
@@ -207,12 +210,19 @@ Everything that moves is written down as it happens:
 | **Dropped to the safe** | Money moved out of the drawer, still the business's |
 | **Should be in the drawer** | All of the above, added up |
 
-**Whether you can see that last line depends on who you are.** A shift holding
-only `pos:sell` counts the drawer without being told what to expect — a blind
-count, which is the point of counting at all: a figure on the screen is a
-number to reconcile toward rather than a check on anybody. A manager, holding
-`pos:manage`, sees the expectation. Both of them see the variance once the
-count is in, and it is written down against that shift either way.
+**Whether you can see that last line depends on who you are.** Somebody who
+sells closes their own drawer blind. They type what they counted, and the till
+tells them the shift is closed and its Z number. Nothing else: not what the till
+expected, not the difference, not on the close screen and not afterwards. That's
+the restaurant convention, and the reason for it is plain enough. A counter who
+learns they were five short tonight is a counter who can make tomorrow balance.
+
+The difference still exists. It's written down against that shift and posted to
+the books the moment the count goes in, and the supervisor reads it. A
+supervisor (anybody holding the Till Supervisors policy, or a manager) sees the
+expectation and the difference, and can count and close somebody else's drawer
+from the same screen, under **Drawers on other tills**. Closing your own drawer
+never needs that. Closing anybody else's always does.
 
 **Money out needs a reason.** "Where did forty pounds go" is the question a
 variance produces, and a note written at the time is the only answer anybody
@@ -434,6 +444,38 @@ that has set none of this up has always seen.
 A bill already open is never asked about again: it was rung under something when
 it was started, and picking it back up takes you straight to it.
 
+### What the boxes do
+
+Each way of selling is a row of boxes, and four of them decide the shape of a
+sale. The till enforces each one, and so does the server behind it, so a
+screen that hasn't been reloaded can't talk its way past one.
+
+| Box | What happens |
+|---|---|
+| **Ask which table** | Before anything is rung, the till lists the tables and asks which one. Nothing goes on the bill until it's on a table, and a bill can be moved to another one from the sale itself. Haven't drawn a floor plan? Then there's nothing to ask, and it doesn't. |
+| **Money first** | Ring it, take the money, and *then* it goes to the kitchen. There's no Send button before the payment. Counter, Takeaway and Delivery start this way. |
+| **Paying ends it** | Taking the last of the money closes the sale. Untick it and a paid sale stays on the open list, marked *paid — tap to end it*, until somebody does: a delivery out with the driver, a tab still sitting at the table. Nothing more can go on it once it's paid, so a last round is a new bill. |
+| **Needs a customer** | The till won't take the money until the sale is for somebody. Find them among your contacts by name, phone or email, or add them from the till. The order then shows on that contact's record, like any order from the website. |
+
+*Start a sale here* on the Room screen opens the bill under the first way of
+selling that asks which table, already on the table you tapped.
+
+### A different price for a different way
+
+The same coffee often costs one thing eaten in and another carried out, and in
+some of our markets the tax is why. Set it under Point of sale → **Questions**,
+in *A price for one way of selling*: the product, the way, the price.
+
+Type it the way your shop prices. If your prices include tax, so does this one,
+and the till takes the tax back out of it exactly as it does from the usual
+price. Anything without one sells at its usual price, under every way.
+
+Two things it does not do. It doesn't beat a timed price: a happy hour that is
+on still wins, because that's a promotion somebody chose. And a till working
+offline shows the usual price until the sale reaches the server, which charges
+the right one. Join two bills and the lines that move are priced the way the
+bill they join is served.
+
 ## Who is at the till
 
 Some places give every server their own device. Some share one. Both work, and
@@ -615,8 +657,8 @@ It never has its own logins.
 | Policy | For |
 |---|---|
 | **Till** | Rings up sales. No cancelling, no refunds, and no sight of what the drawer should hold |
-| **Till Supervisors** | The same, plus cancelling a ticket and giving money back — the two doors money leaves by |
-| **Till Managers** | The same again, plus setting the till up and seeing the drawer's expected total |
+| **Till Supervisors** | The same, plus cancelling a ticket and giving money back — the two doors money leaves by — and the drawer: what it should hold, the difference at the count, and closing anybody's |
+| **Till Managers** | The same again, plus setting the till up and the shift reports |
 
 Running an instance set up before version 1.12.1? You get the three, and the
 **Till** group, the next time an administrator opens Users. It happens once. If
@@ -637,14 +679,15 @@ refusal rather than a till.
 | `pos:sell` | Ring up sales, take cash, open and close a drawer |
 | `pos:void` | Cancel a ticket |
 | `pos:refund` | Give money back |
+| `pos:supervise` | Supervise the drawer: see what it should hold and the difference at the count, and count and close somebody else's |
 | `pos:manage` | The manager's half: the questions the till asks, the module's own settings, the receipts list, the list of drawers and a cash-up — and the drawer's expected total, wherever it appears |
 
-That last one is the reason the row is this long. A blind count is only blind
-while the person counting cannot see what the till thinks is in the box, so the
-expected figure carries this permission rather than the screen does: a counter
-shift opens the same drawer screen and gets the drawer, their own payouts and
-drops, and no totals. Read it with `pos:manage` and the same screen is the X
-report a manager takes mid-shift.
+A blind count is only blind while the person counting can't see what the till
+thinks is in the box, so the expected figure belongs to a permission rather
+than to a screen: `pos:supervise` or `pos:manage`. With only `pos:sell`, the same
+drawer screen shows the drawer, your own payouts and drops, and no totals,
+before the count or after it. Read it as a supervisor and it shows what the
+drawer should hold.
 
 ## What is not here yet
 

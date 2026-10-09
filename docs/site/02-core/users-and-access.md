@@ -113,7 +113,7 @@ from seniority:
 | Policy | Roughly |
 |---|---|
 | **Till** | Rings up sales at the counter, and nothing else |
-| **Till supervisors** | Rings up sales, and cancels or refunds one — the two doors money leaves by |
+| **Till supervisors** | Rings up sales, cancels or refunds one (the two doors money leaves by), and supervises the drawers: sees what each should hold, and closes anybody's |
 | **Till managers** | Sets the till up, and may see what the drawer is expected to hold |
 | **Logs time** | Sees the jobs in Projects and logs their own hours on them; plans nothing |
 
