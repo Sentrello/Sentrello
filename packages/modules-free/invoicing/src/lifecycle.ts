@@ -233,7 +233,10 @@ export function registerLifecycle(ctx: ModuleContext) {
         // Lost the race. Nothing posted, and the status is whatever the caller
         // that won it wrote.
         if (!row) return null;
-        await postInvoiceIssued(orgId, row, undefined, issuedOn, { tx });
+        await postInvoiceIssued(orgId, row, undefined, issuedOn, {
+          tx,
+          day: true,
+        });
         return row;
       });
 

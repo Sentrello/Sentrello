@@ -214,7 +214,8 @@ async function postIssued(
    */
   postedAt?: Date,
   /** The transaction the invoice row was written in, so the two commit as one. */
-  options?: { tx?: LedgerTx },
+  /** `day`: `postedAt` is the issue day, not a moment. */
+  options?: { tx?: LedgerTx; day?: boolean },
 ): Promise<void> {
   await postInvoiceIssued(
     orgId,
@@ -587,7 +588,10 @@ export default defineModule({
            * that now exists.
            */
           if (!asDraft) {
-            await postIssued(orgId, inv, prepared, issued ?? undefined, { tx });
+            await postIssued(orgId, inv, prepared, issued ?? undefined, {
+              tx,
+              day: true,
+            });
           }
           return inv;
         });
@@ -947,7 +951,14 @@ export default defineModule({
             `payment:${row.id}`,
             postings,
             received,
-            { tx },
+            // A bare date typed into the form is a day; the payment belongs
+            // to it wherever the business is, not to the evening before.
+            {
+              tx,
+              day:
+                typeof receivedAt === "string" &&
+                /^\d{4}-\d{2}-\d{2}$/.test(receivedAt.trim()),
+            },
           );
           if (overCentsBase !== 0 && invoice.contactId) {
             await recordCreditMovement(

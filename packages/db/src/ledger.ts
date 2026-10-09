@@ -19,6 +19,7 @@ import { alias } from "drizzle-orm/pg-core";
 import { currentActor } from "./actor";
 import type { DbTx } from "./client";
 import { RATE_SCALE, toBaseCents } from "./currency";
+import { dayIn, dayOf } from "./day";
 import { db, schema } from "./index";
 import { sumCents } from "./money";
 import { recordSalePlace } from "./sale-place";
@@ -801,6 +802,18 @@ export interface PostOptions {
    * crash between them leaves the books stating a period twice.
    */
   tx?: LedgerTx;
+  /**
+   * `postedAt` names a day, not a moment: its UTC date is the day, as every
+   * day on this platform is stored (midnight UTC, or an end-of-day stamp on
+   * the same UTC date).
+   *
+   * Read as an instant, a day dated midnight UTC is the evening before for a
+   * business west of UTC — so a New York business closed through the 28th was
+   * refused an invoice dated the 29th. Pass this wherever the date came from a
+   * day: an issue date, a bill date, a typed transaction date, a month end.
+   * Ignored when `postedAt` is absent, because "now" is a moment.
+   */
+  day?: boolean;
 }
 
 export async function postJournalEntry(
@@ -824,19 +837,16 @@ export async function postJournalEntry(
    * just moved the lock inside that transaction is answered by the lock as it
    * now stands rather than as it was committed.
    *
-   * The comparison is against the whole of the closed day. `closedThrough` is
-   * the last day that is closed, so an entry timestamped anywhere inside it is
-   * inside the closed period — storing the boundary as a date and comparing
-   * instants is how a lock lets in everything after breakfast on its last day.
+   * Compared as days, never as instants. `closedThrough` is the last closed
+   * day, so anything on it is inside the closed period.
    *
-   * **The whole of the day where the business is.** This ended it at 23:59:59.999
-   * UTC, which is a different moment from the end of their day for everybody
-   * else, and it went wrong in both directions. A shop in London or Berlin that
-   * had closed September rang up a sale at half past midnight on 1 October —
-   * 23:30 UTC on the 30th — and was told the books were closed, so the till
-   * refused a customer standing at the counter. A shop in New York or Honolulu
-   * got the opposite: an evening sale on the last closed day posted after the UTC
-   * day had ended, so it was allowed into the books of a period already filed.
+   * **An instant is read on the business's own day.** Ended at 23:59:59.999
+   * UTC, the lock went wrong both ways: a London shop that had closed
+   * September was refused a sale at half past midnight on 1 October, and a New
+   * York shop's evening sale on the last closed day slipped into a filed
+   * period. **A day is its own day**, wherever the business is — read through
+   * the zone, midnight UTC on the 29th is the 28th in New York, and a day-dated
+   * entry on the first open day was refused (`PostOptions.day`).
    *
    * The zone is read only when there is a lock, so a business that has never
    * closed a period pays nothing for this.
@@ -845,22 +855,11 @@ export async function postJournalEntry(
     ? null
     : await closedThrough(orgId, { tx: options?.tx });
   if (closed) {
-    const zone = await timezoneFor(orgId);
-    const nextDay = new Date(closed);
-    nextDay.setUTCDate(nextDay.getUTCDate() + 1);
-    const endOfClosedDay = new Date(
-      momentAt(
-        {
-          year: nextDay.getUTCFullYear(),
-          month: nextDay.getUTCMonth() + 1,
-          day: nextDay.getUTCDate(),
-          hours: 0,
-          minutes: 0,
-        },
-        zone,
-      ).getTime() - 1,
-    );
-    if ((postedAt ?? new Date()) <= endOfClosedDay) {
+    const on =
+      options?.day && postedAt
+        ? dayOf(postedAt)
+        : dayIn(postedAt ?? new Date(), await timezoneFor(orgId));
+    if (on.getTime() <= dayOf(closed).getTime()) {
       throw new PeriodClosedError(closed);
     }
   }

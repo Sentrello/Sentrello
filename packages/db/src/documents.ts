@@ -873,7 +873,7 @@ export async function raiseInvoice(
       inv,
       undefined,
       backDated ? issueDate : undefined,
-      { tx },
+      { tx, day: true },
     );
     return inv;
   };

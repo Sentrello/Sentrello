@@ -504,6 +504,8 @@ export function registerFxRevaluation(ctx: ModuleContext) {
           FX_REVALUATION_SOURCE,
           postings,
           asOf,
+          // The end of a day, in UTC: its day, wherever the business is.
+          { day: true },
         );
         const reversal = await postJournalEntry(
           orgId,
@@ -517,6 +519,7 @@ export function registerFxRevaluation(ctx: ModuleContext) {
             creditCents: p.debitCents ?? 0,
           })),
           next,
+          { day: true },
         );
         return c.json({ ...movement, posted, reversal }, 201);
       } catch (err) {

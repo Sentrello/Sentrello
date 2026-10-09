@@ -316,6 +316,8 @@ export async function createTransaction(
       tagging,
     ),
     occurredAt,
+    // A typed date, or today where the business is: a day either way.
+    { day: true },
   );
   return { transaction: row };
 }
@@ -578,6 +580,7 @@ export function registerTransactions(ctx: ModuleContext) {
           sourceOf(kind, id),
           postingsFor(kind, accountId, paidThroughAccountId, amountCents),
           occurredAt,
+          { day: true },
         );
       }
 
