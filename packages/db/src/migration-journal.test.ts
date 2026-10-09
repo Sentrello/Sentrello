@@ -84,6 +84,7 @@ const CHANGES_THE_SCHEMA =
 interface Entry {
   idx: number;
   tag: string;
+  when: number;
 }
 
 function read(journal: string): { dir: string; entries: Entry[] } {
@@ -111,6 +112,30 @@ test("no migration file is missing from its journal", () => {
   expect(
     orphans,
     `on disk and in no journal, so they will never run:\n    ${orphans.join("\n    ")}`,
+  ).toEqual([]);
+});
+
+/**
+ * The migrator applies only what is newer than the last migration it ran,
+ * judged by `when`. A hand-written entry stamped later than the one generated
+ * after it made every database that had run the first skip the second for
+ * good, with "migrations applied" printed over the top.
+ */
+test("every journal entry is stamped later than the one before it", () => {
+  const backwards: string[] = [];
+  for (const journal of ALL) {
+    const { dir, entries } = read(journal);
+    for (let i = 1; i < entries.length; i++) {
+      const before = entries[i - 1] as Entry;
+      const entry = entries[i] as Entry;
+      if (entry.when <= before.when) {
+        backwards.push(`${dir}: ${entry.tag} is not later than ${before.tag}`);
+      }
+    }
+  }
+  expect(
+    backwards,
+    `a database that ran the earlier one will never run these:\n    ${backwards.join("\n    ")}`,
   ).toEqual([]);
 });
 
