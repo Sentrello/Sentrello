@@ -54,6 +54,7 @@ import {
 import { loadModules } from "./loader";
 import { pursueGainedModules } from "./module-acquisition";
 import { serveModuleUi } from "./module-ui";
+import { hoistOrphans } from "./nav-orphans";
 import {
   discoverOptionalModules,
   failedBundles,
@@ -811,7 +812,7 @@ app.get("/api/_meta", requireSession(), async (c) => {
   }
 
   return c.json({
-    nav: visible,
+    nav: hoistOrphans(visible),
     /**
      * How this business writes a number, which is the whole of the country
      * code on its settings screen.
