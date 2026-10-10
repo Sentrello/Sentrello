@@ -125,7 +125,42 @@ let formats = {
    * euros whoever is reading it.
    */
   businessCurrency: "",
+  /**
+   * Where the business keeps its days, from `/api/_meta`. Empty is UTC, as it
+   * is on the server — never the reader's own clock.
+   */
+  businessTimezone: "",
 };
+
+/**
+ * Today where the business is, as a date input wants it: `2026-10-09`.
+ *
+ * `new Date().toISOString().slice(0, 10)` is the UTC day — tomorrow from five
+ * in the evening in New York, yesterday until ten in the morning in Sydney —
+ * and a form that opens on it books an hour, a bill or a due date to a day
+ * the business was not having. `days` and `months` move it for a default like
+ * "thirty days out" or "a year back", on the calendar rather than the clock.
+ */
+export function businessToday(
+  shift: { days?: number; months?: number } = {},
+): string {
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: formats.businessTimezone || "UTC",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  if (!shift.days && !shift.months) return today;
+  const d = new Date(`${today}T00:00:00Z`);
+  if (shift.months) {
+    // A month back from 31 March is the end of February, not the 3rd of March.
+    const day = d.getUTCDate();
+    d.setUTCMonth(d.getUTCMonth() + shift.months);
+    if (d.getUTCDate() !== day) d.setUTCDate(0);
+  }
+  if (shift.days) d.setUTCDate(d.getUTCDate() + shift.days);
+  return d.toISOString().slice(0, 10);
+}
 
 /**
  * What a figure is written in when nobody has said.

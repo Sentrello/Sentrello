@@ -16,6 +16,7 @@ import {
   Select,
   Table,
   Toolbar,
+  businessToday,
   formatDate,
   formatMoney,
   muted,
@@ -202,7 +203,8 @@ const VAT_BOXES: [string, string, string][] = [
 
 /** The calendar quarter before this one, as the dates a return covers. */
 function lastQuarter(): { from: string; to: string } {
-  const now = new Date();
+  // The business's today, read through UTC getters as the calendar day it is.
+  const now = new Date(`${businessToday()}T00:00:00Z`);
   const q = Math.floor(now.getUTCMonth() / 3);
   const start = new Date(Date.UTC(now.getUTCFullYear(), (q - 1) * 3, 1));
   const end = new Date(Date.UTC(now.getUTCFullYear(), q * 3, 0));

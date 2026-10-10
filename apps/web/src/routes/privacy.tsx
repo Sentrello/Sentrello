@@ -12,6 +12,7 @@ import {
   SectionHeading,
   Toolbar,
   Warning,
+  businessToday,
   muted,
 } from "../lib/ui";
 
@@ -127,7 +128,7 @@ function Safeguards() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `audit-evidence-${new Date().toISOString().slice(0, 10)}.json`;
+      a.download = `audit-evidence-${businessToday()}.json`;
       a.click();
       URL.revokeObjectURL(url);
     },

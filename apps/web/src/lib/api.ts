@@ -55,6 +55,8 @@ export type Meta = {
   countryCode?: string;
   /** What its books are kept in, and so what sign goes in front of a figure. */
   baseCurrency?: string;
+  /** Where it keeps its days; empty is UTC. `businessToday` reads it. */
+  timezone?: string;
   /** The release this instance runs, used to key module scripts by version. */
   version?: string;
   /** `moduleId` is which module registered the entry, and owns its screens. */

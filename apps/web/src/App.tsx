@@ -560,6 +560,7 @@ export default function App() {
   setFormats({
     countryCode: data?.countryCode ?? "",
     businessCurrency: data?.baseCurrency ?? "",
+    businessTimezone: data?.timezone ?? "",
   });
   // And which modules are here at all, so a screen can decline to ask a
   // Pro endpoint on an instance that does not have one.

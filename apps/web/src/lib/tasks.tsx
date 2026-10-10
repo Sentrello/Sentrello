@@ -22,6 +22,7 @@ import {
   RowMenu,
   Select,
   Warning,
+  businessToday,
   muted,
 } from "./ui";
 
@@ -341,9 +342,7 @@ export function TaskDialog({
   const [assigneeId, setAssigneeId] = useState(task?.assigneeId ?? "");
   const managers = useCrmManagers();
   const [dueAt, setDueAt] = useState(
-    task?.dueAt
-      ? task.dueAt.slice(0, 10)
-      : new Date().toISOString().slice(0, 10),
+    task?.dueAt ? task.dueAt.slice(0, 10) : businessToday(),
   );
   const types = taskTypes?.length ? taskTypes : TASK_TYPES;
 

@@ -5,6 +5,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { db, eq, schema } from "@sentrello/db";
+import { dayIn } from "@sentrello/db/day";
 import { asFlag, asTextOrNothing } from "@sentrello/db/request-values";
 import { record as recordSecurityEvent } from "@sentrello/db/security-events";
 import { asText } from "@sentrello/db/text-columns";
@@ -239,7 +240,9 @@ export function registerMtd(ctx: ModuleContext) {
       const ready = await usableToken(orgId);
       if (!ready) return c.json({ error: "not connected to HMRC" }, 400);
 
-      const year = new Date().getFullYear();
+      // The business's year: the server's clock is a New Year's Eve early or
+      // late, depending on which side of Greenwich it was rented.
+      const year = dayIn(new Date(), await timezoneFor(orgId)).getUTCFullYear();
       try {
         const out = await obligations(
           ready.cfg,

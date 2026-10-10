@@ -18,6 +18,7 @@ import {
   Toolbar,
   Warning,
   Writable,
+  businessToday,
   formatDate,
   formatMoney,
   muted,
@@ -154,7 +155,8 @@ function NexusCard() {
 
 /** The quarter we are in, as the period a filing usually covers. */
 function currentQuarter(): { from: string; to: string } {
-  const now = new Date();
+  // The business's today, read through UTC getters as the calendar day it is.
+  const now = new Date(`${businessToday()}T00:00:00Z`);
   const q = Math.floor(now.getUTCMonth() / 3);
   const from = new Date(Date.UTC(now.getUTCFullYear(), q * 3, 1));
   const to = new Date(Date.UTC(now.getUTCFullYear(), q * 3 + 3, 0));

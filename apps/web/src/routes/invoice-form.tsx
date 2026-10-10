@@ -17,6 +17,7 @@ import {
   Textarea,
   Toolbar,
   border,
+  businessToday,
   formatMoney,
   muted,
 } from "../lib/ui";
@@ -381,9 +382,8 @@ export function InvoiceForm({
     setPaymentTerms(label);
     const found = terms.find((t) => t.label === label);
     if (!found) return;
-    const due = new Date();
-    due.setDate(due.getDate() + found.days);
-    setDueDate(due.toISOString().slice(0, 10));
+    // From the business's today, not the UTC one.
+    setDueDate(businessToday({ days: found.days }));
   };
 
   const taxFor = (id: string) => rates.find((r) => r.id === id);

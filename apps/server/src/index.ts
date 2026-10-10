@@ -20,7 +20,7 @@ import { and, eq, sql } from "@sentrello/db/orm";
 import { RequestFieldError, asFlag } from "@sentrello/db/request-values";
 import { lastRetentionSweep } from "@sentrello/db/retention";
 import { NAV_TAX_REGIME, taxRegimesFor } from "@sentrello/db/tax-regimes";
-import { UnreadableDateError } from "@sentrello/db/timezone";
+import { UnreadableDateError, knownTimezone } from "@sentrello/db/timezone";
 import { mailConfigured } from "@sentrello/email";
 import { lastLicenseRefresh, startJobs, unusableJobs } from "@sentrello/jobs";
 import { billingGraceUntil } from "@sentrello/licensing-client";
@@ -675,6 +675,7 @@ app.get("/api/_meta", requireSession(), async (c) => {
         .select({
           countryCode: schema.organizations.countryCode,
           baseCurrency: schema.organizations.baseCurrency,
+          timezone: schema.organizations.timezone,
         })
         .from(schema.organizations)
         .where(eq(schema.organizations.id, orgId))
@@ -871,6 +872,18 @@ app.get("/api/_meta", requireSession(), async (c) => {
      * by default.
      */
     baseCurrency: business?.baseCurrency ?? "",
+    /**
+     * Where the business keeps its days, so a date box can open on today.
+     *
+     * The browser's `toISOString()` is the UTC day: tomorrow every American
+     * evening, yesterday every early Australian morning. Empty means UTC, as
+     * `timezoneFor` reads it — never the reader's own clock — and a zone the
+     * runtime cannot resolve is empty for the same reason it is there.
+     */
+    timezone:
+      business?.timezone && knownTimezone(business.timezone)
+        ? business.timezone
+        : "",
     /**
      * The actions this person holds, by resource. Absent actions are absent
      * permissions — a screen reads this to decide what to disable, never to

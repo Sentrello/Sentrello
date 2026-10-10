@@ -193,6 +193,11 @@ export interface SentrelloUi {
   monthLabel: (key: string) => string;
   formatRate: (basisPoints: number) => string;
   formatDate: (value: string | Date | null | undefined) => string;
+  /**
+   * Today where the business is, `YYYY-MM-DD`, for a date input's default —
+   * never `new Date().toISOString().slice(0, 10)`, which is the UTC day.
+   */
+  businessToday: (shift?: { days?: number; months?: number }) => string;
   textOn: (colour: string) => string;
   /**
    * Not generic, because `ui.tsx`'s is not: a generic declaration here would
@@ -307,6 +312,7 @@ export const UI_MEMBERS = [
   "monthLabel",
   "formatRate",
   "formatDate",
+  "businessToday",
   "textOn",
   "activeTab",
   "muted",

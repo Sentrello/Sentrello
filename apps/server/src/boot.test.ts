@@ -2035,3 +2035,37 @@ test("a period it cannot read is still a 400 about the period", async () => {
     await cleanUp();
   }
 });
+
+/**
+ * Where the business keeps its days, so a date box opens on its today.
+ *
+ * Without it every screen defaulted to the UTC day — tomorrow every American
+ * evening. A zone the runtime cannot resolve is sent as nothing, which the
+ * browser reads as UTC, as the server does.
+ */
+test("/api/_meta names the business's timezone", async () => {
+  process.env.SENTRELLO_LICENSE_TOKEN_PATH = "secrets/does-not-exist.jwt";
+  const server = (await import("./index")).default;
+  const { headers, organizationId, cleanUp } = await signedIn();
+  const zone = async () => {
+    const res = await server.fetch(
+      new Request("http://localhost/api/_meta", { headers }),
+    );
+    return ((await res.json()) as { timezone?: string }).timezone;
+  };
+  try {
+    await db
+      .update(schema.organizations)
+      .set({ timezone: "America/New_York" })
+      .where(eq(schema.organizations.id, organizationId));
+    expect(await zone()).toBe("America/New_York");
+
+    await db
+      .update(schema.organizations)
+      .set({ timezone: "Mars/Olympus_Mons" })
+      .where(eq(schema.organizations.id, organizationId));
+    expect(await zone()).toBe("");
+  } finally {
+    await cleanUp();
+  }
+});

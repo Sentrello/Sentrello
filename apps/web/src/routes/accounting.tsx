@@ -45,6 +45,7 @@ import {
   Toolbar,
   Warning,
   Writable,
+  businessToday,
   formatCount,
   formatDate,
   formatMoney,
@@ -216,11 +217,11 @@ type BalanceSheet = {
 };
 
 function startOfYear(): string {
-  return `${new Date().getFullYear()}-01-01`;
+  return `${businessToday().slice(0, 4)}-01-01`;
 }
 
 function today(): string {
-  return new Date().toISOString().slice(0, 10);
+  return businessToday();
 }
 
 /**
