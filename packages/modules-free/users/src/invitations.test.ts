@@ -485,3 +485,37 @@ test("inviting one address five times at once still admits them once", async () 
   }
   expect(await membershipsOf(email)).toHaveLength(1);
 }, 30_000);
+
+/**
+ * Two presses of Invite at once each made an invitation, so the address got
+ * two links that both worked. However many arrive together, one stays
+ * pending, and the presses that lost are told an invitation is on its way.
+ */
+test("ten invitations to one address at once leave one link that works", async () => {
+  const email = `pressed-${crypto.randomUUID().slice(0, 8)}@example.test`;
+  const answers = await Promise.all(
+    Array.from({ length: 10 }, () =>
+      app.request("http://localhost/api/users/invitations", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ email, role: "staff" }),
+      }),
+    ),
+  );
+  const statuses = answers.map((r) => r.status);
+  expect(statuses.filter((s) => s === 201).length).toBeGreaterThanOrEqual(1);
+  expect(statuses.every((s) => s === 201 || s === 409)).toBe(true);
+
+  const pending = await db
+    .select({ id: schema.invitation.id })
+    .from(schema.invitation)
+    .where(eq(schema.invitation.email, email));
+  const live = (
+    await db
+      .select({ status: schema.invitation.status })
+      .from(schema.invitation)
+      .where(eq(schema.invitation.email, email))
+  ).filter((r) => r.status === "pending");
+  expect(pending.length).toBeGreaterThanOrEqual(1);
+  expect(live.length).toBe(1);
+});

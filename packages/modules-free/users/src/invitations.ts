@@ -18,7 +18,7 @@ import {
 } from "@sentrello/email";
 import { invitationEmail } from "@sentrello/email/templates";
 import { type ModuleContext, rateLimit } from "@sentrello/module-sdk";
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 
 /**
  * Invitations that actually admit somebody.
@@ -143,34 +143,68 @@ export function registerInvitations(ctx: ModuleContext) {
         return c.json({ error: "an email and a role are required" }, 400);
       }
 
-      let invitation: { id: string; expiresAt: Date };
-      try {
-        invitation = await auth.api.createInvitation({
-          body: {
-            email,
-            // Better Auth types the role as its own union; dynamic roles
-            // ("staff", "admins") are checked at runtime against the table.
-            role: role as "member",
-            organizationId: orgId,
-            resend: true,
-          },
-          headers: c.req.raw.headers,
-        });
-      } catch (e) {
-        return c.json({ error: refusalMessage(e) }, 400);
-      }
+      /*
+       * One invitation per address at a time. Two presses at once each made
+       * an invitation, so the address got two links that both worked; the
+       * library has no rule against it. The whole making is held under a lock
+       * for the address, a second press at that moment is told so without
+       * waiting, and the one that is made withdraws any other still pending.
+       */
+      const made = await db.transaction(async (tx) => {
+        const [lock] = (await tx.execute(
+          sql`select pg_try_advisory_xact_lock(hashtext(${`invitation:${orgId}:${email}`})) as held`,
+        )) as unknown as { held: boolean }[];
+        if (!lock?.held) return { busy: true as const };
 
-      // The credential. Shown once, in the link below; only its hash is kept.
-      const token = randomBytes(32).toString("base64url");
-      await db
-        .update(schema.invitation)
-        .set({ tokenHash: sha256(token) })
-        .where(
-          and(
-            eq(schema.invitation.id, invitation.id),
-            eq(schema.invitation.organizationId, orgId),
-          ),
+        let invitation: { id: string; expiresAt: Date };
+        try {
+          invitation = await auth.api.createInvitation({
+            body: {
+              email,
+              // Better Auth types the role as its own union; dynamic roles
+              // ("staff", "admins") are checked at runtime against the table.
+              role: role as "member",
+              organizationId: orgId,
+              resend: true,
+            },
+            headers: c.req.raw.headers,
+          });
+        } catch (e) {
+          return { refused: refusalMessage(e) };
+        }
+
+        // The credential. Shown once, in the link below; only its hash is kept.
+        const token = randomBytes(32).toString("base64url");
+        await tx
+          .update(schema.invitation)
+          .set({ tokenHash: sha256(token) })
+          .where(
+            and(
+              eq(schema.invitation.id, invitation.id),
+              eq(schema.invitation.organizationId, orgId),
+            ),
+          );
+        await tx
+          .update(schema.invitation)
+          .set({ status: "canceled" })
+          .where(
+            and(
+              eq(schema.invitation.organizationId, orgId),
+              eq(schema.invitation.email, email),
+              eq(schema.invitation.status, "pending"),
+              ne(schema.invitation.id, invitation.id),
+            ),
+          );
+        return { invitation, token };
+      });
+      if ("busy" in made) {
+        return c.json(
+          { error: "an invitation to that address is being sent already" },
+          409,
         );
+      }
+      if ("refused" in made) return c.json({ error: made.refused }, 400);
+      const { invitation, token } = made;
 
       const base = process.env.SENTRELLO_BASE_URL ?? new URL(c.req.url).origin;
       const link = `${base}/accept-invitation?token=${token}`;
