@@ -138,3 +138,32 @@ export const signUpGuard = createAuthMiddleware(async (ctx) => {
     });
   }
 });
+
+/**
+ * The same rule for an account made at the end of a Google sign-in.
+ *
+ * `signUpGuard` above reads `/sign-up/email`, and the library creates the
+ * account for a social sign-in inside its own callback, which that path never
+ * names — so with Google switched on, anybody holding a Google account came
+ * away with an account and a session on a business that had never invited
+ * them. Found 10 October 2026.
+ *
+ * Only the social paths. An identity provider under `/sso/` was connected by
+ * an administrator for their own domain, and provisioning the people it vouches
+ * for is the reason it exists.
+ */
+export async function socialSignUpGuard(
+  email: string | undefined,
+  path: string | undefined,
+): Promise<void> {
+  if (!path || !(path.startsWith("/callback") || path === "/sign-in/social")) {
+    return;
+  }
+  const decision = await signUpAllowed(email);
+  if (!decision.allowed) {
+    throw new APIError("FORBIDDEN", {
+      message:
+        "This Sentrello instance is not accepting new accounts. Ask an administrator for an invitation.",
+    });
+  }
+}

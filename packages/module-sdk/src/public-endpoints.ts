@@ -9,7 +9,7 @@
  */
 
 import { bodyLimit } from "hono/body-limit";
-import { callerAddress } from "./caller";
+import { addressBucket, callerAddress } from "./caller";
 
 export interface OriginDecision {
   allowed: boolean;
@@ -280,7 +280,9 @@ export function rateLimit(
  */
 export function callerKey(c: Parameters<typeof callerAddress>[0]): string {
   const { ip } = callerAddress(c);
-  if (ip) return ip.slice(0, 45);
+  // Per /64 for IPv6, as the API-key limit already was: one connection is
+  // handed a whole block, and a budget per address in it is no budget.
+  if (ip) return addressBucket(ip).slice(0, 45);
   return c.req.header("origin")?.slice(0, 80) ?? "anon";
 }
 

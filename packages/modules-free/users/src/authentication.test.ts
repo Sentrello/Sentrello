@@ -257,6 +257,21 @@ test("a required second factor leaves exactly four doors open", async () => {
     // would prove nothing.
     const shut = await app.request("http://localhost/api/users", { headers });
     expect(shut.status).toBe(403);
+
+    /*
+     * A door is a path, not the letters it starts with.
+     *
+     * The list was matched with `startsWith`, so `/api/users/me` also opened
+     * `/api/users/<anybody whose id begins "me">` — and with it their role,
+     * their sessions and their second factor. One id in a few thousand does,
+     * and nothing chooses which. Found 10 October 2026.
+     */
+    const lookalike = await app.request(
+      "http://localhost/api/users/meanwhile/sessions",
+      { headers },
+    );
+    expect(lookalike.status).toBe(403);
+    expect(await lookalike.text()).toContain("second factor");
   } finally {
     await putPolicy({ requireTwoFactorFor: [] });
   }

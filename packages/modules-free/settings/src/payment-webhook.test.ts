@@ -380,6 +380,37 @@ test("an event signed by nobody is refused before anything is written", async ()
   expect(seen.length).toBe(0);
 });
 
+/**
+ * A stranger posting forgeries runs out, and the processor does not.
+ *
+ * Every forged delivery wrote to the connection — bumping the count that tells
+ * the business its secret is wrong — and, for PayPal, called PayPal on the
+ * business's credentials. Unbounded until 10 October 2026.
+ */
+test("forged deliveries from one caller are turned away before they are checked", async () => {
+  const stranger = {
+    "x-real-ip": `198.51.100.${Math.floor(Math.random() * 250)}`,
+  };
+  const forge = () =>
+    app.request("http://localhost/api/payments/webhook/stripe", {
+      method: "POST",
+      headers: new Headers({
+        ...stranger,
+        "content-type": "application/json",
+        "stripe-signature": "t=1,v1=deadbeef",
+      }),
+      body: "{}",
+    });
+  const statuses: number[] = [];
+  for (let i = 0; i < 31; i += 1) statuses.push((await forge()).status);
+  expect(statuses.slice(0, 30).every((s) => s === 401)).toBe(true);
+  expect(statuses[30]).toBe(429);
+
+  // A real delivery from the processor's own address is untouched.
+  const ok = await deliver(paidEvent(`evt_after_forgeries_${suffix}`, 100));
+  expect(ok.status).not.toBe(429);
+});
+
 test("a consumer that throws leaves nothing behind for the retry to trip on", async () => {
   addPaymentWebhook({
     moduleId: "invoicing",

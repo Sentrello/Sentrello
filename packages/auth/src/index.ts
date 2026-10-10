@@ -24,7 +24,7 @@ import { passwordFloorGuard } from "./password-floor";
 import { ac, roles } from "./permissions";
 import { googleProvider } from "./providers";
 import { signInEventsPlugin, signInLockGuard } from "./sign-in-events";
-import { signUpGuard } from "./signup-policy";
+import { signUpGuard, socialSignUpGuard } from "./signup-policy";
 import { weakPasswordReason } from "./weak-passwords";
 
 /**
@@ -146,6 +146,21 @@ export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET,
   advanced: {
     ipAddress: clientIpOptions(process.env),
+    /**
+     * Mail is sent after the answer, never before it.
+     *
+     * "Forgot password" answers the same words whether or not the address has
+     * an account, and then took as long as the mail server took — a second
+     * for an address that exists, a millisecond for one that does not. The
+     * words said nothing and the clock said everything, to anybody wanting
+     * the list of who works here. The library sends in the background when
+     * given a place to; this is that place. Found 10 October 2026.
+     */
+    backgroundTasks: {
+      handler: (task: Promise<unknown>) => {
+        void task.catch((err) => console.error("[auth] mail failed", err));
+      },
+    },
   },
   database: drizzleAdapter(db, { provider: "pg", schema }),
   emailAndPassword: {
@@ -200,6 +215,14 @@ export const auth = betterAuth({
      * `sentrello reset-password` on the host is for.
      */
     resetPasswordTokenExpiresIn: 60 * 60,
+    /*
+     * And everybody else is signed out, as the host command already did.
+     *
+     * A reset is very often because somebody else has the password; leaving
+     * their session open for up to thirty days answered the wrong half of
+     * that. Found 10 October 2026.
+     */
+    revokeSessionsOnPasswordReset: true,
     sendResetPassword: async ({ user, url }) => {
       const mail = passwordResetEmail({ url, expiresInMinutes: 60 });
       await emailAdapter().send({
@@ -346,6 +369,14 @@ export const auth = betterAuth({
     updateAge: 60,
   },
   databaseHooks: {
+    user: {
+      create: {
+        // Closed sign-up holds for a Google sign-in too. See `socialSignUpGuard`.
+        before: async (user, context) => {
+          await socialSignUpGuard(user.email, context?.path);
+        },
+      },
+    },
     session: {
       create: {
         /**

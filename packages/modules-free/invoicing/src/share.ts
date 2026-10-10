@@ -1,4 +1,4 @@
-import { and, asc, db, eq, inArray, schema, sql } from "@sentrello/db";
+import { and, asc, db, eq, inArray, isNull, schema, sql } from "@sentrello/db";
 import {
   type Credit,
   SENTRELLO_CREDIT,
@@ -612,7 +612,15 @@ export function registerShare(ctx: ModuleContext) {
       const [row] = await db
         .select()
         .from(table)
-        .where(and(eq(table.shareToken, token), eq(table.published, true)))
+        .where(
+          and(
+            eq(table.shareToken, token),
+            eq(table.published, true),
+            // In the bin is taken back, as the portal already treats it.
+            // Found 10 October 2026.
+            isNull(table.deletedAt),
+          ),
+        )
         .limit(1);
       if (!row) return c.html(deadLinkPage(), 404);
 

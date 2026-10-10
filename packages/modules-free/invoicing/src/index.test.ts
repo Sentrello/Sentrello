@@ -1108,6 +1108,84 @@ test("a quote cannot be accepted twice", async () => {
   expect(invoices).toHaveLength(1);
 });
 
+/**
+ * A price the business stopped standing behind cannot be taken.
+ *
+ * "Valid until" was printed on the quote and read by nothing on the way in, so
+ * a customer holding last spring's link could accept last spring's price in
+ * the autumn and raise an invoice — posted to the books — at a figure the
+ * business had withdrawn by letting it lapse. Found 10 October 2026.
+ */
+test("a quote past its valid-until day cannot be accepted from the portal", async () => {
+  const quoteId = await sentQuote(contactId, 15000);
+  await db
+    .update(schema.quotes)
+    .set({ validUntil: new Date("2020-01-31T00:00:00Z") })
+    .where(eq(schema.quotes.id, quoteId));
+  const minted = await app.request(
+    `http://localhost/api/contacts/${contactId}/portal-link`,
+    { method: "POST", headers },
+  );
+  const token = new URL(((await minted.json()) as { url: string }).url).pathname
+    .split("/")
+    .pop() as string;
+
+  const page = await app.request(`http://localhost/portal/${token}`);
+  expect(await page.text()).not.toContain(`${quoteId}/accept`);
+
+  const res = await app.request(
+    `http://localhost/portal/${token}/quotes/${quoteId}/accept`,
+    { method: "POST" },
+  );
+  expect(res.status).toBe(404);
+  const invoices = await db
+    .select()
+    .from(schema.invoices)
+    .where(eq(schema.invoices.quoteId, quoteId));
+  expect(invoices).toHaveLength(0);
+});
+
+/**
+ * And nothing in the bin answers a customer.
+ *
+ * The portal's invoice list left the bin out and its quotes did not, and
+ * neither did the accept route or the shared-document page — so a quote the
+ * business had thrown away was still offered, and accepting it raised an
+ * invoice. Found 10 October 2026.
+ */
+test("a binned quote or invoice is not offered, accepted or shown on its link", async () => {
+  const quoteId = await sentQuote(contactId, 16000);
+  await db
+    .update(schema.quotes)
+    .set({ deletedAt: new Date() })
+    .where(eq(schema.quotes.id, quoteId));
+  const minted = await app.request(
+    `http://localhost/api/contacts/${contactId}/portal-link`,
+    { method: "POST", headers },
+  );
+  const token = new URL(((await minted.json()) as { url: string }).url).pathname
+    .split("/")
+    .pop() as string;
+
+  const page = await app.request(`http://localhost/portal/${token}`);
+  expect(await page.text()).not.toContain(`${quoteId}/accept`);
+  const accept = await app.request(
+    `http://localhost/portal/${token}/quotes/${quoteId}/accept`,
+    { method: "POST" },
+  );
+  expect(accept.status).toBe(404);
+
+  const shareToken = "b".repeat(40) + suffix;
+  await db
+    .update(schema.quotes)
+    .set({ shareToken, published: true })
+    .where(eq(schema.quotes.id, quoteId));
+  const shared = await app.request(
+    `http://localhost/share/quote/${shareToken}`,
+  );
+  expect(shared.status).toBe(404);
+});
+
 test("a customer cannot accept somebody else's quote", async () => {
   const [other] = await db
     .insert(schema.contacts)

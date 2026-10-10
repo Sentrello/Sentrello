@@ -258,6 +258,19 @@ test("a limit's caller cannot be chosen by the caller", () => {
     ask({ "x-real-ip": "198.51.100.7", "x-forwarded-for": "203.0.113.9" }),
   ).toBe("198.51.100.7");
 
+  /*
+   * One IPv6 connection is handed a whole /64, so a budget per full address
+   * was a fresh budget for every one of eighteen quintillion addresses — in
+   * every public limit in every module at once. The API-key limit already
+   * counted per /64; this did not. Found 10 October 2026.
+   */
+  expect(ask({ "x-real-ip": "2001:db8:1:2:aaaa::1" })).toBe(
+    ask({ "x-real-ip": "2001:db8:1:2:bbbb::2" }),
+  );
+  expect(ask({ "x-real-ip": "2001:db8:1:2:aaaa::1" })).not.toBe(
+    ask({ "x-real-ip": "2001:db8:1:3::1" }),
+  );
+
   // Behind no proxy at all: the website asking, then one shared bucket.
   expect(ask({ origin: "https://shop.example" })).toBe("https://shop.example");
   expect(ask({})).toBe("anon");

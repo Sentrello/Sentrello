@@ -237,6 +237,20 @@ async function postIssued(
   );
 }
 
+/**
+ * Whether a quote's price still stands on the business's today.
+ *
+ * "Valid until" was printed on the quote and read by nothing a customer could
+ * reach, so last spring's link accepted last spring's price in the autumn and
+ * raised an invoice, posted to the books, at a figure the business had let
+ * lapse. The day itself is included: valid until the 31st means the 31st.
+ * Found 10 October 2026.
+ */
+function stillStanding(validUntil: Date | null, zone: string | null): boolean {
+  if (!validUntil) return true;
+  return dayOf(validUntil).getTime() >= dayIn(new Date(), zone).getTime();
+}
+
 /** The row a write was guarded on changed under it; nothing was written. */
 class LostTheRow extends Error {}
 export default defineModule({
@@ -2295,15 +2309,20 @@ export default defineModule({
         .where(eq(schema.organizations.id, contact.organizationId))
         .limit(1);
 
-      const quotes = await db
-        .select()
-        .from(schema.quotes)
-        .where(
-          and(
-            eq(schema.quotes.organizationId, contact.organizationId),
-            eq(schema.quotes.contactId, contact.id),
-          ),
-        );
+      const zone = await timezoneFor(contact.organizationId);
+      const quotes = (
+        await db
+          .select()
+          .from(schema.quotes)
+          .where(
+            and(
+              eq(schema.quotes.organizationId, contact.organizationId),
+              eq(schema.quotes.contactId, contact.id),
+              // The bin is not a customer's to see, as the invoices above.
+              isNull(schema.quotes.deletedAt),
+            ),
+          )
+      ).filter((q) => stillStanding(q.validUntil, zone));
 
       // Light or dark, chosen here or on any other page they have been sent.
       const { theme, setCookie } = customerThemeFor({
@@ -2314,7 +2333,7 @@ export default defineModule({
 
       return c.html(
         portalPage({
-          zone: await timezoneFor(contact.organizationId),
+          zone,
           businessName: org?.name ?? "Invoices",
           // On a Free instance with no card payments this footer is the only
           // thing telling the customer where to send the money.
@@ -2666,12 +2685,23 @@ export default defineModule({
             eq(schema.quotes.id, c.req.param("id")),
             eq(schema.quotes.organizationId, contact.organizationId),
             eq(schema.quotes.contactId, contact.id),
+            // A quote in the bin was withdrawn; accepting it raised an invoice.
+            isNull(schema.quotes.deletedAt),
           ),
         )
         .limit(1);
       // A quote already answered is not answerable again: accepting twice
       // would raise a second invoice for the same work.
       if (!quote || quote.status !== "sent") return c.notFound();
+      // Nor one whose valid-until day has passed: see `stillStanding`.
+      if (
+        !stillStanding(
+          quote.validUntil,
+          await timezoneFor(contact.organizationId),
+        )
+      ) {
+        return c.notFound();
+      }
 
       /**
        * The shared conversion, not a private copy of it.

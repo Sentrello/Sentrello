@@ -281,6 +281,23 @@ app.use("*", async (c, next) => {
   set("referrer-policy", "strict-origin-when-cross-origin");
 
   /*
+   * Not kept, unless the route said it may be.
+   *
+   * A customer's bill at `/share/…`, everything they owe at `/portal/…` and
+   * `/account/…`, and every API answer behind a session went out with no
+   * `cache-control` at all — which hands the decision to whatever sits in
+   * between: a CDN rule that caches HTML, an office proxy, a shared computer.
+   * The token in a link is the whole credential, so a kept copy is a copy
+   * anybody behind that cache can read. Pages and data only; a route that
+   * wants caching — the hashed assets, a storefront's product list — already
+   * says so and keeps it. Found 10 October 2026.
+   */
+  const type = c.res.headers.get("content-type") ?? "";
+  if (type.startsWith("text/html") || type.startsWith("application/json")) {
+    set("cache-control", "private, no-store");
+  }
+
+  /*
    * Told, not asked — because robots.txt can be overruled and this cannot.
    *
    * A CDN in front of an instance may prepend its own robots.txt to ours.

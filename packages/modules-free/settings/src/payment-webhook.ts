@@ -5,8 +5,11 @@ import {
 } from "@sentrello/db/payments";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import {
+  callerKey,
   identifyPaymentEvent,
   paymentWebhookConsumers,
+  rateLimit,
+  rateLimitSpent,
   readCapped,
 } from "@sentrello/module-sdk";
 import { providerFrom } from "./payments";
@@ -78,6 +81,10 @@ export async function unclaimedPaymentEvents(
  */
 export const MAX_WEBHOOK_BYTES = 256 * 1024;
 
+/** Unverifiable deliveries one caller may send before being refused unread. */
+const WEBHOOK_MISSES = 30;
+const WEBHOOK_MISS_WINDOW_MS = 15 * 60_000;
+
 export function registerPaymentWebhookEndpoint(ctx: ModuleContext) {
   ctx.app.post("/api/payments/webhook/:provider", async (c: RouteContext) => {
     const name = c.req.param("provider") ?? "";
@@ -108,12 +115,29 @@ export function registerPaymentWebhookEndpoint(ctx: ModuleContext) {
      * A card processor's webhook is a few kilobytes. 256 is room for the
      * largest event any of them send and a long way short of trouble.
      */
+    /*
+     * Wrong signatures, counted per caller and refused once there are many.
+     *
+     * Nothing bounded a stranger posting here. Each forged delivery wrote to the
+     * connection row — and the count it bumps is what tells the business, on the
+     * payments screen, that its signing secret is wrong and to reconnect — and
+     * for PayPal each one cost a token fetch and a verification call to PayPal
+     * on the business's own credentials. Counted on failures only, so a
+     * processor delivering a busy day's payments is never turned away for
+     * succeeding. Found 10 October 2026.
+     */
+    const misses = `payment-webhook:${callerKey(c)}`;
+    if (rateLimitSpent(misses, WEBHOOK_MISSES, WEBHOOK_MISS_WINDOW_MS)) {
+      return c.json({ error: "too many deliveries that did not verify" }, 429);
+    }
+
     const raw = await readCapped(c.req.raw, MAX_WEBHOOK_BYTES);
     if (raw === null) return c.json({ error: "too much to read" }, 413);
 
     const provider = providerFrom(account);
 
     if (!(await provider.verifyWebhook(raw, c.req.raw.headers))) {
+      rateLimit(misses, WEBHOOK_MISSES, WEBHOOK_MISS_WINDOW_MS);
       /*
        * Counted, because this is the failure nobody can see from either side.
        *

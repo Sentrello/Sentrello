@@ -57,10 +57,26 @@ export async function explainOrigin(res: Response, origin: string | undefined) {
   );
 }
 
+/**
+ * The library's own SSO administration, which is never answered over HTTP.
+ *
+ * Connecting a provider goes through `/api/users/sso`, which asks for
+ * `settings: update`, refuses an API key and allows one connection per domain.
+ * The library answers the same thing at `/api/auth/sso/register` and asks only
+ * for a session — so anybody signed in, of any role, could connect an identity
+ * provider they run, claim a domain a business had already connected, and send
+ * that business's staff to a stranger's login form from our own sign-in page.
+ * The server calls these through `auth.api`, which does not come this way.
+ * Found 10 October 2026.
+ */
+const SSO_ADMIN =
+  /^\/api\/auth\/sso\/(register|providers|get-provider|update-provider|delete-provider|request-domain-verification|verify-domain)\/?$/;
+
 export function mountAuth(app: Hono<AppEnv>) {
-  app.on(["POST", "GET"], "/api/auth/*", async (c) =>
-    explainOrigin(await auth.handler(c.req.raw), c.req.header("origin")),
-  );
+  app.on(["POST", "GET"], "/api/auth/*", async (c) => {
+    if (SSO_ADMIN.test(c.req.path)) return c.json({ error: "not found" }, 404);
+    return explainOrigin(await auth.handler(c.req.raw), c.req.header("origin"));
+  });
 }
 
 /** Route guard: requires a session, attaches it to context. */
@@ -274,6 +290,17 @@ async function idleRefusal(session: {
 const ALWAYS_REACHABLE = ["/api/compliance", "/api/users/me/security"];
 
 /**
+ * Whether `path` is one of `doors` or somewhere beneath one.
+ *
+ * A path and not its first letters: `startsWith("/api/users/me")` also opened
+ * `/api/users/<an id beginning "me">/role` to somebody the business had said
+ * needs a second factor. Found 10 October 2026.
+ */
+function throughADoor(path: string, doors: readonly string[]): boolean {
+  return doors.some((door) => path === door || path.startsWith(`${door}/`));
+}
+
+/**
  * A second factor, where the business requires it of this person's roles.
  *
  * Separate from the HIPAA rule above and enforced identically, because they
@@ -318,8 +345,7 @@ async function secondFactorRefusal(
   const orgId = session.session.activeOrganizationId;
   if (!orgId) return null;
   if (session.user.twoFactorEnabled) return null;
-  if (STILL_REACHABLE_WITHOUT_A_FACTOR.some((p) => path.startsWith(p)))
-    return null;
+  if (throughADoor(path, STILL_REACHABLE_WITHOUT_A_FACTOR)) return null;
 
   const required = await rolesNeedingTwoFactor(orgId);
   if (required.length === 0) return null;
@@ -411,7 +437,7 @@ async function hipaaRefusal(
   if (
     rules.requireTwoFactor &&
     !session.user.twoFactorEnabled &&
-    !ALWAYS_REACHABLE.some((p) => path.startsWith(p))
+    !throughADoor(path, ALWAYS_REACHABLE)
   ) {
     return {
       error:
