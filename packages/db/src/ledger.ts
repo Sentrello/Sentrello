@@ -304,8 +304,11 @@ export async function cashAccounts(
  * the starter chart's Bank Account. Two or more and this cannot know which, so
  * the screens that move money between them ask.
  */
-export async function bankAccountFor(orgId: string): Promise<string> {
-  const banks = await db
+export async function bankAccountFor(
+  orgId: string,
+  conn: DbTx | typeof db = db,
+): Promise<string> {
+  const banks = await conn
     .select({ id: schema.accounts.id })
     .from(schema.accounts)
     .where(
@@ -317,7 +320,7 @@ export async function bankAccountFor(orgId: string): Promise<string> {
     )
     .limit(2);
   if (banks.length === 1 && banks[0]) return banks[0].id;
-  return ensureAccount(orgId, CORE_ACCOUNTS.bank);
+  return ensureAccount(orgId, CORE_ACCOUNTS.bank, conn);
 }
 
 /** Methods a card processor or terminal settles, whatever its name. */
@@ -335,13 +338,16 @@ const PROCESSED = new Set(["card", "stripe", "paypal"]);
 export async function moneyAccount(
   orgId: string,
   how: { method?: string | null; provider?: string | null },
+  // A caller inside a transaction passes it: reaching for the global pool
+  // while holding a connection is how ten requests at once froze an instance.
+  conn: DbTx | typeof db = db,
 ): Promise<string> {
   const method = (how.method ?? "").trim().toLowerCase();
-  if (method === "cash") return ensureAccount(orgId, CORE_ACCOUNTS.cash);
+  if (method === "cash") return ensureAccount(orgId, CORE_ACCOUNTS.cash, conn);
   if (how.provider || PROCESSED.has(method)) {
-    return ensureAccount(orgId, CORE_ACCOUNTS.inTransit);
+    return ensureAccount(orgId, CORE_ACCOUNTS.inTransit, conn);
   }
-  return bankAccountFor(orgId);
+  return bankAccountFor(orgId, conn);
 }
 
 /** The account currency movement lands in. */
