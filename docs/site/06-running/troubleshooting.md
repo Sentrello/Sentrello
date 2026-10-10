@@ -127,10 +127,14 @@ machine holding your database, so they grant nothing that was not already
 available. What they save is doing it by hand with a SQL client.
 
 If sign-in starts refusing everybody at once, with too many attempts rather
-than a wrong password, the lock is not your problem. Your reverse proxy is not
-passing the visitor's address, so every attempt looks like it comes from the
-same place and they all share one rate limit. **Users → Authentication** shows
-which header is trusted and what the current request resolved to.
+than a wrong password, the lock is not your problem. Sentrello can't see the
+visitor's address, so every attempt looks like it comes from the same place and
+they all share one rate limit. Either your reverse proxy isn't passing the
+address, or it is and Sentrello isn't believing it. The header is believed only
+from the same machine or a private network address, so a proxy or load balancer
+anywhere else has to be named in `SENTRELLO_TRUSTED_PROXIES`. **Users →
+Authentication** shows which header is trusted, what the current request
+resolved to, and whether the header was believed.
 
 ## Email does not arrive
 

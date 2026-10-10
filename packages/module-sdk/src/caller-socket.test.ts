@@ -81,13 +81,47 @@ test("a list naming an IPv4 hop matches the socket's mapped form", () => {
   expect(who.ip).toBe("203.0.113.9");
 });
 
-test("an unset list believes the header, which is the documented deployment", () => {
-  const who = callerAddress(
-    from({ "x-real-ip": "203.0.113.9" }, { address: "203.0.113.200" }),
-    {},
-  );
-  expect(who.ip).toBe("203.0.113.9");
-  expect(who.proxied).toBe(true);
+/*
+ * Unset, the header is believed from this machine only.
+ *
+ * The documented deploy publishes the app on 127.0.0.1 with nginx in front, and
+ * inside the container that connection arrives from the bridge's gateway
+ * (172.17.0.1 under Docker), so both have to count. It used to be believed from
+ * anywhere, which handed every caller on an instance published on its own port
+ * a fresh budget per request.
+ */
+test("an unset list believes the header from this machine, the documented deployment", () => {
+  for (const address of [
+    "172.17.0.1",
+    "10.88.0.1",
+    "127.0.0.1",
+    "127.8.9.10",
+    "::1",
+    "::ffff:127.0.0.1",
+  ]) {
+    const who = callerAddress(
+      from({ "x-real-ip": "203.0.113.9" }, { address }),
+      {},
+    );
+    expect(who.ip, `${address} was not believed`).toBe("203.0.113.9");
+    expect(who.proxied).toBe(true);
+  }
+});
+
+test("an unset list does not believe the header from anywhere else", () => {
+  for (const address of [
+    "203.0.113.200",
+    "172.32.0.1",
+    "::ffff:198.51.100.5",
+    "2001:db8::1",
+  ]) {
+    const who = callerAddress(
+      from({ "x-real-ip": "203.0.113.9" }, { address }),
+      {},
+    );
+    expect(who.ip).toBe(address);
+    expect(who.proxied).toBe(false);
+  }
 });
 
 /*

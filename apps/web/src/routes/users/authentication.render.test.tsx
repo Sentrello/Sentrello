@@ -22,6 +22,8 @@ const roles = [{ role: "admin", builtIn: true, allows: {} }];
 function renderWith(diagnostics: {
   ipHeader: string;
   resolvedIp: string;
+  headerBelieved?: boolean;
+  trustedProxies?: string[];
   baseUrl: string;
   https: boolean;
   mailConfigured: boolean;
@@ -101,4 +103,19 @@ test("one administrator with mail configured gets no lockout warning", () => {
     administrators: 1,
   });
   expect(html).not.toContain("sentrello reset-password");
+});
+
+test("with no trusted list, a header that was not believed says why", () => {
+  const html = renderWith({
+    ipHeader: "x-real-ip",
+    resolvedIp: "203.0.113.7",
+    headerBelieved: false,
+    trustedProxies: [],
+    baseUrl: "https://business.example.com",
+    https: true,
+    mailConfigured: true,
+    administrators: 2,
+  });
+  expect(html).toContain("did not come from a proxy on this machine");
+  expect(html).toContain("SENTRELLO_TRUSTED_PROXIES");
 });

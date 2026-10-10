@@ -1,50 +1,61 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { and, db, eq, schema } from "@sentrello/db";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 
 /**
- * Set only while the bootstrap route is creating the first owner.
+ * Set only inside the call the bootstrap route makes to create the first owner.
  *
  * "This instance has no organization yet" is NOT sufficient on its own: the
  * sign-up endpoint is public, so a stranger who reaches a fresh instance before
  * its operator would claim it. Claiming therefore has to go through
  * /api/bootstrap, which additionally requires the setup token.
+ *
+ * Carried by the call, not held by the process. This was a module-level flag,
+ * so for as long as the owner's account took to create, sign-up was open to
+ * every request the server was answering: a stranger posting to the sign-up
+ * endpoint at that moment got an account. The allowance now travels with the
+ * async context of the bootstrap call itself, and a request arriving over HTTP
+ * runs in its own context, which never holds it.
  */
-let bootstrapping = false;
+const allowance = new AsyncLocalStorage<
+  { bootstrap: true } | { bootstrap: false; email: string }
+>();
 
-/** Whether the bootstrap route is claiming this instance right now. */
+/** Whether this very call is the bootstrap route claiming the instance. */
 export function duringBootstrapNow(): boolean {
-  return bootstrapping;
+  return allowance.getStore()?.bootstrap === true;
 }
 
 export function duringBootstrap<T>(fn: () => Promise<T>): Promise<T> {
-  bootstrapping = true;
-  return fn().finally(() => {
-    bootstrapping = false;
-  });
+  return allowance.run({ bootstrap: true }, fn);
 }
 
 /**
- * Addresses the server itself is in the middle of creating an account for.
+ * The server creating an account for one address, inside one call.
  *
- * Scoped to one address and held for one call rather than opening sign-up
- * globally, which is what a plain flag would do: the window is milliseconds,
- * but on a publicly reachable instance a millisecond of open registration is
- * still open registration. Anyone racing this would additionally have to know
- * the exact address being registered.
+ * Scoped to the address and to the call. A process-wide set of addresses was
+ * what this held before, so for the milliseconds checkout took to make a
+ * billing account, anybody posting to the sign-up endpoint with that same
+ * address got the account, with a password they chose. The allowance now
+ * lives in the call's own async context, like the bootstrap one above.
  */
-const expected = new Set<string>();
-
 export async function allowSignupFor<T>(
   email: string,
   fn: () => Promise<T>,
 ): Promise<T> {
-  const key = email.trim().toLowerCase();
-  expected.add(key);
-  try {
-    return await fn();
-  } finally {
-    expected.delete(key);
-  }
+  return allowance.run(
+    { bootstrap: false, email: email.trim().toLowerCase() },
+    fn,
+  );
+}
+
+function allowedAddressNow(email: string | undefined): boolean {
+  const held = allowance.getStore();
+  return (
+    !!email &&
+    held?.bootstrap === false &&
+    held.email === email.trim().toLowerCase()
+  );
 }
 
 /**
@@ -69,10 +80,10 @@ export async function signUpAllowed(
 ): Promise<
   { allowed: true; reason: string } | { allowed: false; reason: string }
 > {
-  if (bootstrapping) {
+  if (duringBootstrapNow()) {
     return { allowed: true, reason: "first-run owner via /api/bootstrap" };
   }
-  if (email && expected.has(email.trim().toLowerCase())) {
+  if (allowedAddressNow(email)) {
     return { allowed: true, reason: "created by the server for this address" };
   }
   if (openRegistration) {

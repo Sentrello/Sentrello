@@ -53,7 +53,7 @@ interface Diagnostics {
   resolvedIp: string;
   /** Whether the header above was believed for this request, or the socket used. */
   headerBelieved?: boolean;
-  /** The hops the header is believed from, empty when it is believed from any. */
+  /** The hops the header is believed from, empty when only this machine is. */
   trustedProxies?: string[];
   baseUrl: string;
   https: boolean;
@@ -489,13 +489,17 @@ function Diagnostics() {
               header believed only from a hop on it, so an instance can name
               `x-real-ip` here and be using the socket address for every request
               because the proxy in front is not on the list somebody typed. That
-              is this screen's own subject, arrived at from the other side.
+              is this screen's own subject, arrived at from the other side. With
+              no list, the header is believed only from this machine, which is
+              where the documented proxy connects from.
             */}
             {d.trustedProxies?.length
               ? d.headerBelieved
                 ? " — the connection came from a hop on your trusted list, so the header was believed"
                 : " — from the connection itself, because the hop it came from is not on your trusted list"
-              : null}
+              : d.headerBelieved === false
+                ? " — from the connection itself, because it did not come from a proxy on this machine. A proxy elsewhere is named in SENTRELLO_TRUSTED_PROXIES"
+                : null}
           </dd>
         </div>
         <div>

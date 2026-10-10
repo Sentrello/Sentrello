@@ -6,7 +6,11 @@ import {
 } from "@sentrello/auth/hono";
 import { db, eq, schema } from "@sentrello/db";
 import { mailConfigured } from "@sentrello/email";
-import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
+import {
+  type ModuleContext,
+  type RouteContext,
+  trustedHops,
+} from "@sentrello/module-sdk";
 
 /**
  * What the Authentication screen cannot otherwise see about this instance.
@@ -75,7 +79,7 @@ export function registerDiagnostics(ctx: ModuleContext) {
         /** Whether this request's address came from the header or the socket. */
         headerBelieved: who.proxied,
         /** Whether a hop list is narrowing it at all. */
-        trustedProxies: clientIpOptions(process.env).trustedProxies ?? [],
+        trustedProxies: trustedHops(process.env),
         baseUrl,
         https: baseUrl.startsWith("https://"),
         mailConfigured: mailConfigured(),

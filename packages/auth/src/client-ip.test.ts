@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { trustedHeaderName, trustedHops } from "@sentrello/module-sdk";
-import { clientIpOptions } from "./index";
+import { trustedHeaderName } from "@sentrello/module-sdk";
+import { clientIpOptions, withDecidedAddress } from "./index";
 
 /**
  * The header a client can set must not be the one we believe.
@@ -37,7 +37,6 @@ test("Better Auth is handed the header the rest of the product believes", () => 
     expect(clientIpOptions(env).ipAddressHeaders).toEqual([
       trustedHeaderName(env),
     ]);
-    expect(clientIpOptions(env).trustedProxies ?? []).toEqual(trustedHops(env));
   }
 });
 
@@ -48,12 +47,19 @@ test("a deployment behind a different proxy can name its own header", () => {
   expect(options.ipAddressHeaders).toEqual(["cf-connecting-ip"]);
 });
 
-test("trusted proxies are parsed into a list, and absent means none", () => {
+/**
+ * The library is handed no hop list of its own.
+ *
+ * Its `trustedProxies` strips hops off a forwarded chain and never looks at the
+ * socket, so it cannot apply ours. The header it reads is rewritten to the
+ * product's answer before it runs (see `withDecidedAddress`), and a list here
+ * would make it discard a caller whose address happens to be inside a range.
+ */
+test("Better Auth is given the header and never a hop list", () => {
   expect(
-    clientIpOptions({ SENTRELLO_TRUSTED_PROXIES: "10.0.0.1, 10.0.0.0/24" })
-      .trustedProxies,
-  ).toEqual(["10.0.0.1", "10.0.0.0/24"]);
-  expect(clientIpOptions({}).trustedProxies).toBeUndefined();
+    "trustedProxies" in
+      clientIpOptions({ SENTRELLO_TRUSTED_PROXIES: "10.0.0.1, 10.0.0.0/24" }),
+  ).toBe(false);
 });
 
 /**
@@ -131,4 +137,42 @@ test("an entry that cannot be parsed matches nothing", async () => {
     "203.0.113.9",
   );
   expect(answer.ip).not.toBe("203.0.113.9");
+});
+
+/**
+ * What Better Auth reads is what the product decided.
+ *
+ * The library believes its header from anybody, so the header is rewritten
+ * before it runs: a forged one from a stranger becomes the stranger's own
+ * address, and one from the local proxy stands.
+ */
+function contextFrom(
+  headers: Record<string, string>,
+  peer?: string,
+  body?: string,
+) {
+  const raw = new Request("http://localhost/api/auth/sign-in/email", {
+    method: body ? "POST" : "GET",
+    headers,
+    body,
+  });
+  return {
+    req: { raw, header: (name: string) => raw.headers.get(name) ?? undefined },
+    env: peer ? { requestIP: () => ({ address: peer }) } : undefined,
+  } as unknown as Parameters<typeof withDecidedAddress>[0];
+}
+
+test("a forged header from a stranger reaches Better Auth as their socket", async () => {
+  const req = withDecidedAddress(
+    contextFrom({ "x-real-ip": "198.51.100.1" }, "203.0.113.200", "{}"),
+  );
+  expect(req.headers.get("x-real-ip")).toBe("203.0.113.200");
+  expect(await req.text()).toBe("{}");
+});
+
+test("the local proxy's header reaches Better Auth as it was sent", () => {
+  const req = withDecidedAddress(
+    contextFrom({ "x-real-ip": "198.51.100.1" }, "::ffff:127.0.0.1"),
+  );
+  expect(req.headers.get("x-real-ip")).toBe("198.51.100.1");
 });

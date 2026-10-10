@@ -1,5 +1,6 @@
+import { createHash } from "node:crypto";
 import { rateLimit } from "@sentrello/module-sdk";
-import { and, eq, isNotNull } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "./client";
 import * as schema from "./schema";
 
@@ -52,25 +53,18 @@ const LOOKUP_WINDOW_MS = 60_000;
  * required because this function cannot know otherwise, and because the
  * counting below is half of what it does.
  *
- * **Guessing is limited, and the cost of a guess is why.** The comparison is
- * constant time, which is right and means there is no early return: every
- * contact on the instance holding a portal token is loaded and compared on
- * every attempt, wrong ones included. So an unauthenticated stranger could
- * ask a business with twenty thousand customers to scan all twenty thousand
- * as fast as they liked — through the account page, the invoice portal, the
- * subscriber portal or the autopay pages, all of which arrive here.
+ * **Looked up by the token's hash**, through a unique index. It used to load
+ * every contact holding a token and compare each in constant time, so every
+ * wrong guess from a stranger cost a scan of the whole customer list, through
+ * the account page, the invoice portal, the subscriber portal or the autopay
+ * pages. The row the hash finds is still compared with the token in constant
+ * time, which keeps a row whose hash somehow disagrees from answering for a
+ * token it does not hold.
  *
- * Checked before the scan rather than after, which is the point: a limit that
- * records an attempt it has already paid for is a log, not a limit.
- *
- * Every attempt counts, not only the wrong ones. Counting failures alone
- * would need a peek that does not consume, and the budget is set where honest
- * use never arrives.
- *
- * ponytail: the scan is O(contacts) per attempt, which the limit caps rather
- * than fixes. Storing a hash of the token beside it would make this an index
- * lookup; worth doing when an instance's contact list is large enough to
- * measure, and a migration rather than a patch.
+ * **Guessing is still limited**, because a cheap guess is still a guess.
+ * Checked before the lookup, and every attempt counts, not only the wrong
+ * ones: counting failures alone would need a peek that does not consume, and
+ * the budget is set where honest use never arrives.
  */
 export async function contactByPortalToken(token: string, caller: string) {
   if (token.length < 20) return null;
@@ -78,13 +72,17 @@ export async function contactByPortalToken(token: string, caller: string) {
     return null;
   }
 
-  const candidates = await db
+  const [row] = await db
     .select()
     .from(schema.contacts)
-    .where(isNotNull(schema.contacts.portalToken));
-  return (
-    candidates.find((row) => tokenMatches(token, row.portalToken ?? "")) ?? null
-  );
+    .where(eq(schema.contacts.portalTokenHash, portalTokenHash(token)))
+    .limit(1);
+  return row && tokenMatches(token, row.portalToken ?? "") ? row : null;
+}
+
+/** What `contacts.portal_token_hash` holds for a token: SHA-256, hex. */
+export function portalTokenHash(token: string): string {
+  return createHash("sha256").update(token, "utf8").digest("hex");
 }
 
 /** The customer's token, minted on first need. `rotate` revokes the old one. */

@@ -60,7 +60,7 @@ function withoutCredentials(
   row: Record<string, unknown> | null,
 ): Record<string, unknown> | null {
   if (!row) return null;
-  const { portalToken: _credential, ...rest } = row;
+  const { portalToken: _credential, portalTokenHash: _derived, ...rest } = row;
   return rest;
 }
 

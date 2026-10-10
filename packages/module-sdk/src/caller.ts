@@ -14,11 +14,17 @@ import { bunServer } from "./server-access";
  * this package, so the dependency runs the right way round and there is now one
  * answer.
  *
- * **Unset, the header is believed**, which is correct on every instance deployed
- * the documented way: our nginx writes `x-real-ip` from `$remote_addr`, so a
- * caller cannot forge it through that. **Set, the header is believed only from a
- * hop on the list** — the lever an operator behind Caddy, behind a load balancer,
- * or exposed directly needs.
+ * **Unset, the header is believed only from this machine** — loopback, or the
+ * private address a container runtime hands the host. The documented deploy
+ * publishes the app on `127.0.0.1:3000` with nginx in front, and inside the
+ * container that connection arrives from the bridge's gateway (`172.17.0.1`
+ * under Docker, measured), not from 127.0.0.1, so loopback alone would refuse
+ * every honest header and count every visitor as one. The header used to be
+ * believed from anywhere when this was unset, so an instance published on a
+ * public port took each caller's word for their address, and every limit and
+ * lockout keyed on it was theirs to pick. **Set, the header is believed only
+ * from a hop on the list** — the lever an operator behind Caddy, behind a load
+ * balancer, or on another machine needs.
  */
 export function trustedHeaderName(
   env: Record<string, string | undefined>,
@@ -32,6 +38,31 @@ export function trustedHops(env: Record<string, string | undefined>): string[] {
       .map((hop) => hop.trim())
       .filter(Boolean) ?? []
   );
+}
+
+/**
+ * Where the documented proxy connects from: loopback, and the private ranges a
+ * container bridge's gateway sits in. `::ffff:127.x` is read as the IPv4 it is
+ * by `fromTrustedHop`, so the IPv4 ranges cover a dual-stack socket too.
+ *
+ * Private ranges, not the one bridge actually in use, so a machine
+ * whose app port is reachable from its own LAN believes that LAN's headers;
+ * an operator for whom that matters names the proxy in the list.
+ */
+export const LOCAL_HOPS = [
+  "127.0.0.0/8",
+  "::1",
+  "10.0.0.0/8",
+  "172.16.0.0/12",
+  "192.168.0.0/16",
+];
+
+/** The hops a header is believed from: the list, or this machine when none. */
+export function believedHops(
+  env: Record<string, string | undefined>,
+): string[] {
+  const hops = trustedHops(env);
+  return hops.length > 0 ? hops : LOCAL_HOPS;
 }
 
 /**
@@ -133,9 +164,7 @@ export function callerAddress(
 ): CallerAddress {
   const fromHeader = c.req.header(trustedHeaderName(env));
   if (fromHeader) {
-    const hops = trustedHops(env);
-    if (hops.length === 0) return { ip: fromHeader, proxied: true };
-    if (fromTrustedHop(peerAddress(c).address, hops)) {
+    if (fromTrustedHop(peerAddress(c).address, believedHops(env))) {
       return { ip: fromHeader, proxied: true };
     }
     // The header arrived from somewhere we did not say to believe, so it is a

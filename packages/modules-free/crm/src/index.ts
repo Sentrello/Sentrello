@@ -1074,9 +1074,10 @@ function crud<T extends keyof typeof tables>(
  * Stripped in both directions, in the factory, so a resource added later
  * inherits it. A portal link is minted by `POST /api/contacts/:id/portal-link`
  * and comes back as a URL; nothing legitimate needs the raw token from a
- * list.
+ * list. Its hash goes too: it is the database's to work out, and a body
+ * naming it would be refused by Postgres as a 500.
  */
-const CREDENTIAL_FIELDS = ["portalToken"] as const;
+const CREDENTIAL_FIELDS = ["portalToken", "portalTokenHash"] as const;
 
 function withoutCredentials<T extends Record<string, unknown>>(row: T): T {
   let copy: Record<string, unknown> | null = null;

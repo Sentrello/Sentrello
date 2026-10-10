@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   bigint,
   bigserial,
@@ -282,6 +283,23 @@ export const contacts = pgTable(
      * reissuing revokes the old one.
      */
     portalToken: text("portal_token"),
+    /**
+     * The token's SHA-256, hex, which is what a portal link is looked up by.
+     *
+     * The lookup used to load every contact holding a token and compare each
+     * one in constant time, so every guess from a stranger cost a scan of the
+     * whole customer list. This is an index lookup instead, and the plain
+     * token stays because every email and every account section shows the
+     * link.
+     *
+     * Worked out by the database, so no writer can leave it describing an old
+     * token: a reissue, an erasure, a module in another repository. The
+     * `replace` makes the `bytea` cast read the text as its own bytes rather
+     * than as escapes, so this is the same hash the server computes.
+     */
+    portalTokenHash: text("portal_token_hash").generatedAlwaysAs(
+      sql`encode(sha256(replace("portal_token", '\\', '\\\\')::bytea), 'hex')`,
+    ),
     /** Whatever this business decided to keep, per `crm_settings.custom_fields`. */
     customValues: jsonb("custom_values")
       .$type<Record<string, string | number | boolean | null>>()
@@ -293,6 +311,7 @@ export const contacts = pgTable(
   (t) => [
     index("contacts_org_idx").on(t.organizationId),
     index("contacts_portal_user_idx").on(t.portalUserId),
+    uniqueIndex("contacts_portal_token_hash_idx").on(t.portalTokenHash),
     // The list's default order, and the column four of its filters read.
     index("contacts_last_seen_idx").on(t.organizationId, t.lastSeenAt),
   ],

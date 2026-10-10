@@ -325,6 +325,16 @@ the header: if you use Caddy, Traefik, a load balancer or a cloud ingress,
 check which header it sets and point Sentrello at it in
 `/opt/sentrello/secrets/.env`.
 
+The header is believed only from where a proxy on this machine connects from:
+loopback, or a private address (`10.0.0.0/8`, `172.16.0.0/12`,
+`192.168.0.0/16`). The private ranges are there because the app runs in a
+container, and nginx's connection to `127.0.0.1:3000` arrives inside it from
+the container network's gateway, not from loopback. A request from anywhere
+else is keyed on the address it actually came from, whatever header it
+carries. A proxy on another machine with a public address is the case that
+needs `SENTRELLO_TRUSTED_PROXIES`: once it is set, the header is believed from
+the hops it lists and nowhere else, private ranges included.
+
 This is worth getting right rather than leaving. Sign-in rate limiting, the
 account lockout and the address shown beside a session all key on it — so a
 wrong header means every request appears to come from the proxy, and one
@@ -339,14 +349,15 @@ request resolved to, which is the quickest way to check it is what you think.
 # SENTRELLO_TRUSTED_PROXIES also names every hop — that header is written by
 # the caller.
 SENTRELLO_CLIENT_IP_HEADER=x-real-ip
-# Comma-separated proxy addresses or CIDR ranges, for deployments that must
-# use a forwarded chain.
+# Comma-separated proxy addresses or IPv4 CIDR ranges the header is believed
+# from. Empty means this machine: loopback and the private ranges a container
+# network uses.
 SENTRELLO_TRUSTED_PROXIES=
 ```
 
-An instance reached directly, with no proxy at all, must not be reading a
-forwarded header — anyone talking to it could set one and pick their own
-address.
+An instance reached directly, with no proxy at all, ignores the header from
+anybody outside its own network, so a caller cannot pick their own address by
+sending one.
 
 ### The server's own public address
 

@@ -7,11 +7,7 @@ import {
   passwordResetEmail,
   verifyEmailEmail,
 } from "@sentrello/email/templates";
-import {
-  callerAddress,
-  trustedHeaderName,
-  trustedHops,
-} from "@sentrello/module-sdk";
+import { callerAddress, trustedHeaderName } from "@sentrello/module-sdk";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
@@ -56,7 +52,6 @@ const socialProviders = { google: googleProvider };
  */
 export function clientIpOptions(env: Record<string, string | undefined>): {
   ipAddressHeaders: string[];
-  trustedProxies?: string[];
 } {
   /*
    * Asked of the SDK rather than worked out again here.
@@ -67,12 +62,34 @@ export function clientIpOptions(env: Record<string, string | undefined>): {
    * they drift is the worst shape available: the library believing one header
    * while the product believes another, so a sign-in is rate-limited on one
    * address and the lockout counts a different one.
+   *
+   * No `trustedProxies`. The header the library reads is the one
+   * `withDecidedAddress` below writes: one address, already checked against
+   * the hops. Handing the library the list too would make it discard a caller
+   * whose own address falls inside a listed range, and count them as nobody.
    */
-  const proxies = trustedHops(env);
-  return {
-    ipAddressHeaders: [trustedHeaderName(env)],
-    ...(proxies.length > 0 ? { trustedProxies: proxies } : {}),
-  };
+  return { ipAddressHeaders: [trustedHeaderName(env)] };
+}
+
+/**
+ * The request Better Auth is handed, with the caller's address already decided.
+ *
+ * The library reads its header and never asks where the connection came from:
+ * its `trustedProxies` strips hops off a forwarded chain, which is a different
+ * question. So it believed `x-real-ip` from anybody who sent one, while the
+ * product believed it only from loopback or a listed hop — its sign-in rate
+ * limit and the address beside a session were the caller's choice even after
+ * the lockout stopped being. The header is rewritten here to the one answer
+ * `callerAddress` gives, or removed when there is none, and the library reads
+ * that.
+ */
+export function withDecidedAddress(c: Context): Request {
+  const header = trustedHeaderName(process.env);
+  const { ip } = callerAddress(c);
+  const headers = new Headers(c.req.raw.headers);
+  if (ip) headers.set(header, ip);
+  else headers.delete(header);
+  return new Request(c.req.raw, { headers });
 }
 
 /**

@@ -3,6 +3,7 @@ import { db, eq, schema } from "@sentrello/db";
 import { auth } from "./index";
 import {
   allowSignupFor,
+  duringBootstrap,
   setupTokenAccepted,
   setupTokenRequired,
   signUpAllowed,
@@ -171,5 +172,80 @@ test("the allowance is released even when creating the account throws", async ()
     ).rejects.toThrow("Stripe said no");
 
     expect((await signUpAllowed(buyer, false)).allowed).toBe(false);
+  });
+});
+
+/**
+ * The allowance belongs to the call, not to the moment.
+ *
+ * Both of these used to be held by the process: a flag while the first owner
+ * was created, and a set of addresses while checkout made an account. Anybody
+ * whose sign-up landed in that window was let in with it. Here the window is
+ * held open on purpose, and a request from outside it is made meanwhile.
+ */
+test("a sign-up arriving while the owner is created is still refused", async () => {
+  await withOrganization(async () => {
+    const stranger = `racer-${suffix}@example.test`;
+    createdEmails.push(stranger);
+    let release = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let entered = () => {};
+    const inside = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+
+    const claim = duringBootstrap(async () => {
+      entered();
+      await held;
+      return signUpAllowed(stranger, false);
+    });
+    await inside;
+
+    // Outside the bootstrap call, while it is still running.
+    expect((await signUpAllowed(stranger, false)).allowed).toBe(false);
+    await expect(
+      auth.api.signUpEmail({
+        body: { email: stranger, password, name: "Racer" },
+      }),
+    ).rejects.toThrow();
+
+    release();
+    // And the call that does hold it was let through.
+    expect((await claim).allowed).toBe(true);
+    const rows = await db
+      .select()
+      .from(schema.user)
+      .where(eq(schema.user.email, stranger));
+    expect(rows).toHaveLength(0);
+  });
+});
+
+test("an address held for the server is refused to anybody else who sends it", async () => {
+  await withOrganization(async () => {
+    const buyer = `held-${suffix}@example.test`;
+    createdEmails.push(buyer);
+    let release = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let entered = () => {};
+    const inside = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+
+    const checkout = allowSignupFor(buyer, async () => {
+      entered();
+      await held;
+      return signUpAllowed(buyer, false);
+    });
+    await inside;
+
+    // Same address, posted from outside the call that asked for it.
+    expect((await signUpAllowed(buyer, false)).allowed).toBe(false);
+
+    release();
+    expect((await checkout).allowed).toBe(true);
   });
 });

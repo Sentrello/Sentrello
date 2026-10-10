@@ -14,7 +14,7 @@ import type { Context, Hono } from "hono";
 import { createMiddleware } from "hono/factory";
 import { matchedRoutes } from "hono/route";
 import { apiKeyMay, bearerKey, resolveApiKey } from "./api-keys";
-import { auth, clientIp } from "./index";
+import { auth, clientIp, withDecidedAddress } from "./index";
 
 export type Session = NonNullable<
   Awaited<ReturnType<typeof auth.api.getSession>>
@@ -75,7 +75,10 @@ const SSO_ADMIN =
 export function mountAuth(app: Hono<AppEnv>) {
   app.on(["POST", "GET"], "/api/auth/*", async (c) => {
     if (SSO_ADMIN.test(c.req.path)) return c.json({ error: "not found" }, 404);
-    return explainOrigin(await auth.handler(c.req.raw), c.req.header("origin"));
+    return explainOrigin(
+      await auth.handler(withDecidedAddress(c)),
+      c.req.header("origin"),
+    );
   });
 }
 

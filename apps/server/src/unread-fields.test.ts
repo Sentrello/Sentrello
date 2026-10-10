@@ -132,6 +132,7 @@ const SET_BY_THE_SERVER: Record<string, string> = {
   updatedAt: "the route, on every write",
   deletedAt: "the soft-delete route",
   portalToken: "minted by its own endpoint, and stripped from every read",
+  portalTokenHash: "the database, from portalToken",
   customValues:
     "the custom-fields editor, which writes a map rather than a field",
   decidedAt: "the deal's own won/lost action",
