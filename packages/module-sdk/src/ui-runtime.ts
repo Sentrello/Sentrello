@@ -198,6 +198,23 @@ export interface SentrelloUi {
    * never `new Date().toISOString().slice(0, 10)`, which is the UTC day.
    */
   businessToday: (shift?: { days?: number; months?: number }) => string;
+  /**
+   * The business's day a stored value belongs to, `YYYY-MM-DD`: a stored day
+   * (midnight UTC, or a bare date) is its own UTC day; a moment is the day it
+   * fell on where the business is. "Today" and "overdue" are asked in these.
+   */
+  businessDayOf: (value: string | Date) => string;
+  /** Whole days from the business's today to `value`'s day; negative is past. */
+  daysFromToday: (value: string | Date) => number;
+  /** The instant the business's `day` begins, for asking about moments. */
+  startOfBusinessDay: (day: string) => Date;
+  /** Where today, this week (from Sunday), this month and last month begin. */
+  businessPeriodStarts: (now?: Date) => {
+    today: Date;
+    week: Date;
+    month: Date;
+    lastMonth: Date;
+  };
   textOn: (colour: string) => string;
   /**
    * Not generic, because `ui.tsx`'s is not: a generic declaration here would
@@ -313,6 +330,10 @@ export const UI_MEMBERS = [
   "formatRate",
   "formatDate",
   "businessToday",
+  "businessDayOf",
+  "daysFromToday",
+  "startOfBusinessDay",
+  "businessPeriodStarts",
   "textOn",
   "activeTab",
   "muted",

@@ -16,6 +16,7 @@ import {
   Input,
   Select,
   border,
+  businessPeriodStarts,
   formatCount,
   formatMoney,
   muted,
@@ -903,22 +904,21 @@ export function Pagination({
 /**
  * The five ranges the contact filter offers, as the server's parameters.
  *
- * Computed here rather than named on the server: "this week" depends on the
- * reader's clock and their idea of when a week starts, and a server in UTC
- * deciding that for somebody in Denver gets it wrong every Sunday evening.
+ * Computed here rather than named on the server, but in the business's days:
+ * "today" is the day the business is having, from where its books are kept —
+ * not the reader's laptop, and not a server in UTC, which got it wrong every
+ * Sunday evening in Denver. Weeks start on Sunday.
  */
 export function lastSeenRanges(now = new Date()): {
   label: string;
   values: { lastSeenAfter?: string; lastSeenBefore?: string };
 }[] {
-  const startOfDay = new Date(now);
-  startOfDay.setHours(0, 0, 0, 0);
-
-  const startOfWeek = new Date(startOfDay);
-  startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
-
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const {
+    today: startOfDay,
+    week: startOfWeek,
+    month: startOfMonth,
+    lastMonth: startOfLastMonth,
+  } = businessPeriodStarts(now);
 
   return [
     { label: "Today", values: { lastSeenAfter: startOfDay.toISOString() } },

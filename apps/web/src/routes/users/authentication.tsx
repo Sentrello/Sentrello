@@ -12,6 +12,7 @@ import {
   REFUSED,
   SecretInput,
   SectionHeading,
+  formatDate,
   muted,
 } from "../../lib/ui";
 import { policyLabel } from "./policy-ui";
@@ -177,7 +178,7 @@ function GoogleSignIn() {
         <p className="text-sm" style={muted}>
           Connected as <code>{google.clientId}</code>
           {google.verifiedAt
-            ? `, checked against Google on ${new Date(google.verifiedAt).toISOString().slice(0, 10)}`
+            ? `, checked against Google on ${formatDate(google.verifiedAt)}`
             : ""}
           .
         </p>

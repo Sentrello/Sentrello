@@ -11,6 +11,7 @@ import {
   Select,
   Table,
   Warning,
+  businessToday,
   formatDate,
   formatMoney,
   muted,
@@ -83,11 +84,12 @@ function percent(ppm: number): string {
 
 /** The last completed quarter — the one a business is most likely filing. */
 function lastQuarter(): { year: number; quarter: number } {
-  const now = new Date();
-  const q = Math.floor(now.getUTCMonth() / 3) + 1;
-  return q === 1
-    ? { year: now.getUTCFullYear() - 1, quarter: 4 }
-    : { year: now.getUTCFullYear(), quarter: q - 1 };
+  // The business's today: the UTC one turns the quarter over at seven in the
+  // evening in New York on the last day of it.
+  const today = businessToday();
+  const year = Number(today.slice(0, 4));
+  const q = Math.floor((Number(today.slice(5, 7)) - 1) / 3) + 1;
+  return q === 1 ? { year: year - 1, quarter: 4 } : { year, quarter: q - 1 };
 }
 
 const SUPPLY: Record<string, string> = {
@@ -106,7 +108,9 @@ export function OssReturn() {
       ),
   });
 
-  const years = [0, 1, 2, 3].map((back) => new Date().getUTCFullYear() - back);
+  const years = [0, 1, 2, 3].map(
+    (back) => Number(businessToday().slice(0, 4)) - back,
+  );
   const data = report.data;
 
   return (

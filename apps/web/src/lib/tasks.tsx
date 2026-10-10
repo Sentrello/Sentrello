@@ -23,6 +23,7 @@ import {
   Select,
   Warning,
   businessToday,
+  daysFromToday,
   muted,
 } from "./ui";
 
@@ -45,21 +46,19 @@ export interface Task {
 const TASK_TYPES = ["call", "email", "meeting", "demo", "follow-up", "other"];
 
 /**
- * How many whole days away a due date is, counted on the calendar.
+ * How many whole days away a due date is, counted on the business's calendar.
  *
  * Not by subtracting timestamps. A due date is a day somebody picked, stored
- * at midday, and by three in the afternoon that midday is in the past — so a
- * task due *today* compared as an instant is already late. Nobody thinks their
- * two o'clock is overdue at one.
+ * at midday UTC, and by three in the afternoon that midday is in the past — so
+ * a task due *today* compared as an instant is already late. Nobody thinks
+ * their two o'clock is overdue at one. Its day is the UTC day it was written
+ * as, which is what the server's dashboard reads too; and "today" is the
+ * business's, not the reader's laptop.
  *
  * Negative is late, 0 is today, positive is still to come.
  */
 function daysUntil(value: string): number {
-  const due = new Date(value);
-  const today = new Date();
-  const atMidnight = (d: Date) =>
-    new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  return Math.round((atMidnight(due) - atMidnight(today)) / 86_400_000);
+  return daysFromToday(value.slice(0, 10));
 }
 
 /** Whether a task is actually late — a full day past, not an hour past. */

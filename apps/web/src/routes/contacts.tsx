@@ -41,6 +41,7 @@ import {
   PageActions,
   Select,
   Toolbar,
+  daysFromToday,
   muted,
   textOn,
 } from "../lib/ui";
@@ -530,12 +531,15 @@ export function StatusLabel({
   );
 }
 
-/** "3 days ago" — an exact timestamp is not what anybody is asking. */
+/**
+ * "3 days ago" — an exact timestamp is not what anybody is asking.
+ *
+ * Counted in the business's days, so "today" and "yesterday" agree with the
+ * "Today" filter above the list rather than meaning "within 24 hours".
+ */
 export function sinceLabel(value: string | null): string {
   if (!value) return "—";
-  const days = Math.floor(
-    (Date.now() - new Date(value).getTime()) / 86_400_000,
-  );
+  const days = -daysFromToday(value);
   if (days <= 0) return "today";
   if (days === 1) return "yesterday";
   if (days < 30) return `${days} days ago`;

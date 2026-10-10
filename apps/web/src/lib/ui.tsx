@@ -144,22 +144,129 @@ let formats = {
 export function businessToday(
   shift: { days?: number; months?: number } = {},
 ): string {
-  const today = new Intl.DateTimeFormat("en-CA", {
-    timeZone: formats.businessTimezone || "UTC",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
-  if (!shift.days && !shift.months) return today;
-  const d = new Date(`${today}T00:00:00Z`);
+  return shiftDay(zoneDay(new Date()), shift);
+}
+
+/** The day `when` falls on where the business is, `2026-10-09`. */
+function zoneDay(when: Date): string {
+  const format = (timeZone: string) =>
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(when);
+  try {
+    return format(formats.businessTimezone || "UTC");
+  } catch {
+    // A zone the runtime cannot resolve: UTC, as the server does.
+    return format("UTC");
+  }
+}
+
+/** `day` moved on the calendar, not the clock. */
+function shiftDay(
+  day: string,
+  shift: { days?: number; months?: number } = {},
+): string {
+  if (!shift.days && !shift.months) return day;
+  const d = new Date(`${day}T00:00:00Z`);
   if (shift.months) {
     // A month back from 31 March is the end of February, not the 3rd of March.
-    const day = d.getUTCDate();
+    const date = d.getUTCDate();
     d.setUTCMonth(d.getUTCMonth() + shift.months);
-    if (d.getUTCDate() !== day) d.setUTCDate(0);
+    if (d.getUTCDate() !== date) d.setUTCDate(0);
   }
   if (shift.days) d.setUTCDate(d.getUTCDate() + shift.days);
   return d.toISOString().slice(0, 10);
+}
+
+/**
+ * The business's day a stored value belongs to, `2026-10-09`.
+ *
+ * Two kinds of value, two rules. A day — a bare `2026-10-09`, or midnight UTC,
+ * which is how a due date is kept — is its own UTC day, wherever anybody is.
+ * A moment — when a contact was last seen, when a sign-in was checked — is the
+ * day it fell on where the business is, never the reader's clock and never the
+ * UTC one. "Today", "overdue" and "this week" are all asked in these days.
+ */
+export function businessDayOf(value: string | Date): string {
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+  const d = typeof value === "string" ? new Date(value) : value;
+  return isCalendarDate(d) ? d.toISOString().slice(0, 10) : zoneDay(d);
+}
+
+/** Whole days from the business's today to `value`'s day: 0 is today, negative is past. */
+export function daysFromToday(value: string | Date): number {
+  return Math.round(
+    (Date.parse(`${businessDayOf(value)}T00:00:00Z`) -
+      Date.parse(`${businessToday()}T00:00:00Z`)) /
+      86_400_000,
+  );
+}
+
+/**
+ * The instant the business's `day` begins — for asking the server about
+ * moments "since the start of today" in the business's terms.
+ */
+export function startOfBusinessDay(day: string): Date {
+  const zone = formats.businessTimezone || "UTC";
+  const wall = Date.parse(`${day}T00:00:00Z`);
+  // How far the zone's wall clock is ahead of UTC at `t`.
+  const offset = (t: number): number => {
+    try {
+      const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: zone,
+        hourCycle: "h23",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      }).formatToParts(t);
+      const n = (type: string) =>
+        Number(parts.find((p) => p.type === type)?.value);
+      return (
+        Date.UTC(
+          n("year"),
+          n("month") - 1,
+          n("day"),
+          n("hour"),
+          n("minute"),
+          n("second"),
+        ) -
+        Math.floor(t / 1000) * 1000
+      );
+    } catch {
+      return 0;
+    }
+  };
+  // Twice, so a change of offset between the guess and the answer settles.
+  return new Date(wall - offset(wall - offset(wall)));
+}
+
+/**
+ * Today, this week, this month and last month, where the business is, as the
+ * instants each one begins. Weeks start on Sunday.
+ */
+export function businessPeriodStarts(now = new Date()): {
+  today: Date;
+  week: Date;
+  month: Date;
+  lastMonth: Date;
+} {
+  const today = zoneDay(now);
+  const weekday = new Date(`${today}T00:00:00Z`).getUTCDay();
+  const month = `${today.slice(0, 8)}01`;
+  return {
+    today: startOfBusinessDay(today),
+    week: startOfBusinessDay(shiftDay(today, { days: -weekday })),
+    month: startOfBusinessDay(month),
+    lastMonth: startOfBusinessDay(shiftDay(month, { months: -1 })),
+  };
 }
 
 /**
