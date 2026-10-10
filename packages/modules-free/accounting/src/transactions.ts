@@ -313,7 +313,8 @@ export async function createTransaction(
       reference: (body.reference as string) ?? null,
       method: (body.method as string) ?? null,
       description: ((body.description ?? body.vendor) as string) ?? null,
-      receiptFileKey: (body.receiptFileKey as string) ?? null,
+      // Not the body's: a receipt is attached by uploading it, and a key
+      // typed in here named any stored file, another business's included.
       // Only against fields this business defined; anything else is dropped
       // rather than written onto the record for ever.
       customValues: await accountingValues(orgId, "transaction", body.custom),
@@ -570,9 +571,6 @@ export function registerTransactions(ctx: ModuleContext) {
           ...(body.method !== undefined ? { method: body.method || null } : {}),
           ...(body.description !== undefined
             ? { description: body.description || null }
-            : {}),
-          ...(body.receiptFileKey !== undefined
-            ? { receiptFileKey: body.receiptFileKey || null }
             : {}),
         })
         .where(

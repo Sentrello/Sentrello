@@ -10,7 +10,7 @@
  * column each keeps its picture in, and where on disk they go.
  */
 import { mkdir, unlink, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import {
   activeOrganizationId,
   requirePermission,
@@ -34,8 +34,10 @@ const imagesDir = () =>
  * For an erasure, which empties the column and must not leave the face behind
  * it. Quiet about a file already gone, as the replace and remove routes are.
  */
-export const removeImage = (name: string) =>
-  unlink(join(imagesDir(), name)).catch(() => {});
+export const removeImage = async (name: string) => {
+  if (!storedName({ avatarPath: name }, "avatarPath")) return;
+  await unlink(join(imagesDir(), name)).catch(() => {});
+};
 
 /** What a face or a logo may weigh on the way in. */
 export const MAX_IMAGE_BYTES = AVATAR_RULES.maxBytes;
@@ -48,8 +50,15 @@ export const MAX_IMAGE_BYTES = AVATAR_RULES.maxBytes;
  * casting the row away, and it fails loudly if either is ever renamed.
  */
 type Pictured = { avatarPath?: string | null; logoPath?: string | null };
-const storedName = (row: Pictured, column: "avatarPath" | "logoPath") =>
-  row[column] ?? null;
+/*
+ * Only ever a bare file name. The routes that write the column mint a UUID,
+ * but the column is a column: a value with a directory in it, however it got
+ * there, is never joined onto the images directory to be served or deleted.
+ */
+const storedName = (row: Pictured, column: "avatarPath" | "logoPath") => {
+  const name = row[column] ?? null;
+  return name && basename(name) === name && name !== ".." ? name : null;
+};
 
 /** The two things that can carry a picture, and the column each keeps it in. */
 const SUBJECTS = {

@@ -3,7 +3,7 @@ import {
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
-import { at, db, schema } from "@sentrello/db";
+import { at, db, isUuid, schema } from "@sentrello/db";
 import { MOVED, UNUSABLE_CLAIM, versionClaim } from "@sentrello/db/concurrency";
 import { recordConsent } from "@sentrello/db/consent";
 import {
@@ -618,7 +618,10 @@ function crud<T extends keyof typeof tables>(
     requirePermission({ [permission]: ["create"] }),
     async (c) => {
       const orgId = activeOrganizationId(c.get("session"));
-      const body = await c.req.json();
+      // The id is the database's to choose, and nothing on the way in is a
+      // credential or a server-owned column — the same rule the edit keeps.
+      const { id: _id, ...asked } = await c.req.json();
+      const body = withoutCredentials(asked);
       const parsed = withParsedDates(body, table);
       if (!parsed.ok) {
         return c.json({ error: `${parsed.field} is not a date` }, 400);
@@ -1077,7 +1080,27 @@ function crud<T extends keyof typeof tables>(
  * list. Its hash goes too: it is the database's to work out, and a body
  * naming it would be refused by Postgres as a 500.
  */
-const CREDENTIAL_FIELDS = ["portalToken", "portalTokenHash"] as const;
+const CREDENTIAL_FIELDS = [
+  "portalToken",
+  "portalTokenHash",
+  /*
+   * And the columns only the server writes, for the same reason: the factory
+   * spread the body into the row, so each was the caller's to choose.
+   *
+   * A picture's file name is joined onto the images directory to serve it and
+   * to delete it, so `"../../etc/…"` named a file anywhere the process can
+   * read. `portalUserId` linked a customer to any account on the instance,
+   * another business's included. `authorId` let an edit say a note was written
+   * by somebody else, and the timeline then printed that person's name.
+   * `sourceSubmissionId` is set by promoting a form reply, never by hand.
+   * Each has its own route; none is legitimately sent in a body.
+   */
+  "avatarPath",
+  "logoPath",
+  "portalUserId",
+  "authorId",
+  "sourceSubmissionId",
+] as const;
 
 function withoutCredentials<T extends Record<string, unknown>>(row: T): T {
   let copy: Record<string, unknown> | null = null;
@@ -1278,6 +1301,17 @@ async function checkLinkedRecords(
     if (!(await owned(table, value.entityId))) {
       return { error: "no such record", status: 404 };
     }
+  }
+  // A list or nothing. `{"0": "<id>"}` was not an array, so it skipped the
+  // filter below and was stored as it came — another business's contact
+  // included, for the deal's quote to be addressed to.
+  if (
+    resource === "deals" &&
+    value.contactIds !== undefined &&
+    value.contactIds !== null &&
+    !Array.isArray(value.contactIds)
+  ) {
+    return { error: "contactIds has to be a list of contacts", status: 400 };
   }
   if (resource === "deals" && Array.isArray(value.contactIds)) {
     // Filtered rather than refused: a deal being re-saved may still carry the
@@ -2664,10 +2698,10 @@ function registerCrmScreens(
   // `:entityType{contact|company|deal}s`, which is not valid Hono and took the
   // whole router down with it — every route in the module 500'd, not just
   // these. Three plain paths cost nothing and cannot do that.
-  for (const [plural, entityType] of [
-    ["contacts", "contact"],
-    ["companies", "company"],
-    ["deals", "deal"],
+  for (const [plural, entityType, recordTable] of [
+    ["contacts", "contact", schema.contacts],
+    ["companies", "company", schema.companies],
+    ["deals", "deal", schema.deals],
   ] as const) {
     ctx.app.post(
       `/api/${plural}/:id/tags`,
@@ -2692,6 +2726,21 @@ function registerCrmScreens(
           )
           .limit(1);
         if (!tag) return c.json({ error: "no such tag" }, 404);
+        // And the record is this business's too: our tag on another
+        // business's contact is a join row across the two.
+        const [record] = isUuid(entityId)
+          ? await db
+              .select({ id: recordTable.id })
+              .from(recordTable)
+              .where(
+                and(
+                  eq(recordTable.id, entityId),
+                  eq(recordTable.organizationId, orgId),
+                ),
+              )
+              .limit(1)
+          : [];
+        if (!record) return c.json({ error: "no such record" }, 404);
 
         // Tagging something twice is not an error — somebody clicked twice, and
         // a duplicate row would show the same label on the record twice.

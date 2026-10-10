@@ -141,7 +141,11 @@ export function registerReceipts(ctx: ModuleContext) {
       if (!row?.receiptFileKey) return c.json({ error: "not found" }, 404);
 
       const { path, name } = unpackKey(row.receiptFileKey);
-      const file = attachmentFile(path, FOLDER);
+      // Every receipt is stored under its business's own folder, so a key
+      // that points outside it is not this business's file, whatever wrote it.
+      const file = path.startsWith(`${orgId}/`)
+        ? attachmentFile(path, FOLDER)
+        : null;
       if (!file || !(await file.exists())) {
         return c.json({ error: "not found" }, 404);
       }

@@ -6,6 +6,7 @@ import {
   bpToPpm,
   documentTotals,
 } from "@sentrello/db/money";
+import { ownedIds } from "@sentrello/db/owned";
 import {
   asChoice,
   asIdOrNothing,
@@ -210,6 +211,17 @@ export async function prepareDocument(
     if (!found) throw new MoneyError("that tax rate does not exist");
     definitions.set(id, found);
   }
+
+  // A line drawn from the catalogue names an item of this business's, or it
+  // is refused the way an item nobody has is refused.
+  await ownedIds(
+    schema.billableItems,
+    orgId,
+    incoming
+      .map((line) => line.billableItemId)
+      .filter((id) => id !== undefined && id !== null),
+    "billableItemId",
+  );
 
   const lines = incoming.map((line, i) => {
     const description = (

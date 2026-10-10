@@ -556,3 +556,77 @@ test("an archive cannot be restored into a different business", async () => {
     /different business/,
   );
 });
+
+/**
+ * A hand-made archive cannot write into another business's books.
+ *
+ * An archive is checksummed, not signed, and a line carries no organization
+ * of its own — so an archive whose lines name another business's journal
+ * entry was restored straight into that entry. The checksums are recomputed
+ * here, which is all anybody holding the file needs to do.
+ */
+test("an archive's lines cannot be put under another business's entry", async () => {
+  const theirs = (
+    await post(
+      otherOrgId,
+      otherBank,
+      otherSales,
+      4_321,
+      new Date(Date.UTC(2015, 5, 1)),
+    )
+  ).id;
+  const plan = await planArchive(orgId, "ledger", YEAR_2015.from, YEAR_2015.to);
+  const archive = await bytesOf(plan);
+
+  const { readZip, writeZip } = await import("@sentrello/module-sdk");
+  const { createHash } = await import("node:crypto");
+  const members: { name: string; bytes: Uint8Array }[] = [];
+  for await (const m of readZip([archive]))
+    members.push({ name: m.name, bytes: m.bytes });
+  const lines = members.find(
+    (m) => m.name.startsWith("data/") && m.name.includes("journal_lines"),
+  );
+  const manifestMember = members.find((m) => m.name === "manifest.json");
+  if (!lines || !manifestMember) throw new Error("the archive has no lines");
+  const forged = new TextDecoder()
+    .decode(lines.bytes)
+    .split("\n")
+    .filter(Boolean)
+    .map((l) =>
+      JSON.stringify({
+        ...JSON.parse(l),
+        id: crypto.randomUUID(),
+        entry_id: theirs,
+      }),
+    )
+    .join("\n");
+  lines.bytes = new TextEncoder().encode(`${forged}\n`);
+  const manifest = JSON.parse(new TextDecoder().decode(manifestMember.bytes));
+  for (const m of manifest.members) {
+    if (m.name !== lines.name) continue;
+    m.sha256 = createHash("sha256").update(lines.bytes).digest("hex");
+    m.bytes = lines.bytes.length;
+  }
+  manifestMember.bytes = new TextEncoder().encode(JSON.stringify(manifest));
+  const chunks: Uint8Array[] = [];
+  for await (const c of writeZip(members)) chunks.push(c);
+  const tampered = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0));
+  let at = 0;
+  for (const c of chunks) {
+    tampered.set(c, at);
+    at += c.length;
+  }
+
+  const before = await db
+    .select()
+    .from(schema.journalLines)
+    .where(eq(schema.journalLines.entryId, theirs));
+  await expect(restoreArchive(orgId, () => [tampered])).rejects.toThrow(
+    /does not have/,
+  );
+  const after = await db
+    .select()
+    .from(schema.journalLines)
+    .where(eq(schema.journalLines.entryId, theirs));
+  expect(after).toHaveLength(before.length);
+});

@@ -1183,6 +1183,29 @@ export interface Restoration {
  * A row already present is left exactly as it is. Restoring twice changes
  * nothing, and an archive cannot overwrite a record somebody has edited since.
  */
+/**
+ * The columns a restored row may name another table's record by, and that
+ * table. Every one of these tables carries `organization_id`.
+ */
+const POINTS_AT: Record<string, string> = {
+  contact_id: "contacts",
+  vendor_id: "contacts",
+  company_id: "companies",
+  deal_id: "deals",
+  account_id: "accounts",
+  paid_through_account_id: "accounts",
+  tax_definition_id: "tax_definitions",
+  billable_item_id: "billable_items",
+  class_id: "dimensions",
+  location_id: "dimensions",
+  reference_invoice_id: "invoices",
+  invoice_id: "invoices",
+  quote_id: "quotes",
+  bill_id: "bills",
+  entry_id: "journal_entries",
+  template_id: "document_templates",
+};
+
 export async function restoreArchive(
   orgId: string,
   open: () => AsyncIterable<Uint8Array> | Iterable<Uint8Array>,
@@ -1208,6 +1231,24 @@ export async function restoreArchive(
   const inserted = new Map<string, number>();
   let rows = 0;
   let summariesRemoved = 0;
+
+  /*
+   * Whose records the restored rows point at, checked once everything is in.
+   *
+   * The manifest and every row with an organization column are checked as
+   * they are read; a line has no such column, and an archive is checksummed
+   * rather than signed. So a hand-made archive could put lines under another
+   * business's invoice or journal entry, or an invoice naming another
+   * business's customer — one business's records written into another's books.
+   *
+   * A child's parent has to be this business's: an archive's lines always
+   * travel with their parent, so anything else is refused, the same words for
+   * a parent elsewhere and a parent nowhere. A reference out of the set —
+   * a customer, an account — is refused only when it is another business's:
+   * one deleted since the archive was written is a real history and stays.
+   */
+  const theirParents = new Map<string, Set<string>>();
+  const theirReferences = new Map<string, Set<string>>();
 
   await db.transaction(async (tx) => {
     for await (const member of readZip(open())) {
@@ -1237,6 +1278,28 @@ export async function restoreArchive(
         }
       }
 
+      for (const row of payload) {
+        if (table.follows) {
+          const id = row[table.follows.column];
+          const parents =
+            theirParents.get(table.follows.parent) ?? new Set<string>();
+          parents.add(String(id));
+          theirParents.set(table.follows.parent, parents);
+        }
+        for (const [column, target] of Object.entries(POINTS_AT)) {
+          const id = row[column];
+          if (
+            id === null ||
+            id === undefined ||
+            column === table.follows?.column
+          )
+            continue;
+          const ids = theirReferences.get(target) ?? new Set<string>();
+          ids.add(String(id));
+          theirReferences.set(target, ids);
+        }
+      }
+
       const done = await tx.execute(sql`
         insert into ${ident(table.name)}
         select * from jsonb_populate_recordset(null::${ident(table.name)}, ${JSON.stringify(payload)}::jsonb)
@@ -1247,6 +1310,35 @@ export async function restoreArchive(
         tableKey(table),
         (inserted.get(tableKey(table)) ?? 0) + done.length,
       );
+    }
+
+    const listed = (ids: Set<string>) =>
+      sql`array[${sql.join(
+        [...ids].map((id) => sql`${id}`),
+        sql`, `,
+      )}]::text[]`;
+    for (const [parent, ids] of theirParents) {
+      const [{ ours } = { ours: 0 }] = (await tx.execute(sql`
+        select count(*)::int as ours from ${ident(parent)}
+        where id::text = any(${listed(ids)}) and organization_id = ${orgId}
+      `)) as unknown as { ours: number }[];
+      if (Number(ours) !== ids.size) {
+        throw new ArchiveError(
+          "that archive holds records this business does not have",
+        );
+      }
+    }
+    for (const [target, ids] of theirReferences) {
+      const elsewhere = await tx.execute(sql`
+        select 1 from ${ident(target)}
+        where id::text = any(${listed(ids)}) and organization_id <> ${orgId}
+        limit 1
+      `);
+      if (elsewhere.length > 0) {
+        throw new ArchiveError(
+          "that archive holds records belonging to another business",
+        );
+      }
     }
 
     /*

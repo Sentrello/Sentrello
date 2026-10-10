@@ -1431,7 +1431,17 @@ export default defineModule({
          * quote with no customer cannot be sent, shared or converted, and
          * finding that out after it is raised is worse than being told now.
          */
-        const contactId = (deal.contactIds ?? [])[0];
+        // The first of the deal's people who is this business's: a list
+        // stored before its ids were filtered may still name somebody else's.
+        let contactId: string | undefined;
+        for (const id of Array.isArray(deal.contactIds)
+          ? deal.contactIds
+          : []) {
+          if (await ownedContact(orgId, String(id))) {
+            contactId = String(id);
+            break;
+          }
+        }
         if (!contactId) {
           return c.json(
             {
