@@ -300,6 +300,10 @@ A key can never do more than you can:
   whoever is signed in, like your own profile and security settings, turn
   keys away.
 - **It can't make or revoke keys**, even with `settings:update` on it.
+- **It can't let a person in.** Issuing a temporary password, inviting
+  somebody and connecting single sign-on all turn keys away, `settings:update`
+  or not. Each one hands over a person's whole access, and a person's access
+  has none of the key's limits.
 
 Revoking a key, or reaching the end of the day it was set to work until, stops
 it at once. "The end of the day" means the end of that day where your business

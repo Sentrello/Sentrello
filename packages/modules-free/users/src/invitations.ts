@@ -127,6 +127,11 @@ export function registerInvitations(ctx: ModuleContext) {
     async (c) => {
       const session = c.get("session");
       const orgId = activeOrganizationId(session);
+      // Not for a key: an invitation is a new person, with whatever role it
+      // names, and none of the key's limits.
+      if (session.apiKey) {
+        return c.json({ error: "an API key cannot invite anybody" }, 403);
+      }
       const body = (await c.req.json().catch(() => ({}))) as {
         email?: unknown;
         role?: unknown;

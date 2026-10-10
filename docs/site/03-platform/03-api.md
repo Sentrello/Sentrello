@@ -109,6 +109,8 @@ has passed its last day, or was never real gets a **401**. A key without the
 permission a route asks for gets a **403**, exactly as a person would. So does
 a key calling a route that names no permission at all, like the ones that act
 on your own profile, because those are about a person and a key isn't one.
+For the same reason a key can't make keys, issue a password, invite anybody or
+connect single sign-on, whatever its list says.
 
 Cookie sign-in is unchanged by any of this. A browser never adds an
 `Authorization` header by itself, so another website can't make your browser

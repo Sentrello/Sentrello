@@ -670,6 +670,16 @@ export function registerPeople(ctx: ModuleContext) {
       const orgId = activeOrganizationId(session);
       const userId = c.req.param("userId");
 
+      /*
+       * Not for a key. The answer is a password, and a password is a way in
+       * as a person with everything they hold — the owner's access from a key
+       * that carried only `settings:update`. The reason a key cannot make
+       * keys, one door along.
+       */
+      if (session.apiKey) {
+        return c.json({ error: "an API key cannot issue a password" }, 403);
+      }
+
       const [member] = await db
         .select({ id: schema.member.id })
         .from(schema.member)

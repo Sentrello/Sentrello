@@ -145,10 +145,23 @@ async function keyCaller(
    * key carrying only `subscriptions:meter` could otherwise rename the person
    * who made it. Read off the handlers Hono matched for this request, which
    * is where `requirePermission` leaves its mark.
+   *
+   * The very next handler, and only if it belongs to this same route. Hono
+   * matches every route a path fits — `/me` fits `/:id` as well — but runs
+   * only until one answers, so a permission declared on a route registered
+   * beside this one is a permission nobody asks. The handler straight after
+   * this one is the one that runs when it calls `next`, and every route that
+   * names a permission puts it there.
    */
-  const declared = matchedRoutes(c).some((route) =>
-    Boolean((route.handler as unknown as Record<symbol, unknown>)[DECLARES]),
-  );
+  const routes = matchedRoutes(c);
+  const here = routes[c.req.routeIndex];
+  const after = routes[c.req.routeIndex + 1];
+  const declared =
+    here !== undefined &&
+    after !== undefined &&
+    after.method === here.method &&
+    after.path === here.path &&
+    Boolean((after.handler as unknown as Record<symbol, unknown>)[DECLARES]);
   if (!declared) {
     return c.json(
       {

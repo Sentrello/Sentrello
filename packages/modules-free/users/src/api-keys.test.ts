@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { auth } from "@sentrello/auth";
 import { hashApiKey, newApiKey } from "@sentrello/auth/api-keys";
+import { requirePermission, requireSession } from "@sentrello/auth/hono";
 import { memberWith, signUpAsOwner } from "@sentrello/auth/testing";
 import { db, eq, schema } from "@sentrello/db";
 import { dropOrganization } from "@sentrello/db/testing";
@@ -18,6 +19,22 @@ import usersModule from "./index";
 
 const suffix = crypto.randomUUID().slice(0, 8);
 const app = registerForTest(usersModule);
+
+/*
+ * Two routes that share a path, the first acting on whoever is signed in and
+ * the second naming a permission. Hono matches both for `/me` and runs only
+ * the first, so a key must be judged by the route that runs. Registered here
+ * because the router is built on the first request and takes no more after.
+ */
+app.get("/api/keys-probe/me", requireSession(), (c) =>
+  c.json({ reached: "me" }),
+);
+app.get(
+  "/api/keys-probe/:id",
+  requireSession(),
+  requirePermission({ settings: ["read"] }),
+  (c) => c.json({ reached: c.req.param("id") }),
+);
 
 let orgA: string;
 let orgB: string;
@@ -337,4 +354,93 @@ test("guessing keys runs out, and a good key never spends the budget", async () 
   }
   expect(statuses.slice(0, 30).every((s) => s === 401)).toBe(true);
   expect(statuses[30]).toBe(429);
+});
+
+test("a permission on a route that never runs lets no key through", async () => {
+  const made = await makeKey(ownerA, {
+    name: "Neighbour",
+    permissions: { settings: ["read"] },
+  });
+  const { key } = (await made.json()) as { key: string };
+
+  const named = await app.request("/api/keys-probe/abc", {
+    headers: bearer(key),
+  });
+  expect(named.status).toBe(200);
+
+  // `/me` also matches `/:id`, whose permission is declared but never asked:
+  // the handler that answers is the session-only one.
+  const me = await app.request("/api/keys-probe/me", { headers: bearer(key) });
+  expect(me.status).toBe(403);
+});
+
+test("a key stops with its maker, suspended or removed", async () => {
+  const maker = await memberWith({
+    organizationId: orgA,
+    ownerHeaders: ownerA,
+    permission: { settings: ["read", "update"] },
+    email: `keys-leaver-${suffix}@example.test`,
+  });
+  const made = await makeKey(maker.headers, {
+    name: "Leaver's",
+    permissions: { settings: ["read"] },
+  });
+  const { key } = (await made.json()) as { key: string };
+  const call = () => app.request("/api/users/groups", { headers: bearer(key) });
+  expect((await call()).status).toBe(200);
+
+  const mine = eq(schema.member.userId, maker.userId);
+  await db.update(schema.member).set({ disabledAt: new Date() }).where(mine);
+  expect((await call()).status).toBe(401);
+
+  await db.delete(schema.member).where(mine);
+  expect((await call()).status).toBe(401);
+});
+
+test("a key cannot give itself a password to sign in with", async () => {
+  // A temporary password is a way in as a person, with all of that person's
+  // access — the owner's, here — and none of the key's limits.
+  const made = await makeKey(ownerA, {
+    name: "Settings only",
+    permissions: { settings: ["read", "update"] },
+  });
+  const { key } = (await made.json()) as { key: string };
+
+  const reset = await app.request(`/api/users/${ownerAId}/password`, {
+    method: "POST",
+    headers: bearer(key),
+  });
+  expect(reset.status).toBe(403);
+  expect(await reset.text()).not.toContain('password":');
+});
+
+test("a key cannot open another way in as a person", async () => {
+  const made = await makeKey(ownerA, {
+    name: "Doors",
+    permissions: { settings: ["read", "update"] },
+  });
+  const { key } = (await made.json()) as { key: string };
+
+  const sso = await app.request("/api/users/sso", {
+    method: "POST",
+    headers: bearer(key),
+    body: JSON.stringify({
+      kind: "oidc",
+      domain: `doors-${suffix}.example.test`,
+      issuer: "https://idp.example.test",
+      clientId: "id",
+      clientSecret: "secret",
+    }),
+  });
+  expect(sso.status).toBe(403);
+
+  const invite = await app.request("/api/users/invitations", {
+    method: "POST",
+    headers: bearer(key),
+    body: JSON.stringify({
+      email: `doors-${suffix}@example.test`,
+      role: "owner",
+    }),
+  });
+  expect(invite.status).toBe(403);
 });

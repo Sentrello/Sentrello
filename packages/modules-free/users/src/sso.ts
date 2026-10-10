@@ -131,6 +131,11 @@ export function registerSso(ctx: ModuleContext) {
     async (c: RouteContext) => {
       const session = c.get("session");
       const orgId = activeOrganizationId(session);
+      // Not for a key: a provider somebody else runs can sign anybody in,
+      // the owner included, with none of the key's limits.
+      if (session.apiKey) {
+        return c.json({ error: "an API key cannot connect a sign-in" }, 403);
+      }
       const body = (await c.req.json().catch(() => ({}))) as Record<
         string,
         unknown
