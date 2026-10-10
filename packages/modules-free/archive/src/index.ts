@@ -10,7 +10,11 @@ import {
   restoreArchive,
   retentionYears,
 } from "@sentrello/db/archive";
-import { asFlag, asTextOrNothing } from "@sentrello/db/request-values";
+import {
+  asChoice,
+  asFlag,
+  asTextOrNothing,
+} from "@sentrello/db/request-values";
 import {
   type RouteContext,
   allowLongRequest,
@@ -81,12 +85,12 @@ function periodOf(
   value: unknown,
 ): { from: Date; to: Date } | { error: string } {
   const body = (value ?? {}) as { from?: unknown; to?: unknown };
-  const month = (input: unknown) =>
-    typeof input === "string" && /^\d{4}-\d{2}$/.test(input.trim())
-      ? input.trim()
-      : null;
-  const first = month(body.from);
-  const last = month(body.to);
+  const month = (input: unknown, field: string) => {
+    const text = asTextOrNothing(input, field)?.trim() ?? "";
+    return /^\d{4}-\d{2}$/.test(text) ? text : null;
+  };
+  const first = month(body.from, "from");
+  const last = month(body.to, "to");
   if (!first || !last) {
     return { error: "a period is two months, like 2019-01 and 2019-12" };
   }
@@ -104,6 +108,7 @@ function periodOf(
 }
 
 const MAX_RESTORE_BYTES = 512 * 1024 * 1024;
+const MODES = ["inspect", "restore"] as const;
 
 export default defineModule({
   id: "archive",
@@ -378,7 +383,8 @@ export default defineModule({
             413,
           );
         }
-        const inspecting = String(form?.get("mode") ?? "inspect") !== "restore";
+        const inspecting =
+          asChoice(form?.get("mode"), "mode", MODES, "inspect") === "inspect";
 
         const open = () =>
           file.stream() as unknown as AsyncIterable<Uint8Array>;

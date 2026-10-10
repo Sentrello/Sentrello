@@ -5,6 +5,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { and, db, eq, schema } from "@sentrello/db";
+import { asTextOrNothing } from "@sentrello/db/request-values";
 import { record } from "@sentrello/db/security-events";
 import { asText } from "@sentrello/db/text-columns";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
@@ -61,8 +62,9 @@ const isKind = (value: unknown): value is Kind =>
   typeof value === "string" && value in KINDS;
 
 /** A domain, as somebody would type it: `example.com`, never an address. */
-export function cleanDomain(input: unknown): string | null {
-  const raw = String(input ?? "")
+export function cleanDomain(input: unknown, field = "domain"): string | null {
+  // Text or a 400: `String({})` read as a domain that is not one.
+  const raw = (asTextOrNothing(input, field) ?? "")
     .trim()
     .toLowerCase()
     .replace(/^https?:\/\//, "")
@@ -296,7 +298,7 @@ export function registerSso(ctx: ModuleContext) {
    */
   ctx.app.post("/api/users/sso/check", async (c: RouteContext) => {
     const body = (await c.req.json().catch(() => ({}))) as { email?: unknown };
-    const domain = cleanDomain(body.email);
+    const domain = cleanDomain(body.email, "email");
     if (!domain) return c.json({ sso: false });
 
     const [found] = await db

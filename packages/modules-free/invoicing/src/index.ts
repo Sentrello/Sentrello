@@ -50,7 +50,12 @@ import {
   ensurePortalToken,
   moneyLocale,
 } from "@sentrello/db/portal";
-import { asTextOrNothing } from "@sentrello/db/request-values";
+import {
+  asFlag,
+  asTextOrNothing,
+  asWholeNumber,
+  asWholeNumberOrNothing,
+} from "@sentrello/db/request-values";
 import { asText } from "@sentrello/db/text-columns";
 import { dayFrom, demandDay } from "@sentrello/db/timezone";
 import { timezoneFor } from "@sentrello/db/timezone";
@@ -343,11 +348,9 @@ export default defineModule({
           string,
           unknown
         >;
-        const { contactId, currency, dueDate } = body as {
-          contactId?: string;
-          currency?: string;
-          dueDate?: string;
-        };
+        const { contactId } = body as { contactId?: string };
+        const currency = asTextOrNothing(body.currency, "currency");
+        const dueDate = asTextOrNothing(body.dueDate, "dueDate");
 
         // A customer may be left off a draft, but a named one has to be this
         // business's — an unverified id here becomes a read of, and an email
@@ -379,9 +382,7 @@ export default defineModule({
          * currency nobody had chosen. Three of our four markets, turned away
          * by a fallback. Found 2026-09-27.
          */
-        const documentCurrency = String(
-          currency ?? (await baseCurrency(orgId)),
-        );
+        const documentCurrency = currency || (await baseCurrency(orgId));
 
         const rateMicro = await rateOn(orgId, documentCurrency, new Date());
         if (rateMicro === null) {
@@ -454,7 +455,7 @@ export default defineModule({
         }
         // A day, read the way the edit reads it. A bare `new Date` took
         // `["500"]` as the first of January in the year 500.
-        const due = typeof dueDate === "string" ? dayFrom(dueDate) : null;
+        const due = dueDate ? dayFrom(dueDate) : null;
         if (dueDate && !due) {
           return c.json({ error: "unreadable due date" }, 400);
         }
@@ -616,13 +617,25 @@ export default defineModule({
       async (c) => {
         const orgId = activeOrganizationId(c.get("session"));
         const invoiceId = c.req.param("id");
-        const {
-          amountCents,
-          method,
-          gatewayRef,
-          receivedAt,
-          applyEarlyDiscount,
-        } = await c.req.json();
+        /*
+         * Each read and checked before anything is written. These came out of
+         * the body by destructuring, under names no sweep knew to look at, so
+         * `{}` for a method was handed to the insert and chose the Cash
+         * account on the way, and `{}` for the discount was a quiet no.
+         */
+        const body = (await c.req.json().catch(() => ({}))) as Record<
+          string,
+          unknown
+        >;
+        const amountCents = body.amountCents;
+        const method = asTextOrNothing(body.method, "method");
+        const gatewayRef = asTextOrNothing(body.gatewayRef, "gatewayRef");
+        const receivedAt = asTextOrNothing(body.receivedAt, "receivedAt");
+        const applyEarlyDiscount = asFlag(
+          body.applyEarlyDiscount,
+          "applyEarlyDiscount",
+          false,
+        );
         /**
          * When the money actually arrived, which is not always today.
          *
@@ -632,15 +645,15 @@ export default defineModule({
          */
         // Text or nothing: `new Date(["500"])` is the year 500, a payment
         // received fifteen centuries before the invoice was raised.
-        const received = !receivedAt
-          ? new Date()
-          : typeof receivedAt === "string"
-            ? new Date(receivedAt)
-            : new Date(Number.NaN);
+        const received = !receivedAt ? new Date() : new Date(receivedAt);
         if (Number.isNaN(received.getTime())) {
           return c.json({ error: "unreadable date" }, 400);
         }
-        if (!Number.isInteger(amountCents) || amountCents <= 0) {
+        if (
+          typeof amountCents !== "number" ||
+          !Number.isInteger(amountCents) ||
+          amountCents <= 0
+        ) {
           return c.json(
             { error: "amountCents must be a positive integer" },
             400,
@@ -721,7 +734,7 @@ export default defineModule({
           received,
           await timezoneFor(orgId),
         );
-        const takingIt = applyEarlyDiscount === true;
+        const takingIt = applyEarlyDiscount;
         if (takingIt && !terms.deadline) {
           return c.json(
             { error: "this invoice offers no early-payment discount" },
@@ -815,7 +828,7 @@ export default defineModule({
         // for a transfer or a cheque. It was Cash whatever the method said.
         const [cash, ar] = await Promise.all([
           moneyAccount(orgId, {
-            method: typeof method === "string" ? method : null,
+            method,
           }),
           ensureAccount(orgId, CORE_ACCOUNTS.accountsReceivable),
         ]);
@@ -969,7 +982,7 @@ export default defineModule({
             {
               tx,
               day:
-                typeof receivedAt === "string" &&
+                receivedAt !== null &&
                 /^\d{4}-\d{2}-\d{2}$/.test(receivedAt.trim()),
             },
           );
@@ -1270,11 +1283,9 @@ export default defineModule({
           string,
           unknown
         >;
-        const { contactId, currency, validUntil } = body as {
-          contactId?: string;
-          currency?: string;
-          validUntil?: string;
-        };
+        const { contactId } = body as { contactId?: string };
+        const currency = asTextOrNothing(body.currency, "currency");
+        const validUntil = asTextOrNothing(body.validUntil, "validUntil");
 
         // Same rule as an invoice: a named customer has to be one of ours.
         if (contactId && !(await ownedContact(orgId, contactId))) {
@@ -1296,9 +1307,7 @@ export default defineModule({
          * promise the business cannot keep, and finding that out after the
          * customer has agreed to it is the worst moment to find it out.
          */
-        const documentCurrency = String(
-          currency ?? (await baseCurrency(orgId)),
-        );
+        const documentCurrency = currency || (await baseCurrency(orgId));
         if ((await rateOn(orgId, documentCurrency, new Date())) === null) {
           return c.json(
             {
@@ -1990,12 +1999,16 @@ export default defineModule({
           instalments?: unknown;
         };
         if (Array.isArray(body.instalments) && body.instalments.length > 0) {
-          const plan = body.instalments.map((part) => {
+          // Each read or refused by name: `Number([])` was a share of 0, and
+          // `{}` a stage labelled "[object Object]".
+          const plan = body.instalments.map((part, i) => {
             const one = (part ?? {}) as Record<string, unknown>;
+            const at = `instalments[${i}]`;
             return {
-              shareBp: Number(one.shareBp),
-              dueInDays: Number(one.dueInDays) || 0,
-              label: one.label ? String(one.label) : undefined,
+              shareBp: asWholeNumber(one.shareBp, `${at}.shareBp`),
+              dueInDays:
+                asWholeNumberOrNothing(one.dueInDays, `${at}.dueInDays`) ?? 0,
+              label: asTextOrNothing(one.label, `${at}.label`) || undefined,
             };
           });
           const result = await convertQuoteToInstalments(

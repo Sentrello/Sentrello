@@ -7,7 +7,12 @@ import { NO_MAIL_SERVER, mailConfigured } from "@sentrello/email";
 import { defineModule, rateLimit } from "@sentrello/module-sdk";
 import { and, desc, eq } from "drizzle-orm";
 import { type Columns, normalizeColumns } from "./columns";
-import { DEFAULTS, type Preferences, normalize } from "./preferences";
+import {
+  DEFAULTS,
+  type Preferences,
+  checkPreferences,
+  normalize,
+} from "./preferences";
 
 /**
  * Your own account.
@@ -135,7 +140,13 @@ export default defineModule({
         preferences?: unknown;
       };
 
+      // Both read before either is written: a refused preference used to
+      // arrive after the name had already been saved.
       const name = asTextOrNothing(body.name, "name")?.trim();
+      const preferences =
+        body.preferences === undefined || body.preferences === null
+          ? await readPreferences(orgId, session.user.id)
+          : checkPreferences(body.preferences);
       if (name) {
         await db
           .update(schema.user)
@@ -143,9 +154,6 @@ export default defineModule({
           .where(eq(schema.user.id, session.user.id));
       }
 
-      const preferences = normalize(
-        body.preferences ?? (await readPreferences(orgId, session.user.id)),
-      );
       await db
         .insert(schema.userPreferences)
         .values({

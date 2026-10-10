@@ -78,6 +78,15 @@ beforeAll(async () => {
     provide: () => {},
     registerJob: () => {},
   });
+  // The host's answer to a refusal that names its status, as registerForTest
+  // gives every other module's tests: a field refused by name is a 400.
+  app.onError((err, c) => {
+    const status = (err as { status?: unknown }).status;
+    if (typeof status === "number" && status >= 400 && status < 500) {
+      return c.json({ error: err.message }, status as 400);
+    }
+    return c.text("Internal Server Error", 500);
+  });
 
   const signUp = await signUpAsOwner({
     email,
@@ -295,6 +304,40 @@ test("a non-integer or negative payment is rejected", async () => {
     );
     expect(res.status).toBe(400);
   }
+});
+
+/**
+ * The payment's fields were taken out of the body by destructuring, under
+ * names nothing checked. `{}` for the method chose the Cash account on the way
+ * to the insert, and `{}` for the early-payment discount was a quiet no.
+ */
+test("a payment's method, reference, date or discount of the wrong type is refused", async () => {
+  const { body } = await createInvoice([
+    { description: "Shapes", quantity: 1, unitPrice: 1000, taxRateBp: 0 },
+  ]);
+  const cases: Array<[Record<string, unknown>, string]> = [
+    [{ method: {} }, "method"],
+    [{ gatewayRef: ["ref"] }, "gatewayRef"],
+    [{ receivedAt: ["2026-01-01"] }, "receivedAt"],
+    [{ applyEarlyDiscount: "yes" }, "applyEarlyDiscount"],
+  ];
+  for (const [extra, field] of cases) {
+    const res = await app.request(
+      `http://localhost/api/invoices/${body.invoice.id}/payments`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ amountCents: 500, ...extra }),
+      },
+    );
+    expect([field, res.status]).toEqual([field, 400]);
+    expect(((await res.json()) as { error: string }).error).toContain(field);
+  }
+  const payments = await db
+    .select()
+    .from(schema.payments)
+    .where(eq(schema.payments.invoiceId, body.invoice.id));
+  expect(payments).toHaveLength(0);
 });
 
 test("an overpayment is refused by default, with a useful message, and nothing is recorded", async () => {

@@ -5,6 +5,7 @@ import {
 } from "@sentrello/auth/hono";
 import { and, db, desc, eq, schema } from "@sentrello/db";
 import { dayIn, dayOf } from "@sentrello/db/day";
+import { asIdOrNothing, asTextOrNothing } from "@sentrello/db/request-values";
 import { asText } from "@sentrello/db/text-columns";
 import { dayFrom, timezoneFor } from "@sentrello/db/timezone";
 import type { ModuleContext } from "@sentrello/module-sdk";
@@ -149,8 +150,13 @@ export async function exemptionForInvoice(
   certificateId: unknown,
   issueDate: Date,
 ): Promise<string | null> {
-  if (certificateId === undefined || certificateId === null) return null;
-  const id = String(certificateId).trim();
+  // An id or a 400 naming it: `String({})` reached the uuid column as
+  // "[object Object]" and the database's refusal answered with a 500.
+  const field = "exemptionCertificateId";
+  const id = asIdOrNothing(
+    asTextOrNothing(certificateId, field)?.trim(),
+    field,
+  );
   if (!id) return null;
 
   if (!contactId) {

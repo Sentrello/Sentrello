@@ -21,6 +21,7 @@ import { RATE_SCALE, toBaseCents } from "./currency";
 import { dayIn, dayOf } from "./day";
 import { db, schema } from "./index";
 import { sumCents } from "./money";
+import { asIdOrNothing } from "./request-values";
 import { recordSalePlace } from "./sale-place";
 import {
   UnreadableDateError,
@@ -575,6 +576,7 @@ export async function accountingValues(
     await accountingFieldsFor(organizationId),
     subject,
     input,
+    "custom",
   );
 }
 
@@ -605,13 +607,16 @@ export async function ownedDimension(
   kind: DimensionKind,
   id: unknown,
 ): Promise<string | null | "unknown"> {
-  if (id === undefined || id === null || id === "") return null;
+  // An id or a 400 naming the field: `String({})` reached a uuid column as
+  // "[object Object]" and the database answered with a 500.
+  const wanted = asIdOrNothing(id, `${kind}Id`);
+  if (wanted === null) return null;
   const [row] = await db
     .select({ id: schema.dimensions.id })
     .from(schema.dimensions)
     .where(
       and(
-        eq(schema.dimensions.id, String(id)),
+        eq(schema.dimensions.id, wanted),
         eq(schema.dimensions.organizationId, organizationId),
         eq(schema.dimensions.kind, kind),
       ),

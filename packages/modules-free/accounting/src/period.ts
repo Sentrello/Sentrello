@@ -5,6 +5,7 @@ import {
 } from "@sentrello/auth/hono";
 import { db, eq, schema } from "@sentrello/db";
 import { closedThrough } from "@sentrello/db/ledger";
+import { asTextOrNothing } from "@sentrello/db/request-values";
 import { dayFrom } from "@sentrello/db/timezone";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 
@@ -67,7 +68,9 @@ export function registerPeriodLock(ctx: ModuleContext) {
       // mistake, and a mistake that silently cleared the lock would be the
       // worst of the three outcomes.
       const wanted =
-        body.closedThrough === null ? null : dayFrom(body.closedThrough);
+        body.closedThrough === null
+          ? null
+          : dayFrom(asTextOrNothing(body.closedThrough, "closedThrough"));
       if (body.closedThrough !== null && !wanted) {
         return c.json({ error: "a date looks like 2026-03-31" }, 400);
       }

@@ -92,16 +92,17 @@ export function validateTemplate(body: Record<string, unknown>): {
   );
   const layout = asChoice(body.layout, "layout", LAYOUT_NAMES, "classic");
 
-  const text = (value: unknown) =>
-    typeof value === "string" && value.trim() !== "" ? value.trim() : null;
+  // Text or a 400: `{}` for a note was read as no note, and wiped it.
+  const text = (value: unknown, field: string) =>
+    asTextOrNothing(value, field)?.trim() || null;
 
   return {
     values: {
       name,
       appliesTo,
       accentColor: validColour(body.accentColor),
-      headerNote: text(body.headerNote),
-      footerNote: text(body.footerNote),
+      headerNote: text(body.headerNote, "headerNote"),
+      footerNote: text(body.footerNote, "footerNote"),
       paperSize,
       layout,
     },

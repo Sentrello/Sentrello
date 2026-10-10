@@ -10,9 +10,10 @@ import { parseDate } from "./transactions";
  */
 test("a list or an object where a transaction's day belongs is refused", () => {
   const today = new Date("2026-10-09T00:00:00.000Z");
-  expect(parseDate(["2026-03-04"], today)).toBeNull();
-  expect(parseDate({}, today)).toBeNull();
-  expect(parseDate([], today)).toBeNull();
+  for (const wrong of [["2026-03-04"], {}, []]) {
+    expect(() => parseDate(wrong, today)).toThrow("occurredAt");
+  }
+  expect(parseDate("the 4th", today)).toBeNull();
   expect(parseDate("2026-03-04", today)?.toISOString()).toBe(
     "2026-03-04T00:00:00.000Z",
   );

@@ -16,7 +16,11 @@ import {
   taggingFrom,
 } from "@sentrello/db/ledger";
 import { sumCents } from "@sentrello/db/money";
-import { RequestFieldError, asIdOrNothing } from "@sentrello/db/request-values";
+import {
+  RequestFieldError,
+  asIdOrNothing,
+  asTextOrNothing,
+} from "@sentrello/db/request-values";
 import { asText } from "@sentrello/db/text-columns";
 import { dayFrom, demandDate, timezoneFor } from "@sentrello/db/timezone";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
@@ -104,9 +108,14 @@ export function sourceOf(kind: TransactionKind, id: string): string {
  * a month the business had not traded in. `today` is the business's, from
  * `dayIn` — the caller knows which business, this does not.
  */
-export function parseDate(value: unknown, today: Date): Date | null {
+export function parseDate(
+  value: unknown,
+  today: Date,
+  field = "occurredAt",
+): Date | null {
   if (value === undefined || value === null || value === "") return today;
-  return dayFrom(value);
+  // A list or an object is refused naming the field, not read as unreadable.
+  return dayFrom(asTextOrNothing(value, field));
 }
 
 async function defaultCategory(

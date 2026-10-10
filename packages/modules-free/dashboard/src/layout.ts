@@ -1,4 +1,8 @@
 import { db, schema } from "@sentrello/db";
+import {
+  RequestFieldError,
+  asTextOrNothing,
+} from "@sentrello/db/request-values";
 import type { ModuleWidget, RegisteredWidget } from "@sentrello/module-sdk";
 import { allSummaries, allWidgets, scopedId } from "@sentrello/module-sdk";
 import { and, eq } from "drizzle-orm";
@@ -288,6 +292,39 @@ function moduleTabs(widgets: RegisteredWidget[]): Tab[] {
     name: group[0]?.label ?? "Module",
     widgets: group.map((w) => w.key),
   }));
+}
+
+/**
+ * A layout from a request: each tab has to be an object, its name text and its
+ * panels a list of words, or the request is refused naming the part. The
+ * stored reader below forgives — a row is what an older version wrote — and
+ * this was it too, so `{}` for a name became "Tab 2" and `{}` for the whole
+ * layout reset the business's screen, with a 200 both times.
+ */
+export function layoutFrom(input: unknown): Tab[] {
+  if (input === undefined || input === null) return [];
+  if (!Array.isArray(input)) {
+    throw new RequestFieldError("tabs", "tabs has to be a list.");
+  }
+  const checked = input.map((raw, i) => {
+    const at = `tabs[${i}]`;
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      throw new RequestFieldError(at, `${at} has to be a tab.`);
+    }
+    const tab = raw as { name?: unknown; widgets?: unknown };
+    const widgets = tab.widgets ?? [];
+    if (!Array.isArray(widgets)) {
+      throw new RequestFieldError(
+        `${at}.widgets`,
+        `${at}.widgets has to be a list.`,
+      );
+    }
+    return {
+      name: asTextOrNothing(tab.name, `${at}.name`),
+      widgets: widgets.map((w, j) => asTextOrNothing(w, `${at}.widgets[${j}]`)),
+    };
+  });
+  return normalizeLayout(checked);
 }
 
 /**

@@ -677,8 +677,10 @@ export default defineModule({
 
         // These reach customers on every invoice, so they are bounded rather
         // than trusted: an address is a few lines, not a document.
+        // Text or a 400 naming it: `String({})` put "[object Object]" on
+        // every invoice as the business's address.
         const text = (value: unknown, limit: number, field: string) => {
-          const trimmed = String(value ?? "").trim();
+          const trimmed = (asTextOrNothing(value, field) ?? "").trim();
           if (trimmed.length > limit) throw new RangeError(field);
           return trimmed || null;
         };

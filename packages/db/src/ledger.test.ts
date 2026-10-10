@@ -212,6 +212,17 @@ test("ownedDimension — this business's own class, a stranger's id, and no id a
   expect(await ownedDimension(orgId, "class", undefined)).toBeNull();
 });
 
+test("ownedDimension refuses what is not an id, naming the field", async () => {
+  // `String({})` reached the uuid column as "[object Object]", and the
+  // database's refusal of that answered the caller with a 500.
+  for (const wrong of [{}, ["x"], 7, "kitchen"]) {
+    const refused = await ownedDimension(orgId, "location", wrong).catch(
+      (e: unknown) => e,
+    );
+    expect(refused).toMatchObject({ status: 400, field: "locationId" });
+  }
+});
+
 test("taggingFrom — refused as a pair, not quietly half-accepted", async () => {
   const ok = await taggingFrom(orgId, { classId: kitchenId });
   expect(ok).toEqual({ classId: kitchenId, locationId: null });

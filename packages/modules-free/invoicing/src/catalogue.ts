@@ -6,6 +6,7 @@ import {
 import { and, asc, db, eq, schema } from "@sentrello/db";
 import { baseCurrency } from "@sentrello/db/currency";
 import {
+  RequestFieldError,
   asChoice,
   asFlag,
   asIdOrNothing,
@@ -245,18 +246,30 @@ export const DEFAULT_UNITS = [
 /**
  * A term is a name and a number of days, and nothing else.
  *
- * Anything unreadable falls back to the list everybody starts with rather than
- * being saved as-is: this drives a select on the invoice form, and a malformed
- * entry there is a business unable to pick any terms at all.
+ * Nothing sent keeps the list everybody starts with. Something of the wrong
+ * shape is refused naming it — it used to fall back to that list too, so a
+ * business that sent its terms as an object lost every term it had and was
+ * told it saved. An entry with no name, or days out of range, is still left
+ * out: this drives a select on the invoice form.
  */
 function cleanTerms(given: unknown): { label: string; days: number }[] {
-  if (!Array.isArray(given)) return DEFAULT_PAYMENT_TERMS;
+  if (given === undefined || given === null) return DEFAULT_PAYMENT_TERMS;
+  if (!Array.isArray(given)) {
+    throw new RequestFieldError(
+      "paymentTermOptions",
+      "paymentTermOptions has to be a list.",
+    );
+  }
   const out: { label: string; days: number }[] = [];
-  for (const entry of given.slice(0, 20)) {
-    if (!entry || typeof entry !== "object") continue;
-    const label = String((entry as { label?: unknown }).label ?? "").trim();
-    const days = Number((entry as { days?: unknown }).days);
-    if (!label || !Number.isInteger(days) || days < 0 || days > 365) continue;
+  for (const [i, entry] of given.slice(0, 20).entries()) {
+    const at = `paymentTermOptions[${i}]`;
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      throw new RequestFieldError(at, `${at} has to be a label and days.`);
+    }
+    const term = entry as { label?: unknown; days?: unknown };
+    const label = (asTextOrNothing(term.label, `${at}.label`) ?? "").trim();
+    const days = asWholeNumberOrNothing(term.days, `${at}.days`);
+    if (!label || days === null || days < 0 || days > 365) continue;
     out.push({ label: label.slice(0, 60), days });
   }
   return out;
@@ -264,11 +277,14 @@ function cleanTerms(given: unknown): { label: string; days: number }[] {
 
 /** Units, trimmed and deduplicated — "hour" and "Hour" are one unit. */
 function cleanUnits(given: unknown): string[] {
-  if (!Array.isArray(given)) return DEFAULT_UNITS;
+  if (given === undefined || given === null) return DEFAULT_UNITS;
+  if (!Array.isArray(given)) {
+    throw new RequestFieldError("units", "units has to be a list.");
+  }
   const seen = new Set<string>();
   const out: string[] = [];
-  for (const entry of given.slice(0, 40)) {
-    const unit = String(entry ?? "")
+  for (const [i, entry] of given.slice(0, 40).entries()) {
+    const unit = (asTextOrNothing(entry, `units[${i}]`) ?? "")
       .trim()
       .slice(0, 30);
     if (!unit || seen.has(unit.toLowerCase())) continue;

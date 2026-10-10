@@ -207,6 +207,21 @@ test("settings are not readable without a session", async () => {
  * by transfer whose invoices omit its bank details answers "where do I send
  * this?" on every one. These are stored so the portal footer can carry them.
  */
+/**
+ * An address that is not text is refused, naming it. `String({})` put the
+ * words "[object Object]" on every invoice as where the business is, and the
+ * screen was told it saved.
+ */
+test("an address sent as an object is refused, not printed on invoices", async () => {
+  const res = await app.request("http://localhost/api/settings", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ name: "Wierzbicki Tiling", address: { line: 1 } }),
+  });
+  expect(res.status).toBe(400);
+  expect(((await res.json()) as { error: string }).error).toContain("address");
+});
+
 test("the business can record its address, tax number and payment details", async () => {
   const res = await app.request("http://localhost/api/settings", {
     method: "PUT",

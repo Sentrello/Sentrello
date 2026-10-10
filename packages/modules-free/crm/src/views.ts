@@ -4,6 +4,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { db, schema } from "@sentrello/db";
+import { asChoice, asTextOrNothing } from "@sentrello/db/request-values";
 import { asText } from "@sentrello/db/text-columns";
 import type {
   ModuleContext,
@@ -94,28 +95,34 @@ async function mayUse(headers: Headers, resource: string): Promise<boolean> {
 /**
  * The stored state, reduced to what the list machinery actually sends.
  *
- * Stored as data and replayed into a query string later, so anything that is
- * not a plain string in a known slot is dropped rather than kept — a view is
- * somebody's saved filters, not a place to park a payload.
+ * Stored as data and replayed into a query string later, so only known slots
+ * are kept — a view is somebody's saved filters, not a place to park a
+ * payload. A known slot holding the wrong type is refused naming it; it was
+ * dropped, so `{}` for the search saved a view without one and answered 201.
  */
 function cleanView(raw: unknown): Record<string, unknown> {
   const source = (raw ?? {}) as Record<string, unknown>;
   const out: Record<string, unknown> = {};
-  if (typeof source.q === "string") out.q = source.q.slice(0, 200);
-  if (typeof source.sort === "string") out.sort = source.sort.slice(0, 60);
-  if (source.order === "asc" || source.order === "desc") {
-    out.order = source.order;
+  const q = asTextOrNothing(source.q, "view.q");
+  if (q !== null) out.q = q.slice(0, 200);
+  const sort = asTextOrNothing(source.sort, "view.sort");
+  if (sort !== null) out.sort = sort.slice(0, 60);
+  if (
+    source.order !== undefined &&
+    source.order !== null &&
+    source.order !== ""
+  ) {
+    out.order = asChoice(source.order, "view.order", ["asc", "desc"]);
   }
-  if (typeof source.groupBy === "string") {
-    out.groupBy = source.groupBy.slice(0, 60);
-  }
+  const groupBy = asTextOrNothing(source.groupBy, "view.groupBy");
+  if (groupBy !== null) out.groupBy = groupBy.slice(0, 60);
   if (source.filters && typeof source.filters === "object") {
     const filters: Record<string, string> = {};
     for (const [key, value] of Object.entries(
       source.filters as Record<string, unknown>,
     ).slice(0, 20)) {
-      if (typeof value === "string")
-        filters[key.slice(0, 60)] = value.slice(0, 200);
+      const text = asTextOrNothing(value, `view.filters.${key}`);
+      if (text !== null) filters[key.slice(0, 60)] = text.slice(0, 200);
     }
     out.filters = filters;
   }

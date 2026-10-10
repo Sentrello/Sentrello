@@ -107,6 +107,36 @@ test("preferences survive a save", async () => {
 });
 
 /**
+ * The same nonsense from a request is refused, naming the field — and refused
+ * before anything is written. The body went to the lenient reader for stored
+ * rows, so an unknown timezone was saved as "the browser decides", a list for
+ * one as the same, and the caller was told 200; the name beside it had
+ * already been saved by then.
+ */
+test("a preference nobody could have chosen is refused, and nothing is saved", async () => {
+  const cases: Array<[Record<string, unknown>, string]> = [
+    [{ timezone: "Mars/Olympus" }, "preferences.timezone"],
+    [{ timezone: {} }, "preferences.timezone"],
+    [{ dateFormat: "swedish" }, "preferences.dateFormat"],
+    [{ currency: ["GBP"] }, "preferences.currency"],
+    [{ landingPage: "../../etc/passwd" }, "preferences.landingPage"],
+    [{ workingHours: { days: [9] } }, "preferences.workingHours.days"],
+    [{ workingHours: { start: 9 } }, "preferences.workingHours.start"],
+  ];
+  for (const [preferences, field] of cases) {
+    const res = await app.request("http://localhost/api/profile", {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ name: "Not Saved", preferences }),
+    });
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: string }).error).toContain(field);
+  }
+  const body = (await get()) as { user: { name: string } };
+  expect(body.user.name).not.toBe("Not Saved");
+});
+
+/**
  * These values are interpolated into dates, money and a landing route. A
  * timezone nobody checked throws inside `Intl` on somebody else's screen.
  */

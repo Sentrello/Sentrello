@@ -75,13 +75,36 @@ test("each value is what its field says it is", () => {
   ).toEqual({ units: 12, vip: true, surveyed_on: "2026-04-05" });
 
   // "about thirty" in a number field would come back as NaN and take every
-  // total that touched it with it.
-  expect(
+  // total that touched it with it. It was dropped, and the caller told it
+  // saved; now it is refused, naming the field.
+  expect(() =>
     coerceCustomValues(fields, "contact", { units: "about thirty" }),
-  ).toEqual({});
-  expect(
+  ).toThrow("customValues.units");
+  expect(() =>
     coerceCustomValues(fields, "contact", { surveyed_on: "soon" }),
-  ).toEqual({});
+  ).toThrow("customValues.surveyed_on");
+});
+
+test("a value of the wrong type is refused, not coerced", () => {
+  // `{}` was stored as "[object Object]", `[]` as 0, `{}` in a box as no.
+  const cases: Array<[Record<string, unknown>, string]> = [
+    [{ boiler_model: {} }, "customValues.boiler_model"],
+    [{ units: [] }, "customValues.units"],
+    [{ vip: {} }, "customValues.vip"],
+    [{ access: ["Key safe"] }, "customValues.access"],
+  ];
+  for (const [input, field] of cases) {
+    let refused: unknown;
+    try {
+      coerceCustomValues(fields, "contact", input);
+    } catch (e) {
+      refused = e;
+    }
+    expect(refused).toMatchObject({ status: 400, field });
+  }
+  expect(() => coerceCustomValues(fields, "contact", ["x"])).toThrow(
+    "customValues",
+  );
 });
 
 test("a list only accepts what is on the list", () => {
@@ -90,9 +113,9 @@ test("a list only accepts what is on the list", () => {
       access: "Key safe",
     },
   );
-  expect(
+  expect(() =>
     coerceCustomValues(fields, "contact", { access: "Through the window" }),
-  ).toEqual({});
+  ).toThrow("customValues.access");
 });
 
 test("clearing a field stores nothing rather than the word nothing", () => {

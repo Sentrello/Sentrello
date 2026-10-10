@@ -15,6 +15,7 @@ import {
 } from "@sentrello/auth/hono";
 import { and, db, eq, schema } from "@sentrello/db";
 import { DEFAULT_LOST_STAGES, DEFAULT_WON_STAGES } from "@sentrello/db/crm";
+import { asTextOrNothing } from "@sentrello/db/request-values";
 import type { CustomField, ModuleContext } from "@sentrello/module-sdk";
 
 /** What a pipeline looks like before anybody has said otherwise. */
@@ -128,13 +129,20 @@ export function parseStages(input: unknown): Stage[] {
   }
 
   const seen = new Set<string>();
-  return input.map((raw) => {
-    const label = String((raw as { label?: unknown })?.label ?? "")
+  return input.map((raw, i) => {
+    const label = (
+      asTextOrNothing(
+        (raw as { label?: unknown })?.label,
+        `stages[${i}].label`,
+      ) ?? ""
+    )
       .trim()
       .slice(0, 40);
     if (!label) throw new RangeError("every stage needs a name");
 
-    const given = String((raw as { id?: unknown })?.id ?? "").trim();
+    const given = (
+      asTextOrNothing((raw as { id?: unknown })?.id, `stages[${i}].id`) ?? ""
+    ).trim();
     const id = given ? given.slice(0, 40) : stageId(label);
     if (seen.has(id)) {
       throw new RangeError(`there are two stages called "${label}"`);
@@ -152,8 +160,8 @@ export function parseTaskTypes(input: unknown): string[] {
   const types = [
     ...new Set(
       input
-        .map((raw) =>
-          String(raw ?? "")
+        .map((raw, i) =>
+          (asTextOrNothing(raw, `taskTypes[${i}]`) ?? "")
             .trim()
             .toLowerCase()
             .slice(0, 30),
@@ -172,8 +180,8 @@ interface ContactStatus {
 }
 
 /** A colour the browser sent, or nothing. Never interpolated into a style. */
-function parseColor(raw: unknown, fallback: string): string {
-  const value = String(raw ?? "").trim();
+function parseColor(raw: unknown, fallback: string, field: string): string {
+  const value = (asTextOrNothing(raw, field) ?? "").trim();
   return /^#[0-9a-f]{6}$/i.test(value) ? value : fallback;
 }
 
@@ -186,11 +194,21 @@ export function parseContactStatuses(input: unknown): ContactStatus[] {
 
   const seen = new Set<string>();
   return input.map((raw, i) => {
-    const label = String((raw as { label?: unknown })?.label ?? "")
+    const label = (
+      asTextOrNothing(
+        (raw as { label?: unknown })?.label,
+        `contactStatuses[${i}].label`,
+      ) ?? ""
+    )
       .trim()
       .slice(0, 40);
     if (!label) throw new RangeError("every status needs a name");
-    const given = String((raw as { id?: unknown })?.id ?? "").trim();
+    const given = (
+      asTextOrNothing(
+        (raw as { id?: unknown })?.id,
+        `contactStatuses[${i}].id`,
+      ) ?? ""
+    ).trim();
     const id = given ? given.slice(0, 40) : stageId(label);
     if (seen.has(id)) {
       throw new RangeError(`there are two statuses called "${label}"`);
@@ -203,6 +221,7 @@ export function parseContactStatuses(input: unknown): ContactStatus[] {
         (raw as { color?: unknown })?.color,
         DEFAULT_CONTACT_STATUSES[i % DEFAULT_CONTACT_STATUSES.length]?.color ??
           "#94a3b8",
+        `contactStatuses[${i}].color`,
       ),
     };
   });
@@ -215,10 +234,8 @@ export function parseLabels(input: unknown, what: string): string[] {
   return [
     ...new Set(
       input
-        .map((raw) =>
-          String(raw ?? "")
-            .trim()
-            .slice(0, 40),
+        .map((raw, i) =>
+          (asTextOrNothing(raw, `${what}[${i}]`) ?? "").trim().slice(0, 40),
         )
         .filter(Boolean),
     ),
@@ -240,7 +257,13 @@ export function parseOutcomeStages(
   if (input === undefined) return [];
   if (!Array.isArray(input)) throw new RangeError(`${what} must be a list`);
   const known = new Set(stages.map((stage) => stage.id));
-  const chosen = [...new Set(input.map((raw) => String(raw ?? "").trim()))];
+  const chosen = [
+    ...new Set(
+      input.map((raw, i) =>
+        (asTextOrNothing(raw, `${what}[${i}]`) ?? "").trim(),
+      ),
+    ),
+  ];
   for (const id of chosen) {
     if (!known.has(id)) {
       throw new RangeError(`"${id}" is not one of this pipeline's stages`);

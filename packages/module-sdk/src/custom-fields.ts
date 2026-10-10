@@ -19,6 +19,13 @@
  * the coercion rules to drift — which is exactly where a number field starts
  * holding the string a browser sent.
  */
+import {
+  RequestFieldError,
+  asChoice,
+  asFlag,
+  asNumber,
+  asTextOrNothing,
+} from "@sentrello/db/request-values";
 
 export type FieldType = "text" | "number" | "date" | "select" | "checkbox";
 
@@ -129,42 +136,57 @@ export function parseCustomFields(
  * The values on the way in.
  *
  * Anything without a definition is dropped — not stored "just in case" — and
- * each value is coerced to what its field says it is, so a number field never
- * holds the string a browser sent.
+ * each value has to be what its field says it is, or the request is refused
+ * with a 400 naming the field. These used to be coerced: `{}` in a text field
+ * was stored as the words "[object Object]", `[]` in a number field as 0, a
+ * list holding one option was taken as that option, and "about thirty" was
+ * quietly dropped while the caller was told it saved.
+ *
+ * @param named what the record calls the object, for the refusal's field name.
  */
 export function coerceCustomValues(
   fields: CustomField[],
   subject: FieldSubject,
   input: unknown,
+  named = "customValues",
 ): Record<string, string | number | boolean | null> {
   const out: Record<string, string | number | boolean | null> = {};
-  if (!input || typeof input !== "object") return out;
+  if (input === undefined || input === null) return out;
+  if (typeof input !== "object" || Array.isArray(input)) {
+    throw new RequestFieldError(
+      named,
+      `${named} has to be an object of field values.`,
+    );
+  }
   const given = input as Record<string, unknown>;
 
   for (const field of fields.filter((f) => f.appliesTo === subject)) {
     if (!(field.id in given)) continue;
     const value = given[field.id];
+    const name = `${named}.${field.id}`;
     if (value === null || value === "") {
       out[field.id] = null;
       continue;
     }
 
     switch (field.type) {
-      case "number": {
-        const n = Number(value);
-        // Not a number is not stored: "about 30" in a number field would come
-        // back as NaN and take every total that touched it with it.
-        if (Number.isFinite(n)) out[field.id] = n;
+      case "number":
+        // "about 30" in a number field would come back as NaN and take every
+        // total that touched it with it.
+        out[field.id] = asNumber(value, name);
         break;
-      }
       case "checkbox":
-        out[field.id] = value === true || value === "true";
+        // A form posts its boxes as words.
+        out[field.id] =
+          value === "true" || value === "false"
+            ? value === "true"
+            : asFlag(value, name);
         break;
       case "date": {
-        const text = String(value);
+        const text = asTextOrNothing(value, name) ?? "";
         const date = new Date(text);
         /*
-         * Stored as the day it names, or not at all.
+         * Stored as the day it names, or refused.
          *
          * `new Date` rolls an impossible day *forward* rather than refusing
          * it: 30 February becomes 2 March, and a custom date field is read by
@@ -173,30 +195,31 @@ export function coerceCustomValues(
          * that day.
          *
          * The same check as `dateFrom` in `@sentrello/db/timezone`, written
-         * out rather than imported: the SDK is what the database package
-         * depends on, not the other way round, and four lines are cheaper
-         * than a cycle between them.
+         * out rather than imported: that module brings the clock and the
+         * database with it, and four lines are cheaper.
          */
-        const named = /^(\d{4}-\d{2}-\d{2})/.exec(text)?.[1];
-        const probe = named ? new Date(`${named}T00:00:00.000Z`) : null;
+        const day = /^(\d{4}-\d{2}-\d{2})/.exec(text)?.[1];
+        const probe = day ? new Date(`${day}T00:00:00.000Z`) : null;
         const realDay =
           !probe ||
           (!Number.isNaN(probe.getTime()) &&
-            probe.toISOString().slice(0, 10) === named);
-        if (!Number.isNaN(date.getTime()) && realDay) {
-          out[field.id] = date.toISOString().slice(0, 10);
+            probe.toISOString().slice(0, 10) === day);
+        if (Number.isNaN(date.getTime()) || !realDay) {
+          throw new RequestFieldError(
+            name,
+            `${name} has to be a date, and "${text.slice(0, 40)}" is not one.`,
+          );
         }
+        out[field.id] = date.toISOString().slice(0, 10);
         break;
       }
-      case "select": {
-        const chosen = String(value);
+      case "select":
         // Only what the business put on the list. A stale option left over
-        // from an old form is not quietly accepted.
-        if (field.options?.includes(chosen)) out[field.id] = chosen;
+        // from an old form is refused rather than quietly accepted.
+        out[field.id] = asChoice(value, name, field.options ?? []);
         break;
-      }
       default:
-        out[field.id] = String(value).slice(0, 2000);
+        out[field.id] = (asTextOrNothing(value, name) ?? "").slice(0, 2000);
     }
   }
   return out;

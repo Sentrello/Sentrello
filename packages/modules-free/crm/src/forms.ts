@@ -1226,7 +1226,7 @@ async function readSubmissionWithFiles(req: Request): Promise<{
     // The ambient type of a form entry is a string; a multipart body also
     // yields files, and the runtime is the authority on which this is.
     const value = entry as unknown as string | File;
-    if (typeof value === "string") {
+    if (!(value instanceof File)) {
       payload[key] = value;
       continue;
     }

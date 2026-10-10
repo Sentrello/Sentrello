@@ -5,7 +5,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { db, eq, schema } from "@sentrello/db";
-import { asFlag } from "@sentrello/db/request-values";
+import { asFlag, asTextOrNothing } from "@sentrello/db/request-values";
 import { record as recordSecurityEvent } from "@sentrello/db/security-events";
 import { asText } from "@sentrello/db/text-columns";
 import { timezoneFor } from "@sentrello/db/timezone";
@@ -58,13 +58,16 @@ function config() {
  */
 function clientContext(raw: unknown): ClientContext {
   const body = (raw ?? {}) as Record<string, unknown>;
-  const str = (v: unknown) => (typeof v === "string" ? v : undefined);
+  // Text or a 400 naming it: `{}` was sent on to the tax authority as a
+  // header left off, with nothing said to the caller.
+  const str = (key: string) =>
+    asTextOrNothing(body[key], `client.${key}`) ?? undefined;
   return {
-    deviceId: str(body.deviceId),
-    screens: str(body.screens),
-    windowSize: str(body.windowSize),
-    timezone: str(body.timezone),
-    userAgent: str(body.userAgent),
+    deviceId: str("deviceId"),
+    screens: str("screens"),
+    windowSize: str("windowSize"),
+    timezone: str("timezone"),
+    userAgent: str("userAgent"),
   };
 }
 

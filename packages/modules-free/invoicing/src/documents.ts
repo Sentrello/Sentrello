@@ -6,7 +6,12 @@ import {
   bpToPpm,
   documentTotals,
 } from "@sentrello/db/money";
-import { asChoice, asIdOrNothing } from "@sentrello/db/request-values";
+import {
+  asChoice,
+  asIdOrNothing,
+  asTextOrNothing,
+  asWholeNumberOrNothing,
+} from "@sentrello/db/request-values";
 
 /**
  * Writing an invoice or a quote, and the tax breakdown that goes with it.
@@ -161,9 +166,12 @@ export async function prepareDocument(
       }
       return ids;
     }
-    return typeof line.taxDefinitionId === "string" && line.taxDefinitionId
-      ? [line.taxDefinitionId]
-      : [];
+    // Text or a refusal: `{}` here was read as no tax at all.
+    const one = asTextOrNothing(
+      line.taxDefinitionId,
+      `lines[${index}].taxDefinitionId`,
+    );
+    return one ? [one] : [];
   };
 
   const wanted = [...new Set(incoming.flatMap((l, i) => idsOf(l, i)))];
@@ -204,7 +212,9 @@ export async function prepareDocument(
   }
 
   const lines = incoming.map((line, i) => {
-    const description = String(line.description ?? "").trim();
+    const description = (
+      asTextOrNothing(line.description, `lines[${i}].description`) ?? ""
+    ).trim();
     if (!description)
       throw new MoneyError(`line ${i + 1}: a description is required`);
 
@@ -234,13 +244,18 @@ export async function prepareDocument(
       };
     });
     const first = named[0];
+    // A bare rate, or a refusal: `{}` or "20" was read as no tax.
+    const barePpm = asWholeNumberOrNothing(
+      line.taxRatePpm,
+      `lines[${i}].taxRatePpm`,
+    );
+    const bareBp = asWholeNumberOrNothing(
+      line.taxRateBp,
+      `lines[${i}].taxRateBp`,
+    );
     const taxRatePpm = first
       ? first.ratePpm
-      : Number.isInteger(line.taxRatePpm)
-        ? (line.taxRatePpm as number)
-        : Number.isInteger(line.taxRateBp)
-          ? bpToPpm(line.taxRateBp as number)
-          : 0;
+      : (barePpm ?? (bareBp === null ? 0 : bpToPpm(bareBp)));
 
     return {
       billableItemId: line.billableItemId ?? null,
@@ -249,7 +264,9 @@ export async function prepareDocument(
       quantity: Math.round(quantityMilli / 1000),
       quantityMilli,
       unitPriceCents: unitPriceCents as number,
-      unit: String(line.unit ?? "piece").trim() || "piece",
+      unit:
+        (asTextOrNothing(line.unit, `lines[${i}].unit`) ?? "").trim() ||
+        "piece",
       // The first tax also lands in the single-tax columns, so anything still
       // reading them sees a tax rather than none. The list is the truth.
       taxDefinitionId: first?.taxDefinitionId ?? null,

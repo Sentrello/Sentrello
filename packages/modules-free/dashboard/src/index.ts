@@ -37,8 +37,8 @@ import {
   clearStored,
   declaredWidgets,
   defaultLayout,
+  layoutFrom,
   mergeLayout,
-  normalizeLayout,
   readStored,
   shownTabs,
   withArrivals,
@@ -834,7 +834,7 @@ export default defineModule({
           tabs?: unknown;
         };
         const visible = await visibleWidgets(c.req.raw.headers);
-        const tabs = normalizeLayout(body.tabs);
+        const tabs = layoutFrom(body.tabs);
 
         if (tabs.length === 0) {
           /*

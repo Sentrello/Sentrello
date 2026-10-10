@@ -4,7 +4,11 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { and, db, eq, schema } from "@sentrello/db";
-import { asFlag, asWholeNumber } from "@sentrello/db/request-values";
+import {
+  asFlag,
+  asTextOrNothing,
+  asWholeNumber,
+} from "@sentrello/db/request-values";
 import {
   forgetHipaaRules,
   record as recordSecurityEvent,
@@ -261,10 +265,12 @@ export function registerCompliance(ctx: ModuleContext) {
          * which matters on a field whose whole job is to say when the last
          * assessment was and when the next one is due.
          */
-        const on = body.riskAssessmentOn
-          ? dayFrom(body.riskAssessmentOn)
-          : null;
-        if (body.riskAssessmentOn && !on) {
+        const named = asTextOrNothing(
+          body.riskAssessmentOn,
+          "riskAssessmentOn",
+        );
+        const on = named ? dayFrom(named) : null;
+        if (named && !on) {
           return c.json({ error: "a date looks like 2026-03-31" }, 400);
         }
         patch.riskAssessmentOn = on;
