@@ -214,7 +214,8 @@ Everything the tags do goes through a public API, and you can call it too:
 | `POST /api/shop/storefront/checkout/:token/lines` | Set how many of something are in it; zero takes it out |
 | `GET /api/shop/account` | The signed-in customer, if there is one, and `signUpOpen`: whether this shop can take new accounts |
 | `POST /api/shop/account/sign-up` | Make a customer account. Nothing is linked to it until the address is confirmed from the email it sends |
-| `POST /api/shop/account/sign-in` and `/sign-out` | What they say |
+| `POST /api/shop/account/sign-in` | Sign a customer in |
+| `POST /api/shop/account/sign-out` | Sign them out |
 
 **Customer accounts need email.** A shop that can't send mail yet answers
 sign-up with a 503 and `signUpOpen: false`, because an account nobody can
