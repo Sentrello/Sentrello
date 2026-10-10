@@ -70,6 +70,20 @@ if (result.error === "malformed_key") {
   process.exit(1);
 }
 
+/**
+ * The licence server is shedding load from this address.
+ *
+ * Not a refusal: the token already here keeps working, and the hourly refresh
+ * asks again on its own. Said apart from "unreachable" so nobody goes looking
+ * for a firewall problem.
+ */
+if (result.error === "rate_limited") {
+  console.error(
+    "the license server is busy and asked this server to wait — the license already here keeps working, and the hourly refresh will try again.",
+  );
+  process.exit(1);
+}
+
 console.error(
   "could not activate the license: the server could not be reached.",
 );

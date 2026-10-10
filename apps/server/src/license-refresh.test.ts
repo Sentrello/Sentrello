@@ -221,6 +221,41 @@ test("a 5xx from the license server leaves entitlement untouched", async () => {
 });
 
 /**
+ * The licence server sheds load with a 429. That is "ask later", never "no":
+ * the token on disk stays exactly as it was and the next hourly run asks again.
+ */
+test("a 429 from the license server is transient: token kept, entitlement untouched", async () => {
+  await writeToken({ tier: "pro", modules: [], license_id: "l1" }, "1h");
+  const before = await Bun.file(tokenPath).text();
+  await resolveLicense(publicKeyPem);
+  expect(gate({ tier: "pro" })).toBe(true);
+
+  const server = Bun.serve({
+    port: 0,
+    fetch: () =>
+      Response.json(
+        { error: "rate_limited" },
+        { status: 429, headers: { "retry-after": "600" } },
+      ),
+  });
+  try {
+    const result = await refreshLicenseToken({
+      serverUrl: `http://127.0.0.1:${server.port}`,
+      licenseKey: "lic_test",
+      instanceId: "inst_test",
+      tokenPath,
+    });
+    expect(result).toEqual({ refreshed: false, error: "rate_limited" });
+    expect(await Bun.file(tokenPath).text()).toBe(before);
+
+    await refreshLicenseState(publicKeyPem);
+    expect(gate({ tier: "pro" })).toBe(true);
+  } finally {
+    server.stop(true);
+  }
+});
+
+/**
  * `instance_limit` means this particular install was refused a token, not
  * that the licence itself is invalid — the licence may be in perfect
  * standing. Treated the same as any other answer this code cannot be certain
