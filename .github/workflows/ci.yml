@@ -97,7 +97,7 @@ jobs:
     timeout-minutes: 30
     services:
       postgres:
-        image: postgres:17
+        image: ghcr.io/sentrello/postgres:17
         env: { POSTGRES_USER: sentrello, POSTGRES_PASSWORD: sentrello, POSTGRES_DB: sentrello_t_core }
         ports: ["5432:5432"]
         options: >-
