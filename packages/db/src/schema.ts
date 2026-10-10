@@ -2120,7 +2120,12 @@ export const accounts = pgTable(
      */
     bankProviderReference: text("bank_provider_reference"),
   },
-  (t) => [index("accounts_org_idx").on(t.organizationId)],
+  (t) => [
+    index("accounts_org_idx").on(t.organizationId),
+    // One account per code in a business. A lock in ensureAccount already
+    // stops two being made at once; this is the database saying so too.
+    uniqueIndex("accounts_org_code_uidx").on(t.organizationId, t.code),
+  ],
 );
 
 /**
