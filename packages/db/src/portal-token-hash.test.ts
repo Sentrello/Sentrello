@@ -100,3 +100,26 @@ test("two contacts cannot hold one token", async () => {
       .values({ organizationId: orgId, name: "Copy", portalToken: token });
   await expect(copy()).rejects.toThrow();
 });
+
+/**
+ * Two emails to one customer at the same moment send one working link.
+ *
+ * Each caller reads the contact, finds no token, and mints one. Both wrote,
+ * the second over the first, so the first email went out with a link that
+ * had already stopped working — and the customer never knew why.
+ */
+test("ten links minted at once for a customer with none are one link", async () => {
+  await db
+    .update(schema.contacts)
+    .set({ portalToken: null })
+    .where(eq(schema.contacts.id, contactId));
+  const minted = await Promise.all(
+    Array.from({ length: 10 }, () =>
+      ensurePortalToken({ id: contactId, portalToken: null }),
+    ),
+  );
+  expect(new Set(minted).size).toBe(1);
+  expect((await contactByPortalToken(minted[0] ?? "", caller()))?.id).toBe(
+    contactId,
+  );
+}, 30_000);

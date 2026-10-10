@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { rateLimit } from "@sentrello/module-sdk";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { db } from "./client";
 import * as schema from "./schema";
 
@@ -92,11 +92,38 @@ export async function ensurePortalToken(
 ): Promise<string> {
   if (contact.portalToken && !rotate) return contact.portalToken;
   const token = newPortalToken();
-  await db
+  if (rotate) {
+    await db
+      .update(schema.contacts)
+      .set({ portalToken: token })
+      .where(eq(schema.contacts.id, contact.id));
+    return token;
+  }
+  /*
+   * Minted only where there is none, and otherwise the one already there.
+   *
+   * `contact` is whatever the caller read, and two callers that read it at
+   * once both found no token. Both wrote, the second over the first, so one
+   * customer got two emails at the same moment and the link in the first had
+   * already stopped working.
+   */
+  const [minted] = await db
     .update(schema.contacts)
     .set({ portalToken: token })
-    .where(and(eq(schema.contacts.id, contact.id)));
-  return token;
+    .where(
+      and(
+        eq(schema.contacts.id, contact.id),
+        isNull(schema.contacts.portalToken),
+      ),
+    )
+    .returning({ portalToken: schema.contacts.portalToken });
+  if (minted) return token;
+  const [held] = await db
+    .select({ portalToken: schema.contacts.portalToken })
+    .from(schema.contacts)
+    .where(eq(schema.contacts.id, contact.id))
+    .limit(1);
+  return held?.portalToken ?? token;
 }
 
 /**

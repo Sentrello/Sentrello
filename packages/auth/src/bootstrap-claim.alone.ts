@@ -255,6 +255,39 @@ test("five claims at once make one business, not five", async () => {
 });
 
 /**
+ * And the same claim five times at once, which is the double-pressed button.
+ *
+ * Different from the test above in the one way that matters: the claim row
+ * lets the same address back in, so a retry can finish a claim that fell over.
+ * Five copies of one submission all pass that door together. What holds them
+ * to one business is the slug, unique in the database, so the losers fall
+ * over at the organization and the winner keeps the instance.
+ */
+test("five identical claims at once make one business and one owner", async () => {
+  const results = await Promise.all(
+    [1, 2, 3, 4, 5].map(() =>
+      claim({ ...owner, setupToken: "the-real-setup-token" }),
+    ),
+  );
+  expect(results.filter((r) => r.status === 201)).toHaveLength(1);
+
+  const orgs = await db
+    .select({ id: schema.organizations.id })
+    .from(schema.organizations);
+  expect(orgs).toHaveLength(1);
+  const owners = await db
+    .select({ id: schema.user.id })
+    .from(schema.user)
+    .where(eq(schema.user.email, owner.email));
+  expect(owners).toHaveLength(1);
+  const members = await db
+    .select({ id: schema.member.id })
+    .from(schema.member)
+    .where(eq(schema.member.organizationId, orgs[0]?.id ?? ""));
+  expect(members).toHaveLength(1);
+}, 30_000);
+
+/**
  * And a claim that fell over part-way is still the same operator's to finish.
  *
  * Claiming is two steps — an account, then an organization — so a failure

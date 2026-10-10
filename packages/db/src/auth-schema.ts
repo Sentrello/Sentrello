@@ -243,6 +243,11 @@ export const member = pgTable(
   (table) => [
     index("member_organizationId_idx").on(table.organizationId),
     index("member_userId_idx").on(table.userId),
+    // One membership per person per business. Better Auth's accept checks
+    // nothing of the kind, so two invitations to one address — two clicks of
+    // Invite, accepted together — made the same person a member twice, and
+    // suspending them changed one row of the two.
+    uniqueIndex("member_org_user_uidx").on(table.organizationId, table.userId),
   ],
 );
 

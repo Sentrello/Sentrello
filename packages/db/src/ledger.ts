@@ -349,29 +349,52 @@ export async function exchangeAccount(orgId: string): Promise<string> {
   return ensureAccount(orgId, CORE_ACCOUNTS.exchange);
 }
 
-/** Idempotently resolves one of the core accounts for an organization. */
+/**
+ * Idempotently resolves one of the core accounts for an organization.
+ *
+ * `conn` is the caller's transaction when it has one. Posting an invoice or a
+ * credit note resolves its accounts after the document number is taken, and
+ * on the pool that was a second connection wanted while the first held the
+ * counter: ten documents raised at once left nine transactions waiting on the
+ * counter and the tenth waiting on a connection none of them would give back.
+ * The pool froze until the driver timed out.
+ *
+ * Creating one is serialized on the account's code, because nothing in the
+ * schema stops two of them: two first postings at once made two "1200"s and
+ * split one receivable between them.
+ */
 export async function ensureAccount(
   orgId: string,
   account: { code: string; name: string; type: string },
+  conn: DbTx | typeof db = db,
 ): Promise<string> {
-  const [existing] = await db
-    .select({ id: schema.accounts.id })
-    .from(schema.accounts)
-    .where(
-      and(
-        eq(schema.accounts.organizationId, orgId),
-        eq(schema.accounts.code, account.code),
-      ),
-    )
-    .limit(1);
+  const find = (on: DbTx | typeof db) =>
+    on
+      .select({ id: schema.accounts.id })
+      .from(schema.accounts)
+      .where(
+        and(
+          eq(schema.accounts.organizationId, orgId),
+          eq(schema.accounts.code, account.code),
+        ),
+      )
+      .limit(1);
+  const [existing] = await find(conn);
   if (existing) return existing.id;
 
-  const [created] = await db
-    .insert(schema.accounts)
-    .values({ organizationId: orgId, ...account })
-    .returning();
-  if (!created) throw new Error(`could not create account ${account.code}`);
-  return created.id;
+  return conn.transaction(async (tx) => {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtext(${`account:${orgId}:${account.code}`}))`,
+    );
+    const [made] = await find(tx);
+    if (made) return made.id;
+    const [created] = await tx
+      .insert(schema.accounts)
+      .values({ organizationId: orgId, ...account })
+      .returning();
+    if (!created) throw new Error(`could not create account ${account.code}`);
+    return created.id;
+  });
 }
 
 /**
@@ -959,7 +982,7 @@ export async function postJournalEntry(
     const on =
       options?.day && postedAt
         ? dayOf(postedAt)
-        : dayIn(postedAt ?? new Date(), await timezoneFor(orgId));
+        : dayIn(postedAt ?? new Date(), await timezoneFor(orgId, options?.tx));
     if (on.getTime() <= dayOf(closed).getTime()) {
       throw new PeriodClosedError(closed);
     }
@@ -1124,9 +1147,9 @@ export async function postInvoiceIssued(
   options?: PostOptions,
 ): Promise<void> {
   const [ar, income, taxPayable] = await Promise.all([
-    ensureAccount(orgId, CORE_ACCOUNTS.accountsReceivable),
-    ensureAccount(orgId, CORE_ACCOUNTS.salesIncome),
-    ensureAccount(orgId, CORE_ACCOUNTS.taxPayable),
+    ensureAccount(orgId, CORE_ACCOUNTS.accountsReceivable, options?.tx),
+    ensureAccount(orgId, CORE_ACCOUNTS.salesIncome, options?.tx),
+    ensureAccount(orgId, CORE_ACCOUNTS.taxPayable, options?.tx),
   ]);
 
   /**
@@ -1209,9 +1232,9 @@ export async function postCreditNoteIssued(
   options?: PostOptions,
 ): Promise<void> {
   const [ar, income, taxPayable] = await Promise.all([
-    ensureAccount(orgId, CORE_ACCOUNTS.accountsReceivable),
-    ensureAccount(orgId, CORE_ACCOUNTS.salesIncome),
-    ensureAccount(orgId, CORE_ACCOUNTS.taxPayable),
+    ensureAccount(orgId, CORE_ACCOUNTS.accountsReceivable, options?.tx),
+    ensureAccount(orgId, CORE_ACCOUNTS.salesIncome, options?.tx),
+    ensureAccount(orgId, CORE_ACCOUNTS.taxPayable, options?.tx),
   ]);
 
   const rate = note.rateMicro ?? RATE_SCALE;
@@ -1328,11 +1351,15 @@ async function taxShares(
   for (const band of bands) {
     if (band.taxCents === 0) continue;
     const accountId = band.taxDefinitionId
-      ? await ensureAccount(orgId, {
-          code: `2200-${band.taxDefinitionId.slice(0, 8)}`,
-          name: `Tax Payable — ${band.name}`,
-          type: "liability",
-        })
+      ? await ensureAccount(
+          orgId,
+          {
+            code: `2200-${band.taxDefinitionId.slice(0, 8)}`,
+            name: `Tax Payable — ${band.name}`,
+            type: "liability",
+          },
+          conn,
+        )
       : taxPayable;
     shares.push({
       accountId,
@@ -1370,8 +1397,15 @@ export async function reverseJournalEntries(
   source: string,
   memo: string,
   at?: Date,
+  /**
+   * The transaction the thing being undone was undone in. A void that commits
+   * and then reverses leaves, on a crash between the two, a void invoice whose
+   * receivable is still in the books. Same option `postJournalEntry` takes.
+   */
+  options: { tx?: LedgerTx } = {},
 ): Promise<number> {
-  const entries = await db
+  const conn = options.tx ?? db;
+  const entries = await conn
     .select({ id: schema.journalEntries.id })
     .from(schema.journalEntries)
     .where(
@@ -1384,7 +1418,7 @@ export async function reverseJournalEntries(
 
   let reversed = 0;
   for (const entry of entries) {
-    const lines = await db
+    const lines = await conn
       .select({
         accountId: schema.journalLines.accountId,
         debitCents: schema.journalLines.debitCents,
@@ -1404,6 +1438,7 @@ export async function reverseJournalEntries(
         creditCents: line.debitCents,
       })),
       at,
+      { tx: options.tx },
     );
     reversed += 1;
   }

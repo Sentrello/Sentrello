@@ -32,8 +32,12 @@ export function knownTimezone(name: string): boolean {
 }
 
 /** The business's own, or the server's when it has not said. */
-export async function timezoneFor(orgId: string): Promise<string | null> {
-  const [org] = await db
+export async function timezoneFor(
+  orgId: string,
+  /** The caller's transaction, so a read inside one takes no second connection. */
+  conn: Pick<typeof db, "select"> = db,
+): Promise<string | null> {
+  const [org] = await conn
     .select({ timezone: organizations.timezone })
     .from(organizations)
     .where(eq(organizations.id, orgId))

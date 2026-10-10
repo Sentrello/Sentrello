@@ -419,3 +419,69 @@ test("with a mail server connected, the same link goes out by email", async () =
     globalThis.fetch = realFetch;
   }
 });
+
+/** The memberships one address holds in the inviting organization. */
+async function membershipsOf(email: string) {
+  const [user] = await db
+    .select({ id: schema.user.id })
+    .from(schema.user)
+    .where(eq(schema.user.email, email));
+  if (!user) return [];
+  if (!joined.includes(user.id)) joined.push(user.id);
+  return db
+    .select({ id: schema.member.id })
+    .from(schema.member)
+    .where(eq(schema.member.userId, user.id));
+}
+
+test("one link accepted ten times at once makes one member", async () => {
+  const email = `pressed-${suffix}@example.test`;
+  await signUpAsOwner({
+    email,
+    password: "correct-horse-battery-staple",
+    name: "Pressed Twice",
+  });
+  const { token } = await invite(email);
+  const answers = await Promise.all(
+    Array.from({ length: 10 }, () =>
+      accept(token, { password: "correct-horse-battery-staple" }),
+    ),
+  );
+  expect(answers.filter((a) => a.status === 200)).toHaveLength(1);
+  expect(await membershipsOf(email)).toHaveLength(1);
+}, 30_000);
+
+test("inviting one address five times at once still admits them once", async () => {
+  const email = `invited-at-once-${suffix}@example.test`;
+  await signUpAsOwner({
+    email,
+    password: "correct-horse-battery-staple",
+    name: "Invited At Once",
+  });
+  const sent = await Promise.all(
+    Array.from({ length: 5 }, () =>
+      app.request("http://localhost/api/users/invitations", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ email, role: "staff" }),
+      }),
+    ),
+  );
+  const tokens: string[] = [];
+  for (const res of sent) {
+    if (res.status !== 201) continue;
+    const { link } = (await res.json()) as { link: string };
+    tokens.push(new URL(link).searchParams.get("token") ?? "");
+  }
+  // Whichever links still work, all of them used, and at the same time.
+  const answers = await Promise.all(
+    tokens.map((token) =>
+      accept(token, { password: "correct-horse-battery-staple" }),
+    ),
+  );
+  expect(answers.filter((a) => a.status === 200)).toHaveLength(1);
+  for (const answer of answers.filter((a) => a.status !== 200)) {
+    expect(await answer.text()).not.toContain("duplicate key");
+  }
+  expect(await membershipsOf(email)).toHaveLength(1);
+}, 30_000);

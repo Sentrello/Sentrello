@@ -379,6 +379,29 @@ export function registerInvitations(ctx: ModuleContext) {
         headers: acceptHeaders,
       });
     } catch (e) {
+      // A second invitation to somebody the first already admitted: the
+      // database's one-membership rule refused it, in words meant for us.
+      const who = await auth.api
+        .getSession({ headers: acceptHeaders })
+        .catch(() => null);
+      if (who) {
+        const [already] = await db
+          .select({ id: schema.member.id })
+          .from(schema.member)
+          .where(
+            and(
+              eq(schema.member.organizationId, invitation.organizationId),
+              eq(schema.member.userId, who.user.id),
+            ),
+          )
+          .limit(1);
+        if (already) {
+          return c.json(
+            { error: "you are already a member of this business" },
+            409,
+          );
+        }
+      }
       return c.json({ error: refusalMessage(e) }, 403);
     }
 

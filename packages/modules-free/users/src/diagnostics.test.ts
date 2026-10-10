@@ -65,16 +65,9 @@ beforeAll(async () => {
   });
   if (!otherOrg) throw new Error("could not create the other organization");
   otherOrgId = otherOrg.id;
-  // A second administrator in the *other* organization only — proves the
-  // count in this org's answer is not simply "every admin on the instance".
-  await db.insert(schema.member).values({
-    id: crypto.randomUUID(),
-    organizationId: otherOrgId,
-    userId: stranger.response.user.id,
-    role: "admin",
-    baseRole: "admin",
-    createdAt: new Date(),
-  });
+  // Its creator is its administrator, and an administrator of the *other*
+  // organization only — which proves the count in this org's answer is not
+  // simply "every admin on the instance".
 });
 
 afterAll(async () => {

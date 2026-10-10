@@ -64,3 +64,35 @@ export async function recordCreditMovement(
 ): Promise<void> {
   await (options.tx ?? db).insert(schema.customerCredits).values(entry);
 }
+
+/**
+ * A customer's credit balance, held for the rest of this transaction.
+ *
+ * Spending credit reads the balance and then writes a negative movement, and
+ * ten invoices for one customer paid from credit at once all read the same
+ * balance and all spent it — a credit of 500.00 settled 5,000.00 of invoices.
+ * A transaction-scoped advisory lock on the customer closes that, taken with
+ * the `try` form so a second caller is refused rather than parked on a pool
+ * connection (see `holdInvoice` in `./documents`). Null means somebody else is
+ * spending it right now.
+ */
+export async function holdCreditBalance(
+  tx: DbTx,
+  orgId: string,
+  contactId: string,
+): Promise<number | null> {
+  const [lock] = (await tx.execute(
+    sql`select pg_try_advisory_xact_lock(hashtext(${`customer-credit:${orgId}:${contactId}`})) as held`,
+  )) as unknown as { held: boolean }[];
+  if (!lock?.held) return null;
+  const [row] = await tx
+    .select({ total: sumCents(schema.customerCredits.cents) })
+    .from(schema.customerCredits)
+    .where(
+      and(
+        eq(schema.customerCredits.organizationId, orgId),
+        eq(schema.customerCredits.contactId, contactId),
+      ),
+    );
+  return row?.total ?? 0;
+}

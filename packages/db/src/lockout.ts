@@ -86,7 +86,13 @@ export async function policyFor(
 export async function lockState(
   organizationId: string,
   email: string,
-): Promise<{ locked: boolean; until: Date | null; failures: number }> {
+): Promise<{
+  locked: boolean;
+  until: Date | null;
+  failures: number;
+  /** The policy's limit, zero when locking is off. */
+  limit: number;
+}> {
   const address = email.trim().toLowerCase();
   // Not optional: policyFor always returns a row, inserting the platform's
   // defaults itself when none exists yet, or throws if even that races and
@@ -97,7 +103,7 @@ export async function lockState(
   const minutes = policy.lockoutMinutes;
   // Zero is off: an instance on a private network may decide the support call
   // costs more than the risk.
-  if (limit <= 0) return { locked: false, until: null, failures: 0 };
+  if (limit <= 0) return { locked: false, until: null, failures: 0, limit: 0 };
 
   const windowStart = new Date(Date.now() - minutes * 60_000);
 
@@ -136,7 +142,7 @@ export async function lockState(
     .where(failureFilters);
 
   const failures = row?.failures ?? 0;
-  if (failures < limit) return { locked: false, until: null, failures };
+  if (failures < limit) return { locked: false, until: null, failures, limit };
 
   // The lock is a sliding window, not a flat timer from the moment it is
   // read: it lifts the instant the limit-th most recent failure ages out of
@@ -159,5 +165,6 @@ export async function lockState(
     locked: true,
     until: new Date((boundary?.at ?? new Date()).getTime() + minutes * 60_000),
     failures,
+    limit,
   };
 }

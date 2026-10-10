@@ -16,13 +16,17 @@ import {
 } from "@sentrello/db/currency";
 import {
   creditBalanceFor,
+  holdCreditBalance,
   recordCreditMovement,
 } from "@sentrello/db/customer-credit";
 import { dayIn, dayOf } from "@sentrello/db/day";
 import {
+  InvoiceMoved,
   convertQuoteToInstalments,
   convertQuoteToInvoice,
+  holdInvoice,
   invoiceDefaultsFor,
+  unmoved,
 } from "@sentrello/db/documents";
 import {
   CORE_ACCOUNTS,
@@ -540,6 +544,9 @@ export default defineModule({
         // Read outside the transaction: two settings every invoice inherits
         // when the form left them alone.
         const fromSettings = await invoiceDefaultsFor(orgId);
+        // And this one: read inside, after the counter is taken, it wanted a
+        // second pool connection while holding the first.
+        const templateId = await ownedTemplateId(orgId, body.templateId);
 
         const discount = parseDiscount(body);
         const invoice = await db.transaction(async (tx) => {
@@ -579,7 +586,7 @@ export default defineModule({
               // German public body's Leitweg-ID.
               buyerReference:
                 asText(body.buyerReference, "buyerReference").trim() || null,
-              templateId: await ownedTemplateId(orgId, body.templateId),
+              templateId,
               discountType: discount?.type ?? null,
               discountValue: discount?.value ?? 0,
               discountCents: prepared.discountCents,
@@ -953,68 +960,86 @@ export default defineModule({
          * them leaves the books owing money to nobody in particular, or a
          * customer holding credit the books never heard of.
          */
-        const payment = await db.transaction(async (tx) => {
-          const [row] = await tx
-            .insert(schema.payments)
-            .values({
-              organizationId: orgId,
-              invoiceId,
-              // Only what actually settles this invoice — the excess is
-              // recorded separately, as credit, never as a payment against a
-              // debt that no longer exists once this clears it.
-              amountCents: appliedCents,
-              method: method ?? "manual",
-              gatewayRef,
-              receivedAt: received,
-            })
-            .returning();
-          if (!row) throw new Error("payment insert returned no row");
-
-          await tx
-            .update(schema.invoices)
-            .set(
-              takingIt
-                ? {
-                    status,
-                    earlyDiscountTakenCents: terms.savingCents,
-                    updatedAt: new Date(),
-                  }
-                : { status, updatedAt: new Date() },
-            )
-            .where(eq(schema.invoices.id, invoiceId));
-
-          await postJournalEntry(
-            orgId,
-            takingIt
-              ? `Payment for ${invoice.number}, less early-payment discount`
-              : `Payment for ${invoice.number}`,
-            `payment:${row.id}`,
-            postings,
-            received,
-            // A bare date typed into the form is a day; the payment belongs
-            // to it wherever the business is, not to the evening before.
-            {
-              tx,
-              day:
-                receivedAt !== null &&
-                /^\d{4}-\d{2}-\d{2}$/.test(receivedAt.trim()),
-            },
-          );
-          if (overCentsBase !== 0 && invoice.contactId) {
-            await recordCreditMovement(
-              {
+        const payment = await db
+          .transaction(async (tx) => {
+            // Everything above was decided on a read; it holds only if nothing
+            // moved since. See `holdInvoice`.
+            if (
+              !unmoved(
+                await holdInvoice(tx, orgId, invoiceId),
+                invoice,
+                paidBeforeCents,
+                creditedBeforeCents,
+              )
+            ) {
+              throw new InvoiceMoved();
+            }
+            const [row] = await tx
+              .insert(schema.payments)
+              .values({
                 organizationId: orgId,
-                contactId: invoice.contactId,
-                cents: overCentsBase,
-                paymentId: row.id,
-                invoiceId: invoice.id,
-                reason: `Overpayment on invoice ${invoice.number}`,
+                invoiceId,
+                // Only what actually settles this invoice — the excess is
+                // recorded separately, as credit, never as a payment against a
+                // debt that no longer exists once this clears it.
+                amountCents: appliedCents,
+                method: method ?? "manual",
+                gatewayRef,
+                receivedAt: received,
+              })
+              .returning();
+            if (!row) throw new Error("payment insert returned no row");
+
+            await tx
+              .update(schema.invoices)
+              .set(
+                takingIt
+                  ? {
+                      status,
+                      earlyDiscountTakenCents: terms.savingCents,
+                      updatedAt: new Date(),
+                    }
+                  : { status, updatedAt: new Date() },
+              )
+              .where(eq(schema.invoices.id, invoiceId));
+
+            await postJournalEntry(
+              orgId,
+              takingIt
+                ? `Payment for ${invoice.number}, less early-payment discount`
+                : `Payment for ${invoice.number}`,
+              `payment:${row.id}`,
+              postings,
+              received,
+              // A bare date typed into the form is a day; the payment belongs
+              // to it wherever the business is, not to the evening before.
+              {
+                tx,
+                day:
+                  receivedAt !== null &&
+                  /^\d{4}-\d{2}-\d{2}$/.test(receivedAt.trim()),
               },
-              { tx },
             );
-          }
-          return row;
-        });
+            if (overCentsBase !== 0 && invoice.contactId) {
+              await recordCreditMovement(
+                {
+                  organizationId: orgId,
+                  contactId: invoice.contactId,
+                  cents: overCentsBase,
+                  paymentId: row.id,
+                  invoiceId: invoice.id,
+                  reason: `Overpayment on invoice ${invoice.number}`,
+                },
+                { tx },
+              );
+            }
+            return row;
+          })
+          .catch((err: unknown) => {
+            if (err instanceof InvoiceMoved) return null;
+            throw err;
+          });
+        if (!payment) return c.json({ error: MOVED }, 409);
 
         await sendReceipt(
           orgId,
@@ -1143,52 +1168,76 @@ export default defineModule({
          * credit ledger and whose books disagree — and the disagreement is
          * money, so nothing notices until somebody asks for theirs back.
          */
-        const payment = await db.transaction(async (tx) => {
-          const [row] = await tx
-            .insert(schema.payments)
-            .values({
-              organizationId: orgId,
-              invoiceId,
-              amountCents: applied,
-              method: "credit",
-              receivedAt: new Date(),
-            })
-            .returning();
-          if (!row) throw new Error("payment insert returned no row");
+        const payment = await db
+          .transaction(async (tx) => {
+            // The invoice and the customer's credit, both as they were read.
+            // Ten presses spent one credit ten times; see `holdInvoice` and
+            // `holdCreditBalance`.
+            if (
+              !unmoved(
+                await holdInvoice(tx, orgId, invoiceId),
+                invoice,
+                paidCents,
+                creditedCents,
+              ) ||
+              (await holdCreditBalance(
+                tx,
+                orgId,
+                invoice.contactId as string,
+              )) !== available
+            ) {
+              throw new InvoiceMoved();
+            }
+            const [row] = await tx
+              .insert(schema.payments)
+              .values({
+                organizationId: orgId,
+                invoiceId,
+                amountCents: applied,
+                method: "credit",
+                receivedAt: new Date(),
+              })
+              .returning();
+            if (!row) throw new Error("payment insert returned no row");
 
-          await recordCreditMovement(
-            {
-              organizationId: orgId,
-              contactId: invoice.contactId as string,
-              cents: -applied,
-              paymentId: row.id,
-              invoiceId: invoice.id,
-              reason: `Applied to invoice ${invoice.number}`,
-            },
-            { tx },
-          );
+            await recordCreditMovement(
+              {
+                organizationId: orgId,
+                contactId: invoice.contactId as string,
+                cents: -applied,
+                paymentId: row.id,
+                invoiceId: invoice.id,
+                reason: `Applied to invoice ${invoice.number}`,
+              },
+              { tx },
+            );
 
-          await tx
-            .update(schema.invoices)
-            .set({ status, updatedAt: new Date() })
-            .where(eq(schema.invoices.id, invoiceId));
+            await tx
+              .update(schema.invoices)
+              .set({ status, updatedAt: new Date() })
+              .where(eq(schema.invoices.id, invoiceId));
 
-          // No cash moves and no FX applies: this reclassifies a liability the
-          // business already owed the customer into a receivable it no longer
-          // owes them for — one balanced entry, nothing new comes in.
-          await postJournalEntry(
-            orgId,
-            `Credit applied to ${invoice.number}`,
-            `payment:${row.id}`,
-            [
-              { accountId: liability, debitCents: applied },
-              { accountId: ar, creditCents: applied },
-            ],
-            row.receivedAt,
-            { tx },
-          );
-          return row;
-        });
+            // No cash moves and no FX applies: this reclassifies a liability the
+            // business already owed the customer into a receivable it no longer
+            // owes them for — one balanced entry, nothing new comes in.
+            await postJournalEntry(
+              orgId,
+              `Credit applied to ${invoice.number}`,
+              `payment:${row.id}`,
+              [
+                { accountId: liability, debitCents: applied },
+                { accountId: ar, creditCents: applied },
+              ],
+              row.receivedAt,
+              { tx },
+            );
+            return row;
+          })
+          .catch((err: unknown) => {
+            if (err instanceof InvoiceMoved) return null;
+            throw err;
+          });
+        if (!payment) return c.json({ error: MOVED }, 409);
 
         return c.json({ payment, status, balanceDue, appliedCents: applied });
       },
@@ -1350,6 +1399,10 @@ export default defineModule({
         }
 
         const discount = parseDiscount(body);
+        // Pool reads before the transaction, which holds the quote counter;
+        // see the deal route below.
+        const issueDate = dayIn(new Date(), await timezoneFor(orgId));
+        const templateId = await ownedTemplateId(orgId, body.templateId);
         const quote = await db.transaction(async (tx) => {
           const [q] = await tx
             .insert(schema.quotes)
@@ -1358,13 +1411,13 @@ export default defineModule({
               contactId,
               currency: documentCurrency,
               number: await nextDocumentNumber(tx, orgId, "quote"),
-              issueDate: dayIn(new Date(), await timezoneFor(orgId)),
+              issueDate,
               // The day they typed, like every other date column. `new Date`
               // here took a timestamp at its word and stored the instant.
               validUntil: validUntil ? demandDay(validUntil) : null,
               pricesIncludeTax,
               notes: asText(body.notes, "notes").trim() || null,
-              templateId: await ownedTemplateId(orgId, body.templateId),
+              templateId,
               discountType: discount?.type ?? null,
               discountValue: discount?.value ?? 0,
               discountCents: prepared.discountCents,
@@ -1475,6 +1528,12 @@ export default defineModule({
           throw err;
         }
 
+        // Outside the transaction, which holds the quote counter: wanted on
+        // the pool from inside it, ten at once froze every connection.
+        const issuedOn = dayIn(new Date(), await timezoneFor(orgId));
+        // The column defaults to USD, so a deal quoted on a GBP instance
+        // came out in dollars at the figure the deal was worth in pounds.
+        const currency = await baseCurrency(orgId);
         const quote = await db.transaction(async (tx) => {
           const [q] = await tx
             .insert(schema.quotes)
@@ -1483,10 +1542,8 @@ export default defineModule({
               contactId,
               dealId: deal.id,
               number: await nextDocumentNumber(tx, orgId, "quote"),
-              issueDate: dayIn(new Date(), await timezoneFor(orgId)),
-              // The column defaults to USD, so a deal quoted on a GBP instance
-              // came out in dollars at the figure the deal was worth in pounds.
-              currency: await baseCurrency(orgId),
+              issueDate: issuedOn,
+              currency,
               pricesIncludeTax,
               notes: deal.description,
               subtotalCents: prepared.subtotalCents,

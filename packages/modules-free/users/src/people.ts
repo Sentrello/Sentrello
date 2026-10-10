@@ -5,7 +5,7 @@ import {
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
-import { db, schema } from "@sentrello/db";
+import { type DbTx, db, schema } from "@sentrello/db";
 import { lockState, policyFor } from "@sentrello/db/lockout";
 import {
   ACTION_TEXT,
@@ -137,6 +137,34 @@ function isLastAdministrator(
     (m) => holdsAdmin(m.role) && !m.disabledAt,
   );
   return livingAdmins.length <= 1;
+}
+
+/**
+ * `isLastAdministrator`, asked inside the transaction that acts on the answer.
+ *
+ * The routes read the members first and then act, so two administrators
+ * taking each other away at the same moment each counted two and both went —
+ * the instance nobody can get back into. Every membership of the business is
+ * locked here, so the second of them waits, counts again, and is refused.
+ * `gone` is the member removed by somebody else since the first read.
+ */
+async function leavesNoAdministrator(
+  tx: DbTx,
+  orgId: string,
+  memberId: string,
+): Promise<"last" | "gone" | null> {
+  const members = await tx
+    .select({
+      id: schema.member.id,
+      role: schema.member.role,
+      disabledAt: schema.member.disabledAt,
+    })
+    .from(schema.member)
+    .where(eq(schema.member.organizationId, orgId))
+    .for("update");
+  const target = members.find((m) => m.id === memberId);
+  if (!target) return "gone";
+  return isLastAdministrator(members, target) ? "last" : null;
 }
 
 /**
@@ -625,6 +653,10 @@ export function registerPeople(ctx: ModuleContext) {
 
       const subject = await subjectOf(userId);
       const revoked = await db.transaction(async (tx) => {
+        // Asked again under a lock: two administrators removing each other
+        // at once both counted two above, and both went.
+        const refused = await leavesNoAdministrator(tx, orgId, mine.id);
+        if (refused) return refused;
         await tx.delete(schema.member).where(eq(schema.member.id, mine.id));
         await tx
           .delete(schema.session)
@@ -650,6 +682,13 @@ export function registerPeople(ctx: ModuleContext) {
         // bring those keys back with them.
         return revokeKeysOf(tx, orgId, userId, session.user.id);
       });
+      if (revoked === "gone") return c.json({ error: "not found" }, 404);
+      if (revoked === "last") {
+        return c.json(
+          { error: "this is the last administrator; promote somebody first" },
+          400,
+        );
+      }
 
       await record({
         organizationId: orgId,
@@ -907,6 +946,11 @@ export function registerPeople(ctx: ModuleContext) {
 
       const subject = await subjectOf(userId);
       const revoked = await db.transaction(async (tx) => {
+        // Asked again under a lock, as removal does.
+        const refused = disabled
+          ? await leavesNoAdministrator(tx, orgId, target.id)
+          : null;
+        if (refused) return refused;
         await tx
           .update(schema.member)
           .set({ disabledAt: disabled ? new Date() : null })
@@ -923,6 +967,15 @@ export function registerPeople(ctx: ModuleContext) {
         // about every script they ever handed one to.
         return revokeKeysOf(tx, orgId, userId, session.user.id);
       });
+      if (revoked === "gone") return c.json({ error: "not found" }, 404);
+      if (revoked === "last") {
+        return c.json(
+          {
+            error: "this is the last administrator; promote somebody first",
+          },
+          400,
+        );
+      }
 
       await record({
         organizationId: orgId,

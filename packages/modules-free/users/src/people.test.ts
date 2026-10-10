@@ -2,7 +2,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, schema } from "@sentrello/db";
-import { and, eq } from "@sentrello/db/orm";
+import { and, eq, isNull } from "@sentrello/db/orm";
 import { dropOrganization } from "@sentrello/db/testing";
 import { registerForTest } from "@sentrello/module-sdk";
 import { seedDefaults } from "./defaults";
@@ -630,3 +630,48 @@ test("a person's record says whether they are locked, and stops saying it once u
   expect(free.locked).toBe(false);
   expect(free.lockedUntil).toBeNull();
 });
+
+/**
+ * Two administrators taking each other away at the same moment leave one.
+ *
+ * Each route counts the administrators and then acts, and each counted two:
+ * both suspensions went through, and the business had nobody left who could
+ * sign in and undo it. Last in the file, because it leaves the owner as it
+ * finds them only when the guard holds.
+ */
+test("two administrators suspending each other at once leave one standing", async () => {
+  const other = await inviteAndAccept(`co-admin-${suffix}@example.test`);
+  await db
+    .update(schema.member)
+    .set({ role: "admin" })
+    .where(
+      and(
+        eq(schema.member.organizationId, orgId),
+        eq(schema.member.userId, other.userId),
+      ),
+    );
+
+  const suspend = (who: string, as: Headers) =>
+    app.request(`http://localhost/api/users/${who}`, {
+      method: "PATCH",
+      headers: as,
+      body: JSON.stringify({ disabled: true }),
+    });
+  const answers = await Promise.all([
+    suspend(other.userId, headers),
+    suspend(ownerId, other.headers),
+  ]);
+  expect(answers.map((a) => a.status).sort()).toEqual([200, 400]);
+
+  const standing = await db
+    .select({ id: schema.member.id })
+    .from(schema.member)
+    .where(
+      and(
+        eq(schema.member.organizationId, orgId),
+        eq(schema.member.role, "admin"),
+        isNull(schema.member.disabledAt),
+      ),
+    );
+  expect(standing).toHaveLength(1);
+}, 30_000);

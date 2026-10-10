@@ -757,6 +757,9 @@ test("a payment is debited to cash, the bank or in transit by how it was paid", 
       )
       .where(
         and(
+          // This business's: every test org has an INV-0001, and an unscoped
+          // memo match read whichever came back first.
+          eq(schema.journalEntries.organizationId, body.invoice.organizationId),
           eq(schema.journalEntries.memo, `Payment for ${body.invoice.number}`),
           gt(schema.journalLines.debitCents, 0),
         ),

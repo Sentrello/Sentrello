@@ -158,8 +158,12 @@ export async function setBaseCurrency(
   return { baseCurrency: want };
 }
 
-export async function baseCurrency(orgId: string): Promise<string> {
-  const [org] = await db
+export async function baseCurrency(
+  orgId: string,
+  /** A transaction the caller holds, so the read takes no second connection. */
+  conn: Pick<typeof db, "select"> = db,
+): Promise<string> {
+  const [org] = await conn
     .select({ baseCurrency: schema.organizations.baseCurrency })
     .from(schema.organizations)
     .where(eq(schema.organizations.id, orgId))
@@ -179,9 +183,11 @@ export async function rateOn(
   orgId: string,
   code: string,
   on: Date,
+  /** A transaction the caller holds, so the read takes no second connection. */
+  conn: Pick<typeof db, "select"> = db,
 ): Promise<number | null> {
-  if (code === (await baseCurrency(orgId))) return RATE_SCALE;
-  const [row] = await db
+  if (code === (await baseCurrency(orgId, conn))) return RATE_SCALE;
+  const [row] = await conn
     .select({ rateMicro: schema.exchangeRates.rateMicro })
     .from(schema.exchangeRates)
     .where(

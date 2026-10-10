@@ -95,8 +95,10 @@ export async function defaultDueDateFor(
 export async function invoiceDefaultsFor(
   organizationId: string,
   from = new Date(),
+  /** A transaction the caller holds, so the read takes no second connection. */
+  conn: Pick<typeof db, "select"> = db,
 ): Promise<{ dueDate: Date; paymentTerms: string | null }> {
-  const [settings] = await db
+  const [settings] = await conn
     .select({
       days: schema.invoicingSettings.defaultDueDays,
       terms: schema.invoicingSettings.defaultPaymentTerms,
@@ -106,7 +108,7 @@ export async function invoiceDefaultsFor(
     .limit(1);
   return {
     dueDate: defaultDueDate(
-      dayIn(from, await timezoneFor(organizationId)),
+      dayIn(from, await timezoneFor(organizationId, conn)),
       settings?.days ?? DEFAULT_DUE_DAYS,
     ),
     paymentTerms: settings?.terms?.trim() || null,
@@ -193,8 +195,12 @@ async function convertInside(
   lines: (typeof schema.quoteLines.$inferSelect)[],
   rateMicro: number,
 ) {
+  // Read before the transaction: each is a pool connection of its own, and
+  // wanted while holding the document counter they froze the pool when ten
+  // conversions arrived at once.
+  const fromSettings = await invoiceDefaultsFor(organizationId);
+  const issuedOn = dayIn(new Date(), await timezoneFor(organizationId));
   const invoice = await db.transaction(async (tx) => {
-    const fromSettings = await invoiceDefaultsFor(organizationId);
     const [inv] = await tx
       .insert(schema.invoices)
       .values({
@@ -207,7 +213,7 @@ async function convertInside(
         status: "open",
         // The day the invoice is raised, where the business is — not the instant
         // the row was written, which the column default would have stored.
-        issueDate: dayIn(new Date(), await timezoneFor(organizationId)),
+        issueDate: issuedOn,
         // The letterhead the customer was quoted on, so the invoice for the
         // same work does not arrive looking like it came from somewhere else.
         templateId: quote.templateId,
@@ -432,10 +438,11 @@ export async function copyInvoice(
    * not said where it is.
    */
   const issueDate =
-    overrides.issueDate ?? dayIn(new Date(), await timezoneFor(organizationId));
+    overrides.issueDate ??
+    dayIn(new Date(), await timezoneFor(organizationId, overrides.tx));
   const rateMicro =
     overrides.rateMicro ??
-    (await rateOn(organizationId, source.currency, issueDate));
+    (await rateOn(organizationId, source.currency, issueDate, overrides.tx));
   if (rateMicro === null) {
     throw new MoneyError(
       `no exchange rate recorded for ${source.currency} — record one under Money, in Tax and currency, first`,
@@ -547,8 +554,12 @@ export async function copyInvoice(
  * Absent settings read as net, which is the US default and what every row
  * written before the setting existed meant.
  */
-export async function quotesGross(organizationId: string): Promise<boolean> {
-  const [row] = await db
+export async function quotesGross(
+  organizationId: string,
+  /** A transaction the caller holds, so the read takes no second connection. */
+  conn: Pick<typeof db, "select"> = db,
+): Promise<boolean> {
+  const [row] = await conn
     .select({ pricesIncludeTax: schema.invoicingSettings.pricesIncludeTax })
     .from(schema.invoicingSettings)
     .where(eq(schema.invoicingSettings.organizationId, organizationId))
@@ -649,7 +660,14 @@ export async function raiseInvoice(
    * Found 2026-09-28, in the same sweep as the invoice form, quotes and
    * subscriptions. Same fallback, four places, one shape of consequence.
    */
-  const currency = input.currency ?? (await baseCurrency(organizationId));
+  /*
+   * Every read below goes through the caller's transaction when it has one. A
+   * billing run holds a lock in that transaction, and a read on the pool from
+   * inside it is a second connection wanted while the first is held; enough of
+   * those at once and nobody gets one.
+   */
+  const conn = input.tx ?? db;
+  const currency = input.currency ?? (await baseCurrency(organizationId, conn));
   /**
    * Refused rather than guessed.
    *
@@ -657,7 +675,7 @@ export async function raiseInvoice(
    * number in the books, and nothing downstream ever questions it. The same
    * refusal the invoice screen and the recurring job make.
    */
-  const zone = await timezoneFor(organizationId);
+  const zone = await timezoneFor(organizationId, conn);
   // A day, in the business's own zone. The column defaults to now(), and a
   // billing run at 02:00 UTC dated a New York business's invoices the evening
   // before.
@@ -682,6 +700,7 @@ export async function raiseInvoice(
     organizationId,
     currency,
     backDated ? issueDate : new Date(),
+    conn,
   );
   if (rate === null) {
     throw new MoneyError(
@@ -782,7 +801,7 @@ export async function raiseInvoice(
         };
   });
 
-  const pricesIncludeTax = await quotesGross(organizationId);
+  const pricesIncludeTax = await quotesGross(organizationId, conn);
   const totals = documentTotals(
     input.lines.map((l, i) => {
       const definition = l.taxDefinitionId
@@ -802,7 +821,11 @@ export async function raiseInvoice(
     { pricesIncludeTax },
   );
 
-  const fromSettings = await invoiceDefaultsFor(organizationId);
+  const fromSettings = await invoiceDefaultsFor(
+    organizationId,
+    undefined,
+    conn,
+  );
   // The business's terms counted from the issue date: the same number of
   // days on from it as the default is from today.
   const dueDate =
@@ -1238,10 +1261,12 @@ export async function convertQuoteToInstalments(
 export async function creditedAgainst(
   orgId: string,
   invoiceIds: string[],
+  /** Read inside a transaction that holds the invoice; see `holdInvoice`. */
+  conn: DbTx | typeof db = db,
 ): Promise<Map<string, number>> {
   const credited = new Map<string, number>();
   if (invoiceIds.length === 0) return credited;
-  const rows = await db
+  const rows = await conn
     .select({
       invoiceId: schema.invoices.referenceInvoiceId,
       total: sumCents(schema.invoices.totalCents),
@@ -1370,4 +1395,94 @@ export function isOverdueSql(
 ): SQL<boolean> {
   const at = dayIn(now, zone).toISOString();
   return sql<boolean>`${owing.owedCents} > 0 and ${owing.dueDate} is not null and ${owing.dueDate} < ${at}`;
+}
+
+/**
+ * Somebody else is changing this invoice's money right now, or just did.
+ *
+ * Thrown inside a transaction to roll it back; the route answers 409 with
+ * `MOVED`. Nothing was written, and pressing the button again reads the
+ * invoice as it now stands.
+ */
+export class InvoiceMoved extends Error {}
+
+/**
+ * The invoice locked for this transaction, and what is settled on it now.
+ *
+ * Every route that moves money against an invoice reads it, decides, and then
+ * writes, and a decision made on a read is only as good as the gap behind it:
+ * ten presses of "paid in full" all read nothing paid and all recorded the
+ * whole balance — ten payments, ten entries, receivable at minus nine times
+ * the invoice. The same shape spent one customer's credit on ten invoices and
+ * credited one invoice ten times over.
+ *
+ * So the transaction that writes takes the row first, with NOWAIT: a second
+ * caller is refused at once rather than queued. Queued, it would hold a pool
+ * connection while it waited, and the winner still needs the pool to post
+ * (`ensureAccount`, `timezoneFor`) — ten presses and every connection is
+ * waiting on the one that cannot get one. The caller compares what comes back
+ * with what it decided on and throws `InvoiceMoved` if any of it changed.
+ */
+export async function holdInvoice(
+  tx: DbTx,
+  orgId: string,
+  invoiceId: string,
+): Promise<{
+  invoice: typeof schema.invoices.$inferSelect;
+  paidCents: number;
+  creditedCents: number;
+}> {
+  let invoice: typeof schema.invoices.$inferSelect | undefined;
+  try {
+    [invoice] = await tx
+      .select()
+      .from(schema.invoices)
+      .where(
+        and(
+          eq(schema.invoices.id, invoiceId),
+          eq(schema.invoices.organizationId, orgId),
+        ),
+      )
+      .for("update", { noWait: true });
+  } catch (err) {
+    // 55P03, lock_not_available: another transaction holds it.
+    const code =
+      (err as { code?: string }).code ??
+      (err as { cause?: { code?: string } }).cause?.code;
+    if (code === "55P03") throw new InvoiceMoved();
+    throw err;
+  }
+  if (!invoice) throw new InvoiceMoved();
+  const [paid] = await tx
+    .select({ total: sumCents(schema.payments.amountCents) })
+    .from(schema.payments)
+    .where(
+      and(
+        eq(schema.payments.invoiceId, invoiceId),
+        eq(schema.payments.organizationId, orgId),
+      ),
+    );
+  const creditedCents =
+    (await creditedAgainst(orgId, [invoiceId], tx)).get(invoiceId) ?? 0;
+  return { invoice, paidCents: paid?.total ?? 0, creditedCents };
+}
+
+/**
+ * Whether the invoice `holdInvoice` returned is the one a decision was made
+ * on: the same status and total, the same early-payment saving, and the same
+ * amounts paid and credited against it.
+ */
+export function unmoved(
+  held: Awaited<ReturnType<typeof holdInvoice>>,
+  read: typeof schema.invoices.$inferSelect,
+  paidCents: number,
+  creditedCents: number,
+): boolean {
+  return (
+    held.invoice.status === read.status &&
+    held.invoice.totalCents === read.totalCents &&
+    held.invoice.earlyDiscountTakenCents === read.earlyDiscountTakenCents &&
+    held.paidCents === paidCents &&
+    held.creditedCents === creditedCents
+  );
 }

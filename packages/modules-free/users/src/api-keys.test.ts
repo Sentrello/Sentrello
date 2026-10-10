@@ -3,11 +3,12 @@ import { auth } from "@sentrello/auth";
 import { hashApiKey, newApiKey } from "@sentrello/auth/api-keys";
 import { requirePermission, requireSession } from "@sentrello/auth/hono";
 import { memberWith, signUpAsOwner } from "@sentrello/auth/testing";
-import { and, asActor, db, eq, schema } from "@sentrello/db";
+import { and, asActor, db, eq, isNull, schema } from "@sentrello/db";
 import { recordChanged } from "@sentrello/db/record-events";
 import { verifyChain } from "@sentrello/db/security-events";
 import { dropOrganization } from "@sentrello/db/testing";
 import { registerForTest } from "@sentrello/module-sdk";
+import { revokeKeysOf } from "./api-keys";
 import usersModule from "./index";
 
 /**
@@ -616,3 +617,92 @@ test("guessing keys is budgeted per /64 on IPv6, not per address", async () => {
   // The next /64 is somebody else.
   expect((await from("2001:db8:77:2::1", 31)).status).toBe(401);
 });
+
+/**
+ * A key made while its maker is being suspended does not outlive the
+ * suspension.
+ *
+ * Suspending somebody revokes every key they made, inside the transaction that
+ * suspends them. A key made in the same moment was checked against the
+ * membership as it was before that transaction committed, and written after
+ * its revocation sweep had already run: live, and alive again the day the
+ * person is restored. The suspension is held open here so the key is made
+ * exactly inside that gap, rather than hoping two requests land in it.
+ */
+test("a key made while its maker is being suspended is refused, not left alive", async () => {
+  const maker = await memberWith({
+    organizationId: orgA,
+    ownerHeaders: ownerA,
+    permission: { settings: ["read", "update"] },
+    email: `keys-mid-suspend-${suffix}@example.test`,
+  });
+  const mine = and(
+    eq(schema.member.organizationId, orgA),
+    eq(schema.member.userId, maker.userId),
+  );
+
+  let commit = () => {};
+  const held = new Promise<void>((resolve) => {
+    commit = resolve;
+  });
+  let opened = () => {};
+  const open = new Promise<void>((resolve) => {
+    opened = resolve;
+  });
+  const suspension = db.transaction(async (tx) => {
+    await tx.update(schema.member).set({ disabledAt: new Date() }).where(mine);
+    await revokeKeysOf(tx, orgA, maker.userId, ownerAId);
+    opened();
+    await held;
+  });
+  await open;
+
+  const making = makeKey(maker.headers, {
+    name: "Made mid-suspension",
+    permissions: { settings: ["read"] },
+  });
+  await Bun.sleep(500);
+  commit();
+  await suspension;
+  const made = await making;
+
+  const live = await db
+    .select({ id: schema.apiKeys.id })
+    .from(schema.apiKeys)
+    .where(
+      and(
+        eq(schema.apiKeys.createdBy, maker.userId),
+        isNull(schema.apiKeys.revokedAt),
+      ),
+    );
+  expect(live).toEqual([]);
+  expect(made.status).not.toBe(201);
+}, 30_000);
+
+test("revoking one key ten times at once revokes it once", async () => {
+  const made = await makeKey(ownerA, {
+    name: "Revoked at once",
+    permissions: { settings: ["read"] },
+  });
+  const { apiKey } = (await made.json()) as { apiKey: { id: string } };
+  const answers = await Promise.all(
+    Array.from({ length: 10 }, () =>
+      app.request(`/api/users/api-keys/${apiKey.id}`, {
+        method: "DELETE",
+        headers: ownerA,
+      }),
+    ),
+  );
+  expect(answers.map((a) => a.status).filter((s) => s === 200)).toHaveLength(1);
+  const lines = await db
+    .select({ id: schema.securityEvents.id })
+    .from(schema.securityEvents)
+    .where(
+      and(
+        eq(schema.securityEvents.organizationId, orgA),
+        eq(schema.securityEvents.action, "api-key.revoked"),
+        eq(schema.securityEvents.subjectId, apiKey.id),
+      ),
+    );
+  expect(lines).toHaveLength(1);
+}, 30_000);

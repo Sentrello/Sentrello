@@ -533,12 +533,22 @@ test("the same report over the same dates reads the same after an archive", asyn
     expect(row.debits).toBe(row.credits);
   }
 
-  // ---- and back again -------------------------------------------------
-  const restored = await restoreArchive(orgId, () => [archive]);
+  // ---- and back again, pressed five times at once ---------------------
+  // Each restore is one transaction and every insert is `on conflict do
+  // nothing`, so between them the five put each entry back once and take
+  // each summary out once — not five entries, and not the summaries left in
+  // to double the period.
+  const restorations = await Promise.all(
+    Array.from({ length: 5 }, () => restoreArchive(orgId, () => [archive])),
+  );
+  const total = (pick: (r: (typeof restorations)[number]) => number) =>
+    restorations.reduce((sum, r) => sum + pick(r), 0);
   expect(
-    restored.inserted.find((i) => i.table === "journal_entries")?.rows,
+    total(
+      (r) => r.inserted.find((i) => i.table === "journal_entries")?.rows ?? 0,
+    ),
   ).toBe(4);
-  expect(restored.summariesRemoved).toBe(3);
+  expect(total((r) => r.summariesRemoved)).toBe(3);
   expect(balanceOf(await ledgerRows(orgId, period))).toEqual(before);
   expect(balanceOf(await ledgerRows(orgId))).toEqual(wholeBefore);
   expect(await ledgerCount(orgId)).toBe(5);
@@ -547,7 +557,7 @@ test("the same report over the same dates reads the same after an archive", asyn
   const again = await restoreArchive(orgId, () => [archive]);
   expect(again.inserted.every((i) => i.rows === 0)).toBe(true);
   expect(await ledgerCount(orgId)).toBe(5);
-});
+}, 30_000);
 
 test("an archive cannot be restored into a different business", async () => {
   const plan = await planArchive(orgId, "ledger", YEAR_2015.from, YEAR_2015.to);

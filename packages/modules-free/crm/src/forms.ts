@@ -1363,6 +1363,17 @@ async function draftQuote(
   payload: Record<string, string>,
 ): Promise<string> {
   const totals = lineTotals([]);
+  /*
+   * Everything read on the pool is read before the transaction, which holds the
+   * quote counter from its first statement. Read inside it, ten enquiries at
+   * once had nine transactions waiting on the counter and the tenth waiting on
+   * a connection, and the pool froze for everyone, from a public form.
+   */
+  // The business's day, not the instant the form was submitted: a quote
+  // sent at eight in the evening in New York is dated that evening.
+  const issueDate = dayIn(new Date(), await timezoneFor(orgId));
+  const currency = await baseCurrency(orgId);
+  const pricesIncludeTax = await quotesGross(orgId);
   const quote = await db.transaction(async (tx) => {
     const [q] = await tx
       .insert(schema.quotes)
@@ -1370,9 +1381,7 @@ async function draftQuote(
         organizationId: orgId,
         contactId,
         number: await nextDocumentNumber(tx, orgId, "quote"),
-        // The business's day, not the instant the form was submitted: a quote
-        // sent at eight in the evening in New York is dated that evening.
-        issueDate: dayIn(new Date(), await timezoneFor(orgId)),
+        issueDate,
         status: "draft",
         /*
          * This business's own money, and its own convention about tax.
@@ -1383,8 +1392,8 @@ async function draftQuote(
          * nothing is wrong until somebody prices it up and sends it, which is
          * exactly when nobody is looking at the currency beside the total.
          */
-        currency: await baseCurrency(orgId),
-        pricesIncludeTax: await quotesGross(orgId),
+        currency,
+        pricesIncludeTax,
         subtotalCents: totals.subtotal,
         taxCents: totals.tax,
         totalCents: totals.total,

@@ -179,30 +179,59 @@ export function registerApiKeys(ctx: ModuleContext) {
       if (!granted.ok) return c.json({ error: granted.error }, 400);
 
       const { key, prefix, hash } = newApiKey();
-      const [row] = await db
-        .insert(schema.apiKeys)
-        .values({
-          organizationId: orgId,
-          name,
-          prefix,
-          tokenHash: hash,
-          permissions: granted.permissions,
-          createdBy: session.user.id,
-          expiresOn,
-        })
-        .returning({
-          id: schema.apiKeys.id,
-          name: schema.apiKeys.name,
-          prefix: schema.apiKeys.prefix,
-          permissions: schema.apiKeys.permissions,
-          createdAt: schema.apiKeys.createdAt,
-          expiresOn: schema.apiKeys.expiresOn,
-        });
+      /*
+       * Made under a lock on the maker's membership, which is still working.
+       *
+       * Suspending or removing somebody changes that row first and then
+       * revokes their keys, in one transaction. Without the lock a key made in
+       * the same moment was checked against the membership as it was before
+       * that committed and written after its revocation had run: alive, and
+       * alive again the day they were let back. With it, the key either lands
+       * before the suspension, which then revokes it, or finds the maker no
+       * longer working and is not made.
+       */
+      const row = await db.transaction(async (tx) => {
+        const [working] = await tx
+          .select({ id: schema.member.id })
+          .from(schema.member)
+          .where(
+            and(
+              eq(schema.member.organizationId, orgId),
+              eq(schema.member.userId, session.user.id),
+              isNull(schema.member.disabledAt),
+            ),
+          )
+          .for("update");
+        if (!working) return null;
+        const [made] = await tx
+          .insert(schema.apiKeys)
+          .values({
+            organizationId: orgId,
+            name,
+            prefix,
+            tokenHash: hash,
+            permissions: granted.permissions,
+            createdBy: session.user.id,
+            expiresOn,
+          })
+          .returning({
+            id: schema.apiKeys.id,
+            name: schema.apiKeys.name,
+            prefix: schema.apiKeys.prefix,
+            permissions: schema.apiKeys.permissions,
+            createdAt: schema.apiKeys.createdAt,
+            expiresOn: schema.apiKeys.expiresOn,
+          });
+        return made ?? null;
+      });
+      if (!row) {
+        return c.json({ error: "your access here has ended" }, 403);
+      }
 
       await record({
         organizationId: orgId,
         actor: session.user,
-        subject: { id: row?.id ?? null, name, email: null },
+        subject: { id: row.id, name, email: null },
         action: "api-key.created",
         detail: { prefix, permissions: granted.permissions },
       });

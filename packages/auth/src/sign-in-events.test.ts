@@ -27,6 +27,7 @@ const lockedSuspendedEmail = `signin-events-locked-suspended-${suffix}@example.t
 const crossPathSuspendedEmail = `signin-events-cross-path-suspended-${suffix}@example.test`;
 const crossPathLiveEmail = `signin-events-cross-path-live-${suffix}@example.test`;
 const crossOrgEmail = `signin-events-cross-org-${suffix}@example.test`;
+const burstEmail = `signin-events-burst-${suffix}@example.test`;
 let orgId: string;
 
 beforeAll(async () => {
@@ -107,6 +108,7 @@ afterAll(async () => {
   await forgetAccount(crossPathSuspendedEmail);
   await forgetAccount(crossPathLiveEmail);
   await forgetAccount(crossOrgEmail);
+  await forgetAccount(burstEmail);
 });
 
 async function eventsOf(action: string) {
@@ -579,6 +581,44 @@ test("five wrong passwords lock the account, and the sixth attempt — even with
     .catch((err: Error) => err);
   expect(String(refused)).toContain("locked");
 });
+
+/**
+ * Ten wrong passwords at once get five guesses, not ten.
+ *
+ * The lock is read before the password is checked and the failure written
+ * after, and checking a password takes a hash's worth of time. Ten attempts
+ * arriving together all read "no failures yet" and all got their guess, so a
+ * lock meant to allow five allowed however many arrived in the same moment —
+ * from enough addresses, the per-address rate limit does not stop that.
+ */
+test("ten wrong passwords at once are five guesses, and the rest are refused as locked", async () => {
+  await signUpAsOwner({ email: burstEmail, password, name: "Burst" });
+  const [burstUser] = await db
+    .select({ id: schema.user.id })
+    .from(schema.user)
+    .where(eq(schema.user.email, burstEmail))
+    .limit(1);
+  if (!burstUser) throw new Error("sign-up did not create a user");
+  await db.insert(schema.member).values({
+    id: crypto.randomUUID(),
+    organizationId: orgId,
+    userId: burstUser.id,
+    role: "member",
+    createdAt: new Date(),
+  });
+
+  const answers = await Promise.all(
+    Array.from({ length: 10 }, () =>
+      auth.api
+        .signInEmail({ body: { email: burstEmail, password: "wrong" } })
+        .then(() => "signed in")
+        .catch((err: Error) => String(err)),
+    ),
+  );
+  const guessed = answers.filter((a) => !a.includes("locked"));
+  expect(guessed).toHaveLength(5);
+  expect(await eventsFor("sign-in.failed", burstEmail)).toHaveLength(5);
+}, 30_000);
 
 test("an account locked by five wrong two-factor codes refuses even a correct code presented on a challenge opened before the lock", async () => {
   const { codeFor } = await setUpTwoFactorAccount(lockedTwoFactorEmail);

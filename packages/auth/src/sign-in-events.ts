@@ -270,6 +270,18 @@ async function recordTwoFactorVerify(
  * cannot escape to the caller.
  */
 export const signInEvents = createAuthMiddleware(async (ctx) => {
+  try {
+    await recordAttempt(ctx);
+  } finally {
+    // Only now, with the failure written, may the next attempt count it
+    // instead of this reservation. See `signInLockGuard`.
+    releaseAttempt(ctx);
+  }
+});
+
+async function recordAttempt(
+  ctx: Parameters<Parameters<typeof createAuthMiddleware>[0]>[0],
+): Promise<void> {
   if (
     ctx.path === "/two-factor/verify-totp" ||
     ctx.path === "/two-factor/verify-backup-code"
@@ -393,7 +405,7 @@ export const signInEvents = createAuthMiddleware(async (ctx) => {
       `[auth] could not record a sign-in attempt: ${(err as Error).message}`,
     );
   }
-});
+}
 
 /**
  * Suspension does not stop at the three doors `signInLockGuard` watches.
@@ -599,6 +611,49 @@ export const signInEventsPlugin: BetterAuthPlugin = {
  * which discarded a positive determination exactly like that one along with
  * it.
  */
+/**
+ * Attempts the lock has let through and the log has not yet recorded.
+ *
+ * The lock is read before the password is checked and the failure is written
+ * after, and checking a password takes a hash's worth of time. Without this,
+ * ten attempts arriving together all read "no failures yet" and all got their
+ * guess: a lock set at five allowed as many guesses as arrived in the same
+ * moment, and the per-address rate limit does nothing against many addresses.
+ * So an attempt let through is counted here, at the moment the decision is
+ * made, until `signInEvents` has written it down.
+ *
+ * In memory, keyed by organization and address, because one process serves an
+ * instance. Each reservation lapses on its own after a minute, so an attempt
+ * whose after-hook never ran (an endpoint that threw something other than an
+ * `APIError`) cannot hold an address locked.
+ */
+// ponytail: per-process; a second server process would need this in Postgres.
+const unrecorded = new Map<string, number[]>();
+const UNRECORDED_MS = 60_000;
+type Reserving = { sentrelloSignInAttempt?: string };
+
+function unrecordedAt(key: string): number[] {
+  const now = Date.now();
+  const live = (unrecorded.get(key) ?? []).filter(
+    (at) => now - at < UNRECORDED_MS,
+  );
+  if (live.length > 0) unrecorded.set(key, live);
+  else unrecorded.delete(key);
+  return live;
+}
+
+function releaseAttempt(
+  ctx: Parameters<Parameters<typeof createAuthMiddleware>[0]>[0],
+): void {
+  const held = ctx.context as Reserving;
+  const key = held.sentrelloSignInAttempt;
+  if (!key) return;
+  held.sentrelloSignInAttempt = undefined;
+  const live = unrecordedAt(key);
+  live.shift();
+  if (live.length === 0) unrecorded.delete(key);
+}
+
 export const signInLockGuard = createAuthMiddleware(async (ctx) => {
   if (
     ctx.path !== "/sign-in/email" &&
@@ -661,7 +716,19 @@ export const signInLockGuard = createAuthMiddleware(async (ctx) => {
     const org = await organizationFor(user);
     if (!org) return;
 
-    locked = (await lockState(org.id, email)).locked;
+    const lock = await lockState(org.id, email);
+    // From here to the reservation there is no `await`, so no second attempt
+    // can read the count between this one reading it and adding itself.
+    const key = `${org.id}:${email}`;
+    const waiting = unrecordedAt(key);
+    locked =
+      lock.locked ||
+      (lock.limit > 0 && lock.failures + waiting.length >= lock.limit);
+    if (!locked) {
+      waiting.push(Date.now());
+      unrecorded.set(key, waiting);
+      (ctx.context as Reserving).sentrelloSignInAttempt = key;
+    }
 
     // Only a real member can be suspended, so this check — unlike the lock
     // above — cannot help but tell an attacker whether an address is real: a
@@ -733,6 +800,10 @@ export const signInLockGuard = createAuthMiddleware(async (ctx) => {
         "Too many failed attempts. This account is locked for a short period. Ask an administrator to unlock it, or try again later.",
     });
   }
+
+  // Refused before the password is checked, so never recorded: the
+  // reservation goes back now rather than lapsing in a minute.
+  if (suspended || unverified) releaseAttempt(ctx);
 
   if (suspended) {
     throw new APIError("FORBIDDEN", {

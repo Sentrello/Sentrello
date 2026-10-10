@@ -19,7 +19,7 @@ import {
   formatMoney,
   overdueReminderEmail,
 } from "@sentrello/email/templates";
-import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
 
 /**
  * Chasing by rule, and charging for being late.
@@ -323,16 +323,32 @@ export async function runReminders(
           ensureAccount(orgId, CORE_ACCOUNTS.otherIncome),
         ]);
 
-        await db.transaction(async (tx) => {
-          await tx
+        /*
+         * And "not charged yet" is decided by the write, not by the read.
+         *
+         * Two sweeps over the same invoice at once — a slow run overlapping
+         * the next hour's, or two processes on one database — both read
+         * `lateFeeAppliedAt` as empty and both charged: five overlapping runs
+         * posted the fee five times, with the invoice showing it once. The
+         * `is null` claims it; a run that gets no row back posts nothing.
+         */
+        const charged = await db.transaction(async (tx) => {
+          const [claimed] = await tx
             .update(schema.invoices)
             .set({
               lateFeeCents: fee,
               lateFeeAppliedAt: now,
-              totalCents: invoice.totalCents + fee,
+              totalCents: sql`${schema.invoices.totalCents} + ${fee}`,
               updatedAt: now,
             })
-            .where(eq(schema.invoices.id, invoice.id));
+            .where(
+              and(
+                eq(schema.invoices.id, invoice.id),
+                isNull(schema.invoices.lateFeeAppliedAt),
+              ),
+            )
+            .returning({ id: schema.invoices.id });
+          if (!claimed) return false;
 
           await postJournalEntry(
             orgId,
@@ -345,7 +361,9 @@ export async function runReminders(
             now,
             { tx },
           );
+          return true;
         });
+        if (!charged) continue;
         feesApplied += 1;
         appliedNow = fee;
       }
@@ -396,6 +414,32 @@ export async function runReminders(
         : 0;
       if (now.getTime() < throttledUntil) continue;
 
+      /*
+       * Claimed before the send, the way the rule branch claims its log row.
+       *
+       * The throttle above is a read, so two sweeps at once both passed it and
+       * both sent: the same letter to the same customer twice in a minute.
+       * Stamping only while the throttle still allows it makes one of them
+       * the sender; a failed send puts the old stamp back so the next run retries.
+       */
+      const [chasing] = await db
+        .update(schema.invoices)
+        .set({ lastReminderAt: now, updatedAt: now })
+        .where(
+          and(
+            eq(schema.invoices.id, invoice.id),
+            or(
+              isNull(schema.invoices.lastReminderAt),
+              lte(
+                schema.invoices.lastReminderAt,
+                new Date(now.getTime() - FALLBACK_INTERVAL_HOURS * 3600_000),
+              ),
+            ),
+          ),
+        )
+        .returning({ id: schema.invoices.id });
+      if (!chasing) continue;
+
       /**
        * One address that will not take mail is one invoice, not the sweep.
        *
@@ -436,12 +480,17 @@ export async function runReminders(
           `[reminders] the weekly chase for ${invoice.number} could not be sent`,
           err,
         );
+        await db
+          .update(schema.invoices)
+          .set({ lastReminderAt: invoice.lastReminderAt, updatedAt: now })
+          .where(
+            and(
+              eq(schema.invoices.id, invoice.id),
+              eq(schema.invoices.lastReminderAt, now),
+            ),
+          );
         continue;
       }
-      await db
-        .update(schema.invoices)
-        .set({ lastReminderAt: now, updatedAt: now })
-        .where(eq(schema.invoices.id, invoice.id));
       sent += 1;
       continue;
     }

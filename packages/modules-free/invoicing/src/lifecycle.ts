@@ -4,8 +4,14 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { and, db, eq, isNull, ne, schema } from "@sentrello/db";
+import { MOVED } from "@sentrello/db/concurrency";
 import { dayIn, dayOf } from "@sentrello/db/day";
-import { copyInvoice } from "@sentrello/db/documents";
+import {
+  InvoiceMoved,
+  copyInvoice,
+  holdInvoice,
+  unmoved,
+} from "@sentrello/db/documents";
 import {
   postCreditNoteIssued,
   postInvoiceIssued,
@@ -353,36 +359,61 @@ export function registerLifecycle(ctx: ModuleContext) {
        * passed — so the reversal below posted twice and took the income out
        * twice, which is a negative sale on every report that counts them.
        */
-      const [voided] = await db
-        .update(schema.invoices)
-        .set({ status: "void", updatedAt: new Date() })
-        .where(
-          and(
-            eq(schema.invoices.id, invoice.id),
-            ne(schema.invoices.status, "void"),
-          ),
-        )
-        .returning();
+      /*
+       * And "nothing paid, nothing credited" belongs there too. A payment
+       * landing between the checks above and this write left a void invoice
+       * with money against it and a reversal that took the sale out under the
+       * payment. Held as `holdInvoice` holds it, so a payment or a credit
+       * note in flight is refused or refuses this.
+       */
+      const voided = await db
+        .transaction(async (tx) => {
+          const held = await holdInvoice(tx, orgId, invoice.id);
+          if (held.invoice.status === "void") return null;
+          if (!unmoved(held, invoice, 0, 0)) throw new InvoiceMoved();
+          const [row] = await tx
+            .update(schema.invoices)
+            .set({ status: "void", updatedAt: new Date() })
+            .where(
+              and(
+                eq(schema.invoices.id, invoice.id),
+                ne(schema.invoices.status, "void"),
+              ),
+            )
+            .returning();
+          if (!row) return null;
+          // A draft was never in the books, so there is nothing to reverse.
+          //
+          // The reversal is the issued entry with its sides swapped, line for
+          // line, rather than an entry rebuilt from the invoice's figures. The
+          // rebuilt one had two ways to disagree with what it was undoing: it
+          // posted face-value cents whatever currency the document was in, and
+          // it debited one tax account when the issue may have credited
+          // several — leaving every account touched still carrying a balance
+          // the void was supposed to remove.
+          //
+          // In the claiming commit: posted after it, a crash or a refused
+          // posting between the two left a void invoice whose receivable was
+          // still in the books.
+          if (invoice.status !== "draft") {
+            await reverseJournalEntries(
+              orgId,
+              `invoice:${invoice.id}`,
+              `Void invoice ${invoice.number}`,
+              undefined,
+              { tx },
+            );
+          }
+          return row;
+        })
+        .catch((err: unknown) => {
+          if (err instanceof InvoiceMoved) return "moved" as const;
+          throw err;
+        });
+      if (voided === "moved") return c.json({ error: MOVED }, 409);
       // Somebody else voided it first. Their reversal is the one in the books.
       if (!voided) {
         return c.json({ error: "that invoice is already void" }, 409);
-      }
-
-      // A draft was never in the books, so there is nothing to reverse.
-      //
-      // The reversal is the issued entry with its sides swapped, line for
-      // line, rather than an entry rebuilt from the invoice's figures. The
-      // rebuilt one had two ways to disagree with what it was undoing: it
-      // posted face-value cents whatever currency the document was in, and it
-      // debited one tax account when the issue may have credited several —
-      // leaving every account touched still carrying a balance the void was
-      // supposed to remove.
-      if (invoice.status !== "draft") {
-        await reverseJournalEntries(
-          orgId,
-          `invoice:${invoice.id}`,
-          `Void invoice ${invoice.number}`,
-        );
       }
 
       return c.json({ invoice: voided });
@@ -518,99 +549,112 @@ export function registerLifecycle(ctx: ModuleContext) {
       }
       const netCents = amount - taxCents;
 
-      const note = await db.transaction(async (tx) => {
-        /*
-         * gross-or-net: written net, whatever the business quotes in. The
-         * figures here are not a price list being applied — they are the
-         * sale's own bands, apportioned, so the net and the tax are already
-         * separated and the line below carries the net. A credit against a
-         * gross-quoted invoice is still an accurate document saying net plus
-         * tax, which is what every later reading of it needs.
-         */
-        const [made] = await tx
-          .insert(schema.invoices)
-          .values({
-            organizationId: orgId,
-            contactId: source.contactId,
-            currency: source.currency,
-            kind: "credit_note",
-            referenceInvoiceId: source.id,
-            number: await nextDocumentNumber(tx, orgId, "invoice"),
-            status: "open",
-            // As above: a credit note is dated the day it was raised, and the
-            // day is the business's.
-            issueDate: dayIn(new Date(), await timezoneFor(orgId)),
-            notes: asText(body.reason, "reason").trim() || null,
-            subtotalCents: netCents,
-            taxCents,
-            totalCents: amount,
-            // The credited money unwinds at the rate the sale was booked at,
-            // or the reversal never fully clears what the sale put in.
-            rateMicro: source.rateMicro,
-            // A credit against an exempt sale carries the certificate that
-            // excused it, so the filing's exempt figure falls too.
-            exemptionCertificateId: source.exemptionCertificateId,
-          })
-          .returning();
-        if (!made) throw new Error("credit note returned no row");
+      // Before the transaction: it reads on a pool connection of its own.
+      const issuedOn = dayIn(new Date(), await timezoneFor(orgId));
 
-        await tx.insert(schema.invoiceLines).values({
-          invoiceId: made.id,
-          description: `Credit against invoice ${source.number}`,
-          quantity: 1,
-          quantityMilli: 1000,
-          unitPriceCents: netCents,
+      const settled = await db
+        .transaction(async (tx) => {
+          /*
+           * The cap above was a read, and ten full credits arriving together
+           * all passed it: ten notes, the sale reversed ten times. Held, and
+           * refused if anything was credited, voided or re-totalled since.
+           */
+          const held = await holdInvoice(tx, orgId, source.id);
+          if (!unmoved(held, source, held.paidCents, already)) {
+            throw new InvoiceMoved();
+          }
+          /*
+           * gross-or-net: written net, whatever the business quotes in. The
+           * figures here are not a price list being applied — they are the
+           * sale's own bands, apportioned, so the net and the tax are already
+           * separated and the line below carries the net. A credit against a
+           * gross-quoted invoice is still an accurate document saying net plus
+           * tax, which is what every later reading of it needs.
+           */
+          const [made] = await tx
+            .insert(schema.invoices)
+            .values({
+              organizationId: orgId,
+              contactId: source.contactId,
+              currency: source.currency,
+              kind: "credit_note",
+              referenceInvoiceId: source.id,
+              number: await nextDocumentNumber(tx, orgId, "invoice"),
+              status: "open",
+              // As above: a credit note is dated the day it was raised, and the
+              // day is the business's.
+              issueDate: issuedOn,
+              notes: asText(body.reason, "reason").trim() || null,
+              subtotalCents: netCents,
+              taxCents,
+              totalCents: amount,
+              // The credited money unwinds at the rate the sale was booked at,
+              // or the reversal never fully clears what the sale put in.
+              rateMicro: source.rateMicro,
+              // A credit against an exempt sale carries the certificate that
+              // excused it, so the filing's exempt figure falls too.
+              exemptionCertificateId: source.exemptionCertificateId,
+            })
+            .returning();
+          if (!made) throw new Error("credit note returned no row");
+
+          await tx.insert(schema.invoiceLines).values({
+            invoiceId: made.id,
+            description: `Credit against invoice ${source.number}`,
+            quantity: 1,
+            quantityMilli: 1000,
+            unitPriceCents: netCents,
+          });
+          // The note freezes its own bands the way the sale did: the US filing
+          // and the tax summary read documents band by band, and a credit with
+          // no bands is a credit those figures never see.
+          await writeTaxBands(tx, orgId, "invoice", made.id, bands);
+          /*
+           * Posted in the same commit as the note.
+           *
+           * A credit note settles the invoice the moment it exists —
+           * `creditedAgainst` counts every note that is not void, posted or
+           * not — so a note written and then failing to post is a customer's
+           * debt reduced with nothing in the books to match it, and an invoice
+           * nobody chases for money the ledger still says is owed.
+           */
+          await postCreditNoteIssued(
+            orgId,
+            made,
+            `Credit note ${made.number} against ${source.number}`,
+            undefined,
+            { tx },
+          );
+
+          /**
+           * The credit settles the invoice the way a payment does: the customer
+           * no longer owes that part. Left alone, a fully credited invoice kept
+           * reading as outstanding and the reminder job chased the customer for
+           * money nobody was owed. Same arithmetic as the payments route —
+           * payments plus credits against what the invoice asks for — with the
+           * two kinds of settlement passed apart, so an invoice settled by
+           * credit alone reads `credited` rather than claiming somebody paid.
+           *
+           * In the same commit, from the payments read under the hold, so a
+           * payment landing beside it cannot leave the status stale.
+           */
+          const { status, balanceDue } = invoiceStatus(
+            source.totalCents - source.earlyDiscountTakenCents,
+            held.paidCents,
+            already + amount,
+          );
+          await tx
+            .update(schema.invoices)
+            .set({ status, updatedAt: new Date() })
+            .where(eq(schema.invoices.id, source.id));
+          return { note: made, status, balanceDue };
+        })
+        .catch((err: unknown) => {
+          if (err instanceof InvoiceMoved) return null;
+          throw err;
         });
-        // The note freezes its own bands the way the sale did: the US filing
-        // and the tax summary read documents band by band, and a credit with
-        // no bands is a credit those figures never see.
-        await writeTaxBands(tx, orgId, "invoice", made.id, bands);
-        /*
-         * Posted in the same commit as the note.
-         *
-         * A credit note settles the invoice the moment it exists —
-         * `creditedAgainst` counts every note that is not void, posted or
-         * not — so a note written and then failing to post is a customer's
-         * debt reduced with nothing in the books to match it, and an invoice
-         * nobody chases for money the ledger still says is owed.
-         */
-        await postCreditNoteIssued(
-          orgId,
-          made,
-          `Credit note ${made.number} against ${source.number}`,
-          undefined,
-          { tx },
-        );
-        return made;
-      });
-
-      /**
-       * The credit settles the invoice the way a payment does: the customer
-       * no longer owes that part. Left alone, a fully credited invoice kept
-       * reading as outstanding and the reminder job chased the customer for
-       * money nobody was owed. Same arithmetic as the payments route —
-       * payments plus credits against what the invoice asks for — with the
-       * two kinds of settlement passed apart, so an invoice settled by
-       * credit alone reads `credited` rather than claiming somebody paid.
-       */
-      const paid = await db
-        .select({ amountCents: schema.payments.amountCents })
-        .from(schema.payments)
-        .where(
-          and(
-            eq(schema.payments.invoiceId, source.id),
-            eq(schema.payments.organizationId, orgId),
-          ),
-        );
-      const { status, balanceDue } = invoiceStatus(
-        source.totalCents - source.earlyDiscountTakenCents,
-        paid.reduce((sum, p) => sum + p.amountCents, 0),
-        already + amount,
-      );
-      await db
-        .update(schema.invoices)
-        .set({ status, updatedAt: new Date() })
-        .where(eq(schema.invoices.id, source.id));
+      if (!settled) return c.json({ error: MOVED }, 409);
+      const { note, status, balanceDue } = settled;
 
       return c.json({ creditNote: note, status, balanceDue }, 201);
     },
