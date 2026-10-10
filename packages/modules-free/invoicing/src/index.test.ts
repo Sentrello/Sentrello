@@ -1337,7 +1337,7 @@ test("a rejected invoice leaves nothing behind", async () => {
 /**
  * An invoice with no due date is invisible to overdue chasing.
  *
- * `sendOverdueReminders` filters on `dueDate is not null`, so an invoice
+ * The overdue chase filters on `dueDate is not null`, so an invoice
  * created without one can never age, never be chased and never appear in
  * receivables with a meaningful age — it is simply money the business is never
  * reminded to ask for. The form left the field blank and optional.

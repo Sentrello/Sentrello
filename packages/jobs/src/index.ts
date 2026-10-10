@@ -6,7 +6,6 @@ import {
   recordLicenseRefresh,
   refreshLicenseToken,
 } from "./license-refresh";
-import { sendOverdueReminders } from "./overdue";
 import { runReminders } from "./reminders";
 import { sendTelemetry } from "./telemetry";
 
@@ -391,7 +390,7 @@ async function forgetOrphanedSchedules(
   }
 }
 
-export { sendOverdueReminders, refreshLicenseToken, lastLicenseRefresh };
+export { refreshLicenseToken, lastLicenseRefresh };
 export { runReminders, lateFeeFor, rulesDue } from "./reminders";
 export {
   sendTelemetry,
