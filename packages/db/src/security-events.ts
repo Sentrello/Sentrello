@@ -1,5 +1,6 @@
 import { createHmac, hkdfSync, randomUUID } from "node:crypto";
 import { and, asc, desc, eq, inArray, not, sql } from "drizzle-orm";
+import { currentActor, currentKey, withKey } from "./actor";
 import { db } from "./client";
 import * as schema from "./schema";
 
@@ -296,11 +297,18 @@ export async function record(input: {
      * because both go into the hash and a value the database picks after the
      * fact cannot be hashed before it is written.
      */
+    const actorId = input.actor?.id ?? null;
+    /*
+     * Done with an API key, when the person named is the key's maker: said in
+     * the name a reader sees, and kept as an id beside it.
+     */
+    const key = actorId && actorId === currentActor() ? currentKey() : null;
     const row = {
       id: randomUUID(),
       organizationId: input.organizationId,
-      actorId: input.actor?.id ?? null,
-      actorName: input.actor ? who(input.actor) : null,
+      actorId,
+      actorName: input.actor ? withKey(who(input.actor), actorId) : null,
+      actorKeyId: key?.id ?? null,
       subjectId: input.subject?.id ?? null,
       subjectName: input.subject ? who(input.subject) : null,
       action: input.action,
@@ -308,8 +316,8 @@ export async function record(input: {
       at: new Date(),
     };
 
-    const key = chainKey();
-    if (!key) {
+    const chain = chainKey();
+    if (!chain) {
       // No key, no chain. The row is still written — a log with an
       // uncheckable entry beats an action nobody recorded — and `verifyChain`
       // says plainly that this instance cannot be checked at all.
@@ -350,7 +358,7 @@ export async function record(input: {
       const prevHash = last?.hash ?? null;
       await tx
         .insert(schema.securityEvents)
-        .values({ ...row, prevHash, hash: linkOf(row, prevHash, key) });
+        .values({ ...row, prevHash, hash: linkOf(row, prevHash, chain) });
     });
   } catch (err) {
     console.error(
@@ -620,6 +628,7 @@ function chainInput(
     organizationId: string;
     actorId: string | null;
     actorName: string | null;
+    actorKeyId?: string | null;
     subjectId: string | null;
     subjectName: string | null;
     action: string;
@@ -644,6 +653,9 @@ function chainInput(
       ? null
       : stableJson(row.detail),
     row.at.toISOString(),
+    // Only where there is one, so every row written before the column existed
+    // hashes exactly as it did.
+    ...(row.actorKeyId ? [row.actorKeyId] : []),
   ]);
 }
 

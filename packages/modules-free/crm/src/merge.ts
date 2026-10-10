@@ -102,8 +102,8 @@ export function registerMerge(ctx: ModuleContext) {
    * Likely duplicates, proposed.
    *
    * Read whole and matched in memory: grouping by three keys over one pass
-   * is linear, and a business under twenty staff does not have the book
-   * that makes this a query problem.
+   * is linear, and a business of up to five hundred people does not have
+   * the book that makes this a query problem.
    */
   ctx.app.get(
     "/api/contacts/duplicates",

@@ -294,8 +294,11 @@ A key can never do more than you can:
 - **You can only tick what you hold yourself.** Ask for a permission you
   don't have and the key isn't made.
 - **It shrinks with you.** Every call checks the key's own list *and* your access
-  as it stands that day. If your role changes, or you're suspended or removed,
-  your keys lose that access with you.
+  as it stands that day, so if your role changes, your keys change with it.
+- **It goes when you do.** Suspend somebody or remove them and every key they
+  made is revoked on the spot, with a line for each in **Users → Events**.
+  Restoring them, or inviting them back, gives them their access back and not
+  their keys. Those stay revoked, so a script still holding one stays locked out.
 - **It only calls routes that name a permission.** The routes that act on
   whoever is signed in, like your own profile and security settings, turn
   keys away.
@@ -304,11 +307,20 @@ A key can never do more than you can:
   somebody and connecting single sign-on all turn keys away, `settings:update`
   or not. Each one hands over a person's whole access, and a person's access
   has none of the key's limits.
+- **It can't mint another kind of key.** A module that issues its own key for
+  a machine, like a sending key or a key for an AI agent, turns API keys away
+  too. That key would carry on working after yours was revoked.
 
 Revoking a key, or reaching the end of the day it was set to work until, stops
 it at once. "The end of the day" means the end of that day where your business
 is. Too many wrong keys from one address and that address is refused for a
-while. Making and revoking keys both appear in **Users → Events**.
+while. On IPv6 that means the whole /64 it came from, since one connection
+is usually handed a whole block of addresses.
+
+Making and revoking keys both appear in **Users → Events**. So does anything
+a key does there: it's recorded as its maker's, with the key named beside them,
+like *Ana, with key 'meter'*. You can tell what a script did from what Ana
+did by hand.
 
 ## How permissions are enforced
 

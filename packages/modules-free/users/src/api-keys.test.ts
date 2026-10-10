@@ -3,7 +3,9 @@ import { auth } from "@sentrello/auth";
 import { hashApiKey, newApiKey } from "@sentrello/auth/api-keys";
 import { requirePermission, requireSession } from "@sentrello/auth/hono";
 import { memberWith, signUpAsOwner } from "@sentrello/auth/testing";
-import { db, eq, schema } from "@sentrello/db";
+import { and, asActor, db, eq, schema } from "@sentrello/db";
+import { recordChanged } from "@sentrello/db/record-events";
+import { verifyChain } from "@sentrello/db/security-events";
 import { dropOrganization } from "@sentrello/db/testing";
 import { registerForTest } from "@sentrello/module-sdk";
 import usersModule from "./index";
@@ -443,4 +445,174 @@ test("a key cannot open another way in as a person", async () => {
     }),
   });
   expect(invite.status).toBe(403);
+});
+
+/** A member who makes a key, and what it takes to call with it. */
+async function makerWithKey(tag: string) {
+  const maker = await memberWith({
+    organizationId: orgA,
+    ownerHeaders: ownerA,
+    permission: { settings: ["read", "update"] },
+    email: `keys-${tag}-${suffix}@example.test`,
+  });
+  const made = await makeKey(maker.headers, {
+    name: `${tag}'s`,
+    permissions: { settings: ["read"] },
+  });
+  const { key, apiKey } = (await made.json()) as {
+    key: string;
+    apiKey: { id: string };
+  };
+  const call = () => app.request("/api/users/groups", { headers: bearer(key) });
+  return { maker, key, id: apiKey.id, call };
+}
+
+async function revocationOf(id: string) {
+  const [row] = await db
+    .select({ revokedAt: schema.apiKeys.revokedAt })
+    .from(schema.apiKeys)
+    .where(eq(schema.apiKeys.id, id));
+  const [line] = await db
+    .select({ detail: schema.securityEvents.detail })
+    .from(schema.securityEvents)
+    .where(
+      and(
+        eq(schema.securityEvents.organizationId, orgA),
+        eq(schema.securityEvents.action, "api-key.revoked"),
+        eq(schema.securityEvents.subjectId, id),
+      ),
+    );
+  return { revokedAt: row?.revokedAt ?? null, recorded: line?.detail ?? null };
+}
+
+test("removing somebody revokes their keys, and letting them back does not revive one", async () => {
+  const { maker, id, call } = await makerWithKey("removed");
+  expect((await call()).status).toBe(200);
+
+  const [membership] = await db
+    .select()
+    .from(schema.member)
+    .where(eq(schema.member.userId, maker.userId));
+  if (!membership) throw new Error("no membership");
+
+  const removed = await app.request(`/api/users/${maker.userId}`, {
+    method: "DELETE",
+    headers: ownerA,
+  });
+  expect(removed.status).toBe(200);
+
+  const { revokedAt, recorded } = await revocationOf(id);
+  expect(revokedAt).not.toBeNull();
+  expect(recorded).toMatchObject({ because: "member.removed" });
+
+  // Back on the books, exactly as they were.
+  await db.insert(schema.member).values(membership);
+  expect((await call()).status).toBe(401);
+});
+
+test("suspending somebody revokes their keys, and restoring them does not revive one", async () => {
+  const { maker, id, call } = await makerWithKey("suspended");
+  expect((await call()).status).toBe(200);
+
+  const suspend = (disabled: boolean) =>
+    app.request(`/api/users/${maker.userId}`, {
+      method: "PATCH",
+      headers: ownerA,
+      body: JSON.stringify({ disabled }),
+    });
+  expect((await suspend(true)).status).toBe(200);
+  const { revokedAt, recorded } = await revocationOf(id);
+  expect(revokedAt).not.toBeNull();
+  expect(recorded).toMatchObject({ because: "account.disabled" });
+
+  expect((await suspend(false)).status).toBe(200);
+  expect((await call()).status).toBe(401);
+});
+
+test("what a key did is recorded as done with that key", async () => {
+  const made = await makeKey(ownerA, {
+    name: "Meter",
+    permissions: { settings: ["read", "update"] },
+  });
+  const { key, apiKey } = (await made.json()) as {
+    key: string;
+    apiKey: { id: string };
+  };
+
+  const created = await app.request("/api/users/groups", {
+    method: "POST",
+    headers: bearer(key),
+    body: JSON.stringify({ name: `By key ${suffix}` }),
+  });
+  expect(created.status).toBe(201);
+
+  const events = await app.request("/api/users/events?action=group.created", {
+    headers: ownerA,
+  });
+  const { events: rows } = (await events.json()) as {
+    events: { actor: string; actorId: string; actorKeyId: string | null }[];
+  };
+  const mine = rows.find((r) => r.actorKeyId === apiKey.id);
+  expect(mine?.actorId).toBe(ownerAId);
+  expect(mine?.actor).toBe("a owner, with key \u2018Meter\u2019");
+
+  // By hand, the same person reads as themselves.
+  const byHand = await app.request("/api/users/groups", {
+    method: "POST",
+    headers: ownerA,
+    body: JSON.stringify({ name: `By hand ${suffix}` }),
+  });
+  expect(byHand.status).toBe(201);
+  const [handLine] = await db
+    .select()
+    .from(schema.securityEvents)
+    .where(
+      and(
+        eq(schema.securityEvents.organizationId, orgA),
+        eq(schema.securityEvents.subjectName, `By hand ${suffix}`),
+      ),
+    );
+  expect(handLine?.actorName).toBe("a owner");
+  expect(handLine?.actorKeyId).toBeNull();
+
+  // The key is part of what the chain protects, and older rows still verify.
+  const verdict = await verifyChain(orgA);
+  expect(verdict.problems).toEqual([]);
+
+  // The change feed says the same.
+  const entityId = crypto.randomUUID();
+  await asActor(
+    ownerAId,
+    () =>
+      recordChanged({
+        organizationId: orgA,
+        entity: "probe",
+        entityId,
+        action: "created",
+      }),
+    { id: apiKey.id, name: "Meter" },
+  );
+  const [change] = await db
+    .select()
+    .from(schema.recordEvents)
+    .where(eq(schema.recordEvents.entityId, entityId));
+  expect(change?.actorId).toBe(ownerAId);
+  expect(change?.actorKeyId).toBe(apiKey.id);
+});
+
+test("guessing keys is budgeted per /64 on IPv6, not per address", async () => {
+  const from = (ip: string, i: number) => {
+    const headers = bearer(`sntl_v6-guess-${i}`);
+    headers.set("x-real-ip", ip);
+    return app.request("/api/users/groups", { headers });
+  };
+  // Thirty addresses, all inside one /64: one caller.
+  for (let i = 0; i < 30; i++) {
+    expect(
+      (await from(`2001:db8:77:1::${(i + 1).toString(16)}`, i)).status,
+    ).toBe(401);
+  }
+  expect((await from("2001:db8:77:1:ffff::9", 30)).status).toBe(429);
+  // The next /64 is somebody else.
+  expect((await from("2001:db8:77:2::1", 31)).status).toBe(401);
 });

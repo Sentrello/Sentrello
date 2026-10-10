@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { auth, clientIp } from "@sentrello/auth";
 import {
   activeOrganizationId,
+  isKeyCaller,
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
@@ -129,7 +130,7 @@ export function registerInvitations(ctx: ModuleContext) {
       const orgId = activeOrganizationId(session);
       // Not for a key: an invitation is a new person, with whatever role it
       // names, and none of the key's limits.
-      if (session.apiKey) {
+      if (isKeyCaller(c)) {
         return c.json({ error: "an API key cannot invite anybody" }, 403);
       }
       const body = (await c.req.json().catch(() => ({}))) as {

@@ -3,7 +3,7 @@
  *
  * Every module writes something down as it works — a change feed, a delivery
  * log, an audit trail — and a log is the one kind of table that only ever
- * grows. On a self-hosted box under twenty people, with nobody watching the
+ * grows. On a self-hosted box at a small business, with nobody watching the
  * disk, that is not an incident this year; it is an incident in two years, on
  * a customer's own server, where the answer today would be "log in and delete
  * some rows". That is not an answer to give somebody with no IT department.

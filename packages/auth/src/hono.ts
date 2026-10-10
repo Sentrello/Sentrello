@@ -5,7 +5,11 @@ import {
   rolesNeedingTwoFactor,
 } from "@sentrello/db/security-events";
 import type { SentrelloEnv, SentrelloSession } from "@sentrello/module-sdk";
-import { rateLimit, rateLimitSpent } from "@sentrello/module-sdk";
+import {
+  addressBucket,
+  rateLimit,
+  rateLimitSpent,
+} from "@sentrello/module-sdk";
 import type { Context, Hono } from "hono";
 import { createMiddleware } from "hono/factory";
 import { matchedRoutes } from "hono/route";
@@ -121,7 +125,9 @@ async function keyCaller(
   presented: string,
   next: () => Promise<void>,
 ) {
-  const budget = `api-key:${clientIp(c)}`;
+  // Per /64 for IPv6: one connection is handed a whole block of those, so a
+  // budget per full address is no budget at all.
+  const budget = `api-key:${addressBucket(clientIp(c))}`;
   if (rateLimitSpent(budget, KEY_MISSES, KEY_MISS_WINDOW_MS)) {
     return c.json(
       { error: "too many attempts with a key that does not work" },
@@ -181,7 +187,18 @@ async function keyCaller(
     user: key.user,
     apiKey: { id: key.id, name: key.name, permissions: key.permissions },
   });
-  await asActor(key.user.id, () => next());
+  await asActor(key.user.id, () => next(), { id: key.id, name: key.name });
+}
+
+/**
+ * Whether this request came with an API key rather than a person.
+ *
+ * For the routes that hand out a way in — a password, an invitation, a
+ * module's own machine credential. Each of those is wider than any key, and
+ * one made by a key would outlive the key being revoked and its maker leaving.
+ */
+export function isKeyCaller(c: Context<AppEnv>): boolean {
+  return Boolean(c.get("session")?.apiKey);
 }
 
 /**

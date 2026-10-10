@@ -2787,7 +2787,7 @@ function registerCrmScreens(
           : Promise.resolve([]),
         // The deal names its contacts in a jsonb array, so they are gathered
         // here rather than joined. Same trade as the contact screen, same
-        // reason: a business under twenty staff will never notice.
+        // reason: a business this product is for will never notice.
         db
           .select()
           .from(schema.contacts)
@@ -2974,7 +2974,7 @@ function registerCrmScreens(
           ),
         // Deals hold their contacts in a jsonb array, so the filter happens
         // here rather than in SQL. Fine at the scale this product targets —
-        // under twenty staff — and honest about it rather than pretending a
+        // one to five hundred people — and honest about it rather than pretending a
         // clever query exists.
         // ponytail: scan-and-filter; move to a join table if a business ever
         // has enough deals for this to show.

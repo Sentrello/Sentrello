@@ -18,6 +18,7 @@
 
 export {
   activeOrganizationId,
+  isKeyCaller,
   mayAccess,
   requirePermission,
   requireSession,

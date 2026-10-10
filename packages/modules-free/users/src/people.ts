@@ -1,6 +1,7 @@
 import { auth } from "@sentrello/auth";
 import {
   activeOrganizationId,
+  isKeyCaller,
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
@@ -15,6 +16,7 @@ import {
 import { asText } from "@sentrello/db/text-columns";
 import type { ModuleContext } from "@sentrello/module-sdk";
 import { and, asc, desc, eq, ilike, inArray, not, or, sql } from "drizzle-orm";
+import { recordKeysRevoked, revokeKeysOf } from "./api-keys";
 import { temporaryPassword } from "./password";
 import { applyRoles, twoFactorRequired as needsTwoFactor } from "./roles";
 
@@ -436,6 +438,7 @@ export function registerPeople(ctx: ModuleContext) {
           (e) => ({
             at: e.at,
             actor: e.actorName,
+            actorKeyId: e.actorKeyId,
             subject: e.subjectName,
             action: e.action,
             says: ACTION_TEXT[e.action as keyof typeof ACTION_TEXT] ?? e.action,
@@ -621,25 +624,32 @@ export function registerPeople(ctx: ModuleContext) {
       }
 
       const subject = await subjectOf(userId);
-      await db.delete(schema.member).where(eq(schema.member.id, mine.id));
-      await db.delete(schema.session).where(eq(schema.session.userId, userId));
-      /*
-       * And out of the groups they were in.
-       *
-       * The group rows are keyed on the user, not the membership, so somebody
-       * taken off the instance stayed listed under Sales on the Groups screen —
-       * a former employee reading as staff to whoever opens it. Worse on the way
-       * back: re-inviting them handed back every role those groups grant,
-       * without anybody choosing to, because `applyRoles` reads the groups.
-       */
-      await db
-        .delete(schema.userGroupMembers)
-        .where(
-          and(
-            eq(schema.userGroupMembers.organizationId, orgId),
-            eq(schema.userGroupMembers.userId, userId),
-          ),
-        );
+      const revoked = await db.transaction(async (tx) => {
+        await tx.delete(schema.member).where(eq(schema.member.id, mine.id));
+        await tx
+          .delete(schema.session)
+          .where(eq(schema.session.userId, userId));
+        /*
+         * And out of the groups they were in.
+         *
+         * The group rows are keyed on the user, not the membership, so somebody
+         * taken off the instance stayed listed under Sales on the Groups screen —
+         * a former employee reading as staff to whoever opens it. Worse on the way
+         * back: re-inviting them handed back every role those groups grant,
+         * without anybody choosing to, because `applyRoles` reads the groups.
+         */
+        await tx
+          .delete(schema.userGroupMembers)
+          .where(
+            and(
+              eq(schema.userGroupMembers.organizationId, orgId),
+              eq(schema.userGroupMembers.userId, userId),
+            ),
+          );
+        // And every key they made, so letting them back in later does not
+        // bring those keys back with them.
+        return revokeKeysOf(tx, orgId, userId, session.user.id);
+      });
 
       await record({
         organizationId: orgId,
@@ -648,6 +658,7 @@ export function registerPeople(ctx: ModuleContext) {
         action: "member.removed",
         detail: { role: mine.role },
       });
+      await recordKeysRevoked(orgId, session.user, revoked, "member.removed");
       return c.json({ removed: true });
     },
   );
@@ -676,7 +687,7 @@ export function registerPeople(ctx: ModuleContext) {
        * that carried only `settings:update`. The reason a key cannot make
        * keys, one door along.
        */
-      if (session.apiKey) {
+      if (isKeyCaller(c)) {
         return c.json({ error: "an API key cannot issue a password" }, 403);
       }
 
@@ -895,19 +906,23 @@ export function registerPeople(ctx: ModuleContext) {
       }
 
       const subject = await subjectOf(userId);
-      await db
-        .update(schema.member)
-        .set({ disabledAt: disabled ? new Date() : null })
-        .where(eq(schema.member.id, target.id));
+      const revoked = await db.transaction(async (tx) => {
+        await tx
+          .update(schema.member)
+          .set({ disabledAt: disabled ? new Date() : null })
+          .where(eq(schema.member.id, target.id));
+        if (!disabled) return [];
 
-      // Ends every session of theirs. An account that cannot sign in again
-      // but stays signed in where it already was has not actually been
-      // suspended.
-      if (disabled) {
-        await db
+        // Ends every session of theirs. An account that cannot sign in again
+        // but stays signed in where it already was has not actually been
+        // suspended.
+        await tx
           .delete(schema.session)
           .where(eq(schema.session.userId, userId));
-      }
+        // And their keys, for good: restoring the account is not a decision
+        // about every script they ever handed one to.
+        return revokeKeysOf(tx, orgId, userId, session.user.id);
+      });
 
       await record({
         organizationId: orgId,
@@ -916,6 +931,7 @@ export function registerPeople(ctx: ModuleContext) {
         action: disabled ? "account.disabled" : "account.enabled",
         detail: { role: target.role },
       });
+      await recordKeysRevoked(orgId, session.user, revoked, "account.disabled");
 
       const person = await personDetail(orgId, userId, session.user.id);
       return c.json({ person });

@@ -1,4 +1,4 @@
-import { currentActor } from "./actor";
+import { currentActor, currentKey } from "./actor";
 import { db } from "./client";
 import { recordEvents } from "./schema";
 
@@ -136,6 +136,7 @@ export async function recordChanged(change: RecordChange): Promise<void> {
         after: change.after ?? null,
         related: change.related ?? null,
         actorId: currentActor(),
+        actorKeyId: currentKey()?.id ?? null,
         causedByRunId: change.causedByRunId ?? null,
       })
       .returning();

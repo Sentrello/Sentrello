@@ -1,6 +1,7 @@
 import { auth } from "@sentrello/auth";
 import {
   activeOrganizationId,
+  isKeyCaller,
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
@@ -133,7 +134,7 @@ export function registerSso(ctx: ModuleContext) {
       const orgId = activeOrganizationId(session);
       // Not for a key: a provider somebody else runs can sign anybody in,
       // the owner included, with none of the key's limits.
-      if (session.apiKey) {
+      if (isKeyCaller(c)) {
         return c.json({ error: "an API key cannot connect a sign-in" }, 403);
       }
       const body = (await c.req.json().catch(() => ({}))) as Record<

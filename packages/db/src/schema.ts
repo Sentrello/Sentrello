@@ -366,8 +366,9 @@ export const deals = pgTable(
 /**
  * Notes against a contact or a deal, with files.
  *
- * One table rather than the reference's two, matching how `taggables` already works
- * here — the shape is identical and two tables would mean two of every query.
+ * One table for both rather than one each, matching how `taggables` already
+ * works here — the shape is identical and two tables would mean two of every
+ * query.
  */
 export const notes = pgTable(
   "notes",
@@ -644,7 +645,7 @@ export const quotes = pgTable(
      */
     shareToken: text("share_token"),
     published: boolean("published").notNull().default(false),
-    /** When they first opened it. The read receipt the reference gets right. */
+    /** When they first opened it: the read receipt. */
     firstViewedAt: timestamp("first_viewed_at"),
     lastViewedAt: timestamp("last_viewed_at"),
     viewCount: integer("view_count").notNull().default(0),
@@ -3462,6 +3463,14 @@ export const securityEvents = pgTable(
      */
     actorId: text("actor_id"),
     actorName: text("actor_name"),
+    /**
+     * The API key it came through, when the person above did it with one.
+     *
+     * A key acts as its maker, so without this a script's work read as the
+     * maker's own. `actorName` then says so in words — "Ana, with key
+     * 'meter'" — and this is the id behind them.
+     */
+    actorKeyId: uuid("actor_key_id"),
     /** The account it was done to, where there is one. */
     subjectId: text("subject_id"),
     subjectName: text("subject_name"),
@@ -3808,10 +3817,9 @@ export const apiKeys = pgTable(
 /**
  * The rules a business sets for how people get in.
  *
- * One row per organization. The reference calls these required actions and
- * policies; for a business of under twenty people the useful ones are: who
- * must have a second factor, how long a session lasts, and how short a
- * password may be.
+ * One row per organization. For a business of one to five hundred people the
+ * useful ones are: who must have a second factor, how long a session lasts,
+ * and how short a password may be.
  */
 /**
  * Credentials for signing in with somebody else's identity provider.
@@ -3965,6 +3973,8 @@ export const recordEvents = pgTable(
      * workflow reacting to its own work for ever.
      */
     actorId: text("actor_id"),
+    /** The API key the person above did it with, when they used one. */
+    actorKeyId: uuid("actor_key_id"),
     /**
      * The workflow run that caused it, when one did.
      *

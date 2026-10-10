@@ -120,6 +120,7 @@ export function registerEvents(ctx: ModuleContext) {
         at: e.at,
         actorId: e.actorId,
         actor: e.actorName,
+        actorKeyId: e.actorKeyId,
         subjectId: e.subjectId,
         subject: e.subjectName,
         action: e.action,

@@ -1,10 +1,11 @@
 import { grantableBy, newApiKey } from "@sentrello/auth/api-keys";
 import {
   activeOrganizationId,
+  isKeyCaller,
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
-import { and, db, desc, eq, isNull, schema } from "@sentrello/db";
+import { type DbTx, and, db, desc, eq, isNull, schema } from "@sentrello/db";
 import { daysLate } from "@sentrello/db/day";
 import { record } from "@sentrello/db/security-events";
 import { asText, checkedText, notText } from "@sentrello/db/text-columns";
@@ -31,6 +32,59 @@ function expiryDay(raw: unknown): Date | null | "invalid" {
   return Number.isNaN(day.getTime()) || day.toISOString().slice(0, 10) !== raw
     ? "invalid"
     : day;
+}
+
+/**
+ * Every working key a person made here, taken back.
+ *
+ * For the moment they are removed or suspended. Their keys already stop at
+ * the door while they are not a working member, but only by that check: a
+ * person let back in a year later would find every key they ever made alive
+ * again, in whatever scripts still hold them. Revoked, they stay revoked.
+ *
+ * Inside the caller's transaction, so a removal never lands without this. The
+ * audit lines are the caller's to write once the transaction has committed,
+ * from what this returns.
+ */
+export async function revokeKeysOf(
+  tx: DbTx,
+  organizationId: string,
+  userId: string,
+  revokedBy: string,
+): Promise<{ id: string; name: string; prefix: string }[]> {
+  return tx
+    .update(schema.apiKeys)
+    .set({ revokedAt: new Date(), revokedBy })
+    .where(
+      and(
+        eq(schema.apiKeys.organizationId, organizationId),
+        eq(schema.apiKeys.createdBy, userId),
+        isNull(schema.apiKeys.revokedAt),
+      ),
+    )
+    .returning({
+      id: schema.apiKeys.id,
+      name: schema.apiKeys.name,
+      prefix: schema.apiKeys.prefix,
+    });
+}
+
+/** The audit lines for keys `revokeKeysOf` took back, and why. */
+export async function recordKeysRevoked(
+  organizationId: string,
+  actor: { id: string; name?: string | null; email?: string | null },
+  keys: { id: string; name: string; prefix: string }[],
+  because: "member.removed" | "account.disabled",
+): Promise<void> {
+  for (const key of keys) {
+    await record({
+      organizationId,
+      actor,
+      subject: { id: key.id, name: key.name, email: null },
+      action: "api-key.revoked",
+      detail: { prefix: key.prefix, because },
+    });
+  }
 }
 
 export function registerApiKeys(ctx: ModuleContext) {
@@ -93,7 +147,7 @@ export function registerApiKeys(ctx: ModuleContext) {
        * mint a second key carrying everything that person holds — wider than
        * the key it came from, which is the one thing a key must never be.
        */
-      if (session.apiKey) {
+      if (isKeyCaller(c)) {
         return c.json({ error: "an API key cannot make or revoke keys" }, 403);
       }
 
@@ -166,7 +220,7 @@ export function registerApiKeys(ctx: ModuleContext) {
     async (c: RouteContext) => {
       const session = c.get("session");
       const orgId = activeOrganizationId(session);
-      if (session.apiKey) {
+      if (isKeyCaller(c)) {
         return c.json({ error: "an API key cannot make or revoke keys" }, 403);
       }
       const id = idFrom(c);

@@ -34,13 +34,13 @@ import * as schema from "./schema";
  *
  * **Not cached, deliberately.** It is one indexed read, on a table with a row
  * per person per business, taken once on a write that is already doing several
- * — and this instance has under twenty employees, so the table is under twenty
- * rows. A cache would have to be invalidated by every join, removal,
- * suspension and group change, across the web process *and* the jobs process,
- * and the two failure modes of a stale one are refusing a real employee's work
- * and accepting the id of somebody who left. The second is the bug this
- * function exists to prevent, so buying microseconds with it would be paying
- * for the disease with the cure.
+ * — and this instance has at most a few hundred employees, so the table is a
+ * few hundred rows at most. A cache would have to be invalidated by every
+ * join, removal, suspension and group change, across the web process *and*
+ * the jobs process, and the two failure modes of a stale one are refusing a
+ * real employee's work and accepting the id of somebody who left. The second
+ * is the bug this function exists to prevent, so buying microseconds with it
+ * would be paying for the disease with the cure.
  *
  * Returns the id when the person is a member of that organisation, and null
  * otherwise — including for anything that is not a non-empty string, so a

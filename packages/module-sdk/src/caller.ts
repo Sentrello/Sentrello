@@ -152,3 +152,31 @@ export function callerAddress(
   }
   return { proxied: false };
 }
+
+/**
+ * The part of an address that names one caller, for a budget to count.
+ *
+ * An IPv4 address, whole. An IPv6 address by its first 64 bits: that is what
+ * one connection is handed, so a caller counted per full address has 2^64 of
+ * them to spend and a budget per address is no budget. `::ffff:` IPv4 comes
+ * back as the IPv4 it is. Anything this cannot read is returned as it came,
+ * which still counts it — only less generously grouped.
+ */
+export function addressBucket(ip: string): string {
+  const plain = plainIp(ip.trim());
+  if (!plain.includes(":")) return plain;
+  const address = plain.split("%")[0]?.toLowerCase() ?? "";
+  const halves = address.split("::");
+  if (halves.length > 2) return plain;
+  const head = halves[0] ? halves[0].split(":") : [];
+  const tail = halves[1] ? halves[1].split(":") : [];
+  // An IPv4 tail ("::1.2.3.4") is two groups' worth; it is never in the /64.
+  const width = (groups: string[]) =>
+    groups.reduce((n, g) => n + (g.includes(".") ? 2 : 1), 0);
+  const missing = 8 - width(head) - width(tail);
+  if (halves.length === 1 ? missing !== 0 : missing < 1) return plain;
+  const groups = [...head, ...Array(missing).fill("0"), ...tail];
+  const prefix = groups.slice(0, 4);
+  if (!prefix.every((g) => /^[0-9a-f]{1,4}$/.test(g))) return plain;
+  return `${prefix.map((g) => g.replace(/^0+(?=.)/, "")).join(":")}::/64`;
+}

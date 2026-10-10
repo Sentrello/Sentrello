@@ -19,11 +19,44 @@ import { AsyncLocalStorage } from "node:async_hooks";
  * depreciation and a webhook posts a card payment; neither is a person, and
  * both are correctly recorded as nobody.
  */
-const store = new AsyncLocalStorage<{ userId: string }>();
+const store = new AsyncLocalStorage<{ userId: string; key?: ActorKey }>();
+
+/**
+ * The API key a person's work came through, when it did.
+ *
+ * A key acts as its maker, so without this everything a script did read as
+ * something that person did by hand — "Ana changed the deal" at three in the
+ * morning, from a meter. The id is the truth; the name is what a reader needs.
+ */
+export interface ActorKey {
+  id: string;
+  name: string;
+}
 
 /** Runs `fn` with everything it does attributed to this person. */
-export function asActor<T>(userId: string, fn: () => Promise<T>): Promise<T> {
-  return store.run({ userId }, fn);
+export function asActor<T>(
+  userId: string,
+  fn: () => Promise<T>,
+  key?: ActorKey,
+): Promise<T> {
+  return store.run(key ? { userId, key } : { userId }, fn);
+}
+
+/** The key the current work came through, or none. */
+export function currentKey(): ActorKey | null {
+  return store.getStore()?.key ?? null;
+}
+
+/**
+ * Who did it, as a reader should see it: "Ana, with key 'meter'".
+ *
+ * Only when the person named is the key's maker. Something recorded about
+ * somebody else during a key's request is not the key's doing.
+ */
+export function withKey(name: string, actorId: string | null): string {
+  const key = currentKey();
+  if (!key || actorId !== currentActor()) return name;
+  return `${name}, with key \u2018${key.name}\u2019`;
 }
 
 /** Who the current work belongs to, or nobody. */
