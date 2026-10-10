@@ -32,10 +32,11 @@ afterAll(() => GlobalRegistrator.unregister());
  */
 const realFetch = globalThis.fetch;
 beforeEach(() => {
-  globalThis.fetch = (async () =>
-    new Response("{}", {
-      headers: { "content-type": "application/json" },
-    })) as unknown as typeof fetch;
+  // Never answered: what this checks is the dates the reports open on, which
+  // are drawn before any figure arrives. An answer of `{}` let a statement draw
+  // part-way through a run and crash on its missing lists, sometimes, depending
+  // on how fast the run was.
+  globalThis.fetch = (() => new Promise(() => {})) as unknown as typeof fetch;
   setSystemTime(new Date("2027-01-01T02:00:00Z"));
   setFormats({ businessTimezone: "America/New_York" });
 });
