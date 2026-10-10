@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { api } from "../../lib/api";
+import { api, may } from "../../lib/api";
 import {
   Button,
   Card,
@@ -139,7 +139,7 @@ export function ApiKeys() {
               onChange={(e) => setExpiresOn(e.target.value)}
             />
           </Field>
-          <Matrix value={permissions} onChange={setPermissions} />
+          <Matrix value={permissions} onChange={setPermissions} within={may} />
           <div>
             <Button
               needs={{ settings: ["update"] }}

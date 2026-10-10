@@ -72,9 +72,18 @@ export const RESOURCES = Object.entries(statement)
 export function Matrix({
   value,
   onChange,
+  within,
 }: {
   value: Record<string, string[]>;
   onChange: (next: Record<string, string[]>) => void;
+  /**
+   * What may be ticked at all, when the grid is narrower than everything.
+   *
+   * A key can never hold more than the person making it, and the server says
+   * so — on the press, after every box had looked tickable. Given this, a box
+   * outside it is off and says why before anybody presses anything.
+   */
+  within?: (resource: string, action: string) => boolean;
 }) {
   const toggle = (resource: string, action: string, on: boolean) => {
     const current = new Set(value[resource] ?? []);
@@ -110,6 +119,12 @@ export function Matrix({
                 type="checkbox"
                 aria-label={`${a} on ${r.name}`}
                 checked={(value[r.name] ?? []).includes(a)}
+                disabled={within ? !within(r.name, a) : false}
+                title={
+                  within && !within(r.name, a)
+                    ? `You do not hold ${r.name}: ${a}, so a key you make cannot either.`
+                    : undefined
+                }
                 onChange={(e) => toggle(r.name, a, e.target.checked)}
               />
               {a}
