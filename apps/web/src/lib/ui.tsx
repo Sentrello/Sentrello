@@ -1453,8 +1453,11 @@ export function NeedsPro({ what }: { what: string }) {
   return (
     <Empty title={`${what} is part of Pro`}>
       Nothing has been lost — whatever you set up is still here and starts
-      working again as soon as a license is in place. Add one under Settings →
-      License.
+      working again as soon as a license is in place. Add one under{" "}
+      <a className="link" href="/settings-license">
+        Settings &rarr; License and updates
+      </a>
+      .
     </Empty>
   );
 }
