@@ -120,6 +120,13 @@ shipped. Anti-spam law draws the same line; if you use a transactional
 template for marketing, you have moved it to the wrong side of that line
 yourself.
 
+Leaving every list also clears "They agreed to receive the newsletter" on the
+person's CRM contact, so automated marketing email stops too. It works the
+other way round as well: the unsubscribe link in an automated email takes them
+off every list here. A spam complaint that your bounce rules act on counts as
+leaving. A hard bounce doesn't, because a dead address is not somebody asking
+you to stop.
+
 Once somebody has gone, the page asks — optionally, and after the fact —
 whether they would say why. It is one box, skipping it costs them nothing,
 and what they write appears beside them on your subscribers list. A question
