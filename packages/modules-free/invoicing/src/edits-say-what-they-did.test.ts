@@ -201,3 +201,49 @@ test("an edit with a wrongly typed field is refused, not quietly skipped", async
     .where(eq(schema.quotes.id, quote.quote.id));
   expect(same?.contactId).toBe(contactId);
 });
+
+test("a draft invoice's early-payment offer is changed and taken off by an edit", async () => {
+  const made = await send("POST", "/api/invoices", {
+    contactId,
+    status: "draft",
+    earlyDiscountType: "percent",
+    earlyDiscountValue: 200,
+    earlyDiscountDays: 10,
+    lines: [{ description: "A visit", quantity: 1, unitPriceCents: 10_000 }],
+  });
+  expect(made.status).toBe(201);
+  const { invoice } = (await made.json()) as { invoice: { id: string } };
+  const stored = async () => {
+    const [row] = await db
+      .select()
+      .from(schema.invoices)
+      .where(eq(schema.invoices.id, invoice.id));
+    return row;
+  };
+
+  const changed = await send("PATCH", `/api/invoices/${invoice.id}`, {
+    earlyDiscountType: "amount",
+    earlyDiscountValue: 500,
+    earlyDiscountDays: 7,
+  });
+  expect(changed.status).toBe(200);
+  let row = await stored();
+  expect(row?.earlyDiscountType).toBe("amount");
+  expect(row?.earlyDiscountValue).toBe(500);
+  expect(row?.earlyDiscountDays).toBe(7);
+
+  const off = await send("PATCH", `/api/invoices/${invoice.id}`, {
+    earlyDiscountType: null,
+  });
+  expect(off.status).toBe(200);
+  row = await stored();
+  expect(row?.earlyDiscountType).toBeNull();
+
+  // And a nonsense offer is refused, not stored.
+  const bad = await send("PATCH", `/api/invoices/${invoice.id}`, {
+    earlyDiscountType: "percent",
+    earlyDiscountValue: -3,
+    earlyDiscountDays: 7,
+  });
+  expect(bad.status).toBe(400);
+});

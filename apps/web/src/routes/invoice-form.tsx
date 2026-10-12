@@ -74,6 +74,9 @@ interface DocumentShape {
   buyerReference?: string | null;
   validUntil?: string | null;
   exemptionCertificateId?: string | null;
+  earlyDiscountType?: string | null;
+  earlyDiscountValue?: number | null;
+  earlyDiscountDays?: number | null;
   /** The prices on this document already contain the tax. */
   pricesIncludeTax?: boolean;
   /**
@@ -84,6 +87,15 @@ interface DocumentShape {
    * has moved since — see `movedSince` in the module.
    */
   updatedAt?: string;
+}
+
+/** A stored discount (basis points or cents) as its box shows it. */
+function boxed(
+  type: string | null | undefined,
+  value: number | null | undefined,
+) {
+  if (!type || !value) return "";
+  return type === "percent" ? String(value / 100) : (value / 100).toFixed(2);
 }
 
 interface LineDraft {
@@ -335,8 +347,13 @@ export function InvoiceForm({
       setCurrency(doc.currency ?? "");
       setNotes(doc.notes ?? "");
       setTemplateId(doc.templateId ?? "");
+      /*
+       * Stored in basis points or cents, typed in percent or money: put back
+       * the way Save reads it. Put back raw, a $5.00 discount came up as 500
+       * and was saved as $500.00, and 10% as 1000%.
+       */
       setDiscountType(doc.discountType ?? "");
-      setDiscountValue(doc.discountValue ? String(doc.discountValue) : "");
+      setDiscountValue(boxed(doc.discountType, doc.discountValue));
       if (asQuote) {
         setValidUntil(doc.validUntil ? doc.validUntil.slice(0, 10) : "");
       } else {
@@ -344,6 +361,12 @@ export function InvoiceForm({
         setPaymentTerms(doc.paymentTerms ?? "");
         setBuyerReference(doc.buyerReference ?? "");
         setExemptionCertificateId(doc.exemptionCertificateId ?? "");
+        // The offer as it stands, so an edit keeps it unless it is changed.
+        setEarlyType(doc.earlyDiscountType ?? "");
+        setEarlyValue(boxed(doc.earlyDiscountType, doc.earlyDiscountValue));
+        if (doc.earlyDiscountDays != null) {
+          setEarlyDays(String(doc.earlyDiscountDays));
+        }
       }
       setLines(
         existing.data.lines.length
@@ -512,16 +535,20 @@ export function InvoiceForm({
                   : toCents(discountValue),
             }
           : {}),
-        ...(!asQuote && earlyType
-          ? {
-              earlyDiscountType: earlyType,
-              earlyDiscountValue:
-                earlyType === "percent"
-                  ? Math.round(Number.parseFloat(earlyValue || "0") * 100)
-                  : toCents(earlyValue),
-              earlyDiscountDays: Number.parseInt(earlyDays || "0", 10),
-            }
-          : {}),
+        // Null when there is none, so taking an offer off a draft is said
+        // rather than left out and kept.
+        ...(asQuote
+          ? {}
+          : earlyType
+            ? {
+                earlyDiscountType: earlyType,
+                earlyDiscountValue:
+                  earlyType === "percent"
+                    ? Math.round(Number.parseFloat(earlyValue || "0") * 100)
+                    : toCents(earlyValue),
+                earlyDiscountDays: Number.parseInt(earlyDays || "0", 10),
+              }
+            : { earlyDiscountType: null }),
         ...(asQuote
           ? {}
           : { exemptionCertificateId: exemptionCertificateId || null }),

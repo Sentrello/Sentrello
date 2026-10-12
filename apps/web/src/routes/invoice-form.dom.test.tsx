@@ -102,6 +102,8 @@ const invoice = {
   ],
 };
 
+/** The invoice the edit screen opens; a test may swap in another. */
+let editing: unknown = invoice;
 let asked: string[] = [];
 /** What the last save sent, so a test can read the body rather than infer it. */
 let sent: Record<string, unknown> | null = null;
@@ -161,7 +163,7 @@ function serve(url: string): unknown {
       return { source: "manual", taxes: taxes.filter((t) => t.id === applies) };
     }
     case "/api/invoices/inv-1":
-      return invoice;
+      return editing;
     case "/api/invoicing/taxes":
       return { taxes, categories: [] };
     case "/api/invoicing/items":
@@ -195,6 +197,7 @@ function serve(url: string): unknown {
  */
 const realFetch = globalThis.fetch;
 beforeEach(() => {
+  editing = invoice;
   money = null;
   sent = null;
   catalogue = [];
@@ -434,4 +437,41 @@ test("the currency the business keeps its books in is not sent", async () => {
    */
   expect(sent).not.toBeNull();
   expect("currency" in (sent ?? {})).toBe(false);
+});
+
+/**
+ * A draft with a discount and an early-payment offer, opened and saved
+ * untouched, sends back what it holds.
+ *
+ * The boxes were filled with the stored numbers, which are cents and basis
+ * points, and Save reads them as money and percent: $5.00 off came back as
+ * $500.00 and 2% as 200%. The early-payment offer was not filled in at all.
+ */
+test("saving a draft untouched keeps its discount and its early-payment offer", async () => {
+  editing = {
+    ...invoice,
+    invoice: {
+      ...invoice.invoice,
+      discountType: "amount",
+      discountValue: 500,
+      earlyDiscountType: "percent",
+      earlyDiscountValue: 200,
+      earlyDiscountDays: 14,
+    },
+  };
+  const host = mount(<InvoiceForm documentId="inv-1" onDone={() => {}} />);
+  await settle();
+
+  const save = [...host.querySelectorAll("button")].find(
+    (b) => b.textContent === "Save changes",
+  );
+  if (!save) throw new Error("the edit screen offered no Save");
+  click(save);
+  await settle();
+
+  expect(sent?.discountType).toBe("amount");
+  expect(sent?.discountValue).toBe(500);
+  expect(sent?.earlyDiscountType).toBe("percent");
+  expect(sent?.earlyDiscountValue).toBe(200);
+  expect(sent?.earlyDiscountDays).toBe(14);
 });

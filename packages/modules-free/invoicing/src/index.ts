@@ -1761,6 +1761,23 @@ export default defineModule({
           }
         }
 
+        /*
+         * The early-payment offer, when the body says anything about it. The
+         * form has always sent it and this never read it, so a draft kept the
+         * offer it was raised with whatever the edit said.
+         */
+        let early: ReturnType<typeof parseEarlyPayment> | null = null;
+        if (body.earlyDiscountType !== undefined) {
+          try {
+            early = parseEarlyPayment(body);
+          } catch (err) {
+            if (err instanceof MoneyError) {
+              return c.json({ error: err.message }, 400);
+            }
+            throw err;
+          }
+        }
+
         let updated: typeof schema.invoices.$inferSelect | undefined;
         try {
           updated = await db.transaction(async (tx) => {
@@ -1788,6 +1805,11 @@ export default defineModule({
             if (templateId !== undefined) values.templateId = templateId;
             if (exemptionCertificateId !== undefined) {
               values.exemptionCertificateId = exemptionCertificateId;
+            }
+            if (early) {
+              values.earlyDiscountType = early.type;
+              values.earlyDiscountValue = early.value;
+              values.earlyDiscountDays = early.days;
             }
             if (prepared) {
               values.discountType = discount?.type ?? null;
