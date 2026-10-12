@@ -131,7 +131,9 @@ export const DEFAULT_USER_POLICIES: DefaultPolicy[] = [
       ...LANDS,
       ...RUNS_PEOPLE,
       docs: ["read", "create", "update", "delete"],
-      crm: ["read", "create", "update", "delete"],
+      // `manage` is writing the automations. "Everything" left it out, so an
+      // Admin could see the rules and not change one.
+      crm: ["read", "create", "update", "delete", "manage"],
       invoicing: ["read", "create", "update", "delete", "send"],
       bookkeeping: ["read", "create", "update", "delete"],
       // Administrators can pay suppliers. Every other default role can see
@@ -151,6 +153,10 @@ export const DEFAULT_USER_POLICIES: DefaultPolicy[] = [
       settings: ["read", "update"],
       scheduling: ["read", "create", "update", "delete"],
       shop: ["read", "create", "update", "delete"],
+      // The till and memberships: Executives could read both and Admins could
+      // open neither, the gap Projects had until 9 October.
+      pos: ["read", "sell", "void", "refund", "supervise", "manage"],
+      subscriptions: ["read", "manage", "meter"],
       documents: ["read", "create", "update", "delete"],
       newsletter: ["read", "create", "update", "delete", "send"],
       links: ["read", "create", "update", "delete", "domains"],
@@ -828,19 +834,24 @@ async function catchUpSupervise(tx: Tx, organizationId: string) {
 }
 
 /**
- * When Admins gained Better Auth's people permissions: 12 October 2026.
+ * When Admins gained Better Auth's people permissions, the till, memberships
+ * and CRM automations: 12 October 2026.
  *
  * Not a release time, for the reason `PROJECTS_POLICIES_SHIPPED` gives.
  */
 export const ADMINS_RUN_PEOPLE_SHIPPED = new Date("2026-10-12T17:00:00Z");
 
+/** What the CRM grant on Admins was before it carried `manage`. */
+const ADMINS_CRM_BEFORE = ["read", "create", "update", "delete"];
+
 /**
- * `RUNS_PEOPLE` for Admins, on an organization seeded before it.
+ * What Admins gained, for an organization seeded before it.
  *
  * Only a policy still called `admins` that still changes settings: one an
- * administrator narrowed has been decided about. And resource by resource, as
- * `catchUpProjects` does, so a key already there stays as it was. Writes
- * directly, so it needs nothing of the caller, and is safe to run again.
+ * administrator narrowed has been decided about. Resource by resource, as
+ * `catchUpProjects` does, so a key already there stays as it was; and CRM's
+ * `manage` only onto the grant exactly as it was seeded. Writes directly, so
+ * it needs nothing of the caller, and is safe to run again.
  */
 async function catchUpAdmins(tx: Tx, organizationId: string) {
   const [row] = await tx
@@ -864,16 +875,26 @@ async function catchUpAdmins(tx: Tx, organizationId: string) {
     return;
   }
   if (!permission.settings?.includes("update")) return;
-  const missing = Object.entries(RUNS_PEOPLE).filter(
-    ([r]) => !(r in permission),
-  );
-  if (missing.length === 0) return;
+  const seeded = DEFAULT_USER_POLICIES.find((p) => p.name === "admins");
+  const gained: Permissions = {
+    ...RUNS_PEOPLE,
+    pos: seeded?.permission.pos ?? [],
+    subscriptions: seeded?.permission.subscriptions ?? [],
+  };
+  const missing = Object.entries(gained).filter(([r]) => !(r in permission));
+  const crm = permission.crm;
+  const crmAsSeeded =
+    Array.isArray(crm) &&
+    crm.length === ADMINS_CRM_BEFORE.length &&
+    ADMINS_CRM_BEFORE.every((a) => crm.includes(a));
+  if (missing.length === 0 && !crmAsSeeded) return;
   await tx
     .update(schema.organizationRole)
     .set({
       permission: JSON.stringify({
         ...permission,
         ...Object.fromEntries(missing),
+        ...(crmAsSeeded ? { crm: [...ADMINS_CRM_BEFORE, "manage"] } : {}),
       }),
     })
     .where(eq(schema.organizationRole.id, row.id));

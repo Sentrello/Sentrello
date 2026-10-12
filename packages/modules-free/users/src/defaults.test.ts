@@ -17,7 +17,7 @@ import {
   policyLabel,
   seedDefaults,
 } from "./defaults";
-import { BUILT_IN } from "./roles";
+import { BUILT_IN, builtInPermissions } from "./roles";
 
 /*
  * Every seeded policy, and the till ones have to be in here.
@@ -829,11 +829,19 @@ test("an organization seeded before Admins could invite gets it, once", async ()
       member: _,
       invitation: __,
       ac: ___,
+      pos: ____,
+      subscriptions: _____,
       ...before
     } = await permission();
     await db
       .update(roles)
-      .set({ permission: JSON.stringify({ ...before, ac: ["read"] }) })
+      .set({
+        permission: JSON.stringify({
+          ...before,
+          crm: ["read", "create", "update", "delete"],
+          ac: ["read"],
+        }),
+      })
       .where(admins);
     await db
       .update(schema.organizations)
@@ -845,6 +853,9 @@ test("an organization seeded before Admins could invite gets it, once", async ()
     expect(after.member).toEqual(["create", "update", "delete"]);
     expect(after.invitation).toEqual(["create", "cancel"]);
     expect(after.ac).toEqual(["read"]);
+    expect(after.pos).toContain("sell");
+    expect(after.subscriptions).toContain("manage");
+    expect(after.crm).toContain("manage");
     const [stamp] = await db
       .select({ at: schema.organizations.accessSeededAt })
       .from(schema.organizations)
@@ -855,4 +866,26 @@ test("an organization seeded before Admins could invite gets it, once", async ()
       .delete(schema.organizations)
       .where(eq(schema.organizations.id, org.id));
   }
+});
+
+/**
+ * Admins is everything the instance owner's role is, less the two Better
+ * Auth resources nothing here uses: deleting the organization and teams.
+ * The till, memberships and CRM automations were each added to the owner's
+ * role and never to this.
+ */
+test("Admins holds everything the owner does, but the organization and teams", () => {
+  const admins = byName.get("admins")?.permission ?? {};
+  const missing: string[] = [];
+  for (const [resource, actions] of Object.entries(
+    builtInPermissions("admin"),
+  )) {
+    if (resource === "organization" || resource === "team") continue;
+    for (const action of actions) {
+      if (!admins[resource]?.includes(action)) {
+        missing.push(`${resource}:${action}`);
+      }
+    }
+  }
+  expect(missing).toEqual([]);
 });
