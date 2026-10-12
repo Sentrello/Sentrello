@@ -388,6 +388,34 @@ test("every action that hands access around is written down", async () => {
   }
 });
 
+// Rewritten as cancelled, an accepted invitation left the log saying a
+// cancellation happened that did not.
+test("an invitation already accepted cannot be withdrawn", async () => {
+  const [invitation] = await db
+    .insert(schema.invitation)
+    .values({
+      id: `invite-taken-${suffix}`,
+      organizationId: orgId,
+      email: `taken-${suffix}@x.test`,
+      role: "staff",
+      status: "accepted",
+      expiresAt: new Date(Date.now() + 86_400_000),
+      inviterId: ownerId,
+    })
+    .returning();
+  if (!invitation) throw new Error("no invitation");
+  const res = await app.request(
+    `http://localhost/api/users/invitations/${invitation.id}`,
+    { method: "DELETE", headers },
+  );
+  expect(res.status).toBe(409);
+  const [after] = await db
+    .select({ status: schema.invitation.status })
+    .from(schema.invitation)
+    .where(eq(schema.invitation.id, invitation.id));
+  expect(after?.status).toBe("accepted");
+});
+
 test("an invitation can be withdrawn, and stops working when it is", async () => {
   const [invitation] = await db
     .insert(schema.invitation)

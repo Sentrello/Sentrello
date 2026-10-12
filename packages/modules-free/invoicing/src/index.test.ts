@@ -1069,6 +1069,26 @@ test("a quote with no customer cannot be sent", async () => {
   expect(res.status).toBe(400);
 });
 
+// Sent again once accepted, it went back to "sent": out of the Accepted
+// list and offered on the customer's page as open.
+test("an answered quote is not sent again", async () => {
+  const quoteId = await sentQuote(contactId);
+  await db
+    .update(schema.quotes)
+    .set({ status: "accepted" })
+    .where(eq(schema.quotes.id, quoteId));
+  const res = await app.request(`http://localhost/api/quotes/${quoteId}/send`, {
+    method: "POST",
+    headers,
+  });
+  expect(res.status).toBe(409);
+  const [after] = await db
+    .select({ status: schema.quotes.status })
+    .from(schema.quotes)
+    .where(eq(schema.quotes.id, quoteId));
+  expect(after?.status).toBe("accepted");
+});
+
 test("the quote list is this organization's only", async () => {
   const res = await app.request("http://localhost/api/quotes", { headers });
   const { quotes } = (await res.json()) as {

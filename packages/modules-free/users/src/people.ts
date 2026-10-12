@@ -584,10 +584,21 @@ export function registerPeople(ctx: ModuleContext) {
       // Marked rather than deleted: Better Auth reads the status when
       // somebody follows the link, so a cancelled invitation must still be
       // there to say no with.
-      await db
+      // Only one still waiting. An accepted invitation rewritten as
+      // cancelled left the log saying something happened that did not.
+      const [cancelled] = await db
         .update(schema.invitation)
         .set({ status: "canceled" })
-        .where(eq(schema.invitation.id, invitation.id));
+        .where(
+          and(
+            eq(schema.invitation.id, invitation.id),
+            eq(schema.invitation.status, "pending"),
+          ),
+        )
+        .returning({ id: schema.invitation.id });
+      if (!cancelled) {
+        return c.json({ error: "that invitation is no longer waiting" }, 409);
+      }
 
       await record({
         organizationId: orgId,

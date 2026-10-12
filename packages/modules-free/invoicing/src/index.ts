@@ -258,6 +258,9 @@ function stillStanding(validUntil: Date | null, zone: string | null): boolean {
 
 /** The row a write was guarded on changed under it; nothing was written. */
 class LostTheRow extends Error {}
+/** A quote that may go to the customer: not yet answered. */
+const SENDABLE_QUOTE = ["draft", "sent"];
+
 export default defineModule({
   id: "invoicing",
   tier: "free",
@@ -1261,6 +1264,21 @@ export default defineModule({
           )
           .limit(1);
         if (!quote) return c.json({ error: "not found" }, 404);
+        /*
+         * Only a quote still on offer. Sending an accepted or converted one
+         * put it back to "sent": it left the Accepted list, the customer got
+         * it again for work already invoiced, and their page offered it as
+         * open. The screen only offers Send on a draft; the route now agrees.
+         */
+        if (
+          !SENDABLE_QUOTE.includes(quote.status) ||
+          quote.convertedInvoiceId
+        ) {
+          return c.json(
+            { error: `this quote is ${quote.status}, so it is not sent again` },
+            409,
+          );
+        }
         // Same refusal as the invoice: a quote flipped to "sent" through a
         // no-op mailer is a quote the customer was never shown.
         if (!mailConfigured()) {
@@ -1322,7 +1340,13 @@ export default defineModule({
         const [updated] = await db
           .update(schema.quotes)
           .set({ status: "sent", updatedAt: new Date() })
-          .where(eq(schema.quotes.id, quote.id))
+          .where(
+            and(
+              eq(schema.quotes.id, quote.id),
+              // Accepted while the mail was going: the answer stands.
+              inArray(schema.quotes.status, SENDABLE_QUOTE),
+            ),
+          )
           .returning();
 
         await db.insert(schema.activities).values({
