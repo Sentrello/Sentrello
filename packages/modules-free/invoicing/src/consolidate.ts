@@ -3,7 +3,7 @@ import {
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
-import { and, db, eq, inArray, schema } from "@sentrello/db";
+import { and, db, eq, inArray, isNull, schema } from "@sentrello/db";
 import { baseCurrency, rateOn } from "@sentrello/db/currency";
 import { dayIn } from "@sentrello/db/day";
 import { invoiceDefaultsFor } from "@sentrello/db/documents";
@@ -77,6 +77,9 @@ export function registerConsolidate(ctx: ModuleContext) {
           and(
             eq(schema.invoices.organizationId, orgId),
             inArray(schema.invoices.id, ids),
+            // A draft already merged is in the trash; merging it again made
+            // a second live invoice from the same two drafts.
+            isNull(schema.invoices.deletedAt),
           ),
         );
       if (sources.length !== ids.length) {
@@ -231,61 +234,76 @@ export function registerConsolidate(ctx: ModuleContext) {
       const fromSettings = await invoiceDefaultsFor(orgId);
 
       const discount = parseDiscount(body);
-      const merged = await db.transaction(async (tx) => {
-        const [invoice] = await tx
-          .insert(schema.invoices)
-          .values({
-            organizationId: orgId,
-            contactId,
-            currency,
-            rateMicro,
-            pricesIncludeTax,
-            number: await nextDocumentNumber(tx, orgId, "invoice"),
-            status: "draft",
-            // A day, like every other issue date.
-            issueDate: dayIn(new Date(), zone),
-            dueDate: fromSettings.dueDate,
-            paymentTerms: fromSettings.paymentTerms,
-            discountType: discount?.type ?? null,
-            discountValue: discount?.value ?? 0,
-            discountCents: prepared.discountCents,
-            subtotalCents: prepared.subtotalCents,
-            taxCents: prepared.taxCents,
-            totalCents: prepared.totalCents,
-            notes: `Merged from ${ordered.map((s) => s.number).join(", ")}.`,
-          })
-          .returning();
-        if (!invoice) throw new Error("invoice insert returned no row");
-
-        await tx
-          .insert(schema.invoiceLines)
-          .values(
-            prepared.lines.map((line) => ({ ...line, invoiceId: invoice.id })),
-          );
-        await writeTaxBands(tx, orgId, "invoice", invoice.id, prepared.bands);
-
-        /**
-         * The sources go to the trash, not to nothing.
-         *
-         * They are drafts, so nobody has seen them, but somebody merged the
-         * wrong five and will want to look. Soft-deleted is how every other
-         * document leaves this module, and it is already what Restore reads.
-         */
-        await tx
-          .update(schema.invoices)
-          .set({ deletedAt: new Date(), updatedAt: new Date() })
-          .where(
-            and(
-              eq(schema.invoices.organizationId, orgId),
-              inArray(
-                schema.invoices.id,
-                ordered.map((s) => s.id),
+      const merged = await db
+        .transaction(async (tx) => {
+          /*
+           * The drafts are claimed before anything is made from them. Ten
+           * presses at once all read the same two live drafts and each made
+           * its own merged invoice; only the request that takes every one of
+           * them out of play goes on, and the rest are told it is done.
+           */
+          const claimed = await tx
+            .update(schema.invoices)
+            .set({ deletedAt: new Date(), updatedAt: new Date() })
+            .where(
+              and(
+                eq(schema.invoices.organizationId, orgId),
+                inArray(
+                  schema.invoices.id,
+                  ordered.map((s) => s.id),
+                ),
+                eq(schema.invoices.status, "draft"),
+                isNull(schema.invoices.deletedAt),
               ),
-            ),
-          );
+            )
+            .returning({ id: schema.invoices.id });
+          if (claimed.length !== ordered.length) throw new AlreadyMerged();
 
-        return invoice;
-      });
+          const [invoice] = await tx
+            .insert(schema.invoices)
+            .values({
+              organizationId: orgId,
+              contactId,
+              currency,
+              rateMicro,
+              pricesIncludeTax,
+              number: await nextDocumentNumber(tx, orgId, "invoice"),
+              status: "draft",
+              // A day, like every other issue date.
+              issueDate: dayIn(new Date(), zone),
+              dueDate: fromSettings.dueDate,
+              paymentTerms: fromSettings.paymentTerms,
+              discountType: discount?.type ?? null,
+              discountValue: discount?.value ?? 0,
+              discountCents: prepared.discountCents,
+              subtotalCents: prepared.subtotalCents,
+              taxCents: prepared.taxCents,
+              totalCents: prepared.totalCents,
+              notes: `Merged from ${ordered.map((s) => s.number).join(", ")}.`,
+            })
+            .returning();
+          if (!invoice) throw new Error("invoice insert returned no row");
+
+          await tx.insert(schema.invoiceLines).values(
+            prepared.lines.map((line) => ({
+              ...line,
+              invoiceId: invoice.id,
+            })),
+          );
+          await writeTaxBands(tx, orgId, "invoice", invoice.id, prepared.bands);
+
+          // The sources went to the trash above, not to nothing: they are
+          // drafts nobody has seen, but somebody merged the wrong five and will
+          // want to look, and soft-deleted is what Restore reads.
+          return invoice;
+        })
+        .catch((err) => {
+          if (err instanceof AlreadyMerged) return null;
+          throw err;
+        });
+      if (!merged) {
+        return c.json({ error: "those drafts have already been merged" }, 409);
+      }
 
       return c.json(
         { invoice: merged, mergedFrom: ordered.map((s) => s.number) },
@@ -294,3 +312,6 @@ export function registerConsolidate(ctx: ModuleContext) {
     },
   );
 }
+
+/** Another request took one of the drafts first. */
+class AlreadyMerged extends Error {}

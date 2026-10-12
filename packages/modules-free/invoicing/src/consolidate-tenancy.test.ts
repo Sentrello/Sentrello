@@ -153,3 +153,41 @@ test("one draft is not a merge", async () => {
   const res = await consolidate([only]);
   expect(res.status).toBe(400);
 });
+
+/*
+ * Merged once, the drafts are in the trash, and the read did not skip the
+ * trash: the same two drafts merged again and again, each time into another
+ * live invoice. Ten presses at once did the same in one go.
+ */
+test("two drafts merge once, however often or however fast it is asked", async () => {
+  const [contact] = await db
+    .insert(schema.contacts)
+    .values({ organizationId: orgId, name: "Merged once" })
+    .returning({ id: schema.contacts.id });
+  const pair = async () => {
+    const a = await draftFor(orgId, `ONCE-${crypto.randomUUID().slice(0, 6)}`);
+    const b = await draftFor(orgId, `ONCE-${crypto.randomUUID().slice(0, 6)}`);
+    await db
+      .update(schema.invoices)
+      .set({ contactId: contact?.id })
+      .where(inArray(schema.invoices.id, [a, b]));
+    return [a, b];
+  };
+  const merge = (invoiceIds: string[]) =>
+    app.request("http://localhost/api/invoices/consolidate", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ contactId: contact?.id, invoiceIds }),
+    });
+
+  const one = await pair();
+  expect((await merge(one)).status).toBe(201);
+  expect((await merge(one)).status).toBe(404);
+
+  const two = await pair();
+  const answers = await Promise.all(
+    Array.from({ length: 8 }, async () => (await merge(two)).status),
+  );
+  expect(answers.filter((s) => s === 201)).toHaveLength(1);
+  expect(answers.every((s) => s === 201 || s === 409 || s === 404)).toBe(true);
+});
