@@ -231,7 +231,18 @@ export function registerPrivacy(ctx: ModuleContext) {
         error?: string;
       }[] = [];
 
-      for (const source of personalDataSources()) {
+      /*
+       * The CRM last. Every other module finds what it holds through the
+       * contact, and the CRM's eraser deletes it or strips its address; run
+       * first, as load order had it, it left every module after it finding
+       * nobody, and a saved card still chargeable after a complete erasure.
+       */
+      const all = personalDataSources();
+      const ordered = [
+        ...all.filter((s) => s.moduleId !== "crm"),
+        ...all.filter((s) => s.moduleId === "crm"),
+      ];
+      for (const source of ordered) {
         if (!source.erase) {
           done.push({
             source: source.id,

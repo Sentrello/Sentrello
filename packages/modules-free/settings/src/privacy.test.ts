@@ -2,7 +2,11 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, eq, schema } from "@sentrello/db";
-import { registerForTest } from "@sentrello/module-sdk";
+import {
+  addPersonalData,
+  clearPersonalData,
+  registerForTest,
+} from "@sentrello/module-sdk";
 import settings from "./index";
 
 /**
@@ -98,6 +102,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  clearPersonalData();
   await db
     .delete(schema.organizationRole)
     .where(eq(schema.organizationRole.organizationId, orgId));
@@ -163,4 +168,55 @@ test("the owner can do both", async () => {
     body: JSON.stringify({ email: "somebody@example.test" }),
   });
   expect(exported.status).toBe(200);
+});
+
+/**
+ * The CRM erases last.
+ *
+ * Every module that keeps something against a contact finds it through the
+ * contact: a saved card, a filed document, a shop customer. The CRM's own
+ * eraser deletes the contact, or strips its address where an invoice still
+ * names it, and it ran first because Core loads first. Every module after it
+ * looked the person up, found nobody, and kept what it held. A card stayed
+ * chargeable after an erasure that reported itself complete.
+ */
+test("every module erases before the contact it finds them by goes", async () => {
+  const held = new Set(["the person"]);
+  let found = false;
+  clearPersonalData();
+  addPersonalData({
+    moduleId: "crm",
+    id: "crm",
+    label: "Contacts",
+    retention: "while they are a customer",
+    export: async () => [],
+    erase: async () => {
+      held.clear();
+      return { removed: ["the contact"], kept: [] };
+    },
+  });
+  addPersonalData({
+    moduleId: "cards",
+    id: "cards",
+    label: "Cards",
+    retention: "while saved",
+    export: async () => [],
+    erase: async () => {
+      found = held.has("the person");
+      return { removed: found ? ["a card"] : [], kept: [] };
+    },
+  });
+  try {
+    const res = await as(ownerHeaders, "/api/privacy/erase", {
+      method: "POST",
+      body: JSON.stringify({
+        email: "somebody@example.test",
+        note: "checked their ID in the shop",
+      }),
+    });
+    expect(res.status).toBe(200);
+    expect(found).toBe(true);
+  } finally {
+    clearPersonalData();
+  }
 });
