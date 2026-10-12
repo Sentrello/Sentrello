@@ -74,6 +74,18 @@ export async function moveLinks(
 ): Promise<Record<string, number>> {
   const moved: Record<string, number> = {};
   for (const link of contactLinks()) {
+    if (link.dedupeOn?.length) {
+      const id = (name: string) => sql.identifier(name);
+      const same = sql.join(
+        link.dedupeOn.map((c) => sql`k.${id(c.name)} = m.${id(c.name)}`),
+        sql` and `,
+      );
+      const org = id(link.organization.name);
+      const who = id(link.contact.name);
+      await tx.execute(
+        sql`delete from ${link.table} as m where m.${org} = ${orgId} and m.${who} = ${from} and exists (select 1 from ${link.table} as k where k.${org} = ${orgId} and k.${who} = ${to} and ${same})`,
+      );
+    }
     const rows = await tx.execute(
       sql`update ${link.table} set ${sql.identifier(link.contact.name)} = ${to} where ${where(link, orgId, from)} returning 1`,
     );

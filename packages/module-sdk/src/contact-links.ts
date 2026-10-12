@@ -42,6 +42,13 @@ export interface ContactLink {
   many?: string;
   onDelete: "block" | "unlink" | "remove";
   onePerContact?: boolean;
+  /**
+   * Columns that, with the contact, make a row unique. A merge drops the
+   * folded-in record's copy of a row the kept one already holds rather than
+   * moving it into the unique index: one email filed against both of them is
+   * one email filed against the kept one.
+   */
+  dedupeOn?: RetentionColumn[];
 }
 
 export type RegisteredContactLink = ContactLink & { moduleId: string };

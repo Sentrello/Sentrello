@@ -465,7 +465,10 @@ test("two contacts that both hold contractor tax details refuse to merge", async
  * only counted invoices. Registered here the way a module registers them.
  */
 async function withLinks(links: ContactLink[], run: () => Promise<void>) {
+  // Only these: in a full run invoicing has registered credit already, and
+  // its link would move the rows before the one under test saw them.
   const was = contactLinks();
+  clearContactLinks();
   for (const link of links) addContactLink({ ...link, moduleId: "test" });
   try {
     await run();
@@ -603,4 +606,37 @@ test("a merge does not re-subscribe somebody who asked to stop", async () => {
     .from(schema.contacts)
     .where(eq(schema.contacts.id, kept.id));
   expect(row?.on).toBe(false);
+});
+
+test("a row both contacts hold under a unique key is kept once, not collided", async () => {
+  // Credit has no such key; `reason` stands in for one, the way a mailbox
+  // entry is unique by the message it files.
+  await withLinks(
+    [credits({ dedupeOn: [schema.customerCredits.reason] })],
+    async () => {
+      const kept = await makeContact({ name: "Dedupe Kept" });
+      const merged = await makeContact({ name: "Dedupe Merged" });
+      await db.insert(schema.customerCredits).values(
+        [
+          [kept.id, "shared"],
+          [merged.id, "shared"],
+          [merged.id, "other"],
+        ].map(([contactId, reason]) => ({
+          organizationId: orgId,
+          contactId: contactId as string,
+          cents: 100,
+          reason: reason as string,
+        })),
+      );
+      expect(
+        (await post(`/api/contacts/${kept.id}/merge`, { mergedId: merged.id }))
+          .status,
+      ).toBe(200);
+      const rows = await db
+        .select({ reason: schema.customerCredits.reason })
+        .from(schema.customerCredits)
+        .where(eq(schema.customerCredits.contactId, kept.id));
+      expect(rows.map((r) => r.reason).sort()).toEqual(["other", "shared"]);
+    },
+  );
 });
