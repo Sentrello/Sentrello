@@ -10,7 +10,8 @@ import { record } from "@sentrello/db/security-events";
 import { asText } from "@sentrello/db/text-columns";
 import { timezoneFor } from "@sentrello/db/timezone";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { mergeConflicts, moveLinks } from "./contact-links";
 
 /**
  * Two records for one person, found and folded together.
@@ -242,6 +243,45 @@ export function registerMerge(ctx: ModuleContext) {
         );
       }
 
+      // The same refusal for the modules' one-per-contact rows: two cards on
+      // file are not the merge's to choose between.
+      const both = await mergeConflicts(orgId, keptId, mergedId);
+      if (both.length) {
+        return c.json(
+          {
+            error: `both contacts hold ${both.join(" and ")}; remove the wrong one first, then merge`,
+          },
+          409,
+        );
+      }
+
+      /*
+       * Whether either of them said stop.
+       *
+       * The tick alone cannot say: off is both "never asked" and "asked us to
+       * stop". Carrying the folded-in record's tick across re-subscribed
+       * somebody whose kept record held their withdrawal, so the latest
+       * marketing record on each side is read, and a withdrawal wins.
+       */
+      const latest = await db
+        .selectDistinctOn([schema.consentRecords.subjectId], {
+          granted: schema.consentRecords.granted,
+        })
+        .from(schema.consentRecords)
+        .where(
+          and(
+            eq(schema.consentRecords.organizationId, orgId),
+            eq(schema.consentRecords.subjectKind, "contact"),
+            inArray(schema.consentRecords.subjectId, [keptId, mergedId]),
+            eq(schema.consentRecords.purpose, "marketing.email"),
+          ),
+        )
+        .orderBy(
+          schema.consentRecords.subjectId,
+          desc(schema.consentRecords.at),
+        );
+      const withdrew = latest.some((r) => !r.granted);
+
       const moved: Record<string, number> = {};
       const updatedKept = await db.transaction(async (tx) => {
         /** Re-point one column of one table, and count what moved. */
@@ -280,6 +320,8 @@ export function registerMerge(ctx: ModuleContext) {
         await repoint("payees", schema.payees);
         await repoint("formSubmissions", schema.formSubmissions);
         await repoint("contractorTaxDetails", schema.contractorTaxDetails);
+        // And every module's: shop orders, bookings, tickets, documents.
+        Object.assign(moved, await moveLinks(tx, orgId, mergedId, keptId));
 
         const notes = await tx
           .update(schema.notes)
@@ -433,7 +475,9 @@ export function registerMerge(ctx: ModuleContext) {
           fill.doNotSellOn =
             merged.doNotSellOn ?? dayIn(new Date(), await timezoneFor(orgId));
         }
-        if (merged.hasNewsletter && !kept.hasNewsletter) {
+        if (withdrew) {
+          if (kept.hasNewsletter) fill.hasNewsletter = false;
+        } else if (merged.hasNewsletter && !kept.hasNewsletter) {
           fill.hasNewsletter = true;
         }
         if (

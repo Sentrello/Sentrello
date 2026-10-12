@@ -9,6 +9,7 @@ import { addPersonalData } from "@sentrello/module-sdk";
 import {
   addAccountSection,
   addComputedColumns,
+  addContactLink,
   addCrawlable,
   addOnboarding,
   addPaymentWebhook,
@@ -18,6 +19,7 @@ import {
   addWidget,
   clearAccountSections,
   clearComputedColumns,
+  clearContactLinks,
   clearCrawlable,
   clearOnboarding,
   clearPaymentWebhooks,
@@ -103,6 +105,7 @@ export function loadModules(
    * because they close over the previous run's state.
    */
   clearServices();
+  clearContactLinks();
 
   /** Entitled and held back by a dependency, as the passes go round. */
   const blocked = new Map<string, string[]>();
@@ -283,6 +286,10 @@ export function loadModules(
           // the sweeping, and no policy can name a statutory record.
           registerRetention: (policy) =>
             addRetention({ ...policy, moduleId: m.id }),
+          // Its tables that name a CRM contact, so a merge moves them and a
+          // delete is refused, or unlinks, rather than orphaning them.
+          registerContactLink: (link) =>
+            addContactLink({ ...link, moduleId: m.id }),
           // namespaced: two modules may both want a job called "reminders"
           registerJob: (j) => jobs.push({ ...j, name: `${m.id}:${j.name}` }),
         });

@@ -291,6 +291,18 @@ export default defineModule({
     registerUsRates(ctx);
     registerUsFiling(ctx);
     registerExemptions(ctx);
+    // Credit is money the business owes the customer: a contact holding some
+    // is not deleted, and a merge carries it across. The merge used to leave
+    // it on the folded-in record, where no balance would ever count it again.
+    ctx.registerContactLink?.({
+      id: "credits",
+      table: schema.customerCredits,
+      contact: schema.customerCredits.contactId,
+      organization: schema.customerCredits.organizationId,
+      one: "store credit",
+      many: "store credits",
+      onDelete: "block",
+    });
     ctx.registerNav({
       id: "invoicing",
       label: "Invoices",

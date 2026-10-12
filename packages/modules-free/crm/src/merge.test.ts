@@ -4,7 +4,13 @@ import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, schema } from "@sentrello/db";
 import { postJournalEntry } from "@sentrello/db/ledger";
 import { dropOrganization, makeOrganization } from "@sentrello/db/testing";
-import type { SentrelloEnv } from "@sentrello/module-sdk";
+import {
+  type ContactLink,
+  type SentrelloEnv,
+  addContactLink,
+  clearContactLinks,
+  contactLinks,
+} from "@sentrello/module-sdk";
 import { and, eq, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import crm from "./index";
@@ -451,4 +457,150 @@ test("two contacts that both hold contractor tax details refuse to merge", async
   await db
     .delete(schema.contractorTaxDetails)
     .where(eq(schema.contractorTaxDetails.organizationId, orgId));
+});
+
+/*
+ * The modules' tables. Nothing has a foreign key to a contact, so a merge left
+ * every shop order and card on file on the record it deleted, and a delete
+ * only counted invoices. Registered here the way a module registers them.
+ */
+async function withLinks(links: ContactLink[], run: () => Promise<void>) {
+  const was = contactLinks();
+  for (const link of links) addContactLink({ ...link, moduleId: "test" });
+  try {
+    await run();
+  } finally {
+    clearContactLinks();
+    for (const link of was) addContactLink(link);
+  }
+}
+
+const credits = (more: Partial<ContactLink> = {}): ContactLink => ({
+  id: "credits",
+  table: schema.customerCredits,
+  contact: schema.customerCredits.contactId,
+  organization: schema.customerCredits.organizationId,
+  one: "store credit",
+  onDelete: "block",
+  ...more,
+});
+
+const submissions: ContactLink = {
+  id: "submissions",
+  table: schema.formSubmissions,
+  contact: schema.formSubmissions.contactId,
+  organization: schema.formSubmissions.organizationId,
+  one: "submission",
+  onDelete: "unlink",
+};
+
+const post = (path: string, body?: unknown) =>
+  app.request(`http://localhost${path}`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body ?? {}),
+  });
+
+test("a module's rows follow a merge, and block or unlink on delete", async () => {
+  await withLinks([credits(), submissions], async () => {
+    const kept = await makeContact({ name: "Link Kept" });
+    const merged = await makeContact({ name: "Link Merged" });
+    await db.insert(schema.customerCredits).values({
+      organizationId: orgId,
+      contactId: merged.id,
+      cents: 1250,
+      reason: "overpaid",
+    });
+
+    // Held credit is money owed: the delete is refused and says why.
+    const refused = await app.request(
+      `http://localhost/api/contacts/${merged.id}`,
+      { method: "DELETE", headers },
+    );
+    expect(refused.status).toBe(409);
+    expect(await refused.text()).toContain("1 store credit");
+
+    expect(
+      (await post(`/api/contacts/${kept.id}/merge`, { mergedId: merged.id }))
+        .status,
+    ).toBe(200);
+    const after = await db
+      .select({ contactId: schema.customerCredits.contactId })
+      .from(schema.customerCredits)
+      .where(eq(schema.customerCredits.organizationId, orgId));
+    expect(after.map((r) => r.contactId)).toEqual([kept.id]);
+
+    // An unlink-kind row keeps itself and loses the contact.
+    const gone = await makeContact({ name: "Link Gone" });
+    const [sub] = await db
+      .insert(schema.formSubmissions)
+      .values({
+        organizationId: orgId,
+        formId: crypto.randomUUID(),
+        contactId: gone.id,
+        payload: {},
+      })
+      .returning({ id: schema.formSubmissions.id });
+    expect(
+      (
+        await app.request(`http://localhost/api/contacts/${gone.id}`, {
+          method: "DELETE",
+          headers,
+        })
+      ).status,
+    ).toBe(200);
+    const [left] = await db
+      .select({ contactId: schema.formSubmissions.contactId })
+      .from(schema.formSubmissions)
+      .where(eq(schema.formSubmissions.id, sub?.id ?? ""));
+    expect(left).toEqual({ contactId: null });
+  });
+});
+
+test("a module's one-per-contact rows on both sides refuse the merge", async () => {
+  await withLinks([credits({ onePerContact: true })], async () => {
+    const kept = await makeContact({ name: "Card Kept" });
+    const merged = await makeContact({ name: "Card Merged" });
+    await db.insert(schema.customerCredits).values(
+      [kept.id, merged.id].map((contactId) => ({
+        organizationId: orgId,
+        contactId,
+        cents: 100,
+        reason: "r",
+      })),
+    );
+    const res = await post(`/api/contacts/${kept.id}/merge`, {
+      mergedId: merged.id,
+    });
+    expect(res.status).toBe(409);
+    expect(await res.text()).toContain("store credits");
+  });
+});
+
+test("a merge does not re-subscribe somebody who asked to stop", async () => {
+  const kept = await makeContact({
+    name: "Stopped Kept",
+    hasNewsletter: false,
+  });
+  const merged = await makeContact({
+    name: "Ticked Merged",
+    hasNewsletter: true,
+  });
+  await db.insert(schema.consentRecords).values({
+    organizationId: orgId,
+    subjectKind: "contact",
+    subjectId: kept.id,
+    purpose: "marketing.email",
+    granted: false,
+    source: "form",
+  });
+  expect(
+    (await post(`/api/contacts/${kept.id}/merge`, { mergedId: merged.id }))
+      .status,
+  ).toBe(200);
+  const [row] = await db
+    .select({ on: schema.contacts.hasNewsletter })
+    .from(schema.contacts)
+    .where(eq(schema.contacts.id, kept.id));
+  expect(row?.on).toBe(false);
 });

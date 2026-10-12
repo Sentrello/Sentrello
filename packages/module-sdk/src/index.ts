@@ -258,6 +258,15 @@ export interface ModuleContext {
    * built against an older host has to keep compiling, and every test harness
    * in four repositories builds this object by hand.
    */
+  /**
+   * A table of this module's that names a CRM contact, so a merge moves it and
+   * a delete asks about it. See `ContactLink`.
+   *
+   * Optional, like `registerRetention`, for a module built against an older
+   * host and for every hand-built test context.
+   */
+  registerContactLink?: (link: ContactLink) => void;
+
   registerRetention?: <T extends RetentionTable>(
     policy: RetentionPolicy<T> & { table: NotStatutory<T> },
   ) => void;
@@ -371,6 +380,7 @@ export interface SentrelloModule {
 
 import { type AccountSection, addAccountSection } from "./account";
 import { type ComputedColumns, addComputedColumns } from "./computed-columns";
+import { type ContactLink, addContactLink } from "./contact-links";
 import { type CrawlableSurface, addCrawlable } from "./crawlable";
 import {
   isEmptyUpdate,
@@ -554,6 +564,8 @@ export function registerForTest(
     // its own log rather than assert that it remembered to declare one.
     registerRetention: (policy) =>
       addRetention({ ...policy, moduleId: module.id }),
+    registerContactLink: (link) =>
+      addContactLink({ ...link, moduleId: module.id }),
     // Registered for real, like the others, so a module's own tests can ask
     // what it would put in front of somebody setting it up.
     registerOnboarding: (guide) =>
@@ -627,6 +639,7 @@ export function registerForTest(
 export * from "./custom-fields";
 export * from "./malformed-id";
 export * from "./services";
+export * from "./contact-links";
 export * from "./payments/account";
 export * from "./payments/provider";
 export * from "./payments/webhooks";

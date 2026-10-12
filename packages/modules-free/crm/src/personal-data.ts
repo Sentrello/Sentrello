@@ -11,6 +11,7 @@ import type {
 } from "@sentrello/module-sdk";
 import { removeNoteFiles } from "./attachments";
 import { removeCrmTrail } from "./cascade";
+import { releaseLinks } from "./contact-links";
 import { removeImage } from "./images";
 
 /**
@@ -259,14 +260,19 @@ export function registerCrmPersonalData(
       }
       const gone = ids.filter((id) => !named.has(id));
       if (gone.length) {
-        await db
-          .delete(schema.contacts)
-          .where(
-            and(
-              eq(schema.contacts.organizationId, orgId),
-              inArray(schema.contacts.id, gone),
-            ),
-          );
+        await db.transaction(async (tx) => {
+          await tx
+            .delete(schema.contacts)
+            .where(
+              and(
+                eq(schema.contacts.organizationId, orgId),
+                inArray(schema.contacts.id, gone),
+              ),
+            );
+          // A subscriber or a document matched to them keeps its row and
+          // loses the link; an email filed against them goes.
+          await releaseLinks(tx, orgId, gone);
+        });
       }
       if (named.size) {
         await db

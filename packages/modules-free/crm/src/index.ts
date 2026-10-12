@@ -70,6 +70,7 @@ import type { AnyColumn, SQL } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 import { registerAttachments, removeNoteFiles } from "./attachments";
 import { type TrailRemoved, removeCrmTrail } from "./cascade";
+import { blockingLinks, releaseLinks } from "./contact-links";
 import { registerCrmDashboard } from "./dashboard";
 import { CRM_ENTITY, type CrmResource } from "./entities";
 import { MAX_UPLOAD_BODY_BYTES, registerForms } from "./forms";
@@ -1013,6 +1014,9 @@ function crud<T extends keyof typeof tables>(
             [String(deleted[0].id)],
             tx,
           );
+          if (trail === "contact") {
+            await releaseLinks(tx, orgId, [String(deleted[0].id)]);
+          }
         }
         return deleted;
       });
@@ -1493,6 +1497,8 @@ const tables = {
           "sets of contractor tax details",
         ),
       ].filter((part): part is string => part !== null);
+      // And what the modules hold: a shop order, a booking, a card on file.
+      parts.push(...(await blockingLinks(orgId, id)));
 
       if (!parts.length) return null;
 
