@@ -1887,7 +1887,21 @@ export function RowMenu({
   const trigger = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
 
-  const close = useCallback(() => setOpen(false), [setOpen]);
+  /*
+   * Focus goes back to the trigger before the panel is taken away.
+   *
+   * Unmounting the panel while an item had focus dropped it to the body, so a
+   * keyboard user was thrown to the top of the page after every row action.
+   * Worse, an item that opens a dialog let the dialog record the body as its
+   * opener, so closing that dialog lost focus a second time. Doing it here,
+   * synchronously, means the dialog finds the trigger focused instead.
+   */
+  const close = useCallback(() => {
+    if (panel.current?.contains(document.activeElement)) {
+      trigger.current?.focus();
+    }
+    setOpen(false);
+  }, [setOpen]);
 
   // Measure after paint, so the panel's own height is known and the decision
   // to flip is made against a real number rather than an estimate.
@@ -1966,6 +1980,16 @@ export function RowMenu({
             <div
               ref={panel}
               className="menu-panel"
+              // Tab past the last item leaves the menu, so the menu goes.
+              // Only when focus has somewhere to be: Safari blurs to nothing
+              // on a mouse press, and closing then would eat the click.
+              onBlur={(e) => {
+                const to = e.relatedTarget as Node | null;
+                if (!to) return;
+                if (panel.current?.contains(to)) return;
+                if (trigger.current?.contains(to)) return;
+                setOpen(false);
+              }}
               /*
                * A group of buttons, said plainly, rather than `role="menu"`.
                *

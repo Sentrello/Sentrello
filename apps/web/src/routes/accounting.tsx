@@ -2035,6 +2035,7 @@ function NewEntry({ onDone }: { onDone: () => void }) {
             <td className="money">
               <Input
                 inputMode="decimal"
+                aria-label={`Debit for line ${i + 1}`}
                 value={line.debit}
                 // A line is one or the other, so typing in this side clears
                 // the other rather than being refused after the fact.
@@ -2046,6 +2047,7 @@ function NewEntry({ onDone }: { onDone: () => void }) {
             <td className="money">
               <Input
                 inputMode="decimal"
+                aria-label={`Credit for line ${i + 1}`}
                 value={line.credit}
                 onChange={(e) =>
                   setLine(i, { credit: e.target.value, debit: "" })

@@ -178,3 +178,29 @@ test("Escape closes it", () => {
   expect(document.querySelector(".menu-panel")).toBeNull();
   expect(trigger.getAttribute("aria-expanded")).toBe("false");
 });
+
+/**
+ * Focus lands back on the trigger, not on the body.
+ *
+ * The panel unmounted under a focused item and focus fell to the body, so a
+ * keyboard user went back to the top of the page after every row action. An
+ * item that opens a dialog was worse: the dialog recorded the body as its
+ * opener and lost focus a second time on close.
+ */
+test("pressing an item puts focus back on the trigger", () => {
+  const { trigger } = openMenu();
+  const item = document.querySelector<HTMLButtonElement>(".menu-item");
+  if (!item) throw new Error("no item rendered");
+  item.focus();
+  act(() => item.click());
+  expect(document.activeElement).toBe(trigger);
+});
+
+test("tabbing out of the panel closes it", () => {
+  const { trigger } = openMenu();
+  const elsewhere = document.createElement("button");
+  document.body.append(elsewhere);
+  act(() => elsewhere.focus());
+  expect(document.querySelector(".menu-panel")).toBeNull();
+  expect(trigger.getAttribute("aria-expanded")).toBe("false");
+});
