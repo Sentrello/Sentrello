@@ -44,6 +44,7 @@ import {
   invoiceState,
   invoiceStatus,
   lineTotals,
+  sumCents,
 } from "@sentrello/db/money";
 import { nextDocumentNumber } from "@sentrello/db/numbering";
 import { canTakeCards } from "@sentrello/db/payments";
@@ -77,7 +78,7 @@ import {
   publicBodyLimit,
   rateLimit,
 } from "@sentrello/module-sdk";
-import { and, eq, isNotNull, isNull, notInArray } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, notInArray } from "drizzle-orm";
 import {
   customerBalance,
   registerInvoicingAccountSection,
@@ -2361,13 +2362,30 @@ export default defineModule({
         rows.map((r) => r.id),
       );
 
-      const paid = await db
-        .select({
-          invoiceId: schema.payments.invoiceId,
-          amountCents: schema.payments.amountCents,
-        })
-        .from(schema.payments)
-        .where(eq(schema.payments.organizationId, contact.organizationId));
+      // Only what was paid against the invoices on this page, added up by the
+      // database. This read every payment the business had ever taken to show
+      // one customer theirs.
+      const paid = new Map(
+        (rows.length === 0
+          ? []
+          : await db
+              .select({
+                invoiceId: schema.payments.invoiceId,
+                cents: sumCents(schema.payments.amountCents),
+              })
+              .from(schema.payments)
+              .where(
+                and(
+                  eq(schema.payments.organizationId, contact.organizationId),
+                  inArray(
+                    schema.payments.invoiceId,
+                    rows.map((r) => r.id),
+                  ),
+                ),
+              )
+              .groupBy(schema.payments.invoiceId)
+        ).map((p) => [p.invoiceId, p.cents]),
+      );
 
       const [org] = await db
         // The whole row: the portal footer needs the address, tax number and
@@ -2450,9 +2468,7 @@ export default defineModule({
           ),
           invoices: rows.map((invoice) => ({
             ...invoice,
-            paidCents: paid
-              .filter((p) => p.invoiceId === invoice.id)
-              .reduce((sum, p) => sum + p.amountCents, 0),
+            paidCents: paid.get(invoice.id) ?? 0,
             creditedCents: rowCredits.get(invoice.id) ?? 0,
           })),
         }),

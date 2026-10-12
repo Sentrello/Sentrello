@@ -25,6 +25,30 @@
  * shop's customer pages and the licensing client both need these without one.
  */
 
+/**
+ * One formatter a zone, built once. Building one is the expensive half of
+ * `dayIn`, which runs per row in reports and sweeps. `null` remembers a zone
+ * the runtime cannot resolve, so it is not retried on every call.
+ */
+const dayFormats = new Map<string, Intl.DateTimeFormat | null>();
+function dayFormat(zone: string): Intl.DateTimeFormat | null {
+  let format = dayFormats.get(zone);
+  if (format === undefined) {
+    try {
+      format = new Intl.DateTimeFormat("en-CA", {
+        timeZone: zone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      });
+    } catch {
+      format = null;
+    }
+    dayFormats.set(zone, format);
+  }
+  return format;
+}
+
 /** The calendar day a moment falls on, where the business is, as that day's midnight UTC. */
 export function dayIn(when: Date, zone: string | null): Date {
   // `en-CA` is year-month-day, which is the one ordering that needs no parsing
@@ -34,17 +58,8 @@ export function dayIn(when: Date, zone: string | null): Date {
   // `knownTimezone` guards the settings screen today, and rows written before it
   // did are still rows. UTC then — a report a day out is a complaint, a report
   // that throws is a screen with nothing on it.
-  let text: string;
-  try {
-    text = new Intl.DateTimeFormat("en-CA", {
-      timeZone: zone || "UTC",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).format(when);
-  } catch {
-    text = when.toISOString().slice(0, 10);
-  }
+  const format = dayFormat(zone || "UTC");
+  const text = format ? format.format(when) : when.toISOString().slice(0, 10);
   const [year, month, day] = text.split("-").map(Number);
   return new Date(Date.UTC(year ?? 1970, (month ?? 1) - 1, day ?? 1));
 }

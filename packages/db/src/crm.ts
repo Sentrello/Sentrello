@@ -1,6 +1,6 @@
 import type { CustomField } from "@sentrello/module-sdk/custom-fields";
 import { coerceCustomValues } from "@sentrello/module-sdk/custom-fields";
-import { type SQL, and, eq, inArray, sql } from "drizzle-orm";
+import { type SQL, and, eq, inArray, or, sql } from "drizzle-orm";
 import { db } from "./client";
 import * as schema from "./schema";
 
@@ -117,6 +117,39 @@ export function contactHasEmail(email: string): SQL {
        where lower(e->>'value') = lower(${email})
     )
   )`;
+}
+
+/**
+ * The first contact reachable at any of these addresses, or null.
+ *
+ * `contactHasEmail` in two steps. The primary column first, which the
+ * `(organization_id, lower(email))` index answers at once; the list beside it
+ * only when that finds nobody, because no index serves a search inside it and
+ * every inbound message and every form post was paying for that scan. Same
+ * answer as the one condition — any matching contact — preferring one whose
+ * primary address it is.
+ */
+export async function contactIdByEmail(
+  organizationId: string,
+  addresses: string[],
+): Promise<string | null> {
+  if (addresses.length === 0) return null;
+  const find = async (match: SQL | undefined) => {
+    const [row] = await db
+      .select({ id: schema.contacts.id })
+      .from(schema.contacts)
+      .where(and(eq(schema.contacts.organizationId, organizationId), match))
+      .limit(1);
+    return row?.id ?? null;
+  };
+  return (
+    (await find(
+      sql`lower(${schema.contacts.email}) in (${sql.join(
+        addresses.map((address) => sql`lower(${address})`),
+        sql`, `,
+      )})`,
+    )) ?? (await find(or(...addresses.map(contactHasEmail))))
+  );
 }
 
 /**

@@ -708,3 +708,70 @@ test("a chase's subject says the business's name as written", async () => {
       .where(eq(schema.reminderRules.id, rule.id));
   }
 });
+
+/**
+ * The sweep reads only invoices some rule could be due on, so a rule set
+ * before the due date has to widen that window rather than be cut off by it.
+ */
+test("a rule before the due date still finds its invoice, and no earlier", async () => {
+  const early = `reminders-early-${crypto.randomUUID().slice(0, 8)}`;
+  await makeOrganization(early);
+  try {
+    const [contact] = await db
+      .insert(schema.contacts)
+      .values({
+        organizationId: early,
+        name: "Early Bird",
+        email: `early-${early}@example.test`,
+        kind: "customer",
+      })
+      .returning();
+    const now = businessMorning();
+    const dueIn = (days: number) =>
+      new Date(
+        Date.UTC(
+          now.getUTCFullYear(),
+          now.getUTCMonth(),
+          now.getUTCDate() + days,
+        ),
+      );
+    const invoice = (number: string, days: number) => ({
+      organizationId: early,
+      contactId: contact?.id,
+      number,
+      status: "open",
+      currency: "USD",
+      issueDate: now,
+      dueDate: dueIn(days),
+      subtotalCents: 10_000,
+      totalCents: 10_000,
+    });
+    const made = await db
+      .insert(schema.invoices)
+      .values([invoice("EARLY-3", 3), invoice("EARLY-10", 10)])
+      .returning();
+    await db.insert(schema.reminderRules).values({
+      organizationId: early,
+      name: "Three days before",
+      daysOffset: -3,
+      subject: "{{number}} is due soon",
+      body: "{{amount}} is due.",
+      active: true,
+    });
+
+    await runReminders(now, { mailer });
+    const chased = await db
+      .select({ invoiceId: schema.reminderLog.invoiceId })
+      .from(schema.reminderLog)
+      .innerJoin(
+        schema.invoices,
+        eq(schema.invoices.id, schema.reminderLog.invoiceId),
+      )
+      .where(eq(schema.invoices.organizationId, early));
+    expect(chased.map((c) => c.invoiceId)).toEqual([
+      made.find((i) => i.number === "EARLY-3")?.id as string,
+    ]);
+  } finally {
+    await dropOrganization(early);
+  }
+});

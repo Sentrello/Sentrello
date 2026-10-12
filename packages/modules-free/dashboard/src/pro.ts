@@ -1,9 +1,10 @@
 import { db, schema } from "@sentrello/db";
-import { dayIn, daysLate } from "@sentrello/db/day";
-import { creditedAgainst } from "@sentrello/db/documents";
+import { dayIn } from "@sentrello/db/day";
+import { owingInvoices } from "@sentrello/db/documents";
 import { entryDay, entryDayWithin } from "@sentrello/db/ledger";
+import { sumCents } from "@sentrello/db/money";
 import { timezoneFor } from "@sentrello/db/timezone";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, notInArray, sql } from "drizzle-orm";
 
 /**
  * The half of the dashboard a licence pays for.
@@ -59,16 +60,31 @@ export async function readInsights(organizationId: string): Promise<Insights> {
   // A day, by its UTC date: the first of the month eleven months back.
   const from = monthStart(11);
 
-  const [ledger, deals, invoices, contacts, payments] = await Promise.all([
+  const todayIso = today.toISOString().slice(0, 10);
+  const owing = owingInvoices(organizationId);
+  // Whole days late, as `daysLate` counts them: the business's today less the
+  // due date's own UTC day. No due date reads as not yet due.
+  const late = sql`coalesce(${todayIso}::date - (${owing.dueDate})::date, 0)`;
+  const slot = sql<number>`(case when ${late} <= 0 then 0 when ${late} <= 30 then 1 when ${late} <= 60 then 2 when ${late} <= 90 then 3 else 4 end)`;
+  const billed = sql`case when ${schema.invoices.kind} = 'credit_note' then -${schema.invoices.totalCents} else ${schema.invoices.totalCents} end`;
+  const month = sql<string>`to_char(${entryDay(zone)}, 'YYYY-MM')`;
+
+  /*
+   * Every figure is added up by the database. This read twelve months of
+   * journal lines, every invoice, contact and payment the business had ever
+   * written into the process to add up in JavaScript — and handed every
+   * invoice id to one query, which past 65,534 of them the driver refuses.
+   */
+  const [ledger, deals, customers, aged] = await Promise.all([
     // The ledger, not the invoice table. A reported figure that disagrees with
     // the books is worse than no figure, and the books are the ones defended.
     db
       .select({
         // The entry's day, the rule every report reads it by — see `entryDay`.
-        day: sql<string>`${entryDay(zone)}::text`,
+        month,
         type: schema.accounts.type,
-        debitCents: schema.journalLines.debitCents,
-        creditCents: schema.journalLines.creditCents,
+        debitCents: sumCents(schema.journalLines.debitCents),
+        creditCents: sumCents(schema.journalLines.creditCents),
       })
       .from(schema.journalLines)
       .innerJoin(
@@ -83,66 +99,74 @@ export async function readInsights(organizationId: string): Promise<Insights> {
         and(
           eq(schema.journalEntries.organizationId, organizationId),
           eq(schema.accounts.organizationId, organizationId),
+          inArray(schema.accounts.type, ["income", "expense"]),
           entryDayWithin({ from }, zone),
         ),
-      ),
+      )
+      // By position: the month carries the zone as a parameter, and a GROUP BY
+      // that repeats it binds a second one Postgres will not match to the first.
+      .groupBy(sql`1`, schema.accounts.type),
     db
-      .select()
+      .select({
+        stage: schema.deals.stage,
+        count: sql<number>`count(*)::int`,
+        cents: sumCents(schema.deals.amountCents),
+      })
       .from(schema.deals)
       .where(
         and(
           eq(schema.deals.organizationId, organizationId),
           isNull(schema.deals.archivedAt),
         ),
-      ),
-    db
-      .select()
-      .from(schema.invoices)
-      .where(eq(schema.invoices.organizationId, organizationId)),
+      )
+      .groupBy(schema.deals.stage)
+      .orderBy(desc(sumCents(schema.deals.amountCents))),
+    // Keyed by the record, not by what it is called. Two customers with one
+    // name were one row before this, showing a figure neither had billed.
+    // A credit note is billing in reverse: a customer billed 10,000 and
+    // credited 4,000 brought in 6,000, not 14,000.
     db
       .select({
-        id: schema.contacts.id,
+        contactId: schema.invoices.contactId,
         firstName: schema.contacts.firstName,
         lastName: schema.contacts.lastName,
+        cents: sumCents(billed),
       })
-      .from(schema.contacts)
-      .where(eq(schema.contacts.organizationId, organizationId)),
+      .from(schema.invoices)
+      .leftJoin(
+        schema.contacts,
+        and(
+          eq(schema.contacts.id, schema.invoices.contactId),
+          eq(schema.contacts.organizationId, organizationId),
+        ),
+      )
+      .where(
+        and(
+          eq(schema.invoices.organizationId, organizationId),
+          isNull(schema.invoices.deletedAt),
+          notInArray(schema.invoices.status, ["void", "draft"]),
+        ),
+      )
+      .groupBy(schema.invoices.contactId, schema.contacts.id)
+      .orderBy(desc(sumCents(billed)))
+      .limit(5),
+    /*
+     * What is still owed on each invoice, not what it was billed at — the
+     * same `owingInvoices` the Money panel and the invoice list read, so a
+     * part payment or the credited share of an invoice never sits in "over
+     * 90 days" as money nobody is owed. Only debt ages: not a credit note,
+     * not a draft, not an invoice already settled.
+     */
     db
       .select({
-        invoiceId: schema.payments.invoiceId,
-        amountCents: schema.payments.amountCents,
+        slot,
+        cents: sumCents(owing.owedCents),
+        count: sql<number>`count(*)::int`,
       })
-      .from(schema.payments)
-      .where(eq(schema.payments.organizationId, organizationId)),
+      .from(owing)
+      .where(sql`${owing.owedCents} > 0`)
+      .groupBy(sql`1`),
   ]);
-
-  /**
-   * What is still owed on each invoice, not what it was billed at.
-   *
-   * The aged-debt buckets used to carry face values, so a part payment — or
-   * the credited share of a partly credited invoice — sat in "over 90 days"
-   * as money nobody was owed. Payments and credits come off before anything
-   * is bucketed, the same subtraction the invoice list shows.
-   */
-  const paidByInvoice = new Map<string, number>();
-  for (const p of payments) {
-    if (!p.invoiceId) continue;
-    paidByInvoice.set(
-      p.invoiceId,
-      (paidByInvoice.get(p.invoiceId) ?? 0) + p.amountCents,
-    );
-  }
-  const creditedByInvoice = await creditedAgainst(
-    organizationId,
-    invoices.filter((i) => i.kind === "invoice").map((i) => i.id),
-  );
-  const owedOn = (inv: { id: string; totalCents: number }) =>
-    Math.max(
-      0,
-      inv.totalCents -
-        (paidByInvoice.get(inv.id) ?? 0) -
-        (creditedByInvoice.get(inv.id) ?? 0),
-    );
 
   // Every month in the window, including the quiet ones. A series that skips
   // empty months draws a line that slopes through a gap it never had.
@@ -165,52 +189,17 @@ export async function readInsights(organizationId: string): Promise<Insights> {
       netCents: 0,
     });
   }
-  for (const line of ledger) {
-    const bucket = months.get(line.day.slice(0, 7));
+  for (const row of ledger) {
+    const bucket = months.get(row.month);
     if (!bucket) continue;
     // Income accounts carry credit balances, expense accounts debit balances.
-    if (line.type === "income")
-      bucket.incomeCents += line.creditCents - line.debitCents;
-    if (line.type === "expense")
-      bucket.expenseCents += line.debitCents - line.creditCents;
+    if (row.type === "income")
+      bucket.incomeCents += row.creditCents - row.debitCents;
+    if (row.type === "expense")
+      bucket.expenseCents += row.debitCents - row.creditCents;
   }
   for (const bucket of months.values()) {
     bucket.netCents = bucket.incomeCents - bucket.expenseCents;
-  }
-
-  const stages = new Map<
-    string,
-    { stage: string; count: number; cents: number }
-  >();
-  for (const deal of deals) {
-    const stage = deal.stage ?? "unknown";
-    const bucket = stages.get(stage) ?? { stage, count: 0, cents: 0 };
-    bucket.count += 1;
-    bucket.cents += deal.amountCents;
-    stages.set(stage, bucket);
-  }
-
-  const names = new Map(
-    contacts.map((c) => [
-      c.id,
-      [c.firstName, c.lastName].filter(Boolean).join(" ").trim() || "Unnamed",
-    ]),
-  );
-  const byCustomer = new Map<string, { name: string; cents: number }>();
-  for (const inv of invoices) {
-    if (inv.deletedAt || inv.status === "void" || inv.status === "draft")
-      continue;
-    const name = inv.contactId
-      ? (names.get(inv.contactId) ?? "Unnamed")
-      : "No customer";
-    // Keyed by the record, not by what it is called. Two customers with one
-    // name were one row before this, showing a figure neither had billed.
-    const key = inv.contactId ?? "";
-    // A credit note is billing in reverse: a customer billed 10,000 and
-    // credited 4,000 brought in 6,000, not 14,000.
-    const cents = inv.kind === "credit_note" ? -inv.totalCents : inv.totalCents;
-    const sofar = byCustomer.get(key);
-    byCustomer.set(key, { name, cents: (sofar?.cents ?? 0) + cents });
   }
 
   // How late the money is, not just that it is late. Thirty days out is a
@@ -222,42 +211,28 @@ export async function readInsights(organizationId: string): Promise<Insights> {
     { bucket: "61–90 days", cents: 0, count: 0 },
     { bucket: "Over 90 days", cents: 0, count: 0 },
   ];
-  for (const inv of invoices) {
-    // Only debt ages: not a credit note, not a draft nobody was asked for,
-    // and not an invoice already settled — by money or by credit note alike.
-    if (
-      inv.kind !== "invoice" ||
-      inv.deletedAt ||
-      inv.status === "paid" ||
-      inv.status === "credited" ||
-      inv.status === "void" ||
-      inv.status === "draft"
-    )
-      continue;
-    const owed = owedOn(inv);
-    if (owed <= 0) continue;
-    // Whole days, counted as the business counts them: an invoice due today
-    // sits in "not yet due", not in the first late bucket.
-    const days = inv.dueDate ? daysLate(new Date(inv.dueDate), now, zone) : 0;
-    const slot =
-      days <= 0 ? 0 : days <= 30 ? 1 : days <= 60 ? 2 : days <= 90 ? 3 : 4;
-    const bucket = aging[slot];
+  for (const row of aged) {
+    const bucket = aging[Number(row.slot)];
     if (!bucket) continue;
-    bucket.cents += owed;
-    bucket.count += 1;
+    bucket.cents = row.cents;
+    bucket.count = row.count;
   }
 
   return {
     months: [...months.values()],
-    dealsByStage: [...stages.values()].sort((a, b) => b.cents - a.cents),
-    topCustomers: [...byCustomer.entries()]
-      .map(([contactId, row]) => ({
-        contactId: contactId || null,
-        name: row.name,
-        cents: row.cents,
-      }))
-      .sort((a, b) => b.cents - a.cents)
-      .slice(0, 5),
+    dealsByStage: deals.map((d) => ({
+      stage: d.stage ?? "unknown",
+      count: d.count,
+      cents: d.cents,
+    })),
+    topCustomers: customers.map((c) => ({
+      contactId: c.contactId,
+      name: c.contactId
+        ? [c.firstName, c.lastName].filter(Boolean).join(" ").trim() ||
+          "Unnamed"
+        : "No customer",
+      cents: c.cents,
+    })),
     aging,
   };
 }

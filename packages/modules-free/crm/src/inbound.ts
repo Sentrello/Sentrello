@@ -6,8 +6,8 @@ import {
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
-import { and, db, eq, or, schema } from "@sentrello/db";
-import { contactHasEmail } from "@sentrello/db/crm";
+import { db, eq, schema } from "@sentrello/db";
+import { contactIdByEmail } from "@sentrello/db/crm";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import { callerKey, rateLimit } from "@sentrello/module-sdk";
 import { displayFilename, safeExtension } from "./attachments";
@@ -327,16 +327,7 @@ export function registerInboundEmail(ctx: ModuleContext) {
        * has — asked of the database rather than by reading the contact book
        * into memory and comparing the primary column.
        */
-      const [contact] = await db
-        .select({ id: schema.contacts.id })
-        .from(schema.contacts)
-        .where(
-          and(
-            eq(schema.contacts.organizationId, orgId),
-            or(...addresses.map((address) => contactHasEmail(address))),
-          ),
-        )
-        .limit(1);
+      const contactId = await contactIdByEmail(orgId, addresses);
       /**
        * Nobody matched, so nothing is written.
        *
@@ -345,7 +336,7 @@ export function registerInboundEmail(ctx: ModuleContext) {
        * paper trail. 200 rather than 404 because the provider is not at
        * fault and should not retry.
        */
-      if (!contact) {
+      if (!contactId) {
         return c.json({ matched: false, reason: "no contact at that address" });
       }
 
@@ -383,7 +374,7 @@ export function registerInboundEmail(ctx: ModuleContext) {
         .values({
           organizationId: orgId,
           entityType: "contact",
-          entityId: contact.id,
+          entityId: contactId,
           text: text || "(an email with no subject or body)",
           attachments,
         })
@@ -393,7 +384,7 @@ export function registerInboundEmail(ctx: ModuleContext) {
       // rather than only the note body.
       await db.insert(schema.activities).values({
         organizationId: orgId,
-        contactId: contact.id,
+        contactId,
         type: "email",
         body: message.subject || "Email",
         occurredAt: new Date(),

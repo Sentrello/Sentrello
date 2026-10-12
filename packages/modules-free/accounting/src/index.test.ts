@@ -6,6 +6,7 @@ import {
   CASH_ACCOUNT_CODES,
   CORE_ACCOUNTS,
   cashAccounts,
+  ledgerTotals,
   postJournalEntry,
 } from "@sentrello/db/ledger";
 import { dropOrganization, makeOrganization } from "@sentrello/db/testing";
@@ -668,6 +669,26 @@ test("a balance sheet as at a date ignores what happened after it", async () => 
   // earnings line carries the same loss
   expect(asOf2021.assetsCents).toBe(-90_000);
   expect(asOf2021.earningsCents).toBe(-90_000);
+});
+
+/** Each account's balance is the ledger's, signed the way the account reads. */
+test("account balances agree with the ledger, account by account", async () => {
+  const { balances } = await get<{
+    balances: { id: string; type: string; balanceCents: number }[];
+  }>("/api/accounts/balances");
+  const ledger = new Map(
+    (await ledgerTotals(orgId)).map((t) => [
+      t.accountId,
+      t.debitCents - t.creditCents,
+    ]),
+  );
+  expect(balances.some((b) => b.balanceCents !== 0)).toBe(true);
+  for (const b of balances) {
+    const net = ledger.get(b.id) ?? 0;
+    expect(b.balanceCents).toBe(
+      b.type === "asset" || b.type === "expense" ? net : 0 - net,
+    );
+  }
 });
 
 // ---------------------------------------------------------------------------

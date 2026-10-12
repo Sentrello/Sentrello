@@ -14,6 +14,9 @@ import { db, eq } from "./index";
  * down means the same nine o'clock in March and in November.
  */
 
+// Asked on every `timezoneFor`; a formatter is too dear to build each time.
+const knownZones = new Map<string, boolean>();
+
 /**
  * Whether this machine can actually resolve a timezone.
  *
@@ -23,12 +26,17 @@ import { db, eq } from "./index";
  * is what lets a screen refuse it while somebody is still looking at the form.
  */
 export function knownTimezone(name: string): boolean {
-  try {
-    new Intl.DateTimeFormat("en-GB", { timeZone: name });
-    return true;
-  } catch {
-    return false;
+  let known = knownZones.get(name);
+  if (known === undefined) {
+    try {
+      new Intl.DateTimeFormat("en-GB", { timeZone: name });
+      known = true;
+    } catch {
+      known = false;
+    }
+    knownZones.set(name, known);
   }
+  return known;
 }
 
 /** The business's own, or the server's when it has not said. */

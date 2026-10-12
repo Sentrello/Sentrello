@@ -1,12 +1,12 @@
-import { db, schema } from "@sentrello/db";
-import { daysLate } from "@sentrello/db/day";
+import { chunks, db, schema } from "@sentrello/db";
+import { dayIn, daysLate } from "@sentrello/db/day";
 import { creditedAgainst } from "@sentrello/db/documents";
 import {
   CORE_ACCOUNTS,
   ensureAccount,
   postJournalEntry,
 } from "@sentrello/db/ledger";
-import { invoiceState } from "@sentrello/db/money";
+import { invoiceState, sumCents } from "@sentrello/db/money";
 import {
   businessIdentity,
   ensurePortalToken,
@@ -114,6 +114,22 @@ export async function runReminders(
     };
   } = {},
 ): Promise<Outcome> {
+  /*
+   * Only invoices some rule could already be due on. Nothing fires before the
+   * earliest active offset anywhere (the weekly fallback and the late fee wait
+   * for the due day at least), and no business's day is more than one away
+   * from UTC's — so a due date past `today + 1 - earliest` is chased by
+   * nobody, and is not read. This read every open invoice every hour.
+   */
+  const [earliest] = await db
+    .select({
+      days: sql<number | null>`min(${schema.reminderRules.daysOffset})`,
+    })
+    .from(schema.reminderRules)
+    .where(eq(schema.reminderRules.active, true));
+  const lead = 1 - Math.min(0, Number(earliest?.days ?? 0));
+  const dueBy = new Date(dayIn(now, null).getTime() + lead * 86_400_000);
+
   const candidates = await db
     .select()
     .from(schema.invoices)
@@ -121,6 +137,7 @@ export async function runReminders(
       and(
         inArray(schema.invoices.status, ["open", "partial"]),
         isNotNull(schema.invoices.dueDate),
+        lte(schema.invoices.dueDate, dueBy),
         isNull(schema.invoices.deletedAt),
       ),
     );
@@ -173,23 +190,46 @@ export async function runReminders(
    * loop was paying a network cost to learn almost nothing.
    */
   const sentAlready = new Map<string, Set<string | null>>();
-  if (candidates.length > 0) {
-    const log = await db
-      .select({
-        invoiceId: schema.reminderLog.invoiceId,
-        ruleId: schema.reminderLog.ruleId,
-      })
-      .from(schema.reminderLog)
-      .where(
-        inArray(
-          schema.reminderLog.invoiceId,
-          candidates.map((c) => c.id),
-        ),
-      );
+  /*
+   * And what has been paid and credited on each, the same way: two queries a
+   * thousand invoices rather than two an invoice. Chunked, because the driver
+   * refuses a list of more than 65,534 ids.
+   */
+  const paidOn = new Map<string, number>();
+  const creditedOn = new Map<string, number>();
+  for (const batch of chunks(candidates, 1000)) {
+    const ids = batch.map((c) => c.id);
+    const [log, paid] = await Promise.all([
+      db
+        .select({
+          invoiceId: schema.reminderLog.invoiceId,
+          ruleId: schema.reminderLog.ruleId,
+        })
+        .from(schema.reminderLog)
+        .where(inArray(schema.reminderLog.invoiceId, ids)),
+      db
+        .select({
+          invoiceId: schema.payments.invoiceId,
+          cents: sumCents(schema.payments.amountCents),
+        })
+        .from(schema.payments)
+        .where(inArray(schema.payments.invoiceId, ids))
+        .groupBy(schema.payments.invoiceId),
+    ]);
     for (const row of log) {
       const set = sentAlready.get(row.invoiceId) ?? new Set();
       set.add(row.ruleId);
       sentAlready.set(row.invoiceId, set);
+    }
+    for (const row of paid) paidOn.set(row.invoiceId, row.cents);
+    // Credits are counted within each business, as `creditedAgainst` does.
+    const byOrg = Map.groupBy(batch, (c) => c.organizationId);
+    for (const [orgId, invoices] of byOrg) {
+      const credited = await creditedAgainst(
+        orgId,
+        invoices.map((i) => i.id),
+      );
+      for (const [id, cents] of credited) creditedOn.set(id, cents);
     }
   }
 
@@ -219,15 +259,10 @@ export async function runReminders(
       zoneByOrg.set(orgId, await timezoneFor(orgId));
     }
 
-    const paid = await db
-      .select({ amountCents: schema.payments.amountCents })
-      .from(schema.payments)
-      .where(eq(schema.payments.invoiceId, invoice.id));
-    const paidCents = paid.reduce((sum, p) => sum + p.amountCents, 0);
+    const paidCents = paidOn.get(invoice.id) ?? 0;
     // Credits settle debt beside the payments: a partly credited invoice is
     // chased for the uncredited remainder, not for money nobody is owed.
-    const creditedCents =
-      (await creditedAgainst(orgId, [invoice.id])).get(invoice.id) ?? 0;
+    const creditedCents = creditedOn.get(invoice.id) ?? 0;
     // The balance the customer's own portal shows them, worked out by the
     // same call — a chase for a figure their page disagrees with is worse
     // than no chase. The early-payment saving is part of that: it settles

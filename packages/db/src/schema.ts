@@ -314,6 +314,14 @@ export const contacts = pgTable(
     uniqueIndex("contacts_portal_token_hash_idx").on(t.portalTokenHash),
     // The list's default order, and the column four of its filters read.
     index("contacts_last_seen_idx").on(t.organizationId, t.lastSeenAt),
+    // A company's people, on its page and in the list's company filter.
+    index("contacts_company_idx").on(t.companyId),
+    // Whose address is this: every inbound message and form post asks, by
+    // `lower(email)` — see `contactIdByEmail`.
+    index("contacts_org_email_idx").on(
+      t.organizationId,
+      sql`lower(${t.email})`,
+    ),
   ],
 );
 
@@ -626,7 +634,11 @@ export const taggables = pgTable(
      */
     entityId: uuid("entity_id").notNull(),
   },
-  (t) => [index("taggables_entity_idx").on(t.entityType, t.entityId)],
+  (t) => [
+    index("taggables_entity_idx").on(t.entityType, t.entityId),
+    // Everything carrying a tag: the tag filter, and the cascade on a delete.
+    index("taggables_tag_idx").on(t.tagId),
+  ],
 );
 
 // ---------------------------------------------------------------------------
@@ -702,6 +714,8 @@ export const quotes = pgTable(
   },
   (t) => [
     index("quotes_org_idx").on(t.organizationId),
+    // A contact's quotes, on their page and in their portal.
+    index("quotes_contact_idx").on(t.contactId),
     uniqueIndex("quotes_share_token_idx").on(t.shareToken),
   ],
 );
@@ -925,6 +939,12 @@ export const invoices = pgTable(
      * first screen somebody sees after signing in.
      */
     index("invoices_credited_idx").on(t.organizationId, t.referenceInvoiceId),
+    // What is open and when it falls due: the overdue tab, the reminder sweep.
+    index("invoices_org_status_due_idx").on(
+      t.organizationId,
+      t.status,
+      t.dueDate,
+    ),
   ],
 );
 
@@ -2233,6 +2253,9 @@ export const journalEntries = pgTable(
      * there is on the lines table, not this one.
      */
     index("journal_entries_org_posted_idx").on(t.organizationId, t.postedAt),
+    // The entry a document posted, found by its `source` to reverse it or to
+    // ask whether it is there. Always by equality, so a plain btree.
+    index("journal_entries_org_source_idx").on(t.organizationId, t.source),
   ],
 );
 
@@ -2269,6 +2292,8 @@ export const journalLines = pgTable(
   },
   (t) => [
     index("journal_lines_entry_idx").on(t.entryId),
+    // An account's lines: whether it has any, and its balance.
+    index("journal_lines_account_idx").on(t.accountId),
     index("journal_lines_class_idx").on(t.classId),
     index("journal_lines_location_idx").on(t.locationId),
   ],
@@ -2575,6 +2600,8 @@ export const bankTransactions = pgTable(
   },
   (t) => [
     index("bank_transactions_org_idx").on(t.organizationId),
+    // Whether an entry is already matched to a bank line, asked per entry.
+    index("bank_transactions_matched_entry_idx").on(t.matchedEntryId),
     // One row per transaction per business, however many times a sync runs.
     unique("bank_transactions_provider_ref").on(
       t.organizationId,

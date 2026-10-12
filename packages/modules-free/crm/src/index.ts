@@ -3,7 +3,7 @@ import {
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
-import { at, db, isUuid, schema } from "@sentrello/db";
+import { at, chunks, db, isUuid, schema } from "@sentrello/db";
 import { MOVED, UNUSABLE_CLAIM, versionClaim } from "@sentrello/db/concurrency";
 import { recordConsent } from "@sentrello/db/consent";
 import {
@@ -2228,6 +2228,9 @@ export function fillNameParts(body: Record<string, unknown>): void {
   body.lastName = rest.length > 0 ? rest.join(" ") : null;
 }
 
+/** Rows written per statement by the import: well under the driver's bind limit. */
+const IMPORT_BATCH = 500;
+
 /**
  * The kanban, and everything a contact is attached to.
  *
@@ -2278,6 +2281,16 @@ function registerCrmScreens(
       let imported = 0;
       let companiesCreated = 0;
       const skipped: { row: number; why: string }[] = [];
+      // Companies the file names that are not here yet, by key, as first written.
+      const newCompanies = new Map<string, string>();
+      const pending: {
+        companyKey: string | null;
+        optOut: boolean;
+        optOutOn: Date | null;
+        values: Omit<typeof schema.contacts.$inferInsert, "companyId">;
+      }[] = [];
+      // Today where the business is, asked once rather than once a row.
+      const today = dayIn(new Date(), await timezoneFor(orgId));
 
       /*
        * A day as a spreadsheet writes it once somebody has opened the file.
@@ -2375,24 +2388,15 @@ function registerCrmScreens(
         const otherEmails = labelled(asText(raw.otherEmails, "otherEmails"));
         const otherPhones = labelled(asText(raw.otherPhones, "otherPhones"));
 
-        let companyId: string | null = null;
+        // Matched by name here, created after the loop: a company is made
+        // once for every row that names it, and only for rows that come in.
         const companyName = asText(raw.company, "company").trim();
-        if (companyName) {
-          const key = companyName.toLowerCase();
-          const found = byName.get(key);
-          if (found) {
-            companyId = found;
-          } else {
-            const [made] = await db
-              .insert(schema.companies)
-              .values({ organizationId: orgId, name: companyName })
-              .returning();
-            if (made) {
-              companyId = made.id;
-              byName.set(key, made.id);
-              companiesCreated += 1;
-            }
-          }
+        const companyKey = companyName ? companyName.toLowerCase() : null;
+        if (companyKey && !byName.has(companyKey)) {
+          newCompanies.set(
+            companyKey,
+            newCompanies.get(companyKey) ?? companyName,
+          );
         }
 
         /*
@@ -2421,27 +2425,55 @@ function registerCrmScreens(
          */
         const optOutOn = optOut
           ? (spreadsheetDay(asText(raw.doNotSellOn, "doNotSellOn").trim()) ??
-            dayIn(new Date(), await timezoneFor(orgId)))
+            today)
           : null;
 
+        pending.push({
+          companyKey,
+          optOut,
+          optOutOn,
+          values: {
+            organizationId: orgId,
+            name,
+            firstName: firstName || null,
+            lastName: lastName || null,
+            title: asText(raw.title, "title").trim() || null,
+            email: email || null,
+            phone: asText(raw.phone, "phone").trim() || null,
+            ...(otherEmails.length ? { emails: otherEmails } : {}),
+            ...(otherPhones.length ? { phones: otherPhones } : {}),
+            linkedinUrl: asText(raw.linkedinUrl, "linkedinUrl").trim() || null,
+            ...(optOut ? { doNotSell: true, doNotSellOn: optOutOn } : {}),
+          },
+        });
+      }
+
+      /*
+       * Written in batches rather than a transaction a row. Every cell has been
+       * read by now, so a file with one bad cell is refused before anything is
+       * written, rather than half imported.
+       */
+      for (const names of chunks([...newCompanies.values()], IMPORT_BATCH)) {
+        const made = await db
+          .insert(schema.companies)
+          .values(names.map((name) => ({ organizationId: orgId, name })))
+          .returning({ id: schema.companies.id, name: schema.companies.name });
+        for (const co of made) byName.set(co.name.toLowerCase(), co.id);
+        companiesCreated += made.length;
+      }
+
+      for (const batch of chunks(pending, IMPORT_BATCH)) {
         await db.transaction(async (tx) => {
-          const [made] = await tx
+          const made = await tx
             .insert(schema.contacts)
-            .values({
-              organizationId: orgId,
-              name,
-              firstName: firstName || null,
-              lastName: lastName || null,
-              title: asText(raw.title, "title").trim() || null,
-              email: email || null,
-              phone: asText(raw.phone, "phone").trim() || null,
-              ...(otherEmails.length ? { emails: otherEmails } : {}),
-              ...(otherPhones.length ? { phones: otherPhones } : {}),
-              linkedinUrl:
-                asText(raw.linkedinUrl, "linkedinUrl").trim() || null,
-              companyId,
-              ...(optOut ? { doNotSell: true, doNotSellOn: optOutOn } : {}),
-            })
+            .values(
+              batch.map((row) => ({
+                ...row.values,
+                companyId: row.companyKey
+                  ? (byName.get(row.companyKey) ?? null)
+                  : null,
+              })),
+            )
             .returning();
           /*
            * And the evidence of it, marked as brought in.
@@ -2450,22 +2482,26 @@ function registerCrmScreens(
            * `at`: it names a day, and `at` is an instant — written there it
            * would read as the evening before for a business west of London.
            * `at` stays the moment this business recorded it, which is true.
+           *
+           * RETURNING comes back in the order of the VALUES, one row each.
            */
-          if (made && optOut) {
+          for (const [i, contact] of made.entries()) {
+            const row = batch[i];
+            if (!row?.optOut) continue;
             await recordContactConsent(tx, {
               organizationId: orgId,
-              contact: made,
+              contact,
               purpose: "data.sale",
               ticked: true,
               source: "import",
               session: c.get("session"),
               evidence: {
-                optedOutOn: optOutOn?.toISOString().slice(0, 10) ?? null,
+                optedOutOn: row.optOutOn?.toISOString().slice(0, 10) ?? null,
               },
             });
           }
+          imported += made.length;
         });
-        imported += 1;
       }
 
       return c.json({ imported, companiesCreated, skipped });

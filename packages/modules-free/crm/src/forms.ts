@@ -6,7 +6,7 @@ import {
 } from "@sentrello/auth/hono";
 import { and, asc, db, eq, lt, schema, sql } from "@sentrello/db";
 import { creditFor } from "@sentrello/db/credit";
-import { contactHasEmail } from "@sentrello/db/crm";
+import { contactIdByEmail } from "@sentrello/db/crm";
 import { baseCurrency } from "@sentrello/db/currency";
 import { dayIn } from "@sentrello/db/day";
 import { quotesGross } from "@sentrello/db/documents";
@@ -1329,14 +1329,8 @@ async function upsertContact(
      * `jane@example.com`, and an enquiry from somebody's work address made one
      * beside the record that already held it.
      */
-    const [existing] = await db
-      .select({ id: schema.contacts.id })
-      .from(schema.contacts)
-      .where(
-        and(eq(schema.contacts.organizationId, orgId), contactHasEmail(email)),
-      )
-      .limit(1);
-    if (existing) return existing.id;
+    const existing = await contactIdByEmail(orgId, [email]);
+    if (existing) return existing;
   }
 
   const [created] = await db

@@ -3,8 +3,9 @@ import {
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
-import { and, db, eq, inArray, isNull, isUuid, schema } from "@sentrello/db";
+import { and, db, eq, isNull, isUuid, schema } from "@sentrello/db";
 import { ensureAccount, ownedAccount } from "@sentrello/db/ledger";
+import { sumCents } from "@sentrello/db/money";
 import { asText, checkedText, notText } from "@sentrello/db/text-columns";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 
@@ -447,30 +448,28 @@ export function registerChart(ctx: ModuleContext) {
         .where(eq(schema.accounts.organizationId, orgId));
       if (accounts.length === 0) return c.json({ balances: [] });
 
-      const lines = await db
+      // Added up by the database, one row an account. This read every journal
+      // line the business had ever posted into the process to add up here.
+      const sums = await db
         .select({
           accountId: schema.journalLines.accountId,
-          debitCents: schema.journalLines.debitCents,
-          creditCents: schema.journalLines.creditCents,
+          debitCents: sumCents(schema.journalLines.debitCents),
+          creditCents: sumCents(schema.journalLines.creditCents),
         })
         .from(schema.journalLines)
-        .where(
-          inArray(
-            schema.journalLines.accountId,
-            accounts.map((a) => a.id),
+        .innerJoin(
+          schema.accounts,
+          and(
+            eq(schema.accounts.id, schema.journalLines.accountId),
+            eq(schema.accounts.organizationId, orgId),
           ),
-        );
+        )
+        .groupBy(schema.journalLines.accountId);
 
       const debitPositive = new Set(["asset", "expense"]);
-      const totals = new Map<string, number>();
-      for (const line of lines) {
-        totals.set(
-          line.accountId,
-          (totals.get(line.accountId) ?? 0) +
-            line.debitCents -
-            line.creditCents,
-        );
-      }
+      const totals = new Map(
+        sums.map((row) => [row.accountId, row.debitCents - row.creditCents]),
+      );
       return c.json({
         balances: accounts.map((account) => ({
           id: account.id,

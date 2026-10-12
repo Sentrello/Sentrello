@@ -32,3 +32,17 @@ export function isUuid(value: string): boolean {
     value,
   );
 }
+
+/**
+ * A list in pieces of at most `size`.
+ *
+ * The driver refuses a statement with more than 65,534 bound values, so an
+ * `inArray` over every invoice a business has, or one insert of a whole
+ * spreadsheet, works in a demo and throws for a business with a few years of
+ * history. Anything that binds a list it did not bound itself goes through this.
+ */
+export function chunks<T>(list: readonly T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < list.length; i += size) out.push(list.slice(i, i + size));
+  return out;
+}
