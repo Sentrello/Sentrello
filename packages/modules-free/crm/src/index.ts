@@ -88,6 +88,7 @@ import {
 } from "./settings";
 import { registerCrmSummary } from "./summary";
 import { registerTaskActions } from "./tasks";
+import { registerUnsubscribe } from "./unsubscribe";
 import { registerVies } from "./vies";
 import { registerSavedViews } from "./views";
 import { registerWebhooks } from "./webhooks";
@@ -3171,6 +3172,8 @@ export default defineModule({
     registerCrmRetention(ctx);
     registerCrmSearch(ctx);
     registerVies(ctx);
+    // The link at the foot of a marketing email. Never shut by a switch.
+    registerUnsubscribe(ctx);
 
     /**
      * The CRM, as one thing with five pages under it.

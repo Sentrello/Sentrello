@@ -149,6 +149,10 @@ If a contact has not agreed, the rule **stops and says so**: *that contact has
 not agreed to marketing email*. It is recorded as the automation working
 correctly, not as a failure, because it is.
 
+Every marketing email carries a link to stop them. One press takes the tick off
+the contact, records when they withdrew, and notes it on their timeline, so the
+next rule that tries is held back.
+
 **That holds however the address got there.** Leave the address blank and the
 rule looks up the record's contact; type one in, and it is looked up among your
 own contacts and held to the same rule. An address belonging to nobody here

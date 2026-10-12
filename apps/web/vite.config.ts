@@ -45,6 +45,7 @@ export default defineConfig({
       "^/account(/|$)": "http://localhost:3000",
       "^/portal(/|$)": "http://localhost:3000",
       "^/share(/|$)": "http://localhost:3000",
+      "^/unsubscribe(/|$)": "http://localhost:3000",
     },
   },
   build: { outDir: "dist" },

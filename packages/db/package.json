@@ -41,7 +41,8 @@
     "./erasure": "./src/erasure.ts",
     "./retention": "./src/retention.ts",
     "./membership": "./src/membership.ts",
-    "./owned": "./src/owned.ts"
+    "./owned": "./src/owned.ts",
+    "./unsubscribe": "./src/unsubscribe.ts"
   },
   "scripts": {
     "migrate": "bun run src/migrate.ts"

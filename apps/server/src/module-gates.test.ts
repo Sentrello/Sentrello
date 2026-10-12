@@ -102,6 +102,12 @@ const PUBLIC_BY_DESIGN = new Set([
   // body, checked against this business's own stored secret, is the whole
   // credential. Nothing is written or dispatched until it verifies.
   "POST /api/payments/webhook/:provider",
+  // Stopping marketing email, from the link at the foot of one. Authenticated
+  // by an HMAC over the organization and contact; the GET only draws a button,
+  // and the POST also takes a mail provider's one-click, which arrives with no
+  // Origin and no cookies.
+  "GET /unsubscribe/:token",
+  "POST /unsubscribe/:token",
 ]);
 
 /**
@@ -408,7 +414,7 @@ test("every public route that takes a body says how much it takes", () => {
   }
 
   // So a sweep that found no public writes at all cannot pass as a clean one.
-  expect(checkedKeys.size).toBe(4);
+  expect(checkedKeys.size).toBe(5);
   expect(uncapped).toEqual([]);
 });
 
@@ -430,6 +436,7 @@ test("an oversized body is refused at every public door, by the door", async () 
     // reporting that money moved.
     ["/portal/nothing/quotes/nothing/accept", 2 * 1024 * 1024],
     ["/api/payments/webhook/nothing", 2 * 1024 * 1024],
+    ["/unsubscribe/nothing", 2 * 1024 * 1024],
     // And the two that take a file, just over their own numbers: one attachment
     // plus its fields, and a provider posting a whole message.
     ["/api/embed/forms/nothing", 12 * 1024 * 1024],

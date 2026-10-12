@@ -19,6 +19,7 @@ test("token pages and API answers say not to keep them", async () => {
     `/share/quote/${token}`,
     `/portal/${token}`,
     `/account/${token}`,
+    `/unsubscribe/${token}`,
     "/api/invitations/not-a-real-invitation-token",
   ]) {
     const res = await server.fetch(new Request(`http://localhost${path}`));
