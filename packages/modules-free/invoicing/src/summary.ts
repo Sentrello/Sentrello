@@ -211,7 +211,7 @@ export function registerInvoicingSummary(ctx: ModuleContext) {
     id: "invoicing",
     label: "Getting paid",
     icon: "receipt",
-    requires: { invoicing: ["read"] },
+    requires: { invoicing: ["create"] },
     steps: [
       {
         /*

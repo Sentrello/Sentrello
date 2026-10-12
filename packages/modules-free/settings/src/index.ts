@@ -123,7 +123,7 @@ export default defineModule({
       id: "settings",
       label: "Your business",
       icon: "building",
-      requires: { settings: ["read"] },
+      requires: { settings: ["update"] },
       steps: [
         {
           id: "timezone",

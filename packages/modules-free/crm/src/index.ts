@@ -3319,7 +3319,7 @@ export default defineModule({
       id: "crm",
       label: "Your customers",
       icon: "contact-round",
-      requires: { crm: ["read"] },
+      requires: { crm: ["create"] },
       steps: [
         {
           id: "first-company",
