@@ -200,6 +200,20 @@ test("an invitation names the business, carries the link, and cannot inject mark
   expect(mail.html).not.toContain("<img");
 });
 
+// Three in the morning UTC is the evening before in New York, and said as a
+// UTC day the link looked good for a day longer than it was.
+test("an invitation's expiry is said where the business is", () => {
+  const mail = invitationEmail({
+    url: "https://books.example/accept-invitation?token=abc",
+    organizationName: "Whitcombe",
+    expiresAt: new Date("2026-09-18T03:00:00Z"),
+    timeZone: "America/New_York",
+  });
+  expect(mail.html).toContain("September 17, 2026");
+  expect(mail.html).toContain("11:00");
+  expect(mail.html).toContain("EDT");
+});
+
 /**
  * The shell every one of these is sent in.
  *
@@ -358,4 +372,31 @@ test("no country means the figure is written as it always was", () => {
     currency: "USD",
   });
   expect(html).toContain("$1,279.97");
+});
+
+test("an invoice paid in full says so rather than asking for money", () => {
+  const mail = invoiceEmail({
+    number: "INV-0002",
+    totalCents: 10000,
+    owedCents: 0,
+    currency: "USD",
+    dueDate: new Date("2026-10-30T00:00:00Z"),
+  });
+  expect(mail.html).toContain("Paid in full");
+  expect(mail.html).not.toContain("Amount due");
+  expect(mail.html).not.toContain("Due ");
+});
+
+test("a portal link names each currency's debt on its own", () => {
+  const { html } = portalLinkEmail({
+    businessName: "Barker",
+    url: "https://x.test/portal/t",
+    outstanding: [
+      { cents: 20000, currency: "CAD" },
+      { cents: 10000, currency: "USD" },
+    ],
+  });
+  expect(html).toContain("CA$200.00");
+  expect(html).toContain("$100.00");
+  expect(html).not.toContain("300.00");
 });

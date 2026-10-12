@@ -185,7 +185,7 @@ function layout(
 <meta name="color-scheme" content="light">
 </head><body style="margin:0;padding:24px;font-family:system-ui,sans-serif;line-height:1.5;color:#111;background:#ffffff">
 <div style="max-width:37.5rem">
-<h1 style="font-size:18px">${escapeHtml(title)}</h1>
+<h1 style="font-size:18px;overflow-wrap:anywhere;word-break:break-word">${escapeHtml(title)}</h1>
 ${body}
 ${sellerFooter(business)}
 ${sentrelloCredit ? '<p style="color:#666;font-size:12px">Sent by Sentrello</p>' : ""}
@@ -224,6 +224,11 @@ function from(args: { businessName?: string; business?: BusinessIdentity }) {
 export function invoiceEmail(args: {
   number: string;
   totalCents: number;
+  /**
+   * What is still owed, when payments or credits have already come off.
+   * Left out, the whole total is due.
+   */
+  owedCents?: number;
   currency: string;
   dueDate?: Date | null;
   businessName?: string;
@@ -234,9 +239,24 @@ export function invoiceEmail(args: {
   /** False on Pro, where the business sends under its own name. */
   sentrelloCredit?: boolean;
 }) {
-  const due = args.dueDate
-    ? `<p>Due ${escapeHtml(day(args.dueDate))}.</p>`
-    : "";
+  const owed = args.owedCents ?? args.totalCents;
+  const money = (cents: number) =>
+    formatMoney(cents, args.currency, sellerLocale(args.business));
+  const due =
+    args.dueDate && owed > 0
+      ? `<p>Due ${escapeHtml(day(args.dueDate))}.</p>`
+      : "";
+  /*
+   * A part-paid invoice sent again asked for the whole total, so a customer
+   * who had paid sixty of a hundred was told a hundred was due. The total is
+   * still worth saying; what is owed is the figure in bold.
+   */
+  const amount =
+    owed === args.totalCents
+      ? `<p>Amount due: <strong>${money(owed)}</strong></p>`
+      : owed <= 0
+        ? `<p>Total: ${money(args.totalCents)}. <strong>Paid in full</strong>, nothing more is due.</p>`
+        : `<p>Total: ${money(args.totalCents)}. Amount due: <strong>${money(owed)}</strong></p>`;
   // The link is the point of the email: an invoice a customer has to reply to
   // in order to pay is an invoice that waits.
   const link = args.portalUrl
@@ -250,7 +270,7 @@ like a bill in the post.</p>`
       : `Invoice ${args.number}`,
     html: layout(
       `Invoice ${args.number}`,
-      `<p>Amount due: <strong>${formatMoney(args.totalCents, args.currency, sellerLocale(args.business))}</strong></p>${due}${link}`,
+      `${amount}${due}${link}`,
       args.business,
       args.sentrelloCredit,
     ),
@@ -418,15 +438,31 @@ export function portalLinkEmail(args: {
   url: string;
   outstandingCents?: number;
   currency?: string;
+  /**
+   * One figure per currency, for a customer invoiced in more than one. A
+   * single sum across them added dollars to euros and labelled the total
+   * with whichever came first. Wins over the pair above when given.
+   */
+  outstanding?: { cents: number; currency: string }[];
   /** The seller, for the foot of the message. */
   business?: BusinessIdentity;
   /** False on Pro, where the business sends under its own name. */
   sentrelloCredit?: boolean;
 }) {
-  const owed =
-    args.outstandingCents && args.outstandingCents > 0
-      ? `<p>Outstanding: <strong>${formatMoney(args.outstandingCents, args.currency, sellerLocale(args.business))}</strong></p>`
-      : "";
+  const figures = (
+    args.outstanding ??
+    (args.currency
+      ? [{ cents: args.outstandingCents ?? 0, currency: args.currency }]
+      : [])
+  )
+    .filter((f) => f.cents > 0)
+    .map(
+      (f) =>
+        `<strong>${formatMoney(f.cents, f.currency, sellerLocale(args.business))}</strong>`,
+    );
+  const owed = figures.length
+    ? `<p>Outstanding: ${figures.join(" and ")}</p>`
+    : "";
   return {
     subject: `Your invoices from ${args.businessName}`,
     html: layout(
@@ -546,6 +582,8 @@ export function invitationEmail(args: {
   organizationName: string;
   inviterName?: string | null;
   expiresAt?: Date | null;
+  /** The business's zone, which says the day and hour it stops working. */
+  timeZone?: string | null;
 }) {
   const from = args.inviterName?.trim()
     ? `${escapeHtml(args.inviterName.trim())} has invited you`
@@ -553,15 +591,22 @@ export function invitationEmail(args: {
   const until = args.expiresAt
     ? `<p style="color:#666;font-size:12px">The link works once and expires on
 ${escapeHtml(
-  // UTC, like every other date in this file. The expiry is a moment and the
-  // reader's zone is unknowable from here, so the alternative is the server's
-  // — which would make the same invitation say two different days depending
-  // on where the business rents its box.
-  args.expiresAt.toLocaleDateString("en-US", {
+  /*
+   * The expiry is a moment, not a day, so it is said as one, in the
+   * business's zone and with the zone named. Said as a UTC day, an
+   * invitation running out at three in the morning UTC read as the next day
+   * everywhere in the Americas, and the link died a day early. Never the
+   * server's zone, which would make one invitation say two things depending
+   * on where the box is rented.
+   */
+  args.expiresAt.toLocaleString("en-US", {
     month: "long",
     day: "numeric",
     year: "numeric",
-    timeZone: "UTC",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: args.timeZone || "UTC",
+    timeZoneName: "short",
   }),
 )}. If it has, ask to be invited again.</p>`
     : "";

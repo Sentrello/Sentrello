@@ -407,7 +407,7 @@ test("a form notification says what it is, on a domain we send as", () => {
       "Careers application",
       "Sentrello <billing@sentrello.com>",
     ),
-  ).toBe("Careers application <no-reply@sentrello.com>");
+  ).toBe('"Careers application" <no-reply@sentrello.com>');
 });
 
 /**
@@ -428,8 +428,18 @@ test("the sender is never the address the notification is going to", () => {
 test("a form named with punctuation cannot break the header", () => {
   expect(
     notificationSender('Odd "name" <x>\r\ninjected', "billing@sentrello.com"),
-  ).toBe("Odd name xinjected <no-reply@sentrello.com>");
+  ).toBe('"Odd name xinjected" <no-reply@sentrello.com>');
   expect(notificationSender("Careers", undefined)).toBeUndefined();
+});
+
+// Bare, a colon made the name an address group and brackets made a comment.
+test("an ordinary form name survives being a display name", () => {
+  expect(notificationSender("Quote: request", "billing@sentrello.com")).toBe(
+    '"Quote: request" <no-reply@sentrello.com>',
+  );
+  expect(notificationSender("Contact (web)", "billing@sentrello.com")).toBe(
+    '"Contact (web)" <no-reply@sentrello.com>',
+  );
 });
 
 /**

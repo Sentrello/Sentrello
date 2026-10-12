@@ -2264,8 +2264,7 @@ export default defineModule({
            * telling them they owed a number the account itself disagreed
            * with, usually a much larger one.
            */
-          const { owedCents: outstandingCents, currency } =
-            await customerBalance(orgId, contact.id);
+          const { byCurrency } = await customerBalance(orgId, contact.id);
 
           const [org] = await db
             .select({ name: schema.organizations.name })
@@ -2279,8 +2278,10 @@ export default defineModule({
               ...portalLinkEmail({
                 businessName: org?.name ?? "Your supplier",
                 url,
-                outstandingCents,
-                currency,
+                outstanding: byCurrency.map((b) => ({
+                  cents: b.owedCents,
+                  currency: b.currency,
+                })),
                 // The same as the invoice email beside it: an email about
                 // money owed carries the seller's address and how to pay, and
                 // a business paying for Pro sends it under its own name.
@@ -2642,6 +2643,12 @@ export default defineModule({
           )
           .limit(1);
         if (!invoice) return c.json({ error: "not found" }, 404);
+        if (invoice.status === "void") {
+          return c.json(
+            { error: "a void invoice is not owed, so it is not sent" },
+            409,
+          );
+        }
         // Refused out loud rather than dropped: with no mail server the
         // adapter is a no-op, and "sent" would write a delivery that never
         // happened onto the customer's timeline.
@@ -2682,12 +2689,26 @@ export default defineModule({
           .where(eq(schema.organizations.id, orgId))
           .limit(1);
 
+        // What is owed now, worked out as the invoice screen works it out.
+        const payments = await db
+          .select({ amountCents: schema.payments.amountCents })
+          .from(schema.payments)
+          .where(eq(schema.payments.invoiceId, invoice.id));
+        const { balanceDue } = invoiceState(
+          invoice,
+          payments.reduce((sum, p) => sum + p.amountCents, 0),
+          (await creditedAgainst(orgId, [invoice.id])).get(invoice.id) ?? 0,
+          new Date(),
+          await timezoneFor(orgId),
+        );
+
         try {
           await emailAdapter().send({
             to: contact.email,
             ...invoiceEmail({
               number: invoice.number,
               totalCents: invoice.totalCents,
+              owedCents: balanceDue,
               currency: invoice.currency,
               dueDate: invoice.dueDate,
               businessName: org?.name,

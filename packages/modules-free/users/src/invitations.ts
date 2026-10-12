@@ -10,6 +10,7 @@ import { db, schema } from "@sentrello/db";
 import { asTextOrNothing } from "@sentrello/db/request-values";
 import { record } from "@sentrello/db/security-events";
 import { asText } from "@sentrello/db/text-columns";
+import { timezoneFor } from "@sentrello/db/timezone";
 import {
   emailAdapter,
   mailConfigured,
@@ -224,6 +225,7 @@ export function registerInvitations(ctx: ModuleContext) {
           organizationName: org?.name ?? "a business",
           inviterName: session.user.name,
           expiresAt: invitation.expiresAt,
+          timeZone: await timezoneFor(orgId),
         });
         try {
           await emailAdapter().send({

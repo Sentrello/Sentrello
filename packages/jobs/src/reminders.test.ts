@@ -665,3 +665,46 @@ test("nothing is chased before the morning, and everything is after it", async (
       .where(eq(schema.reminderRules.id, rule.id));
   }
 });
+
+// A subject is plain text, and it was filled with the body's escaping: a
+// business called "Barker & Pawski's" chased as "Barker &amp; Pawski&#39;s".
+test("a chase's subject says the business's name as written", async () => {
+  const [before] = await db
+    .select({ name: schema.organizations.name })
+    .from(schema.organizations)
+    .where(eq(schema.organizations.id, orgId));
+  await db
+    .update(schema.organizations)
+    .set({ name: "Barker & Pawski's" })
+    .where(eq(schema.organizations.id, orgId));
+  const [rule] = await db
+    .insert(schema.reminderRules)
+    .values({
+      organizationId: orgId,
+      name: "Twenty-two days late",
+      daysOffset: 22,
+      subject: "A reminder from {{business}}",
+      body: "From {{business}}.",
+      active: true,
+    })
+    .returning();
+  if (!rule) throw new Error("no rule");
+
+  try {
+    await runReminders(businessMorning(), { mailer });
+    const sent = outbox.find((m) => m.subject.startsWith("A reminder from"));
+    expect(sent?.subject).toBe("A reminder from Barker & Pawski's");
+    expect(sent?.html).toContain("Barker &amp; Pawski&#39;s");
+  } finally {
+    await db
+      .update(schema.organizations)
+      .set({ name: before?.name ?? "" })
+      .where(eq(schema.organizations.id, orgId));
+    await db
+      .delete(schema.reminderLog)
+      .where(eq(schema.reminderLog.ruleId, rule.id));
+    await db
+      .delete(schema.reminderRules)
+      .where(eq(schema.reminderRules.id, rule.id));
+  }
+});

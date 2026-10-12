@@ -1465,12 +1465,18 @@ export function notificationSender(
   // The system sender may be "Name <addr@domain>"; the domain is what matters.
   const domain = systemSender?.split("@").pop()?.replace(/>.*$/, "").trim();
   if (!domain || !domain.includes(".")) return undefined;
-  // A display name carrying a quote or an angle bracket would break the header.
+  /*
+   * Quoted, because an ordinary form name is not an ordinary display name.
+   * Bare, "Quote: request" parsed as an address group called Quote and
+   * "Contact (web)" lost its "(web)" as a comment. A quote or a backslash
+   * would end the quoting, and an angle bracket confuses lesser parsers, so
+   * those go, with the line breaks.
+   */
   const name = formName
-    .replace(/["<>\r\n]/g, "")
+    .replace(/["\\<>\r\n]/g, "")
     .trim()
     .slice(0, 60);
-  return name ? `${name} <no-reply@${domain}>` : `no-reply@${domain}`;
+  return name ? `"${name}" <no-reply@${domain}>` : `no-reply@${domain}`;
 }
 
 export function attachmentLinks(
@@ -1547,7 +1553,8 @@ async function tellSomebody(
           .filter(([key]) => key !== HONEYPOT_FIELD)
           .map(
             ([key, value]) =>
-              `<dt><strong>${html(key)}</strong></dt><dd>${html(value)}</dd>`,
+              // A message typed over several lines keeps them.
+              `<dt><strong>${html(key)}</strong></dt><dd>${html(value).replace(/\r?\n/g, "<br>")}</dd>`,
           ),
         "</dl>",
         ...files,

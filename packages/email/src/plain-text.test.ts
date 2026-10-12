@@ -91,3 +91,23 @@ test("a money figure that is not a number stops the message", () => {
     }),
   ).toThrow(/money figure/);
 });
+
+// A till receipt is a <pre>, and the collapse above ran every line of it into
+// one: the shop's name, the items and the total in a single sentence.
+test("a laid-out block keeps its lines and its columns", () => {
+  const html =
+    "<p>Thanks.</p><pre>Caf&eacute; &amp; Co\nOat latte      $4.50\n\nTotal          $4.50</pre><p>Bye.</p>";
+  expect(plainText(html)).toBe(
+    "Thanks.\n\nCaf&eacute; & Co\nOat latte      $4.50\n\nTotal          $4.50\n\nBye.",
+  );
+});
+
+// A form's answers are a definition list, and the name ran into its value:
+// "nameAli emailali@x.test".
+test("a definition list puts each name on its own line", () => {
+  expect(
+    plainText(
+      "<dl><dt><strong>name</strong></dt><dd>Ali</dd><dt>email</dt><dd>ali@x.test</dd></dl>",
+    ),
+  ).toBe("name\nAli\n\nemail\nali@x.test");
+});

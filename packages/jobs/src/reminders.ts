@@ -545,12 +545,14 @@ export async function runReminders(
      * same as every other message; the date is a calendar date and is read
      * in UTC, because a due date has no time in it.
      */
-    const filled = (text: string) =>
+    // Escaped for the body, not for the subject: a subject is plain text, so
+    // "Barker & Pawski's" arrived in the inbox as "Barker &amp; Pawski&#39;s".
+    const filled = (text: string, esc: (s: string) => string = escapeHtml) =>
       text
-        .replaceAll("{{number}}", escapeHtml(invoice.number))
+        .replaceAll("{{number}}", esc(invoice.number))
         .replaceAll(
           "{{amount}}",
-          escapeHtml(
+          esc(
             formatMoney(
               owed,
               invoice.currency,
@@ -558,11 +560,11 @@ export async function runReminders(
             ),
           ),
         )
-        .replaceAll("{{business}}", escapeHtml(business.name))
+        .replaceAll("{{business}}", esc(business.name))
         .replaceAll(
           "{{due}}",
           invoice.dueDate
-            ? escapeHtml(
+            ? esc(
                 new Intl.DateTimeFormat(moneyLocale(business.countryCode), {
                   dateStyle: "medium",
                   timeZone: "UTC",
@@ -580,12 +582,12 @@ export async function runReminders(
          * template that uses it degrades to a sentence rather than to the
          * word "undefined".
          */
-        .replaceAll("{{link}}", portalUrl ? escapeHtml(portalUrl) : "");
+        .replaceAll("{{link}}", portalUrl ? esc(portalUrl) : "");
 
     try {
       await mailer.send({
         to: contact.email,
-        subject: filled(rule.subject),
+        subject: filled(rule.subject, (s) => s),
         html: `<p>${filled(rule.body).replace(/\n/g, "<br>")}</p>`,
       });
     } catch (err) {

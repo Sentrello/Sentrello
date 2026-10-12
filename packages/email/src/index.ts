@@ -58,8 +58,21 @@ export interface EmailMessage {
  * end, so the address rides along in brackets.
  */
 export function plainText(html: string): string {
+  /*
+   * A `<pre>` is already laid out, and the collapse below flattened it: a
+   * receipt arrived as one line from the shop's name to the total. Each one is
+   * lifted out first and put back as it was.
+   */
+  const kept: string[] = [];
+  const lifted = html.replace(
+    /<pre\b[^>]*>([\s\S]*?)<\/pre>/gi,
+    (_all, body) => {
+      kept.push(body.replace(/<[^>]+>/g, ""));
+      return `<p>\uE000${kept.length - 1}\uE000</p>`;
+    },
+  );
   return (
-    html
+    lifted
       // Before anything: a stylesheet or a <head> would otherwise survive tag
       // stripping as a paragraph of CSS.
       .replace(/<head[\s\S]*?<\/head>|<style[\s\S]*?<\/style>/gi, "")
@@ -82,8 +95,26 @@ export function plainText(html: string): string {
       )
       .replace(/<li\b[^>]*>/gi, "\n- ")
       .replace(/<(br|hr)\b[^>]*>/gi, "\n")
-      .replace(/<\/(p|div|h[1-6]|tr|li|table)>/gi, "\n\n")
+      .replace(/<\/(p|div|h[1-6]|tr|li|table|dd|dl)>/gi, "\n\n")
+      .replace(/<\/dt>/gi, "\n")
       .replace(/<[^>]+>/g, "")
+      .replace(/[^\n]+/g, unescapeHtml)
+      .split("\n")
+      .map((line) => line.replace(/[ \t]+/g, " ").trim())
+      .join("\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim()
+      // Back go the laid-out blocks, spaces and all, after the tidying that
+      // would have closed up their columns.
+      .replace(/\uE000(\d+)\uE000/g, (_all, i: string) =>
+        unescapeHtml(kept[Number(i)] ?? "").replace(/^\n+|\s+$/g, ""),
+      )
+  );
+}
+
+function unescapeHtml(text: string): string {
+  return (
+    text
       // The five `escapeHtml` writes, and the space that is not a space.
       .replace(/&nbsp;/g, " ")
       .replace(/&lt;/g, "<")
@@ -93,11 +124,6 @@ export function plainText(html: string): string {
       // Last, or an escaped `&lt;` written as `&amp;lt;` would come out as a
       // tag rather than as the four characters somebody typed.
       .replace(/&amp;/g, "&")
-      .split("\n")
-      .map((line) => line.replace(/[ \t]+/g, " ").trim())
-      .join("\n")
-      .replace(/\n{3,}/g, "\n\n")
-      .trim()
   );
 }
 

@@ -60,6 +60,13 @@ export async function invoicingHasAccountActivity(
  * that had been voided and credit notes as debts, and told the customer they
  * owed a figure no screen in the product agreed with.
  */
+type Balance = {
+  currency: string;
+  owedCents: number;
+  paidCents: number;
+  overdueCents: number;
+};
+
 export async function customerBalance(
   organizationId: string,
   contactId: string,
@@ -69,6 +76,12 @@ export async function customerBalance(
   overdueCents: number;
   currency: string;
   invoices: number;
+  /**
+   * The same three figures for each currency the customer was invoiced in,
+   * largest debt first. The totals above are the first of these: summing
+   * across currencies added dollars to euros.
+   */
+  byCurrency: Balance[];
 }> {
   const invoices = await db
     .select({
@@ -100,6 +113,7 @@ export async function customerBalance(
       overdueCents: 0,
       currency,
       invoices: 0,
+      byCurrency: [],
     };
   }
 
@@ -123,14 +137,22 @@ export async function customerBalance(
   const now = new Date();
   // The business's own day decides who is late, here as everywhere else.
   const zone = await timezoneFor(organizationId);
-  let owedCents = 0;
-  let paidCents = 0;
-  let overdueCents = 0;
+  const balances = new Map<string, Balance>();
   for (const invoice of invoices) {
     const paid = paidRows
       .filter((p) => p.invoiceId === invoice.id)
       .reduce((sum, p) => sum + p.amountCents, 0);
-    paidCents += paid;
+    let b = balances.get(invoice.currency);
+    if (!b) {
+      b = {
+        currency: invoice.currency,
+        owedCents: 0,
+        paidCents: 0,
+        overdueCents: 0,
+      };
+      balances.set(invoice.currency, b);
+    }
+    b.paidCents += paid;
 
     const { balanceDue, badge } = invoiceState(
       invoice,
@@ -139,19 +161,24 @@ export async function customerBalance(
       now,
       zone,
     );
-    owedCents += balanceDue;
+    b.owedCents += balanceDue;
     // "Overdue" here and "overdue" on the portal badge are the same word about
     // the same invoice, so they are the same decision: one function, one rule
     // about the instant a bill falls due.
-    if (badge === "overdue") overdueCents += balanceDue;
+    if (badge === "overdue") b.overdueCents += balanceDue;
   }
 
+  const byCurrency = [...balances.values()].sort(
+    (a, b) => b.owedCents - a.owedCents || b.paidCents - a.paidCents,
+  );
+  const first = byCurrency[0] as Balance;
   return {
-    owedCents,
-    paidCents,
-    overdueCents,
-    currency,
+    owedCents: first.owedCents,
+    paidCents: first.paidCents,
+    overdueCents: first.overdueCents,
+    currency: first.currency,
     invoices: invoices.length,
+    byCurrency,
   };
 }
 
@@ -159,33 +186,48 @@ export async function invoicingAccountFigures(
   organizationId: string,
   contactId: string,
 ): Promise<SummaryFigure[]> {
-  const { owedCents, paidCents, overdueCents, currency, invoices } =
-    await customerBalance(organizationId, contactId);
+  const { currency, invoices, byCurrency } = await customerBalance(
+    organizationId,
+    contactId,
+  );
   if (invoices === 0) {
     return [{ label: "You owe", value: 0, kind: "money", currency }];
   }
 
-  const figures: SummaryFigure[] = [
-    { label: "You owe", value: owedCents, kind: "money", currency },
-    {
-      label: "Paid",
-      value: paidCents,
-      kind: "money",
-      currency,
-      tone: paidCents > 0 ? "good" : "plain",
-    },
-  ];
-  // Left off entirely rather than shown as zero — a figure that never
-  // matters except when it is bad has no business sitting at "plain" for
-  // every customer who is not late.
-  if (overdueCents > 0) {
-    figures.push({
-      label: "Overdue",
-      value: overdueCents,
-      kind: "money",
-      currency,
-      tone: "bad",
-    });
+  // One set of figures per currency, named by it only when there is more
+  // than one to tell apart.
+  const several = byCurrency.length > 1;
+  const named = (label: string, code: string) =>
+    several ? `${label} in ${code}` : label;
+  const figures: SummaryFigure[] = [];
+  for (const b of byCurrency) {
+    figures.push(
+      {
+        label: named("You owe", b.currency),
+        value: b.owedCents,
+        kind: "money",
+        currency: b.currency,
+      },
+      {
+        label: named("Paid", b.currency),
+        value: b.paidCents,
+        kind: "money",
+        currency: b.currency,
+        tone: b.paidCents > 0 ? "good" : "plain",
+      },
+    );
+    // Left off entirely rather than shown as zero — a figure that never
+    // matters except when it is bad has no business sitting at "plain" for
+    // every customer who is not late.
+    if (b.overdueCents > 0) {
+      figures.push({
+        label: named("Overdue", b.currency),
+        value: b.overdueCents,
+        kind: "money",
+        currency: b.currency,
+        tone: "bad",
+      });
+    }
   }
   return figures;
 }

@@ -42,6 +42,8 @@ const strangers = [
  */
 const savedMail = { resend: process.env.RESEND_API_KEY };
 const realFetch = globalThis.fetch;
+/** What the stubbed provider was handed, newest last. */
+const mailed: { subject: string; html: string }[] = [];
 
 beforeAll(async () => {
   process.env.RESEND_API_KEY = "re_test_never_sent";
@@ -51,6 +53,7 @@ beforeAll(async () => {
   ) => {
     const url = typeof input === "string" ? input : input.toString();
     if (url.startsWith("https://api.resend.com/")) {
+      mailed.push(JSON.parse(String(init?.body ?? "{}")));
       return new Response(JSON.stringify({ id: "stubbed" }), { status: 200 });
     }
     // Anything this stub does not know about is a test reaching the real
@@ -898,6 +901,42 @@ test("sending an invoice records it on the timeline and links the portal", async
   expect(
     timeline.some((a) => a.body?.includes(`Sent invoice ${invoice.number}`)),
   ).toBe(true);
+});
+
+/**
+ * Sent again after a part payment, it asked for the whole total: a customer
+ * who had paid sixty of a hundred was told a hundred was due. And a void
+ * invoice went out as though it were owed.
+ */
+test("a part-paid invoice asks for what is left, and a void one is not sent", async () => {
+  const { body } = await createInvoice([
+    { description: "Part paid", quantity: 1, unitPrice: 10000, taxRateBp: 0 },
+  ]);
+  const id = body.invoice.id;
+  await app.request(`http://localhost/api/invoices/${id}/payments`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ amountCents: 6000 }),
+  });
+
+  const res = await app.request(`http://localhost/api/invoices/${id}/send`, {
+    method: "POST",
+    headers,
+  });
+  expect(res.status).toBe(200);
+  const html = mailed.at(-1)?.html ?? "";
+  expect(html).toContain("Amount due: <strong>$40.00</strong>");
+  expect(html).toContain("Total: $100.00");
+
+  await db
+    .update(schema.invoices)
+    .set({ status: "void" })
+    .where(eq(schema.invoices.id, id));
+  const voided = await app.request(`http://localhost/api/invoices/${id}/send`, {
+    method: "POST",
+    headers,
+  });
+  expect(voided.status).toBe(409);
 });
 
 test("an invoice with no customer, or a customer with no address, cannot be sent", async () => {

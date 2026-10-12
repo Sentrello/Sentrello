@@ -63,6 +63,19 @@ import {
 } from "./optional-modules";
 import { serveWeb } from "./static";
 
+/*
+ * One spelling of the instance's address. Written with a trailing slash in an
+ * env file, every link built as `${base}/portal/…` came out with two, in the
+ * invoice, quote, invitation and portal emails alike. Trimmed once here rather
+ * than at the twenty places that read it, before any request can.
+ */
+{
+  const base = process.env.SENTRELLO_BASE_URL?.trim().replace(/\/+$/, "");
+  // Empty is unset, so every reader's own fallback still applies.
+  if (base) process.env.SENTRELLO_BASE_URL = base;
+  else Reflect.deleteProperty(process.env, "SENTRELLO_BASE_URL");
+}
+
 /**
  * Stopping when asked.
  *

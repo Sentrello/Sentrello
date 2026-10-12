@@ -69,6 +69,7 @@ async function makeInvoice(args: {
   contactId: string;
   status?: string;
   dueDate?: Date;
+  currency?: string;
   lines?: { quantity: number; unitPrice: number; taxRatePpm?: number }[];
 }) {
   seq += 1;
@@ -82,6 +83,7 @@ async function makeInvoice(args: {
       number: `ACC-${suffix}-${seq}`,
       status: args.status ?? "open",
       dueDate: args.dueDate,
+      ...(args.currency ? { currency: args.currency } : {}),
       subtotalCents: totals.subtotal,
       taxCents: totals.tax,
       totalCents: totals.total,
@@ -293,6 +295,30 @@ test("a customer's balance counts neither drafts, voids nor credit notes", async
   const balance = await customerBalance(organizationId, contact.id);
   // Only the one invoice that is actually a debt.
   expect(balance.owedCents).toBe(owed.totalCents);
+});
+
+// Dollars and euros were added together and labelled with whichever invoice
+// came first: one CAD invoice and one USD invoice made one "You owe" figure.
+test("a customer invoiced in two currencies is owed two figures, not their sum", async () => {
+  const organizationId = await makeOrg("Two currencies");
+  const contact = await makeContact(organizationId, "Bilingual");
+  await makeInvoice({ organizationId, contactId: contact.id, currency: "USD" });
+  await makeInvoice({
+    organizationId,
+    contactId: contact.id,
+    currency: "CAD",
+    lines: [{ quantity: 2, unitPrice: 10_000 }],
+  });
+
+  const balance = await customerBalance(organizationId, contact.id);
+  expect(balance.byCurrency.map((b) => [b.currency, b.owedCents])).toEqual([
+    ["CAD", 20_000],
+    ["USD", 10_000],
+  ]);
+
+  const figures = await invoicingAccountFigures(organizationId, contact.id);
+  expect(figures.find((f) => f.label === "You owe in USD")?.value).toBe(10_000);
+  expect(figures.some((f) => f.label === "You owe")).toBe(false);
 });
 
 test("registers as a section with no entitlement of its own, and its href leads to the real portal", async () => {
