@@ -743,9 +743,14 @@ export function parseAmountToCents(raw: string): number | null {
   const text = raw.trim();
   if (!text) return null;
 
-  // Accountants' parentheses mean money out: (1,234.56) is -1234.56.
-  const negative = /^\(.*\)$/.test(text) || text.startsWith("-");
-  const digits = text.replace(/[()\-\s]/g, "").replace(/[^0-9.,]/g, "");
+  /*
+   * Money out, however a bank writes it: accountants' parentheses, a minus
+   * in front, a minus behind ("12,50-", as German and SAP exports put it),
+   * a minus after the currency ("€-12,50"), or the typographic minus. Only a
+   * leading hyphen counted before, so the rest came in as money received.
+   */
+  const negative = /^\(.*\)$/.test(text) || /[-\u2212]/.test(text);
+  const digits = text.replace(/[()\-\u2212\s]/g, "").replace(/[^0-9.,]/g, "");
   if (!digits) return null;
 
   /**
@@ -766,8 +771,16 @@ export function parseAmountToCents(raw: string): number | null {
     normalized = `${digits.slice(0, lastSeparator).replace(/[.,]/g, "")}.${digits.slice(
       lastSeparator + 1,
     )}`;
-  } else {
+  } else if (lastSeparator < 0 || /^[1-9]\d{0,2}([.,]\d{3})+$/.test(digits)) {
     normalized = digits.replace(/[.,]/g, "");
+  } else {
+    /*
+     * Three or more digits after the last separator that are not groups of
+     * a thousand: "1.2345" or "0.125". Read as a thousands separator, that
+     * was $12,345.00 and $125.00. It is neither, and cents cannot hold it, so
+     * the row is left for somebody to look at.
+     */
+    return null;
   }
 
   const value = Number(normalized);

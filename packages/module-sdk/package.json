@@ -15,6 +15,7 @@
     "./borrowed-iterator": "./src/borrowed-iterator.ts",
     "./trusted-header": "./src/trusted-header.ts",
     "./money-locale": "./src/money-locale.ts",
+    "./csv-read": "./src/csv-read.ts",
     "./csv-separator": "./src/csv-separator.ts",
     "./fresh-rate-limit": "./src/fresh-rate-limit.ts",
     "./server": "./src/server.ts"

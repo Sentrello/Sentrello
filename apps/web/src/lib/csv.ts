@@ -13,85 +13,15 @@
  * every CRM export produce.
  */
 
-import { csvSeparator } from "@sentrello/module-sdk/csv-separator";
+import { csvRows } from "@sentrello/module-sdk/csv-read";
 
 export interface Sheet {
   headers: string[];
   rows: string[][];
 }
 
-/** Excel writes a BOM. Left in, it becomes part of the first column's name. */
-function stripBom(text: string): string {
-  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
-}
-
 export function parseCsv(text: string): Sheet {
-  const src = stripBom(text);
-  const separator = csvSeparator(src);
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = "";
-  let quoted = false;
-  let i = 0;
-
-  const endField = () => {
-    row.push(field);
-    field = "";
-  };
-  const endRow = () => {
-    endField();
-    // A trailing newline would otherwise add a row of one empty field, which
-    // imports as a contact with no name.
-    if (row.length > 1 || row[0] !== "") rows.push(row);
-    row = [];
-  };
-
-  while (i < src.length) {
-    const ch = src[i];
-
-    if (quoted) {
-      if (ch === '"') {
-        if (src[i + 1] === '"') {
-          field += '"';
-          i += 2;
-          continue;
-        }
-        quoted = false;
-        i += 1;
-        continue;
-      }
-      field += ch;
-      i += 1;
-      continue;
-    }
-
-    if (ch === '"' && field === "") {
-      quoted = true;
-      i += 1;
-      continue;
-    }
-    if (ch === separator) {
-      endField();
-      i += 1;
-      continue;
-    }
-    if (ch === "\r") {
-      // CRLF and a lone CR both end the row.
-      if (src[i + 1] === "\n") i += 1;
-      endRow();
-      i += 1;
-      continue;
-    }
-    if (ch === "\n") {
-      endRow();
-      i += 1;
-      continue;
-    }
-    field += ch;
-    i += 1;
-  }
-  if (field !== "" || row.length) endRow();
-
+  const rows = csvRows(text);
   const [headers = [], ...body] = rows;
   return {
     headers: headers.map((h) => h.trim()),

@@ -1064,6 +1064,55 @@ test("contacts export as something a person could read", async () => {
  * Import. Without it a trial starts with an empty CRM and a re-typing job,
  * which is where most trials end.
  */
+/**
+ * Export, edit, import back: every contact came in as a second copy of
+ * itself, and the second addresses and phones the export writes were lost.
+ */
+test("an import skips addresses already here and keeps the other ones", async () => {
+  const send = (rows: Record<string, string>[]) =>
+    app.request("http://localhost/api/contacts/import", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ rows }),
+    });
+  const first = await send([
+    {
+      firstName: "Oona",
+      lastName: "Lindqvist",
+      email: "Oona@Example.test",
+      otherEmails: "Work: oona@work.test; Home: oona@home.test",
+      otherPhones: "mobile: 503 555 0101",
+    },
+    { firstName: "Oona", lastName: "Again", email: "oona@example.test" },
+  ]);
+  const one = (await first.json()) as {
+    imported: number;
+    skipped: { why: string }[];
+  };
+  expect(one.imported).toBe(1);
+  expect(one.skipped[0]?.why).toBe("already a contact with this email");
+
+  const again = (await (
+    await send([{ firstName: "Oona", email: "OONA@example.test" }])
+  ).json()) as { imported: number };
+  expect(again.imported).toBe(0);
+
+  const [made] = await db
+    .select()
+    .from(schema.contacts)
+    .where(
+      and(
+        eq(schema.contacts.organizationId, orgId),
+        eq(schema.contacts.email, "Oona@Example.test"),
+      ),
+    );
+  expect(made?.emails).toEqual([
+    { label: "Work", value: "oona@work.test" },
+    { label: "Home", value: "oona@home.test" },
+  ]);
+  expect(made?.phones).toEqual([{ label: "mobile", value: "503 555 0101" }]);
+});
+
 test("a spreadsheet of contacts comes in, creating companies as it goes", async () => {
   const res = await app.request("http://localhost/api/contacts/import", {
     method: "POST",

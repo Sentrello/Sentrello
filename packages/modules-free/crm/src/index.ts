@@ -2280,6 +2280,41 @@ function registerCrmScreens(
       const skipped: { row: number; why: string }[] = [];
 
       /*
+       * Addresses already here, so a file is not imported twice.
+       *
+       * The way back from a spreadsheet is export, edit, import — and every
+       * contact came back as a second copy of itself, because nothing asked
+       * whether the address was already known. A row whose email matches a
+       * contact, or an earlier row of the same file, is skipped and named.
+       */
+      const known = new Set(
+        (
+          await db
+            .select({ email: schema.contacts.email })
+            .from(schema.contacts)
+            .where(eq(schema.contacts.organizationId, orgId))
+        )
+          .map((r) => r.email?.trim().toLowerCase())
+          .filter((e): e is string => Boolean(e)),
+      );
+      // "Work: a@b.test; Home: c@d.test", as the export writes them.
+      const labelled = (text: string) =>
+        text
+          .split(";")
+          .map((part) => part.trim())
+          .filter(Boolean)
+          .map((part) => {
+            const at = part.indexOf(": ");
+            return at > 0
+              ? {
+                  label: part.slice(0, at).trim(),
+                  value: part.slice(at + 2).trim(),
+                }
+              : { label: "Other", value: part };
+          })
+          .filter((entry) => entry.value);
+
+      /*
        * Every cell read as text rather than trusted to be text.
        *
        * The type above says `Record<string, string>`, which is a claim about
@@ -2297,6 +2332,18 @@ function registerCrmScreens(
           skipped.push({ row: index + 2, why: "no name" });
           continue;
         }
+
+        const email = asText(raw.email, "email").trim();
+        if (email && known.has(email.toLowerCase())) {
+          skipped.push({
+            row: index + 2,
+            why: "already a contact with this email",
+          });
+          continue;
+        }
+        if (email) known.add(email.toLowerCase());
+        const otherEmails = labelled(asText(raw.otherEmails, "otherEmails"));
+        const otherPhones = labelled(asText(raw.otherPhones, "otherPhones"));
 
         let companyId: string | null = null;
         const companyName = asText(raw.company, "company").trim();
@@ -2356,8 +2403,10 @@ function registerCrmScreens(
               firstName: firstName || null,
               lastName: lastName || null,
               title: asText(raw.title, "title").trim() || null,
-              email: asText(raw.email, "email").trim() || null,
+              email: email || null,
               phone: asText(raw.phone, "phone").trim() || null,
+              ...(otherEmails.length ? { emails: otherEmails } : {}),
+              ...(otherPhones.length ? { phones: otherPhones } : {}),
               linkedinUrl:
                 asText(raw.linkedinUrl, "linkedinUrl").trim() || null,
               companyId,

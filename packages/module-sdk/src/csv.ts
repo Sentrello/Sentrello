@@ -38,7 +38,7 @@ function formulaSafe(text: string): string {
 }
 
 import { contentDisposition } from "./attachments";
-import { csvSeparator } from "./csv-separator";
+import { csvRows, decodeSpreadsheet } from "./csv-read";
 
 function field(value: unknown): string {
   if (value === null || value === undefined) return "";
@@ -78,48 +78,7 @@ export function csvDownload(filename: string): Record<string, string> {
  * ever match and the date of every transaction goes unread.
  */
 export function parseCsv(text: string): string[][] {
-  const src = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
-  const separator = csvSeparator(src);
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let cell = "";
-  let quoted = false;
-
-  for (let i = 0; i < src.length; i += 1) {
-    const char = src[i];
-    if (quoted) {
-      if (char === '"') {
-        // A doubled quote inside a quoted field is a literal quote.
-        if (src[i + 1] === '"') {
-          cell += '"';
-          i += 1;
-        } else {
-          quoted = false;
-        }
-      } else {
-        cell += char;
-      }
-      continue;
-    }
-    if (char === '"') {
-      quoted = true;
-    } else if (char === separator) {
-      row.push(cell);
-      cell = "";
-    } else if (char === "\n") {
-      row.push(cell);
-      rows.push(row);
-      row = [];
-      cell = "";
-    } else if (char !== "\r") {
-      cell += char;
-    }
-  }
-  if (cell !== "" || row.length > 0) {
-    row.push(cell);
-    rows.push(row);
-  }
-  return rows;
+  return csvRows(text);
 }
 
 /**
@@ -167,5 +126,5 @@ export async function readCapped(
     joined.set(chunk, at);
     at += chunk.byteLength;
   }
-  return new TextDecoder().decode(joined);
+  return decodeSpreadsheet(joined);
 }

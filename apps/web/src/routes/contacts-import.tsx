@@ -1,3 +1,4 @@
+import { decodeSpreadsheet } from "@sentrello/module-sdk/csv-read";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "../lib/api";
@@ -43,6 +44,10 @@ export const FIELDS = [
   },
   { key: "title", label: "Job title", aliases: ["role", "position"] },
   { key: "linkedinUrl", label: "LinkedIn", aliases: ["linkedin url"] },
+  // Our own export's "label: value; label: value" lists, so a move between
+  // instances keeps the second address and the work mobile.
+  { key: "otherEmails", label: "Other emails", aliases: ["other email"] },
+  { key: "otherPhones", label: "Other phones", aliases: ["other phone"] },
   /*
    * The two columns our own export writes and this could not read.
    *
@@ -106,7 +111,8 @@ export function ContactsImport({ onDone }: { onDone: () => void }) {
     setReadError(null);
     setResult(null);
     try {
-      const parsed = parseCsv(await file.text());
+      // As bytes, so a file Excel saved as UTF-16 or Windows-1252 reads.
+      const parsed = parseCsv(decodeSpreadsheet(await file.arrayBuffer()));
       if (parsed.headers.length === 0 || parsed.rows.length === 0) {
         setReadError("That file has no rows in it.");
         return;

@@ -514,6 +514,27 @@ test("amounts arrive in more shapes than one", () => {
   expect(parseAmountToCents("")).toBeNull();
 });
 
+// Only a leading hyphen counted, so these came in as money received.
+test("money out is money out wherever the minus is", () => {
+  for (const text of [
+    "12.50-",
+    "12,50-",
+    "€-12,50",
+    "$-12.50",
+    "\u221212.50",
+  ]) {
+    expect(parseAmountToCents(text), text).toBe(-1_250);
+  }
+});
+
+// Read as thousands, "1.2345" was $12,345.00 and "0.125" was $125.00.
+test("an amount finer than a cent is refused, not multiplied", () => {
+  expect(parseAmountToCents("1.2345")).toBeNull();
+  expect(parseAmountToCents("0.125")).toBeNull();
+  expect(parseAmountToCents("1.234.567")).toBe(123_456_700);
+  expect(parseAmountToCents("12.345,6")).toBe(1_234_560);
+});
+
 /**
  * More than one tax on a line.
  *
