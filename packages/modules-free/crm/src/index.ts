@@ -2280,6 +2280,34 @@ function registerCrmScreens(
       const skipped: { row: number; why: string }[] = [];
 
       /*
+       * A day as a spreadsheet writes it once somebody has opened the file.
+       * Excel re-saves 2026-03-04 as 3/4/2026, and only ISO was read, so an
+       * opt-out's date quietly became today. Month first in the US and
+       * Canada, day first everywhere else we sell, as the business is.
+       */
+      const [orgRow] = await db
+        .select({ countryCode: schema.organizations.countryCode })
+        .from(schema.organizations)
+        .where(eq(schema.organizations.id, orgId))
+        .limit(1);
+      // The bank import's rule: no country set is not a reason to assume one.
+      const monthFirst = ["US", "CA"].includes(
+        (orgRow?.countryCode ?? "").toUpperCase(),
+      );
+      const spreadsheetDay = (text: string): Date | null => {
+        const iso = dayFrom(text);
+        if (iso || !text) return iso;
+        const m = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/.exec(text);
+        if (!m) return null;
+        const [a, b, year] = [Number(m[1]), Number(m[2]), Number(m[3])];
+        const [month, day] = monthFirst ? [a, b] : [b, a];
+        const date = new Date(Date.UTC(year, month - 1, day));
+        return date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+          ? date
+          : null;
+      };
+
+      /*
        * Addresses already here, so a file is not imported twice.
        *
        * The way back from a spreadsheet is export, edit, import — and every
@@ -2325,7 +2353,9 @@ function registerCrmScreens(
       for (const [index, raw] of rows.entries()) {
         const firstName = asText(raw.firstName, "firstName").trim();
         const lastName = asText(raw.lastName, "lastName").trim();
-        const name = [firstName, lastName].filter(Boolean).join(" ");
+        const name =
+          [firstName, lastName].filter(Boolean).join(" ") ||
+          asText(raw.fullName, "fullName").trim();
         if (!name) {
           // Nameless rows are the blank lines at the bottom of every
           // spreadsheet. Reported rather than silently dropped.
@@ -2390,7 +2420,7 @@ function registerCrmScreens(
          * opt-out with no date is still an opt-out.
          */
         const optOutOn = optOut
-          ? (dayFrom(asText(raw.doNotSellOn, "doNotSellOn").trim()) ??
+          ? (spreadsheetDay(asText(raw.doNotSellOn, "doNotSellOn").trim()) ??
             dayIn(new Date(), await timezoneFor(orgId)))
           : null;
 

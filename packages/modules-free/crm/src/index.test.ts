@@ -1084,12 +1084,20 @@ test("an import skips addresses already here and keeps the other ones", async ()
       otherPhones: "mobile: 503 555 0101",
     },
     { firstName: "Oona", lastName: "Again", email: "oona@example.test" },
+    // One name column, as most systems export it, and an opt-out date as
+    // Excel writes it once the file has been opened.
+    {
+      fullName: "Pádraig Ó Sé",
+      email: "padraig@example.test",
+      doNotSell: "DO NOT SELL OR SHARE",
+      doNotSellOn: "3/4/2026",
+    },
   ]);
   const one = (await first.json()) as {
     imported: number;
     skipped: { why: string }[];
   };
-  expect(one.imported).toBe(1);
+  expect(one.imported).toBe(2);
   expect(one.skipped[0]?.why).toBe("already a contact with this email");
 
   const again = (await (
@@ -1111,6 +1119,19 @@ test("an import skips addresses already here and keeps the other ones", async ()
     { label: "Home", value: "oona@home.test" },
   ]);
   expect(made?.phones).toEqual([{ label: "mobile", value: "503 555 0101" }]);
+  const [padraig] = await db
+    .select()
+    .from(schema.contacts)
+    .where(
+      and(
+        eq(schema.contacts.organizationId, orgId),
+        eq(schema.contacts.email, "padraig@example.test"),
+      ),
+    );
+  expect(padraig?.name).toBe("Pádraig Ó Sé");
+  // Read by the business's country, and never as today. This one has none
+  // set, so day first, as the bank import reads it: 3 April.
+  expect(padraig?.doNotSellOn?.toISOString().slice(0, 10)).toBe("2026-04-03");
 });
 
 test("a spreadsheet of contacts comes in, creating companies as it goes", async () => {

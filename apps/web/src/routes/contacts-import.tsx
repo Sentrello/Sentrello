@@ -31,6 +31,9 @@ export const FIELDS = [
     aliases: ["given name", "forename"],
   },
   { key: "lastName", label: "Last name", aliases: ["surname", "family name"] },
+  // Most systems export one name column. Without a place to put it, every row
+  // of such a file was skipped for having no name.
+  { key: "fullName", label: "Name", aliases: ["full name", "contact name"] },
   { key: "email", label: "Email", aliases: ["email address", "e-mail"] },
   {
     key: "phone",

@@ -12,12 +12,16 @@ import { guessMapping, parseCsv } from "./csv";
  */
 test("a file this app exported maps back onto itself", () => {
   const mapping = guessMapping([...EXPORT_COLUMNS], FIELDS);
-  for (const field of FIELDS) {
+  // A single "Name" column is how other systems export; ours writes first and
+  // last, so that one field is for their files and has nothing to map to here.
+  for (const field of FIELDS.filter((f) => f.key !== "fullName")) {
     expect({ field: field.key, mapped: mapping[field.key] }).toEqual({
       field: field.key,
       mapped: field.label,
     });
   }
+  // And it must not swallow either half of a name our own file has.
+  expect(mapping.fullName).toBeUndefined();
 });
 
 test("the commas and quotes a spreadsheet writes survive", () => {
