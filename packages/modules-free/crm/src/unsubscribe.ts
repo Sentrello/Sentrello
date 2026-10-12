@@ -8,9 +8,13 @@ import {
 } from "@sentrello/db/unsubscribe";
 import {
   CUSTOMER_THEME_CSS,
+  MARKETING_OPT_OUT,
+  type MarketingOptOut,
   type ModuleContext,
   type RouteContext,
   customerThemeFor,
+  hasService,
+  moduleService,
   publicBodyLimit,
   rateLimit,
   themeAttribute,
@@ -137,11 +141,27 @@ export function registerUnsubscribe(ctx: ModuleContext): void {
     const form = await c.req.parseBody().catch(() => ({}));
     const oneClick =
       (form as Record<string, unknown>)["List-Unsubscribe"] === "One-Click";
-    await unsubscribeContact(contact, {
+    const evidence = {
       page: "/unsubscribe",
       method: oneClick ? "one-click" : "page",
-    });
+    };
+    await unsubscribeContact(contact, evidence);
+    // And every list a module keeps of its own, or the page below is untrue
+    // the next time a campaign goes out. Asked every time, not only when the
+    // tick changed: the tick can be off while a subscription is still live.
+    if (hasService(MARKETING_OPT_OUT)) {
+      await moduleService<MarketingOptOut>(MARKETING_OPT_OUT)(
+        contact.organizationId,
+        { contactId: contact.id, email: contact.email },
+        evidence,
+      );
+    }
 
+    // In the colours the page before it was drawn in.
+    const { theme } = customerThemeFor({
+      query: (name) => c.req.query(name),
+      header: (name) => c.req.header(name),
+    });
     const business = await businessName(contact.organizationId);
     return c.html(
       page(
@@ -149,6 +169,7 @@ export function registerUnsubscribe(ctx: ModuleContext): void {
         `<h1>Done</h1>
 <p>${html(business)} will send no more marketing email to ${html(contact.email ?? contact.name)}.</p>`,
         await credit(contact.organizationId),
+        theme,
       ),
       200,
       HEADERS,

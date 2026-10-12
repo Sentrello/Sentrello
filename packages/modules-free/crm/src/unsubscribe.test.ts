@@ -6,7 +6,12 @@ import {
   contactUnsubscribeUrl,
   unsubscribeToken,
 } from "@sentrello/db/unsubscribe";
-import { registerForTest } from "@sentrello/module-sdk";
+import {
+  MARKETING_OPT_OUT,
+  provideService,
+  registerForTest,
+  removeService,
+} from "@sentrello/module-sdk";
 import { and, eq } from "drizzle-orm";
 import crm from "./index";
 
@@ -144,6 +149,33 @@ for (const [name, key, body] of [
     expect(again).not.toContain("<form");
   });
 }
+
+test("a module's own list is told too, even when the tick was already off", async () => {
+  const id = await contact(orgA, `list-${suffix}@example.test`);
+  const told: unknown[] = [];
+  const was = removeService(MARKETING_OPT_OUT);
+  provideService(MARKETING_OPT_OUT, async (...args: unknown[]) => {
+    told.push(args);
+  });
+  try {
+    const post = () =>
+      req(`/unsubscribe/${unsubscribeToken(orgA, id)}`, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: "x=1",
+      });
+    expect((await post()).status).toBe(200);
+    expect((await post()).status).toBe(200);
+  } finally {
+    removeService(MARKETING_OPT_OUT);
+    if (was !== undefined) provideService(MARKETING_OPT_OUT, was);
+  }
+  const who = { contactId: id, email: `list-${suffix}@example.test` };
+  expect(told).toEqual([
+    [orgA, who, { page: "/unsubscribe", method: "page" }],
+    [orgA, who, { page: "/unsubscribe", method: "page" }],
+  ]);
+});
 
 test("the other organization's contact was never touched", async () => {
   expect(await ticked(contacts.other as string)).toBe(true);

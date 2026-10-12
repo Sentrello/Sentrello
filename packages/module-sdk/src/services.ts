@@ -86,3 +86,20 @@ export function removeService(name: string): unknown {
   registry.delete(name);
   return was;
 }
+
+/**
+ * The name a module sending marketing email offers its stop under.
+ *
+ * "No more marketing email" is one promise and two modules keep it: the CRM's
+ * tick, which automated mail reads, and the newsletter's own subscriber list.
+ * The CRM's unsubscribe link said the first and did only the first, so the
+ * next campaign still arrived. Whichever module keeps its own list offers
+ * this, and the CRM's link calls it.
+ */
+export const MARKETING_OPT_OUT = "marketing.opt-out";
+
+export type MarketingOptOut = (
+  organizationId: string,
+  who: { contactId: string; email: string | null },
+  evidence: Record<string, unknown>,
+) => Promise<void>;
