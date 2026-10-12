@@ -248,3 +248,30 @@ test("another business's account is still refused as unknown", async () => {
     .delete(schema.organizations)
     .where(eq(schema.organizations.id, other.id));
 });
+
+/**
+ * A transfer between two of the business's own accounts is not corrected
+ * here. Every attempt used to be refused with no reason at all, because the
+ * check looked up an account type for a kind this route does not know.
+ */
+test("correcting a transfer says how, rather than failing blank", async () => {
+  const [transfer] = await db
+    .insert(schema.transactions)
+    .values({
+      organizationId: orgId,
+      kind: "transfer",
+      accountId: cash,
+      paidThroughAccountId: cash,
+      amountCents: 10_000,
+      occurredAt: new Date(),
+    })
+    .returning();
+  if (!transfer) throw new Error("no transfer");
+
+  const res = await req(`/api/transactions/${transfer.id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ amountCents: 12_000 }),
+  });
+  expect(res.status).toBe(409);
+  expect(((await res.json()) as { error: string }).error).toContain("undo");
+});

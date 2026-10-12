@@ -62,7 +62,7 @@ import {
 
 type Transaction = {
   id: string;
-  kind: "income" | "expense";
+  kind: "income" | "expense" | "transfer";
   accountId: string | null;
   paidThroughAccountId: string | null;
   amountCents: number;
@@ -1035,15 +1035,18 @@ export function Money() {
                   <RowMenu label={t.description ?? formatDate(t.occurredAt)}>
                     {(close) => (
                       <>
-                        <MenuItem
-                          needs={{ bookkeeping: ["update"] }}
-                          onClick={() => {
-                            close();
-                            setEditing(t);
-                          }}
-                        >
-                          Correct
-                        </MenuItem>
+                        {/* A transfer is undone and recorded again. */}
+                        {t.kind === "transfer" ? null : (
+                          <MenuItem
+                            needs={{ bookkeeping: ["update"] }}
+                            onClick={() => {
+                              close();
+                              setEditing(t);
+                            }}
+                          >
+                            Correct
+                          </MenuItem>
+                        )}
                         <ConfirmButton
                           title="Undo this entry?"
                           message="A reversing entry is posted against it, so the books still show what happened and why. Nothing is deleted. If the figure or the category is simply wrong, Correct it instead."

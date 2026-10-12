@@ -4,9 +4,10 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { db, eq, schema } from "@sentrello/db";
+import { dayIn } from "@sentrello/db/day";
 import { closedThrough } from "@sentrello/db/ledger";
 import { asTextOrNothing } from "@sentrello/db/request-values";
-import { dayFrom } from "@sentrello/db/timezone";
+import { dayFrom, timezoneFor } from "@sentrello/db/timezone";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 
 /**
@@ -74,7 +75,13 @@ export function registerPeriodLock(ctx: ModuleContext) {
       if (body.closedThrough !== null && !wanted) {
         return c.json({ error: "a date looks like 2026-03-31" }, 400);
       }
-      if (wanted && wanted.getTime() > Date.now()) {
+      // Today in the business's own zone, a day against a day. Against the
+      // instant, closing through today was refused before UTC midnight east
+      // of Greenwich, and closing through tomorrow allowed after it west.
+      if (
+        wanted &&
+        wanted.getTime() > dayIn(new Date(), await timezoneFor(orgId)).getTime()
+      ) {
         // Closing the future would stop today's invoice being raised, and the
         // person who did it would have no idea why.
         return c.json(

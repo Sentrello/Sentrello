@@ -504,6 +504,23 @@ export function registerTransactions(ctx: ModuleContext) {
         return c.json({ error: "this transaction was undone" }, 409);
       }
 
+      /*
+       * A transfer moves money between two of the business's own accounts,
+       * written by the banking screens, and this edit speaks only of income
+       * and expense: the account it would check against has no type for one,
+       * so every correction was refused with no reason given. Undo reverses a
+       * transfer properly; recording it again is the correction.
+       */
+      if (!(TRANSACTION_KINDS as readonly string[]).includes(existing.kind)) {
+        return c.json(
+          {
+            error:
+              "a transfer is corrected by undoing it and recording it again",
+          },
+          409,
+        );
+      }
+
       const body = await c.req.json();
       if (
         body.amountCents !== undefined &&

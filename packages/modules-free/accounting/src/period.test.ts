@@ -2,6 +2,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, eq, schema } from "@sentrello/db";
+import { dayIn } from "@sentrello/db/day";
 import {
   type LedgerTx,
   PeriodClosedError,
@@ -165,6 +166,42 @@ test("the books cannot be closed into the future", async () => {
   // would have no idea why.
   expect(res.status).toBe(400);
   expect(((await res.json()) as { error: string }).error).toContain("future");
+});
+
+/**
+ * "Today" is the business's today. Compared with the instant, closing through
+ * today was refused before UTC midnight east of Greenwich, and closing through
+ * tomorrow allowed after it west. Two zones a day apart from UTC either way,
+ * so at any hour at least one of them disagrees with the clock.
+ */
+test("the books close through the business's today, and not its tomorrow", async () => {
+  const zoned = async (zone: string) => {
+    await db
+      .update(schema.organizations)
+      .set({ timezone: zone })
+      .where(eq(schema.organizations.id, orgId));
+    return dayIn(new Date(), zone);
+  };
+  try {
+    const kiritimati = await zoned("Pacific/Kiritimati");
+    const today = await put({
+      closedThrough: kiritimati.toISOString().slice(0, 10),
+    });
+    expect(today.status).toBe(200);
+
+    const pagoPago = await zoned("Pacific/Pago_Pago");
+    const tomorrow = new Date(pagoPago.getTime() + 24 * 3600 * 1000);
+    const ahead = await put({
+      closedThrough: tomorrow.toISOString().slice(0, 10),
+    });
+    expect(ahead.status).toBe(400);
+  } finally {
+    await put({ closedThrough: null });
+    await db
+      .update(schema.organizations)
+      .set({ timezone: null })
+      .where(eq(schema.organizations.id, orgId));
+  }
 });
 
 test("something that is not a date is refused rather than clearing the lock", async () => {
