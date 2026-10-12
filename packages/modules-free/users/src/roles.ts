@@ -322,6 +322,34 @@ export async function customPermissions(
 }
 
 /**
+ * Whether a member's roles make them an administrator: somebody who can let
+ * people back in.
+ *
+ * Asked of what the roles allow, not of their names: `settings:update`, which
+ * every Users route asks for, and Better Auth's `member:update` and
+ * `invitation:create`, which it asks again when it makes the write. Checking
+ * for the word `admin` missed the seeded Admins policy (`admins`) and any role
+ * a business wrote for its owners.
+ */
+export async function administers(
+  orgId: string,
+): Promise<(role: string) => boolean> {
+  const custom = await customPermissions(orgId);
+  const can = (held: string[], resource: string, action: string) =>
+    held.some((r) =>
+      (permissionsForRole(r, custom)[resource] ?? []).includes(action),
+    );
+  return (role) => {
+    const held = role.split(",").map((r) => r.trim());
+    return (
+      can(held, "settings", "update") &&
+      can(held, "member", "update") &&
+      can(held, "invitation", "create")
+    );
+  };
+}
+
+/**
  * Whether this person must have a second factor.
  *
  * Asked of the roles they hold rather than of them: the person who can move

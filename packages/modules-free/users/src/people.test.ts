@@ -57,6 +57,21 @@ beforeAll(async () => {
    * is an assignable role rather than one that does not exist yet.
    */
   await seedDefaults(orgId, headers);
+
+  /**
+   * A policy that may open the Users screen and change settings, and nothing
+   * of Better Auth's: what a business makes for an office manager. Its holder
+   * gets past the routes' own check and is not an administrator, which is the
+   * shape the last-administrator guard is for.
+   */
+  await auth.api.createOrgRole({
+    body: {
+      organizationId: orgId,
+      role: "office",
+      permission: { dashboard: ["read"], settings: ["read", "update"] },
+    },
+    headers,
+  });
 });
 
 afterAll(async () => {
@@ -243,15 +258,15 @@ test("the last administrator cannot be suspended", async () => {
     {
       method: "POST",
       headers,
-      body: JSON.stringify({ role: "admins" }),
+      body: JSON.stringify({ role: "office" }),
     },
   );
   expect(promoted.status).toBe(200);
 
   // An instance with no administrator cannot be recovered through the
-  // browser — helper is not the last administrator, but a caller who holds
-  // `settings:update` without being one of the counted admins may not use
-  // this route to remove the one that is.
+  // browser. Helper holds `settings:update` and cannot invite anybody or
+  // change a role, so helper does not count, and may not remove the one
+  // who does.
   const res = await app.request(`http://localhost/api/users/${ownerId}`, {
     method: "PATCH",
     headers: helper.headers,
@@ -302,7 +317,7 @@ test("an administrator who also holds a role through a group is still the last a
   );
   const promoted = await app.request(
     `http://localhost/api/users/${helper.userId}/role`,
-    { method: "POST", headers, body: JSON.stringify({ role: "admins" }) },
+    { method: "POST", headers, body: JSON.stringify({ role: "office" }) },
   );
   expect(promoted.status).toBe(200);
 
@@ -332,9 +347,8 @@ test("an administrator who also holds a role through a group is still the last a
  * approve anything, or promote anybody back, so counting them toward the
  * total is what let two separate calls suspend both administrators of an
  * organization in turn — neither call ever saw fewer than two. A second,
- * literal `"admin"` is promoted here (not the `admins` policy) because the
- * point is specifically about the `member.role === "admin"` count, not about
- * `settings:update`.
+ * literal `"admin"` is promoted here because the point is the suspension,
+ * not which policy makes somebody an administrator.
  */
 test("a suspended administrator does not count toward the total", async () => {
   const second = await inviteAndAccept(`second-admin-${suffix}@example.test`);
@@ -357,7 +371,7 @@ test("a suspended administrator does not count toward the total", async () => {
   await app.request(`http://localhost/api/users/${helper.userId}/role`, {
     method: "POST",
     headers,
-    body: JSON.stringify({ role: "admins" }),
+    body: JSON.stringify({ role: "office" }),
   });
 
   const res = await app.request(`http://localhost/api/users/${ownerId}`, {
@@ -379,6 +393,100 @@ test("a suspended administrator does not count toward the total", async () => {
     .update(schema.member)
     .set({ role: "staff", baseRole: "staff", disabledAt: null })
     .where(eq(schema.member.userId, second.userId));
+});
+
+/**
+ * The seeded Admins policy is an administrator: it can do what the Users
+ * screen offers, and it counts as one. It could open the screen and was
+ * refused every invitation, a role change was a 500, and the guard below
+ * treated whoever held it as nobody.
+ */
+test("somebody on the Admins policy runs the staff list and counts as an administrator", async () => {
+  const helper = await inviteAndAccept(`admins-helper-${suffix}@example.test`);
+  const other = await inviteAndAccept(`admins-other-${suffix}@example.test`);
+  const promoted = await app.request(
+    `http://localhost/api/users/${helper.userId}/role`,
+    { method: "POST", headers, body: JSON.stringify({ role: "admins" }) },
+  );
+  expect(promoted.status).toBe(200);
+
+  const invite = await app.request("http://localhost/api/users/invitations", {
+    method: "POST",
+    headers: helper.headers,
+    body: JSON.stringify({
+      email: `admins-invitee-${suffix}@example.test`,
+      role: "staff",
+    }),
+  });
+  expect(invite.status).toBeLessThan(300);
+
+  const rerole = await app.request(
+    `http://localhost/api/users/${other.userId}/role`,
+    {
+      method: "POST",
+      headers: helper.headers,
+      body: JSON.stringify({ role: "managers" }),
+    },
+  );
+  expect(rerole.status).toBe(200);
+
+  // One built-in admin and helper, with the owner set aside: if helper did
+  // not count, the admin would be the last and could not be suspended.
+  // Through the row, not the owner's session, which a suspension would end.
+  await db
+    .update(schema.member)
+    .set({ role: "staff" })
+    .where(eq(schema.member.userId, ownerId));
+  await db
+    .update(schema.member)
+    .set({ role: "admin", baseRole: "admin" })
+    .where(eq(schema.member.userId, other.userId));
+  try {
+    const suspend = await app.request(
+      `http://localhost/api/users/${other.userId}`,
+      {
+        method: "PATCH",
+        headers: helper.headers,
+        body: JSON.stringify({ disabled: true }),
+      },
+    );
+    expect(suspend.status).toBe(200);
+  } finally {
+    await db
+      .update(schema.member)
+      .set({ role: "admin" })
+      .where(eq(schema.member.userId, ownerId));
+    for (const id of [helper.userId, other.userId]) {
+      await db
+        .update(schema.member)
+        .set({ role: "staff", baseRole: "staff", disabledAt: null })
+        .where(eq(schema.member.userId, id));
+    }
+  }
+});
+
+test("a role change the caller may not make is refused, not a fault", async () => {
+  const helper = await inviteAndAccept(`office-helper-${suffix}@example.test`);
+  const other = await inviteAndAccept(`office-other-${suffix}@example.test`);
+  await app.request(`http://localhost/api/users/${helper.userId}/role`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ role: "office" }),
+  });
+  const res = await app.request(
+    `http://localhost/api/users/${other.userId}/role`,
+    {
+      method: "POST",
+      headers: helper.headers,
+      body: JSON.stringify({ role: "managers" }),
+    },
+  );
+  expect(res.status).toBe(400);
+  const [row] = await db
+    .select({ role: schema.member.role })
+    .from(schema.member)
+    .where(eq(schema.member.userId, other.userId));
+  expect(row?.role).toBe("staff");
 });
 
 /** Pins `requirePermission({ settings: ["update"] }) — removing it currently

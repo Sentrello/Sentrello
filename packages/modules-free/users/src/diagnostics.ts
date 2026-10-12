@@ -11,6 +11,7 @@ import {
   type RouteContext,
   trustedHops,
 } from "@sentrello/module-sdk";
+import { administers } from "./roles";
 
 /**
  * What the Authentication screen cannot otherwise see about this instance.
@@ -45,11 +46,12 @@ export function registerDiagnostics(ctx: ModuleContext) {
         })
         .from(schema.member)
         .where(eq(schema.member.organizationId, orgId));
-      // The same rule `people.ts`'s `isLastAdministrator` uses: comma-split
-      // for a role held through a group, and only a member still able to
-      // sign in — `disabledAt` null — counts.
+      // The same rule `people.ts`'s `isLastAdministrator` uses: a role that
+      // can let people back in, however it is held, and only a member still
+      // able to sign in — `disabledAt` null — counts.
+      const holdsAdmin = await administers(orgId);
       const administrators = members.filter(
-        (m) => m.role.split(",").includes("admin") && !m.disabledAt,
+        (m) => holdsAdmin(m.role) && !m.disabledAt,
       ).length;
 
       const baseUrl = process.env.SENTRELLO_BASE_URL ?? "http://localhost:3000";

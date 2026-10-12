@@ -106,6 +106,22 @@ const READS_EVERYTHING: Permissions = Object.fromEntries(
     .map(([resource]) => [resource, ["read"]]),
 );
 
+/**
+ * Better Auth's own half of running the staff list: inviting somebody,
+ * changing what they hold, and editing the policies themselves.
+ *
+ * Every Users route asks for `settings: ["update"]` first and then hands the
+ * write to Better Auth, which asks again of these. Admins carried the first
+ * and none of these, so the policy described as "who else works here" was
+ * refused every invitation and failed every role change. Same as the
+ * compiled `admin`, less `organization` and `team`.
+ */
+const RUNS_PEOPLE: Permissions = {
+  member: ["create", "update", "delete"],
+  invitation: ["create", "cancel"],
+  ac: ["create", "read", "update", "delete"],
+};
+
 /** How senior somebody is. Given to a person. */
 export const DEFAULT_USER_POLICIES: DefaultPolicy[] = [
   {
@@ -113,6 +129,7 @@ export const DEFAULT_USER_POLICIES: DefaultPolicy[] = [
     description: "Everything, including settings and who else works here.",
     permission: {
       ...LANDS,
+      ...RUNS_PEOPLE,
       docs: ["read", "create", "update", "delete"],
       crm: ["read", "create", "update", "delete"],
       invoicing: ["read", "create", "update", "delete", "send"],
@@ -508,9 +525,12 @@ export async function seedDefaults(
       if (at < PROJECTS_POLICIES_SHIPPED) {
         done = (await catchUpProjects(tx, organizationId, headers)) && done;
       }
-      // The latest cutoff, so every catch-up above ran inside this.
       if (at < SUPERVISE_SHIPPED) {
         await catchUpSupervise(tx, organizationId);
+      }
+      // The latest cutoff, so every catch-up above ran inside this.
+      if (at < ADMINS_RUN_PEOPLE_SHIPPED) {
+        await catchUpAdmins(tx, organizationId);
         if (done) {
           await tx
             .update(schema.organizations)
@@ -805,4 +825,56 @@ async function catchUpSupervise(tx: Tx, organizationId: string) {
       })
       .where(eq(schema.organizationRole.id, row.id));
   }
+}
+
+/**
+ * When Admins gained Better Auth's people permissions: 12 October 2026.
+ *
+ * Not a release time, for the reason `PROJECTS_POLICIES_SHIPPED` gives.
+ */
+export const ADMINS_RUN_PEOPLE_SHIPPED = new Date("2026-10-12T17:00:00Z");
+
+/**
+ * `RUNS_PEOPLE` for Admins, on an organization seeded before it.
+ *
+ * Only a policy still called `admins` that still changes settings: one an
+ * administrator narrowed has been decided about. And resource by resource, as
+ * `catchUpProjects` does, so a key already there stays as it was. Writes
+ * directly, so it needs nothing of the caller, and is safe to run again.
+ */
+async function catchUpAdmins(tx: Tx, organizationId: string) {
+  const [row] = await tx
+    .select({
+      id: schema.organizationRole.id,
+      permission: schema.organizationRole.permission,
+    })
+    .from(schema.organizationRole)
+    .where(
+      and(
+        eq(schema.organizationRole.organizationId, organizationId),
+        eq(schema.organizationRole.role, "admins"),
+      ),
+    )
+    .limit(1);
+  if (!row) return;
+  let permission: Permissions;
+  try {
+    permission = JSON.parse(row.permission) as Permissions;
+  } catch {
+    return;
+  }
+  if (!permission.settings?.includes("update")) return;
+  const missing = Object.entries(RUNS_PEOPLE).filter(
+    ([r]) => !(r in permission),
+  );
+  if (missing.length === 0) return;
+  await tx
+    .update(schema.organizationRole)
+    .set({
+      permission: JSON.stringify({
+        ...permission,
+        ...Object.fromEntries(missing),
+      }),
+    })
+    .where(eq(schema.organizationRole.id, row.id));
 }

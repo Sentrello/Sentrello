@@ -5,6 +5,7 @@ import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { and, db, eq, inArray, schema } from "@sentrello/db";
 import {
+  ADMINS_RUN_PEOPLE_SHIPPED,
   DEFAULT_GROUPS,
   DEFAULT_GROUP_POLICIES,
   DEFAULT_PROJECTS_POLICIES,
@@ -776,6 +777,79 @@ test("an organization seeded before supervise gets it, once", async () => {
     expect((await permissionOf("till supervisors"))?.pos).not.toContain(
       "supervise",
     );
+  } finally {
+    await db
+      .delete(schema.organizations)
+      .where(eq(schema.organizations.id, org.id));
+  }
+});
+
+/**
+ * Admins gains Better Auth's people permissions on an organization seeded
+ * before it had them, and a key an administrator already set stays theirs.
+ */
+test("an organization seeded before Admins could invite gets it, once", async () => {
+  const suffix = crypto.randomUUID().slice(0, 8);
+  const signUp = await signUpAsOwner({
+    email: `admins-catch-up-${suffix}@example.test`,
+    password: "correct-horse-battery-staple",
+    name: "Owner",
+  });
+  const cookie = signUp.headers.get("set-cookie");
+  if (!cookie) throw new Error("sign-up returned no session cookie");
+  const headers = new Headers({ cookie, "content-type": "application/json" });
+  const org = await auth.api.createOrganization({
+    body: {
+      name: `Admins catch-up ${suffix}`,
+      slug: `admins-catch-up-${suffix}`,
+    },
+    headers,
+  });
+  if (!org) throw new Error("could not create organization");
+
+  const roles = schema.organizationRole;
+  const admins = and(
+    eq(roles.organizationId, org.id),
+    eq(roles.role, "admins"),
+  );
+  const permission = async () => {
+    const [row] = await db
+      .select({ permission: roles.permission })
+      .from(roles)
+      .where(admins);
+    return JSON.parse(row?.permission ?? "{}") as Record<string, string[]>;
+  };
+
+  try {
+    expect((await seedDefaults(org.id, headers)).seeded).toBe(true);
+    expect((await permission()).invitation).toEqual(["create", "cancel"]);
+
+    // As it was seeded before, with one key an administrator chose.
+    const {
+      member: _,
+      invitation: __,
+      ac: ___,
+      ...before
+    } = await permission();
+    await db
+      .update(roles)
+      .set({ permission: JSON.stringify({ ...before, ac: ["read"] }) })
+      .where(admins);
+    await db
+      .update(schema.organizations)
+      .set({ accessSeededAt: new Date("2026-10-11T12:00:00Z") })
+      .where(eq(schema.organizations.id, org.id));
+
+    await seedDefaults(org.id, headers);
+    const after = await permission();
+    expect(after.member).toEqual(["create", "update", "delete"]);
+    expect(after.invitation).toEqual(["create", "cancel"]);
+    expect(after.ac).toEqual(["read"]);
+    const [stamp] = await db
+      .select({ at: schema.organizations.accessSeededAt })
+      .from(schema.organizations)
+      .where(eq(schema.organizations.id, org.id));
+    expect((stamp?.at ?? new Date(0)) >= ADMINS_RUN_PEOPLE_SHIPPED).toBe(true);
   } finally {
     await db
       .delete(schema.organizations)

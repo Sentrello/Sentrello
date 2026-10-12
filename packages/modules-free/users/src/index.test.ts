@@ -178,12 +178,20 @@ test("the last administrator cannot be removed", async () => {
  *
  * Reaching it needs a caller who holds `settings:update` without being one of
  * the administrators being counted, because the guard only fires when there is
- * exactly one left and any caller holding the permission through the `admin`
- * role would be a second. The seeded `admins` policy is that caller: it
- * carries the permission and is not the literal role name the count matches.
+ * exactly one left and any caller who is an administrator would be a second.
+ * A policy a business made for an office manager is that caller: it carries
+ * the permission and cannot invite anybody or change a role.
  */
 test("the only administrator left cannot be removed, whoever asks", async () => {
   await seedDefaults(orgId, headers);
+  await auth.api.createOrgRole({
+    body: {
+      organizationId: orgId,
+      role: "office",
+      permission: { dashboard: ["read"], settings: ["read", "update"] },
+    },
+    headers,
+  });
 
   const deputy = await signUpAsOwner({
     email: deputyEmail,
@@ -200,8 +208,8 @@ test("the only administrator left cannot be removed, whoever asks", async () => 
     id: `deputy-${suffix}`,
     organizationId: orgId,
     userId: deputy.response.user.id,
-    role: "admins",
-    baseRole: "admins",
+    role: "office",
+    baseRole: "office",
     createdAt: new Date(),
   });
   await auth.api.setActiveOrganization({

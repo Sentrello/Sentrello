@@ -18,7 +18,11 @@ import type { ModuleContext } from "@sentrello/module-sdk";
 import { and, asc, desc, eq, ilike, inArray, not, or, sql } from "drizzle-orm";
 import { recordKeysRevoked, revokeKeysOf } from "./api-keys";
 import { temporaryPassword } from "./password";
-import { applyRoles, twoFactorRequired as needsTwoFactor } from "./roles";
+import {
+  administers,
+  applyRoles,
+  twoFactorRequired as needsTwoFactor,
+} from "./roles";
 
 /**
  * What the Recent-changes card on `GET /api/users` leaves out.
@@ -114,8 +118,9 @@ async function subjectOf(userId: string) {
  * `member.role` is comma separated the moment somebody holds a role through
  * a group — `applyRoles` in `./roles.ts` writes it that way — so an
  * administrator who joins any group becomes `"admin,staff"`, and a plain
- * `m.role === "admin"` stops seeing them. Split on the comma and check
- * membership in the list instead.
+ * `m.role === "admin"` stops seeing them. And the word is not the test
+ * either: the seeded Admins policy is `admins`. `holdsAdmin` is `administers`
+ * from `./roles.ts`, which asks what the roles allow.
  *
  * A suspended administrator cannot sign in, approve anything, or promote
  * anybody back — counting them toward the total is what let two separate
@@ -130,8 +135,8 @@ async function subjectOf(userId: string) {
 function isLastAdministrator(
   members: { role: string; disabledAt: Date | null }[],
   target: { role: string },
+  holdsAdmin: (role: string) => boolean,
 ): boolean {
-  const holdsAdmin = (role: string) => role.split(",").includes("admin");
   if (!holdsAdmin(target.role)) return false;
   const livingAdmins = members.filter(
     (m) => holdsAdmin(m.role) && !m.disabledAt,
@@ -152,6 +157,7 @@ async function leavesNoAdministrator(
   tx: DbTx,
   orgId: string,
   memberId: string,
+  holdsAdmin: (role: string) => boolean,
 ): Promise<"last" | "gone" | null> {
   const members = await tx
     .select({
@@ -164,7 +170,7 @@ async function leavesNoAdministrator(
     .for("update");
   const target = members.find((m) => m.id === memberId);
   if (!target) return "gone";
-  return isLastAdministrator(members, target) ? "last" : null;
+  return isLastAdministrator(members, target, holdsAdmin) ? "last" : null;
 }
 
 /**
@@ -524,10 +530,24 @@ export function registerPeople(ctx: ModuleContext) {
       // Through Better Auth first, so it decides whether this role may be
       // granted at all — then recorded as the person's own role and the
       // effective set recomputed, because groups may grant more.
-      await auth.api.updateMemberRole({
-        body: { memberId: member.id, role, organizationId: orgId },
-        headers: c.req.raw.headers,
-      });
+      // A refusal is the caller's answer, not a fault: a policy that may
+      // open this screen but not change who holds what came back as a 500.
+      try {
+        await auth.api.updateMemberRole({
+          body: { memberId: member.id, role, organizationId: orgId },
+          headers: c.req.raw.headers,
+        });
+      } catch (e) {
+        const status = (e as { statusCode?: number }).statusCode;
+        if (!status || status >= 500) throw e;
+        return c.json(
+          {
+            error:
+              (e as { body?: { message?: string } }).body?.message ?? "refused",
+          },
+          400,
+        );
+      }
       await db
         .update(schema.member)
         .set({ baseRole: role })
@@ -655,7 +675,8 @@ export function registerPeople(ctx: ModuleContext) {
 
       // The last administrator cannot be removed. An instance with none is
       // one nobody can invite anybody back into.
-      if (isLastAdministrator(members, mine)) {
+      const holdsAdmin = await administers(orgId);
+      if (isLastAdministrator(members, mine, holdsAdmin)) {
         return c.json(
           { error: "this is the last administrator; promote somebody first" },
           400,
@@ -666,7 +687,12 @@ export function registerPeople(ctx: ModuleContext) {
       const revoked = await db.transaction(async (tx) => {
         // Asked again under a lock: two administrators removing each other
         // at once both counted two above, and both went.
-        const refused = await leavesNoAdministrator(tx, orgId, mine.id);
+        const refused = await leavesNoAdministrator(
+          tx,
+          orgId,
+          mine.id,
+          holdsAdmin,
+        );
         if (refused) return refused;
         await tx.delete(schema.member).where(eq(schema.member.id, mine.id));
         await tx
@@ -946,7 +972,8 @@ export function registerPeople(ctx: ModuleContext) {
       if (!target) return c.json({ error: "not found" }, 404);
 
       // The last administrator cannot be suspended.
-      if (disabled && isLastAdministrator(members, target)) {
+      const holdsAdmin = await administers(orgId);
+      if (disabled && isLastAdministrator(members, target, holdsAdmin)) {
         return c.json(
           {
             error: "this is the last administrator; promote somebody first",
@@ -959,7 +986,7 @@ export function registerPeople(ctx: ModuleContext) {
       const revoked = await db.transaction(async (tx) => {
         // Asked again under a lock, as removal does.
         const refused = disabled
-          ? await leavesNoAdministrator(tx, orgId, target.id)
+          ? await leavesNoAdministrator(tx, orgId, target.id, holdsAdmin)
           : null;
         if (refused) return refused;
         await tx
