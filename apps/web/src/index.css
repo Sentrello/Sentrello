@@ -366,6 +366,17 @@ a {
 }
 
 /*
+ * Except inside a sentence of muted text, where colour alone is not enough.
+ * An empty state's explanation is grey and the link colour sits 1.03:1 from
+ * it, so "Settings" in "connect a repository on the Settings page" was a link
+ * nobody could tell from the words around it, and axe said so. Underlined
+ * there, and only there: the rule above still holds for tables and cards.
+ */
+.empty-note .link {
+  text-decoration: underline;
+}
+
+/*
  * The record link in a table row, given the height of a target.
  *
  * It is the link somebody presses to open an invoice, a quote or a person,

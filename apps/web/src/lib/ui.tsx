@@ -1428,7 +1428,7 @@ export function Empty({
         explanation sitting outside the box that was supposed to hold it.
       */}
       {children ? (
-        <div className="mt-1 text-sm" style={muted}>
+        <div className="empty-note mt-1 text-sm" style={muted}>
           {children}
         </div>
       ) : null}
