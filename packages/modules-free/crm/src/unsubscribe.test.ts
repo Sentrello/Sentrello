@@ -177,6 +177,27 @@ test("a module's own list is told too, even when the tick was already off", asyn
   ]);
 });
 
+test("a second record at the address loses its tick too", async () => {
+  // Duplicates nobody has merged yet: the request is the person's, and the
+  // copy that kept its tick went on being marketed to.
+  const address = `twice-${suffix}@example.test`;
+  const pressed = await contact(orgA, address);
+  const copy = await contact(orgA, address.toUpperCase());
+  const elsewhere = await contact(orgB, address);
+
+  const res = await req(`/unsubscribe/${unsubscribeToken(orgA, pressed)}`, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: "x=1",
+  });
+  expect(res.status).toBe(200);
+  expect(await ticked(pressed)).toBe(false);
+  expect(await ticked(copy)).toBe(false);
+  expect(await withdrawals(orgA, copy)).toHaveLength(1);
+  // The same address at another business is that business's to keep.
+  expect(await ticked(elsewhere)).toBe(true);
+});
+
 test("the other organization's contact was never touched", async () => {
   expect(await ticked(contacts.other as string)).toBe(true);
 });

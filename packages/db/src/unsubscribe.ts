@@ -1,5 +1,5 @@
 import { createHmac, hkdfSync, timingSafeEqual } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, or, sql } from "drizzle-orm";
 import { db } from "./client";
 import { recordConsent } from "./consent";
 import { isUuid } from "./index";
@@ -115,41 +115,60 @@ export async function unsubscribeContact(
   evidence: Record<string, unknown>,
 ): Promise<boolean> {
   return db.transaction(async (tx) => {
+    /*
+     * Every record at the address, not only the one whose link was pressed.
+     *
+     * Two contacts share an address until somebody merges them, and the
+     * request is the person's, not the row's: the other copy kept its tick, so
+     * a list filtered on it, or an automation that found that one, went on
+     * marketing to somebody who had said no.
+     */
     const changed = await tx
       .update(schema.contacts)
       .set({ hasNewsletter: false })
       .where(
         and(
           eq(schema.contacts.organizationId, contact.organizationId),
-          eq(schema.contacts.id, contact.id),
           eq(schema.contacts.hasNewsletter, true),
+          contact.email
+            ? or(
+                eq(schema.contacts.id, contact.id),
+                sql`lower(${schema.contacts.email}) = lower(${contact.email})`,
+              )
+            : eq(schema.contacts.id, contact.id),
         ),
       )
-      .returning({ id: schema.contacts.id });
+      .returning({
+        id: schema.contacts.id,
+        name: schema.contacts.name,
+        email: schema.contacts.email,
+      });
     if (changed.length === 0) return false;
 
-    await recordConsent(
-      {
-        organizationId: contact.organizationId,
-        subject: {
-          kind: "contact",
-          id: contact.id,
-          label: contact.email ?? contact.name,
+    for (const row of changed) {
+      await recordConsent(
+        {
+          organizationId: contact.organizationId,
+          subject: {
+            kind: "contact",
+            id: row.id,
+            label: row.email ?? row.name,
+          },
+          purpose: PURPOSE,
+          granted: false,
+          source: "form",
+          evidence,
         },
-        purpose: PURPOSE,
-        granted: false,
-        source: "form",
-        evidence,
-      },
-      tx,
-    );
-    await tx.insert(schema.activities).values({
-      organizationId: contact.organizationId,
-      contactId: contact.id,
-      type: "note",
-      body: "Unsubscribed from marketing email",
-      occurredAt: new Date(),
-    });
+        tx,
+      );
+      await tx.insert(schema.activities).values({
+        organizationId: contact.organizationId,
+        contactId: row.id,
+        type: "note",
+        body: "Unsubscribed from marketing email",
+        occurredAt: new Date(),
+      });
+    }
     return true;
   });
 }
