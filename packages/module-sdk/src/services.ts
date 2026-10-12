@@ -103,3 +103,30 @@ export type MarketingOptOut = (
   who: { contactId: string; email: string | null },
   evidence: Record<string, unknown>,
 ) => Promise<void>;
+
+/**
+ * The name the CRM offers a deleted contact's module rows back under.
+ *
+ * A delete clears the link on a module's row that names the contact, or
+ * removes a row only about them, and says which on the event's `related`, as
+ * `contactLinks`. A restore that put the contact back without these brought
+ * it back with its documents, its newsletter subscription and its filed
+ * email detached. Whatever restores a contact calls this with what the event
+ * said.
+ */
+export const CONTACT_LINKS_RESTORE = "crm.contact-links.restore";
+
+/** What a delete cleared, per registered link (`moduleId.id`). */
+export type ReleasedLinks = {
+  link: string;
+  /** Ids of rows whose link was cleared. */
+  unlinked: string[];
+  /** Whole rows that were removed, as the database returned them. */
+  removed: Record<string, unknown>[];
+}[];
+
+export type ContactLinksRestore = (
+  organizationId: string,
+  contactId: string,
+  released: ReleasedLinks,
+) => Promise<void>;

@@ -5,7 +5,10 @@ import { db, schema } from "@sentrello/db";
 import { postJournalEntry } from "@sentrello/db/ledger";
 import { dropOrganization, makeOrganization } from "@sentrello/db/testing";
 import {
+  CONTACT_LINKS_RESTORE,
   type ContactLink,
+  type ContactLinksRestore,
+  type ReleasedLinks,
   type SentrelloEnv,
   addContactLink,
   clearContactLinks,
@@ -18,6 +21,8 @@ import crm from "./index";
 const suffix = crypto.randomUUID().slice(0, 8);
 const email = `crm-merge-${suffix}@example.test`;
 const app = new Hono<SentrelloEnv>();
+/** What the CRM offered other modules, as the host would hold it. */
+const provided: Record<string, unknown> = {};
 
 let orgId: string;
 let headers: Headers;
@@ -35,7 +40,9 @@ beforeAll(async () => {
     registerPersonalData: () => {},
     registerOnboarding: () => {},
     registerCrawlable: () => {},
-    provide: () => {},
+    provide: (name, value) => {
+      provided[name] = value;
+    },
     registerJob: () => {},
   });
 
@@ -558,6 +565,79 @@ test("a module's rows follow a merge, and block or unlink on delete", async () =
       .where(eq(schema.formSubmissions.id, sub?.id ?? ""));
     expect(left).toEqual({ contactId: null });
   });
+});
+
+/*
+ * A restore that put the contact back with its documents, subscriptions and
+ * filed email still detached. The delete says on its event what it unlinked
+ * and what it removed, and the CRM offers them back.
+ */
+test("what a delete unlinked and removed comes back with the contact", async () => {
+  await withLinks(
+    [submissions, credits({ id: "removed", onDelete: "remove" })],
+    async () => {
+      const gone = await makeContact({ name: "Link Restored" });
+      const [sub] = await db
+        .insert(schema.formSubmissions)
+        .values({
+          organizationId: orgId,
+          formId: crypto.randomUUID(),
+          contactId: gone.id,
+          payload: {},
+        })
+        .returning({ id: schema.formSubmissions.id });
+      const [credit] = await db
+        .insert(schema.customerCredits)
+        .values({
+          organizationId: orgId,
+          contactId: gone.id,
+          cents: 300,
+          reason: "goodwill",
+        })
+        .returning();
+      if (!sub || !credit) throw new Error("no rows");
+
+      expect(
+        (
+          await app.request(`http://localhost/api/contacts/${gone.id}`, {
+            method: "DELETE",
+            headers,
+          })
+        ).status,
+      ).toBe(200);
+      const [event] = await db
+        .select({ related: schema.recordEvents.related })
+        .from(schema.recordEvents)
+        .where(
+          and(
+            eq(schema.recordEvents.entityId, gone.id),
+            eq(schema.recordEvents.action, "deleted"),
+          ),
+        );
+      const released = (event?.related?.contactLinks ?? []) as ReleasedLinks;
+      expect(released.map((r) => r.link).sort()).toEqual([
+        "test.removed",
+        "test.submissions",
+      ]);
+
+      // The trash puts the row back, then asks for the rest.
+      await db.insert(schema.contacts).values(gone);
+      const restore = provided[CONTACT_LINKS_RESTORE] as ContactLinksRestore;
+      await restore(orgId, gone.id, released);
+      const [linked] = await db
+        .select({ contactId: schema.formSubmissions.contactId })
+        .from(schema.formSubmissions)
+        .where(eq(schema.formSubmissions.id, sub.id));
+      expect(linked).toEqual({ contactId: gone.id });
+      const [back] = await db
+        .select()
+        .from(schema.customerCredits)
+        .where(eq(schema.customerCredits.id, credit.id));
+      expect(back?.contactId).toBe(gone.id);
+      expect(back?.cents).toBe(300);
+      expect(back?.createdAt?.getTime()).toBe(credit.createdAt?.getTime());
+    },
+  );
 });
 
 test("a module's one-per-contact rows on both sides refuse the merge", async () => {

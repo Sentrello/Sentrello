@@ -39,10 +39,12 @@ import { timezoneFor } from "@sentrello/db/timezone";
 import { dateFrom, dayFrom, demandDate } from "@sentrello/db/timezone";
 import type {
   ModuleContext,
+  ReleasedLinks,
   SearchHit,
   SentrelloSession,
 } from "@sentrello/module-sdk";
 import {
+  CONTACT_LINKS_RESTORE,
   defineModule,
   deletedFilesAreKept,
   publicBodyLimit,
@@ -70,7 +72,7 @@ import type { AnyColumn, SQL } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
 import { registerAttachments, removeNoteFiles } from "./attachments";
 import { type TrailRemoved, removeCrmTrail } from "./cascade";
-import { blockingLinks, releaseLinks } from "./contact-links";
+import { blockingLinks, releaseLinks, restoreLinks } from "./contact-links";
 import { registerCrmDashboard } from "./dashboard";
 import { CRM_ENTITY, type CrmResource } from "./entities";
 import { MAX_UPLOAD_BODY_BYTES, registerForms } from "./forms";
@@ -993,7 +995,7 @@ function crud<T extends keyof typeof tables>(
        * cannot leave the half that gets chased.
        */
       const trail = CRM_ENTITY[resource];
-      let related: TrailRemoved | null = null;
+      let related: Related | null = null;
       const [row] = await db.transaction(async (tx) => {
         const deleted = await tx
           .delete(table)
@@ -1015,7 +1017,16 @@ function crud<T extends keyof typeof tables>(
             tx,
           );
           if (trail === "contact" || trail === "company") {
-            await releaseLinks(tx, orgId, [String(deleted[0].id)], trail);
+            const released = await releaseLinks(
+              tx,
+              orgId,
+              [String(deleted[0].id)],
+              trail,
+            );
+            // On the event, beside the trail, so a trash can put them back.
+            if (released.length) {
+              related = { ...related, contactLinks: released };
+            }
           }
         }
         return deleted;
@@ -1039,7 +1050,7 @@ function crud<T extends keyof typeof tables>(
        */
       if (!deletedFilesAreKept()) {
         // Assigned inside the transaction, which narrowing cannot see.
-        await removeNoteFiles((related as TrailRemoved | null)?.notes ?? []);
+        await removeNoteFiles((related as Related | null)?.notes ?? []);
         const pictured = row as {
           avatarPath?: string | null;
           logoPath?: string | null;
@@ -1142,7 +1153,7 @@ async function announce(
   before: Record<string, unknown> | null | undefined,
   after: Record<string, unknown> | null | undefined,
   /** The rows a delete took with it. See `removeCrmTrail`. */
-  related: TrailRemoved | null = null,
+  related: Related | null = null,
 ): Promise<void> {
   if (!row?.id) return;
   await recordChanged({
@@ -3264,10 +3275,14 @@ function registerCrmSearch(ctx: ModuleContext) {
   });
 }
 
+/** A delete's trail, and the module rows it unlinked or removed. */
+type Related = TrailRemoved & { contactLinks?: ReleasedLinks };
+
 export default defineModule({
   id: "crm",
   tier: "free",
   register(ctx) {
+    ctx.provide(CONTACT_LINKS_RESTORE, restoreLinks);
     /*
      * How much a stranger may post, on the two doors this module opens.
      *

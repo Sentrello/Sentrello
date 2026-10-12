@@ -1,6 +1,7 @@
 import { type DbTx, db, sql } from "@sentrello/db";
 import {
   type RegisteredContactLink,
+  type ReleasedLinks,
   contactLinks,
 } from "@sentrello/module-sdk";
 
@@ -103,24 +104,82 @@ export async function moveLinks(
  * After a delete: the links cleared and the rows only about them gone.
  *
  * Nothing `block` is left by then — the delete was refused while any were.
+ * Returns what it touched, so the delete can put it on its event and a trash
+ * can put it back: the ids it unlinked, and whole rows it removed. Every
+ * unlink and remove table is keyed on `id`.
  */
 export async function releaseLinks(
   tx: Conn,
   orgId: string,
   ids: string[],
   record: Of = "contact",
-): Promise<void> {
+): Promise<ReleasedLinks> {
+  const released: ReleasedLinks = [];
   for (const id of ids) {
     for (const link of of(record)) {
+      const key = `${link.moduleId}.${link.id}`;
       if (link.onDelete === "unlink") {
-        await tx.execute(
-          sql`update ${link.table} set ${sql.identifier(link.contact.name)} = null where ${where(link, orgId, id)}`,
+        const rows = await tx.execute<{ id: string }>(
+          sql`update ${link.table} set ${sql.identifier(link.contact.name)} = null where ${where(link, orgId, id)} returning id::text as id`,
         );
+        if (rows.length) {
+          released.push({
+            link: key,
+            unlinked: rows.map((r) => r.id),
+            removed: [],
+          });
+        }
       } else if (link.onDelete === "remove") {
-        await tx.execute(
-          sql`delete from ${link.table} where ${where(link, orgId, id)}`,
+        const rows = await tx.execute<{ row: Record<string, unknown> }>(
+          sql`delete from ${link.table} where ${where(link, orgId, id)} returning to_jsonb(${link.table}.*) as row`,
         );
+        if (rows.length) {
+          released.push({
+            link: key,
+            unlinked: [],
+            removed: rows.map((r) => r.row),
+          });
+        }
       }
     }
   }
+  return released;
+}
+
+/**
+ * And back again, for a contact a trash restores.
+ *
+ * Only a link still cleared is set, so a row somebody has since matched to
+ * another contact stays theirs; a removed row comes back unless one with its
+ * id already has. A link this instance no longer loads is skipped.
+ */
+export async function restoreLinks(
+  orgId: string,
+  contactId: string,
+  released: ReleasedLinks,
+): Promise<void> {
+  const loaded = new Map(
+    contactLinks().map((l) => [`${l.moduleId}.${l.id}`, l]),
+  );
+  await db.transaction(async (tx) => {
+    for (const entry of released) {
+      const link = loaded.get(entry.link);
+      if (!link) continue;
+      const who = sql.identifier(link.contact.name);
+      const org = sql.identifier(link.organization.name);
+      if (entry.unlinked.length) {
+        await tx.execute(
+          sql`update ${link.table} set ${who} = ${contactId} where ${org} = ${orgId} and ${who} is null and id::text in (${sql.join(
+            entry.unlinked.map((u) => sql`${u}`),
+            sql`, `,
+          )})`,
+        );
+      }
+      if (entry.removed.length) {
+        await tx.execute(
+          sql`insert into ${link.table} select * from jsonb_populate_recordset(null::${link.table}, ${JSON.stringify(entry.removed)}::jsonb) on conflict do nothing`,
+        );
+      }
+    }
+  });
 }
