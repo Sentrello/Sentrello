@@ -268,7 +268,7 @@ export function Invoices() {
   /**
    * Deleting what is ticked.
    *
-   * ponytail: one request per row against the endpoint that already exists,
+   * Known limit: one request per row against the endpoint that already exists,
    * rather than a batch route. Delete is a soft delete and idempotent, and a
    * page holds at most a hundred rows. Give it a batch endpoint if somebody
    * ever wants to clear a thousand.

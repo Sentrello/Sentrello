@@ -45,6 +45,8 @@ const VENDOR_2 = "ant" + "hropic"; // its maker
 const VENDOR_3 = "cop" + "ilot";
 const VENDOR_SESSION_HOST = `${VENDOR_1}.ai/code`;
 const AGENT_MODEL_WORDS = "code|opus|sonnet|haiku";
+const SKILL_MARK_1 = "pony" + "tail"; // a shortcut, tagged
+const SKILL_MARK_2 = "cave" + "man"; // a terse mode
 
 // A trailer does not stop being a trailer because something sits in front of
 // it on the line. Both trailer rules below anchor to the start of a line, and
@@ -98,6 +100,15 @@ const RULES: Rule[] = [
         `|\\b${VENDOR_2}\\b|\\bchatgpt\\b|\\bopenai\\b|\\b${VENDOR_3}\\b|\\bgemini\\b`,
       "i",
     ),
+  },
+  {
+    // Tags some tooling asks to be written into code: a shortcut marked with
+    // the tool's own name, or its terse-mode label. Ten of the first were in
+    // this public tree as code comments before 12 October 2026, because
+    // every rule above looks for a vendor and these name only the tool. With
+    // the colon only, so a shop selling a hair tie can still list one.
+    name: "tooling tag",
+    pattern: new RegExp(`\\b${SKILL_MARK_1}:|\\b${SKILL_MARK_2}\\b`, "i"),
   },
   {
     name: "AI model reference",

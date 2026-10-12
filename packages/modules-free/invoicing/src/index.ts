@@ -1123,7 +1123,7 @@ export default defineModule({
         }
 
         /*
-         * ponytail: credit is tracked in the organization's base currency
+         * Known limit: credit is tracked in the organization's base currency
          * (see `@sentrello/db/customer-credit`); applying it against an
          * invoice raised in a different currency would need a second FX
          * decision on top of the one already made when the credit was

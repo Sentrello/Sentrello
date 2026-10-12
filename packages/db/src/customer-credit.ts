@@ -13,7 +13,7 @@ import * as schema from "./schema";
  * that created it was raised in — the same currency a payment's cash side is
  * already converted into. Applying a credit against an invoice in a
  * different currency from the base is refused rather than guessed at; see
- * the `ponytail:` note where it is applied, in the invoicing module.
+ * the known-limit note where it is applied, in the invoicing module.
  */
 
 /** What a customer's credit balance is right now, in cents. Zero if never granted one. */

@@ -3151,7 +3151,7 @@ function registerCrmScreens(
         // here rather than in SQL. Fine at the scale this product targets —
         // one to five hundred people — and honest about it rather than pretending a
         // clever query exists.
-        // ponytail: scan-and-filter; move to a join table if a business ever
+        // Known limit: scan-and-filter; move to a join table if a business ever
         // has enough deals for this to show.
         db
           .select()

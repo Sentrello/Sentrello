@@ -13,7 +13,7 @@ import { expect, test } from "bun:test";
  * lists `a` and `b` one after the other. A second run of the same method and
  * path is a second registration.
  *
- * ponytail: a copy registered immediately after the first merges into its run
+ * Known limit: a copy registered immediately after the first merges into its run
  * and is not seen; wrap the app's `get`/`post`/… at construction if that ever
  * matters.
  */

@@ -146,6 +146,24 @@ describe("refuses tool and vendor traces", () => {
 // --- Must refuse: real process vocabulary pulled from this repository's
 // history before commit e9507b3 ("fix(docs): comments named the process
 // instead of the code"), which cleaned it up. ---
+describe("refuses a tooling tag", () => {
+  const MARK = "pony" + "tail";
+  test("a shortcut tagged with the tool's name, in a comment", () => {
+    expect(
+      findViolations(`// ${MARK}: per-process; a second server needs Postgres`),
+    ).toHaveLength(1);
+    expect(
+      findViolations(` * ${cap(MARK)}: scan-and-filter for now`),
+    ).toHaveLength(1);
+  });
+  test("its terse-mode label", () => {
+    expect(findViolations(`${"cave" + "man"} mode on`)).toHaveLength(1);
+  });
+  test("the hair tie, without the colon, is a product", () => {
+    expect(findViolations(`a velvet ${MARK} holder, in stock`)).toEqual([]);
+  });
+});
+
 describe("refuses process vocabulary", () => {
   test('a literal test name carrying "(Ruling 18)"', () => {
     const diff = added(

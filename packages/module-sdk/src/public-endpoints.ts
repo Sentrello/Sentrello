@@ -200,7 +200,7 @@ function safeHost(value: string): string | undefined {
 /**
  * Sliding-window rate limit, per key, in memory.
  *
- * ponytail: single-process only. One app container is the shipped topology, so
+ * Known limit: single-process only. One app container is the shipped topology, so
  * this is enough; move it into Postgres or Redis if the host is ever scaled out,
  * or the limit becomes per-process rather than per-instance.
  */

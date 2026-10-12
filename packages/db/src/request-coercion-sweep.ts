@@ -31,7 +31,7 @@
  * `body` and `payload` are still request values wherever they appear, which is
  * the convention the earlier sweeps enforced and nothing here relaxes.
  *
- * ponytail: not followed — a method call (`thing.save(body)`), a function
+ * Known limit: not followed — a method call (`thing.save(body)`), a function
  * passed as a value, or a helper in another repository (a Pro route handing a
  * body to a Core function is swept by Core only if Core calls it the same way).
  * Query strings are left out on purpose: Hono hands them over as strings, so

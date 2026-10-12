@@ -1,7 +1,7 @@
 /**
  * Which columns one person hides, on which lists.
  *
- * It lived in `localStorage`, with a `ponytail:` note saying to move it here
+ * It lived in `localStorage`, with a known-limit note saying to move it here
  * the day somebody asked why their columns did not follow them to a second
  * machine. Three things make that day worth not waiting for: a person who works
  * on a laptop and a desk is two sets of columns, clearing site data is a

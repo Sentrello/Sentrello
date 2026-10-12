@@ -480,7 +480,7 @@ export function withArrivals(
     (w) => !placed.has(w.key) && !seen.has(w.key),
   );
   if (arrivals.length === 0) return tabs;
-  // ponytail: a Pro licence arriving after a save lands all its dashboard
+  // Known limit: a Pro licence arriving after a save lands all its dashboard
   // widgets in one appended tab named after the first; arranging fixes it in
   // one visit, and anything cleverer needs to know tabs it cannot see.
   return [...tabs, ...moduleTabs(arrivals)].slice(0, MAX_TABS);

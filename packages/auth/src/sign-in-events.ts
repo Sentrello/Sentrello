@@ -627,7 +627,7 @@ export const signInEventsPlugin: BetterAuthPlugin = {
  * whose after-hook never ran (an endpoint that threw something other than an
  * `APIError`) cannot hold an address locked.
  */
-// ponytail: per-process; a second server process would need this in Postgres.
+// Known limit: per-process; a second server process would need this in Postgres.
 const unrecorded = new Map<string, number[]>();
 const UNRECORDED_MS = 60_000;
 type Reserving = { sentrelloSignInAttempt?: string };
