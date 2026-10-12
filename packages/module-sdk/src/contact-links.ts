@@ -30,6 +30,11 @@ import type { RetentionColumn, SqlFragment } from "./retention";
 export interface ContactLink {
   /** Unique within the module. */
   id: string;
+  /**
+   * Which CRM record the column names: a contact (the default) or a company.
+   * A company has no merge, so only `onDelete` applies to one.
+   */
+  of?: "contact" | "company";
   /** A drizzle table; structural, like retention's, to keep one dependency. */
   table: SqlFragment;
   /** The column holding the contact's id. */

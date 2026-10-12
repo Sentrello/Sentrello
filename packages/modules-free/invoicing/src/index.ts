@@ -303,6 +303,17 @@ export default defineModule({
       many: "store credits",
       onDelete: "block",
     });
+    // The evidence a sale to them was tax-free. Deleting the company left the
+    // certificate naming nobody, which is the record an auditor asks for.
+    ctx.registerContactLink?.({
+      id: "exemption-certificates",
+      of: "company",
+      table: schema.exemptionCertificates,
+      contact: schema.exemptionCertificates.companyId,
+      organization: schema.exemptionCertificates.organizationId,
+      one: "tax exemption certificate",
+      onDelete: "block",
+    });
     ctx.registerNav({
       id: "invoicing",
       label: "Invoices",

@@ -640,3 +640,44 @@ test("a row both contacts hold under a unique key is kept once, not collided", a
     },
   );
 });
+
+test("a company holding a module's record is not deleted from under it", async () => {
+  await withLinks(
+    [
+      {
+        id: "certs",
+        of: "company",
+        table: schema.exemptionCertificates,
+        contact: schema.exemptionCertificates.companyId,
+        organization: schema.exemptionCertificates.organizationId,
+        one: "tax exemption certificate",
+        onDelete: "block",
+      },
+    ],
+    async () => {
+      const [company] = await db
+        .insert(schema.companies)
+        .values({ organizationId: orgId, name: `Exempt ${suffix}` })
+        .returning({ id: schema.companies.id });
+      if (!company) throw new Error("no company");
+      await db.insert(schema.exemptionCertificates).values({
+        organizationId: orgId,
+        companyId: company.id,
+        number: "RS-1",
+        state: "TX",
+      });
+      const res = await app.request(
+        `http://localhost/api/companies/${company.id}`,
+        { method: "DELETE", headers },
+      );
+      expect(res.status).toBe(409);
+      expect(await res.text()).toContain("1 tax exemption certificate");
+      await db
+        .delete(schema.exemptionCertificates)
+        .where(eq(schema.exemptionCertificates.companyId, company.id));
+      await db
+        .delete(schema.companies)
+        .where(eq(schema.companies.id, company.id));
+    },
+  );
+});

@@ -1014,8 +1014,8 @@ function crud<T extends keyof typeof tables>(
             [String(deleted[0].id)],
             tx,
           );
-          if (trail === "contact") {
-            await releaseLinks(tx, orgId, [String(deleted[0].id)]);
+          if (trail === "contact" || trail === "company") {
+            await releaseLinks(tx, orgId, [String(deleted[0].id)], trail);
           }
         }
         return deleted;
@@ -1652,6 +1652,9 @@ const tables = {
       if (deals.length) {
         parts.push(`${deals.length} deal${deals.length > 1 ? "s" : ""}`);
       }
+      // And what the modules file under it: a tax exemption certificate,
+      // a project.
+      parts.push(...(await blockingLinks(orgId, id, "company")));
       return parts.length
         ? `This company has ${parts.join(" and ")} on it. Move or delete those first.`
         : null;

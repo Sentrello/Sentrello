@@ -13,6 +13,10 @@ import {
  */
 
 type Conn = DbTx | typeof db;
+type Of = "contact" | "company";
+
+const of = (want: Of) =>
+  contactLinks().filter((link) => (link.of ?? "contact") === want);
 
 const where = (link: RegisteredContactLink, orgId: string, id: string) =>
   sql`${link.organization} = ${orgId} and ${link.contact} = ${id}`;
@@ -36,9 +40,10 @@ const noun = (link: RegisteredContactLink, n: number) =>
 export async function blockingLinks(
   orgId: string,
   id: string,
+  record: Of = "contact",
 ): Promise<string[]> {
   const parts: string[] = [];
-  for (const link of contactLinks()) {
+  for (const link of of(record)) {
     if (link.onDelete !== "block") continue;
     const n = await count(db, link, orgId, id);
     if (n) parts.push(noun(link, n));
@@ -53,7 +58,7 @@ export async function mergeConflicts(
   mergedId: string,
 ): Promise<string[]> {
   const both: string[] = [];
-  for (const link of contactLinks()) {
+  for (const link of of("contact")) {
     if (!link.onePerContact) continue;
     if (
       (await count(db, link, orgId, keptId)) &&
@@ -73,7 +78,7 @@ export async function moveLinks(
   to: string,
 ): Promise<Record<string, number>> {
   const moved: Record<string, number> = {};
-  for (const link of contactLinks()) {
+  for (const link of of("contact")) {
     if (link.dedupeOn?.length) {
       const id = (name: string) => sql.identifier(name);
       const same = sql.join(
@@ -103,9 +108,10 @@ export async function releaseLinks(
   tx: Conn,
   orgId: string,
   ids: string[],
+  record: Of = "contact",
 ): Promise<void> {
   for (const id of ids) {
-    for (const link of contactLinks()) {
+    for (const link of of(record)) {
       if (link.onDelete === "unlink") {
         await tx.execute(
           sql`update ${link.table} set ${sql.identifier(link.contact.name)} = null where ${where(link, orgId, id)}`,
