@@ -381,6 +381,40 @@ test("an event signed by nobody is refused before anything is written", async ()
 });
 
 /**
+ * The signature holds over the bytes that arrived, not a reading of them.
+ *
+ * The body was decoded the way a spreadsheet is, guessing UTF-16 from a
+ * byte-order mark and dropping a UTF-8 one, so a signed event re-encoded by
+ * whoever relayed it still verified as the original.
+ */
+test("a signed body that arrives as other bytes is refused", async () => {
+  const eventId = `evt_reencoded_${suffix}`;
+  const raw = JSON.stringify({ id: eventId, type: "payment_intent.created" });
+  const sent = async (body: Uint8Array<ArrayBuffer>) =>
+    (
+      await app.request("http://localhost/api/payments/webhook/stripe", {
+        method: "POST",
+        headers: await signed(raw),
+        body,
+      })
+    ).status;
+
+  const utf16 = new Uint8Array(2 + raw.length * 2);
+  utf16.set([0xff, 0xfe]);
+  for (let i = 0; i < raw.length; i += 1) utf16[2 + i * 2] = raw.charCodeAt(i);
+  expect(await sent(utf16)).toBe(400);
+
+  const marked = new Uint8Array([0xef, 0xbb, 0xbf, ...Buffer.from(raw)]);
+  expect(await sent(marked)).toBe(401);
+
+  const seen = await db
+    .select({ id: schema.paymentWebhookEvents.id })
+    .from(schema.paymentWebhookEvents)
+    .where(eq(schema.paymentWebhookEvents.eventId, eventId));
+  expect(seen.length).toBe(0);
+});
+
+/**
  * A stranger posting forgeries runs out, and the processor does not.
  *
  * Every forged delivery wrote to the connection — bumping the count that tells

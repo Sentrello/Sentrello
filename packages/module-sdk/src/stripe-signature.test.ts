@@ -84,3 +84,51 @@ test("nonsense headers are refused rather than throwing", async () => {
     false,
   );
 });
+
+/** An empty key once made a check pass vacuously; blank is the same key. */
+test("a secret of only spaces refuses what it would have signed", async () => {
+  for (const blank of [" ", "  ", "\t", "\n"]) {
+    const header = await sign(body, at, blank);
+    expect(await verifyStripeSignature(body, header, blank, 300, now)).toBe(
+      false,
+    );
+  }
+});
+
+/**
+ * A secret being rolled: Stripe signs with both and sends a `v1` for each.
+ * Only the last was read, so the order of the two decided whether every
+ * delivery during the roll was refused.
+ */
+test("any v1 that matches is enough, and none is not", async () => {
+  const ours = (await sign(body, at)).split("v1=")[1];
+  const theirs = (await sign(body, at, "whsec_the_new_one")).split("v1=")[1];
+  expect(
+    await verifyStripeSignature(
+      body,
+      `t=${at},v1=${ours},v1=${theirs}`,
+      SECRET,
+      300,
+      now,
+    ),
+  ).toBe(true);
+  expect(
+    await verifyStripeSignature(
+      body,
+      `t=${at},v1=${theirs},v1=${"0".repeat(64)}`,
+      SECRET,
+      300,
+      now,
+    ),
+  ).toBe(false);
+  // And the age check still stands over a matching one.
+  expect(
+    await verifyStripeSignature(
+      body,
+      `t=${at - 3600},v1=${ours},v1=${theirs}`,
+      SECRET,
+      300,
+      now,
+    ),
+  ).toBe(false);
+});

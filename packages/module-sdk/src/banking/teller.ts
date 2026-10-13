@@ -157,26 +157,43 @@ export const teller: BankProvider = {
     );
 
     /**
-     * It pages backwards from the newest, so the cursor here is the last
-     * transaction already seen rather than a token the provider issues.
+     * It pages backwards from the newest, so where a sync got to is a
+     * transaction id per account rather than a token the provider issues.
      *
      * Which means a sync stops when it reaches something known, and a bank
      * that posts a transaction late is caught by the next full pass rather
      * than missed for ever — the failure the date-window approach has.
+     *
+     * A page is `PAGE` rows. A full one that has not reached anything known
+     * means older history is waiting: the next call asks for what is older
+     * than the last row read (`from_id`), still stopping at the same known
+     * transaction, and only once that is reached does the newest one become
+     * the place the next pass stops. Asking for the newest five hundred and
+     * no more left everything older than them unread for good.
      */
-    const seen = cursor;
+    const at = readCursor(cursor);
+    const next: TellerCursor = {};
     const transactions: BankTransactionPage["transactions"] = [];
-    let newest: string | null = null;
+    let hasMore = false;
 
     for (const account of accounts) {
+      const was = at(account.id);
+      const query = new URLSearchParams({ count: String(PAGE) });
+      if (was.from) query.set("from_id", was.from);
       const rows = await call<TellerTransaction[]>(
         credentials,
-        `/accounts/${account.id}/transactions?count=500`,
+        `/accounts/${account.id}/transactions?${query}`,
         accessToken,
       );
+      // Mid-history, the pass already knows its newest; at the top it is
+      // this page's first row.
+      const newest = was.from ? was.seen : (rows[0]?.id ?? was.seen);
+      let reachedKnown = false;
       for (const row of rows) {
-        if (seen && row.id === seen) break;
-        newest ??= row.id;
+        if (was.until && row.id === was.until) {
+          reachedKnown = true;
+          break;
+        }
         transactions.push({
           reference: row.id,
           accountReference: account.id,
@@ -191,11 +208,23 @@ export const teller: BankProvider = {
           category: row.details?.category ?? null,
         });
       }
+      const last = rows.at(-1)?.id;
+      if (!reachedKnown && rows.length >= PAGE && last) {
+        next[account.id] = { seen: newest, from: last, until: was.until };
+        hasMore = true;
+      } else if (newest) {
+        next[account.id] = { seen: newest };
+      }
     }
 
     // Nothing to remove: it does not report deletions, and inventing them
     // would mean guessing that a transaction we cannot see has been reversed.
-    return { transactions, cursor: newest ?? cursor, removed: [] };
+    return {
+      transactions,
+      cursor: Object.keys(next).length > 0 ? JSON.stringify(next) : cursor,
+      removed: [],
+      hasMore,
+    };
   },
 
   async disconnect(credentials, accessToken) {
@@ -224,6 +253,42 @@ export const teller: BankProvider = {
   // No `payRepeatedly`: it cannot schedule one, and a screen offering a button
   // this provider will not honour is worse than one that says it cannot.
 };
+
+/** Rows asked for per account per page; the provider's own ceiling. */
+const PAGE = 500;
+
+/**
+ * Where each account's sync got to: the newest transaction seen, and, while
+ * older history is still being read, the row to read on from and the known
+ * transaction that reading stops at.
+ */
+type Place = { seen?: string; from?: string; until?: string };
+type TellerCursor = Record<string, Place>;
+
+/**
+ * A stored cursor, read per account.
+ *
+ * One written before the cursor held an account each was a single
+ * transaction id, and it is honoured as the place every account stops.
+ */
+function readCursor(cursor: string | null): (account: string) => Place {
+  if (!cursor) return () => ({});
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(cursor);
+  } catch {
+    return () => ({ seen: cursor, until: cursor });
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return () => ({ seen: cursor, until: cursor });
+  }
+  const byAccount = parsed as TellerCursor;
+  return (account) => {
+    const entry = byAccount[account] ?? {};
+    // A pass that is not mid-history stops at the newest it saw last time.
+    return entry.from ? entry : { seen: entry.seen, until: entry.seen };
+  };
+}
 
 interface TellerAccount {
   id: string;

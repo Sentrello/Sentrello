@@ -11,6 +11,7 @@ import {
   rateLimit,
   rateLimitSpent,
   readCapped,
+  strictUtf8,
 } from "@sentrello/module-sdk";
 import { providerFrom } from "./payments";
 
@@ -131,7 +132,20 @@ export function registerPaymentWebhookEndpoint(ctx: ModuleContext) {
       return c.json({ error: "too many deliveries that did not verify" }, 429);
     }
 
-    const raw = await readCapped(c.req.raw, MAX_WEBHOOK_BYTES);
+    /*
+     * As UTF-8 and nothing else, so the text checked is the bytes received.
+     *
+     * Read as a spreadsheet is read, a body re-encoded as UTF-16 or
+     * Windows-1252 decoded to the signed text and verified as the original:
+     * the signature held over something other than what arrived. Every
+     * processor sends UTF-8, so anything else is refused unread.
+     */
+    let raw: string | null;
+    try {
+      raw = await readCapped(c.req.raw, MAX_WEBHOOK_BYTES, strictUtf8);
+    } catch {
+      return c.json({ error: "the body is not UTF-8" }, 400);
+    }
     if (raw === null) return c.json({ error: "too much to read" }, 413);
 
     const provider = providerFrom(account);

@@ -73,6 +73,7 @@ export function parseCsv(text: string): string[][] {
 export async function readCapped(
   req: Request,
   maxBytes: number,
+  decode: (bytes: Uint8Array) => string = decodeSpreadsheet,
 ): Promise<string | null> {
   const declared = Number(req.headers.get("content-length") ?? Number.NaN);
   if (Number.isFinite(declared) && declared > maxBytes) return null;
@@ -100,5 +101,21 @@ export async function readCapped(
     joined.set(chunk, at);
     at += chunk.byteLength;
   }
-  return decodeSpreadsheet(joined);
+  return decode(joined);
+}
+
+/**
+ * Bytes as UTF-8 and nothing else, so the text is the bytes.
+ *
+ * For a body whose signature is checked over the text. The spreadsheet reader
+ * guesses — a byte-order mark means UTF-16, invalid UTF-8 means Windows-1252,
+ * and a leading UTF-8 mark is dropped — so one signed body could arrive as
+ * several different byte strings and verify as each of them. Every signer we
+ * hear from sends UTF-8; anything else throws, and the mark is kept so the
+ * text encodes back to exactly what was received.
+ */
+export function strictUtf8(bytes: Uint8Array): string {
+  return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
+    bytes,
+  );
 }

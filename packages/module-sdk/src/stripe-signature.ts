@@ -25,17 +25,28 @@ export async function verifyStripeSignature(
   toleranceSeconds = 300,
   now = Date.now(),
 ): Promise<boolean> {
-  if (!header || !secret) return false;
+  // Blank is unset. A secret of spaces — an environment line with nothing
+  // after the equals sign but the editor's padding — is one anybody can sign
+  // with, so it refuses exactly as a missing one does.
+  if (!header || !secret.trim()) return false;
 
-  const parts = Object.fromEntries(
-    header.split(",").map((p) => {
-      const [k, ...rest] = p.split("=");
-      return [k?.trim() ?? "", rest.join("=")];
-    }),
-  );
-  const timestamp = Number(parts.t);
-  const signature = parts.v1;
-  if (!Number.isFinite(timestamp) || !signature) return false;
+  const pairs = header.split(",").map((p) => {
+    const [k, ...rest] = p.split("=");
+    return [k?.trim() ?? "", rest.join("=")] as const;
+  });
+  const timestamp = Number(Object.fromEntries(pairs).t);
+  /*
+   * Every `v1`, not the last one.
+   *
+   * While a signing secret is being rolled Stripe signs with each secret
+   * still active and sends one `v1` per secret. Keeping only the last refused
+   * every delivery for the length of the roll whenever the last one belonged
+   * to the other secret.
+   */
+  const signatures = pairs
+    .filter(([k, v]) => k === "v1" && v)
+    .map(([, v]) => v);
+  if (!Number.isFinite(timestamp) || signatures.length === 0) return false;
   if (Math.abs(now / 1000 - timestamp) > toleranceSeconds) return false;
 
   const key = await crypto.subtle.importKey(
@@ -56,10 +67,15 @@ export async function verifyStripeSignature(
 
   // Constant time: a comparison that returns early leaks how much of a forged
   // signature was right, and that is enough to build the rest a byte at a time.
-  if (expected.length !== signature.length) return false;
-  let diff = 0;
-  for (let i = 0; i < expected.length; i += 1) {
-    diff |= expected.charCodeAt(i) ^ signature.charCodeAt(i);
+  // Each one is compared in full and the answers are combined after, so the
+  // time says pass or fail and never which of them matched.
+  let matched = 0;
+  for (const signature of signatures) {
+    let diff = expected.length ^ signature.length;
+    for (let i = 0; i < expected.length; i += 1) {
+      diff |= expected.charCodeAt(i) ^ signature.charCodeAt(i);
+    }
+    matched |= diff === 0 ? 1 : 0;
   }
-  return diff === 0;
+  return matched === 1;
 }

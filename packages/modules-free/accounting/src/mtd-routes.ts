@@ -152,11 +152,12 @@ export function registerMtd(ctx: ModuleContext) {
         );
       }
       /*
-       * The state is checked when the code comes back. With an out-of-band
-       * flow the person carries the code by hand, so state cannot prevent a
-       * redirect being forged — what it does catch is a code pasted into the
-       * wrong instance, which is a real thing somebody running two of these
-       * will do.
+       * Sent because the authorisation request asks for one, and checked by
+       * nothing. With an out-of-band flow there is no redirect back here: HMRC
+       * shows the code, the person pastes it into `/finish` under their own
+       * session and permission, and the code is exchanged at once. That
+       * session is what binds the code to this business, which is the job a
+       * state does on a redirect.
        */
       const state = crypto.randomUUID();
       return c.json({ url: authoriseUrl(cfg, state), state });
