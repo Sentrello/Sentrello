@@ -278,3 +278,22 @@ function describe(value: unknown): string {
   if (typeof value === "boolean") return "true or false";
   return `"${String(value).slice(0, 40)}"`;
 }
+
+/**
+ * A field an edit does not write, refused by name.
+ *
+ * An edit reads the fields it knows and nothing else, so anything else in the
+ * body was answered 200 and changed nothing, and the caller had every reason
+ * to think it had changed. Each entry says where the value comes from
+ * instead, which is the thing the caller needs to know next.
+ */
+export function refuseUnwritable(
+  body: Record<string, unknown>,
+  unwritable: Record<string, string>,
+): void {
+  for (const [field, instead] of Object.entries(unwritable)) {
+    if (body[field] !== undefined) {
+      throw new RequestFieldError(field, `${field} ${instead}`);
+    }
+  }
+}
