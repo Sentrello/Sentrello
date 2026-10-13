@@ -3,11 +3,13 @@ import {
   bigint,
   bigserial,
   boolean,
+  check,
   date,
   index,
   integer,
   jsonb,
   pgTable,
+  smallint,
   text,
   timestamp,
   unique,
@@ -1943,6 +1945,12 @@ export const recurringProfiles = pgTable(
     /** Every N of those. "Every 2 weeks" is one schedule, not two. */
     intervalCount: integer("interval_count").notNull().default(1),
     nextRunAt: timestamp("next_run_at").notNull(),
+    /**
+     * The day of the month this falls on, 1 to 31. `nextRunAt` cannot say it
+     * once February has clamped the 31st to the 28th, so without this every
+     * month after stayed on the 28th. Null steps from `nextRunAt` itself.
+     */
+    anchorDay: smallint("anchor_day"),
     /** After this it stops. Null runs until somebody stops it. */
     endsOn: timestamp("ends_on"),
     /**
@@ -2028,7 +2036,13 @@ export const recurringProfiles = pgTable(
     lastGeneratedAt: timestamp("last_generated_at"),
     active: boolean("active").notNull().default(true),
   },
-  (t) => [index("recurring_profiles_org_idx").on(t.organizationId)],
+  (t) => [
+    index("recurring_profiles_org_idx").on(t.organizationId),
+    check(
+      "recurring_profiles_anchor_day_check",
+      sql`${t.anchorDay} BETWEEN 1 AND 31`,
+    ),
+  ],
 );
 
 /**
@@ -2473,6 +2487,12 @@ export const recurringBills = pgTable(
     /** Every N of those. "Every 2 weeks" is one schedule, not two. */
     intervalCount: integer("interval_count").notNull().default(1),
     nextRunAt: timestamp("next_run_at").notNull(),
+    /**
+     * The day of the month this falls on, 1 to 31. `nextRunAt` cannot say it
+     * once February has clamped the 31st to the 28th, so without this every
+     * month after stayed on the 28th. Null steps from `nextRunAt` itself.
+     */
+    anchorDay: smallint("anchor_day"),
     /** After this it stops. Null runs until somebody stops it. */
     endsOn: timestamp("ends_on"),
     /**
@@ -2485,7 +2505,13 @@ export const recurringBills = pgTable(
     active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
-  (t) => [index("recurring_bills_org_idx").on(t.organizationId)],
+  (t) => [
+    index("recurring_bills_org_idx").on(t.organizationId),
+    check(
+      "recurring_bills_anchor_day_check",
+      sql`${t.anchorDay} BETWEEN 1 AND 31`,
+    ),
+  ],
 );
 
 // ---------------------------------------------------------------------------

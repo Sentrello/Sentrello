@@ -17,6 +17,8 @@ export {
    */
   bigint,
   boolean,
+  /** A rule Postgres holds a column to, so no writer can break it. */
+  check,
   /**
    * For a column Postgres has and Drizzle does not name.
    *
@@ -45,6 +47,8 @@ export {
   // than a longer prefix would.
   pgSchema,
   pgTable,
+  /** Two bytes, for a small count such as a day of the month. */
+  smallint,
   text,
   timestamp,
   unique,

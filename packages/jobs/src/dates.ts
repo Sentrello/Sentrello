@@ -5,6 +5,7 @@
  * unchanged and there is still one implementation.
  */
 export {
+  anchorFrom,
   type Interval,
   nextRun,
 } from "@sentrello/db/subscriptions";

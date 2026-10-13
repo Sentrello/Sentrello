@@ -176,3 +176,16 @@ export function nextRun(
   d.setUTCDate(Math.min(day, last));
   return d;
 }
+
+/**
+ * The anchor a stored day of the month stands for, to hand to `nextRun`.
+ *
+ * A schedule keeps only the day it was set for (`anchor_day`, 1 to 31), since
+ * `nextRun` reads nothing else. January has every one of them, so the date
+ * built here is always that day. Null when none is stored: a row from before
+ * the column existed steps from its own next run, as it always did.
+ */
+export function anchorFrom(anchorDay: number | null | undefined): Date | null {
+  if (anchorDay == null || anchorDay < 1 || anchorDay > 31) return null;
+  return new Date(Date.UTC(2000, 0, Math.trunc(anchorDay)));
+}

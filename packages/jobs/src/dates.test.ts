@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { isOverdue, nextRun } from "./dates";
+import { anchorFrom, isOverdue, nextRun } from "./dates";
 
 const utc = (s: string) => new Date(`${s}T00:00:00.000Z`);
 
@@ -143,4 +143,31 @@ test("without an anchor a clamped date stays where it landed", () => {
   expect(nextRun(utc("2026-03-02"), "weekly", 1, utc("2026-01-31"))).toEqual(
     utc("2026-03-09"),
   );
+});
+
+/*
+ * What a schedule stores is its day, not a date. A profile created for the
+ * 31st keeps 31 in `anchor_day`, and the nightly run passes it back through
+ * `anchorFrom`, so February's clamp does not stick.
+ */
+test("a stored day of 31 runs 31 Jan, 28 Feb, 31 Mar", () => {
+  const runs = [utc("2026-01-31")];
+  for (let i = 0; i < 2; i++) {
+    runs.push(
+      nextRun(runs[runs.length - 1] as Date, "monthly", 1, anchorFrom(31)),
+    );
+  }
+  expect(runs.map((d) => d.toISOString().slice(0, 10))).toEqual([
+    "2026-01-31",
+    "2026-02-28",
+    "2026-03-31",
+  ]);
+});
+
+test("no stored day, or one out of range, is no anchor", () => {
+  expect(anchorFrom(null)).toBeNull();
+  expect(anchorFrom(undefined)).toBeNull();
+  expect(anchorFrom(0)).toBeNull();
+  expect(anchorFrom(32)).toBeNull();
+  expect(anchorFrom(29)?.getUTCDate()).toBe(29);
 });
