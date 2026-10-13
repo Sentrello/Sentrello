@@ -10,9 +10,11 @@ import {
   asChoice,
   asFlag,
   asIdOrNothing,
+  asStoredCents,
   asTextOrNothing,
   asWholeNumber,
   asWholeNumberOrNothing,
+  fits,
 } from "@sentrello/db/request-values";
 import { asText, checkedText, notText } from "@sentrello/db/text-columns";
 import type { ModuleContext } from "@sentrello/module-sdk";
@@ -197,15 +199,20 @@ async function clearOtherDefaults(orgId: string, keepId: string) {
 }
 
 /** A tax definition named by the caller, confirmed to be this business's. */
+/** This business's rate by that id, with whether it is still current. */
 async function ownedTaxDefinition(orgId: string, id: string) {
   // Postgres answers a malformed uuid with an error, not an empty result.
   if (
     !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
   ) {
-    return false;
+    return null;
   }
   const [row] = await db
-    .select({ id: schema.taxDefinitions.id })
+    .select({
+      id: schema.taxDefinitions.id,
+      name: schema.taxDefinitions.name,
+      active: schema.taxDefinitions.active,
+    })
     .from(schema.taxDefinitions)
     .where(
       and(
@@ -214,7 +221,18 @@ async function ownedTaxDefinition(orgId: string, id: string) {
       ),
     )
     .limit(1);
-  return Boolean(row);
+  return row ?? null;
+}
+
+/**
+ * A retired rate, said in words.
+ *
+ * Retiring a rate takes it out of every picker, and the item routes still took
+ * it by id — so an item made or edited through a stale screen or the API went
+ * on handing the old rate to every new line drawn from it.
+ */
+function retired(name: string): string {
+  return `${name} has been retired — choose a current rate`;
 }
 
 /**
@@ -521,6 +539,7 @@ export function registerCatalogue(ctx: ModuleContext) {
           400,
         );
       }
+      fits(unitPriceCents as number, "unitPriceCents");
 
       const taxDefinitionId = asIdOrNothing(
         body.taxDefinitionId,
@@ -528,11 +547,10 @@ export function registerCatalogue(ctx: ModuleContext) {
       );
       // Has to be one of this business's own rates, not an id pointed at
       // another organisation's.
-      if (
-        taxDefinitionId &&
-        !(await ownedTaxDefinition(orgId, taxDefinitionId))
-      ) {
-        return c.json({ error: "no such tax rate" }, 404);
+      if (taxDefinitionId) {
+        const rate = await ownedTaxDefinition(orgId, taxDefinitionId);
+        if (!rate) return c.json({ error: "no such tax rate" }, 404);
+        if (!rate.active) return c.json({ error: retired(rate.name) }, 400);
       }
 
       const [made] = await db
@@ -583,7 +601,10 @@ export function registerCatalogue(ctx: ModuleContext) {
             400,
           );
         }
-        patch.unitPriceCents = body.unitPriceCents;
+        patch.unitPriceCents = fits(
+          body.unitPriceCents as number,
+          "unitPriceCents",
+        );
       }
       const unit = asTextOrNothing(body.unit, "unit")?.trim();
       if (unit) patch.unit = unit;
@@ -592,8 +613,27 @@ export function registerCatalogue(ctx: ModuleContext) {
       }
       if (body.taxDefinitionId !== undefined) {
         const wanted = asIdOrNothing(body.taxDefinitionId, "taxDefinitionId");
-        if (wanted && !(await ownedTaxDefinition(orgId, wanted))) {
-          return c.json({ error: "no such tax rate" }, 404);
+        if (wanted) {
+          const rate = await ownedTaxDefinition(orgId, wanted);
+          if (!rate) return c.json({ error: "no such tax rate" }, 404);
+          // Keeping the rate the item already carries is not choosing it: an
+          // edit to the price of an item on a retired rate still saves.
+          if (!rate.active) {
+            const [item] = await db
+              .select({ taxDefinitionId: schema.billableItems.taxDefinitionId })
+              .from(schema.billableItems)
+              .where(
+                and(
+                  eq(schema.billableItems.id, c.req.param("id")),
+                  eq(schema.billableItems.organizationId, orgId),
+                ),
+              )
+              .limit(1);
+            if (!item) return c.json({ error: "not found" }, 404);
+            if (item.taxDefinitionId !== wanted) {
+              return c.json({ error: retired(rate.name) }, 400);
+            }
+          }
         }
         patch.taxDefinitionId = wanted;
       }
@@ -755,7 +795,7 @@ export function registerBillingRules(ctx: ModuleContext) {
           body.lateFeeType === ""
             ? null
             : asChoice(body.lateFeeType, "lateFeeType", ["percent", "amount"]);
-        const lateFeeValue = asWholeNumber(
+        const lateFeeValue = asStoredCents(
           body.lateFeeValue,
           "lateFeeValue",
           0,

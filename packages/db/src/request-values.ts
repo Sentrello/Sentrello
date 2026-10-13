@@ -67,6 +67,57 @@ export function asWholeNumber(
 }
 
 /**
+ * The most one stored figure can be: 2,147,483,647, the largest 32-bit
+ * integer, which is what every cents column in Core is.
+ *
+ * A figure past it was a 500 from Postgres ("integer out of range") wherever
+ * it arrived — a $30M invoice line, a journal entry, a CSV row — and the
+ * person who typed it was told the software had broken. Whether the columns
+ * widen is a decision still open; until it is made, every way in refuses the
+ * figure by name instead.
+ */
+export const MOST_A_COLUMN_HOLDS = 2_147_483_647;
+
+/**
+ * `n`, or a refusal naming `field` when no column could keep it.
+ *
+ * For a figure the server worked out — a line's price times its quantity, a
+ * document's total — where the field to blame is the one that produced it.
+ */
+export function fits(n: number, field: string): number {
+  if (Math.abs(n) > MOST_A_COLUMN_HOLDS) {
+    throw new RequestFieldError(
+      field,
+      `${field} comes to ${n}, and the most one record can hold is 2,147,483,647.`,
+    );
+  }
+  return n;
+}
+
+/**
+ * A whole number of cents from a request, or a refusal naming the field when
+ * it is not one or no column could keep it.
+ *
+ * @param fallback what an absent value means. Without one, absent is refused.
+ */
+export function asStoredCents(
+  value: unknown,
+  field: string,
+  fallback?: number,
+): number {
+  return fits(asWholeNumber(value, field, fallback), field);
+}
+
+/** The same, or nothing (absent, null or ""). */
+export function asStoredCentsOrNothing(
+  value: unknown,
+  field: string,
+): number | null {
+  if (value === undefined || value === null || value === "") return null;
+  return asStoredCents(value, field);
+}
+
+/**
  * The same, for a value that may have a fractional part — a rate, a quantity
  * in units rather than thousandths. Money never comes through here: money is
  * integer cents.

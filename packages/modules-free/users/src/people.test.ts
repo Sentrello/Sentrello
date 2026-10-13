@@ -217,8 +217,9 @@ test("a member can be suspended and restored, and cannot sign in while suspended
  * outlived it, a person is signed out on their next request.
  *
  * The Users screen deletes sessions when it removes or suspends somebody, and
- * that was the whole of it: `/api/auth/organization/remove-member` is served
- * as well and deletes only the membership, and nothing asked again.
+ * that was the whole of it: the library's `removeMember` deletes only the
+ * membership (and was answered over HTTP until 13 October 2026), and nothing
+ * asked again.
  */
 test("a member removed by any route, or suspended, is not signed in any more", async () => {
   const address = `side-door-${suffix}@example.test`;

@@ -2,6 +2,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { eq, inArray } from "drizzle-orm";
 import { db, schema } from "./index";
 import {
+  FigureTooLargeError,
   type LedgerRow,
   accountingFieldsFor,
   accountingValues,
@@ -13,6 +14,7 @@ import {
   taggingFrom,
   totalsByAccount,
 } from "./ledger";
+import { MOST_A_COLUMN_HOLDS, RequestFieldError } from "./request-values";
 
 let orgId: string;
 let cashId: string;
@@ -120,6 +122,42 @@ test("an unbalanced entry throws and writes nothing", async () => {
     .from(schema.journalEntries)
     .where(eq(schema.journalEntries.organizationId, orgId));
   expect(after.length).toBe(before.length);
+});
+
+/**
+ * A line past what a journal line can keep is refused before anything opens.
+ *
+ * Every cents column is a 32-bit integer: a balanced entry of $30M was a 500
+ * from Postgres at the lines' insert. Now a 400 naming the side, with the
+ * entry header never written.
+ */
+test("an entry past the ceiling is refused by name and posts nothing", async () => {
+  const before = await db
+    .select()
+    .from(schema.journalEntries)
+    .where(eq(schema.journalEntries.organizationId, orgId));
+
+  const tooBig = MOST_A_COLUMN_HOLDS + 1;
+  const refused = await postJournalEntry(orgId, "huge", "manual", [
+    { accountId: cashId, debitCents: tooBig },
+    { accountId: arId, creditCents: tooBig },
+  ]).catch((err: unknown) => err);
+  expect(refused).toBeInstanceOf(FigureTooLargeError);
+  expect(refused).toBeInstanceOf(RequestFieldError);
+  expect((refused as FigureTooLargeError).status).toBe(400);
+  expect((refused as FigureTooLargeError).message).toContain("debitCents");
+
+  const after = await db
+    .select()
+    .from(schema.journalEntries)
+    .where(eq(schema.journalEntries.organizationId, orgId));
+  expect(after.length).toBe(before.length);
+
+  // The ceiling itself still posts.
+  await postJournalEntry(orgId, "the most", "manual", [
+    { accountId: cashId, debitCents: MOST_A_COLUMN_HOLDS },
+    { accountId: arId, creditCents: MOST_A_COLUMN_HOLDS },
+  ]);
 });
 
 test("a multi-line split entry still has to balance", async () => {

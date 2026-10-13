@@ -52,6 +52,15 @@ beforeAll(async () => {
     provide: () => {},
     registerJob: () => {},
   });
+  // The host's answer to a refusal that names its status: a field refused by
+  // name is a 400, as every other module's harness gives it.
+  app.onError((err, c) => {
+    const status = (err as { status?: unknown }).status;
+    if (typeof status === "number" && status >= 400 && status < 500) {
+      return c.json({ error: err.message }, status as 400);
+    }
+    return c.text("Internal Server Error", 500);
+  });
 
   const signUp = await signUpAsOwner({
     email: `invoicing-overflow-${suffix}@example.test`,
@@ -156,4 +165,61 @@ test("the dashboard figures are right past the ceiling too", async () => {
   const month = dashboard.months.at(-1);
   expect(month?.billedCents).toBe(3 * TEN_MILLION);
   expect(Number.isSafeInteger(month?.billedCents)).toBe(true);
+});
+
+/**
+ * A figure too big for where it is kept.
+ *
+ * Every cents column is a 32-bit integer, so an invoice line of $30M was a
+ * 500 from Postgres at the insert — "integer out of range" — and the person
+ * who typed it was told the software had broken. Refused now, naming what was
+ * too big, and with nothing written.
+ */
+test("a thirty-million-dollar line is refused by name, and nothing is written", async () => {
+  const count = async () =>
+    (
+      await db
+        .select({ id: schema.invoices.id })
+        .from(schema.invoices)
+        .where(eq(schema.invoices.organizationId, orgId))
+    ).length;
+  const before = await count();
+  const raise = (lines: unknown[]) =>
+    app.request("http://localhost/api/invoices", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ contactId, currency: "USD", lines }),
+    });
+  const refusal = async (res: Response) => {
+    expect(res.status).toBe(400);
+    return ((await res.json()) as { error: string }).error;
+  };
+
+  // The price itself.
+  expect(
+    await refusal(
+      await raise([
+        { description: "Plant", quantity: 1, unitPriceCents: 3 * TEN_MILLION },
+      ]),
+    ),
+  ).toContain("lines[0].unitPriceCents");
+  // A price that fits, times a quantity that makes it not.
+  expect(
+    await refusal(
+      await raise([
+        { description: "Plant", quantity: 3, unitPriceCents: TEN_MILLION },
+      ]),
+    ),
+  ).toContain("lines[0] (quantity × unit price)");
+  // Two lines that each fit, and a document total that does not.
+  expect(
+    await refusal(
+      await raise([
+        { description: "Plant", quantity: 1, unitPriceCents: 2 * TEN_MILLION },
+        { description: "Plant", quantity: 1, unitPriceCents: 2 * TEN_MILLION },
+      ]),
+    ),
+  ).toContain("subtotalCents");
+
+  expect(await count()).toBe(before);
 });

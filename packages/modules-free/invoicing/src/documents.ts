@@ -5,6 +5,7 @@ import {
   MoneyError,
   bpToPpm,
   documentTotals,
+  lineAmountCents,
 } from "@sentrello/db/money";
 import { ownedIds } from "@sentrello/db/owned";
 import {
@@ -12,6 +13,7 @@ import {
   asIdOrNothing,
   asTextOrNothing,
   asWholeNumberOrNothing,
+  fits,
 } from "@sentrello/db/request-values";
 
 /**
@@ -272,6 +274,17 @@ export async function prepareDocument(
         `line ${i + 1}: unitPrice must be a whole number of cents`,
       );
     }
+    /*
+     * Each figure the line stores, and the one it adds to the document, has to
+     * fit a 32-bit column: a $30M line was a 500 from Postgres at the insert.
+     * Refused by name here, before anything is written.
+     */
+    fits(quantityMilli, `lines[${i}].quantityMilli`);
+    fits(unitPriceCents as number, `lines[${i}].unitPriceCents`);
+    fits(
+      lineAmountCents(quantityMilli, unitPriceCents as number),
+      `lines[${i}] (quantity × unit price)`,
+    );
 
     // Every named rate on the line, frozen from its definition. Null when the
     // line carries only a bare rate, which is what the older callers send.
@@ -338,6 +351,17 @@ export async function prepareDocument(
     discount,
     { pricesIncludeTax },
   );
+
+  // And the document's own figures, which sum the lines and can pass the
+  // ceiling when no one line does.
+  fits(totals.subtotal, "subtotalCents");
+  fits(totals.discount, "discountCents");
+  fits(totals.tax, "taxCents");
+  fits(totals.total, "totalCents");
+  for (const band of totals.bands) {
+    fits(band.taxableCents, `${band.name} taxable amount`);
+    fits(band.taxCents, `${band.name} tax`);
+  }
 
   return {
     lines,
@@ -436,7 +460,7 @@ export function parseDiscount(body: {
         : "a fixed discount is a whole number of cents",
     );
   }
-  return { type, value: value as number };
+  return { type, value: fits(value as number, "discountValue") };
 }
 
 /**
@@ -470,7 +494,11 @@ export function parseEarlyPayment(body: {
   if (!Number.isInteger(days) || (days as number) < 0) {
     throw new MoneyError("how many days is the offer good for?");
   }
-  return { type, value: value as number, days: days as number };
+  return {
+    type,
+    value: fits(value as number, "earlyDiscountValue"),
+    days: fits(days as number, "earlyDiscountDays"),
+  };
 }
 
 /**

@@ -72,9 +72,30 @@ export async function explainOrigin(res: Response, origin: string | undefined) {
 const SSO_ADMIN =
   /^\/api\/auth\/sso\/(register|providers|get-provider|update-provider|delete-provider|request-domain-verification|verify-domain)\/?$/;
 
+/**
+ * The library's own membership changes, which are never answered over HTTP
+ * either.
+ *
+ * Who belongs to a business, and as what, is changed on the Users screen:
+ * removing somebody there takes their group rows, API keys and sessions with
+ * them, re-roling them keeps `baseRole` and the groups in step, and the last
+ * administrator cannot be removed or demoted. The library answers
+ * `/organization/remove-member`, `/leave` and `/update-member-role` itself and
+ * does none of that — a removed person kept working keys, an administrator
+ * could leave a business with nobody to run it, and a role written there was
+ * held without any screen able to say where it came from. The invitation
+ * endpoints are the same door from the other side. The server calls these
+ * through `auth.api`, which does not come this way; the role-policy endpoints
+ * the policies screen calls stay open. Found 13 October 2026.
+ */
+const MEMBERSHIP =
+  /^\/api\/auth\/organization\/(remove-member|leave|update-member-role|invite-member|accept-invitation|reject-invitation|cancel-invitation)\/?$/i;
+
 export function mountAuth(app: Hono<AppEnv>) {
   app.on(["POST", "GET"], "/api/auth/*", async (c) => {
-    if (SSO_ADMIN.test(c.req.path)) return c.json({ error: "not found" }, 404);
+    if (SSO_ADMIN.test(c.req.path) || MEMBERSHIP.test(c.req.path)) {
+      return c.json({ error: "not found" }, 404);
+    }
     return explainOrigin(
       await auth.handler(withDecidedAddress(c)),
       c.req.header("origin"),
@@ -107,8 +128,9 @@ export function requireSession() {
      *
      * Suspending somebody deletes their sessions, and removing them through
      * the Users screen does too, so this used to be taken on trust. The
-     * library's own `/organization/remove-member` is served by `mountAuth`
-     * and deletes the membership alone: the person stayed signed in, and a
+     * library's own `/organization/remove-member` deleted the membership alone
+     * (`mountAuth` refuses it now; see `MEMBERSHIP`): the person stayed
+     * signed in, and a
      * session that outlived a suspension by any other route passed every
      * permission check, because Better Auth's check knows nothing of
      * `disabledAt`. A key asks the same of its maker on every call. Found

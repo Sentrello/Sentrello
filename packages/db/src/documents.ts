@@ -16,6 +16,7 @@ import { postInvoiceIssued, reverseJournalEntries } from "./ledger";
 import {
   MoneyError,
   bpToPpm,
+  centsFromDriver,
   documentTotals,
   invoiceStatus,
   sumCents,
@@ -1326,7 +1327,7 @@ export function owingInvoices(orgId: string) {
   const paid = db
     .select({
       invoiceId: schema.payments.invoiceId,
-      cents: sql<number>`sum(${schema.payments.amountCents})`.as("paid_cents"),
+      cents: sql<string>`sum(${schema.payments.amountCents})`.as("paid_cents"),
     })
     .from(schema.payments)
     .where(eq(schema.payments.organizationId, orgId))
@@ -1335,7 +1336,7 @@ export function owingInvoices(orgId: string) {
   const credited = db
     .select({
       invoiceId: credit.referenceInvoiceId,
-      cents: sql<number>`sum(${credit.totalCents})`.as("credited_cents"),
+      cents: sql<string>`sum(${credit.totalCents})`.as("credited_cents"),
     })
     .from(credit)
     .where(
@@ -1355,9 +1356,11 @@ export function owingInvoices(orgId: string) {
       number: schema.invoices.number,
       dueDate: schema.invoices.dueDate,
       owedCents:
-        sql<number>`greatest(0, ${schema.invoices.totalCents} - coalesce(${schema.invoices.earlyDiscountTakenCents}, 0) - coalesce(${paid.cents}, 0) - coalesce(${credited.cents}, 0))`.as(
-          "owed_cents",
-        ),
+        // A bigint, which the driver hands over as text: read as a number
+        // here, so selecting it bare is not a string typed as one.
+        sql<number>`greatest(0, ${schema.invoices.totalCents} - coalesce(${schema.invoices.earlyDiscountTakenCents}, 0) - coalesce(${paid.cents}, 0) - coalesce(${credited.cents}, 0))`
+          .mapWith(centsFromDriver)
+          .as("owed_cents"),
     })
     .from(schema.invoices)
     .leftJoin(paid, eq(paid.invoiceId, schema.invoices.id))

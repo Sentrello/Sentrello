@@ -21,7 +21,11 @@ import { RATE_SCALE, clearedInBase, toBaseCents } from "./currency";
 import { dayIn, dayOf } from "./day";
 import { db, schema } from "./index";
 import { sumCents } from "./money";
-import { asIdOrNothing } from "./request-values";
+import {
+  MOST_A_COLUMN_HOLDS,
+  RequestFieldError,
+  asIdOrNothing,
+} from "./request-values";
 import { recordSalePlace } from "./sale-place";
 import {
   UnreadableDateError,
@@ -428,6 +432,25 @@ export class PeriodClosedError extends Error {
     );
     this.name = "PeriodClosedError";
     this.closedThrough = closedThrough;
+  }
+}
+
+/**
+ * A line bigger than a journal line can keep.
+ *
+ * Every cents column is a 32-bit integer, so a line past 2,147,483,647 was a
+ * 500 from Postgres at the insert, after the entry row had been written in the
+ * same transaction and rolled back. Refused here, before anything is opened,
+ * and a `RequestFieldError` so both the host and the harness a module is tested
+ * against answer it 400 by the status it carries, naming the figure.
+ */
+export class FigureTooLargeError extends RequestFieldError {
+  constructor(field: string, cents: number) {
+    super(
+      field,
+      `${field} comes to ${cents}, and the most one record can hold is 2,147,483,647.`,
+    );
+    this.name = "FigureTooLargeError";
   }
 }
 
@@ -954,6 +977,16 @@ export async function postJournalEntry(
   postedAt?: Date,
   options?: PostOptions,
 ) {
+  for (const l of lines) {
+    for (const [field, cents] of [
+      ["debitCents", l.debitCents ?? 0],
+      ["creditCents", l.creditCents ?? 0],
+    ] as const) {
+      if (Math.abs(cents) > MOST_A_COLUMN_HOLDS) {
+        throw new FigureTooLargeError(field, cents);
+      }
+    }
+  }
   const d = lines.reduce((s, l) => s + (l.debitCents ?? 0), 0);
   const c = lines.reduce((s, l) => s + (l.creditCents ?? 0), 0);
   if (d !== c) throw new Error(`Unbalanced entry: debits ${d} != credits ${c}`);

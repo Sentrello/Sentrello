@@ -9,15 +9,19 @@
  */
 import { expect, test } from "bun:test";
 import {
+  MOST_A_COLUMN_HOLDS,
   RequestFieldError,
   asChoice,
   asFlag,
   asIdOrNothing,
   asNumber,
   asNumberOrNothing,
+  asStoredCents,
+  asStoredCentsOrNothing,
   asTextOrNothing,
   asWholeNumber,
   asWholeNumberOrNothing,
+  fits,
 } from "./request-values";
 
 test("a list is not a number, however well it coerces", () => {
@@ -138,4 +142,32 @@ test("a number or nothing: absent is null, a wrong shape is refused, not default
       RequestFieldError,
     );
   }
+});
+
+test("a figure past what a column holds is refused by name, either sign", () => {
+  expect(fits(MOST_A_COLUMN_HOLDS, "totalCents")).toBe(MOST_A_COLUMN_HOLDS);
+  expect(fits(-MOST_A_COLUMN_HOLDS, "totalCents")).toBe(-MOST_A_COLUMN_HOLDS);
+  for (const n of [MOST_A_COLUMN_HOLDS + 1, -MOST_A_COLUMN_HOLDS - 1]) {
+    try {
+      fits(n, "totalCents");
+      throw new Error("not refused");
+    } catch (err) {
+      expect(err).toBeInstanceOf(RequestFieldError);
+      expect((err as RequestFieldError).field).toBe("totalCents");
+      expect((err as RequestFieldError).status).toBe(400);
+    }
+  }
+});
+
+test("stored cents read like a whole number and stop at the ceiling", () => {
+  expect(asStoredCents("1500", "amountCents")).toBe(1500);
+  expect(asStoredCents(undefined, "amountCents", 0)).toBe(0);
+  expect(() => asStoredCents([], "amountCents")).toThrow(RequestFieldError);
+  expect(() => asStoredCents(3_000_000_000, "amountCents")).toThrow(
+    "amountCents comes to 3000000000",
+  );
+  expect(asStoredCentsOrNothing("", "amountCents")).toBeNull();
+  expect(() => asStoredCentsOrNothing(3_000_000_000, "amountCents")).toThrow(
+    RequestFieldError,
+  );
 });

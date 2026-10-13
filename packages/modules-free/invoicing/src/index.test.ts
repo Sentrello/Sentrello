@@ -4787,6 +4787,89 @@ test("a billable item can never name another organization's tax rate", async () 
 });
 
 /**
+ * A retired rate is not chosen for a catalogue item, and an item already on
+ * one keeps it.
+ *
+ * The line editor refuses a retired rate on new work, and the items routes
+ * took one by id: an item made or re-pointed through a stale screen or the
+ * API handed the old rate to every new line drawn from it.
+ */
+test("an item cannot be put on a retired rate, but keeps the one it has", async () => {
+  const [current, retired] = await db
+    .insert(schema.taxDefinitions)
+    .values([
+      { organizationId: orgId, name: `Current ${suffix}`, rateBp: 2000 },
+      {
+        organizationId: orgId,
+        name: `Old rate ${suffix}`,
+        rateBp: 1750,
+        active: false,
+      },
+    ])
+    .returning();
+  if (!current || !retired) throw new Error("could not create the rates");
+  const send = (path: string, method: string, body: unknown) =>
+    app.request(`http://localhost/api/invoicing/items${path}`, {
+      method,
+      headers,
+      body: JSON.stringify(body),
+    });
+
+  let itemId: string | undefined;
+  try {
+    const refused = await send("", "POST", {
+      name: "Widget on the old rate",
+      unitPriceCents: 100,
+      taxDefinitionId: retired.id,
+    });
+    expect(refused.status).toBe(400);
+    expect(((await refused.json()) as { error: string }).error).toContain(
+      "has been retired",
+    );
+
+    const made = await send("", "POST", {
+      name: "Widget",
+      unitPriceCents: 100,
+      taxDefinitionId: current.id,
+    });
+    expect(made.status).toBe(201);
+    const { item } = (await made.json()) as { item: { id: string } };
+    itemId = item.id;
+    // Moving it onto the retired rate is choosing it, and is refused.
+    const moved = await send(`/${item.id}`, "PATCH", {
+      taxDefinitionId: retired.id,
+    });
+    expect(moved.status).toBe(400);
+
+    // An item that was on the rate before it was retired keeps it through an
+    // edit that sends the form back whole.
+    await db
+      .update(schema.billableItems)
+      .set({ taxDefinitionId: retired.id })
+      .where(eq(schema.billableItems.id, item.id));
+    const kept = await send(`/${item.id}`, "PATCH", {
+      unitPriceCents: 150,
+      taxDefinitionId: retired.id,
+    });
+    expect(kept.status).toBe(200);
+    const after = (await kept.json()) as {
+      item: { unitPriceCents: number; taxDefinitionId: string };
+    };
+    expect(after.item.unitPriceCents).toBe(150);
+    expect(after.item.taxDefinitionId).toBe(retired.id);
+  } finally {
+    if (itemId) {
+      await db
+        .delete(schema.billableItems)
+        .where(eq(schema.billableItems.id, itemId));
+    }
+    await db
+      .delete(schema.taxDefinitions)
+      .where(inArray(schema.taxDefinitions.id, [current.id, retired.id]));
+  }
+});
+
+/**
  * The credit at the foot of the pages a customer opens.
  *
  * The shared invoice and the customer portal are the pages a stranger

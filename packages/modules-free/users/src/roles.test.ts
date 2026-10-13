@@ -225,9 +225,9 @@ test("a stored row under a compiled name adds to it on the single-policy route t
 /**
  * A role written straight onto the membership is still held.
  *
- * `/api/auth/organization/update-member-role` is exposed through `mountAuth`
- * and sets `member.role` directly, touching neither `baseRole` nor any group
- * — which is exactly the case `EffectiveRoles.unattributed` exists to report
+ * The library's `updateMemberRole` (refused over HTTP by `mountAuth` since
+ * 13 October 2026, and still callable on the server) sets `member.role`
+ * directly, touching neither `baseRole` nor any group — which is exactly the case `EffectiveRoles.unattributed` exists to report
  * honestly. Better Auth splits `member.role` on the comma and allows anything
  * any of those roles grants, so this person really can do what `staff` does.
  *

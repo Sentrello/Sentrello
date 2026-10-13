@@ -487,9 +487,9 @@ export const auth = betterAuth({
        */
       dynamicAccessControl: { enabled: true },
       /*
-       * The library's own accept endpoint is reachable through `mountAuth`
-       * with nothing but the invitation's id, so the sender is asked here,
-       * where both that door and our own link end up.
+       * The library's own accept endpoint takes nothing but the invitation's
+       * id. `mountAuth` no longer answers it over HTTP, and the sender is
+       * still asked here, where every way of accepting ends up.
        */
       organizationHooks: {
         beforeAcceptInvitation: async ({ invitation }) => {

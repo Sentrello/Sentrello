@@ -61,6 +61,7 @@ import {
   asTextOrNothing,
   asWholeNumber,
   asWholeNumberOrNothing,
+  fits,
 } from "@sentrello/db/request-values";
 import { asText } from "@sentrello/db/text-columns";
 import { dayFrom, demandDay } from "@sentrello/db/timezone";
@@ -709,6 +710,7 @@ export default defineModule({
             400,
           );
         }
+        fits(amountCents, "amountCents");
 
         const [invoice] = await db
           .select()

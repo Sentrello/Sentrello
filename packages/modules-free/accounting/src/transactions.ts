@@ -27,9 +27,11 @@ import {
 } from "@sentrello/db/ledger";
 import { sumCents } from "@sentrello/db/money";
 import {
+  MOST_A_COLUMN_HOLDS,
   RequestFieldError,
   asIdOrNothing,
   asTextOrNothing,
+  fits,
 } from "@sentrello/db/request-values";
 import { asText } from "@sentrello/db/text-columns";
 import { dayFrom, demandDate, timezoneFor } from "@sentrello/db/timezone";
@@ -223,10 +225,9 @@ export async function createTransaction(
    * a typo or a client sending the wrong units, and either deserves a
    * sentence rather than a crash.
    */
-  if ((amountCents as number) > 2_147_483_647) {
+  if ((amountCents as number) > MOST_A_COLUMN_HOLDS) {
     return {
-      error:
-        "That amount is larger than a single transaction can hold — check the units.",
+      error: `amountCents comes to ${amountCents}, and the most one record can hold is 2,147,483,647 — check the units.`,
     };
   }
   const occurredAt = parseDate(
@@ -545,6 +546,8 @@ export function registerTransactions(ctx: ModuleContext) {
           400,
         );
       }
+      // The same ceiling a new one has; an edit was the way round it.
+      if (body.amountCents !== undefined) fits(body.amountCents, "amountCents");
       // Recategorising has the same rule as categorising: an expense moved
       // onto an asset account would balance and then disappear from the
       // profit and loss. The kind is the row's own and cannot be edited.

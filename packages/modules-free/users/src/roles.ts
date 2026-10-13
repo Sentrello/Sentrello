@@ -143,10 +143,11 @@ export interface EffectiveRoles {
    *
    * `member.role` is what Better Auth actually splits and checks — not this
    * computation. Something can land there without going through `applyRoles`
-   * at all: `/api/auth/organization/update-member-role` is exposed through
-   * `mountAuth` and writes `member.role` directly, touching neither
-   * `baseRole` nor a group. Whatever shows up here is still held, even though
-   * nothing in this module can say where it came from.
+   * at all: the library's `updateMemberRole` writes `member.role` directly,
+   * touching neither `baseRole` nor a group, and a membership written before
+   * `mountAuth` stopped answering that endpoint over HTTP still carries what
+   * it wrote. Whatever shows up here is still held, even though nothing in
+   * this module can say where it came from.
    */
   unattributed: string[];
   /** Everything, deduplicated — what `member.role` is set to. */
@@ -457,8 +458,8 @@ export function registerRolePolicy(ctx: ModuleContext) {
         .filter((m) => {
           // Everything `member.role` names, which is what Better Auth splits
           // and checks — not only the one this module can attribute. A role
-          // written straight onto the membership by
-          // `/api/auth/organization/update-member-role` is held exactly as
+          // written straight onto the membership by the library's
+          // `updateMemberRole` is held exactly as
           // much as one this module granted, and `effectiveRoles` reports it
           // as `unattributed` for that reason; a screen answering "who holds
           // this role" by reading `baseRole` alone left those people off the

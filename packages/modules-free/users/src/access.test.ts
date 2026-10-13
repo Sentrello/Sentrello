@@ -371,8 +371,8 @@ test("a custom row under a compiled name adds to it; it does not shadow it", asy
 });
 
 test("a role member.role names but neither a policy nor a group explains is still held, not dropped", async () => {
-  // Mirrors what /api/auth/organization/update-member-role actually writes
-  // (mountAuth exposes it, packages/auth/src/hono.ts:47-51): member.role
+  // Mirrors what the library's updateMemberRole actually writes (no longer
+  // answered over HTTP; see MEMBERSHIP in packages/auth/src/hono.ts): member.role
   // holding more than one role, baseRole never touched. effectiveRoles used
   // to keep only the first comma-separated token when baseRole was null,
   // silently dropping "managers" and everything it grants.

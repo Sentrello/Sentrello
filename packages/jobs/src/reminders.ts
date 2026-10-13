@@ -12,6 +12,7 @@ import {
   ensurePortalToken,
   moneyLocale,
 } from "@sentrello/db/portal";
+import { MOST_A_COLUMN_HOLDS } from "@sentrello/db/request-values";
 import { partsIn, timezoneFor } from "@sentrello/db/timezone";
 import { emailAdapter, mailConfigured } from "@sentrello/email";
 import {
@@ -328,7 +329,10 @@ export async function runReminders(
       overdueBy > settings.lateFeeGraceDays
     ) {
       const fee = lateFeeFor(settings, balanceDue);
-      if (fee > 0) {
+      // Known limit: an invoice already within a fee of the largest figure a
+      // column holds is not charged one, rather than failing the whole sweep
+      // on "integer out of range" at the update.
+      if (fee > 0 && invoice.totalCents + fee <= MOST_A_COLUMN_HOLDS) {
         /*
          * The fee is money the business is now owed, so it is posted.
          *
