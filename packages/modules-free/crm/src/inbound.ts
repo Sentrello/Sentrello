@@ -7,6 +7,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { db, eq, schema } from "@sentrello/db";
+import { baseUrl } from "@sentrello/db/base-url";
 import { contactIdByEmail } from "@sentrello/db/crm";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import { callerKey, rateLimit } from "@sentrello/module-sdk";
@@ -234,7 +235,7 @@ export function registerInboundEmail(ctx: ModuleContext) {
         .where(eq(schema.crmSettings.organizationId, orgId))
         .limit(1);
 
-      const base = process.env.SENTRELLO_BASE_URL ?? new URL(c.req.url).origin;
+      const base = baseUrl();
       return c.json({
         enabled: Boolean(row?.inboundSecret),
         address: row?.inboundAddress ?? null,
@@ -275,7 +276,7 @@ export function registerInboundEmail(ctx: ModuleContext) {
           },
         });
 
-      const base = process.env.SENTRELLO_BASE_URL ?? new URL(c.req.url).origin;
+      const base = baseUrl();
       return c.json({
         enabled: true,
         address,

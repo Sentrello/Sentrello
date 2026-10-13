@@ -6,6 +6,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { and, db, eq, schema } from "@sentrello/db";
+import { baseUrl } from "@sentrello/db/base-url";
 import { asTextOrNothing } from "@sentrello/db/request-values";
 import { record } from "@sentrello/db/security-events";
 import { asText } from "@sentrello/db/text-columns";
@@ -210,8 +211,7 @@ export function registerSso(ctx: ModuleContext) {
             );
           }
 
-          const base =
-            process.env.SENTRELLO_BASE_URL ?? new URL(c.req.url).origin;
+          const base = baseUrl();
           await auth.api.registerSSOProvider({
             body: {
               providerId,

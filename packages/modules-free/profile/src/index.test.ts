@@ -580,3 +580,42 @@ test("column choices saved together on different lists all survive", async () =>
   expect(shown.columns.list0).toBeUndefined();
   expect(shown.columns.list1).toEqual(["due"]);
 });
+
+test("a change-of-address email sends nobody to the Host the request named", async () => {
+  await db
+    .update(schema.user)
+    .set({ emailVerified: true })
+    .where(eq(schema.user.id, userId));
+  const savedKey = process.env.RESEND_API_KEY;
+  process.env.RESEND_API_KEY = "re_test_never_sent";
+  const { sent, restore } = stubResend();
+  const evil = new Headers(headers);
+  evil.set("host", "evil.example");
+  evil.set("x-forwarded-host", "evil.example");
+  // Unset, which is where the request's host used to be taken instead.
+  const savedBase = process.env.SENTRELLO_BASE_URL;
+  Reflect.deleteProperty(process.env, "SENTRELLO_BASE_URL");
+
+  try {
+    const res = await app.request("http://evil.example/api/profile/email", {
+      method: "POST",
+      headers: evil,
+      body: JSON.stringify({ newEmail: `host-${suffix}@x.test` }),
+    });
+    expect(res.status).toBe(200);
+    expect(sent).toHaveLength(1);
+    const html = sent[0]?.html ?? "";
+    // The callback rides inside the link, so it is where a borrowed host
+    // would have shown up.
+    expect(html).toContain("callbackURL=");
+    expect(html).not.toContain("evil.example");
+  } finally {
+    restore();
+    if (savedBase !== undefined) process.env.SENTRELLO_BASE_URL = savedBase;
+    process.env.RESEND_API_KEY = savedKey;
+    await db
+      .update(schema.user)
+      .set({ email, emailVerified: false })
+      .where(eq(schema.user.id, userId));
+  }
+});

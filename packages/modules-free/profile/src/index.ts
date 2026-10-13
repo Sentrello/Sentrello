@@ -1,6 +1,7 @@
 import { auth } from "@sentrello/auth";
 import { activeOrganizationId, requireSession } from "@sentrello/auth/hono";
 import { db, schema } from "@sentrello/db";
+import { baseUrl } from "@sentrello/db/base-url";
 import { asTextOrNothing } from "@sentrello/db/request-values";
 import { asText } from "@sentrello/db/text-columns";
 import { NO_MAIL_SERVER, mailConfigured } from "@sentrello/email";
@@ -378,7 +379,7 @@ export default defineModule({
         });
       }
 
-      const base = process.env.SENTRELLO_BASE_URL ?? new URL(c.req.url).origin;
+      const base = baseUrl();
       try {
         await auth.api.changeEmail({
           body: { newEmail, callbackURL: `${base}/profile` },

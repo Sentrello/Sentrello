@@ -8,6 +8,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { db, schema } from "@sentrello/db";
+import { baseUrl } from "@sentrello/db/base-url";
 import { asTextOrNothing } from "@sentrello/db/request-values";
 import { record } from "@sentrello/db/security-events";
 import { asText } from "@sentrello/db/text-columns";
@@ -214,7 +215,7 @@ export function registerInvitations(ctx: ModuleContext) {
       if ("refused" in made) return c.json({ error: made.refused }, 400);
       const { invitation, token } = made;
 
-      const base = process.env.SENTRELLO_BASE_URL ?? new URL(c.req.url).origin;
+      const base = baseUrl();
       const link = `${base}/accept-invitation?token=${token}`;
 
       // Through the platform's one mail path, and honestly: a fresh instance

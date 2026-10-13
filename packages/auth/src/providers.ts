@@ -1,4 +1,5 @@
 import { db, eq, schema } from "@sentrello/db";
+import { baseUrl } from "@sentrello/db/base-url";
 import { secrets } from "@sentrello/module-sdk";
 
 /**
@@ -147,6 +148,5 @@ export async function verifyGoogle(
 
 /** Where Google sends somebody back to, which it has to be told in advance. */
 export function googleRedirectUri(): string {
-  const base = process.env.SENTRELLO_BASE_URL ?? "http://localhost:3000";
-  return `${base.replace(/\/$/, "")}/api/auth/callback/google`;
+  return `${baseUrl()}/api/auth/callback/google`;
 }

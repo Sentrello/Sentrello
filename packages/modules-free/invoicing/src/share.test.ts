@@ -141,3 +141,45 @@ test("an invoice settled under its early-payment terms reads as settled", async 
   expect(page).toContain("Settled");
   expect(page).not.toContain("Still due");
 });
+
+test("a share link and a portal link name this instance, whatever Host the request carried", async () => {
+  const invoice = await invoiceWith({});
+  const evil = new Headers(headers);
+  evil.set("host", "evil.example");
+  evil.set("x-forwarded-host", "evil.example");
+  const before = process.env.SENTRELLO_BASE_URL;
+  process.env.SENTRELLO_BASE_URL = "https://books.example";
+  try {
+    const share = await app.request(
+      `http://evil.example/api/invoices/${invoice.id}/share`,
+      { method: "POST", headers: evil, body: "{}" },
+    );
+    expect(share.status).toBe(200);
+    const shared = ((await share.json()) as { url: string }).url;
+    expect(shared.startsWith("https://books.example/share/invoice/")).toBe(
+      true,
+    );
+
+    const portal = await app.request(
+      `http://evil.example/api/contacts/${contactId}/portal-link`,
+      { method: "POST", headers: evil, body: "{}" },
+    );
+    expect(portal.status).toBe(200);
+    const link = ((await portal.json()) as { url: string }).url;
+    expect(link.startsWith("https://books.example/portal/")).toBe(true);
+
+    // Unset is where the request's host used to be taken instead.
+    Reflect.deleteProperty(process.env, "SENTRELLO_BASE_URL");
+    const unset = await app.request(
+      `http://evil.example/api/invoices/${invoice.id}/share`,
+      { method: "POST", headers: evil, body: "{}" },
+    );
+    const fallback = ((await unset.json()) as { url: string }).url;
+    expect(fallback).not.toContain("evil.example");
+    expect(fallback.startsWith("http://localhost:3000/share/")).toBe(true);
+  } finally {
+    if (before === undefined) {
+      Reflect.deleteProperty(process.env, "SENTRELLO_BASE_URL");
+    } else process.env.SENTRELLO_BASE_URL = before;
+  }
+});

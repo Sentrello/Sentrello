@@ -4,6 +4,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { and, db, eq, isNull, ne, schema } from "@sentrello/db";
+import { baseUrl } from "@sentrello/db/base-url";
 import { MOVED } from "@sentrello/db/concurrency";
 import { dayIn, dayOf } from "@sentrello/db/day";
 import {
@@ -625,8 +626,7 @@ export function registerLifecycle(ctx: ModuleContext) {
           .where(eq(table.id, row.id))
           .returning();
 
-        const base =
-          process.env.SENTRELLO_BASE_URL ?? new URL(c.req.url).origin;
+        const base = baseUrl();
         return c.json({
           url: `${base}/share/${kind === "invoices" ? "invoice" : "quote"}/${token}`,
           published: updated?.published ?? true,

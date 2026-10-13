@@ -1,5 +1,6 @@
 import { sso } from "@better-auth/sso";
 import { db, schema } from "@sentrello/db";
+import { baseUrl } from "@sentrello/db/base-url";
 import { asc, eq } from "@sentrello/db/orm";
 import { emailAdapter, systemFrom, systemReplyTo } from "@sentrello/email";
 import {
@@ -160,7 +161,7 @@ export function clientAddress(c: Context): {
 }
 
 export const auth = betterAuth({
-  baseURL: process.env.SENTRELLO_BASE_URL ?? "http://localhost:3000",
+  baseURL: baseUrl(),
   secret: process.env.BETTER_AUTH_SECRET,
   advanced: {
     ipAddress: clientIpOptions(process.env),

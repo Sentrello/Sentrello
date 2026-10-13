@@ -5,6 +5,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { and, asc, at, db, eq, isUuid, lt, schema, sql } from "@sentrello/db";
+import { configuredBaseUrl } from "@sentrello/db/base-url";
 import { MOVED, UNUSABLE_CLAIM, versionClaim } from "@sentrello/db/concurrency";
 import { creditFor } from "@sentrello/db/credit";
 import { contactIdByEmail } from "@sentrello/db/crm";
@@ -13,6 +14,7 @@ import { dayIn } from "@sentrello/db/day";
 import { quotesGross } from "@sentrello/db/documents";
 import { lineTotals } from "@sentrello/db/money";
 import { nextDocumentNumber } from "@sentrello/db/numbering";
+import { asTextOrNothing } from "@sentrello/db/request-values";
 import { asText } from "@sentrello/db/text-columns";
 import { timezoneFor } from "@sentrello/db/timezone";
 import { emailAdapter, systemFrom } from "@sentrello/email";
@@ -50,6 +52,44 @@ const KIND = ["contact", "quote"] as const;
 
 function newFormKey(): string {
   return `frm_${randomBytes(12).toString("base64url")}`;
+}
+
+/**
+ * Where a visitor is sent after a form goes through, if anywhere.
+ *
+ * The embed assigns this to `window.location.href` on the business's own
+ * website, so a `javascript:` address saved here ran as script on that site,
+ * in every visitor's browser who sent the form, and a bare `//host` went
+ * wherever the reader's scheme took it. A web address, http or https, and
+ * nothing else. Found 13 October 2026.
+ */
+export function cleanRedirect(value: unknown): string | null {
+  const text = asTextOrNothing(value, "redirectUrl")?.trim();
+  if (!text) return null;
+  let protocol: string | undefined;
+  try {
+    protocol = new URL(text).protocol;
+  } catch {
+    // Not an address at all: refused below with the same sentence.
+  }
+  if (protocol !== "http:" && protocol !== "https:") {
+    throw new RangeError(
+      "the page to send people to must be a full web address, starting https://",
+    );
+  }
+  return text;
+}
+
+/**
+ * A stored address as a visitor may be sent to it: one saved before the
+ * check above reads as none.
+ */
+function sendOnTo(value: string | null): string | null {
+  try {
+    return cleanRedirect(value);
+  } catch {
+    return null;
+  }
 }
 
 /** More sites than any small business embeds a single form on. */
@@ -243,8 +283,10 @@ export function registerForms(ctx: ModuleContext) {
         return c.json({ error: `kind must be one of ${KIND.join("|")}` }, 400);
       }
       let allowedOrigins: string[];
+      let redirectUrl: string | null;
       try {
         allowedOrigins = cleanOrigins(body.allowedOrigins ?? []);
+        redirectUrl = cleanRedirect(body.redirectUrl);
       } catch (err) {
         return c.json({ error: (err as Error).message }, 400);
       }
@@ -258,7 +300,7 @@ export function registerForms(ctx: ModuleContext) {
           kind: body.kind ?? "contact",
           allowedOrigins,
           fields: body.fields ?? defaultFields(body.kind ?? "contact"),
-          redirectUrl: body.redirectUrl,
+          redirectUrl,
           notifyEmail: body.notifyEmail,
         })
         .returning();
@@ -329,9 +371,14 @@ export function registerForms(ctx: ModuleContext) {
       // The one field on a form that decides whether it works at all, so it
       // is cleaned here as well as on the screen: a form is also editable by
       // anything holding a session, not only by our own page.
-      if ("allowedOrigins" in patch) {
+      if ("allowedOrigins" in patch || "redirectUrl" in patch) {
         try {
-          patch.allowedOrigins = cleanOrigins(patch.allowedOrigins);
+          if ("allowedOrigins" in patch) {
+            patch.allowedOrigins = cleanOrigins(patch.allowedOrigins);
+          }
+          if ("redirectUrl" in patch) {
+            patch.redirectUrl = cleanRedirect(patch.redirectUrl);
+          }
         } catch (err) {
           return c.json({ error: (err as Error).message }, 400);
         }
@@ -927,7 +974,7 @@ export function registerForms(ctx: ModuleContext) {
         kind: form.kind,
         fields: form.fields,
         honeypot: HONEYPOT_FIELD,
-        redirectUrl: form.redirectUrl,
+        redirectUrl: sendOnTo(form.redirectUrl),
         style: form.style ?? null,
       },
       200,
@@ -1149,9 +1196,10 @@ export function registerForms(ctx: ModuleContext) {
      * 303 rather than 302 so the visitor's browser follows with GET and a
      * refresh cannot post the message a second time.
      */
+    const onTo = sendOnTo(form.redirectUrl);
     if (wantsHtml(c)) {
-      return form.redirectUrl
-        ? c.redirect(form.redirectUrl, 303)
+      return onTo
+        ? c.redirect(onTo, 303)
         : c.html(
             thanksPage(
               form.name,
@@ -1169,7 +1217,7 @@ export function registerForms(ctx: ModuleContext) {
       {
         ok: true,
         submissionId: submission?.id,
-        redirectUrl: form.redirectUrl ?? null,
+        redirectUrl: onTo,
         /*
          * The same credit the HTML reply carries, for the snippet that draws
          * its own thank-you. Without this the two paths disagree: a visitor who
@@ -1541,7 +1589,7 @@ export function attachmentLinks(
   submissionId: string | undefined,
   attachments: (typeof schema.formSubmissions.$inferInsert)["attachments"],
 ): string[] {
-  const base = process.env.SENTRELLO_BASE_URL?.replace(/\/+$/, "");
+  const base = configuredBaseUrl();
   // No address that works from an inbox means no link worth writing: a bare
   // path in an email is a line somebody tries to click and cannot.
   if (!base || !submissionId) return [];

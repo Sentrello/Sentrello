@@ -1,4 +1,5 @@
 import { and, asActor, db, eq, schema } from "@sentrello/db";
+import { DEFAULT_BASE_URL, configuredBaseUrl } from "@sentrello/db/base-url";
 import {
   hipaaRulesFor,
   idleMinutesFor,
@@ -46,8 +47,7 @@ export async function explainOrigin(res: Response, origin: string | undefined) {
   const body = await res.clone().text();
   if (!body.includes("Invalid origin")) return res;
 
-  const configured =
-    process.env.SENTRELLO_BASE_URL ?? "http://localhost:3000 (the default)";
+  const configured = configuredBaseUrl() ?? `${DEFAULT_BASE_URL} (the default)`;
   return Response.json(
     {
       message: `This instance only accepts sign-ins from ${configured}, and this request came from ${origin ?? "an unknown origin"}. Set SENTRELLO_BASE_URL to the address people actually use to reach it, then restart.`,

@@ -1,5 +1,6 @@
 import { createHmac, hkdfSync, timingSafeEqual } from "node:crypto";
 import { and, eq, or, sql } from "drizzle-orm";
+import { configuredBaseUrl } from "./base-url";
 import { db } from "./client";
 import { recordConsent } from "./consent";
 import { isUuid } from "./index";
@@ -67,7 +68,7 @@ export function contactUnsubscribeUrl(
   orgId: string,
   contactId: string,
 ): string | null {
-  const base = process.env.SENTRELLO_BASE_URL?.replace(/\/+$/, "");
+  const base = configuredBaseUrl();
   const token = unsubscribeToken(orgId, contactId);
   return base && token ? `${base}/unsubscribe/${token}` : null;
 }

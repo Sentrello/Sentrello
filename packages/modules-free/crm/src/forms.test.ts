@@ -1296,3 +1296,95 @@ test("a form saved from a stale builder is refused, not written over", async () 
     .where(eq(schema.forms.id, form.id));
   expect(row?.fields.map((f) => f.name)).toEqual(["phone"]);
 });
+
+test("a form sends people on to a web address and nowhere else", async () => {
+  const refusedOnCreate = await app.request("http://localhost/api/forms", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      name: "Script redirect",
+      redirectUrl: "javascript:alert(document.cookie)",
+    }),
+  });
+  expect(refusedOnCreate.status).toBe(400);
+
+  const created = await app.request("http://localhost/api/forms", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      name: "Redirect form",
+      redirectUrl: " https://acme.com/thanks ",
+    }),
+  });
+  expect(created.status).toBe(201);
+  const { form } = (await created.json()) as {
+    form: { id: string; redirectUrl: string | null };
+  };
+  expect(form.redirectUrl).toBe("https://acme.com/thanks");
+
+  for (const redirectUrl of [
+    "javascript:alert(1)",
+    "data:text/html,<script>alert(1)</script>",
+    "//evil.example",
+    "/\\evil.example",
+    "not an address",
+    42,
+  ]) {
+    const res = await app.request(`http://localhost/api/forms/${form.id}`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ redirectUrl }),
+    });
+    expect(res.status).toBe(400);
+  }
+  const [stored] = await db
+    .select({ redirectUrl: schema.forms.redirectUrl })
+    .from(schema.forms)
+    .where(eq(schema.forms.id, form.id));
+  expect(stored?.redirectUrl).toBe("https://acme.com/thanks");
+
+  // Blank still means our own thank-you page.
+  const cleared = await app.request(`http://localhost/api/forms/${form.id}`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify({ redirectUrl: "" }),
+  });
+  expect(cleared.status).toBe(200);
+  const [after] = await db
+    .select({ redirectUrl: schema.forms.redirectUrl })
+    .from(schema.forms)
+    .where(eq(schema.forms.id, form.id));
+  expect(after?.redirectUrl).toBeNull();
+});
+
+test("an address saved before that check is not followed", async () => {
+  const [form] = await db
+    .select({ id: schema.forms.id })
+    .from(schema.forms)
+    .where(eq(schema.forms.key, contactFormKey));
+  if (!form) throw new Error("expected the contact form");
+  await db
+    .update(schema.forms)
+    .set({ redirectUrl: "javascript:alert(document.cookie)" })
+    .where(eq(schema.forms.id, form.id));
+  try {
+    const res = await submitFromBrowser(contactFormKey, {
+      name: "Old Redirect",
+      email: "old-redirect@buyer.example",
+    });
+    expect(res.status).toBe(201);
+    expect(res.headers.get("location")).toBeNull();
+
+    const embed = await app.request(
+      `http://localhost/api/embed/forms/${contactFormKey}`,
+      { headers: { origin: "https://acme.com" } },
+    );
+    const body = (await embed.json()) as { redirectUrl: string | null };
+    expect(body.redirectUrl).toBeNull();
+  } finally {
+    await db
+      .update(schema.forms)
+      .set({ redirectUrl: null })
+      .where(eq(schema.forms.id, form.id));
+  }
+});

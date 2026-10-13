@@ -5,6 +5,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { db, eq, schema } from "@sentrello/db";
+import { baseUrl } from "@sentrello/db/base-url";
 import { mailConfigured } from "@sentrello/email";
 import {
   type ModuleContext,
@@ -54,7 +55,7 @@ export function registerDiagnostics(ctx: ModuleContext) {
         (m) => holdsAdmin(m.role) && !m.disabledAt,
       ).length;
 
-      const baseUrl = process.env.SENTRELLO_BASE_URL ?? "http://localhost:3000";
+      const instance = baseUrl();
       const ipHeader =
         clientIpOptions(process.env).ipAddressHeaders[0] ?? "x-real-ip";
 
@@ -82,8 +83,8 @@ export function registerDiagnostics(ctx: ModuleContext) {
         headerBelieved: who.proxied,
         /** Whether a hop list is narrowing it at all. */
         trustedProxies: trustedHops(process.env),
-        baseUrl,
-        https: baseUrl.startsWith("https://"),
+        baseUrl: instance,
+        https: instance.startsWith("https://"),
         mailConfigured: mailConfigured(),
         administrators,
       });

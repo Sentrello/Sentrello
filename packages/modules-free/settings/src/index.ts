@@ -4,6 +4,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { db, schema } from "@sentrello/db";
+import { baseUrl } from "@sentrello/db/base-url";
 import {
   MARKET_CURRENCIES,
   baseCurrencyLocked,
@@ -258,8 +259,7 @@ export default defineModule({
           .where(eq(schema.organizations.id, orgId))
           .limit(1);
 
-        const base =
-          process.env.SENTRELLO_BASE_URL ?? new URL(c.req.url).origin;
+        const base = baseUrl();
 
         return c.json({
           business: {

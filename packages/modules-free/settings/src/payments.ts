@@ -4,6 +4,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { type DbTx, and, asc, db, eq, schema, sql } from "@sentrello/db";
+import { baseUrl } from "@sentrello/db/base-url";
 import { dayIn, dayLabel } from "@sentrello/db/day";
 import type { PaymentAccount } from "@sentrello/db/payments";
 import { asTextOrNothing } from "@sentrello/db/request-values";
@@ -463,9 +464,7 @@ export function registerPaymentAccounts(ctx: ModuleContext) {
        * where they are going instead.
        */
       let webhookSecret = account.webhookSecret;
-      const ourWebhook = `${
-        process.env.SENTRELLO_BASE_URL ?? new URL(c.req.url).origin
-      }/api/payments/webhook/${provider}`;
+      const ourWebhook = `${baseUrl()}/api/payments/webhook/${provider}`;
       /*
        * And whether the events that do arrive are being accepted.
        *

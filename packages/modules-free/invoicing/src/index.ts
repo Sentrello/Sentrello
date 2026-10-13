@@ -6,6 +6,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { at, db, isUuid, schema, sql } from "@sentrello/db";
+import { baseUrl } from "@sentrello/db/base-url";
 import { MOVED, UNUSABLE_CLAIM, versionClaim } from "@sentrello/db/concurrency";
 import { creditFor } from "@sentrello/db/credit";
 import {
@@ -144,7 +145,6 @@ async function sendReceipt(
   },
   amountCents: number,
   balanceCents: number,
-  requestUrl: string,
   /** False on Pro: a paying business sends under its own name. */
   sentrelloCredit = true,
 ): Promise<void> {
@@ -165,7 +165,7 @@ async function sendReceipt(
     if (!contact?.email) return;
 
     const token = await ensurePortalToken(contact);
-    const base = process.env.SENTRELLO_BASE_URL ?? new URL(requestUrl).origin;
+    const base = baseUrl();
     const business = await businessIdentity(orgId);
 
     await emailAdapter().send({
@@ -1106,7 +1106,6 @@ export default defineModule({
           invoice,
           amountCents,
           balanceDue,
-          c.req.url,
           !ctx.entitled({ tier: "pro" }),
         );
 
@@ -1390,8 +1389,7 @@ export default defineModule({
         }
 
         const token = await ensurePortalToken(contact);
-        const base =
-          process.env.SENTRELLO_BASE_URL ?? new URL(c.req.url).origin;
+        const base = baseUrl();
         const [org] = await db
           .select({ name: schema.organizations.name })
           .from(schema.organizations)
@@ -2374,8 +2372,7 @@ export default defineModule({
             ? await ensurePortalToken(contact, true)
             : await ensurePortalToken(contact);
 
-        const base =
-          process.env.SENTRELLO_BASE_URL ?? new URL(c.req.url).origin;
+        const base = baseUrl();
         const url = `${base}/portal/${token}`;
 
         // Sending is the point: a link the business has to copy out of a
@@ -2841,8 +2838,7 @@ export default defineModule({
         }
 
         const token = await ensurePortalToken(contact);
-        const base =
-          process.env.SENTRELLO_BASE_URL ?? new URL(c.req.url).origin;
+        const base = baseUrl();
         const [org] = await db
           .select({ name: schema.organizations.name })
           .from(schema.organizations)

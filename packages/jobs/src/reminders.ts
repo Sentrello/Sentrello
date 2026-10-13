@@ -1,4 +1,5 @@
 import { chunks, db, schema } from "@sentrello/db";
+import { configuredBaseUrl } from "@sentrello/db/base-url";
 import { dayIn, daysLate } from "@sentrello/db/day";
 import { creditedAgainst } from "@sentrello/db/documents";
 import {
@@ -436,7 +437,7 @@ export async function runReminders(
      */
     let portalUrl: string | undefined;
     try {
-      const base = process.env.SENTRELLO_BASE_URL;
+      const base = configuredBaseUrl();
       if (base) {
         portalUrl = `${base}/portal/${await ensurePortalToken(contact)}`;
       }

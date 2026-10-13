@@ -594,3 +594,39 @@ test("the library's own accept refuses a link whose sender can no longer invite"
       .where(ownersSeat);
   }
 });
+
+test("an invitation link names this instance, whatever Host the request carried", async () => {
+  const before = process.env.SENTRELLO_BASE_URL;
+  const ask = (email: string) =>
+    app.request("http://evil.example/api/users/invitations", {
+      method: "POST",
+      headers: (() => {
+        const h = new Headers(headers);
+        h.set("host", "evil.example");
+        h.set("x-forwarded-host", "evil.example");
+        return h;
+      })(),
+      body: JSON.stringify({ email, role: "staff" }),
+    });
+  try {
+    process.env.SENTRELLO_BASE_URL = "https://books.example";
+    const configured = await ask(`host-a-${suffix}@example.test`);
+    expect(configured.status).toBe(201);
+    const { link } = (await configured.json()) as { link: string };
+    expect(link.startsWith("https://books.example/accept-invitation?")).toBe(
+      true,
+    );
+
+    // Unset is the sign-in default, never the caller's host.
+    Reflect.deleteProperty(process.env, "SENTRELLO_BASE_URL");
+    const unset = await ask(`host-b-${suffix}@example.test`);
+    expect(unset.status).toBe(201);
+    const second = ((await unset.json()) as { link: string }).link;
+    expect(second).not.toContain("evil.example");
+    expect(second.startsWith("http://localhost:3000/")).toBe(true);
+  } finally {
+    if (before === undefined) {
+      Reflect.deleteProperty(process.env, "SENTRELLO_BASE_URL");
+    } else process.env.SENTRELLO_BASE_URL = before;
+  }
+});

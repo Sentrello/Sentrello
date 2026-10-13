@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { rateLimit } from "@sentrello/module-sdk";
 import { and, eq, isNull } from "drizzle-orm";
+import { configuredBaseUrl } from "./base-url";
 import { db } from "./client";
 import * as schema from "./schema";
 
@@ -217,7 +218,7 @@ export async function accountUrlFor(
   contactId: string | null,
 ): Promise<string | null> {
   if (!contactId) return null;
-  const base = process.env.SENTRELLO_BASE_URL;
+  const base = configuredBaseUrl();
   if (!base) return null;
 
   const [contact] = await db
@@ -231,9 +232,7 @@ export async function accountUrlFor(
     )
     .limit(1);
 
-  return contact?.portalToken
-    ? `${base.replace(/\/$/, "")}/account/${contact.portalToken}`
-    : null;
+  return contact?.portalToken ? `${base}/account/${contact.portalToken}` : null;
 }
 
 /**
