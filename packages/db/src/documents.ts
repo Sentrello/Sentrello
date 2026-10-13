@@ -12,8 +12,14 @@ import { alias } from "drizzle-orm/pg-core";
 import { type DbTx, db } from "./client";
 import { baseCurrency, rateOn } from "./currency";
 import { dayIn, dayOf } from "./day";
-import { postInvoiceIssued } from "./ledger";
-import { MoneyError, bpToPpm, documentTotals, sumCents } from "./money";
+import { postInvoiceIssued, reverseJournalEntries } from "./ledger";
+import {
+  MoneyError,
+  bpToPpm,
+  documentTotals,
+  invoiceStatus,
+  sumCents,
+} from "./money";
 import { nextDocumentNumber } from "./numbering";
 import * as schema from "./schema";
 import { demandDay, timezoneFor } from "./timezone";
@@ -1485,4 +1491,187 @@ export function unmoved(
     held.paidCents === paidCents &&
     held.creditedCents === creditedCents
   );
+}
+
+/**
+ * Why `voidInvoice` left an invoice as it was.
+ *
+ * Words for the caller to choose, not messages: the invoicing route answers a
+ * person, and a module voiding the bill for something called off answers
+ * nobody and only logs.
+ */
+export type VoidRefusal =
+  | "not found"
+  | "already void"
+  | "paid"
+  | "credited"
+  | "moved";
+
+/**
+ * Voiding an invoice that should never have been raised.
+ *
+ * Reversed in the books rather than deleted from them: the number stays
+ * used, the document stays readable, and the ledger carries an equal and
+ * opposite entry. A gap in an invoice sequence is the first thing an auditor
+ * asks about.
+ *
+ * Refused once anything has been paid against it — that is a credit note,
+ * because money actually moved and pretending otherwise loses it.
+ *
+ * Here rather than in the invoicing route since 2026-10-12, because a second
+ * caller needs exactly this and nothing less: a cancelled appointment left
+ * its bill owed, and a void written a second time in another module would
+ * have been the one that forgot the late fee or the credit note's source.
+ *
+ * `tx` runs it inside the caller's transaction, as a savepoint, so a refusal
+ * or a lock somebody else holds rolls back this and nothing of the caller's.
+ */
+export async function voidInvoice(
+  orgId: string,
+  invoiceId: string,
+  options: { tx?: DbTx } = {},
+): Promise<
+  | { invoice: typeof schema.invoices.$inferSelect; refused?: undefined }
+  | { refused: VoidRefusal; invoice?: undefined }
+> {
+  const conn = options.tx ?? db;
+  const [invoice] = await conn
+    .select()
+    .from(schema.invoices)
+    .where(
+      and(
+        eq(schema.invoices.id, invoiceId),
+        eq(schema.invoices.organizationId, orgId),
+        isNull(schema.invoices.deletedAt),
+      ),
+    )
+    .limit(1);
+  if (!invoice) return { refused: "not found" };
+  if (invoice.status === "void") return { refused: "already void" };
+
+  const paid = await conn
+    .select({ amountCents: schema.payments.amountCents })
+    .from(schema.payments)
+    .where(
+      and(
+        eq(schema.payments.invoiceId, invoice.id),
+        eq(schema.payments.organizationId, orgId),
+      ),
+    );
+  if (paid.length > 0) return { refused: "paid" };
+
+  // Refused once a credit note stands against it, for the mirror-image
+  // reason: the note already reversed the sale in the books, and the
+  // void's reversal on top would take the income out twice.
+  const credited =
+    (await creditedAgainst(orgId, [invoice.id], conn)).get(invoice.id) ?? 0;
+  if (credited > 0) return { refused: "credited" };
+
+  /*
+   * And "not already void" belongs in the statement, not above it.
+   *
+   * Same shape as issuing: the check at the top of this function is a read,
+   * and writing on the id alone left a gap two voids arriving together both
+   * passed — so the reversal below posted twice and took the income out
+   * twice, which is a negative sale on every report that counts them.
+   */
+  /*
+   * And "nothing paid, nothing credited" belongs there too. A payment
+   * landing between the checks above and this write left a void invoice
+   * with money against it and a reversal that took the sale out under the
+   * payment. Held as `holdInvoice` holds it, so a payment or a credit
+   * note in flight is refused or refuses this.
+   */
+  const write = async (tx: DbTx) => {
+    const held = await holdInvoice(tx, orgId, invoice.id);
+    if (held.invoice.status === "void") return null;
+    if (!unmoved(held, invoice, 0, 0)) throw new InvoiceMoved();
+    const [row] = await tx
+      .update(schema.invoices)
+      .set({ status: "void", updatedAt: new Date() })
+      .where(
+        and(
+          eq(schema.invoices.id, invoice.id),
+          eq(schema.invoices.organizationId, orgId),
+          ne(schema.invoices.status, "void"),
+        ),
+      )
+      .returning();
+    if (!row) return null;
+    // A draft was never in the books, so there is nothing to reverse.
+    //
+    // The reversal is the issued entry with its sides swapped, line for
+    // line, rather than an entry rebuilt from the invoice's figures. The
+    // rebuilt one had two ways to disagree with what it was undoing: it
+    // posted face-value cents whatever currency the document was in, and
+    // it debited one tax account when the issue may have credited
+    // several — leaving every account touched still carrying a balance
+    // the void was supposed to remove.
+    //
+    // In the claiming commit: posted after it, a crash or a refused
+    // posting between the two left a void invoice whose receivable was
+    // still in the books.
+    //
+    // A credit note posts under its own source, so its void reverses
+    // that one — reversing `invoice:` found nothing and left the credit
+    // in the books.
+    const creditNote = invoice.kind === "credit_note";
+    if (invoice.status !== "draft") {
+      await reverseJournalEntries(
+        orgId,
+        `${creditNote ? "credit-note" : "invoice"}:${invoice.id}`,
+        `Void ${creditNote ? "credit note" : "invoice"} ${invoice.number}`,
+        undefined,
+        { tx },
+      );
+      // A late fee the reminder sweep charged is part of the total and
+      // posts under its own source; voided with the invoice, or the
+      // fee stays owed in Receivable on a document nobody owes.
+      await reverseJournalEntries(
+        orgId,
+        `late-fee:${invoice.id}`,
+        `Void late fee on ${invoice.number}`,
+        undefined,
+        { tx },
+      );
+    }
+    /*
+     * And the invoice it credited is owed that part again. The credit
+     * settled it the way a payment does, writing its status; a void that
+     * left the status alone kept an invoice reading `credited` while
+     * every balance worked out from its documents — which no longer
+     * count a void note — said the customer owed it all. Read under the
+     * hold, after the note is void, the same arithmetic the credit used.
+     */
+    if (creditNote && invoice.referenceInvoiceId) {
+      const source = await holdInvoice(tx, orgId, invoice.referenceInvoiceId);
+      const { status } = invoiceStatus(
+        source.invoice.totalCents - source.invoice.earlyDiscountTakenCents,
+        source.paidCents,
+        source.creditedCents,
+      );
+      await tx
+        .update(schema.invoices)
+        .set({ status, updatedAt: new Date() })
+        .where(
+          and(
+            eq(schema.invoices.id, source.invoice.id),
+            eq(schema.invoices.organizationId, orgId),
+          ),
+        );
+    }
+    return row;
+  };
+
+  const voided = await (options.tx
+    ? options.tx.transaction(write)
+    : db.transaction(write)
+  ).catch((err: unknown) => {
+    if (err instanceof InvoiceMoved) return "moved" as const;
+    throw err;
+  });
+  if (voided === "moved") return { refused: "moved" };
+  // Somebody else voided it first. Their reversal is the one in the books.
+  if (!voided) return { refused: "already void" };
+  return { invoice: voided };
 }
