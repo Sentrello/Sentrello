@@ -4,7 +4,11 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { and, db, eq, inArray, schema } from "@sentrello/db";
-import { type LineTax, lineCharges } from "@sentrello/db/money";
+import {
+  type LineTax,
+  lineAmountCents,
+  lineCharges,
+} from "@sentrello/db/money";
 import { contentDisposition, secrets } from "@sentrello/module-sdk";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import {
@@ -207,9 +211,7 @@ export function registerEInvoice(ctx: ModuleContext) {
          * back-out the totals were built with; otherwise the XML would state
          * the gross as the net and every validator would reject the sums.
          */
-        const quoted = Math.round(
-          (line.quantityMilli * line.unitPriceCents) / 1000,
-        );
+        const quoted = lineAmountCents(line.quantityMilli, line.unitPriceCents);
         const onLine: LineTax[] = line.taxes?.length
           ? line.taxes
           : [{ ratePpm: line.taxRatePpm, rateBp: line.taxRateBp }];

@@ -17,7 +17,7 @@ import type { PgColumn } from "drizzle-orm/pg-core";
 import { alias } from "drizzle-orm/pg-core";
 import { currentActor } from "./actor";
 import type { DbTx } from "./client";
-import { RATE_SCALE, toBaseCents } from "./currency";
+import { RATE_SCALE, clearedInBase, toBaseCents } from "./currency";
 import { dayIn, dayOf } from "./day";
 import { db, schema } from "./index";
 import { sumCents } from "./money";
@@ -1231,6 +1231,13 @@ export async function postCreditNoteIssued(
     totalCents: number;
     /** What the credited document's currency was worth when it was raised. */
     rateMicro?: number | null;
+    /**
+     * What had already settled the credited invoice, in its currency, read
+     * under its lock: payments, earlier notes and any early-payment saving.
+     * Given, the note clears the step it adds to that running total rather
+     * than its own conversion, the way a payment does — see `clearedInBase`.
+     */
+    settledBeforeCents?: number;
   },
   memo?: string,
   postedAt?: Date,
@@ -1244,8 +1251,13 @@ export async function postCreditNoteIssued(
   ]);
 
   const rate = note.rateMicro ?? RATE_SCALE;
-  const credit = toBaseCents(note.totalCents, rate);
-  const tax = toBaseCents(note.taxCents, rate);
+  const credit =
+    note.settledBeforeCents === undefined
+      ? toBaseCents(note.totalCents, rate)
+      : clearedInBase(rate, note.settledBeforeCents, note.totalCents);
+  // Never more than the credit: a one-cent note that is all tax can step a
+  // cent short of its own tax, and a negative net would unbalance the entry.
+  const tax = Math.min(toBaseCents(note.taxCents, rate), credit);
   const net = credit - tax;
 
   await postJournalEntry(

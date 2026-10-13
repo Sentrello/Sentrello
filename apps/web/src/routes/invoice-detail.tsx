@@ -1,3 +1,4 @@
+import { lineAmountCents } from "@sentrello/db/money";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { announce } from "../lib/announce";
@@ -373,9 +374,7 @@ export function InvoiceDetail() {
                 <td className="money">{formatMoney(line.unitPriceCents)}</td>
                 <td className="money">
                   {formatMoney(
-                    Math.round(
-                      (line.quantityMilli / 1000) * line.unitPriceCents,
-                    ),
+                    lineAmountCents(line.quantityMilli, line.unitPriceCents),
                   )}
                 </td>
               </Row>

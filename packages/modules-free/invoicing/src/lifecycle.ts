@@ -542,7 +542,11 @@ export function registerLifecycle(ctx: ModuleContext) {
            */
           await postCreditNoteIssued(
             orgId,
-            made,
+            {
+              ...made,
+              settledBeforeCents:
+                held.paidCents + already + source.earlyDiscountTakenCents,
+            },
             `Credit note ${made.number} against ${source.number}`,
             undefined,
             { tx },

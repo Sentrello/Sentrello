@@ -6,7 +6,11 @@ import {
   creditFor,
 } from "@sentrello/db/credit";
 import { creditedAgainst } from "@sentrello/db/documents";
-import { earlyPaymentTerms, invoiceState } from "@sentrello/db/money";
+import {
+  earlyPaymentTerms,
+  invoiceState,
+  lineAmountCents,
+} from "@sentrello/db/money";
 import { deadLinkPage } from "@sentrello/db/portal";
 import { businessIdentity, moneyLocale } from "@sentrello/db/portal";
 import { timezoneFor } from "@sentrello/db/timezone";
@@ -371,11 +375,11 @@ function documentPage(args: {
       <td>${esc(l.description)}</td>
       <td class="num">${quantity(l.quantityMilli)}${l.unit && l.unit !== "piece" ? ` ${esc(l.unit)}` : ""}</td>
       <td class="num">${money(l.unitPriceCents, args.currency, args.locale)}</td>
-      <td class="num">${money(Math.round((l.quantityMilli / 1000) * l.unitPriceCents), args.currency, args.locale)}</td>
+      <td class="num">${money(lineAmountCents(l.quantityMilli, l.unitPriceCents), args.currency, args.locale)}</td>
     </tr>`;
 
   const net = (l: DocumentLine) =>
-    Math.round((l.quantityMilli / 1000) * l.unitPriceCents);
+    lineAmountCents(l.quantityMilli, l.unitPriceCents);
 
   /**
    * Merged invoices read as the several jobs they were.

@@ -11,6 +11,7 @@ import { creditFor } from "@sentrello/db/credit";
 import {
   RATE_SCALE,
   baseCurrency,
+  clearedInBase,
   rateOn,
   toBaseCents,
 } from "@sentrello/db/currency";
@@ -922,8 +923,22 @@ export default defineModule({
          * Receivable clears by what was actually applied to it, not by the
          * full cash received — an overpayment held as credit never touched
          * this invoice's debt, so it must not appear to clear it.
+         *
+         * And by the step this payment adds to everything settled so far,
+         * not by its own conversion: parts converted one by one need not add
+         * up to the total converted once, and a paid invoice kept a cent on
+         * Receivables. See `clearedInBase`. The figures it starts from are
+         * checked again under the invoice's lock below.
          */
-        const clearedCents = toBaseCents(appliedCents, issuedRate);
+        const settledBeforeCents =
+          paidBeforeCents +
+          creditedBeforeCents +
+          invoice.earlyDiscountTakenCents;
+        const clearedCents = clearedInBase(
+          issuedRate,
+          settledBeforeCents,
+          appliedCents,
+        );
         const cashCents = toBaseCents(amountCents, paidRate);
         /**
          * The FX gain or loss is computed off what today's rate makes the
@@ -976,7 +991,13 @@ export default defineModule({
             orgId,
             CORE_ACCOUNTS.salesDiscounts,
           );
-          const savedCents = toBaseCents(terms.savingCents, issuedRate);
+          // The next step along: the saving settles the invoice after the
+          // payment beside it does.
+          const savedCents = clearedInBase(
+            issuedRate,
+            settledBeforeCents + appliedCents,
+            terms.savingCents,
+          );
           postings.push({
             accountId: discounts,
             debitCents: savedCents,

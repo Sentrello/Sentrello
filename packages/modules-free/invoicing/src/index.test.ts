@@ -168,6 +168,7 @@ afterAll(async () => {
     [schema.customerCredits, schema.customerCredits.organizationId],
     [schema.invoicingSettings, schema.invoicingSettings.organizationId],
     [schema.ledgerSettings, schema.ledgerSettings.organizationId],
+    [schema.exchangeRates, schema.exchangeRates.organizationId],
   ] as const) {
     await db.delete(table).where(eq(column, orgId));
   }
@@ -299,6 +300,71 @@ test("paying the remainder marks the invoice paid", async () => {
   const paid = (await res.json()) as { status: string; balanceDue: number };
   expect(paid.status).toBe("paid");
   expect(paid.balanceDue).toBe(0);
+});
+
+test("a foreign invoice paid in parts leaves nothing on Receivables", async () => {
+  // €100.01 at 1.500001 is $150.02. Paid €0.01, €0.01 and €99.99, each
+  // converted on its own came to $0.02 + $0.02 + $149.99 = $150.03.
+  await db.insert(schema.exchangeRates).values({
+    organizationId: orgId,
+    code: "EUR",
+    rateMicro: 1_500_001,
+    asOf: new Date(Date.now() - 24 * 60 * 60 * 1000),
+  });
+  const res = await app.request("http://localhost/api/invoices", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      contactId,
+      currency: "EUR",
+      lines: [{ description: "Survey", quantity: 1, unitPrice: 10_001 }],
+    }),
+  });
+  expect(res.status).toBe(201);
+  const { invoice } = (await res.json()) as {
+    invoice: typeof schema.invoices.$inferSelect;
+  };
+  expect(invoice.rateMicro).toBe(1_500_001);
+
+  let last = { status: "", balanceDue: -1 };
+  for (const amountCents of [1, 1, 9_999]) {
+    const paid = await app.request(
+      `http://localhost/api/invoices/${invoice.id}/payments`,
+      { method: "POST", headers, body: JSON.stringify({ amountCents }) },
+    );
+    expect(paid.status).toBe(201);
+    last = (await paid.json()) as typeof last;
+  }
+  expect(last).toMatchObject({ status: "paid", balanceDue: 0 });
+
+  const payments = await db
+    .select({ id: schema.payments.id })
+    .from(schema.payments)
+    .where(eq(schema.payments.invoiceId, invoice.id));
+  const sources = [
+    `invoice:${invoice.id}`,
+    ...payments.map((p) => `payment:${p.id}`),
+  ];
+  const ar = await ensureAccount(orgId, CORE_ACCOUNTS.accountsReceivable);
+  const moved = await db
+    .select({
+      debitCents: schema.journalLines.debitCents,
+      creditCents: schema.journalLines.creditCents,
+    })
+    .from(schema.journalLines)
+    .innerJoin(
+      schema.journalEntries,
+      eq(schema.journalEntries.id, schema.journalLines.entryId),
+    )
+    .where(
+      and(
+        eq(schema.journalEntries.organizationId, orgId),
+        inArray(schema.journalEntries.source, sources),
+        eq(schema.journalLines.accountId, ar),
+      ),
+    );
+  expect(moved.reduce((n, l) => n + l.debitCents, 0)).toBe(15_002);
+  expect(moved.reduce((n, l) => n + l.creditCents, 0)).toBe(15_002);
 });
 
 test("a non-integer or negative payment is rejected", async () => {

@@ -74,6 +74,74 @@ function cents(value: unknown, field: string): number {
 }
 
 /**
+ * `a × b ÷ divisor`, rounded half away from zero, in integers throughout.
+ *
+ * Dividing first is the trap. `(1150 / 1000) * 5250` is 6037.4999…, because
+ * 1.15 has no exact binary form, so an exact half cent rounded down and a line
+ * of 1.15 hours at £52.50 billed £60.37 rather than £60.38. Multiplying first
+ * keeps the product a whole number and the remainder exact, so the half is
+ * seen as a half. Half away from zero, so a credit line rounds as far as the
+ * sale it mirrors. A product past `Number.MAX_SAFE_INTEGER` (tens of billions
+ * of dollars times a thousandth) is worked in BigInt rather than trusted.
+ */
+export function mulDivRound(a: number, b: number, divisor: number): number {
+  if (
+    !Number.isSafeInteger(a) ||
+    !Number.isSafeInteger(b) ||
+    !Number.isSafeInteger(divisor) ||
+    divisor === 0
+  ) {
+    throw new MoneyError("money arithmetic takes whole numbers");
+  }
+  const product = a * b;
+  if (Number.isSafeInteger(product)) {
+    const rest = product % divisor;
+    const whole = (product - rest) / divisor;
+    const away = Math.sign(product) * Math.sign(divisor);
+    return (Math.abs(rest) * 2 >= Math.abs(divisor) ? whole + away : whole) + 0;
+  }
+  const big = BigInt(a) * BigInt(b);
+  const by = BigInt(divisor);
+  const rest = big % by;
+  const whole = big / by;
+  const absRest = rest < 0n ? -rest : rest;
+  const absBy = by < 0n ? -by : by;
+  const away = big < 0n !== by < 0n ? -1n : 1n;
+  const rounded = absRest * 2n >= absBy ? whole + away : whole;
+  if (
+    rounded > BigInt(Number.MAX_SAFE_INTEGER) ||
+    rounded < BigInt(Number.MIN_SAFE_INTEGER)
+  ) {
+    throw new MoneyError("that amount is too large to hold in cents");
+  }
+  return Number(rounded);
+}
+
+/**
+ * What a line comes to: thousandths of a unit times a price in cents.
+ *
+ * Every screen, page and document that shows a line's amount asks this, so the
+ * figure printed beside a line is the figure the totals were built from.
+ */
+export function lineAmountCents(
+  quantityMilli: number,
+  unitPriceCents: number,
+): number {
+  return mulDivRound(quantityMilli, unitPriceCents, 1000);
+}
+
+/**
+ * A quantity in units as the thousandths it is stored in.
+ *
+ * Every line column holds thousandths, so a quantity is read at that
+ * precision: 1.15 becomes 1150 exactly rather than carrying 1.15's binary
+ * error into the multiplication.
+ */
+function milliOf(quantity: number): number {
+  return Math.round(quantity * 1000);
+}
+
+/**
  * The rate a line or tax actually carries, in millionths.
  *
  * The millionths field governs when present; the deprecated basis-point
@@ -109,7 +177,7 @@ export function lineTotals(lines: TaxedLine[]) {
 
     // Rounded per line: a fractional quantity times a price in cents is not
     // necessarily a whole number of cents, and the total must be.
-    const net = Math.round(quantity * unitPrice);
+    const net = lineAmountCents(milliOf(quantity), unitPrice);
     subtotal += net;
     tax += Math.round((net * ratePpm) / RATE_SCALE_PPM);
   }
@@ -578,7 +646,7 @@ export function documentTotals(
     }
     const unitPrice = cents(l?.unitPrice, `line ${i + 1}: unitPrice`);
     resolveRatePpm(l?.taxRatePpm, l?.taxRateBp, `line ${i + 1}: taxRatePpm`);
-    const amount = Math.round(quantity * unitPrice);
+    const amount = lineAmountCents(milliOf(quantity), unitPrice);
     amounts.push(amount);
     quoted += amount;
 

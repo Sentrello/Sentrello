@@ -7,6 +7,7 @@ import {
   invoiceState,
   invoiceStatus,
   isOverdue,
+  lineAmountCents,
   lineTotals,
   parseAmountToCents,
   percentFromPpm,
@@ -33,6 +34,21 @@ test("lineTotals sums integer cents with per-line tax", () => {
     { quantity: 1, unitPrice: 2500, taxRateBp: 0 }, // 2500 net, 0 tax
   ]);
   expect(t).toEqual({ subtotal: 12500, tax: 875, total: 13375 });
+});
+
+test("an exact half cent on a fractional quantity rounds up, as it is", () => {
+  // 1.15 hours at 52.50 is 6037.5 cents exactly. Divided first, 1.15 is
+  // 1.1499999… in binary and the line came to 6037.
+  const line = { quantity: 1.15, unitPrice: 5250, taxRatePpm: 99_750 };
+  expect(lineTotals([line]).subtotal).toBe(6038);
+  expect(documentTotals([line]).subtotal).toBe(6038);
+  // The figure a page prints beside the line is the same one.
+  expect(lineAmountCents(1150, 5250)).toBe(6038);
+  // 0.07 × 3150 is 220.5: and the credit line rounds as far the other way.
+  expect(lineAmountCents(70, 3150)).toBe(221);
+  expect(lineAmountCents(70, -3150)).toBe(-221);
+  // Past what a double holds exactly, worked in BigInt rather than guessed.
+  expect(lineAmountCents(123_456_789, 98_765_437)).toBe(12_193_263_716_202);
 });
 
 test("tax rounds per line, not on the invoice total", () => {

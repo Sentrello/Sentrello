@@ -32,6 +32,42 @@ export function toBaseCents(amountCents: number, rateMicro: number): number {
 }
 
 /**
+ * What one settlement of a foreign-currency document clears, in base cents.
+ *
+ * The receivable went in as one conversion of the whole total. Paid in three
+ * parts, each converted on its own, the parts round three times and need not
+ * add up to it: an invoice of €100.01 at 1.500001 was booked as $150.02 and
+ * cleared by payments of €0.01, €0.01 and €99.99 worth $0.02, $0.02 and
+ * $149.99 — paid in full, and Receivables a cent below nothing for ever.
+ *
+ * So the running total is converted instead, and each settlement clears the
+ * step it adds: what everything settled so far is worth after it, less what
+ * it was worth before. The steps telescope, so the settlement that completes
+ * the document clears exactly the conversion of its total, which is what was
+ * posted. Whatever rounding that moves lands in the gap between this figure
+ * and the cash, which every caller already sends to the exchange account.
+ *
+ * `settledBeforeCents` is everything that has cleared the document so far in
+ * its own currency — payments (net of refunds), credit notes and any
+ * early-payment saving — read under the document's row lock, or the step is
+ * worked out from a total that has already moved. `settlingCents` is this
+ * settlement; negative for a refund, which puts back the same step it would
+ * have taken off. The purchase side's `billPaymentAmounts` is the same
+ * arithmetic for a bill.
+ */
+export function clearedInBase(
+  rateMicro: number | null | undefined,
+  settledBeforeCents: number,
+  settlingCents: number,
+): number {
+  const rate = rateMicro ?? RATE_SCALE;
+  return (
+    toBaseCents(settledBeforeCents + settlingCents, rate) -
+    toBaseCents(settledBeforeCents, rate)
+  );
+}
+
+/**
  * A whole journal entry converted into base currency, still balanced.
  *
  * Converting each line on its own and hoping is how an entry comes out a penny
