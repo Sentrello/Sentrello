@@ -212,6 +212,39 @@ test("a member can be suspended and restored, and cannot sign in while suspended
   expect(actions).toContain("account.enabled");
 });
 
+/**
+ * Taken off by the library's own endpoint, or suspended with a session that
+ * outlived it, a person is signed out on their next request.
+ *
+ * The Users screen deletes sessions when it removes or suspends somebody, and
+ * that was the whole of it: `/api/auth/organization/remove-member` is served
+ * as well and deletes only the membership, and nothing asked again.
+ */
+test("a member removed by any route, or suspended, is not signed in any more", async () => {
+  const address = `side-door-${suffix}@example.test`;
+  const person = await inviteAndAccept(address);
+  const security = () =>
+    app.request("http://localhost/api/users/me/security", {
+      headers: person.headers,
+    });
+  expect((await security()).status).toBe(200);
+
+  const seat = and(
+    eq(schema.member.organizationId, orgId),
+    eq(schema.member.userId, person.userId),
+  );
+  await db.update(schema.member).set({ disabledAt: new Date() }).where(seat);
+  expect((await security()).status).toBe(401);
+  await db.update(schema.member).set({ disabledAt: null }).where(seat);
+  expect((await security()).status).toBe(200);
+
+  await auth.api.removeMember({
+    body: { memberIdOrEmail: address, organizationId: orgId },
+    headers,
+  });
+  expect((await security()).status).toBe(401);
+});
+
 test("disabled must be true or false, not left to guesswork", async () => {
   const person = await inviteAndAccept(`badbody-${suffix}@example.test`);
   const res = await app.request(`http://localhost/api/users/${person.userId}`, {

@@ -94,6 +94,7 @@ import {
   parseEarlyPayment,
   prepareDocument,
   quotesGross,
+  taxesOnLines,
   unsavedOnAnEdit,
   writeTaxBands,
 } from "./documents";
@@ -1806,6 +1807,15 @@ export default defineModule({
               // a draft raised while quoting net stays net even if the setting
               // has been flipped since, or its total would change under it.
               invoice.pricesIncludeTax,
+              taxesOnLines(
+                await db
+                  .select({
+                    taxDefinitionId: schema.invoiceLines.taxDefinitionId,
+                    taxes: schema.invoiceLines.taxes,
+                  })
+                  .from(schema.invoiceLines)
+                  .where(eq(schema.invoiceLines.invoiceId, id)),
+              ),
             );
           } catch (err) {
             if (err instanceof MoneyError) {
@@ -2083,6 +2093,15 @@ export default defineModule({
               discount,
               // The quote's own answer — see the invoice patch above.
               quote.pricesIncludeTax,
+              taxesOnLines(
+                await db
+                  .select({
+                    taxDefinitionId: schema.quoteLines.taxDefinitionId,
+                    taxes: schema.quoteLines.taxes,
+                  })
+                  .from(schema.quoteLines)
+                  .where(eq(schema.quoteLines.quoteId, quote.id)),
+              ),
             );
           } catch (err) {
             if (err instanceof MoneyError) {

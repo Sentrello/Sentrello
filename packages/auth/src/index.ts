@@ -15,6 +15,7 @@ import { createAuthMiddleware } from "better-auth/api";
 import { hashPassword as defaultHashPassword } from "better-auth/crypto";
 import { organization, twoFactor } from "better-auth/plugins";
 import type { Context } from "hono";
+import { inviterStillMay } from "./api-keys";
 import { organizationGuard } from "./organization-policy";
 import { passwordFloorGuard } from "./password-floor";
 import { ac, roles } from "./permissions";
@@ -485,6 +486,26 @@ export const auth = betterAuth({
        * only to us.
        */
       dynamicAccessControl: { enabled: true },
+      /*
+       * The library's own accept endpoint is reachable through `mountAuth`
+       * with nothing but the invitation's id, so the sender is asked here,
+       * where both that door and our own link end up.
+       */
+      organizationHooks: {
+        beforeAcceptInvitation: async ({ invitation }) => {
+          if (
+            !(await inviterStillMay(
+              invitation.organizationId,
+              invitation.inviterId,
+            ))
+          ) {
+            throw new APIError("FORBIDDEN", {
+              message:
+                "This invitation was withdrawn. Ask to be invited again.",
+            });
+          }
+        },
+      },
       creatorRole: "admin", // instance owner
       /**
        * Five hundred, because a small business is not always five people.

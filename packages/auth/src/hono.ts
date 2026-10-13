@@ -101,6 +101,40 @@ export function requireSession() {
 
     const session = await auth.api.getSession({ headers: c.req.raw.headers });
     if (!session) return c.json({ error: "unauthorized" }, 401);
+
+    /*
+     * Still a member here, and not suspended, asked on every request.
+     *
+     * Suspending somebody deletes their sessions, and removing them through
+     * the Users screen does too, so this used to be taken on trust. The
+     * library's own `/organization/remove-member` is served by `mountAuth`
+     * and deletes the membership alone: the person stayed signed in, and a
+     * session that outlived a suspension by any other route passed every
+     * permission check, because Better Auth's check knows nothing of
+     * `disabledAt`. A key asks the same of its maker on every call. Found
+     * 13 October 2026.
+     */
+    const orgId = session.session.activeOrganizationId;
+    let seat: { role: string } | null = null;
+    if (orgId) {
+      const [member] = await db
+        .select({
+          role: schema.member.role,
+          disabledAt: schema.member.disabledAt,
+        })
+        .from(schema.member)
+        .where(
+          and(
+            eq(schema.member.organizationId, orgId),
+            eq(schema.member.userId, session.user.id),
+          ),
+        )
+        .limit(1);
+      if (!member || member.disabledAt) {
+        return c.json({ error: "unauthorized" }, 401);
+      }
+      seat = member;
+    }
     c.set("session", session as SentrelloSession);
     /**
      * Everything this request does is attributed to whoever made it.
@@ -122,7 +156,7 @@ export function requireSession() {
     const refusal =
       (await idleRefusal(session)) ??
       (await hipaaRefusal(session, c.req.path)) ??
-      (await secondFactorRefusal(session, c.req.path));
+      (await secondFactorRefusal(session, seat, c.req.path));
     if (refusal) return c.json({ error: refusal.error }, refusal.status);
 
     await asActor(session.user.id, () => next());
@@ -343,6 +377,18 @@ async function secondFactorRefusal(
     session: { activeOrganizationId?: string | null };
     user: { id: string; twoFactorEnabled?: boolean | null };
   },
+  /*
+   * Every role this person holds, their own and their groups', as the
+   * membership row `requireSession` has just read.
+   *
+   * The row rather than the users module's own `effectiveRoles`: this runs
+   * under every request in the product and the auth package cannot import a
+   * module that imports it. `member.role` is where that function writes the
+   * union it derives, which is the field to ask — and a member whose role has
+   * not been recomputed since groups arrived still carries their own role in
+   * it.
+   */
+  member: { role: string } | null,
   path: string,
 ): Promise<{ error: string; status: 403 } | null> {
   const orgId = session.session.activeOrganizationId;
@@ -352,27 +398,6 @@ async function secondFactorRefusal(
 
   const required = await rolesNeedingTwoFactor(orgId);
   if (required.length === 0) return null;
-
-  /*
-   * Every role this person holds, their own and their groups'.
-   *
-   * Read straight from the row rather than through the users module's own
-   * `effectiveRoles`: this runs under every request in the product and the
-   * auth package cannot import a module that imports it. `member.role` is
-   * where that function writes the union it derives, which is the field to
-   * ask — and a member whose role has not been recomputed since groups
-   * arrived still carries their own role in it.
-   */
-  const [member] = await db
-    .select({ role: schema.member.role })
-    .from(schema.member)
-    .where(
-      and(
-        eq(schema.member.organizationId, orgId),
-        eq(schema.member.userId, session.user.id),
-      ),
-    )
-    .limit(1);
   if (!member) return null;
 
   const held = member.role

@@ -800,6 +800,13 @@ test("somebody who belongs to no business is offered nothing at all", async () =
   await db
     .delete(schema.member)
     .where(eq(schema.member.userId, user?.id as string));
+  // And a session pointed at no business, which is what signing in gives an
+  // account with no membership. One still pointed at a business it has left
+  // is refused outright: that is somebody removed, not a billing account.
+  await db
+    .update(schema.session)
+    .set({ activeOrganizationId: null })
+    .where(eq(schema.session.userId, user?.id as string));
 
   const after = (await (
     await server.fetch(new Request("http://localhost/api/_meta", { headers }))

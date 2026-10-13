@@ -6288,3 +6288,60 @@ test("a tax rate corrected while somebody renames it keeps both changes", async 
     expect(row?.name).toBe(`County sales tax ${round}`);
   }
 });
+
+/**
+ * A retired rate charges nothing new, and still saves the drafts raised at it.
+ *
+ * Retiring takes a rate out of the line editor and nothing behind it asked:
+ * the API, or a screen opened before the change, went on charging the old
+ * rate on today's work.
+ */
+test("a retired tax rate is refused on new work and kept on the drafts that carry it", async () => {
+  const oldRate = await makeTax({ name: "Retired 6%", rateBp: 600 });
+  const line = {
+    description: "Call-out",
+    quantity: 1,
+    unitPriceCents: 10_000,
+    taxDefinitionId: oldRate,
+  };
+  const draft = async () => {
+    const res = await app.request("http://localhost/api/invoices", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ contactId, status: "draft", lines: [line] }),
+    });
+    expect(res.status).toBe(201);
+    return ((await res.json()) as { invoice: { id: string } }).invoice;
+  };
+  const first = await draft();
+  const second = await draft();
+
+  const retired = await app.request(
+    `http://localhost/api/invoicing/taxes/${oldRate}`,
+    { method: "DELETE", headers },
+  );
+  expect(retired.status).toBe(200);
+
+  const fresh = await createInvoice([line]);
+  expect(fresh.res.status).toBe(400);
+
+  const edited = await app.request(
+    `http://localhost/api/invoices/${first.id}`,
+    {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ lines: [{ ...line, unitPriceCents: 12_000 }] }),
+    },
+  );
+  expect(edited.status).toBe(200);
+
+  const merged = await app.request(
+    "http://localhost/api/invoices/consolidate",
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ invoiceIds: [first.id, second.id] }),
+    },
+  );
+  expect(merged.status).toBe(201);
+});

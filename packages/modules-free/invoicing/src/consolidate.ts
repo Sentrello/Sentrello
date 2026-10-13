@@ -17,6 +17,7 @@ import {
   type IncomingLine,
   parseDiscount,
   prepareDocument,
+  taxesOnLines,
   writeTaxBands,
 } from "./documents";
 
@@ -198,6 +199,8 @@ export function registerConsolidate(ctx: ModuleContext) {
           incoming,
           parseDiscount(body),
           pricesIncludeTax,
+          // The drafts' own rates, retired or not: merging is not new work.
+          taxesOnLines(lines),
         );
       } catch (err) {
         if (err instanceof MoneyError) {

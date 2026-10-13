@@ -278,6 +278,25 @@ test("ownedAccount — true for this business's account, false for a stranger's 
   expect(await ownedAccount(orgId, "not-a-uuid")).toBe(false);
 });
 
+test("ownedAccount — an archived account refuses a posting unless the record already holds it", async () => {
+  const [retired] = await db
+    .insert(schema.accounts)
+    .values({
+      organizationId: orgId,
+      code: `9${Math.floor(Math.random() * 900 + 100)}`,
+      name: "Retired",
+      type: "expense",
+      archivedAt: new Date(),
+    })
+    .returning({ id: schema.accounts.id });
+  const id = retired?.id ?? "";
+  // Still this business's, for restoring, reconciling and reporting.
+  expect(await ownedAccount(orgId, id)).toBe(true);
+  expect(await ownedAccount(orgId, id, {})).toBe(false);
+  expect(await ownedAccount(orgId, id, { keeping: [id] })).toBe(true);
+  expect(await ownedAccount(orgId, cashId, {})).toBe(true);
+});
+
 test("ledgerRows — reads back what postJournalEntry wrote, scoped to the org", async () => {
   const incomeId = await db
     .insert(schema.accounts)

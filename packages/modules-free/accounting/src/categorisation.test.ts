@@ -192,6 +192,82 @@ test("recategorising onto an asset account is refused too", async () => {
 });
 
 /**
+ * An archived account takes no new money, and still takes a correction.
+ *
+ * Archiving hides an account from the chart and from every picker, and
+ * nothing behind them asked: an expense posted by the API to one landed where
+ * nobody looks. A record already posting there is edited with the form's
+ * whole body sent back, so naming the same account again is not new money.
+ */
+test("an archived account refuses new postings but keeps its corrections", async () => {
+  const retired = await account("6900", "Old Courier Costs", "expense");
+  const drawer = await account("1090", "Old Float", "asset");
+  const kept = await post("/api/expenses", {
+    amountCents: 1_200,
+    accountId: retired,
+    paidThroughAccountId: drawer,
+    vendor: "Courier",
+  });
+  expect(kept.status).toBe(201);
+  const { expense } = (await kept.json()) as { expense: { id: string } };
+
+  for (const id of [retired, drawer]) {
+    const archived = await req(`/api/accounts/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ archived: true }),
+    });
+    expect(archived.status).toBe(200);
+  }
+
+  const toRetired = await post("/api/expenses", {
+    amountCents: 500,
+    accountId: retired,
+    paidThroughAccountId: cash,
+    vendor: "Courier",
+  });
+  expect(toRetired.status).toBe(400);
+  const fromRetired = await post("/api/expenses", {
+    amountCents: 500,
+    accountId: overheads,
+    paidThroughAccountId: drawer,
+    vendor: "Courier",
+  });
+  expect(fromRetired.status).toBe(400);
+
+  const corrected = await req(`/api/transactions/${expense.id}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      amountCents: 1_250,
+      accountId: retired,
+      paidThroughAccountId: drawer,
+    }),
+  });
+  expect(corrected.status).toBe(200);
+
+  const moved = await post("/api/expenses", {
+    amountCents: 700,
+    accountId: overheads,
+    paidThroughAccountId: cash,
+    vendor: "Courier",
+  });
+  const { expense: other } = (await moved.json()) as {
+    expense: { id: string };
+  };
+  const onto = await req(`/api/transactions/${other.id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ accountId: retired }),
+  });
+  expect(onto.status).toBe(400);
+
+  // Restoring one is still possible, which is what the chart asks with.
+  const restored = await req(`/api/accounts/${retired}`, {
+    method: "PATCH",
+    body: JSON.stringify({ archived: false }),
+  });
+  expect(restored.status).toBe(200);
+});
+
+/**
  * An account that is not this business's still says "unknown account".
  *
  * The new message names a *kind*, and must not become the answer to a question

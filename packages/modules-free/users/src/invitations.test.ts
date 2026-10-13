@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, schema } from "@sentrello/db";
-import { eq, inArray } from "@sentrello/db/orm";
+import { and, eq, inArray } from "@sentrello/db/orm";
 import { dropOrganization } from "@sentrello/db/testing";
 import { registerForTest } from "@sentrello/module-sdk";
 import { seedDefaults } from "./defaults";
@@ -518,4 +518,79 @@ test("ten invitations to one address at once leave one link that works", async (
   ).filter((r) => r.status === "pending");
   expect(pending.length).toBeGreaterThanOrEqual(1);
   expect(live.length).toBe(1);
+});
+
+/**
+ * An invitation is the inviter's say-so, and it lasts only as long as they
+ * could still give it.
+ *
+ * Suspending or demoting an administrator ended their sessions and their keys,
+ * and left every link they had handed out admitting people, with whatever role
+ * they had chosen. Asked on both doors: our own link, and the library's accept
+ * endpoint, which a signed-in invitee can reach with the invitation's id.
+ */
+test("a link sent by somebody since suspended admits nobody", async () => {
+  const { token } = await invite(`after-suspension-${suffix}@example.test`);
+  const ownersSeat = and(
+    eq(schema.member.organizationId, orgId),
+    eq(schema.member.userId, ownerId),
+  );
+  await db
+    .update(schema.member)
+    .set({ disabledAt: new Date() })
+    .where(ownersSeat);
+  try {
+    const described = await app.request(
+      `http://localhost/api/invitations/${token}`,
+      { headers: new Headers(ip) },
+    );
+    expect(described.status).toBe(410);
+    const res = await accept(token, {
+      name: "Late Arrival",
+      password: "correct-horse-battery-staple",
+    });
+    expect(res.status).toBe(410);
+    expect(((await res.json()) as { error: string }).error).toBe("withdrawn");
+  } finally {
+    await db.update(schema.member).set({ disabledAt: null }).where(ownersSeat);
+  }
+});
+
+test("the library's own accept refuses a link whose sender can no longer invite", async () => {
+  const email = `after-demotion-${suffix}@example.test`;
+  const { id } = await invite(email);
+  const invitee = await auth.api.signUpEmail({
+    body: { email, password: "correct-horse-battery-staple", name: "Ola Late" },
+    returnHeaders: true,
+  });
+  joined.push(invitee.response.user.id);
+  const cookie = invitee.headers.get("set-cookie") ?? "";
+
+  const ownersSeat = and(
+    eq(schema.member.organizationId, orgId),
+    eq(schema.member.userId, ownerId),
+  );
+  const [seat] = await db
+    .select({ role: schema.member.role })
+    .from(schema.member)
+    .where(ownersSeat);
+  await db.update(schema.member).set({ role: "staff" }).where(ownersSeat);
+  try {
+    await expect(
+      auth.api.acceptInvitation({
+        body: { invitationId: id },
+        headers: new Headers({ cookie }),
+      }),
+    ).rejects.toThrow();
+    const memberships = await db
+      .select({ id: schema.member.id })
+      .from(schema.member)
+      .where(eq(schema.member.userId, invitee.response.user.id));
+    expect(memberships).toHaveLength(0);
+  } finally {
+    await db
+      .update(schema.member)
+      .set({ role: seat?.role ?? "admin" })
+      .where(ownersSeat);
+  }
 });

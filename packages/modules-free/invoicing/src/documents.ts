@@ -131,11 +131,40 @@ function quantityMilliOf(line: IncomingLine, index: number): number {
  * different numbers. A line that names no definition may still carry a bare
  * rate, which is what the older callers send.
  */
+/**
+ * Every named rate stored lines carry, for `prepareDocument`'s `keeping`.
+ *
+ * Read off a document's own lines before an edit, so a draft raised at a rate
+ * since retired can still be saved at it.
+ */
+export function taxesOnLines(
+  lines: {
+    taxDefinitionId: string | null;
+    taxes?: { taxDefinitionId: string | null }[] | null;
+  }[],
+): string[] {
+  return lines.flatMap((line) => [
+    ...(line.taxDefinitionId ? [line.taxDefinitionId] : []),
+    ...(line.taxes ?? []).flatMap((t) =>
+      t.taxDefinitionId ? [t.taxDefinitionId] : [],
+    ),
+  ]);
+}
+
 export async function prepareDocument(
   orgId: string,
   incoming: IncomingLine[],
   discount: Discount = null,
   pricesIncludeTax = false,
+  /*
+   * Rates the document being edited already charges.
+   *
+   * A retired rate is taken out of the line editor and was accepted by
+   * everything behind it, so a stale screen or the API went on charging it on
+   * new work — a rate retired because it changed is the old rate on today's
+   * invoice. Refused now, except on the document that already carries it.
+   */
+  keeping: readonly string[] = [],
 ): Promise<PreparedDocument> {
   if (!Array.isArray(incoming) || incoming.length === 0) {
     throw new MoneyError("a document needs at least one line");
@@ -196,6 +225,7 @@ export async function prepareDocument(
         ratePpm: schema.taxDefinitions.ratePpm,
         categoryCode: schema.taxDefinitions.categoryCode,
         compound: schema.taxDefinitions.compound,
+        active: schema.taxDefinitions.active,
       })
       .from(schema.taxDefinitions)
       .where(
@@ -209,6 +239,11 @@ export async function prepareDocument(
     // refused rather than treated as zero — charging no tax by accident is the
     // expensive direction.
     if (!found) throw new MoneyError("that tax rate does not exist");
+    if (!found.active && !keeping.includes(id)) {
+      throw new MoneyError(
+        `${found.name} has been retired — choose a current rate`,
+      );
+    }
     definitions.set(id, found);
   }
 

@@ -4,7 +4,12 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { and, db, eq, isNull, isUuid, schema } from "@sentrello/db";
-import { ensureAccount, ownedAccount } from "@sentrello/db/ledger";
+import {
+  type ToPost,
+  ensureAccount,
+  ownedAccount,
+  postable,
+} from "@sentrello/db/ledger";
 import { sumCents } from "@sentrello/db/money";
 import { asText, checkedText, notText } from "@sentrello/db/text-columns";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
@@ -508,10 +513,15 @@ export async function ownedAccountOfType(
   orgId: string,
   accountId: string,
   types: readonly AccountType[],
+  toPost?: ToPost,
 ): Promise<boolean> {
   if (!isUuid(String(accountId))) return false;
   const [row] = await db
-    .select({ type: schema.accounts.type })
+    .select({
+      id: schema.accounts.id,
+      type: schema.accounts.type,
+      archivedAt: schema.accounts.archivedAt,
+    })
     .from(schema.accounts)
     .where(
       and(
@@ -520,5 +530,6 @@ export async function ownedAccountOfType(
       ),
     )
     .limit(1);
-  return Boolean(row) && types.includes(row?.type as AccountType);
+  if (!row || !postable(row, toPost)) return false;
+  return types.includes(row.type as AccountType);
 }

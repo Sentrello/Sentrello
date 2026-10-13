@@ -205,6 +205,34 @@ export async function memberMay(
   }
 }
 
+/**
+ * Whether whoever sent an invitation could still send it today.
+ *
+ * An invitation is its sender's say-so, carried in a link, with the role they
+ * chose. Suspending them, removing them or taking away their right to invite
+ * ended their sessions and their keys and left every link they had handed out
+ * still admitting people. Asked when the link is followed, the way a key asks
+ * after its maker on every call, so each of those undoes the links as well.
+ * Found 13 October 2026.
+ */
+export async function inviterStillMay(
+  organizationId: string,
+  inviterId: string,
+): Promise<boolean> {
+  const [member] = await db
+    .select({ disabledAt: schema.member.disabledAt })
+    .from(schema.member)
+    .where(
+      and(
+        eq(schema.member.organizationId, organizationId),
+        eq(schema.member.userId, inviterId),
+      ),
+    )
+    .limit(1);
+  if (!member || member.disabledAt) return false;
+  return memberMay(organizationId, inviterId, { invitation: ["create"] });
+}
+
 /** What a key caller may do: its own list, and its maker's current access. */
 export async function apiKeyMay(
   key: Pick<ApiKeyCaller, "organizationId" | "permissions"> & {

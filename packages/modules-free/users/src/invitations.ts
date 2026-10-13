@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { auth, clientIp } from "@sentrello/auth";
+import { inviterStillMay } from "@sentrello/auth/api-keys";
 import {
   activeOrganizationId,
   isKeyCaller,
@@ -67,6 +68,7 @@ type TokenLookup =
         role: string | null;
         status: string;
         expiresAt: Date;
+        inviterId: string;
       };
     };
 
@@ -88,6 +90,7 @@ async function byToken(token: string): Promise<TokenLookup> {
       role: schema.invitation.role,
       status: schema.invitation.status,
       expiresAt: schema.invitation.expiresAt,
+      inviterId: schema.invitation.inviterId,
     })
     .from(schema.invitation)
     .where(eq(schema.invitation.tokenHash, sha256(token)))
@@ -98,6 +101,10 @@ async function byToken(token: string): Promise<TokenLookup> {
     return { state: "withdrawn", invitation };
   if (invitation.expiresAt < new Date())
     return { state: "expired", invitation };
+  // Its sender suspended, removed or no longer able to invite: the link went
+  // with them. Better Auth's accept asks the same, for its own door.
+  if (!(await inviterStillMay(invitation.organizationId, invitation.inviterId)))
+    return { state: "withdrawn", invitation };
   return { state: "ok", invitation };
 }
 

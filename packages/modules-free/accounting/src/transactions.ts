@@ -247,9 +247,12 @@ export async function createTransaction(
    */
   if (
     body.accountId &&
-    !(await ownedAccountOfType(orgId, asText(body.accountId, "accountId"), [
-      CATEGORY_TYPE[kind],
-    ]))
+    !(await ownedAccountOfType(
+      orgId,
+      asText(body.accountId, "accountId"),
+      [CATEGORY_TYPE[kind]],
+      {},
+    ))
   ) {
     return { error: CATEGORY_ERROR[kind] };
   }
@@ -258,6 +261,7 @@ export async function createTransaction(
     !(await ownedAccount(
       orgId,
       asText(body.paidThroughAccountId, "paidThroughAccountId"),
+      {},
     ))
   ) {
     return { error: "unknown account" };
@@ -547,15 +551,21 @@ export function registerTransactions(ctx: ModuleContext) {
       const kind = existing.kind as TransactionKind;
       if (
         body.accountId &&
-        !(await ownedAccountOfType(orgId, body.accountId, [
-          CATEGORY_TYPE[kind],
-        ]))
+        !(await ownedAccountOfType(
+          orgId,
+          body.accountId,
+          [CATEGORY_TYPE[kind]],
+          // A correction keeps what it already posts to, archived or not.
+          { keeping: [existing.accountId] },
+        ))
       ) {
         return c.json({ error: CATEGORY_ERROR[kind] }, 400);
       }
       if (
         body.paidThroughAccountId &&
-        !(await ownedAccount(orgId, body.paidThroughAccountId))
+        !(await ownedAccount(orgId, body.paidThroughAccountId, {
+          keeping: [existing.paidThroughAccountId],
+        }))
       ) {
         return c.json({ error: "unknown account" }, 400);
       }

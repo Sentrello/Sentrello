@@ -1531,14 +1531,49 @@ function isUuid(value: string): boolean {
   );
 }
 
-/** An id the caller supplied, confirmed to belong to this business. */
+/**
+ * What an account about to receive postings may be, beyond this business's.
+ *
+ * Archived is closed to new money: the chart hides an archived account and
+ * every picker leaves it out, so an entry posted to one through the API — or a
+ * screen holding a stale list — lands where nobody looks, and the account a
+ * business retired goes on filling. `keeping` names what the record being
+ * corrected already posts to, which stays open, for the reason an archived
+ * class does (`ownedDimension`): fixing a typo on last year's expense must not
+ * send somebody to restore an account first. Reversals post through
+ * `reverseJournalEntries` and are never asked.
+ */
+export interface ToPost {
+  keeping?: readonly (string | null | undefined)[];
+}
+
+/** Whether an account's archive leaves it open to this posting. */
+export function postable(
+  account: { id: string; archivedAt: Date | null },
+  toPost: ToPost | undefined,
+): boolean {
+  return (
+    !toPost ||
+    !account.archivedAt ||
+    (toPost.keeping ?? []).includes(account.id)
+  );
+}
+
+/**
+ * An id the caller supplied, confirmed to belong to this business.
+ *
+ * Pass `toPost` where the id is about to be posted to; without it an archived
+ * account still answers yes, which is right for restoring, renaming,
+ * reconciling or reporting on one.
+ */
 export async function ownedAccount(
   orgId: string,
   accountId: string,
+  toPost?: ToPost,
 ): Promise<boolean> {
   if (!isUuid(String(accountId))) return false;
   const [row] = await db
-    .select({ id: schema.accounts.id })
+    .select({ id: schema.accounts.id, archivedAt: schema.accounts.archivedAt })
     .from(schema.accounts)
     .where(
       and(
@@ -1547,7 +1582,7 @@ export async function ownedAccount(
       ),
     )
     .limit(1);
-  return Boolean(row);
+  return row !== undefined && postable(row, toPost);
 }
 
 /**

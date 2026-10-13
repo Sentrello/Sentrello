@@ -258,6 +258,8 @@ everywhere else:
 
 - **An automation acts as the person who published it.** It can never do more
   than they can, so writing a rule is not a way around your own permissions.
+  If you remove that person, or move them to a role without `manage` on the
+  CRM, their automations stop until someone else publishes them.
 - **A rule's own work does not set off other rules**, unless you say it should.
   "On update, update" is the first automation anybody builds by accident.
 - **Chains stop at five deep**, even when you do ask for them.
