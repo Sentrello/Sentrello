@@ -249,7 +249,12 @@ function Access({ group }: { group: GroupRow }) {
     mutationFn: (next: string[]) =>
       api(`/api/users/groups/${group.id}`, {
         method: "PATCH",
-        body: JSON.stringify({ roles: next }),
+        // The whole list, so it says which version it was built from: a
+        // colleague's tick since is refused, with a sentence, not dropped.
+        body: JSON.stringify({
+          roles: next,
+          ...(group.updatedAt ? { expectedUpdatedAt: group.updatedAt } : {}),
+        }),
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["user-groups"] }),
   });

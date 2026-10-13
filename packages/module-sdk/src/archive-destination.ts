@@ -78,8 +78,19 @@ export interface ArchiveDestination {
 
 const destinations = new Map<string, ArchiveDestination>();
 
-export function registerArchiveDestination(destination: ArchiveDestination) {
+/**
+ * Returns the way to take it back out, which only a test needs: the map is one
+ * per process, so a destination a suite registers would otherwise be offered
+ * to every suite that runs after it.
+ */
+export function registerArchiveDestination(
+  destination: ArchiveDestination,
+): () => void {
   destinations.set(destination.id, destination);
+  return () => {
+    if (destinations.get(destination.id) === destination)
+      destinations.delete(destination.id);
+  };
 }
 
 export function archiveDestinations(): ArchiveDestination[] {

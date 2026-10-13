@@ -3230,6 +3230,12 @@ export const forms = pgTable(
     notifyEmail: text("notify_email"),
     active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at").defaultNow().notNull(),
+    /**
+     * When the row last changed. Set by a trigger; see `companies`. The form
+     * builder saves the fields and the look whole, so this is the version a
+     * save says it was editing.
+     */
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (t) => [index("forms_org_idx").on(t.organizationId)],
 );
@@ -3794,6 +3800,12 @@ export const userGroups = pgTable(
     /** Role names, built-in or one the business defined for itself. */
     roles: jsonb("roles").$type<string[]>().notNull().default([]),
     createdAt: timestamp("created_at").defaultNow().notNull(),
+    /**
+     * When the row last changed. Set by a trigger; see `companies`. The roles
+     * are saved as a whole list, so this is the version a save says it was
+     * editing.
+     */
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (t) => [
     index("user_groups_org_idx").on(t.organizationId),

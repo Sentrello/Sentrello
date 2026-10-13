@@ -667,218 +667,260 @@ export default defineModule({
       requirePermission({ settings: ["update"] }),
       async (c) => {
         const orgId = activeOrganizationId(c.get("session"));
-        const body = await c.req.json().catch(() => ({}));
-
-        const name = asText(body.name, "name").trim();
-        if (!name) return c.json({ error: "a name is required" }, 400);
-        if (name.length > 120) {
-          return c.json({ error: "that name is too long" }, 400);
-        }
-
-        // These reach customers on every invoice, so they are bounded rather
-        // than trusted: an address is a few lines, not a document.
-        // Text or a 400 naming it: `String({})` put "[object Object]" on
-        // every invoice as the business's address.
-        const text = (value: unknown, limit: number, field: string) => {
-          const trimmed = (asTextOrNothing(value, field) ?? "").trim();
-          if (trimmed.length > limit) throw new RangeError(field);
-          return trimmed || null;
-        };
-
-        let address: string | null;
-        let taxId: string | null;
-        let taxIdLabel: string | null;
-        let paymentInstructions: string | null;
-        let timezone: string | null;
-        let creditText: string | null;
-        let creditUrl: string | null;
-        let city: string | null;
-        let postcode: string | null;
-        let countryCode: string | null;
-        let email: string | null;
-        let phone: string | null;
-        let iban: string | null;
-        try {
-          address = text(body.address, 500, "address");
-          taxId = text(body.taxId, 60, "tax number");
-          taxIdLabel = text(body.taxIdLabel, 40, "tax number label");
-          paymentInstructions = text(
-            body.paymentInstructions,
-            800,
-            "payment instructions",
-          );
-          timezone = text(body.timezone, 60, "timezone");
-          city = text(body.city, 120, "city");
-          postcode = text(body.postcode, 20, "postcode");
-          countryCode = text(body.countryCode, 2, "country code");
-          email = text(body.email, 200, "email");
-          phone = text(body.phone, 40, "phone number");
-          iban = text(body.iban, 50, "IBAN");
-          /*
-           * Not the `text()` helper, which reads an empty string as null.
-           * For the credit those are two different decisions: null is the
-           * setting untouched, so the Sentrello line shows; an empty string
-           * is the business removing the line, and collapsing one into the
-           * other would bring the branding back on a business that took it
-           * off — or take a removal it never made and make it permanent.
-           */
-          if (body.creditText === null || body.creditText === undefined) {
-            creditText = null;
-          } else {
-            creditText = asText(body.creditText, "creditText").trim();
-            if (creditText.length > 60) throw new RangeError("credit");
-          }
-          creditUrl = text(body.creditUrl, 200, "credit link");
-        } catch (err) {
-          if (err instanceof RangeError) {
-            return c.json({ error: `that ${err.message} is too long` }, 400);
-          }
-          throw err;
-        }
-
-        /**
-         * The screen was shown a mask, so it can only send one back.
-         *
-         * Saving an address must not wipe the tax number, and a form that
-         * round-trips what it was given would do exactly that. The mask coming
-         * back unchanged means "leave it"; anything else is a new number.
-         */
-        const [before] = await db
-          .select({ taxId: schema.organizations.taxId })
-          .from(schema.organizations)
-          .where(eq(schema.organizations.id, orgId))
-          .limit(1);
-        if (taxId !== null && taxId === maskTaxId(before?.taxId)) {
-          taxId = before?.taxId ?? null;
-        }
+        const parsed: unknown = await c.req.json().catch(() => ({}));
+        const sent =
+          parsed && typeof parsed === "object" && !Array.isArray(parsed)
+            ? (parsed as Record<string, unknown>)
+            : {};
 
         /*
-         * Checked against the ones this machine actually knows, rather than
-         * stored as typed.
+         * What was sent, laid over what is stored — read under a lock.
          *
-         * A timezone the server cannot resolve does not fail loudly: every
-         * calculation quietly falls back to the server's own, so a business
-         * that typed "EST" instead of "America/New_York" would see its Monday
-         * chases go out at the wrong hour and find nothing anywhere saying why.
-         * Refused at the door instead, where somebody is looking at the form
-         * they just filled in.
+         * The screen sent the whole form, built from the copy it had loaded,
+         * so two people saving the business details together each wrote back
+         * the other's fields as they had been: the address one of them had
+         * just corrected, put back by the other changing the phone number,
+         * and both answered 200. The screen now sends only what changed, a
+         * field left out is a field left alone, and the row lock makes a
+         * second save read what the first one wrote.
          */
-        if (timezone && !knownTimezone(timezone)) {
-          return c.json(
-            { error: `"${timezone}" is not a timezone this server knows` },
-            400,
-          );
-        }
+        return db.transaction(async (tx) => {
+          const [stored] = await tx
+            .select()
+            .from(schema.organizations)
+            .where(eq(schema.organizations.id, orgId))
+            .for("update");
+          if (!stored) return c.json({ error: "not found" }, 404);
+          const body: Record<string, unknown> = {
+            name: stored.name,
+            address: stored.address,
+            taxId: stored.taxId,
+            taxIdLabel: stored.taxIdLabel,
+            paymentInstructions: stored.paymentInstructions,
+            timezone: stored.timezone,
+            city: stored.city,
+            postcode: stored.postcode,
+            countryCode: stored.countryCode,
+            email: stored.email,
+            phone: stored.phone,
+            iban: stored.iban,
+            creditText: stored.creditText,
+            creditUrl: stored.creditUrl,
+            ...sent,
+          };
 
-        /*
-         * The country as two letters — "DE", not "Germany" — because the
-         * e-invoice standard reads nothing else, and a prose country typed
-         * here would surface weeks later as a rejected document.
-         */
-        if (countryCode) {
-          if (!/^[A-Za-z]{2}$/.test(countryCode)) {
-            return c.json(
-              {
-                error: 'the country goes in as two letters — "DE", "GB", "US"',
-              },
-              400,
+          const name = asText(body.name, "name").trim();
+          if (!name) return c.json({ error: "a name is required" }, 400);
+          if (name.length > 120) {
+            return c.json({ error: "that name is too long" }, 400);
+          }
+
+          // These reach customers on every invoice, so they are bounded rather
+          // than trusted: an address is a few lines, not a document.
+          // Text or a 400 naming it: `String({})` put "[object Object]" on
+          // every invoice as the business's address.
+          const text = (value: unknown, limit: number, field: string) => {
+            const trimmed = (asTextOrNothing(value, field) ?? "").trim();
+            if (trimmed.length > limit) throw new RangeError(field);
+            return trimmed || null;
+          };
+
+          let address: string | null;
+          let taxId: string | null;
+          let taxIdLabel: string | null;
+          let paymentInstructions: string | null;
+          let timezone: string | null;
+          let creditText: string | null;
+          let creditUrl: string | null;
+          let city: string | null;
+          let postcode: string | null;
+          let countryCode: string | null;
+          let email: string | null;
+          let phone: string | null;
+          let iban: string | null;
+          try {
+            address = text(body.address, 500, "address");
+            taxId = text(body.taxId, 60, "tax number");
+            taxIdLabel = text(body.taxIdLabel, 40, "tax number label");
+            paymentInstructions = text(
+              body.paymentInstructions,
+              800,
+              "payment instructions",
             );
-          }
-          countryCode = countryCode.toUpperCase();
-        }
-
-        /*
-         * The IBAN routes actual money, so a typo is checked at the door:
-         * shape first, then the standard mod-97 checksum every bank applies.
-         * Refusing here costs a retype; accepting quietly costs a transfer
-         * that bounces weeks after the invoice went out.
-         */
-        if (iban) {
-          iban = iban.replace(/\s+/g, "").toUpperCase();
-          const shaped = /^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$/.test(iban);
-          const digits = shaped
-            ? (iban.slice(4) + iban.slice(0, 4)).replace(/[A-Z]/g, (ch) =>
-                String(ch.charCodeAt(0) - 55),
-              )
-            : "";
-          let remainder = 0;
-          for (const digit of digits) {
-            remainder = (remainder * 10 + Number(digit)) % 97;
-          }
-          if (!shaped || remainder !== 1) {
-            return c.json(
-              { error: "that IBAN does not check out — one character is off" },
-              400,
-            );
-          }
-        }
-
-        /*
-         * The currency the books are kept in, on the screen that already holds
-         * the country and the timezone — the other two facts about where a
-         * business is.
-         *
-         * Written through `setBaseCurrency` rather than here, because
-         * Accounting has a route for the same column on Pro and two copies of
-         * "may this still change" would disagree the week one of them moved,
-         * about what somebody's books mean.
-         *
-         * Last, after every other field has been checked. It writes, and a save
-         * that then refused the country would have changed the currency and told
-         * the person nothing was saved.
-         */
-        if (body.baseCurrency !== undefined) {
-          const set = await setBaseCurrency(
-            orgId,
-            asText(body.baseCurrency, "baseCurrency"),
-          );
-          if ("error" in set) return c.json({ error: set.error }, set.status);
-        }
-
-        const [org] = await db
-          .update(schema.organizations)
-          .set({
-            name,
-            address,
-            taxId,
-            taxIdLabel,
-            paymentInstructions,
-            timezone,
-            city,
-            postcode,
-            countryCode,
-            email,
-            phone,
-            iban,
+            timezone = text(body.timezone, 60, "timezone");
+            city = text(body.city, 120, "city");
+            postcode = text(body.postcode, 20, "postcode");
+            countryCode = text(body.countryCode, 2, "country code");
+            email = text(body.email, 200, "email");
+            phone = text(body.phone, 40, "phone number");
+            iban = text(body.iban, 50, "IBAN");
             /*
-             * Ignored unless this instance is Pro. The credit on a Free
-             * instance is not the business's to change — it is part of what
-             * Free is — and a field that silently did nothing would be a
-             * setting somebody sets and then wonders about.
+             * Not the `text()` helper, which reads an empty string as null.
+             * For the credit those are two different decisions: null is the
+             * setting untouched, so the Sentrello line shows; an empty string
+             * is the business removing the line, and collapsing one into the
+             * other would bring the branding back on a business that took it
+             * off — or take a removal it never made and make it permanent.
              */
-            ...(ctx.entitled({ tier: "pro" }) ? { creditText, creditUrl } : {}),
-          })
-          .where(eq(schema.organizations.id, orgId))
-          .returning();
-        return c.json({
-          business: {
-            name: org?.name,
-            slug: org?.slug,
-            address: org?.address ?? "",
-            taxId: maskTaxId(org?.taxId),
-            taxIdLabel: org?.taxIdLabel ?? "",
-            paymentInstructions: org?.paymentInstructions ?? "",
-            city: org?.city ?? "",
-            postcode: org?.postcode ?? "",
-            countryCode: org?.countryCode ?? "",
-            email: org?.email ?? "",
-            phone: org?.phone ?? "",
-            iban: org?.iban ?? "",
-            timezone: org?.timezone ?? "",
-            creditText: org?.creditText ?? null,
-            creditUrl: org?.creditUrl ?? "",
-            canSetCredit: ctx.entitled({ tier: "pro" }),
-          },
+            if (body.creditText === null || body.creditText === undefined) {
+              creditText = null;
+            } else {
+              creditText = asText(body.creditText, "creditText").trim();
+              if (creditText.length > 60) throw new RangeError("credit");
+            }
+            creditUrl = text(body.creditUrl, 200, "credit link");
+          } catch (err) {
+            if (err instanceof RangeError) {
+              return c.json({ error: `that ${err.message} is too long` }, 400);
+            }
+            throw err;
+          }
+
+          /**
+           * The screen was shown a mask, so it can only send one back.
+           *
+           * Saving an address must not wipe the tax number, and a form that
+           * round-trips what it was given would do exactly that. The mask coming
+           * back unchanged means "leave it"; anything else is a new number.
+           */
+          if (taxId !== null && taxId === maskTaxId(stored.taxId)) {
+            taxId = stored.taxId ?? null;
+          }
+
+          /*
+           * Checked against the ones this machine actually knows, rather than
+           * stored as typed.
+           *
+           * A timezone the server cannot resolve does not fail loudly: every
+           * calculation quietly falls back to the server's own, so a business
+           * that typed "EST" instead of "America/New_York" would see its Monday
+           * chases go out at the wrong hour and find nothing anywhere saying why.
+           * Refused at the door instead, where somebody is looking at the form
+           * they just filled in.
+           */
+          if (timezone && !knownTimezone(timezone)) {
+            return c.json(
+              { error: `"${timezone}" is not a timezone this server knows` },
+              400,
+            );
+          }
+
+          /*
+           * The country as two letters — "DE", not "Germany" — because the
+           * e-invoice standard reads nothing else, and a prose country typed
+           * here would surface weeks later as a rejected document.
+           */
+          if (countryCode) {
+            if (!/^[A-Za-z]{2}$/.test(countryCode)) {
+              return c.json(
+                {
+                  error:
+                    'the country goes in as two letters — "DE", "GB", "US"',
+                },
+                400,
+              );
+            }
+            countryCode = countryCode.toUpperCase();
+          }
+
+          /*
+           * The IBAN routes actual money, so a typo is checked at the door:
+           * shape first, then the standard mod-97 checksum every bank applies.
+           * Refusing here costs a retype; accepting quietly costs a transfer
+           * that bounces weeks after the invoice went out.
+           */
+          if (iban) {
+            iban = iban.replace(/\s+/g, "").toUpperCase();
+            const shaped = /^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$/.test(iban);
+            const digits = shaped
+              ? (iban.slice(4) + iban.slice(0, 4)).replace(/[A-Z]/g, (ch) =>
+                  String(ch.charCodeAt(0) - 55),
+                )
+              : "";
+            let remainder = 0;
+            for (const digit of digits) {
+              remainder = (remainder * 10 + Number(digit)) % 97;
+            }
+            if (!shaped || remainder !== 1) {
+              return c.json(
+                {
+                  error: "that IBAN does not check out — one character is off",
+                },
+                400,
+              );
+            }
+          }
+
+          /*
+           * The currency the books are kept in, on the screen that already holds
+           * the country and the timezone — the other two facts about where a
+           * business is.
+           *
+           * Written through `setBaseCurrency` rather than here, because
+           * Accounting has a route for the same column on Pro and two copies of
+           * "may this still change" would disagree the week one of them moved,
+           * about what somebody's books mean.
+           *
+           * Last, after every other field has been checked. It writes, and a save
+           * that then refused the country would have changed the currency and told
+           * the person nothing was saved.
+           */
+          if (body.baseCurrency !== undefined) {
+            const set = await setBaseCurrency(
+              orgId,
+              asText(body.baseCurrency, "baseCurrency"),
+              tx,
+            );
+            if ("error" in set) return c.json({ error: set.error }, set.status);
+          }
+
+          const [org] = await tx
+            .update(schema.organizations)
+            .set({
+              name,
+              address,
+              taxId,
+              taxIdLabel,
+              paymentInstructions,
+              timezone,
+              city,
+              postcode,
+              countryCode,
+              email,
+              phone,
+              iban,
+              /*
+               * Ignored unless this instance is Pro. The credit on a Free
+               * instance is not the business's to change — it is part of what
+               * Free is — and a field that silently did nothing would be a
+               * setting somebody sets and then wonders about.
+               */
+              ...(ctx.entitled({ tier: "pro" })
+                ? { creditText, creditUrl }
+                : {}),
+            })
+            .where(eq(schema.organizations.id, orgId))
+            .returning();
+          return c.json({
+            business: {
+              name: org?.name,
+              slug: org?.slug,
+              address: org?.address ?? "",
+              taxId: maskTaxId(org?.taxId),
+              taxIdLabel: org?.taxIdLabel ?? "",
+              paymentInstructions: org?.paymentInstructions ?? "",
+              city: org?.city ?? "",
+              postcode: org?.postcode ?? "",
+              countryCode: org?.countryCode ?? "",
+              email: org?.email ?? "",
+              phone: org?.phone ?? "",
+              iban: org?.iban ?? "",
+              timezone: org?.timezone ?? "",
+              creditText: org?.creditText ?? null,
+              creditUrl: org?.creditUrl ?? "",
+              canSetCredit: ctx.entitled({ tier: "pro" }),
+            },
+          });
         });
       },
     );

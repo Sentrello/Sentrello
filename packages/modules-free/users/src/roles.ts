@@ -117,6 +117,7 @@ export async function groupsOf(
       description: schema.userGroups.description,
       roles: schema.userGroups.roles,
       createdAt: schema.userGroups.createdAt,
+      updatedAt: schema.userGroups.updatedAt,
     })
     .from(schema.userGroupMembers)
     .innerJoin(

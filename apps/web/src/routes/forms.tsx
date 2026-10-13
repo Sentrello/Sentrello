@@ -36,6 +36,8 @@ type FormRow = FormDefinition & {
    * paused" described a column. Found 2026-09-28.
    */
   active: boolean;
+  /** The version a whole-list save says it was editing. */
+  updatedAt?: string;
 };
 
 /**
@@ -271,6 +273,7 @@ export function Forms() {
               style={panel.form.style ?? null}
               redirectUrl={panel.form.redirectUrl ?? null}
               notifyEmail={panel.form.notifyEmail ?? null}
+              updatedAt={panel.form.updatedAt ?? null}
               onDone={() => setPanel(null)}
             />
           )}
@@ -435,7 +438,12 @@ function AllowedSites({ form }: { form: FormRow }) {
     mutationFn: (next: string[]) =>
       api(`/api/forms/${form.id}`, {
         method: "PATCH",
-        body: JSON.stringify({ allowedOrigins: next }),
+        // The whole list, so it says which version it was built from: a site
+        // somebody else added since is refused rather than dropped.
+        body: JSON.stringify({
+          allowedOrigins: next,
+          ...(form.updatedAt ? { expectedUpdatedAt: form.updatedAt } : {}),
+        }),
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["forms"] }),
   });

@@ -1258,3 +1258,41 @@ test("an edit refuses a kind there is not and a look that is not one", async () 
   });
   expect(fine.status).toBe(200);
 });
+
+/**
+ * Two people with the builder open on one form.
+ *
+ * The builder saves the questions and the look whole, from the form as it was
+ * opened, so the second save dropped the first one's new question with both
+ * answering 200. A save that says which version it opened is refused once the
+ * form has moved.
+ */
+test("a form saved from a stale builder is refused, not written over", async () => {
+  const created = await app.request("http://localhost/api/forms", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name: "Two builders", kind: "contact" }),
+  });
+  const { form } = (await created.json()) as {
+    form: { id: string; updatedAt: string };
+  };
+  const save = (fields: { name: string; label: string; type: string }[]) =>
+    app.request(`http://localhost/api/forms/${form.id}`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ fields, expectedUpdatedAt: form.updatedAt }),
+    });
+
+  const phone = { name: "phone", label: "Phone", type: "tel" };
+  expect((await save([phone])).status).toBe(200);
+  const stale = await save([{ name: "budget", label: "Budget", type: "text" }]);
+  expect(stale.status).toBe(409);
+  expect(((await stale.json()) as { error: string }).error).toContain(
+    "Somebody else changed this",
+  );
+  const [row] = await db
+    .select({ fields: schema.forms.fields })
+    .from(schema.forms)
+    .where(eq(schema.forms.id, form.id));
+  expect(row?.fields.map((f) => f.name)).toEqual(["phone"]);
+});

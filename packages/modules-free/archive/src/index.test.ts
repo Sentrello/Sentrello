@@ -8,7 +8,11 @@ import {
   postJournalEntry,
 } from "@sentrello/db/ledger";
 import { dropOrganization } from "@sentrello/db/testing";
-import { registerForTest } from "@sentrello/module-sdk";
+import {
+  registerArchiveDestination,
+  registerForTest,
+} from "@sentrello/module-sdk";
+import { destinationFor } from "./destinations";
 import archive, { wholeMonths } from "./index";
 
 /**
@@ -378,4 +382,56 @@ test("the destination is configured here, and proves itself before it is trusted
       ),
     );
   expect(stored).toHaveLength(1);
+});
+
+test("a save that does not retype a stored secret keeps it, and only null clears it", async () => {
+  // The screen is handed "" for every sealed value, so it posts "" back for
+  // each secret nobody retyped. That used to be saved as the new value, and
+  // changing the bucket name erased the key that opened it.
+  const vaultId = `vault-${suffix}`;
+  const unregister = registerArchiveDestination({
+    id: vaultId,
+    label: "A vault",
+    description: "For this test only.",
+    fields: [
+      { name: "bucket", label: "Bucket", required: true },
+      { name: "key", label: "Key", secret: true },
+    ],
+    test: async () => ({ ok: true, detail: "" }),
+    put: async () => "",
+    async *get() {},
+    remove: async () => {},
+  });
+  const put = (values: Record<string, unknown>) =>
+    app.request("http://localhost/api/archive/destination", {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({ id: vaultId, values }),
+    });
+  try {
+    expect((await put({ bucket: "one", key: "s3cret" })).status).toBe(200);
+    const summary = (await (await get("/api/archive/destination")).json()) as {
+      values: Record<string, string>;
+      set: string[];
+    };
+    expect(summary.values.key).toBe("");
+    expect(summary.set).toContain("key");
+
+    // Exactly what the screen sends back after changing only the bucket.
+    expect((await put({ ...summary.values, bucket: "two" })).status).toBe(200);
+    const kept = await destinationFor(orgId);
+    expect(kept.config.bucket).toBe("two");
+    expect(kept.config.key).toBe("s3cret");
+
+    // Clearing it is a separate, explicit act.
+    expect((await put({ bucket: "two", key: null })).status).toBe(200);
+    expect((await destinationFor(orgId)).config.key).toBeUndefined();
+  } finally {
+    unregister();
+    await app.request("http://localhost/api/archive/destination", {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({ id: "folder", values: {} }),
+    });
+  }
 });

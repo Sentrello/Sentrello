@@ -276,7 +276,12 @@ function SignInRules() {
   });
 
   const save = useMutation({
-    mutationFn: (next: Partial<Policy>) =>
+    mutationFn: (
+      next: Partial<Policy> & {
+        requireTwoFactorAdd?: string[];
+        requireTwoFactorRemove?: string[];
+      },
+    ) =>
       api("/api/users/policy", {
         method: "PUT",
         body: JSON.stringify(next),
@@ -323,13 +328,14 @@ function SignInRules() {
                 title={maySave ? undefined : REFUSED}
                 aria-describedby={maySave ? undefined : refusedId}
                 onChange={(e) =>
-                  save.mutate({
-                    requireTwoFactorFor: e.target.checked
-                      ? [...current.requireTwoFactorFor, role.role]
-                      : current.requireTwoFactorFor.filter(
-                          (r) => r !== role.role,
-                        ),
-                  })
+                  // Only this tick: the server applies it to the stored
+                  // list, so a second tick before the first comes back is
+                  // added to it rather than written over it.
+                  save.mutate(
+                    e.target.checked
+                      ? { requireTwoFactorAdd: [role.role] }
+                      : { requireTwoFactorRemove: [role.role] },
+                  )
                 }
               />
               {policyLabel(role.role)}

@@ -3,7 +3,8 @@ import {
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
-import { and, asc, db, eq, schema } from "@sentrello/db";
+import { and, asc, at, db, eq, schema, sql } from "@sentrello/db";
+import { MOVED, UNUSABLE_CLAIM, versionClaim } from "@sentrello/db/concurrency";
 import { organizationMember } from "@sentrello/db/membership";
 import { asTextOrNothing } from "@sentrello/db/request-values";
 import { record } from "@sentrello/db/security-events";
@@ -262,6 +263,28 @@ export function registerGroups(ctx: ModuleContext) {
         return c.json({ error: "nothing to change" }, 400);
       }
 
+      /*
+       * The roles are saved as one list, built from the screen's copy, so a
+       * colleague's tick made in the meantime was written over with nothing
+       * said. The screen sends the version it showed, and a group that has
+       * moved since is refused rather than replaced. A caller that sends no
+       * version keeps the behaviour it had.
+       */
+      const [current] = await db
+        .select({ updatedAt: schema.userGroups.updatedAt })
+        .from(schema.userGroups)
+        .where(
+          and(
+            eq(schema.userGroups.id, id),
+            eq(schema.userGroups.organizationId, orgId),
+          ),
+        )
+        .limit(1);
+      if (!current) return c.json({ error: "not found" }, 404);
+      const claim = versionClaim(current, body);
+      if (claim === "moved") return c.json({ error: MOVED }, 409);
+      if (claim === "unusable") return c.json({ error: UNUSABLE_CLAIM }, 400);
+
       const [updated] = await db
         .update(schema.userGroups)
         .set(patch)
@@ -269,10 +292,19 @@ export function registerGroups(ctx: ModuleContext) {
           and(
             eq(schema.userGroups.id, id),
             eq(schema.userGroups.organizationId, orgId),
+            // And again in the statement that writes, to the millisecond as
+            // it was read: two saves of one version must not both pass.
+            claim === "current"
+              ? sql`date_trunc('milliseconds', ${schema.userGroups.updatedAt}) = ${at(current.updatedAt)}`
+              : undefined,
           ),
         )
         .returning();
-      if (!updated) return c.json({ error: "not found" }, 404);
+      if (!updated) {
+        return claim === "current"
+          ? c.json({ error: MOVED }, 409)
+          : c.json({ error: "not found" }, 404);
+      }
 
       for (const userId of await membersOfGroup(id)) {
         await applyRoles(orgId, userId);

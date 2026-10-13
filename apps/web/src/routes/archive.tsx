@@ -505,15 +505,27 @@ function Where() {
     onSuccess: setTested,
   });
 
+  /*
+   * A stored secret is never sent to this screen, so its box is empty and a
+   * save sends "" for it — which the server reads as "keep what is stored".
+   * Clearing one is a separate, explicit act: `null` for that field.
+   */
   const save = useMutation({
-    mutationFn: () =>
+    mutationFn: (clear?: string) =>
       api<Destination>("/api/archive/destination", {
         method: "PUT",
-        body: JSON.stringify({ id, values }),
+        body: JSON.stringify({
+          id,
+          values: clear ? { ...values, [clear]: null } : values,
+        }),
       }),
-    onSuccess: () =>
-      qc.invalidateQueries({ queryKey: ["archive", "destination"] }),
+    onSuccess: () => {
+      setEdits(null);
+      return qc.invalidateQueries({ queryKey: ["archive", "destination"] });
+    },
   });
+  const storedSecret = (name: string) =>
+    destination?.id === id && (destination?.set ?? []).includes(name);
 
   const chosen = destination?.available.find((d) => d.id === id);
 
@@ -537,7 +549,11 @@ function Where() {
           <Input
             type={field.secret ? "password" : "text"}
             value={values[field.name] ?? ""}
-            placeholder={field.placeholder ?? destination?.defaultDirectory}
+            placeholder={
+              field.secret && storedSecret(field.name)
+                ? "Stored. Leave empty to keep it."
+                : (field.placeholder ?? destination?.defaultDirectory)
+            }
             onChange={(e) =>
               setValues((current) => ({
                 ...current,
@@ -545,6 +561,15 @@ function Where() {
               }))
             }
           />
+          {field.secret && storedSecret(field.name) ? (
+            <Button
+              needs={{ archive: ["connect"] }}
+              onClick={() => save.mutate(field.name)}
+              disabled={save.isPending}
+            >
+              Clear {field.label.toLowerCase()}
+            </Button>
+          ) : null}
         </Field>
       ))}
       <Toolbar className="mt-(--gap-stack)">
@@ -557,7 +582,7 @@ function Where() {
         </Button>
         <Button
           needs={{ archive: ["connect"] }}
-          onClick={() => save.mutate()}
+          onClick={() => save.mutate(undefined)}
           disabled={save.isPending}
         >
           Save

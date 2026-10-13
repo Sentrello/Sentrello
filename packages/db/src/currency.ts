@@ -136,13 +136,19 @@ export async function baseCurrencyLocked(orgId: string): Promise<boolean> {
 export async function setBaseCurrency(
   orgId: string,
   code: string,
+  /**
+   * A transaction the caller holds. Needed, not just cheaper, when that
+   * transaction has the organization's row locked: a write from a second
+   * connection would wait for a lock its own caller is holding.
+   */
+  conn: Pick<typeof db, "select" | "update"> = db,
 ): Promise<{ baseCurrency: string } | { error: string; status: 400 | 409 }> {
   const want = code.trim().toUpperCase();
   if (!/^[A-Z]{3}$/.test(want)) {
     return { error: "a three-letter currency code", status: 400 };
   }
   if (
-    want !== (await baseCurrency(orgId)) &&
+    want !== (await baseCurrency(orgId, conn)) &&
     (await baseCurrencyLocked(orgId))
   ) {
     return {
@@ -151,7 +157,7 @@ export async function setBaseCurrency(
       status: 409,
     };
   }
-  await db
+  await conn
     .update(schema.organizations)
     .set({ baseCurrency: want })
     .where(eq(schema.organizations.id, orgId));

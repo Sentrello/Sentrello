@@ -50,6 +50,8 @@ import { knownRoles } from "./roles";
  */
 const LABELS: Record<string, string> = {
   requireTwoFactorFor: "Require two-factor for",
+  requireTwoFactorAdd: "Require two-factor for",
+  requireTwoFactorRemove: "Require two-factor for",
   requireEmailVerified: "Require a confirmed email address",
   minPasswordLength: "Shortest password",
   sessionDays: "Stay signed in for",
@@ -142,21 +144,39 @@ export function registerAuthentication(ctx: ModuleContext) {
          * this route refuses rather than clamps, and `PATCH
          * /api/users/groups/:id` refuses an undefined role in the same words.
          */
-        const wantedTwoFactor = Array.isArray(body.requireTwoFactorFor)
-          ? [...new Set(body.requireTwoFactorFor.map(String))]
-          : null;
-        const undefinedRole = wantedTwoFactor?.find(
-          (r) => !allowed.includes(r),
-        );
-        if (undefinedRole) {
-          return refuse(
-            c,
-            "requireTwoFactorFor",
-            `names a role that does not exist here: ${undefinedRole}`,
-          );
+        const listOf = (v: unknown) =>
+          Array.isArray(v) ? [...new Set(v.map(String))] : null;
+        const wantedTwoFactor = listOf(body.requireTwoFactorFor);
+        /*
+         * Or one change, applied to the locked row.
+         *
+         * The screen's tick boxes sent the whole list, built from the copy it
+         * had loaded, so two quick ticks each sent "what I loaded plus mine"
+         * and the second dropped the first. `requireTwoFactorAdd` and
+         * `requireTwoFactorRemove` say only what changed, and the row this
+         * transaction holds is what they change.
+         */
+        const adding = listOf(body.requireTwoFactorAdd) ?? [];
+        const removing = listOf(body.requireTwoFactorRemove) ?? [];
+        for (const [field, asked] of [
+          ["requireTwoFactorFor", wantedTwoFactor ?? []],
+          ["requireTwoFactorAdd", adding],
+        ] as const) {
+          const undefinedRole = asked.find((r) => !allowed.includes(r));
+          if (undefinedRole) {
+            return refuse(
+              c,
+              field,
+              `names a role that does not exist here: ${undefinedRole}`,
+            );
+          }
         }
-        const requireTwoFactorFor =
-          wantedTwoFactor ?? current.requireTwoFactorFor;
+        const requireTwoFactorFor = [
+          ...new Set([
+            ...(wantedTwoFactor ?? current.requireTwoFactorFor),
+            ...adding,
+          ]),
+        ].filter((r) => !removing.includes(r));
 
         /*
          * Twelve at the bottom, not eight.

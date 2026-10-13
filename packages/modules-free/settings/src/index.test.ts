@@ -1019,3 +1019,44 @@ test("a key and a signing secret saved together are both kept", async () => {
     await db.delete(schema.paymentAccounts).where(live);
   }
 });
+
+/**
+ * Two people saving the business details at once.
+ *
+ * The screen sent the whole form as it had loaded it, and the route read a
+ * field left out as "clear it", so each save wrote back the other's fields as
+ * they had been. A field left out is now left alone, under a row lock.
+ */
+test("business details saved at the same moment by two people both survive", async () => {
+  await app.request("http://localhost/api/settings", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({
+      name: "Wierzbicki Tiling",
+      address: "Unit 4",
+      phone: "0113 000 0000",
+    }),
+  });
+  const answers = await Promise.all([
+    app.request("http://localhost/api/settings", {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({ address: "Unit 9, Tanners Yard" }),
+    }),
+    app.request("http://localhost/api/settings", {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({ phone: "0113 496 0000" }),
+    }),
+  ]);
+  expect(answers.map((r) => r.status)).toEqual([200, 200]);
+  const [org] = await db
+    .select()
+    .from(schema.organizations)
+    .where(eq(schema.organizations.id, orgId));
+  expect(org).toMatchObject({
+    name: "Wierzbicki Tiling",
+    address: "Unit 9, Tanners Yard",
+    phone: "0113 496 0000",
+  });
+});

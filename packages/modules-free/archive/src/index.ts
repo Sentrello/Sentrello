@@ -431,7 +431,7 @@ export default defineModule({
           unknown
         >;
         const id = asTextOrNothing(body.id, "id") ?? "";
-        const values = (body.values ?? {}) as Record<string, string>;
+        const values = (body.values ?? {}) as Record<string, unknown>;
         try {
           await saveDestination(orgId, id, values);
         } catch (err) {
@@ -466,9 +466,19 @@ export default defineModule({
             detail: `there is no destination called "${id}"`,
           });
         const stored = await destinationFor(orgId);
+        // A blank field is one the screen could not show — a sealed secret —
+        // so it is tested with what is stored, the same way a save keeps it.
+        const sent = Object.entries(
+          (body.values ?? {}) as Record<string, unknown>,
+        ).filter(
+          (entry): entry is [string, string] =>
+            typeof entry[1] === "string" && entry[1].trim() !== "",
+        );
         const config = {
-          ...stored.config,
-          ...((body.values ?? {}) as Record<string, string>),
+          ...(stored.id === id
+            ? stored.config
+            : { __default: stored.config.__default ?? "" }),
+          ...Object.fromEntries(sent),
         };
         return c.json(await destination.test(config));
       },

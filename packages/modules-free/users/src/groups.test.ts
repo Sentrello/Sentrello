@@ -711,3 +711,38 @@ test("a group's name sent as a list is refused, and the rest of the edit with it
   expect(row?.name).toBe(`Typed ${suffix}`);
   expect(row?.description).toBeNull();
 });
+
+/**
+ * Two people ticking roles on one group.
+ *
+ * The roles are saved as a whole list built from the screen's copy, so the
+ * second save wrote over the first one's tick with both answering 200. A save
+ * that says which version it showed is refused once the group has moved.
+ */
+test("a group's roles saved from a stale copy are refused, not written over", async () => {
+  const group = await makeGroup(`Counter ${suffix}`, ["staff"]);
+  const list = async () =>
+    (
+      (await (
+        await app.request("http://localhost/api/users/groups", { headers })
+      ).json()) as {
+        groups: { id: string; roles: string[]; updatedAt: string }[];
+      }
+    ).groups.find((g) => g.id === group);
+  const opened = await list();
+  if (!opened) throw new Error("group not listed");
+  const patch = (roles: string[]) =>
+    app.request(`http://localhost/api/users/groups/${group}`, {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({ roles, expectedUpdatedAt: opened.updatedAt }),
+    });
+
+  expect((await patch(["staff", "accounting"])).status).toBe(200);
+  const stale = await patch(["staff", "admin"]);
+  expect(stale.status).toBe(409);
+  expect(((await stale.json()) as { error: string }).error).toContain(
+    "Somebody else changed this",
+  );
+  expect((await list())?.roles.sort()).toEqual(["accounting", "staff"]);
+});

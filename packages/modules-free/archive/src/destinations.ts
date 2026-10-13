@@ -1,6 +1,7 @@
 import { mkdir, open, rm, stat } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
-import { and, db, eq, schema } from "@sentrello/db";
+import { and, db, eq, schema, sql } from "@sentrello/db";
+import { asTextOrNothing } from "@sentrello/db/request-values";
 import {
   type ArchiveDestination,
   type DestinationConfig,
@@ -228,38 +229,77 @@ export async function destinationSummary(orgId: string) {
   };
 }
 
+/**
+ * Save what the screen sent, keeping a secret it could not show.
+ *
+ * A sealed value is reported to the screen as "" (see `destinationSummary`),
+ * so the form posts "" back for every secret nobody retyped. Read as "set it
+ * to nothing", that erased the stored key on any save that only changed the
+ * folder or the bucket name. So, as with payment keys: blank keeps what is
+ * stored, and `null` is the explicit way to clear it. Only for the same
+ * destination — a key for one place is never carried over to another.
+ *
+ * Read and written under one lock, because a kept secret is a read followed
+ * by a write. Advisory, since a first save has no row to lock.
+ */
 export async function saveDestination(
   orgId: string,
   id: string,
-  values: Record<string, string>,
+  values: Record<string, unknown>,
 ) {
   const destination = archiveDestination(id);
   if (!destination) throw new Error(`there is no destination called "${id}"`);
 
-  const config: Record<string, string> = {};
-  for (const field of destination.fields) {
-    const value = (values[field.name] ?? "").trim();
-    if (!value) {
-      if (field.required) throw new Error(`${field.label} is needed`);
-      continue;
-    }
-    config[field.name] = field.secret ? secrets.seal(value) : value;
-  }
+  await db.transaction(async (tx) => {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtext(${`archive-destination:${orgId}`}))`,
+    );
+    const [row] = await tx
+      .select({ value: schema.organizationPreferences.value })
+      .from(schema.organizationPreferences)
+      .where(
+        and(
+          eq(schema.organizationPreferences.organizationId, orgId),
+          eq(schema.organizationPreferences.key, PREFERENCE_KEY),
+        ),
+      )
+      .limit(1);
+    const stored = (row?.value ?? {}) as {
+      id?: string;
+      config?: Record<string, string>;
+    };
+    const kept = stored.id === id ? (stored.config ?? {}) : {};
 
-  await db
-    .insert(schema.organizationPreferences)
-    .values({
-      organizationId: orgId,
-      key: PREFERENCE_KEY,
-      value: { id, config },
-    })
-    .onConflictDoUpdate({
-      target: [
-        schema.organizationPreferences.organizationId,
-        schema.organizationPreferences.key,
-      ],
-      set: { value: { id, config }, updatedAt: new Date() },
-    });
+    const config: Record<string, string> = {};
+    for (const field of destination.fields) {
+      const sent = values[field.name];
+      const value = (asTextOrNothing(sent, field.name) ?? "").trim();
+      if (value) {
+        config[field.name] = field.secret ? secrets.seal(value) : value;
+        continue;
+      }
+      if (field.secret && sent !== null && kept[field.name]) {
+        config[field.name] = kept[field.name] as string;
+        continue;
+      }
+      if (field.required) throw new Error(`${field.label} is needed`);
+    }
+
+    await tx
+      .insert(schema.organizationPreferences)
+      .values({
+        organizationId: orgId,
+        key: PREFERENCE_KEY,
+        value: { id, config },
+      })
+      .onConflictDoUpdate({
+        target: [
+          schema.organizationPreferences.organizationId,
+          schema.organizationPreferences.key,
+        ],
+        set: { value: { id, config }, updatedAt: new Date() },
+      });
+  });
 }
 
 /** How large the file at a locator is, where the destination can say. */

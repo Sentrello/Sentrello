@@ -4,7 +4,8 @@ import {
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
-import { and, asc, db, eq, lt, schema, sql } from "@sentrello/db";
+import { and, asc, at, db, eq, isUuid, lt, schema, sql } from "@sentrello/db";
+import { MOVED, UNUSABLE_CLAIM, versionClaim } from "@sentrello/db/concurrency";
 import { creditFor } from "@sentrello/db/credit";
 import { contactIdByEmail } from "@sentrello/db/crm";
 import { baseCurrency } from "@sentrello/db/currency";
@@ -336,17 +337,55 @@ export function registerForms(ctx: ModuleContext) {
         }
       }
 
+      /*
+       * The builder saves the fields and the look whole, from the form as it
+       * was opened, so a colleague's question added in the meantime was
+       * written over with nothing said. The builder sends the version it
+       * loaded, and a form that has moved since is refused rather than
+       * replaced. A caller that sends no version keeps the behaviour it had.
+       */
+      // Before the version lookup, so an empty edit is still the same 400
+      // whether or not the form exists.
+      if (Object.keys(patch).length === 0) {
+        return c.json(
+          { error: "there is nothing in that request to change" },
+          400,
+        );
+      }
+      const id = c.req.param("id");
+      if (!isUuid(id)) return c.json({ error: "not found" }, 404);
+      const [current] = await db
+        .select({ updatedAt: schema.forms.updatedAt })
+        .from(schema.forms)
+        .where(
+          and(eq(schema.forms.id, id), eq(schema.forms.organizationId, orgId)),
+        )
+        .limit(1);
+      if (!current) return c.json({ error: "not found" }, 404);
+      const claim = versionClaim(current, body);
+      if (claim === "moved") return c.json({ error: MOVED }, 409);
+      if (claim === "unusable") return c.json({ error: UNUSABLE_CLAIM }, 400);
+
       const [row] = await db
         .update(schema.forms)
         .set(patch)
         .where(
           and(
-            eq(schema.forms.id, c.req.param("id")),
+            eq(schema.forms.id, id),
             eq(schema.forms.organizationId, orgId),
+            // And again in the statement that writes, to the millisecond as
+            // it was read: two saves of one version must not both pass.
+            claim === "current"
+              ? sql`date_trunc('milliseconds', ${schema.forms.updatedAt}) = ${at(current.updatedAt)}`
+              : undefined,
           ),
         )
         .returning();
-      if (!row) return c.json({ error: "not found" }, 404);
+      if (!row) {
+        return claim === "current"
+          ? c.json({ error: MOVED }, 409)
+          : c.json({ error: "not found" }, 404);
+      }
       return c.json({ form: row });
     },
   );

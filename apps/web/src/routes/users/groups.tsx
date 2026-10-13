@@ -38,6 +38,8 @@ export interface GroupRow {
   name: string;
   description: string | null;
   roles: string[];
+  /** The version a whole-list save says it was editing. */
+  updatedAt?: string;
   members: {
     userId: string;
     name: string;

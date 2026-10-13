@@ -186,6 +186,7 @@ export function FormBuilder({
   style,
   redirectUrl,
   notifyEmail,
+  updatedAt,
   onDone,
 }: {
   formId: string;
@@ -194,9 +195,17 @@ export function FormBuilder({
   style: { accent?: string; radius?: string } | null;
   redirectUrl: string | null;
   notifyEmail: string | null;
+  /** The version of the form this builder opened. */
+  updatedAt?: string | null;
   onDone: () => void;
 }) {
   const qc = useQueryClient();
+  /*
+   * Held rather than read from the prop: a list refetched in the background
+   * would hand the builder a colleague's newer version, and the save would
+   * claim to have seen what it never showed.
+   */
+  const [seenUpdatedAt] = useState(updatedAt ?? null);
   const [rows, setRows] = useState<FormField[]>(fields.length ? fields : []);
   const [formTag, setFormTag] = useState(tag ?? "");
   const [accent, setAccent] = useState(style?.accent ?? "");
@@ -267,6 +276,10 @@ export function FormBuilder({
                   ...(radius.trim() ? { radius: radius.trim() } : {}),
                 }
               : null,
+          // The questions and the look are saved whole, so a save is refused,
+          // with a sentence saying so, if somebody else changed this form
+          // since the builder opened.
+          ...(seenUpdatedAt ? { expectedUpdatedAt: seenUpdatedAt } : {}),
         }),
       }),
     onSuccess: () => {

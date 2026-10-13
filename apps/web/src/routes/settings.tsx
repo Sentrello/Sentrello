@@ -694,8 +694,19 @@ export function Settings() {
 
             <Button
               needs={{ settings: ["update"] }}
+              // Only what changed: the server keeps every field left out, so
+              // somebody else's save a moment ago is not written back over.
               onClick={() =>
-                rename.mutate({ name: name ?? data.business.name, ...form })
+                rename.mutate({
+                  ...(name !== null && name !== data.business.name
+                    ? { name }
+                    : {}),
+                  ...Object.fromEntries(
+                    (Object.keys(saved) as (keyof typeof saved)[])
+                      .filter((k) => form[k] !== saved[k])
+                      .map((k) => [k, form[k]]),
+                  ),
+                })
               }
               disabled={
                 rename.isPending || !(name ?? data.business.name) || !dirty

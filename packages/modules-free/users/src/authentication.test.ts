@@ -804,3 +804,36 @@ test("policy fields saved at the same moment all survive", async () => {
     sessionDays: 14,
   });
 });
+
+/**
+ * Two ticks, one after the other, before the first save comes back.
+ *
+ * Each tick sent the whole list as the screen had loaded it plus its own role,
+ * so the second save wrote back a list without the first one's role. A tick
+ * says only what it changes now, and the server applies it to the locked row.
+ */
+test("two second-factor ticks at once are both kept, and so are two unticks", async () => {
+  await putPolicy({ requireTwoFactorFor: [] });
+  const ticks = await Promise.all([
+    putPolicy({ requireTwoFactorAdd: ["customer"] }),
+    putPolicy({ requireTwoFactorAdd: ["admin"] }),
+  ]);
+  expect(ticks.map((r) => r.status)).toEqual([200, 200]);
+  const stored = async () =>
+    (
+      await db
+        .select()
+        .from(schema.securityPolicy)
+        .where(eq(schema.securityPolicy.organizationId, orgId))
+    )[0]?.requireTwoFactorFor;
+  expect([...((await stored()) ?? [])].sort()).toEqual(["admin", "customer"]);
+
+  await Promise.all([
+    putPolicy({ requireTwoFactorRemove: ["customer"] }),
+    putPolicy({ requireTwoFactorRemove: ["admin"] }),
+  ]);
+  expect(await stored()).toEqual([]);
+
+  const unknown = await putPolicy({ requireTwoFactorAdd: ["bookkeepers"] });
+  expect(unknown.status).toBe(400);
+});
