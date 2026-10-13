@@ -554,7 +554,17 @@ export function registerMerge(ctx: ModuleContext) {
         detail: { keptId, mergedId, moved },
       });
 
-      return c.json({ contact: updatedKept, moved });
+      /*
+       * Without the portal login. The row is read whole for the change feed
+       * above, which keeps it; the response is a screen's, and the token is a
+       * customer's invoices to whoever holds it.
+       */
+      const {
+        portalToken: _credential,
+        portalTokenHash: _derived,
+        ...contact
+      } = updatedKept;
+      return c.json({ contact, moved });
     },
   );
 }

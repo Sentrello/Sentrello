@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { auth } from "@sentrello/auth";
-import { signUpAsOwner } from "@sentrello/auth/testing";
+import { memberWith, signUpAsOwner } from "@sentrello/auth/testing";
 import { db, schema } from "@sentrello/db";
 import {
   addOnboarding,
@@ -1687,6 +1687,83 @@ test("a reader with no books is sent no money figures at all", async () => {
 
   await db.delete(schema.member).where(eq(schema.member.userId, theirId));
   await db.delete(schema.user).where(eq(schema.user.id, theirId));
+});
+
+/**
+ * The attention list is the books', and each row on it is also some other
+ * screen's.
+ *
+ * It asked for `bookkeeping: ["read"]` and nothing else, so a bookkeeper with
+ * no CRM was read every late task by title, and one with no invoicing every
+ * quote waiting on an answer, by number and total. A task title is often the
+ * most private sentence in the CRM.
+ */
+test("a bookkeeper is not read the CRM's tasks or the quotes on the attention list", async () => {
+  const email = `dash-books-only-${suffix}@x.test`;
+  const { headers: theirs, userId: theirId } = await memberWith({
+    organizationId: orgId,
+    ownerHeaders: headers,
+    permission: { dashboard: ["read"], bookkeeping: ["read"] },
+    email,
+    role: `books-only-${suffix}`,
+  });
+  await db.insert(schema.tasks).values({
+    organizationId: orgId,
+    title: "Ring Mrs Ellis about her results",
+    dueAt: new Date(Date.now() - 3 * 86_400_000),
+    done: false,
+  });
+  const [quote] = await db
+    .insert(schema.quotes)
+    .values({
+      organizationId: orgId,
+      number: `BOOKS-ONLY-${suffix}`,
+      status: "sent",
+      currency: "USD",
+      subtotalCents: 4_200,
+      taxCents: 0,
+      totalCents: 4_200,
+    })
+    .returning();
+
+  try {
+    const res = await app.request("http://localhost/api/dashboard", {
+      headers: theirs,
+    });
+    expect(res.status).toBe(200);
+    const seen = (await res.json()) as {
+      money: unknown;
+      attention: { kind: string; summary: string }[];
+    };
+    // Still the books' reader: the money is theirs to see.
+    expect(seen.money).not.toBeNull();
+    expect(seen.attention.filter((a) => a.kind === "task")).toEqual([]);
+    expect(seen.attention.filter((a) => a.kind === "quote")).toEqual([]);
+
+    // The owner holds all three, and is still told about both.
+    const mine = (await (await get()).json()) as {
+      attention: { kind: string; summary: string }[];
+    };
+    expect(
+      mine.attention.some(
+        (a) =>
+          a.kind === "task" && a.summary === "Ring Mrs Ellis about her results",
+      ),
+    ).toBe(true);
+    expect(
+      mine.attention.some(
+        (a) => a.kind === "quote" && a.summary.includes(`BOOKS-ONLY-${suffix}`),
+      ),
+    ).toBe(true);
+  } finally {
+    if (quote) {
+      await db.delete(schema.quotes).where(eq(schema.quotes.id, quote.id));
+    }
+    await db.delete(schema.member).where(eq(schema.member.userId, theirId));
+    await db.delete(schema.session).where(eq(schema.session.userId, theirId));
+    await db.delete(schema.account).where(eq(schema.account.userId, theirId));
+    await db.delete(schema.user).where(eq(schema.user.id, theirId));
+  }
 });
 
 /**

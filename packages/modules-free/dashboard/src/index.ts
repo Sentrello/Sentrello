@@ -152,9 +152,11 @@ export default defineModule({
          * questions about one screen are two answers waiting to disagree.
          */
         const headers = c.req.raw.headers;
-        const [books, crm, runsIt] = await Promise.all([
+        const [books, crm, sales, runsIt] = await Promise.all([
           mayAccess(headers, { bookkeeping: ["read"] }),
           mayAccess(headers, { crm: ["read"] }),
+          // The quotes on the attention list are the invoicing screen's.
+          mayAccess(headers, { invoicing: ["read"] }),
           // The server's own condition: the version it runs and how much disk
           // is left. No money and no personal data, and still nobody's
           // business but whoever runs the instance.
@@ -343,14 +345,25 @@ export default defineModule({
             // have already sent is worse than not chasing at all.
             amountCents: i.owedCents,
           })),
-          ...waitingQuotes.map((q) => ({
+          /*
+           * Each row behind the permission of the screen it comes from, as
+           * well as the books the whole list sits behind.
+           *
+           * The list asked for `bookkeeping: ["read"]` and nothing else, so a
+           * bookkeeper with no CRM was read the title of every late task —
+           * "call Mrs Ellis about the biopsy" in a practice — and one with no
+           * invoicing every quote waiting on an answer, by number and total.
+           * The same rule as Top customers: half of something is still
+           * something.
+           */
+          ...(sales ? waitingQuotes : []).map((q) => ({
             id: q.id,
             kind: "quote" as const,
             summary: `Quote ${q.number} is waiting on an answer`,
             detail: "Sent and not yet accepted or declined",
             amountCents: q.totalCents,
           })),
-          ...lateTasks.map((t) => ({
+          ...(crm ? lateTasks : []).map((t) => ({
             id: t.id,
             kind: "task" as const,
             summary: t.title,

@@ -688,6 +688,26 @@ test("a merge does not re-subscribe somebody who asked to stop", async () => {
   expect(row?.on).toBe(false);
 });
 
+/**
+ * What a merge answers with is a screen's, so the portal login is not in it.
+ *
+ * The response was the kept row, read whole, and a portal token is a
+ * customer's invoices to whoever holds it.
+ */
+test("a merge does not answer with the kept customer's portal login", async () => {
+  const token = `merge-login-${crypto.randomUUID()}`;
+  const kept = await makeContact({ name: "Logged In", portalToken: token });
+  const merged = await makeContact({ name: "Folded In" });
+  const res = await post(`/api/contacts/${kept.id}/merge`, {
+    mergedId: merged.id,
+  });
+  expect(res.status).toBe(200);
+  const text = await res.text();
+  expect(text).toContain("Logged In");
+  expect(text).not.toContain(token);
+  expect(text).not.toContain("portalToken");
+});
+
 test("a row both contacts hold under a unique key is kept once, not collided", async () => {
   // Credit has no such key; `reason` stands in for one, the way a mailbox
   // entry is unique by the message it files.

@@ -1134,6 +1134,20 @@ function withoutCredentials<T extends Record<string, unknown>>(row: T): T {
 }
 
 /**
+ * A contact as a screen may show it: everything but the portal login.
+ *
+ * Narrower than `withoutCredentials`, which is for the resource routes and
+ * also drops the server-owned columns a write must not choose. A screen reading
+ * a contact still needs `avatarPath` to know there is a picture to draw.
+ */
+function withoutPortalLogin<
+  T extends { portalToken: unknown; portalTokenHash: unknown },
+>(row: T): Omit<T, "portalToken" | "portalTokenHash"> {
+  const { portalToken: _credential, portalTokenHash: _derived, ...rest } = row;
+  return rest;
+}
+
+/**
  * Say that one of these records changed.
  *
  * In the factory rather than at each route, which is the point: contacts,
@@ -2999,7 +3013,14 @@ function registerCrmScreens(
       return c.json({
         deal,
         company: company[0] ?? null,
-        contacts: everyone.filter((p) => on.has(p.id)),
+        /*
+         * Without the portal login, as every resource route already sends a
+         * contact. These three screens read the row whole and answered it
+         * whole, so anybody with `crm:read` and no invoicing permission at all
+         * was handed each customer's token, and `/account/:token` then showed
+         * them that customer's invoices, balance and payments.
+         */
+        contacts: everyone.filter((p) => on.has(p.id)).map(withoutPortalLogin),
         notes: await withAuthors(notes),
       });
     },
@@ -3083,7 +3104,8 @@ function registerCrmScreens(
 
       return c.json({
         company,
-        contacts: people,
+        // Without the portal login: see the deal screen above.
+        contacts: people.map(withoutPortalLogin),
         deals,
         notes: await withAuthors(notes),
         tasks,
@@ -3175,7 +3197,8 @@ function registerCrmScreens(
       ]);
 
       return c.json({
-        contact,
+        // Without the portal login: see the deal screen above.
+        contact: withoutPortalLogin(contact),
         company: company[0] ?? null,
         deals: allDeals.filter((d) => (d.contactIds ?? []).includes(id)),
         notes: await withAuthors(notes),
