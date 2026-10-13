@@ -502,8 +502,19 @@ const CAPPED_LISTS = [
  * one caller in Core that builds an unpaged query that way is the deal board,
  * which reads `truncated` and says so on screen.
  */
+/**
+ * The type argument an `api<…>(` call may carry, three braces deep.
+ *
+ * It read one level, so `api<{ contacts: { id: string }[] }>(…)` — the shape
+ * any picker that names its rows' fields has — was not a call at all to the
+ * two scanners below, and three Pro customer boxes reading Core's capped
+ * contact list passed both.
+ */
+const BRACED = "\\{(?:[^{}]|\\{(?:[^{}]|\\{[^{}]*\\})*\\})*\\}";
+const API_TYPE = `(?:<[^(){}]*(?:${BRACED}[^(){}]*)*>)?`;
+
 const CAPPED_FETCH = new RegExp(
-  `\\bapi\\s*(?:<[^(){}]*(?:\\{[^{}]*\\}[^(){}]*)*>)?\\(\\s*["\`](/api/(?:${CAPPED_LISTS.join("|")}))(\\?[^"\`]*)?["\`]\\s*\\)`,
+  `\\bapi\\s*${API_TYPE}\\(\\s*["\`](/api/(?:${CAPPED_LISTS.join("|")}))(\\?[^"\`]*)?["\`]\\s*\\)`,
 );
 
 /** A query that is nothing but one interpolation: `?${query}`, a builder. */
@@ -768,7 +779,10 @@ export function findUnpagedList(source: string): HandRolledFinding[] {
     // A query assembled elsewhere cannot be read from here, so it is left
     // alone rather than guessed at — the blind spot named above.
     if (WHOLE_QUERY_BUILT.test(query)) continue;
-    if (/[?&](page|perPage)=/.test(query)) continue;
+    // A page asked for by number. `perPage` alone is not one: it is one
+    // page offered as the whole list, which is how a recurring-invoice picker
+    // showed the newest hundred invoices and nothing past them.
+    if (/[?&]page=/.test(query)) continue;
     const line = lineOf(clean, match.index);
     if (exceptedAbove(rawLines, line, "ui-drift")) continue;
     findings.push({
@@ -797,7 +811,7 @@ const NOTICED_ROUTES = [
 ];
 
 const NOTICED_FETCH = new RegExp(
-  `\\bapi\\s*(?:<[^(){}]*(?:\\{[^{}]*\\}[^(){}]*)*>)?\\(\\s*["\`](/api/(?:${NOTICED_ROUTES.join("|")}))(\\?[^"\`]*)?["\`]`,
+  `\\bapi\\s*${API_TYPE}\\(\\s*["\`](/api/(?:${NOTICED_ROUTES.join("|")}))(\\?[^"\`]*)?["\`]`,
 );
 
 /**

@@ -217,6 +217,24 @@ test("a capped list read without a page is found", () => {
   ).toHaveLength(1);
 });
 
+/**
+ * The two ways Pro's pickers passed: a type argument naming its rows' fields,
+ * which the pattern read only one brace deep, and one fixed page with no page
+ * number, which it took for paging.
+ */
+test("a nested type argument or one page offered whole is found too", () => {
+  expect(
+    findUnpagedList(
+      'api<{ contacts: { id: string; name: string }[] }>("/api/contacts")',
+    ),
+  ).toHaveLength(1);
+  expect(
+    findUnpagedList(
+      'api<{ invoices: Invoice[] }>("/api/invoices?perPage=100")',
+    ),
+  ).toHaveLength(1);
+});
+
 test("paging it, writing to it, or handing the path to a picker is not", () => {
   const fine = [
     // Asked for a page: the whole point.
