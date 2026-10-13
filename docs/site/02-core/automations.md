@@ -205,6 +205,12 @@ waits five minutes and tries the same step again, then thirty minutes, and only
 then fails. The same goes for an email the mail server would not take. A refusal
 that will be the same next time, like a 404 or a missing address, fails at once.
 
+A call that timed out may still have arrived, so a retry can reach the other
+end twice. Every call carries an `Idempotency-Key` header that stays the same
+on every try of that call, so the receiving system can ignore a repeat. Most
+services that take webhooks already do. Set your own header of that name on
+the step and yours is used instead.
+
 ## Running one by hand
 
 Open an automation and use **Run it on one record**. It earns its place twice
