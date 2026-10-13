@@ -194,3 +194,41 @@ test("a contact or a currency of the wrong kind is refused, not stored as nothin
   });
   expect(edited.status).toBe(400);
 });
+
+/**
+ * An edit cannot turn an expense into income, or move it into another
+ * currency. Both answered 200 and changed nothing; now each is refused by
+ * name, and the books' own currency said again is still fine.
+ */
+test("an edit refuses a kind or a currency by name, and keeps what was stored", async () => {
+  const made = await post("/api/transactions", {
+    kind: "expense",
+    amountCents: 1200,
+    description: "Stamps",
+  });
+  const { transaction } = (await made.json()) as {
+    transaction: { id: string };
+  };
+  const patch = (body: unknown) =>
+    req(`/api/transactions/${transaction.id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    });
+
+  for (const [field, value] of [
+    ["kind", "income"],
+    ["currency", "EUR"],
+  ] as const) {
+    const res = await patch({ [field]: value });
+    expect(res.status, field).toBe(400);
+    expect(((await res.json()) as { error: string }).error).toContain(field);
+  }
+  expect((await patch({ currency: "cad", kind: "expense" })).status).toBe(200);
+
+  const [row] = await db
+    .select()
+    .from(schema.transactions)
+    .where(eq(schema.transactions.id, transaction.id));
+  expect(row?.kind).toBe("expense");
+  expect(row?.currency).toBe("CAD");
+});

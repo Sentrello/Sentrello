@@ -522,8 +522,8 @@ export function InvoiceForm({
           : {
               dueDate: dueDate || undefined,
               buyerReference: buyerReference.trim() || null,
+              paymentTerms: paymentTerms.trim() || null,
             }),
-        paymentTerms: paymentTerms.trim() || null,
         templateId: templateId || null,
         notes: notes.trim() || null,
         ...(discountType
@@ -734,35 +734,41 @@ export function InvoiceForm({
               />
             </Field>
           )}
-          <Field
-            label="Payment terms"
-            hint="Choosing one sets the due date to match."
-          >
-            <Select
-              value={
-                terms.some((t) => t.label === paymentTerms) ? paymentTerms : ""
-              }
-              onChange={(e) => chooseTerms(e.target.value)}
+          {/* An invoice's only: a quote has nowhere to keep them, and the box
+              on a quote was saved into nothing. */}
+          {asQuote ? null : (
+            <Field
+              label="Payment terms"
+              hint="Choosing one sets the due date to match."
             >
-              <option value="">Something else…</option>
-              {terms.map((term) => (
-                <option key={term.label} value={term.label}>
-                  {term.label}
-                </option>
-              ))}
-            </Select>
-            {/* A business with an arrangement nobody else has still needs to
+              <Select
+                value={
+                  terms.some((t) => t.label === paymentTerms)
+                    ? paymentTerms
+                    : ""
+                }
+                onChange={(e) => chooseTerms(e.target.value)}
+              >
+                <option value="">Something else…</option>
+                {terms.map((term) => (
+                  <option key={term.label} value={term.label}>
+                    {term.label}
+                  </option>
+                ))}
+              </Select>
+              {/* A business with an arrangement nobody else has still needs to
                 write it down. */}
-            {terms.some((t) => t.label === paymentTerms) ? null : (
-              <Input
-                className="mt-(--gap-tight)"
-                value={paymentTerms}
-                placeholder="Half on delivery, half in 30 days"
-                aria-label="Payment terms in your own words"
-                onChange={(e) => setPaymentTerms(e.target.value)}
-              />
-            )}
-          </Field>
+              {terms.some((t) => t.label === paymentTerms) ? null : (
+                <Input
+                  className="mt-(--gap-tight)"
+                  value={paymentTerms}
+                  placeholder="Half on delivery, half in 30 days"
+                  aria-label="Payment terms in your own words"
+                  onChange={(e) => setPaymentTerms(e.target.value)}
+                />
+              )}
+            </Field>
+          )}
           {/* The reference the customer files this under — their PO number,
               or a German public body's Leitweg-ID. A structured e-invoice
               cannot travel the network without one. */}

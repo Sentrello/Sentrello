@@ -247,3 +247,127 @@ test("a draft invoice's early-payment offer is changed and taken off by an edit"
   });
   expect(bad.status).toBe(400);
 });
+
+/**
+ * A column no edit writes is refused by name, and what was stored stays.
+ *
+ * Each of these answered 200 to a PATCH and changed nothing. A draft is dated
+ * when it is issued, so its issue date is refused on an edit rather than kept
+ * for the issue to overwrite.
+ */
+test("a draft invoice refuses an issue date, a kind and the other fixed columns by name", async () => {
+  const made = await send("POST", "/api/invoices", {
+    contactId,
+    status: "draft",
+    lines: [{ description: "A visit", quantity: 1, unitPriceCents: 10_000 }],
+  });
+  expect(made.status).toBe(201);
+  const { invoice } = (await made.json()) as {
+    invoice: { id: string; issueDate: string; kind: string };
+  };
+
+  for (const field of [
+    "issueDate",
+    "kind",
+    "pricesIncludeTax",
+    "rateMicro",
+    "published",
+    "quoteId",
+    "referenceInvoiceId",
+    "earlyDiscountTakenCents",
+    "lateFeeCents",
+  ]) {
+    const value =
+      field === "issueDate"
+        ? "2026-01-02"
+        : field === "kind"
+          ? "credit_note"
+          : field === "pricesIncludeTax" || field === "published"
+            ? true
+            : field.endsWith("Id")
+              ? crypto.randomUUID()
+              : 7;
+    const res = await send("PATCH", `/api/invoices/${invoice.id}`, {
+      [field]: value,
+    });
+    expect(res.status, field).toBe(400);
+    expect(((await res.json()) as { error: string }).error).toContain(field);
+  }
+
+  const [row] = await db
+    .select()
+    .from(schema.invoices)
+    .where(eq(schema.invoices.id, invoice.id));
+  expect(row?.kind).toBe("invoice");
+  expect(row?.issueDate.toISOString()).toBe(
+    new Date(invoice.issueDate).toISOString(),
+  );
+});
+
+test("a draft quote refuses an issue date and the other fixed columns by name", async () => {
+  const made = await send("POST", "/api/quotes", {
+    contactId,
+    lines: [{ description: "A visit", quantity: 1, unitPriceCents: 10_000 }],
+  });
+  const { quote } = (await made.json()) as { quote: { id: string } };
+  for (const [field, value] of [
+    ["issueDate", "2026-01-02"],
+    ["pricesIncludeTax", true],
+    ["published", true],
+    ["dealId", crypto.randomUUID()],
+    ["convertedInvoiceId", crypto.randomUUID()],
+  ] as const) {
+    const res = await send("PATCH", `/api/quotes/${quote.id}`, {
+      [field]: value,
+    });
+    expect(res.status, field).toBe(400);
+    expect(((await res.json()) as { error: string }).error).toContain(field);
+  }
+});
+
+test("a part of an early-payment offer sent alone changes that part, and needs an offer to change", async () => {
+  const made = await send("POST", "/api/invoices", {
+    contactId,
+    status: "draft",
+    earlyDiscountType: "percent",
+    earlyDiscountValue: 200,
+    earlyDiscountDays: 14,
+    lines: [{ description: "A visit", quantity: 1, unitPriceCents: 10_000 }],
+  });
+  const { invoice } = (await made.json()) as { invoice: { id: string } };
+  const stored = async () =>
+    (
+      await db
+        .select()
+        .from(schema.invoices)
+        .where(eq(schema.invoices.id, invoice.id))
+    )[0];
+
+  const days = await send("PATCH", `/api/invoices/${invoice.id}`, {
+    earlyDiscountDays: 21,
+  });
+  expect(days.status).toBe(200);
+  let row = await stored();
+  expect(row?.earlyDiscountDays).toBe(21);
+  expect(row?.earlyDiscountValue).toBe(200);
+  expect(row?.earlyDiscountType).toBe("percent");
+
+  const value = await send("PATCH", `/api/invoices/${invoice.id}`, {
+    earlyDiscountValue: 300,
+  });
+  expect(value.status).toBe(200);
+  row = await stored();
+  expect(row?.earlyDiscountValue).toBe(300);
+  expect(row?.earlyDiscountDays).toBe(21);
+
+  // Off, and then a part alone has nothing to belong to.
+  await send("PATCH", `/api/invoices/${invoice.id}`, {
+    earlyDiscountType: null,
+  });
+  const orphan = await send("PATCH", `/api/invoices/${invoice.id}`, {
+    earlyDiscountDays: 5,
+  });
+  expect(orphan.status).toBe(400);
+  row = await stored();
+  expect(row?.earlyDiscountType).toBeNull();
+});

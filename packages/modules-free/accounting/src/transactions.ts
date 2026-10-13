@@ -537,6 +537,32 @@ export function registerTransactions(ctx: ModuleContext) {
       }
 
       const body = await c.req.json();
+      /*
+       * The two things an edit cannot change, refused by name. Each answered
+       * 200 and stayed as it was, so a caller was told an expense had become
+       * income, or a dollar figure a euro one, when nothing had moved.
+       */
+      if (body.kind !== undefined && body.kind !== existing.kind) {
+        return c.json(
+          {
+            error:
+              "kind is fixed: which way the money went decides the posting — undo this one and record the other",
+          },
+          400,
+        );
+      }
+      if (
+        body.currency !== undefined &&
+        asText(body.currency, "currency").trim().toUpperCase() !==
+          existing.currency
+      ) {
+        return c.json(
+          {
+            error: `currency is fixed: these books are kept in ${existing.currency}, and another currency is a bill, not an edit`,
+          },
+          400,
+        );
+      }
       if (
         body.amountCents !== undefined &&
         (!Number.isInteger(body.amountCents) || body.amountCents <= 0)

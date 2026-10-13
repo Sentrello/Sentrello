@@ -1830,10 +1830,45 @@ export default defineModule({
          * form has always sent it and this never read it, so a draft kept the
          * offer it was raised with whatever the edit said.
          */
+        /*
+         * A part of it sent alone — the days, or the amount — is read against
+         * the rest of the offer as it stands. It was read only when the kind
+         * came with it, so `{ earlyDiscountDays: 21 }` answered 200 and the
+         * offer stayed at 14. A part sent where there is no offer is refused
+         * by the parse: an amount off with no kind is not an offer.
+         */
         let early: ReturnType<typeof parseEarlyPayment> | null = null;
-        if (body.earlyDiscountType !== undefined) {
+        const earlyParts = [
+          "earlyDiscountType",
+          "earlyDiscountValue",
+          "earlyDiscountDays",
+        ] as const;
+        if (earlyParts.some((part) => body[part] !== undefined)) {
+          const offer = {
+            earlyDiscountType:
+              body.earlyDiscountType !== undefined
+                ? body.earlyDiscountType
+                : invoice.earlyDiscountType,
+            earlyDiscountValue:
+              body.earlyDiscountValue ?? invoice.earlyDiscountValue,
+            earlyDiscountDays:
+              body.earlyDiscountDays ?? invoice.earlyDiscountDays,
+          };
+          if (
+            (offer.earlyDiscountType == null ||
+              offer.earlyDiscountType === "") &&
+            (body.earlyDiscountValue != null || body.earlyDiscountDays != null)
+          ) {
+            return c.json(
+              {
+                error:
+                  "there is no early-payment offer on this invoice — send earlyDiscountType with the amount and the days",
+              },
+              400,
+            );
+          }
           try {
-            early = parseEarlyPayment(body);
+            early = parseEarlyPayment(offer);
           } catch (err) {
             if (err instanceof MoneyError) {
               return c.json({ error: err.message }, 400);

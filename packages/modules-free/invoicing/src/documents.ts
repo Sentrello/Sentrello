@@ -415,6 +415,33 @@ export async function writeTaxBands(
 }
 
 /**
+ * The columns a document carries that no edit writes, each with why.
+ *
+ * Every one of these answered 200 to a PATCH and stayed as it was, so a caller
+ * was told a change had been made that had not. Each is set by something that
+ * happens to the document, by its own route, or once when it is raised; none
+ * is typed into the form. Refused by name, which is what a caller can act on.
+ */
+const NOT_AN_EDIT: Record<string, string> = {
+  issueDate:
+    "is set when the document is raised, and a draft is dated when it is issued — send the date with the issue",
+  pricesIncludeTax:
+    "is the business's setting when the document was raised, kept so its total never changes under it",
+  rateMicro:
+    "is the exchange rate on the day the document was raised, and is fixed with it",
+  kind: "is fixed when the document is raised — a credit note is raised against an invoice, not edited into one",
+  referenceInvoiceId:
+    "is the invoice a credit note was raised against, and is fixed with it",
+  quoteId: "is set when a quote becomes this invoice",
+  convertedInvoiceId: "is set when this quote becomes an invoice",
+  dealId: "is the deal the quote was raised from, and is fixed with it",
+  published: "is changed by sharing the document or taking it offline",
+  earlyDiscountTakenCents:
+    "is worked out when a payment arrives inside the early-payment offer",
+  lateFeeCents: "is charged when the invoice falls late, not typed in",
+};
+
+/**
  * What an edit to a draft sent that it would not have saved, said in words.
  *
  * Each of these used to answer 200 with nothing changed: a customer sent as
@@ -426,6 +453,9 @@ export function unsavedOnAnEdit(
   body: Record<string, unknown>,
   doc: { currency: string },
 ): string | null {
+  for (const [field, reason] of Object.entries(NOT_AN_EDIT)) {
+    if (body[field] !== undefined) return `${field} ${reason}`;
+  }
   if (body.contactId !== undefined && body.contactId !== null) {
     asIdOrNothing(body.contactId, "contactId");
   }
