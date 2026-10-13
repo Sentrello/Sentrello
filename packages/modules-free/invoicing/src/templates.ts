@@ -19,6 +19,7 @@ import {
   callerKey,
   processImage,
   rateLimit,
+  uploadBodyLimit,
 } from "@sentrello/module-sdk";
 
 /**
@@ -404,6 +405,7 @@ export function registerTemplates(ctx: ModuleContext) {
     "/api/invoicing/templates/:id/logo",
     requireSession(),
     requirePermission({ invoicing: ["update"] }),
+    uploadBodyLimit(AVATAR_RULES.maxBytes),
     async (c: RouteContext) => {
       const orgId = activeOrganizationId(c.get("session"));
       const id = c.req.param("id") ?? "";

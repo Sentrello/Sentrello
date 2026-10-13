@@ -1,5 +1,6 @@
 import { mkdir, unlink, writeFile } from "node:fs/promises";
 import { extname, join, resolve, sep } from "node:path";
+import { bodyLimit } from "hono/body-limit";
 
 /**
  * Files hanging off a record, wherever they hang from.
@@ -30,6 +31,24 @@ import { extname, join, resolve, sep } from "node:path";
  * before this is ever reached, so the two need to stay in step.
  */
 export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+
+/**
+ * An upload refused while it arrives, not after it has.
+ *
+ * Every size check below reads `file.size`, which exists only once the whole
+ * body has been parsed into memory — and the server's own ceiling is the half
+ * gigabyte an archive restore needs. So a picture route with a 5MB rule held
+ * 500MB before saying no. This counts the stream and stops at the cap, with
+ * room for the multipart framing and the other fields around the file.
+ */
+export function uploadBodyLimit(maxBytes: number = MAX_ATTACHMENT_BYTES) {
+  const mb = Math.floor(maxBytes / 1024 / 1024);
+  return bodyLimit({
+    maxSize: maxBytes + 256 * 1024,
+    onError: (c) =>
+      c.json({ error: `that file is too large (${mb}MB limit)` }, 413),
+  });
+}
 
 /** Where a module's files live, under the instance's data directory. */
 export function attachmentsDir(folder = "attachments"): string {

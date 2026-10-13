@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { auth } from "@sentrello/auth";
@@ -1315,6 +1315,83 @@ test("an index that does not exist is not found rather than a crash", async () =
     { headers },
   );
   expect(res.status).toBe(404);
+});
+
+/** A note on a fresh contact, for the file tests below. */
+async function makeNote(text: string): Promise<string> {
+  const contactId = await makeContact({ name: text });
+  const made = await app.request("http://localhost/api/notes", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ entityType: "contact", entityId: contactId, text }),
+  });
+  return ((await made.json()) as { note: { id: string } }).note.id;
+}
+
+/**
+ * Refused while it arrives, not once it is all in memory.
+ *
+ * The body carries no file under the name the route reads, so a route that
+ * parsed it first answers "a file is required"; only a cap on the stream
+ * answers 413 before parsing anything. The server's own ceiling is half a
+ * gigabyte, which is what each of these held before saying no.
+ */
+test("an upload over the cap is refused before its body is parsed", async () => {
+  const noteId = await makeNote("Too Big To Read");
+  const big = () => {
+    const form = new FormData();
+    form.append("padding", new File([new Uint8Array(11 * 1024 * 1024)], "x"));
+    return form;
+  };
+  const cookie = { cookie: headers.get("cookie") ?? "" };
+
+  const note = await app.request(
+    `http://localhost/api/notes/${noteId}/attachments`,
+    { method: "POST", headers: cookie, body: big() },
+  );
+  expect(note.status).toBe(413);
+
+  const contactId = await makeContact({ name: "Too Big A Face" });
+  const face = await app.request(
+    `http://localhost/api/crm/contacts/${contactId}/image`,
+    { method: "POST", headers: cookie, body: big() },
+  );
+  expect(face.status).toBe(413);
+});
+
+/**
+ * A row's path is data, and is checked against the directory with its
+ * separator. The check compared a bare prefix, so a path into a sibling
+ * folder whose name merely begins with `attachments` was served.
+ */
+test("a note's file path into a sibling folder is not served", async () => {
+  const noteId = await makeNote("Points Next Door");
+  const sibling = join(process.env.SENTRELLO_DATA_DIR ?? "", "attachments-old");
+  mkdirSync(sibling, { recursive: true });
+  writeFileSync(join(sibling, "secret.txt"), "not a note's file");
+  try {
+    await db
+      .update(schema.notes)
+      .set({
+        attachments: [
+          {
+            name: "secret.txt",
+            path: `${orgId}/../../attachments-old/secret.txt`,
+            size: 17,
+            type: "text/plain",
+          },
+        ],
+      })
+      .where(eq(schema.notes.id, noteId));
+
+    const res = await app.request(
+      `http://localhost/api/notes/${noteId}/attachments/0`,
+      { headers },
+    );
+    expect(res.status).toBe(404);
+  } finally {
+    rmSync(sibling, { recursive: true, force: true });
+  }
 });
 
 // ---------------------------------------------------------------------------

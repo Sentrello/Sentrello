@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
-import { processImage } from "@sentrello/module-sdk";
+import { deflateSync } from "node:zlib";
+import { crc32, processImage } from "@sentrello/module-sdk";
 import sharp from "sharp";
 import { MAX_IMAGE_BYTES } from "./images";
 
@@ -84,4 +85,42 @@ test("an empty file and an oversized one are both refused", async () => {
   await expect(
     processImage(new Uint8Array(MAX_IMAGE_BYTES + 1)),
   ).rejects.toThrow(/under 5MB/);
+});
+
+/**
+ * A few kilobytes that decode to a hundred million pixels.
+ *
+ * One colour compresses to almost nothing, so this is under every byte cap —
+ * and decoding it whole is four hundred megabytes on a box that may have one
+ * gigabyte. The pixels are counted from the header and refused before that.
+ */
+test("a tiny file that decodes to a huge picture is refused before decoding", async () => {
+  const edge = 10_000;
+  const chunk = (type: string, data: Uint8Array) => {
+    const out = new Uint8Array(12 + data.length);
+    const view = new DataView(out.buffer);
+    view.setUint32(0, data.length);
+    out.set(new TextEncoder().encode(type), 4);
+    out.set(data, 8);
+    view.setUint32(8 + data.length, crc32(out.subarray(4, 8 + data.length)));
+    return out;
+  };
+  const ihdr = new Uint8Array(13);
+  const header = new DataView(ihdr.buffer);
+  header.setUint32(0, edge);
+  header.setUint32(4, edge);
+  ihdr.set([1, 0, 0, 0, 0], 8); // one bit per pixel, greyscale
+  // Every row is a filter byte and 1,250 zero bytes: all black.
+  const raw = new Uint8Array(edge * (1 + edge / 8));
+  const png = Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk("IHDR", ihdr),
+    chunk("IDAT", deflateSync(raw)),
+    chunk("IEND", new Uint8Array(0)),
+  ]);
+  expect(png.byteLength).toBeLessThan(MAX_IMAGE_BYTES);
+
+  await expect(processImage(new Uint8Array(png))).rejects.toThrow(
+    /too large to use here/,
+  );
 });

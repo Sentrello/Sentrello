@@ -12,6 +12,7 @@ import {
   packAttachmentKey,
   storeAttachment,
   unpackAttachmentKey,
+  uploadBodyLimit,
 } from "@sentrello/module-sdk";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import { isUuid } from "./chart";
@@ -98,6 +99,7 @@ export function registerReceipts(ctx: ModuleContext) {
     "/api/transactions/:id/receipt",
     requireSession(),
     requirePermission({ bookkeeping: ["update"] }),
+    uploadBodyLimit(),
     async (c: RouteContext) => {
       const orgId = activeOrganizationId(c.get("session"));
       const id = c.req.param("id") ?? "";

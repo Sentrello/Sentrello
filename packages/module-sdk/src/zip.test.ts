@@ -112,3 +112,38 @@ test("crc32 matches the published check value", () => {
   // rather than by a zip tool refusing a customer's archive years later.
   expect(crc32(encode("123456789"))).toBe(0xcbf43926);
 });
+
+/**
+ * A bomb: a member that says ten bytes and unpacks to twenty megabytes.
+ *
+ * Deflate shrinks a run of zeros about a thousandfold, so the bytes that
+ * arrive say nothing about the memory they take. The header's own size is the
+ * ceiling, and the inflater stops there rather than after the fact.
+ */
+test("a member that unpacks to more than its header says is stopped", async () => {
+  const zip = await collect(
+    writeZip([
+      { name: "data/a.jsonl", bytes: new Uint8Array(20 * 1024 * 1024) },
+    ]),
+  );
+  new DataView(zip.buffer).setUint32(22, 10, true);
+  const read = async () => {
+    for await (const _ of readZip([zip])) {
+      /* nothing should be yielded */
+    }
+  };
+  await expect(read()).rejects.toThrow(/unpacks to more than it says/);
+});
+
+test("a member whose header claims gigabytes is refused unopened", async () => {
+  const zip = await collect(
+    writeZip([{ name: "data/a.jsonl", bytes: encode("small") }]),
+  );
+  new DataView(zip.buffer).setUint32(22, 0xffffffff, true);
+  const read = async () => {
+    for await (const _ of readZip([zip])) {
+      /* nothing should be yielded */
+    }
+  };
+  await expect(read()).rejects.toThrow(/larger than any we write/);
+});

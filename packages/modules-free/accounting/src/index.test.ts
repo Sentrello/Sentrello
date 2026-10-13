@@ -941,6 +941,33 @@ test("a receipt can be attached to a transaction and read back", async () => {
   ).toBe(404);
 });
 
+/**
+ * A receipt over the cap is refused as it arrives. The body carries no `file`
+ * field, so a route that parsed it first would answer 400; only a cap on the
+ * stream answers 413 before reading it.
+ */
+test("a receipt upload over the cap is refused before its body is parsed", async () => {
+  const created = await post("/api/transactions", {
+    kind: "expense",
+    description: "Receipt too heavy",
+    amountCents: 1_000,
+  });
+  const { transaction } = (await created.json()) as {
+    transaction: { id: string };
+  };
+  const form = new FormData();
+  form.append("padding", new File([new Uint8Array(11 * 1024 * 1024)], "x"));
+  const res = await app.request(
+    `http://localhost/api/transactions/${transaction.id}/receipt`,
+    {
+      method: "POST",
+      headers: { cookie: headers.get("cookie") ?? "" },
+      body: form,
+    },
+  );
+  expect(res.status).toBe(413);
+});
+
 test("a receipt on another business's transaction is not readable", async () => {
   process.env.SENTRELLO_DATA_DIR = `/tmp/sentrello-test-${suffix}`;
   const theirs = await makeOrganization(

@@ -22,6 +22,7 @@ import {
   AVATAR_RULES,
   type ProcessedImage,
   processImage,
+  uploadBodyLimit,
 } from "@sentrello/module-sdk";
 
 /** Beside the note attachments, under the data directory. */
@@ -75,6 +76,7 @@ export function registerCrmImages(ctx: ModuleContext) {
       `/api/crm/${subject}/:id/image`,
       requireSession(),
       requirePermission({ crm: ["update"] }),
+      uploadBodyLimit(MAX_IMAGE_BYTES),
       async (c) => {
         const orgId = activeOrganizationId(c.get("session"));
         const id = c.req.param("id");

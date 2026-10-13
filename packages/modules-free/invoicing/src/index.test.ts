@@ -2837,6 +2837,31 @@ test("a business's own branding reaches the document it sends", async () => {
   expect(page).toContain("Thank you for your business.");
 });
 
+/**
+ * A logo over the cap is refused as it arrives. The body has no `image`
+ * field, so a route that parsed it first would answer "no image was sent";
+ * only a cap on the stream answers 413 before reading it.
+ */
+test("a logo upload over the cap is refused before its body is parsed", async () => {
+  const made = await app.request("http://localhost/api/invoicing/templates", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name: "Heavy Logo" }),
+  });
+  const { template } = (await made.json()) as { template: { id: string } };
+  const form = new FormData();
+  form.append("padding", new File([new Uint8Array(6 * 1024 * 1024)], "x"));
+  const res = await app.request(
+    `http://localhost/api/invoicing/templates/${template.id}/logo`,
+    {
+      method: "POST",
+      headers: { cookie: headers.get("cookie") ?? "" },
+      body: form,
+    },
+  );
+  expect(res.status).toBe(413);
+});
+
 test("wording on a template is text on the page, never markup", async () => {
   // The public document is same-origin with the application, so a script
   // stored here would run with an administrator's session the first time

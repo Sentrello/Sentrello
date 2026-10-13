@@ -154,6 +154,15 @@ export async function* writeZip(
 export class ZipError extends Error {}
 
 /**
+ * The largest member this will unpack.
+ *
+ * Ours hold two thousand rows each, which is megabytes. The format allows four
+ * gigabytes, and a member is held whole once unpacked, so a header claiming
+ * anything near that is refused before a byte of it is inflated.
+ */
+export const MAX_MEMBER_BYTES = 256 * 1024 * 1024;
+
+/**
  * A queue that hands out exactly as many bytes as the reader asks for.
  *
  * The chunks arriving from a file or a network response have nothing to do
@@ -296,6 +305,12 @@ export async function* readZip(
     const nameLength = view.getUint16(22, true);
     const extraLength = view.getUint16(24, true);
 
+    if (uncompressed > MAX_MEMBER_BYTES) {
+      throw new ZipError(
+        "a member of this archive is larger than any we write, and was not opened",
+      );
+    }
+
     const nameBytes = await queue.take(nameLength);
     if (!nameBytes) throw new ZipError("a member's name is cut short");
     if (extraLength && !(await queue.take(extraLength))) {
@@ -306,8 +321,25 @@ export async function* readZip(
 
     let bytes: Uint8Array;
     if (method === 0) bytes = body;
-    else if (method === DEFLATE) bytes = inflateRawSync(body);
-    else
+    else if (method === DEFLATE) {
+      /*
+       * Never more than the header promised.
+       *
+       * Deflate shrinks a run of one byte about a thousandfold, so a member
+       * of a few megabytes can unpack to gigabytes — and the size check
+       * below ran only after all of it was in memory. Told the ceiling, the
+       * inflater stops at it instead.
+       */
+      try {
+        bytes = inflateRawSync(body, {
+          maxOutputLength: Math.max(1, uncompressed),
+        });
+      } catch {
+        throw new ZipError(
+          `${new TextDecoder().decode(nameBytes)} unpacks to more than it says, or is damaged`,
+        );
+      }
+    } else
       throw new ZipError(
         `a member is compressed in a way we cannot read (${method})`,
       );

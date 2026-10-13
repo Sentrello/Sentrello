@@ -1,4 +1,3 @@
-import { join, resolve } from "node:path";
 import {
   activeOrganizationId,
   requirePermission,
@@ -7,12 +6,13 @@ import {
 import { db, schema } from "@sentrello/db";
 import {
   MAX_ATTACHMENT_BYTES,
+  attachmentFile,
   attachmentHeaders,
-  attachmentsDir,
   displayFilename,
   removeAttachment,
   safeExtension,
   storeAttachment,
+  uploadBodyLimit,
 } from "@sentrello/module-sdk";
 import type { ModuleContext } from "@sentrello/module-sdk";
 import { and, eq } from "drizzle-orm";
@@ -78,6 +78,7 @@ export function registerAttachments(ctx: ModuleContext) {
     "/api/notes/:id/attachments",
     requireSession(),
     requirePermission({ crm: ["update"] }),
+    uploadBodyLimit(),
     async (c) => {
       const orgId = activeOrganizationId(c.get("session"));
       const noteId = c.req.param("id");
@@ -146,15 +147,19 @@ export function registerAttachments(ctx: ModuleContext) {
       const attachment = (note.attachments ?? [])[index];
       if (!attachment) return c.json({ error: "not found" }, 404);
 
-      // The path came from the row, not the request — but it is still resolved
-      // and checked against the directory, because a row written by an older
-      // version is not a promise about today's code.
-      const full = resolve(join(attachmentsDir(), attachment.path));
-      if (!full.startsWith(resolve(attachmentsDir()))) {
-        return c.json({ error: "not found" }, 404);
-      }
-
-      const file = Bun.file(full);
+      /*
+       * The path came from the row, not the request — but it is still checked,
+       * because a row written by an older version is not a promise about
+       * today's code. By the SDK, which compares against the directory with
+       * its separator: this compared the bare prefix, so `../attachments-old/…`
+       * passed, being a string that begins with `…/attachments`. And under
+       * this business's own folder, as receipts are, since every file a note
+       * holds was stored there.
+       */
+      const file = attachment.path.startsWith(`${orgId}/`)
+        ? attachmentFile(attachment.path)
+        : null;
+      if (!file) return c.json({ error: "not found" }, 404);
       if (!(await file.exists())) {
         // The row survived and the file did not — a half-restored backup, or
         // somebody tidying the disk. Saying so beats a 500.

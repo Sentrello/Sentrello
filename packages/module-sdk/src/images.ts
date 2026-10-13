@@ -27,6 +27,18 @@ import sharp from "sharp";
  */
 const ACCEPTED = new Set(["jpeg", "jpg", "png", "webp", "gif", "avif", "heif"]);
 
+/**
+ * The most pixels a picture may have before it is decoded.
+ *
+ * A file's size says nothing about its pixels. A PNG of one colour, 10,000
+ * pixels square, is a few kilobytes on the way in and four hundred megabytes
+ * once decoded — under every byte cap here, and enough to stop an instance
+ * with a gigabyte of memory. The decoder's own ceiling is 268 million pixels,
+ * which is the same problem with a bigger number. Fifty million keeps every
+ * real photograph: a 48-megapixel phone camera is 8000 by 6000.
+ */
+export const MAX_INPUT_PIXELS = 50_000_000;
+
 export interface ImageRules {
   /** The longest edge of the stored image, in pixels. */
   maxEdge: number;
@@ -78,15 +90,22 @@ export async function processImage(
     );
   }
 
-  let format: string | undefined;
+  let meta: Awaited<ReturnType<ReturnType<typeof sharp>["metadata"]>>;
   try {
-    format = (await sharp(input).metadata()).format;
+    // The header only: nothing is decoded until the pixels are counted.
+    meta = await sharp(input).metadata();
   } catch {
     throw new RangeError("that does not look like an image");
   }
+  const format = meta.format;
   if (!format || !ACCEPTED.has(format)) {
     throw new RangeError(
       `${format ?? "that file"} cannot be used as a picture here`,
+    );
+  }
+  if ((meta.width ?? 0) * (meta.height ?? 0) > MAX_INPUT_PIXELS) {
+    throw new RangeError(
+      "that picture is too large to use here (50 megapixels at most)",
     );
   }
 
