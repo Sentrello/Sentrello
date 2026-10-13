@@ -2,7 +2,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, schema } from "@sentrello/db";
-import { and, eq, isNull } from "@sentrello/db/orm";
+import { and, eq, inArray, isNull } from "@sentrello/db/orm";
 import { dropOrganization } from "@sentrello/db/testing";
 import { registerForTest } from "@sentrello/module-sdk";
 import { seedDefaults } from "./defaults";
@@ -570,6 +570,55 @@ test("one person's detail carries what the screen needs", async () => {
   expect(person.email).toBe(email);
   expect(person.disabledAt).toBeNull();
   expect(person.joinedAt).toBeTruthy();
+});
+
+/**
+ * Thirty people with one name, ten to a page.
+ *
+ * The list was ordered by name alone, and two rows sharing a sort value come
+ * back in whichever order the database finds cheapest for that page — which
+ * is not the order it found for the last one. Two people called Alex Smith
+ * could each appear twice, or one of them never.
+ */
+test("paging through people who share a name shows each of them once", async () => {
+  const ids = Array.from({ length: 30 }, (_, i) => `same-name-${suffix}-${i}`);
+  await db.insert(schema.user).values(
+    ids.map((id) => ({
+      id,
+      name: "Sam Same",
+      email: `${id}@x.test`,
+      emailVerified: false,
+      updatedAt: new Date(),
+    })),
+  );
+  await db.insert(schema.member).values(
+    ids.map((id) => ({
+      id: `member-${id}`,
+      organizationId: orgId,
+      userId: id,
+      role: "staff",
+      createdAt: new Date(),
+    })),
+  );
+
+  try {
+    const seen: string[] = [];
+    for (let page = 1; page <= 10; page++) {
+      const res = await app.request(
+        `http://localhost/api/users?perPage=10&page=${page}`,
+        { headers },
+      );
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { people: { userId: string }[] };
+      if (body.people.length === 0) break;
+      seen.push(...body.people.map((p) => p.userId));
+    }
+    const mine = seen.filter((id) => ids.includes(id));
+    expect(mine.sort()).toEqual([...ids].sort());
+  } finally {
+    await db.delete(schema.member).where(inArray(schema.member.userId, ids));
+    await db.delete(schema.user).where(inArray(schema.user.id, ids));
+  }
 });
 
 test("nothing touches somebody who is not a member of this business", async () => {

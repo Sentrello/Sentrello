@@ -355,7 +355,9 @@ export function registerPeople(ctx: ModuleContext) {
         .from(schema.member)
         .innerJoin(schema.user, eq(schema.user.id, schema.member.userId))
         .where(whoFor(audience))
-        .orderBy(asc(schema.user.name))
+        // The member id breaks ties, so two people sharing a name cannot swap
+        // places between pages and leave one of them on neither.
+        .orderBy(asc(schema.user.name), asc(schema.member.id))
         .limit(perPage)
         .offset((page - 1) * perPage);
 

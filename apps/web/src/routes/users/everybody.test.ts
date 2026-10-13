@@ -51,3 +51,31 @@ test("everybody is everybody, the last person included", async () => {
   expect(people.at(-1)?.userId).toBe("u-449");
   expect(asked).toHaveLength(3);
 });
+
+/**
+ * Somebody joins between two pages.
+ *
+ * Pages are counted from the top, so a person who sorts early and arrives
+ * after page one pushes everybody down a place: page two then begins with the
+ * person page one ended on. The list offered them twice, and the screens key
+ * their rows by user.
+ */
+test("a page that overlaps the one before it offers nobody twice", async () => {
+  const paged = globalThis.fetch;
+  let served = 0;
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    served += 1;
+    if (served === 2) {
+      staff.unshift({ userId: "u-new", name: "000 New", email: "n@x.test" });
+    }
+    return paged(input);
+  }) as typeof fetch;
+  try {
+    const { people } = await everybody();
+    const ids = people.map((p) => p.userId);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids).toContain("u-449");
+  } finally {
+    staff.shift();
+  }
+});

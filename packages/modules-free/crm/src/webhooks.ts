@@ -77,6 +77,12 @@ const forReceiver = (row: Record<string, unknown> | null) =>
  * cursor moves to the last event taken; the read is `>=` and the unique
  * (webhook, event) pair swallows the overlap, so a crash between the insert
  * and the cursor write costs nothing and doubles nothing.
+ *
+ * The read also skips what this endpoint already holds. `at` is the
+ * transaction's clock, so an import of 600 records is 600 events in one
+ * instant: the cursor cannot move past an instant it has only half read, and
+ * a read of `>=` that instant alone handed back the same 500 every sweep. The
+ * rest never left, and neither did anything after them.
  */
 export async function fanOutDue(): Promise<void> {
   const hooks = await db.select().from(schema.crmWebhooks);
@@ -91,9 +97,10 @@ export async function fanOutDue(): Promise<void> {
           eq(schema.recordEvents.organizationId, hook.organizationId),
           gte(schema.recordEvents.at, hook.cursorAt),
           inArray(schema.recordEvents.entity, hook.entities),
+          sql`not exists (select 1 from ${schema.crmWebhookDeliveries} where ${schema.crmWebhookDeliveries.webhookId} = ${hook.id} and ${schema.crmWebhookDeliveries.eventId} = ${schema.recordEvents.id})`,
         ),
       )
-      .orderBy(asc(schema.recordEvents.at))
+      .orderBy(asc(schema.recordEvents.at), asc(schema.recordEvents.id))
       .limit(FAN_OUT_LIMIT);
     if (events.length === 0) continue;
 

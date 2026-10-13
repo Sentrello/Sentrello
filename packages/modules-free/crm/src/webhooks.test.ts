@@ -487,3 +487,56 @@ test("a portal token never leaves through the contacts API", async () => {
     .where(eq(schema.contacts.id, contact.id));
   expect(after[0]?.portalToken).not.toBe("guess-me");
 });
+
+/**
+ * More changes in one instant than one sweep takes.
+ *
+ * `at` is the transaction's clock, so an import that writes 600 companies in
+ * one transaction stamps 600 events with the same instant. The sweep took 500,
+ * moved its cursor to that instant, and read from it with `>=` — the same 500
+ * again, in whatever order the database chose, every minute for ever. The
+ * other hundred never left, and neither did anything written after them.
+ */
+test("a sweep reaches every event when more share an instant than it takes", async () => {
+  const at = new Date(Date.now() + 60_000);
+  const [hook] = await db
+    .insert(schema.crmWebhooks)
+    .values({
+      organizationId: orgId,
+      url: "https://93.184.216.34/many",
+      secret: "unused",
+      entities: ["company"],
+      cursorAt: new Date(at.getTime() - 1000),
+    })
+    .returning({ id: schema.crmWebhooks.id });
+  if (!hook) throw new Error("could not create the endpoint");
+
+  const events = await db
+    .insert(schema.recordEvents)
+    .values(
+      Array.from({ length: 600 }, () => ({
+        organizationId: orgId,
+        entity: "company",
+        entityId: crypto.randomUUID(),
+        action: "created",
+        changed: [],
+        at,
+      })),
+    )
+    .returning({ id: schema.recordEvents.id });
+
+  for (let sweep = 0; sweep < 3; sweep++) await fanOutDue();
+
+  const queued = await db
+    .select({ eventId: schema.crmWebhookDeliveries.eventId })
+    .from(schema.crmWebhookDeliveries)
+    .where(eq(schema.crmWebhookDeliveries.webhookId, hook.id));
+  const reached = new Set(queued.map((q) => q.eventId));
+  expect(queued).toHaveLength(events.length);
+  expect(events.filter((e) => !reached.has(e.id))).toHaveLength(0);
+
+  await db
+    .delete(schema.crmWebhookDeliveries)
+    .where(eq(schema.crmWebhookDeliveries.webhookId, hook.id));
+  await db.delete(schema.crmWebhooks).where(eq(schema.crmWebhooks.id, hook.id));
+});

@@ -28,13 +28,20 @@ export async function everybody(): Promise<{
   total: number;
 }> {
   const people: PersonRow[] = [];
+  const seen = new Set<string>();
   let total = 0;
   for (let page = 1; ; page += 1) {
     const answer = await api<{ people: PersonRow[]; total: number }>(
       `/api/users?perPage=${PAGE}&page=${page}`,
     );
     total = answer.total;
-    people.push(...answer.people);
+    // Pages are counted from the top, so somebody joining between two
+    // requests pushes the last person of one page onto the next as well.
+    for (const person of answer.people) {
+      if (seen.has(person.userId)) continue;
+      seen.add(person.userId);
+      people.push(person);
+    }
     // An empty page ends it too, so a total that shrank between two
     // requests cannot keep this asking for ever.
     if (answer.people.length === 0 || people.length >= total) break;
