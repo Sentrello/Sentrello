@@ -1,5 +1,6 @@
 import { currentActor, currentKey } from "./actor";
 import { db } from "./client";
+import { withoutCredentials } from "./portal";
 import { recordEvents } from "./schema";
 
 /**
@@ -122,8 +123,27 @@ export function onRecordChanged(listener: Listener): () => void {
   return () => listeners.delete(listener);
 }
 
+/**
+ * The copies as the feed may keep them: without a customer's portal login.
+ *
+ * Stripped here, on the way in, because this is the one place the feed is
+ * written and its readers are many — every webhook, every automation, every
+ * module that subscribes, and the trash that restores from it. The webhook sender stripped the
+ * token for itself and an automation's template did too, and any reader that
+ * did not was handed a session-free door to that customer's invoices. A copy
+ * that never held it cannot hand it on.
+ *
+ * Only the credential. The columns the CRM refuses to take from a request body
+ * — a picture's file name, a note's author — are facts about the record, and
+ * a restore from the trash puts them back from here.
+ */
+const readable = (row: Record<string, unknown> | null | undefined) =>
+  row ? withoutCredentials(row) : null;
+
 export async function recordChanged(change: RecordChange): Promise<void> {
   try {
+    const before = readable(change.before);
+    const after = readable(change.after);
     const [written] = await db
       .insert(recordEvents)
       .values({
@@ -131,10 +151,17 @@ export async function recordChanged(change: RecordChange): Promise<void> {
         entity: change.entity,
         entityId: change.entityId,
         action: change.action,
-        changed: changedFields(change.before, change.after),
-        before: change.before ?? null,
-        after: change.after ?? null,
-        related: change.related ?? null,
+        changed: changedFields(before, after),
+        before,
+        after,
+        related: change.related
+          ? Object.fromEntries(
+              Object.entries(change.related).map(([table, rows]) => [
+                table,
+                rows.map((row) => withoutCredentials(row)),
+              ]),
+            )
+          : null,
         actorId: currentActor(),
         actorKeyId: currentKey()?.id ?? null,
         causedByRunId: change.causedByRunId ?? null,

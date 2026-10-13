@@ -5,6 +5,7 @@ import {
 } from "@sentrello/auth/hono";
 import { db, schema } from "@sentrello/db";
 import { dayIn } from "@sentrello/db/day";
+import { withoutCredentials } from "@sentrello/db/portal";
 import { recordChanged } from "@sentrello/db/record-events";
 import { record } from "@sentrello/db/security-events";
 import { asText } from "@sentrello/db/text-columns";
@@ -556,15 +557,10 @@ export function registerMerge(ctx: ModuleContext) {
 
       /*
        * Without the portal login. The row is read whole for the change feed
-       * above, which keeps it; the response is a screen's, and the token is a
-       * customer's invoices to whoever holds it.
+       * above, which strips it as it writes; the response is a screen's, and
+       * the token is a customer's invoices to whoever holds it.
        */
-      const {
-        portalToken: _credential,
-        portalTokenHash: _derived,
-        ...contact
-      } = updatedKept;
-      return c.json({ contact, moved });
+      return c.json({ contact: withoutCredentials(updatedKept), moved });
     },
   );
 }

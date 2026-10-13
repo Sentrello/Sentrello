@@ -29,6 +29,7 @@ import {
 } from "@sentrello/db/list-query";
 import { organizationMember } from "@sentrello/db/membership";
 import { sumCents } from "@sentrello/db/money";
+import { CREDENTIAL_FIELDS, withoutCredentials } from "@sentrello/db/portal";
 import { recordChanged } from "@sentrello/db/record-events";
 import {
   RequestFieldError,
@@ -626,7 +627,7 @@ function crud<T extends keyof typeof tables>(
       // The id is the database's to choose, and nothing on the way in is a
       // credential or a server-owned column — the same rule the edit keeps.
       const { id: _id, ...asked } = await c.req.json();
-      const body = withoutCredentials(asked);
+      const body = withoutServerOwned(asked);
       const parsed = withParsedDates(body, table);
       if (!parsed.ok) {
         return c.json({ error: `${parsed.field} is not a date` }, 400);
@@ -710,7 +711,7 @@ function crud<T extends keyof typeof tables>(
         return c.json({ error: refused }, 400);
       }
       await announce(orgId, resource, row, "created", null, row);
-      return c.json({ [singular]: row }, 201);
+      return c.json({ [singular]: row && withoutCredentials(row) }, 201);
     },
   );
 
@@ -727,7 +728,7 @@ function crud<T extends keyof typeof tables>(
        * that does not exist and the save is refused for the wrong reason.
        */
       // organizationId is never taken from the body — it comes from the
-      // session — and neither is a credential: see `CREDENTIAL_FIELDS`.
+      // session — and neither is a credential: see `SERVER_OWNED_FIELDS`.
       const {
         organizationId: _ignored,
         id: _id,
@@ -751,7 +752,7 @@ function crud<T extends keyof typeof tables>(
           400,
         );
       }
-      const rest = withoutCredentials(withCredentials);
+      const rest = withoutServerOwned(withCredentials);
       const parsed = withParsedDates(rest, table);
       if (!parsed.ok) {
         return c.json({ error: `${parsed.field} is not a date` }, 400);
@@ -959,7 +960,7 @@ function crud<T extends keyof typeof tables>(
 
       if (!row) return c.json({ error: "not found" }, 404);
       await announce(orgId, resource, row, "updated", before, row);
-      return c.json({ [singular]: row });
+      return c.json({ [singular]: withoutCredentials(row) });
     },
   );
 
@@ -1075,7 +1076,8 @@ function crud<T extends keyof typeof tables>(
 }
 
 /**
- * Fields that are credentials, and never travel through a resource route.
+ * Fields a request body never sets, the credentials first — and those never
+ * travel through a resource route in either direction.
  *
  * `portalToken` is the whole of a customer's portal login: anyone holding it
  * reads that customer's invoices at `/account/:token` with no session at
@@ -1092,14 +1094,14 @@ function crud<T extends keyof typeof tables>(
  * handled, and the generic path nobody had to think about was not.
  *
  * Stripped in both directions, in the factory, so a resource added later
- * inherits it. A portal link is minted by `POST /api/contacts/:id/portal-link`
- * and comes back as a URL; nothing legitimate needs the raw token from a
- * list. Its hash goes too: it is the database's to work out, and a body
+ * inherits it. The list itself is `CREDENTIAL_FIELDS` in
+ * `@sentrello/db/portal`, which the change feed strips by too. A portal link
+ * is minted by `POST /api/contacts/:id/portal-link` and comes back as a URL;
+ * nothing legitimate needs the raw token from a list. Its hash goes too: it is the database's to work out, and a body
  * naming it would be refused by Postgres as a 500.
  */
-const CREDENTIAL_FIELDS = [
-  "portalToken",
-  "portalTokenHash",
+const SERVER_OWNED_FIELDS = [
+  ...CREDENTIAL_FIELDS,
   /*
    * And the columns only the server writes, for the same reason: the factory
    * spread the body into the row, so each was the caller's to choose.
@@ -1113,6 +1115,11 @@ const CREDENTIAL_FIELDS = [
    * `inboundMessageId` is the email a note was filed from, and one written by
    * hand would turn that email away when it arrived.
    * Each has its own route; none is legitimately sent in a body.
+   *
+   * Unlike the portal login these are read back. They were stripped on the way
+   * out as well while they shared one list with it, and the contact and
+   * company lists then never drew a picture: the screen asks the row whether
+   * there is one to fetch.
    */
   "avatarPath",
   "logoPath",
@@ -1122,29 +1129,16 @@ const CREDENTIAL_FIELDS = [
   "inboundMessageId",
 ] as const;
 
-function withoutCredentials<T extends Record<string, unknown>>(row: T): T {
+/** A request body without anything the server alone writes. */
+function withoutServerOwned<T extends Record<string, unknown>>(row: T): T {
   let copy: Record<string, unknown> | null = null;
-  for (const field of CREDENTIAL_FIELDS) {
+  for (const field of SERVER_OWNED_FIELDS) {
     if (field in row) {
       copy ??= { ...row };
       delete copy[field];
     }
   }
   return (copy ?? row) as T;
-}
-
-/**
- * A contact as a screen may show it: everything but the portal login.
- *
- * Narrower than `withoutCredentials`, which is for the resource routes and
- * also drops the server-owned columns a write must not choose. A screen reading
- * a contact still needs `avatarPath` to know there is a picture to draw.
- */
-function withoutPortalLogin<
-  T extends { portalToken: unknown; portalTokenHash: unknown },
->(row: T): Omit<T, "portalToken" | "portalTokenHash"> {
-  const { portalToken: _credential, portalTokenHash: _derived, ...rest } = row;
-  return rest;
 }
 
 /**
@@ -3020,7 +3014,7 @@ function registerCrmScreens(
          * was handed each customer's token, and `/account/:token` then showed
          * them that customer's invoices, balance and payments.
          */
-        contacts: everyone.filter((p) => on.has(p.id)).map(withoutPortalLogin),
+        contacts: everyone.filter((p) => on.has(p.id)).map(withoutCredentials),
         notes: await withAuthors(notes),
       });
     },
@@ -3105,7 +3099,7 @@ function registerCrmScreens(
       return c.json({
         company,
         // Without the portal login: see the deal screen above.
-        contacts: people.map(withoutPortalLogin),
+        contacts: people.map(withoutCredentials),
         deals,
         notes: await withAuthors(notes),
         tasks,
@@ -3198,7 +3192,7 @@ function registerCrmScreens(
 
       return c.json({
         // Without the portal login: see the deal screen above.
-        contact: withoutPortalLogin(contact),
+        contact: withoutCredentials(contact),
         company: company[0] ?? null,
         deals: allDeals.filter((d) => (d.contactIds ?? []).includes(id)),
         notes: await withAuthors(notes),

@@ -1,5 +1,9 @@
-import { expect, test } from "bun:test";
-import { changedFields } from "./record-events";
+import { afterAll, expect, test } from "bun:test";
+import { eq } from "drizzle-orm";
+import { db } from "./client";
+import { changedFields, recordChanged } from "./record-events";
+import { recordEvents } from "./schema";
+import { dropOrganization, makeOrganization } from "./testing";
 
 /**
  * Which fields moved, which is the whole difference between a rule that is
@@ -85,4 +89,48 @@ test("the modification stamp is not reported as a change", () => {
   expect(changedFields(before, { ...after, name: "Ruth Okonjo" })).toEqual([
     "name",
   ]);
+});
+
+/**
+ * A portal login is never written into the feed, by any writer.
+ *
+ * The CRM is one writer of many: a merge, an automation's own edits, a module
+ * in another repository. Each used to pass the row whole and leave every reader
+ * to strip it, and the readers that forgot handed on a session-free door to a
+ * customer's invoices. A row the feed never kept cannot be handed on.
+ */
+const feedOrg = `record-events-${crypto.randomUUID().slice(0, 8)}`;
+afterAll(() => dropOrganization(feedOrg));
+
+test("the feed keeps the record and not the portal login", async () => {
+  await makeOrganization(feedOrg);
+  const entityId = crypto.randomUUID();
+  const contact = {
+    id: entityId,
+    name: "Ellis",
+    avatarPath: "face.webp",
+    portalToken: "a-real-looking-portal-login",
+    portalTokenHash: "its-hash",
+  };
+  await recordChanged({
+    organizationId: feedOrg,
+    entity: "contact",
+    entityId,
+    action: "deleted",
+    before: contact,
+    after: null,
+    related: { contacts: [contact] },
+  });
+
+  const [row] = await db
+    .select()
+    .from(recordEvents)
+    .where(eq(recordEvents.entityId, entityId));
+  expect(row?.before).toEqual({
+    id: entityId,
+    name: "Ellis",
+    avatarPath: "face.webp",
+  });
+  expect(row?.related?.contacts?.[0]).toEqual(row?.before ?? {});
+  expect(JSON.stringify(row)).not.toContain("a-real-looking-portal-login");
 });

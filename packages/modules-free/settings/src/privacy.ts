@@ -102,8 +102,13 @@ export function registerPrivacy(ctx: ModuleContext) {
    * `settings: ["update"]` now, the same as the erase beside it: answering a
    * subject access request is an act somebody is accountable for, and the
    * security log records who did it. Reading the record of processing
-   * (`/api/privacy/sources`) and the log of what was done
-   * (`/api/privacy/requests`) stay at read — neither carries anybody's data.
+   * (`/api/privacy/sources`) stays at read: it lists kinds of data, and no
+   * person. The log of what was done (`/api/privacy/requests`) stays at read
+   * too, which is what the Personal data screen itself asks for, but it does
+   * carry people: each entry names whose request was answered, by name or
+   * address, because a log that could not say whose would not be worth
+   * keeping. It holds who asked, when, and what was done — how many records
+   * each module held or removed, and why any were kept — never the records.
    */
   ctx.app.post(
     "/api/privacy/export",

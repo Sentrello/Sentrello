@@ -226,3 +226,69 @@ test("the contact, company and deal screens do not carry the portal login", asyn
     await db.delete(schema.user).where(eq(schema.user.id, reader.userId));
   }
 });
+
+/**
+ * Nor in the change feed, which every webhook, automation and subscribing
+ * module reads.
+ *
+ * The webhook sender stripped the token for itself, and anything else reading
+ * `record_events` got the whole row: an edit to a customer wrote their portal
+ * login into `before` and `after`, twice per save.
+ */
+test("an edit to a contact writes a feed row without the portal login", async () => {
+  const token = `portal-login-${crypto.randomUUID()}`;
+  const [contact] = await db
+    .insert(schema.contacts)
+    .values({ organizationId: orgId, name: "Fed Through", portalToken: token })
+    .returning();
+  if (!contact) throw new Error("could not make the contact");
+
+  const edited = await send("PATCH", `/api/contacts/${contact.id}`, {
+    name: "Fed Through Again",
+  });
+  expect(edited.status).toBe(200);
+  // The edit's own answer is a screen's too.
+  expect(await edited.text()).not.toContain(token);
+
+  const events = await db
+    .select()
+    .from(schema.recordEvents)
+    .where(eq(schema.recordEvents.entityId, contact.id));
+  const update = events.find((e) => e.action === "updated");
+  expect(update).toBeDefined();
+  expect(update?.after?.name).toBe("Fed Through Again");
+  expect(update?.before).not.toHaveProperty("portalToken");
+  expect(update?.after).not.toHaveProperty("portalToken");
+  expect(update?.after).not.toHaveProperty("portalTokenHash");
+  expect(JSON.stringify(events)).not.toContain(token);
+});
+
+/**
+ * The picture's name is the server's to write and the screen's to read.
+ *
+ * It shared one list with the portal login, which is stripped both ways, so
+ * the contact and company lists never learnt there was a picture to fetch and
+ * drew initials for everybody.
+ */
+test("the contact and company lists say which records have a picture", async () => {
+  const face = `${crypto.randomUUID()}.webp`;
+  const logo = `${crypto.randomUUID()}.webp`;
+  const [contact] = await db
+    .insert(schema.contacts)
+    .values({ organizationId: orgId, name: "Has A Face", avatarPath: face })
+    .returning();
+  const [company] = await db
+    .insert(schema.companies)
+    .values({ organizationId: orgId, name: "Has A Logo", logoPath: logo })
+    .returning();
+
+  const { contacts } = (await (await send("GET", "/api/contacts")).json()) as {
+    contacts: { id: string; avatarPath?: string | null }[];
+  };
+  expect(contacts.find((c) => c.id === contact?.id)?.avatarPath).toBe(face);
+
+  const { companies } = (await (
+    await send("GET", "/api/companies")
+  ).json()) as { companies: { id: string; logoPath?: string | null }[] };
+  expect(companies.find((c) => c.id === company?.id)?.logoPath).toBe(logo);
+});

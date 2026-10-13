@@ -80,6 +80,29 @@ export async function contactByPortalToken(token: string, caller: string) {
   return row && tokenMatches(token, row.portalToken ?? "") ? row : null;
 }
 
+/**
+ * The columns that are a customer's portal login, and so never leave the
+ * server.
+ *
+ * Whoever holds the token reads that customer's invoices at `/account/:token`
+ * with no session; its hash is what the lookup above finds a row by. Named
+ * here, beside the lookup, because every place a contact is handed out — the
+ * CRM's routes, the change feed, a webhook body — has to agree on the list,
+ * and the copies they used to keep each named the same two fields by hand.
+ */
+export const CREDENTIAL_FIELDS = ["portalToken", "portalTokenHash"] as const;
+
+/** A row as it may be read: everything but the portal login. */
+export function withoutCredentials<T extends Record<string, unknown>>(
+  row: T,
+): Omit<T, (typeof CREDENTIAL_FIELDS)[number]> {
+  type Readable = Omit<T, (typeof CREDENTIAL_FIELDS)[number]>;
+  if (!CREDENTIAL_FIELDS.some((field) => field in row)) return row as Readable;
+  const copy: Record<string, unknown> = { ...row };
+  for (const field of CREDENTIAL_FIELDS) delete copy[field];
+  return copy as Readable;
+}
+
 /** What `contacts.portal_token_hash` holds for a token: SHA-256, hex. */
 export function portalTokenHash(token: string): string {
   return createHash("sha256").update(token, "utf8").digest("hex");

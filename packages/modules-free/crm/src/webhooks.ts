@@ -4,6 +4,7 @@ import {
   requireSession,
 } from "@sentrello/auth/hono";
 import { db, schema } from "@sentrello/db";
+import { withoutCredentials } from "@sentrello/db/portal";
 import { asFlag } from "@sentrello/db/request-values";
 import { record } from "@sentrello/db/security-events";
 import { asText } from "@sentrello/db/text-columns";
@@ -60,17 +61,13 @@ const SWEEP_LIMIT = 100;
  * The record as the receiver may see it.
  *
  * Everything on a contact is the business's own data except the portal
- * token, which is a credential: whoever holds it can open the customer's
+ * login, which is a credential: whoever holds it can open the customer's
  * invoices. A webhook body ends up in the receiver's request logs, which is
- * not where a credential belongs.
+ * not where a credential belongs. The feed no longer keeps it, so this is for
+ * the rows written before it stopped.
  */
-function withoutCredentials(
-  row: Record<string, unknown> | null,
-): Record<string, unknown> | null {
-  if (!row) return null;
-  const { portalToken: _credential, portalTokenHash: _derived, ...rest } = row;
-  return rest;
-}
+const forReceiver = (row: Record<string, unknown> | null) =>
+  row ? withoutCredentials(row) : null;
 
 /**
  * Queue every fresh feed event for every endpoint that wants it.
@@ -118,8 +115,8 @@ export async function fanOutDue(): Promise<void> {
             entityId: event.entityId,
             action: event.action,
             changed: event.changed,
-            before: withoutCredentials(event.before ?? null),
-            after: withoutCredentials(event.after ?? null),
+            before: forReceiver(event.before ?? null),
+            after: forReceiver(event.after ?? null),
             at: event.at.toISOString(),
           },
           nextAttemptAt: now,
