@@ -125,6 +125,20 @@ test("a transaction the bank amended is the same transaction", async () => {
   expect(page.removed).toEqual(["t9"]);
 });
 
+/** Dropped, the caller read one page a run and never knew there was more. */
+test("the provider's word that more is waiting reaches the caller", async () => {
+  stub(() => ({
+    added: [],
+    modified: [],
+    removed: [],
+    next_cursor: "c2",
+    has_more: true,
+  }));
+  const page = await plaid.syncTransactions(CREDENTIALS, "access-1", "c1");
+  expect(page.hasMore).toBe(true);
+  expect(page.cursor).toBe("c2");
+});
+
 test("a balance in whole units is stored as cents", async () => {
   stub(() => ({
     accounts: [

@@ -253,6 +253,7 @@ export const plaid: BankProvider = {
        */
       cursor: page.next_cursor || null,
       removed: page.removed.map((r) => r.transaction_id),
+      hasMore: page.has_more,
     };
   },
 

@@ -122,6 +122,68 @@ export interface BankTransactionPage {
   cursor: string | null;
   /** References the provider says are gone and should be removed here too. */
   removed: string[];
+  /**
+   * Whether the provider has more waiting past this page.
+   *
+   * A page is a few hundred movements, and a newly connected account can have
+   * two years of them. A caller that reads one page a run brings that history
+   * in a page a night, and anything the provider expires before it is read is
+   * never seen at all. Optional so an adapter written before it still
+   * compiles; absent means no more.
+   */
+  hasMore?: boolean;
+}
+
+/**
+ * How many pages one sync reads before it stops and leaves the rest for the
+ * next run. Twenty pages of five hundred is ten thousand movements, which is
+ * years of an ordinary business's history and still one bounded request.
+ */
+export const BANK_SYNC_MAX_PAGES = 20;
+
+/**
+ * Every page the provider has, up to `maxPages`, as one page.
+ *
+ * The cursor returned is the last page's, so storing it carries on exactly
+ * where this stopped, and `hasMore` is still true when the cap was what
+ * stopped it — the caller can run again rather than wait for tomorrow.
+ *
+ * A failure on any page throws and keeps nothing. The provider asks for
+ * exactly that when its data changes mid-read: start again from the cursor
+ * the read began with, and a partial read stored with a later cursor would
+ * skip what changed.
+ *
+ * A reference removed on a later page is taken out of what was added on an
+ * earlier one, and one added back after a removal is taken off the removed
+ * list, so a caller that upserts and then deletes ends where the provider
+ * does.
+ */
+export async function syncAllTransactions(
+  provider: Pick<BankProvider, "syncTransactions">,
+  credentials: BankCredentials,
+  accessToken: string,
+  cursor: string | null,
+  maxPages: number = BANK_SYNC_MAX_PAGES,
+): Promise<BankTransactionPage> {
+  let transactions: BankTransactionInfo[] = [];
+  const removed = new Set<string>();
+  let at = cursor;
+  let hasMore = false;
+  for (let read = 0; read < maxPages; read += 1) {
+    const page = await provider.syncTransactions(credentials, accessToken, at);
+    const gone = new Set(page.removed);
+    transactions = transactions.filter((row) => !gone.has(row.reference));
+    for (const row of page.transactions) removed.delete(row.reference);
+    for (const reference of gone) removed.add(reference);
+    transactions.push(...page.transactions);
+    const moved = page.cursor !== at;
+    at = page.cursor;
+    // A page that says there is more but hands back the same cursor would
+    // be asked for again for ever.
+    hasMore = Boolean(page.hasMore) && moved && at !== null;
+    if (!hasMore) break;
+  }
+  return { transactions, cursor: at, removed: [...removed], hasMore };
 }
 
 /** Starting a connection: what the browser needs to open the provider's window. */

@@ -7,6 +7,10 @@ export * from "./schema";
 // database connection.
 export * from "./orm";
 
+// Escaping a spreadsheet cell. Also `@sentrello/db/csv-cell`, which opens no
+// connection.
+export * from "./csv-cell";
+
 /*
  * Loaded for its side effect: Core declares which of its tables are evidence
  * of money and which are not, before any module can register a policy that

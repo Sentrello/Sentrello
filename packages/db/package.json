@@ -42,7 +42,8 @@
     "./retention": "./src/retention.ts",
     "./membership": "./src/membership.ts",
     "./owned": "./src/owned.ts",
-    "./unsubscribe": "./src/unsubscribe.ts"
+    "./unsubscribe": "./src/unsubscribe.ts",
+    "./csv-cell": "./src/csv-cell.ts"
   },
   "scripts": {
     "migrate": "bun run src/migrate.ts"

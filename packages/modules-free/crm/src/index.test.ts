@@ -1061,6 +1061,25 @@ test("contacts export as something a person could read", async () => {
 });
 
 /**
+ * A name typed into the public form is a formula by the time somebody opens
+ * the export, unless the writer says otherwise. The whole route, not only the
+ * helper: a route that built its own rows would pass the helper's test.
+ */
+test("a contact named as a formula exports as text", async () => {
+  await app.request("http://localhost/api/contacts", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ firstName: "=1+1", lastName: "Formulaic" }),
+  });
+  const res = await app.request("http://localhost/api/contacts/export.csv", {
+    headers,
+  });
+  const body = await res.text();
+  expect(body).toContain("'=1+1,Formulaic");
+  expect(body).not.toMatch(/(^|,)=1\+1/m);
+});
+
+/**
  * Import. Without it a trial starts with an empty CRM and a re-typing job,
  * which is where most trials end.
  */
