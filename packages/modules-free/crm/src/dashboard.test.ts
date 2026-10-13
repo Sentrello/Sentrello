@@ -3,7 +3,7 @@ import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, eq, schema } from "@sentrello/db";
 import { dropOrganization, makeOrganization } from "@sentrello/db/testing";
-import type { SentrelloEnv } from "@sentrello/module-sdk";
+import type { SearchProvider, SentrelloEnv } from "@sentrello/module-sdk";
 import { Hono } from "hono";
 import crm from "./index";
 
@@ -12,6 +12,7 @@ const email = `crm-dash-${suffix}@example.test`;
 const app = new Hono<SentrelloEnv>();
 
 let orgId: string;
+let search: SearchProvider | undefined;
 let headers: Headers;
 
 const days = (n: number) => new Date(Date.now() + n * 24 * 60 * 60 * 1000);
@@ -25,7 +26,9 @@ beforeAll(async () => {
     registerSummary: () => {},
     registerWidget: () => {},
     registerAccountSection: () => {},
-    registerSearch: () => {},
+    registerSearch: (provider) => {
+      search = provider;
+    },
     registerPersonalData: () => {},
     registerOnboarding: () => {},
     registerCrawlable: () => {},
@@ -557,4 +560,76 @@ test("the overdue count and the overdue filter name the same deals", async () =>
     ["Should have closed"].sort(),
   );
   expect(listed.deals.map((d) => d.name)).not.toContain("Closing today");
+});
+
+/**
+ * Both contact panels were built from the newest two hundred activities, so
+ * a busy fortnight of notes about one customer pushed everybody else out of
+ * them: the hot panel emptied, and nobody was ever going quiet.
+ */
+test("two hundred notes about one customer push nobody off either panel", async () => {
+  const [hot] = await db
+    .insert(schema.contacts)
+    .values({ organizationId: orgId, name: "Hana Hot", status: "hot" })
+    .returning();
+  const [quiet] = await db
+    .insert(schema.contacts)
+    .values({ organizationId: orgId, name: "Quentin Quiet", status: "warm" })
+    .returning();
+  const [busy] = await db
+    .insert(schema.contacts)
+    .values({ organizationId: orgId, name: "Bea Busy", status: "warm" })
+    .returning();
+  await db.insert(schema.activities).values([
+    {
+      organizationId: orgId,
+      contactId: hot?.id,
+      type: "call",
+      body: "keen",
+      occurredAt: days(-3),
+    },
+    {
+      organizationId: orgId,
+      contactId: quiet?.id,
+      type: "call",
+      body: "the last we heard",
+      occurredAt: days(-45),
+    },
+    ...Array.from({ length: 210 }, (_, n) => ({
+      organizationId: orgId,
+      contactId: busy?.id,
+      type: "note",
+      body: `note ${n}`,
+      occurredAt: new Date(Date.now() - n * 1000),
+    })),
+  ]);
+
+  const body = await dashboard();
+  expect(body.hotContacts.map((c) => c.id)).toContain(hot?.id as string);
+  expect(body.goingCold).toBeGreaterThanOrEqual(1);
+  expect(body.latestActivity).toHaveLength(10);
+});
+
+/**
+ * The search box keeps twenty of each kind and ranks what it kept. Unordered,
+ * the twenty were whichever the database reached first, so the customer whose
+ * whole name was typed could be the twenty-first.
+ */
+test("a whole name typed into search is found among thirty near misses", async () => {
+  await db.insert(schema.contacts).values(
+    Array.from({ length: 30 }, (_, n) => ({
+      organizationId: orgId,
+      name: `${n % 2 ? "Joanne" : "Annabel"} Near-miss ${n}`,
+    })),
+  );
+  await db
+    .insert(schema.contacts)
+    .values({ organizationId: orgId, name: "Ann" });
+
+  const hits = await search?.find({
+    organizationId: orgId,
+    q: "Ann",
+    limit: 20,
+  });
+  expect(hits?.map((h) => h.title)).toContain("Ann");
 });

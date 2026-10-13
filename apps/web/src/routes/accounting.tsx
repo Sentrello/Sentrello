@@ -125,10 +125,14 @@ function CorrectTransaction({
     });
   }
 
-  const categories = accounts.filter((a) =>
-    transaction?.kind === "expense"
-      ? a.type === "expense"
-      : a.type === "income",
+  // Live accounts, and the one this row already names even if archived, so
+  // the box opens on what is recorded rather than on nothing.
+  const categories = accounts.filter(
+    (a) =>
+      (!a.archivedAt || a.id === transaction?.accountId) &&
+      (transaction?.kind === "expense"
+        ? a.type === "expense"
+        : a.type === "income"),
   );
 
   return (
@@ -740,9 +744,15 @@ export function Money() {
       }>(`/api/transactions${filter ? `?${filter}` : ""}`),
     placeholderData: (previous) => previous,
   });
+  /*
+   * Archived accounts included. A row recorded against an account that has
+   * since been archived still names it: asked without them, the list read "—"
+   * for every one of those rows, and correcting one opened on a blank
+   * category. The pickers below leave them out themselves.
+   */
   const accounts = useQuery({
-    queryKey: ["accounts"],
-    queryFn: () => api<{ accounts: Account[] }>("/api/accounts"),
+    queryKey: ["accounts", true],
+    queryFn: () => api<{ accounts: Account[] }>("/api/accounts?archived=1"),
   });
 
   const refresh = () => {
@@ -817,8 +827,10 @@ export function Money() {
   const accountName = (id: string | null) =>
     accounts.data?.accounts.find((a) => a.id === id)?.name ?? "—";
 
-  const categoryAccounts = (accounts.data?.accounts ?? []).filter((a) =>
-    kind === "expense" ? a.type === "expense" : a.type === "income",
+  const categoryAccounts = (accounts.data?.accounts ?? []).filter(
+    (a) =>
+      !a.archivedAt &&
+      (kind === "expense" ? a.type === "expense" : a.type === "income"),
   );
   /*
    * Where money can actually be: a bank the business has named, or the cash
@@ -1667,10 +1679,14 @@ export function Journal() {
    * The whole list rather than a search: a chart of accounts is dozens of
    * rows, not thousands, and a select somebody can read down beats a box they
    * have to know the name to type into.
+   *
+   * Archived ones too. The journal is where an old figure is explained, and
+   * an account retired in March still carries everything posted to it before
+   * then; leaving it out of the filter left that history unreachable here.
    */
   const accounts = useQuery({
-    queryKey: ["accounts"],
-    queryFn: () => api<{ accounts: Account[] }>("/api/accounts"),
+    queryKey: ["accounts", true],
+    queryFn: () => api<{ accounts: Account[] }>("/api/accounts?archived=1"),
   });
   const query = listQueryString(state, true);
   const journal = useQuery({

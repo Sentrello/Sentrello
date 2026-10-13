@@ -3,8 +3,9 @@ import {
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
-import { db, desc, eq, schema } from "@sentrello/db";
+import { and, db, desc, eq, inArray, schema } from "@sentrello/db";
 import { businessIdentity } from "@sentrello/db/portal";
+import type { SecurityAction } from "@sentrello/db/security-events";
 import type { ModuleContext, RouteContext } from "@sentrello/module-sdk";
 import { personalDataSources, retentionText } from "@sentrello/module-sdk";
 
@@ -35,6 +36,20 @@ import { personalDataSources, retentionText } from "@sentrello/module-sdk";
  * compliance score invites somebody to improve the score, and what an auditor
  * wants is the underlying facts with a date on them.
  */
+/** The events that grant or take away access, which is what CC6.2 asks for. */
+const ACCESS_CHANGES: SecurityAction[] = [
+  "role.changed",
+  "member.removed",
+  "member.invited",
+  "invitation.cancelled",
+  "group.joined",
+  "group.left",
+  "account.disabled",
+  "account.enabled",
+  "sessions.revoked",
+  "two-factor.revoked",
+];
+
 export function registerEvidence(ctx: ModuleContext) {
   ctx.app.get(
     "/api/compliance/evidence",
@@ -73,12 +88,24 @@ export function registerEvidence(ctx: ModuleContext) {
        * Every change to who could do what, which is the trail the access
        * review is checked against.
        */
+      /*
+       * Only those kinds, asked for in the query. This took the newest 1,000
+       * events of every kind and picked the access changes out afterwards,
+       * and sign-ins are events too: a few hundred staff signing in for a
+       * week pushed every role change out of the window, and the pack an
+       * auditor reads said nobody's access had changed. Access changes are
+       * rare enough that all of them fit.
+       */
       const log = await db
         .select()
         .from(schema.securityEvents)
-        .where(eq(schema.securityEvents.organizationId, orgId))
-        .orderBy(desc(schema.securityEvents.at))
-        .limit(1000);
+        .where(
+          and(
+            eq(schema.securityEvents.organizationId, orgId),
+            inArray(schema.securityEvents.action, ACCESS_CHANGES),
+          ),
+        )
+        .orderBy(desc(schema.securityEvents.at));
 
       const [compliance] = await db
         .select()
@@ -112,27 +139,12 @@ export function registerEvidence(ctx: ModuleContext) {
 
         accessChanges: {
           control: "CC6.2 — granting and removing access",
-          events: log
-            .filter((e) =>
-              [
-                "role.changed",
-                "member.removed",
-                "member.invited",
-                "invitation.cancelled",
-                "group.joined",
-                "group.left",
-                "account.disabled",
-                "account.enabled",
-                "sessions.revoked",
-                "two-factor.revoked",
-              ].includes(e.action),
-            )
-            .map((e) => ({
-              at: e.at,
-              action: e.action,
-              by: e.actorName,
-              to: e.subjectName,
-            })),
+          events: log.map((e) => ({
+            at: e.at,
+            action: e.action,
+            by: e.actorName,
+            to: e.subjectName,
+          })),
         },
 
         dataHeld: {

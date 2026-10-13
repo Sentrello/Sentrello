@@ -123,32 +123,43 @@ export async function sweepExpiredUploads(now = new Date()): Promise<number> {
   if (days === 0) return 0;
 
   const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-  const rows = await db
-    .select({
-      id: schema.formSubmissions.id,
-      attachments: schema.formSubmissions.attachments,
-    })
-    .from(schema.formSubmissions)
-    .where(
-      and(
-        lt(schema.formSubmissions.createdAt, cutoff),
-        sql`jsonb_array_length(${schema.formSubmissions.attachments}) > 0`,
-      ),
-    )
-    .limit(500);
-
+  /*
+   * Five hundred at a time, until none are left. It took one batch of five
+   * hundred a night and stopped, so the night retention was first switched on
+   * over a year of uploads, or any day a busy form took more than that, left
+   * files on the disk past the date this promises they are gone — and each
+   * night's backlog was still there for the next.
+   */
+  const BATCH = 500;
   let gone = 0;
-  for (const row of rows) {
-    for (const held of row.attachments ?? []) {
-      await removeAttachment(held.path, UPLOAD_FOLDER);
-      gone += 1;
+  for (;;) {
+    const rows = await db
+      .select({
+        id: schema.formSubmissions.id,
+        attachments: schema.formSubmissions.attachments,
+      })
+      .from(schema.formSubmissions)
+      .where(
+        and(
+          lt(schema.formSubmissions.createdAt, cutoff),
+          sql`jsonb_array_length(${schema.formSubmissions.attachments}) > 0`,
+        ),
+      )
+      .limit(BATCH);
+
+    for (const row of rows) {
+      for (const held of row.attachments ?? []) {
+        await removeAttachment(held.path, UPLOAD_FOLDER);
+        gone += 1;
+      }
+      await db
+        .update(schema.formSubmissions)
+        .set({ attachments: [] })
+        .where(eq(schema.formSubmissions.id, row.id));
     }
-    await db
-      .update(schema.formSubmissions)
-      .set({ attachments: [] })
-      .where(eq(schema.formSubmissions.id, row.id));
+    // Every row taken was emptied, so the next query cannot see it again.
+    if (rows.length < BATCH) return gone;
   }
-  return gone;
 }
 
 export function registerForms(ctx: ModuleContext) {

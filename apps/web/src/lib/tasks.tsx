@@ -12,6 +12,7 @@ import { type ReactNode, useId, useState } from "react";
 import { api, may } from "./api";
 import { PersonSelect, useCrmManagers } from "./crm-settings";
 import { Icon } from "./icons";
+import { RecordPicker } from "./record-picker";
 import {
   Button,
   Dialog,
@@ -309,7 +310,7 @@ export function TaskDialog({
   task,
   invalidate,
   subject,
-  subjects,
+  chooseContact,
   taskTypes,
 }: {
   open: boolean;
@@ -318,8 +319,14 @@ export function TaskDialog({
   invalidate: unknown[][];
   /** Fixed by the screen: a contact or company page knows what this is about. */
   subject?: { contactId?: string; companyId?: string; dealId?: string };
-  /** Or offered as a choice, which is what the dashboard needs. */
-  subjects?: { id: string; name: string }[];
+  /**
+   * Or offered as a choice, which is what the dashboard needs.
+   *
+   * A search rather than a list. This was a `<select>` of the first two
+   * hundred contacts by name, so from the dashboard a task could be about
+   * Aaron and never about Zoe, at any business past two hundred customers.
+   */
+  chooseContact?: boolean;
   /** This business's own list, from CRM settings, when the screen has it. */
   taskTypes?: string[];
 }) {
@@ -327,6 +334,7 @@ export function TaskDialog({
   const [title, setTitle] = useState(task?.title ?? "");
   const [description, setDescription] = useState(task?.description ?? "");
   const [contactId, setContactId] = useState(task?.contactId ?? "");
+  const [contactName, setContactName] = useState("");
   const [type, setType] = useState(task?.type ?? "");
   /*
    * Who it is for.
@@ -415,19 +423,20 @@ export function TaskDialog({
           />
         </Field>
 
-        {subjects ? (
+        {chooseContact ? (
           <Field label="Contact">
-            <Select
-              value={contactId}
-              onChange={(e) => setContactId(e.target.value)}
-            >
-              <option value="">Nobody in particular</option>
-              {subjects.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </Select>
+            <RecordPicker
+              path="/api/contacts"
+              resource="contacts"
+              value={contactId ? { id: contactId, name: contactName } : null}
+              onChange={(picked) => {
+                setContactId(picked?.id ?? "");
+                setContactName(picked?.name ?? "");
+              }}
+              placeholder="Nobody in particular"
+              clearLabel="Nobody in particular"
+              noun="contact"
+            />
           </Field>
         ) : null}
 

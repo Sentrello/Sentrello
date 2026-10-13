@@ -94,6 +94,22 @@ export function searchCondition(
 }
 
 /**
+ * Whole matches first, then names that start with the term, then the rest.
+ *
+ * For a search that keeps only its first few rows. Without an order the
+ * database hands back whichever matches it reaches first, and the ranking
+ * done afterwards ranks only those: search "Ann" in a book holding thirty
+ * Annabels, Joannes and Hannahs, and the customer called Ann was as likely as
+ * not to be outside the twenty that were kept. The same three steps
+ * `scoreFor` ranks by, so the rows kept are the ones it would put on top.
+ */
+export function closestFirst(column: PgColumn | SQL, q: string): SQL {
+  const needle = q.trim().toLowerCase();
+  const start = `${needle.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`;
+  return sql`case when lower(${column}) = ${needle} then 0 when lower(${column}) like ${start} then 1 else 2 end`;
+}
+
+/**
  * Which way a list is actually being ordered.
  *
  * Separate from `orderBy` because a paged list needs a second column to break

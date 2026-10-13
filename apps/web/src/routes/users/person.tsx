@@ -691,6 +691,27 @@ function Sessions({ userId }: { userId: string }) {
  */
 const RECENT = 50;
 
+/**
+ * The newest `count` of two newest-first pages, as one list.
+ *
+ * Cut back to `count` after the merge, because past that the union has a
+ * hole in it. Somebody who acted five hundred times this month and was acted
+ * on fifty times last year came back as this month's fifty and last year's
+ * fifty, with the four hundred and fifty in between missing from a list that
+ * called itself the most recent.
+ */
+export function mostRecent<T extends { id: string; at: string }>(
+  first: T[],
+  second: T[],
+  count: number,
+): T[] {
+  const byId = new Map<string, T>();
+  for (const e of [...first, ...second]) byId.set(e.id, e);
+  return [...byId.values()]
+    .sort((a, b) => (a.at < b.at ? 1 : -1))
+    .slice(0, count);
+}
+
 function Activity({ userId }: { userId: string }) {
   const { data, isLoading, error } = useQuery({
     queryKey: ["person-activity", userId],
@@ -704,12 +725,8 @@ function Activity({ userId }: { userId: string }) {
           `/api/users/events?subject=${encodeURIComponent(userId)}&${page}`,
         ),
       ]);
-      const byId = new Map<string, Event>();
-      for (const e of [...asActor.events, ...asSubject.events]) {
-        byId.set(e.id, e);
-      }
       return {
-        events: [...byId.values()].sort((a, b) => (a.at < b.at ? 1 : -1)),
+        events: mostRecent(asActor.events, asSubject.events, RECENT),
         // An upper bound on the whole history: the two filters overlap, so
         // the sum over-counts rather than under-counts, and the only claim
         // made from it is "there is more than this".

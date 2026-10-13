@@ -4,6 +4,7 @@ import { COMPANY_SIZES, type Company, api } from "../lib/api";
 import { useSession } from "../lib/auth";
 import { Avatar } from "../lib/avatar";
 import {
+  isDecided,
   managerName,
   useCrmManagers,
   useCrmSettings,
@@ -66,8 +67,6 @@ interface Related {
   }[];
   tasks: Task[];
 }
-
-const CLOSED = new Set(["won", "lost"]);
 
 /**
  * The companies the business sells to, as cards.
@@ -390,7 +389,8 @@ export function CompanyDetail() {
   if (!data) return null;
 
   const { company, contacts, deals, notes, tasks } = data;
-  const open = deals.filter((d) => !CLOSED.has(d.stage));
+  // By this business's own names for finished, not by ours. See `isDecided`.
+  const open = deals.filter((d) => !isDecided(settings, d.stage));
   const inFlight = open.reduce((sum, d) => sum + d.amountCents, 0);
 
   if (editing) {

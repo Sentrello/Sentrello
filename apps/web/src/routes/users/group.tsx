@@ -18,6 +18,7 @@ import {
   muted,
 } from "../../lib/ui";
 import { AccessMatrix, type Grant } from "./access-matrix";
+import { everybody } from "./everybody";
 import type { GroupRow } from "./groups";
 import { tabFromSearch } from "./person";
 import { policyLabel } from "./policy-ui";
@@ -47,12 +48,6 @@ interface PolicyRow {
   builtIn: boolean;
   kind: "user" | "group" | "custom";
   allows: Record<string, string[]>;
-}
-
-interface PersonRow {
-  userId: string;
-  name: string;
-  email: string;
 }
 
 interface Event {
@@ -107,22 +102,13 @@ function Members({ group }: { group: GroupRow }) {
   const qc = useQueryClient();
 
   /*
-   * Everybody, for the "add somebody" list.
-   *
-   * Its own request rather than the paged one the People list uses: a picker
-   * that cannot find the two-hundredth person is a picker that cannot put
-   * them in a group. Two hundred is the server's own ceiling, so past it the
-   * comment above was describing a problem this request still had — the
-   * two-hundred-and-first person was absent, with nothing saying so.
-   *
-   * The count comes back too, so the list can at least admit it is short.
-   * `RecordPicker` searching the server is the fuller answer and changes the
-   * control, which is its own change.
+   * Everybody, for the "add somebody" list: every page of them, because a
+   * picker that cannot find the two-hundred-and-first person is a picker that
+   * cannot put them in a group. See `everybody`.
    */
   const people = useQuery({
     queryKey: ["users", "for-groups"],
-    queryFn: () =>
-      api<{ people: PersonRow[]; total: number }>("/api/users?perPage=200"),
+    queryFn: everybody,
   });
 
   const settle = () => qc.invalidateQueries({ queryKey: ["user-groups"] });
@@ -147,11 +133,10 @@ function Members({ group }: { group: GroupRow }) {
   if (people.isLoading) return <Loading />;
   if (people.error) return <ErrorNote error={people.error} />;
 
-  const everybody = people.data?.people ?? [];
   const inGroup = new Set(group.members.map((m) => m.userId));
-  const others = everybody.filter((p) => !inGroup.has(p.userId));
-  /** More people exist than were fetched, so "not listed" is not "not here". */
-  const someoneMissing = (people.data?.total ?? 0) > everybody.length;
+  const others = (people.data?.people ?? []).filter(
+    (p) => !inGroup.has(p.userId),
+  );
 
   return (
     <div className="flex flex-col gap-(--gap-stack)">
@@ -199,15 +184,7 @@ function Members({ group }: { group: GroupRow }) {
 
       {others.length > 0 ? (
         <Card>
-          <SectionHeading
-            hint={
-              someoneMissing
-                ? `${everybody.length} of ${people.data?.total} shown — somebody further down will not be here yet`
-                : undefined
-            }
-          >
-            Add somebody
-          </SectionHeading>
+          <SectionHeading>Add somebody</SectionHeading>
           <ul className="flex flex-col gap-(--gap-tight) text-sm">
             {others.map((p) => (
               <li key={p.userId} className="flex items-center justify-between">

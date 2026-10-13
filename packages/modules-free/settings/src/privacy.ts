@@ -3,7 +3,7 @@ import {
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
-import { db, desc, eq, schema } from "@sentrello/db";
+import { and, db, desc, eq, like, schema } from "@sentrello/db";
 import { businessIdentity } from "@sentrello/db/portal";
 import { asTextOrNothing } from "@sentrello/db/request-values";
 import { record as recordSecurityEvent } from "@sentrello/db/security-events";
@@ -331,15 +331,27 @@ export function registerPrivacy(ctx: ModuleContext) {
     requirePermission({ settings: ["read"] }),
     async (c: RouteContext) => {
       const orgId = activeOrganizationId(c.get("session"));
+      /*
+       * Narrowed inside the query, ahead of the limit. This read the newest
+       * 500 events of every kind and kept the privacy ones afterwards — and
+       * every sign-in is an event, so a business with a few staff signing in
+       * daily had pushed last spring's erasure out of that window within
+       * weeks. The record a regulator asks for read as "nothing was ever
+       * requested". `recent()` in the security-events module closed the same
+       * shape for the People screen.
+       */
       const rows = await db
         .select()
         .from(schema.securityEvents)
-        .where(eq(schema.securityEvents.organizationId, orgId))
+        .where(
+          and(
+            eq(schema.securityEvents.organizationId, orgId),
+            like(schema.securityEvents.action, "privacy.%"),
+          ),
+        )
         .orderBy(desc(schema.securityEvents.at))
         .limit(500);
-      return c.json({
-        requests: rows.filter((r) => r.action.startsWith("privacy.")),
-      });
+      return c.json({ requests: rows });
     },
   );
 }

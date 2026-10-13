@@ -19,6 +19,7 @@ import {
   UNPAGED_MAX,
   allConditions,
   capUnpaged,
+  closestFirst,
   countExpression,
   inChunks,
   listParams,
@@ -3221,6 +3222,14 @@ function registerCrmSearch(ctx: ModuleContext) {
             ),
           ),
         )
+        // Ranked before the limit, not after: see `closestFirst`.
+        .orderBy(
+          closestFirst(
+            sql`coalesce(${schema.contacts.name}, ${schema.contacts.email})`,
+            q,
+          ),
+          asc(schema.contacts.name),
+        )
         .limit(limit);
       for (const person of people) {
         hits.push({
@@ -3241,6 +3250,10 @@ function registerCrmSearch(ctx: ModuleContext) {
             ilike(schema.companies.name, term),
           ),
         )
+        .orderBy(
+          closestFirst(schema.companies.name, q),
+          asc(schema.companies.name),
+        )
         .limit(limit);
       for (const firm of firms) {
         hits.push({
@@ -3258,6 +3271,10 @@ function registerCrmSearch(ctx: ModuleContext) {
           .select()
           .from(schema.deals)
           .where(and(eq(schema.deals.organizationId, organizationId), where))
+          .orderBy(
+            closestFirst(schema.deals.name, q),
+            desc(schema.deals.createdAt),
+          )
           .limit(limit);
         for (const deal of deals) {
           hits.push({

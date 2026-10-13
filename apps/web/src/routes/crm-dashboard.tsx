@@ -93,22 +93,12 @@ function ago(value: string): string {
  * What is due, and the buttons that clear it.
  *
  * Its own component because the dialog needs somewhere to keep its open state,
- * and the dashboard is a plain render otherwise. The contact list comes with
- * it so the dialog can offer a subject: the reference asks who a task is about,
- * and a dashboard has no record to assume the answer from.
+ * and the dashboard is a plain render otherwise. The dialog is asked to offer
+ * a contact: the reference asks who a task is about, and a dashboard has no
+ * record to assume the answer from.
  */
 function TasksPanel({ tasks }: { tasks: CrmDashboard["tasks"] }) {
   const [adding, setAdding] = useState(false);
-  const contacts = useQuery({
-    queryKey: ["contacts", "for-tasks"],
-    queryFn: () =>
-      api<{ contacts: { id: string; name: string }[] }>(
-        "/api/contacts?perPage=200&sort=name&order=asc",
-      ),
-    // Only fetched when somebody opens the dialog. A dashboard that pulls the
-    // whole contact list on every load pays for a form most visits never open.
-    enabled: adding,
-  });
 
   return (
     <Card>
@@ -160,7 +150,7 @@ function TasksPanel({ tasks }: { tasks: CrmDashboard["tasks"] }) {
         open={adding}
         onClose={() => setAdding(false)}
         invalidate={[["crm-dashboard"], ["tasks"]]}
-        subjects={contacts.data?.contacts ?? []}
+        chooseContact
       />
     </Card>
   );

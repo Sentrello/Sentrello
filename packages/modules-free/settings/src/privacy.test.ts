@@ -220,3 +220,59 @@ test("every module erases before the contact it finds them by goes", async () =>
     clearPersonalData();
   }
 });
+
+/**
+ * What a list of the newest events cuts off.
+ *
+ * Both routes below read the newest few hundred security events and picked
+ * their own kind out afterwards. Sign-ins are security events, so ordinary
+ * use pushed every erasure and every role change out of the window, and the
+ * two records an auditor or regulator asks for came back empty.
+ */
+async function signInsAfter(count: number) {
+  const later = Date.now() + 60_000;
+  await db.insert(schema.securityEvents).values(
+    Array.from({ length: count }, (_, n) => ({
+      organizationId: orgId,
+      action: "sign-in.succeeded",
+      at: new Date(later + n),
+    })),
+  );
+}
+
+test("an erasure stays in the log after five hundred sign-ins", async () => {
+  await db.insert(schema.securityEvents).values({
+    organizationId: orgId,
+    action: "privacy.erased",
+    subjectName: "erased-before-the-rush@example.test",
+  });
+  await signInsAfter(1001);
+
+  const res = await as(ownerHeaders, "/api/privacy/requests");
+  const { requests } = (await res.json()) as {
+    requests: { action: string; subjectName: string | null }[];
+  };
+  expect(requests.map((r) => r.subjectName)).toContain(
+    "erased-before-the-rush@example.test",
+  );
+  expect(requests.every((r) => r.action.startsWith("privacy."))).toBe(true);
+});
+
+test("and a role change stays in the evidence pack after a thousand", async () => {
+  await db.insert(schema.securityEvents).values({
+    organizationId: orgId,
+    action: "role.changed",
+    subjectName: "promoted-before-the-rush",
+    at: new Date(Date.now() - 60_000),
+  });
+  await signInsAfter(1001);
+
+  const res = await as(ownerHeaders, "/api/compliance/evidence");
+  expect(res.status).toBe(200);
+  const pack = (await res.json()) as {
+    accessChanges: { events: { action: string; to: string | null }[] };
+  };
+  expect(pack.accessChanges.events.map((e) => e.to)).toContain(
+    "promoted-before-the-rush",
+  );
+});

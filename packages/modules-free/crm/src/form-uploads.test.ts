@@ -338,6 +338,43 @@ test("a sweep throws away the files that have aged out and keeps the rows", asyn
 });
 
 /**
+ * More aged-out files than one batch holds. The sweep took five hundred a
+ * night and stopped, so the five-hundred-and-first stayed on the disk past
+ * the date it was promised gone.
+ */
+test("a sweep with more than five hundred files to throw away takes them all", async () => {
+  const old = new Date(Date.now() - 800 * 24 * 60 * 60 * 1000);
+  await db.insert(schema.formSubmissions).values(
+    Array.from({ length: 501 }, (_, n) => ({
+      organizationId: orgId,
+      formId,
+      payload: { name: `old ${n}` },
+      attachments: [
+        {
+          field: "cv",
+          name: "cv.pdf",
+          path: `aged-out-${suffix}-${n}.pdf`,
+          size: 10,
+          type: "application/pdf",
+          checkedBy: "shape" as const,
+        },
+      ],
+      createdAt: old,
+    })),
+  );
+
+  await sweepExpiredUploads();
+
+  const [left] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(schema.formSubmissions)
+    .where(
+      sql`${schema.formSubmissions.organizationId} = ${orgId} and ${schema.formSubmissions.createdAt} < ${old.toISOString()}::timestamp + interval '1 day' and jsonb_array_length(${schema.formSubmissions.attachments}) > 0`,
+    );
+  expect(left?.n).toBe(0);
+});
+
+/**
  * A notification about a CV that does not let you reach the CV.
  *
  * The email listed the file's name, because the name is what the payload

@@ -19,6 +19,7 @@ import {
   formatDate,
   muted,
 } from "../../lib/ui";
+import { everybody } from "./everybody";
 
 /**
  * The whole audit log, searchable and filterable rather than only
@@ -43,12 +44,6 @@ interface Event {
   subject: string | null;
   action: string;
   says: string;
-}
-
-interface PersonRow {
-  userId: string;
-  name: string;
-  email: string;
 }
 
 interface GroupRow {
@@ -131,23 +126,10 @@ export function Events() {
   const setField = (field: keyof EventsFilter, value: string) =>
     setFilter((f) => ({ ...f, [field]: value, page: 1 }));
 
-  /*
-   * Everybody, up to the endpoint's own ceiling.
-   *
-   * `/api/users` caps `perPage` at 200 and says how many there really are.
-   * This asked for 200 and read only the rows, so at a business with more
-   * staff than that the person somebody wanted was simply not in the list —
-   * no error, no message, just an absence that reads as "they are not here".
-   *
-   * The honest fix is `RecordPicker`, which searches the server as somebody
-   * types and is what the exemption-certificate screen moved to for exactly
-   * this reason. That changes the control, so it is its own change; this one
-   * stops the list lying about being complete.
-   */
+  /* Everybody, every page of them, for the actor and subject filters. */
   const people = useQuery({
     queryKey: ["users", "for-events"],
-    queryFn: () =>
-      api<{ people: PersonRow[]; total: number }>("/api/users?perPage=200"),
+    queryFn: everybody,
   });
   const groups = useQuery({
     queryKey: ["user-groups"],
@@ -190,9 +172,7 @@ export function Events() {
   if (people.error) return <ErrorNote error={people.error} />;
   if (groups.error) return <ErrorNote error={groups.error} />;
 
-  const everybody = people.data?.people ?? [];
-  /** More people exist than this list holds, so it cannot be trusted as one. */
-  const someoneMissing = (people.data?.total ?? 0) > everybody.length;
+  const staff = people.data?.people ?? [];
   const everyGroup = groups.data?.groups ?? [];
   const rows = events.data?.events ?? [];
   const total = events.data?.total ?? 0;
@@ -274,42 +254,28 @@ export function Events() {
       </Card>
 
       <div className="grid gap-(--gap-toolbar) sm:grid-cols-2 lg:grid-cols-5">
-        <Field
-          label="Actor"
-          hint={
-            someoneMissing
-              ? `Showing ${everybody.length} of ${people.data?.total}. Somebody further down the list will not be here.`
-              : undefined
-          }
-        >
+        <Field label="Actor">
           <Select
             value={filter.actor}
             onChange={(e) => setField("actor", e.target.value)}
           >
             <option value="">Anybody</option>
-            {everybody.map((p) => (
+            {staff.map((p) => (
               <option key={p.userId} value={p.userId}>
                 {p.name || p.email}
               </option>
             ))}
           </Select>
         </Field>
-        <Field
-          label="Subject"
-          hint={
-            someoneMissing
-              ? `Showing ${everybody.length} of ${people.data?.total} people.`
-              : undefined
-          }
-        >
+        <Field label="Subject">
           <Select
             value={filter.subject}
             onChange={(e) => setField("subject", e.target.value)}
           >
             <option value="">Anything</option>
-            {everybody.length > 0 ? (
+            {staff.length > 0 ? (
               <optgroup label="People">
-                {everybody.map((p) => (
+                {staff.map((p) => (
                   <option key={p.userId} value={p.userId}>
                     {p.name || p.email}
                   </option>

@@ -15,7 +15,17 @@ import {
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
-import { and, db, desc, eq, gte, inArray, isNull, schema } from "@sentrello/db";
+import {
+  and,
+  db,
+  desc,
+  eq,
+  gte,
+  isNotNull,
+  isNull,
+  schema,
+  sql,
+} from "@sentrello/db";
 import { decidedStages } from "@sentrello/db/crm";
 import { dayIn, dayOf } from "@sentrello/db/day";
 import { timezoneFor } from "@sentrello/db/timezone";
@@ -132,84 +142,129 @@ export function registerCrmDashboard(ctx: ModuleContext) {
       const today = dayIn(now, await timezoneFor(orgId));
 
       /*
-       * The activity first, because it decides which contacts matter.
+       * The ten newest things that happened, for the panel that lists them.
        *
-       * Both panels built below — who is hot, and who is going cold — read a
-       * contact only through `lastSeen`, which this fills. So the only
-       * contacts worth fetching are the ones named here: at most two hundred
-       * ids rather than the contact book, which at 100,170 contacts was the
-       * whole of why this screen took 373 ms.
+       * This used to be two hundred, and both contact panels were built from
+       * it: who is hot, and how many are going quiet. A window of the newest
+       * two hundred activities answers neither. A contact last spoken to six
+       * weeks ago is exactly the one going quiet, and exactly the one that
+       * window has already dropped — so on a CRM logging a few dozen emails a
+       * day the count was nought for ever, and a hot contact pushed out by
+       * two hundred notes about other people left the hot panel empty. Each
+       * is asked as its own question now, over every activity.
        */
       const recentActivity = await db
         .select()
         .from(schema.activities)
         .where(eq(schema.activities.organizationId, orgId))
         .orderBy(desc(schema.activities.occurredAt))
-        .limit(200);
-      const seenIds = [
-        ...new Set(
-          recentActivity
-            .map((activity) => activity.contactId)
-            .filter((id): id is string => Boolean(id)),
-        ),
-      ];
+        .limit(10);
 
-      const [openDeals, decided, dueTasks, contacts] = await Promise.all([
-        db
-          .select()
-          .from(schema.deals)
-          .where(
-            and(
-              eq(schema.deals.organizationId, orgId),
-              isNull(schema.deals.archivedAt),
-            ),
+      /** Each contact's most recent activity, which both panels rank by. */
+      const lastActivity =
+        sql<Date>`max(${schema.activities.occurredAt})`.mapWith(
+          schema.activities.occurredAt,
+        );
+      const touched = db
+        .select({
+          contactId: schema.activities.contactId,
+          at: lastActivity.as("at"),
+        })
+        .from(schema.activities)
+        .where(
+          and(
+            eq(schema.activities.organizationId, orgId),
+            isNotNull(schema.activities.contactId),
           ),
-        /**
-         * Everything decided in the last six months, archived or not.
-         *
-         * The chart is about what happened, and a business files a won job
-         * away the week after it lands — reading only the live board would
-         * show a pipeline that had never won anything.
-         *
-         * Keyed on when the deal was decided rather than when the row was
-         * last touched. `updatedAt` moves whenever anybody edits anything,
-         * so a note added to a deal won in June used to drag it into the
-         * current month and the chart rewrote its own history.
-         */
-        db
-          .select({
-            stage: schema.deals.stage,
-            amountCents: schema.deals.amountCents,
-            decidedAt: schema.deals.decidedAt,
-          })
-          .from(schema.deals)
-          .where(
-            and(
-              eq(schema.deals.organizationId, orgId),
-              gte(schema.deals.decidedAt, monthsAgo(6)),
-            ),
-          ),
-        db
-          .select()
-          .from(schema.tasks)
-          .where(
-            and(
-              eq(schema.tasks.organizationId, orgId),
-              eq(schema.tasks.done, false),
-            ),
-          ),
-        seenIds.length === 0
-          ? []
-          : db
-              .select()
-              .from(schema.contacts)
-              .where(
-                and(
-                  eq(schema.contacts.organizationId, orgId),
-                  inArray(schema.contacts.id, seenIds),
-                ),
+        )
+        .groupBy(schema.activities.contactId)
+        .as("touched");
+
+      const [openDeals, decided, dueTasks, hotRows, [quiet]] =
+        await Promise.all([
+          db
+            .select()
+            .from(schema.deals)
+            .where(
+              and(
+                eq(schema.deals.organizationId, orgId),
+                isNull(schema.deals.archivedAt),
               ),
-      ]);
+            ),
+          /**
+           * Everything decided in the last six months, archived or not.
+           *
+           * The chart is about what happened, and a business files a won job
+           * away the week after it lands — reading only the live board would
+           * show a pipeline that had never won anything.
+           *
+           * Keyed on when the deal was decided rather than when the row was
+           * last touched. `updatedAt` moves whenever anybody edits anything,
+           * so a note added to a deal won in June used to drag it into the
+           * current month and the chart rewrote its own history.
+           */
+          db
+            .select({
+              stage: schema.deals.stage,
+              amountCents: schema.deals.amountCents,
+              decidedAt: schema.deals.decidedAt,
+            })
+            .from(schema.deals)
+            .where(
+              and(
+                eq(schema.deals.organizationId, orgId),
+                gte(schema.deals.decidedAt, monthsAgo(6)),
+              ),
+            ),
+          db
+            .select()
+            .from(schema.tasks)
+            .where(
+              and(
+                eq(schema.tasks.organizationId, orgId),
+                eq(schema.tasks.done, false),
+              ),
+            ),
+          /*
+           * Hot and touched, most recent first. Eight, ranked in the query,
+           * because ranking a window and then filtering it is the bug above.
+           */
+          db
+            .select({
+              id: schema.contacts.id,
+              name: schema.contacts.name,
+              email: schema.contacts.email,
+              companyId: schema.contacts.companyId,
+              avatarPath: schema.contacts.avatarPath,
+              at: touched.at,
+            })
+            .from(touched)
+            .innerJoin(
+              schema.contacts,
+              eq(schema.contacts.id, touched.contactId),
+            )
+            .where(
+              and(
+                eq(schema.contacts.organizationId, orgId),
+                eq(schema.contacts.status, "hot"),
+              ),
+            )
+            .orderBy(desc(touched.at))
+            .limit(8),
+          db
+            .select({ count: sql<number>`count(*)::int` })
+            .from(touched)
+            .innerJoin(
+              schema.contacts,
+              eq(schema.contacts.id, touched.contactId),
+            )
+            .where(
+              and(
+                eq(schema.contacts.organizationId, orgId),
+                sql`${touched.at} < ${daysFromNow(-GOING_COLD_DAYS).toISOString()}`,
+              ),
+            ),
+        ]);
 
       /**
        * Hot contacts: the ones somebody marked hot, most recently touched
@@ -225,37 +280,17 @@ export function registerCrmDashboard(ctx: ModuleContext) {
        * a list that opens with somebody nobody has ever spoken to teaches you
        * to ignore the list.
        */
-      const lastSeen = new Map<string, Date>();
-      for (const activity of recentActivity) {
-        if (!activity.contactId) continue;
-        const at = activity.occurredAt;
-        const known = lastSeen.get(activity.contactId);
-        if (!known || at > known) lastSeen.set(activity.contactId, at);
-      }
-
-      const byId = new Map(contacts.map((contact) => [contact.id, contact]));
-      const hot = [...lastSeen.entries()]
-        .sort((a, b) => b[1].getTime() - a[1].getTime())
-        .map(([contactId, at]) => {
-          const contact = byId.get(contactId);
-          return contact && contact.status === "hot"
-            ? {
-                id: contact.id,
-                name: contact.name,
-                email: contact.email,
-                companyId: contact.companyId,
-                // Whether the panel should ask for a photograph. Without
-                // this it asked for one per person and took a 404 for
-                // everybody who has none, which is nearly everybody.
-                avatar: Boolean(contact.avatarPath),
-                lastActivityAt: at,
-              }
-            : null;
-        })
-        .filter((row): row is NonNullable<typeof row> => row !== null)
-        // Sliced after the filter, not before. Taking eight and then dropping
-        // the ones that are not hot leaves a panel of two on a busy CRM.
-        .slice(0, 8);
+      const hot = hotRows.map((contact) => ({
+        id: contact.id,
+        name: contact.name,
+        email: contact.email,
+        companyId: contact.companyId,
+        // Whether the panel should ask for a photograph. Without this it
+        // asked for one per person and took a 404 for everybody who has
+        // none, which is nearly everybody.
+        avatar: Boolean(contact.avatarPath),
+        lastActivityAt: contact.at,
+      }));
 
       /**
        * Upcoming revenue: what is expected to close inside the horizon.
@@ -339,7 +374,7 @@ export function registerCrmDashboard(ctx: ModuleContext) {
             totalCents: sum(overdue),
           },
         },
-        latestActivity: recentActivity.slice(0, 10).map((activity) => ({
+        latestActivity: recentActivity.map((activity) => ({
           id: activity.id,
           type: activity.type,
           body: activity.body,
@@ -354,10 +389,7 @@ export function registerCrmDashboard(ctx: ModuleContext) {
          * A number invites a click; eight names invite scrolling past. The
          * contacts screen already filters, so this is a prompt to go there.
          */
-        goingCold: contacts.filter((contact) => {
-          const at = lastSeen.get(contact.id);
-          return at ? at < daysFromNow(-GOING_COLD_DAYS) : false;
-        }).length,
+        goingCold: quiet?.count ?? 0,
       });
     },
   );

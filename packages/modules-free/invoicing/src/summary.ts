@@ -7,6 +7,7 @@ import {
   and,
   at,
   db,
+  desc,
   eq,
   gte,
   ilike,
@@ -23,6 +24,7 @@ import {
   isOverdueSql,
   owingInvoices,
 } from "@sentrello/db/documents";
+import { closestFirst } from "@sentrello/db/list-query";
 import { sumCents } from "@sentrello/db/money";
 import { momentAt, partsIn, timezoneFor } from "@sentrello/db/timezone";
 import type { ModuleContext, SummaryFigure } from "@sentrello/module-sdk";
@@ -513,6 +515,12 @@ export function registerInvoiceSearch(ctx: ModuleContext) {
               ilike(schema.contacts.name, term),
             ),
           ),
+        )
+        // The number somebody typed in full first, then the newest: an
+        // unordered limit kept whichever twenty the database reached first.
+        .orderBy(
+          closestFirst(schema.invoices.number, q),
+          desc(schema.invoices.createdAt),
         )
         .limit(limit);
 
