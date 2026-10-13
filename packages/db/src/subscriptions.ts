@@ -123,35 +123,56 @@ export type Interval = "daily" | "weekly" | "monthly" | "quarterly" | "yearly";
  * the 31st falls on the 28th in February and does not silently jump into March,
  * which would move the customer's billing day for ever.
  *
+ * **Clamped from the anchor, not from the last run.** `anchor` is the date the
+ * schedule is measured from — its first run, or whatever day it was set to
+ * fall on — and only its day of the month is read. Stepping from the previous
+ * run alone cannot tell a schedule on the 28th from one on the 31st that was
+ * clamped in February, so 31 January went to 28 February and then to the 28th
+ * of every month after it; and a yearly run on 29 February stayed on the 28th
+ * in every leap year that followed. With the anchor, the month is the last
+ * run's plus the interval and the day is the anchor's, cut to the month's
+ * length: 31 January, 28 February, 31 March, 30 April. That is start plus n
+ * intervals, without having to count n.
+ *
+ * Known limit: left out, the anchor is `from` itself — the old arithmetic,
+ * kept for callers that have nowhere yet to read a first run from. Daily and
+ * weekly schedules never clamp, so the anchor does not change them.
+ *
  * Here rather than in the jobs package because the shop needs it too — a
  * customer restarting their own paused subscription has to arrive at exactly
  * the date the scheduler would have. A bundle cannot import the jobs package at
  * all: only a small set is linked into the container, and an import that
  * resolves in development and fails inside it takes the whole module down.
  */
-export function nextRun(from: Date, interval: Interval, count = 1): Date {
+export function nextRun(
+  from: Date,
+  interval: Interval,
+  count = 1,
+  anchor?: Date | null,
+): Date {
   const every = Math.max(1, Math.trunc(count));
   const d = new Date(from);
-  const day = d.getUTCDate();
 
-  switch (interval) {
-    case "daily":
-      d.setUTCDate(d.getUTCDate() + every);
-      return d;
-    case "weekly":
-      d.setUTCDate(d.getUTCDate() + 7 * every);
-      return d;
-    case "quarterly":
-      d.setUTCMonth(d.getUTCMonth() + 3 * every);
-      break;
-    case "yearly":
-      d.setUTCFullYear(d.getUTCFullYear() + every);
-      break;
-    default:
-      d.setUTCMonth(d.getUTCMonth() + every);
+  if (interval === "daily" || interval === "weekly") {
+    d.setUTCDate(d.getUTCDate() + (interval === "weekly" ? 7 : 1) * every);
+    return d;
   }
-  // Overflowed into the next month (Jan 31 + 1mo lands on Mar 3): step back to
-  // the last day of the month that was meant.
-  if (d.getUTCDate() < day) d.setUTCDate(0);
+
+  const months =
+    interval === "yearly"
+      ? 12 * every
+      : interval === "quarterly"
+        ? 3 * every
+        : every;
+  const day = (anchor ?? from).getUTCDate();
+  // Day 1 first, so the month cannot overflow while it moves; then the
+  // anchor's day, or the month's last when it is shorter. Day 0 of the month
+  // after is the last day of this one.
+  d.setUTCDate(1);
+  d.setUTCMonth(d.getUTCMonth() + months);
+  const last = new Date(
+    Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0),
+  ).getUTCDate();
+  d.setUTCDate(Math.min(day, last));
   return d;
 }

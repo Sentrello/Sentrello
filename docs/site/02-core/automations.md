@@ -104,6 +104,19 @@ You can reach into a record's shape with a dot: `address.city`.
 | **For each matching record** | Runs the steps under it once per record found |
 | **Tell another system** | Calls a web address of yours with what happened |
 
+### How long a wait is
+
+A day is a calendar day. Wait a day from nine on Saturday morning and the rule
+carries on at nine on Sunday, by your business's clock, even on the night the
+clocks go forward or back.
+
+Hours and minutes are time that has actually passed. Wait 24 hours from nine on
+the Saturday the clocks go forward and it carries on at ten on the Sunday,
+because that night was only 23 hours long.
+
+So if you mean "same time tomorrow", wait a day. If you mean "give it a full 24
+hours", wait 24 hours.
+
 ### One rule that does two things
 
 Each step has **Only do this step for some records**. Put a condition on it and

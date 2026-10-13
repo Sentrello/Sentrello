@@ -133,11 +133,26 @@ export function partsIn(
 /**
  * The moment that is this wall-clock time, where the business is.
  *
- * Built by guessing and correcting, because there is no way to construct a Date
- * from parts in another zone directly. The guess is UTC; the correction is how
- * far off the answer reads when rendered back. One correction settles every
- * ordinary case, and a second settles the hour on either side of a clock change
- * — where the first guess can land in the offset that is about to end.
+ * There is no way to construct a Date from parts in another zone directly, so
+ * this reads the zone's offset a day either side and tries both. Almost always
+ * they agree and there is one answer. On the two nights a year they do not,
+ * the wall clock names either no moment or two, and the rule is the same in
+ * every zone:
+ *
+ * - **A time the clock skips is the moment it jumps past it.** Half past two on
+ *   the morning New York springs forward is 03:30 new time, the way an alarm
+ *   set for half past two would be seen to go off.
+ * - **A time the clock repeats is its first occurrence.** Half past one on the
+ *   morning the clocks go back is the earlier of the two.
+ *
+ * Guessing and correcting, which this did before, also answered — but which
+ * side of a gap it landed on depended on the sign of the zone's offset: New
+ * York got 01:30, an hour before the time asked for, and London the hour
+ * after; and in the repeated hour New York took the first and London the
+ * second.
+ *
+ * Parts out of range roll over the way `Date.UTC` rolls them: month 0 is
+ * December of the year before, day 32 of January is the 1st of February.
  */
 export function momentAt(
   parts: {
@@ -160,16 +175,24 @@ export function momentAt(
   // or a round trip moves the time. UTC both ways — see the note there.
   if (!zone) return new Date(asUtc);
 
-  let guess = new Date(asUtc);
-  for (let i = 0; i < 2; i++) {
-    const seen = partsIn(guess, zone);
-    const drift =
-      asUtc -
-      Date.UTC(seen.year, seen.month - 1, seen.day, seen.hours, seen.minutes);
-    if (drift === 0) break;
-    guess = new Date(guess.getTime() + drift);
-  }
-  return guess;
+  // How far the zone's clock reads ahead of UTC at a moment. Whole minutes in,
+  // whole minutes out, which is all `partsIn` carries.
+  const offset = (at: number) => {
+    const seen = partsIn(new Date(at), zone);
+    return (
+      Date.UTC(seen.year, seen.month - 1, seen.day, seen.hours, seen.minutes) -
+      at
+    );
+  };
+  const day = 86_400_000;
+  const before = asUtc - offset(asUtc - day);
+  const after = asUtc - offset(asUtc + day);
+  const reads = (at: number) => offset(at) + at === asUtc;
+
+  // Both real: the repeated hour, and the earlier is the first occurrence.
+  // Neither: the gap, and the old offset carries the time past it.
+  const valid = [before, after].filter(reads);
+  return new Date(valid.length ? Math.min(...valid) : before);
 }
 
 /**

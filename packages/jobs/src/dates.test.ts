@@ -80,3 +80,67 @@ test("a count of zero still moves the schedule on", () => {
     "2026-04-15T00:00:00.000Z",
   );
 });
+
+/**
+ * Clamped from the anchor, not from the last run.
+ *
+ * Stepped from the previous run alone, 31 January went to 28 February and then
+ * to the 28th of every month after, because a clamped date cannot say which
+ * day it was clamped from. Passing the schedule's own day puts it back.
+ */
+test("monthly on the 31st comes back to the 31st after February", () => {
+  const anchor = utc("2026-01-31");
+  const runs = [anchor];
+  for (let i = 0; i < 3; i++) {
+    runs.push(nextRun(runs[runs.length - 1] as Date, "monthly", 1, anchor));
+  }
+  expect(runs.map((d) => d.toISOString().slice(0, 10))).toEqual([
+    "2026-01-31",
+    "2026-02-28",
+    "2026-03-31",
+    "2026-04-30",
+  ]);
+});
+
+test("yearly on 29 February is the 29th again in the next leap year", () => {
+  const anchor = utc("2028-02-29");
+  const runs = [anchor];
+  for (let i = 0; i < 4; i++) {
+    runs.push(nextRun(runs[runs.length - 1] as Date, "yearly", 1, anchor));
+  }
+  expect(runs.map((d) => d.toISOString().slice(0, 10))).toEqual([
+    "2028-02-29",
+    "2029-02-28",
+    "2030-02-28",
+    "2031-02-28",
+    "2032-02-29",
+  ]);
+});
+
+test("quarterly and every-two-months keep the anchor's day too", () => {
+  const anchor = utc("2026-01-31");
+  const quarter = nextRun(utc("2026-04-30"), "quarterly", 1, anchor);
+  expect(quarter.toISOString().slice(0, 10)).toBe("2026-07-31");
+  const second = nextRun(utc("2026-03-31"), "monthly", 2, anchor);
+  expect(second.toISOString().slice(0, 10)).toBe("2026-05-31");
+});
+
+test("the anchor moves the day and keeps the time of day", () => {
+  const at = nextRun(
+    new Date("2026-02-28T14:07:00.000Z"),
+    "monthly",
+    1,
+    utc("2026-01-31"),
+  );
+  expect(at.toISOString()).toBe("2026-03-31T14:07:00.000Z");
+});
+
+test("without an anchor a clamped date stays where it landed", () => {
+  // Known limit, and the behaviour kept for callers with no first run to pass.
+  expect(nextRun(utc("2026-02-28"), "monthly").toISOString()).toBe(
+    "2026-03-28T00:00:00.000Z",
+  );
+  expect(nextRun(utc("2026-03-02"), "weekly", 1, utc("2026-01-31"))).toEqual(
+    utc("2026-03-09"),
+  );
+});

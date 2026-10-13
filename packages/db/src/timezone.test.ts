@@ -104,6 +104,78 @@ test("a place keeps its nine o'clock across a clock change", () => {
 });
 
 /**
+ * The two nights a year a wall clock names no moment, or two.
+ *
+ * Guessing and correcting picked a side by the sign of the offset: half past
+ * two on New York's spring-forward morning came back as 01:30, an hour early,
+ * and London's skipped half past one as 02:30; in the repeated hour New York
+ * took the first pass and London the second. One rule now, in both: a skipped
+ * time is the moment the clock jumps past it, a repeated one its first
+ * occurrence.
+ */
+test("a time the clock skips is the moment it jumps past it, in every zone", () => {
+  // New York, 8 March 2026: 01:59 EST is followed by 03:00 EDT.
+  const newYork = momentAt(
+    { year: 2026, month: 3, day: 8, hours: 2, minutes: 30 },
+    "America/New_York",
+  );
+  expect(newYork.toISOString()).toBe("2026-03-08T07:30:00.000Z");
+  expect(partsIn(newYork, "America/New_York")).toMatchObject({
+    day: 8,
+    hours: 3,
+    minutes: 30,
+  });
+
+  // London, 29 March 2026: 00:59 GMT is followed by 02:00 BST.
+  const london = momentAt(
+    { year: 2026, month: 3, day: 29, hours: 1, minutes: 30 },
+    "Europe/London",
+  );
+  expect(london.toISOString()).toBe("2026-03-29T01:30:00.000Z");
+  expect(partsIn(london, "Europe/London")).toMatchObject({
+    day: 29,
+    hours: 2,
+    minutes: 30,
+  });
+});
+
+test("a time the clock repeats is its first occurrence, in every zone", () => {
+  // New York, 1 November 2026: 01:30 happens in EDT, then again in EST.
+  expect(
+    momentAt(
+      { year: 2026, month: 11, day: 1, hours: 1, minutes: 30 },
+      "America/New_York",
+    ).toISOString(),
+  ).toBe("2026-11-01T05:30:00.000Z");
+
+  // London, 25 October 2026: 01:30 happens in BST, then again in GMT.
+  expect(
+    momentAt(
+      { year: 2026, month: 10, day: 25, hours: 1, minutes: 30 },
+      "Europe/London",
+    ).toISOString(),
+  ).toBe("2026-10-25T00:30:00.000Z");
+});
+
+test("the hours either side of a change are the ordinary ones", () => {
+  const cases: [string, number, number, number, string][] = [
+    ["America/New_York", 3, 8, 1, "2026-03-08T06:00:00.000Z"],
+    ["America/New_York", 3, 8, 3, "2026-03-08T07:00:00.000Z"],
+    ["America/New_York", 11, 1, 0, "2026-11-01T04:00:00.000Z"],
+    ["America/New_York", 11, 1, 2, "2026-11-01T07:00:00.000Z"],
+    ["Europe/London", 3, 29, 0, "2026-03-29T00:00:00.000Z"],
+    ["Europe/London", 3, 29, 2, "2026-03-29T01:00:00.000Z"],
+    ["Europe/London", 10, 25, 0, "2026-10-24T23:00:00.000Z"],
+    ["Europe/London", 10, 25, 2, "2026-10-25T02:00:00.000Z"],
+  ];
+  for (const [zone, month, day, hours, iso] of cases) {
+    expect(
+      momentAt({ year: 2026, month, day, hours, minutes: 0 }, zone),
+    ).toEqual(new Date(iso));
+  }
+});
+
+/**
  * No timezone means UTC, never the clock the server happens to keep.
  *
  * This asserted the opposite until 3 October, with a reason worth recording:
