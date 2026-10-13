@@ -200,6 +200,11 @@ If the other end answers with an error, the run **fails and says which error**.
 An automation that reported success because a request was made would tell you it
 had informed the warehouse every time the warehouse said no.
 
+A server that was down, too slow or busy gets two more chances first. The run
+waits five minutes and tries the same step again, then thirty minutes, and only
+then fails. The same goes for an email the mail server would not take. A refusal
+that will be the same next time, like a 404 or a missing address, fails at once.
+
 ## Running one by hand
 
 Open an automation and use **Run it on one record**. It earns its place twice
@@ -247,15 +252,15 @@ change on the Automations screen, and nought means for ever.
 | **done** | Every step ran |
 | **stopped** | A filter did not pass, or a step declined — with the reason |
 | **failed** | Something went wrong, with the reason |
-| **waiting** | It is part-way through a wait |
+| **waiting** | It is part-way through a wait, or about to try a step again |
 
 An automation whose workings you cannot see is one nobody dares turn on. "It ran"
 is not an answer to "so why did nothing happen".
 
 ### Running a firing again
 
-A run that failed because the other end was down, or stopped on something you
-have since fixed, can be sent through again. Open the run and press **Run it
+A run that still failed after its retries, or stopped on something you have
+since fixed, can be sent through again. Open the run and press **Run it
 again**. It works from the record as that run saw it, and through the version
 of the automation that ran, not from the record as it looks now. A deal that
 was won on Tuesday is still the deal that was won on Tuesday.
@@ -272,7 +277,9 @@ everywhere else:
 - **An automation acts as the person who published it.** It can never do more
   than they can, so writing a rule is not a way around your own permissions.
   If you remove that person, or move them to a role without `manage` on the
-  CRM, their automations stop until someone else publishes them.
+  CRM, their automations stop until someone else publishes them. The first
+  time one stops for that reason, everybody who could publish it gets an
+  email saying so.
 - **A rule's own work does not set off other rules**, unless you say it should.
   "On update, update" is the first automation anybody builds by accident.
 - **Chains stop at five deep**, even when you do ask for them.
