@@ -706,7 +706,8 @@ export function InvoiceDetail() {
           ) : null}
         </Card>
 
-        {!isDraft && !isVoid ? (
+        {/* A credit note is owed by the business, so nothing is paid on it. */}
+        {!isDraft && !isVoid && !isCredit ? (
           <Payments
             invoiceId={invoice.id}
             payments={payments}

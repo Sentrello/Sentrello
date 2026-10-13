@@ -3,13 +3,23 @@ import {
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
-import { and, db, desc, eq, gte, ilike, lte, schema, sql } from "@sentrello/db";
+import {
+  and,
+  db,
+  desc,
+  eq,
+  gte,
+  ilike,
+  isNull,
+  lte,
+  schema,
+  sql,
+} from "@sentrello/db";
 import { baseCurrency } from "@sentrello/db/currency";
 import { dayIn } from "@sentrello/db/day";
 import {
   CORE_ACCOUNTS,
   accountingValues,
-  alreadyReversed,
   ensureAccount,
   postJournalEntry,
   reverseJournalEntries,
@@ -572,48 +582,73 @@ export function registerTransactions(ctx: ModuleContext) {
         paidThroughAccountId !== existing.paidThroughAccountId ||
         occurredAt.getTime() !== existing.occurredAt.getTime();
 
-      const [row] = await db
-        .update(schema.transactions)
-        .set({
-          amountCents,
-          accountId,
-          paidThroughAccountId,
-          occurredAt,
-          ...(body.contactId !== undefined
-            ? { contactId: await ownedContact(orgId, body.contactId) }
-            : {}),
-          ...(body.reference !== undefined
-            ? { reference: body.reference || null }
-            : {}),
-          ...(body.method !== undefined ? { method: body.method || null } : {}),
-          ...(body.description !== undefined
-            ? { description: body.description || null }
-            : {}),
-        })
-        .where(
-          and(
-            eq(schema.transactions.id, id),
-            eq(schema.transactions.organizationId, orgId),
-          ),
-        )
-        .returning();
-      if (!row) throw new Error("transaction update returned no row");
+      // Before the transaction: it reads on a pool connection of its own.
+      const contactId =
+        body.contactId !== undefined
+          ? await ownedContact(orgId, body.contactId)
+          : undefined;
 
-      if (figuresChanged && accountId && paidThroughAccountId) {
-        const kind = existing.kind as TransactionKind;
-        await reverseJournalEntries(
-          orgId,
-          sourceOf(kind, id),
-          `Correction — ${row.description ?? kind}`,
-        );
-        await postJournalEntry(
-          orgId,
-          memoFor(kind, row.description),
-          sourceOf(kind, id),
-          postingsFor(kind, accountId, paidThroughAccountId, amountCents),
-          occurredAt,
-          { day: true },
-        );
+      /*
+       * The row, the reversal and the new figure in one commit, or none.
+       *
+       * Each was its own write, and the last is the one most often refused:
+       * posting declines a date inside a closed period, which is exactly what
+       * moving a transaction into last month asks for. The row had already
+       * been rewritten and the old figure reversed, so the refusal left the
+       * money out of the books under a row that still showed it.
+       */
+      const row = await db.transaction(async (tx) => {
+        const [row] = await tx
+          .update(schema.transactions)
+          .set({
+            amountCents,
+            accountId,
+            paidThroughAccountId,
+            occurredAt,
+            ...(contactId !== undefined ? { contactId } : {}),
+            ...(body.reference !== undefined
+              ? { reference: body.reference || null }
+              : {}),
+            ...(body.method !== undefined
+              ? { method: body.method || null }
+              : {}),
+            ...(body.description !== undefined
+              ? { description: body.description || null }
+              : {}),
+          })
+          .where(
+            and(
+              eq(schema.transactions.id, id),
+              eq(schema.transactions.organizationId, orgId),
+              // Undone since it was read above: correcting it now would post
+              // a figure back into the books under a row marked undone.
+              isNull(schema.transactions.reversedAt),
+            ),
+          )
+          .returning();
+        if (!row) return null;
+
+        if (figuresChanged && accountId && paidThroughAccountId) {
+          await reverseJournalEntries(
+            orgId,
+            sourceOf(kind, id),
+            `Correction — ${row.description ?? kind}`,
+            undefined,
+            { tx },
+          );
+          await postJournalEntry(
+            orgId,
+            memoFor(kind, row.description),
+            sourceOf(kind, id),
+            postingsFor(kind, accountId, paidThroughAccountId, amountCents),
+            occurredAt,
+            { tx, day: true },
+          );
+        }
+        return row;
+      });
+      if (!row) {
+        return c.json({ error: "this transaction was undone" }, 409);
       }
 
       return c.json({ transaction: row });
@@ -650,28 +685,38 @@ export function registerTransactions(ctx: ModuleContext) {
       if (existing.reversedAt) return c.json({ reversed: true });
 
       const kind = existing.kind as TransactionKind;
-      const source = sourceOf(kind, id);
       /**
-       * A second press must not post the correction twice. The stamp on the row
-       * is the usual guard, but two requests arriving together both read it as
-       * absent, so the ledger itself is asked as well.
+       * A second press must not post the correction twice, and two requests
+       * arriving together both read the stamp above as absent. So the stamp is
+       * claimed in the statement that writes it, and only the request that
+       * claims it reverses, in the same commit.
+       *
+       * The ledger used to be asked instead — "has this source been
+       * reversed?" — and after a correction the answer was yes, from the
+       * entry the correction had reversed. The undo then reversed nothing and
+       * the corrected figure stayed in the books under a row marked undone.
        */
-      if (!(await alreadyReversed(orgId, source))) {
+      await db.transaction(async (tx) => {
+        const [claimed] = await tx
+          .update(schema.transactions)
+          .set({ reversedAt: new Date() })
+          .where(
+            and(
+              eq(schema.transactions.id, id),
+              eq(schema.transactions.organizationId, orgId),
+              isNull(schema.transactions.reversedAt),
+            ),
+          )
+          .returning({ id: schema.transactions.id });
+        if (!claimed) return;
         await reverseJournalEntries(
           orgId,
-          source,
+          sourceOf(kind, id),
           `Undone — ${existing.description ?? kind}`,
+          undefined,
+          { tx },
         );
-      }
-      await db
-        .update(schema.transactions)
-        .set({ reversedAt: new Date() })
-        .where(
-          and(
-            eq(schema.transactions.id, id),
-            eq(schema.transactions.organizationId, orgId),
-          ),
-        );
+      });
       return c.json({ reversed: true });
     },
   );

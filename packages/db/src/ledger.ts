@@ -1424,6 +1424,24 @@ export async function reverseJournalEntries(
 
   let reversed = 0;
   for (const entry of entries) {
+    /*
+     * An entry already undone is not undone again. A correction reverses a
+     * source and posts its new figure under the same source, so the next
+     * correction, or an undo, finds both entries — and reversing the first a
+     * second time left the books carrying the new figure less the old one.
+     */
+    const [undone] = await conn
+      .select({ id: schema.journalEntries.id })
+      .from(schema.journalEntries)
+      .where(
+        and(
+          eq(schema.journalEntries.organizationId, orgId),
+          eq(schema.journalEntries.source, `reversal:${entry.id}`),
+        ),
+      )
+      .limit(1);
+    if (undone) continue;
+
     const lines = await conn
       .select({
         accountId: schema.journalLines.accountId,

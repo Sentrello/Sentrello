@@ -395,14 +395,54 @@ export function registerLifecycle(ctx: ModuleContext) {
           // In the claiming commit: posted after it, a crash or a refused
           // posting between the two left a void invoice whose receivable was
           // still in the books.
+          //
+          // A credit note posts under its own source, so its void reverses
+          // that one — reversing `invoice:` found nothing and left the credit
+          // in the books.
+          const creditNote = invoice.kind === "credit_note";
           if (invoice.status !== "draft") {
             await reverseJournalEntries(
               orgId,
-              `invoice:${invoice.id}`,
-              `Void invoice ${invoice.number}`,
+              `${creditNote ? "credit-note" : "invoice"}:${invoice.id}`,
+              `Void ${creditNote ? "credit note" : "invoice"} ${invoice.number}`,
               undefined,
               { tx },
             );
+            // A late fee the reminder sweep charged is part of the total and
+            // posts under its own source; voided with the invoice, or the
+            // fee stays owed in Receivable on a document nobody owes.
+            await reverseJournalEntries(
+              orgId,
+              `late-fee:${invoice.id}`,
+              `Void late fee on ${invoice.number}`,
+              undefined,
+              { tx },
+            );
+          }
+          /*
+           * And the invoice it credited is owed that part again. The credit
+           * settled it the way a payment does, writing its status; a void that
+           * left the status alone kept an invoice reading `credited` while
+           * every balance worked out from its documents — which no longer
+           * count a void note — said the customer owed it all. Read under the
+           * hold, after the note is void, the same arithmetic the credit used.
+           */
+          if (creditNote && invoice.referenceInvoiceId) {
+            const source = await holdInvoice(
+              tx,
+              orgId,
+              invoice.referenceInvoiceId,
+            );
+            const { status } = invoiceStatus(
+              source.invoice.totalCents -
+                source.invoice.earlyDiscountTakenCents,
+              source.paidCents,
+              source.creditedCents,
+            );
+            await tx
+              .update(schema.invoices)
+              .set({ status, updatedAt: new Date() })
+              .where(eq(schema.invoices.id, source.invoice.id));
           }
           return row;
         })

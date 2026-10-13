@@ -4,6 +4,11 @@ import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, schema } from "@sentrello/db";
 import { creditBalanceFor } from "@sentrello/db/customer-credit";
 import { daysLate } from "@sentrello/db/day";
+import {
+  CORE_ACCOUNTS,
+  ensureAccount,
+  postJournalEntry,
+} from "@sentrello/db/ledger";
 import { dropOrganization, makeOrganization } from "@sentrello/db/testing";
 import type { SentrelloEnv } from "@sentrello/module-sdk";
 import { resetRateLimits } from "@sentrello/module-sdk";
@@ -514,6 +519,73 @@ test("an overpayment becomes a customer credit when the policy says so, posting 
     body: JSON.stringify({ overpaymentPolicy: "refuse" }),
   });
   await db.delete(schema.contacts).where(eq(schema.contacts.id, customer.id));
+});
+
+/**
+ * A void invoice is owed nothing, so a customer's credit is not spent on it.
+ *
+ * The payments route refused a void and the credit route did not: it worked
+ * the balance out from the total, drew the customer's credit down and
+ * cleared a receivable the void had already reversed — the credit gone, and
+ * Receivable below zero, on an invoice that says nobody owes it anything.
+ */
+test("held credit is not spent on a void invoice", async () => {
+  const [customer] = await db
+    .insert(schema.contacts)
+    .values({ organizationId: orgId, name: "Credit Holder" })
+    .returning();
+  if (!customer) throw new Error("could not create test contact");
+  const raise = async (unitPrice: number) =>
+    (
+      (await (
+        await app.request("http://localhost/api/invoices", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            contactId: customer.id,
+            currency: "USD",
+            lines: [{ description: "Work", quantity: 1, unitPrice }],
+          }),
+        })
+      ).json()) as { invoice: { id: string } }
+    ).invoice;
+
+  await app.request("http://localhost/api/invoicing/settings", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ overpaymentPolicy: "credit" }),
+  });
+  const overpaid = await raise(1000);
+  await app.request(`http://localhost/api/invoices/${overpaid.id}/payments`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ amountCents: 3000 }),
+  });
+  await app.request("http://localhost/api/invoicing/settings", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ overpaymentPolicy: "refuse" }),
+  });
+  expect(await creditBalanceFor(orgId, customer.id)).toBe(2000);
+
+  const voided = await raise(1500);
+  const voidRes = await app.request(
+    `http://localhost/api/invoices/${voided.id}/void`,
+    { method: "POST", headers },
+  );
+  expect(voidRes.status).toBe(200);
+
+  const res = await app.request(
+    `http://localhost/api/invoices/${voided.id}/apply-credit`,
+    { method: "POST", headers },
+  );
+  expect(res.status).toBe(409);
+  expect(await creditBalanceFor(orgId, customer.id)).toBe(2000);
+  const payments = await db
+    .select()
+    .from(schema.payments)
+    .where(eq(schema.payments.invoiceId, voided.id));
+  expect(payments).toHaveLength(0);
 });
 
 /**
@@ -2132,6 +2204,49 @@ test("voiding an issued invoice reverses it rather than deleting it", async () =
     }
   }
   for (const net of perAccount.values()) expect(net).toBe(0);
+});
+
+/**
+ * A late fee is part of the invoice, so voiding the invoice voids the fee.
+ *
+ * The reminder sweep raises the total and posts the fee under its own source,
+ * `late-fee:<id>`. The void reversed `invoice:<id>` alone, so a voided
+ * invoice left its fee in Receivable and in Other Income for good — a debt
+ * on the balance sheet against a document that says nothing is owed.
+ */
+test("voiding an invoice with a late fee on it reverses the fee too", async () => {
+  const draft = await draftInvoice(10_000);
+  await app.request(`http://localhost/api/invoices/${draft.id}/issue`, {
+    method: "POST",
+    headers,
+  });
+  // What the reminder sweep does when it charges one.
+  const [receivable, otherIncome] = await Promise.all([
+    ensureAccount(orgId, CORE_ACCOUNTS.accountsReceivable),
+    ensureAccount(orgId, CORE_ACCOUNTS.otherIncome),
+  ]);
+  await db
+    .update(schema.invoices)
+    .set({
+      lateFeeCents: 500,
+      lateFeeAppliedAt: new Date(),
+      totalCents: draft.totalCents + 500,
+    })
+    .where(eq(schema.invoices.id, draft.id));
+  await postJournalEntry(orgId, "Late fee", `late-fee:${draft.id}`, [
+    { accountId: receivable, debitCents: 500 },
+    { accountId: otherIncome, creditCents: 500 },
+  ]);
+
+  const res = await app.request(
+    `http://localhost/api/invoices/${draft.id}/void`,
+    { method: "POST", headers },
+  );
+  expect(res.status).toBe(200);
+
+  const fee = await entriesFor(`late-fee:${draft.id}`);
+  expect(fee).toHaveLength(1);
+  expect(await entriesFor(`reversal:${fee[0]?.id}`)).toHaveLength(1);
 });
 
 test("an invoice with money against it is credited, not voided", async () => {

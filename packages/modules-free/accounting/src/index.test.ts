@@ -496,6 +496,82 @@ test("correcting an amount reverses the old figure and posts the new one", async
   );
 });
 
+/**
+ * A correction leaves the source with two entries, the first already
+ * reversed. Undo asked "has this source been reversed?", heard yes from the
+ * first, and reversed nothing: the row read undone while the corrected figure
+ * stayed in the books. And a second correction reversed the first entry again,
+ * so the profit and loss carried the second figure less the first.
+ */
+test("a corrected transaction can be corrected again, and then undone", async () => {
+  const before = await pnl();
+  const created = await post("/api/transactions", {
+    kind: "expense",
+    description: "Corrected twice",
+    amountCents: 10_000,
+  });
+  const { transaction } = (await created.json()) as {
+    transaction: { id: string };
+  };
+
+  await patch(`/api/transactions/${transaction.id}`, { amountCents: 15_000 });
+  expect((await pnl()).expenseCents).toBe(before.expenseCents + 15_000);
+  await patch(`/api/transactions/${transaction.id}`, { amountCents: 20_000 });
+  expect((await pnl()).expenseCents).toBe(before.expenseCents + 20_000);
+
+  expect((await del(`/api/transactions/${transaction.id}`)).status).toBe(200);
+  expect((await pnl()).expenseCents).toBe(before.expenseCents);
+});
+
+/**
+ * A correction is an undo and a redo, so it commits as one or not at all.
+ *
+ * Moving a transaction into a closed month is refused when the new figure is
+ * posted — after the row had been rewritten and the old figure reversed, each
+ * in its own commit. The refusal left the expense out of the books entirely,
+ * under a row that said it was dated in the closed month.
+ */
+test("a correction refused by a closed period changes nothing", async () => {
+  const day = (offset: number) =>
+    new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
+  const created = await post("/api/transactions", {
+    kind: "expense",
+    description: "Moved into a closed month",
+    amountCents: 7_000,
+    occurredAt: day(0),
+  });
+  const { transaction } = (await created.json()) as {
+    transaction: { id: string };
+  };
+  const before = await pnl();
+
+  const close = await app.request("http://localhost/api/accounting/period", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ closedThrough: day(-2) }),
+  });
+  expect(close.status).toBe(200);
+  try {
+    const res = await patch(`/api/transactions/${transaction.id}`, {
+      occurredAt: day(-5),
+    });
+    expect(res.status).not.toBe(200);
+  } finally {
+    await app.request("http://localhost/api/accounting/period", {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({ closedThrough: null }),
+    });
+  }
+
+  expect((await pnl()).expenseCents).toBe(before.expenseCents);
+  const [row] = await db
+    .select({ occurredAt: schema.transactions.occurredAt })
+    .from(schema.transactions)
+    .where(eq(schema.transactions.id, transaction.id));
+  expect(row?.occurredAt.toISOString().slice(0, 10)).toBe(day(0));
+});
+
 test("wording can be corrected without touching the ledger", async () => {
   const created = await post("/api/transactions", {
     kind: "expense",

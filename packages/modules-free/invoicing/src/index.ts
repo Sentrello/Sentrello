@@ -743,6 +743,15 @@ export default defineModule({
             409,
           );
         }
+        // Nor a credit note: it is money the business owes, and a payment
+        // here posted Dr Cash / Cr Receivable — the customer charged again on
+        // the document that gave them money back.
+        if (invoice.kind === "credit_note") {
+          return c.json(
+            { error: "a credit note is not paid; nothing is owed on it" },
+            409,
+          );
+        }
 
         /**
          * What is already settled, read before this payment joins the total —
@@ -1119,6 +1128,30 @@ export default defineModule({
           return c.json(
             { error: "this invoice has no customer to hold credit for" },
             400,
+          );
+        }
+        /*
+         * The payments route's refusal, for the same reasons: a draft is not
+         * in the books and a void has been reversed out of them, so neither
+         * has a receivable for the credit to clear. Worked out from the total,
+         * the balance below said otherwise and spent the customer's credit on
+         * an invoice nobody owes. A credit note owes the customer, not them us.
+         */
+        if (
+          invoice.status === "draft" ||
+          invoice.status === "void" ||
+          invoice.kind === "credit_note"
+        ) {
+          return c.json(
+            {
+              error:
+                invoice.kind === "credit_note"
+                  ? "credit cannot be applied to a credit note"
+                  : invoice.status === "draft"
+                    ? "this invoice is still a draft — issue it before applying credit"
+                    : "this invoice is void; nothing is owed on it",
+            },
+            409,
           );
         }
 

@@ -500,6 +500,77 @@ test("a credited invoice cannot then be voided — the books already carry the r
   expect(res.status).toBe(409);
 });
 
+/**
+ * Voiding a credit note undoes the credit, in the books and on the invoice.
+ *
+ * The void reversed `invoice:<id>`, and a credit note posts under
+ * `credit-note:<id>` — so nothing was reversed and the credit stayed in the
+ * ledger. And the invoice it credited still read `credited`, settled, while
+ * every balance worked out from its documents said the customer owed it all
+ * again: a debt on the aging report that the invoice list called paid.
+ */
+test("voiding a credit note reverses it and puts the debt back on the invoice", async () => {
+  const invoice = await invoiceOf([
+    { description: "Fence", quantity: 1, unitPrice: 10_000, taxRatePpm: 0 },
+  ]);
+  const note = await creditOf(invoice.id);
+
+  const res = await app.request(
+    `http://localhost/api/invoices/${note.id}/void`,
+    { method: "POST", headers },
+  );
+  expect(res.status).toBe(200);
+
+  // Dr Income / Cr Receivable, and then its opposite: nothing left behind.
+  const [entry] = await db
+    .select({ id: schema.journalEntries.id })
+    .from(schema.journalEntries)
+    .where(
+      and(
+        eq(schema.journalEntries.organizationId, orgId),
+        eq(schema.journalEntries.source, `credit-note:${note.id}`),
+      ),
+    );
+  if (!entry) throw new Error("the credit note posted nothing");
+  const reversal = await linesFor(`reversal:${entry.id}`);
+  expect(balanced(reversal)).toBe(10_000);
+  expect(reversal.find((l) => l.code === "4000")?.creditCents).toBe(10_000);
+  expect(debitOn(reversal, "1100")).toBe(10_000);
+
+  const [after] = await db
+    .select({ status: schema.invoices.status })
+    .from(schema.invoices)
+    .where(eq(schema.invoices.id, invoice.id));
+  expect(after?.status).toBe("open");
+
+  // And the invoice can be credited again, for the whole of it.
+  await creditOf(invoice.id);
+});
+
+/**
+ * A credit note is what the business owes, so no payment is taken on one.
+ *
+ * Its balance read as its total and the payment box took money against it:
+ * Dr Cash / Cr Receivable, the customer charged again on the document that
+ * gave them money back — and the note, paid, could then never be voided.
+ */
+test("a payment cannot be recorded against a credit note", async () => {
+  const invoice = await invoiceOf([
+    { description: "Hedge", quantity: 1, unitPrice: 4000, taxRatePpm: 0 },
+  ]);
+  const note = await creditOf(invoice.id);
+  const res = await app.request(
+    `http://localhost/api/invoices/${note.id}/payments`,
+    { method: "POST", headers, body: JSON.stringify({ amountCents: 4000 }) },
+  );
+  expect(res.status).toBe(409);
+  const payments = await db
+    .select()
+    .from(schema.payments)
+    .where(eq(schema.payments.invoiceId, note.id));
+  expect(payments).toHaveLength(0);
+});
+
 test("a payment and a credit agree about what is still owed", async () => {
   const invoice = await invoiceOf([
     { description: "Callout", quantity: 1, unitPrice: 10_000, taxRatePpm: 0 },
