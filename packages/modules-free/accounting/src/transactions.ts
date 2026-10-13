@@ -559,28 +559,22 @@ export function registerTransactions(ctx: ModuleContext) {
       ) {
         return c.json({ error: "unknown account" }, 400);
       }
-      const occurredAt =
+      const askedOccurredAt =
         body.occurredAt === undefined
-          ? existing.occurredAt
+          ? undefined
           : parseDate(
               body.occurredAt,
               dayIn(new Date(), await timezoneFor(orgId)),
             );
-      if (!occurredAt) return c.json({ error: "unreadable date" }, 400);
-
-      const amountCents = body.amountCents ?? existing.amountCents;
-      const accountId = body.accountId
+      if (askedOccurredAt === null) {
+        return c.json({ error: "unreadable date" }, 400);
+      }
+      const askedAccountId = body.accountId
         ? asText(body.accountId, "accountId")
-        : existing.accountId;
-      const paidThroughAccountId = body.paidThroughAccountId
+        : undefined;
+      const askedPaidThrough = body.paidThroughAccountId
         ? asText(body.paidThroughAccountId, "paidThroughAccountId")
-        : existing.paidThroughAccountId;
-
-      const figuresChanged =
-        amountCents !== existing.amountCents ||
-        accountId !== existing.accountId ||
-        paidThroughAccountId !== existing.paidThroughAccountId ||
-        occurredAt.getTime() !== existing.occurredAt.getTime();
+        : undefined;
 
       // Before the transaction: it reads on a pool connection of its own.
       const contactId =
@@ -598,6 +592,40 @@ export function registerTransactions(ctx: ModuleContext) {
        * money out of the books under a row that still showed it.
        */
       const row = await db.transaction(async (tx) => {
+        /*
+         * The figures a field left out keeps are the row's as it is now, read
+         * under a lock — not as it was read above.
+         *
+         * Two corrections at once both started from the first read. One moving
+         * the amount and one rewording the description: the second wrote the
+         * old amount back over the first and, seeing no figure of its own
+         * change, posted nothing, so the row said one amount and the books
+         * another. Locked, the second waits and starts from what the first
+         * wrote.
+         */
+        const [current] = await tx
+          .select()
+          .from(schema.transactions)
+          .where(
+            and(
+              eq(schema.transactions.id, id),
+              eq(schema.transactions.organizationId, orgId),
+            ),
+          )
+          .for("update");
+        if (!current || current.reversedAt) return null;
+
+        const occurredAt = askedOccurredAt ?? current.occurredAt;
+        const amountCents: number = body.amountCents ?? current.amountCents;
+        const accountId = askedAccountId ?? current.accountId;
+        const paidThroughAccountId =
+          askedPaidThrough ?? current.paidThroughAccountId;
+        const figuresChanged =
+          amountCents !== current.amountCents ||
+          accountId !== current.accountId ||
+          paidThroughAccountId !== current.paidThroughAccountId ||
+          occurredAt.getTime() !== current.occurredAt.getTime();
+
         const [row] = await tx
           .update(schema.transactions)
           .set({

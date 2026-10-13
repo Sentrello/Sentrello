@@ -26,7 +26,7 @@ export type Columns = Record<string, string[]>;
 const NAME = /^[a-z0-9][a-z0-9:_-]{0,63}$/i;
 
 /** Enough for anybody, and a bound on what one row can grow to. */
-const MAX_LISTS = 60;
+export const MAX_LISTS = 60;
 const MAX_FIELDS = 80;
 
 /**

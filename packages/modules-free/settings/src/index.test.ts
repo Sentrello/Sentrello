@@ -2,8 +2,8 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
 import { db, schema } from "@sentrello/db";
-import { registerForTest } from "@sentrello/module-sdk";
-import { eq } from "drizzle-orm";
+import { registerForTest, secrets } from "@sentrello/module-sdk";
+import { and, eq } from "drizzle-orm";
 import settings, { maskTaxId } from "./index";
 
 const suffix = crypto.randomUUID().slice(0, 8);
@@ -981,4 +981,41 @@ test("a refused save leaves the currency where it was", async () => {
 
   const after = (await read()) as { business: { baseCurrency: string } };
   expect(after.business.baseCurrency).toBe(before.business.baseCurrency);
+});
+
+/**
+ * Two halves of a connection saved at once, and both kept.
+ *
+ * A field left blank keeps what is stored, which the route did by reading the
+ * row and writing every field back — so the key from one save and the signing
+ * secret from another, arriving together, each wrote back the other's old
+ * value. Several rounds, because which one lands second is the scheduler's.
+ */
+test("a key and a signing secret saved together are both kept", async () => {
+  const live = and(
+    eq(schema.paymentAccounts.organizationId, orgId),
+    eq(schema.paymentAccounts.mode, "live"),
+  );
+  const put = (body: Record<string, unknown>) =>
+    app.request("http://localhost/api/payments/accounts/stripe/live", {
+      method: "PUT",
+      headers,
+      body: JSON.stringify(body),
+    });
+  try {
+    for (let round = 0; round < 5; round++) {
+      await put({ secretKey: "sk_live_old", webhookSecret: "whsec_old" });
+      const answers = await Promise.all([
+        put({ secretKey: `sk_live_new_${round}` }),
+        put({ webhookSecret: `whsec_new_${round}` }),
+      ]);
+      expect(answers.map((r) => r.status)).toEqual([200, 200]);
+
+      const [row] = await db.select().from(schema.paymentAccounts).where(live);
+      expect(secrets.open(row?.secretKey ?? "")).toBe(`sk_live_new_${round}`);
+      expect(secrets.open(row?.webhookSecret ?? "")).toBe(`whsec_new_${round}`);
+    }
+  } finally {
+    await db.delete(schema.paymentAccounts).where(live);
+  }
 });

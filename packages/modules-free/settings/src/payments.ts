@@ -3,7 +3,7 @@ import {
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
-import { and, asc, db, eq, schema } from "@sentrello/db";
+import { type DbTx, and, asc, db, eq, schema, sql } from "@sentrello/db";
 import { dayIn, dayLabel } from "@sentrello/db/day";
 import type { PaymentAccount } from "@sentrello/db/payments";
 import { asTextOrNothing } from "@sentrello/db/request-values";
@@ -154,8 +154,9 @@ async function accountFor(
   orgId: string,
   provider: string,
   mode: string,
+  tx: DbTx | typeof db = db,
 ): Promise<PaymentAccount | null> {
-  const [row] = await db
+  const [row] = await tx
     .select()
     .from(schema.paymentAccounts)
     .where(
@@ -267,71 +268,87 @@ export function registerPaymentAccounts(ctx: ModuleContext) {
         string,
         unknown
       >;
-      const existing = await accountFor(orgId, provider, mode);
-
-      const secretKey =
-        asTextOrNothing(body.secretKey, "secretKey")?.trim() || null;
-      const webhookSecret =
-        asTextOrNothing(body.webhookSecret, "webhookSecret")?.trim() || null;
-      const publicKey = asTextOrNothing(body.publicKey, "publicKey");
       /*
-       * `null` clears it; blank leaves it alone.
+       * Read and written under one lock.
        *
-       * A form posts an empty field for "I did not touch this", so blank must
-       * never wipe a working secret. But there was then no way to clear one
-       * at all — and "clear the stored signing secret and connect again" is
-       * exactly the advice the connect step gives when events are being
-       * refused by a secret that belongs to an endpoint somebody replaced.
-       * Advice nobody can act on is worse than none.
+       * Every field left blank is written back as it was read, so two saves
+       * together — the API key from one tab, the signing secret from another
+       * — both read the row first and the second put back the key the first
+       * had just replaced. Advisory rather than `for update`, because the
+       * first save of a connection has no row to lock yet.
        */
-      const clearWebhookSecret = body.webhookSecret === null;
+      return db.transaction(async (tx) => {
+        await tx.execute(
+          sql`select pg_advisory_xact_lock(hashtext(${`payment-account:${orgId}:${provider}:${mode}`}))`,
+        );
+        const existing = await accountFor(orgId, provider, mode, tx);
 
-      const values = {
-        organizationId: orgId,
-        provider,
-        mode,
-        publicKey:
-          publicKey !== null
-            ? publicKey.trim() || null
-            : (existing?.publicKey ?? null),
-        secretKey: secretKey
-          ? secrets.seal(secretKey)
-          : (existing?.secretKey ?? null),
-        secretHint: secretKey
-          ? secrets.hint(secretKey)
-          : (existing?.secretHint ?? null),
-        webhookSecret: clearWebhookSecret
-          ? null
-          : webhookSecret
-            ? secrets.seal(webhookSecret)
-            : (existing?.webhookSecret ?? null),
-        // Changed keys are unproven keys: whatever the last test said, it was
-        // about something else.
-        lastTestOk: secretKey ? null : (existing?.lastTestOk ?? null),
-        lastTestMessage: secretKey ? null : (existing?.lastTestMessage ?? null),
-        lastTestedAt: secretKey ? null : (existing?.lastTestedAt ?? null),
-        updatedAt: new Date(),
-      };
+        const secretKey =
+          asTextOrNothing(body.secretKey, "secretKey")?.trim() || null;
+        const webhookSecret =
+          asTextOrNothing(body.webhookSecret, "webhookSecret")?.trim() || null;
+        const publicKey = asTextOrNothing(body.publicKey, "publicKey");
+        /*
+         * `null` clears it; blank leaves it alone.
+         *
+         * A form posts an empty field for "I did not touch this", so blank must
+         * never wipe a working secret. But there was then no way to clear one
+         * at all — and "clear the stored signing secret and connect again" is
+         * exactly the advice the connect step gives when events are being
+         * refused by a secret that belongs to an endpoint somebody replaced.
+         * Advice nobody can act on is worse than none.
+         */
+        const clearWebhookSecret = body.webhookSecret === null;
 
-      const [saved] = existing
-        ? await db
+        const values = {
+          organizationId: orgId,
+          provider,
+          mode,
+          publicKey:
+            publicKey !== null
+              ? publicKey.trim() || null
+              : (existing?.publicKey ?? null),
+          secretKey: secretKey
+            ? secrets.seal(secretKey)
+            : (existing?.secretKey ?? null),
+          secretHint: secretKey
+            ? secrets.hint(secretKey)
+            : (existing?.secretHint ?? null),
+          webhookSecret: clearWebhookSecret
+            ? null
+            : webhookSecret
+              ? secrets.seal(webhookSecret)
+              : (existing?.webhookSecret ?? null),
+          // Changed keys are unproven keys: whatever the last test said, it was
+          // about something else.
+          lastTestOk: secretKey ? null : (existing?.lastTestOk ?? null),
+          lastTestMessage: secretKey
+            ? null
+            : (existing?.lastTestMessage ?? null),
+          lastTestedAt: secretKey ? null : (existing?.lastTestedAt ?? null),
+          updatedAt: new Date(),
+        };
+
+        const [saved] = existing
+          ? await tx
+              .update(schema.paymentAccounts)
+              .set(values)
+              .where(eq(schema.paymentAccounts.id, existing.id))
+              .returning()
+          : await tx.insert(schema.paymentAccounts).values(values).returning();
+        if (!saved) throw new Error("payment account save returned no row");
+
+        // Keys that no longer prove anything must not stay switched on.
+        if (secretKey && saved.enabled) {
+          await tx
             .update(schema.paymentAccounts)
-            .set(values)
-            .where(eq(schema.paymentAccounts.id, existing.id))
-            .returning()
-        : await db.insert(schema.paymentAccounts).values(values).returning();
-      if (!saved) throw new Error("payment account save returned no row");
+            .set({ enabled: false, updatedAt: new Date() })
+            .where(eq(schema.paymentAccounts.id, saved.id));
+          saved.enabled = false;
+        }
 
-      // Keys that no longer prove anything must not stay switched on.
-      if (secretKey && saved.enabled) {
-        await db
-          .update(schema.paymentAccounts)
-          .set({ enabled: false, updatedAt: new Date() })
-          .where(eq(schema.paymentAccounts.id, saved.id));
-        saved.enabled = false;
-      }
-
-      return c.json({ account: forDisplay(saved) });
+        return c.json({ account: forDisplay(saved) });
+      });
     },
   );
 

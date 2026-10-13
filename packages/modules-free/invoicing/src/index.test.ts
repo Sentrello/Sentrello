@@ -6135,3 +6135,90 @@ test("a deal quoted on a pound instance is quoted in pounds", async () => {
     .set({ baseCurrency: "USD" })
     .where(eq(schema.organizations.id, orgId));
 });
+
+/**
+ * Two billing settings saved at once, and both kept.
+ *
+ * The screen saves one field per change, and this route read a field left out
+ * as its default — so the screen sent back every field it had loaded, and two
+ * changes in quick succession each wrote the other's old value. A field left
+ * out is left alone now, under a lock, and these five arriving together are
+ * all still there afterwards.
+ */
+test("billing settings saved at the same moment all survive", async () => {
+  const put = (body: Record<string, unknown>) =>
+    app.request("http://localhost/api/invoicing/settings", {
+      method: "PUT",
+      headers,
+      body: JSON.stringify(body),
+    });
+  await put({
+    defaultDueDays: 30,
+    lateFeeGraceDays: 7,
+    defaultPaymentTerms: null,
+    overpaymentPolicy: "refuse",
+    units: ["hour"],
+  });
+
+  const answers = await Promise.all([
+    put({ defaultDueDays: 14 }),
+    put({ lateFeeGraceDays: 21 }),
+    put({ defaultPaymentTerms: "Payable on receipt" }),
+    put({ overpaymentPolicy: "credit" }),
+    put({ units: ["hour", "visit"] }),
+  ]);
+  expect(answers.map((r) => r.status)).toEqual([200, 200, 200, 200, 200]);
+
+  const { settings } = (await (
+    await app.request("http://localhost/api/invoicing/settings", { headers })
+  ).json()) as { settings: Record<string, unknown> };
+  expect(settings).toMatchObject({
+    defaultDueDays: 14,
+    lateFeeGraceDays: 21,
+    defaultPaymentTerms: "Payable on receipt",
+    overpaymentPolicy: "credit",
+    units: ["hour", "visit"],
+  });
+
+  // Put back, for any test after this one that reads the policy.
+  await put({ overpaymentPolicy: "refuse", defaultDueDays: 30 });
+});
+
+/**
+ * A rate and a name changed at once, and both kept.
+ *
+ * A partial edit is validated as a whole, so the fields it leaves out are read
+ * from the row and written back — and two edits together both read the row
+ * first. The renaming put the old rate back over the correction. Several
+ * rounds, because the loss needed the renaming to land second.
+ */
+test("a tax rate corrected while somebody renames it keeps both changes", async () => {
+  for (let round = 0; round < 5; round++) {
+    const made = (await (
+      await app.request("http://localhost/api/invoicing/taxes", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ name: `Sales tax ${round}`, ratePpm: 80_000 }),
+      })
+    ).json()) as { tax: { id: string } };
+    const edit = (body: Record<string, unknown>) =>
+      app.request(`http://localhost/api/invoicing/taxes/${made.tax.id}`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify(body),
+      });
+
+    const answers = await Promise.all([
+      edit({ ratePpm: 82_500 }),
+      edit({ name: `County sales tax ${round}` }),
+    ]);
+    expect(answers.map((r) => r.status)).toEqual([200, 200]);
+
+    const [row] = await db
+      .select()
+      .from(schema.taxDefinitions)
+      .where(eq(schema.taxDefinitions.id, made.tax.id));
+    expect(row?.ratePpm).toBe(82_500);
+    expect(row?.name).toBe(`County sales tax ${round}`);
+  }
+});

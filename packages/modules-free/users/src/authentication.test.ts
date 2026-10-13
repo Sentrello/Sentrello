@@ -766,3 +766,41 @@ test("a session idle past the business's window is refused", async () => {
   await putPolicy({ sessionDays: null });
   forgetSessionLength(orgId);
 });
+
+/**
+ * Two fields saved at once, and both kept.
+ *
+ * The screen saves one field per change, and every field a request does not
+ * mention was written back as it had been read — so two saves together each
+ * put back the other's field. A rule about second factors undone by somebody
+ * changing a lockout setting in the same second is the shape that matters.
+ */
+test("policy fields saved at the same moment all survive", async () => {
+  await putPolicy({
+    minPasswordLength: 12,
+    lockoutAfterAttempts: 5,
+    lockoutMinutes: 15,
+    eventRetentionDays: 90,
+    sessionDays: 7,
+  });
+  const answers = await Promise.all([
+    putPolicy({ minPasswordLength: 20 }),
+    putPolicy({ lockoutAfterAttempts: 9 }),
+    putPolicy({ lockoutMinutes: 30 }),
+    putPolicy({ eventRetentionDays: 120 }),
+    putPolicy({ sessionDays: 14 }),
+  ]);
+  expect(answers.map((r) => r.status)).toEqual([200, 200, 200, 200, 200]);
+
+  const [stored] = await db
+    .select()
+    .from(schema.securityPolicy)
+    .where(eq(schema.securityPolicy.organizationId, orgId));
+  expect(stored).toMatchObject({
+    minPasswordLength: 20,
+    lockoutAfterAttempts: 9,
+    lockoutMinutes: 30,
+    eventRetentionDays: 120,
+    sessionDays: 14,
+  });
+});

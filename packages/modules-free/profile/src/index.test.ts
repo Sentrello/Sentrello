@@ -541,3 +541,42 @@ test("a currency a person chooses is theirs to choose", () => {
   // third currency nobody asked for.
   expect(normalize({ currency: "GB" }).currency).toBe("");
 });
+
+/**
+ * Two column menus saved at once, and both choices kept.
+ *
+ * The route read the whole map, replaced one entry in JavaScript and wrote the
+ * map back, so saves arriving together each wrote back the others' lists as
+ * they had been read. Eight at once is enough for that to lose some every time;
+ * the entry is merged in the statement that writes now, so none can be lost.
+ */
+test("column choices saved together on different lists all survive", async () => {
+  const lists = Array.from({ length: 8 }, (_, i) => `list${i}`);
+  const answers = await Promise.all(
+    lists.map((list) =>
+      app.request(`http://localhost/api/profile/columns/${list}`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({ hidden: ["due"] }),
+      }),
+    ),
+  );
+  expect(answers.map((r) => r.status)).toEqual(lists.map(() => 200));
+
+  const after = (await app
+    .request("http://localhost/api/profile/columns", { headers })
+    .then((r) => r.json())) as { columns: Record<string, string[]> };
+  for (const list of lists) expect(after.columns[list]).toEqual(["due"]);
+
+  // And "show them all" takes one list away without touching the others.
+  await app.request("http://localhost/api/profile/columns/list0", {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ hidden: [] }),
+  });
+  const shown = (await app
+    .request("http://localhost/api/profile/columns", { headers })
+    .then((r) => r.json())) as { columns: Record<string, string[]> };
+  expect(shown.columns.list0).toBeUndefined();
+  expect(shown.columns.list1).toEqual(["due"]);
+});

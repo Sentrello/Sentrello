@@ -388,3 +388,55 @@ test("five saves of one version at once: one lands, four are told", async () => 
   const codes = answers.map((r) => r.status).sort();
   expect(codes).toEqual([200, 409, 409, 409, 409]);
 });
+
+/**
+ * A document template is one form saved whole, so it gets the same answer.
+ *
+ * Two people with the template open: the first changes the wording at the
+ * foot of every invoice, the second changes the colour. The second save sent
+ * every field as its form had loaded them, and the first person's wording was
+ * gone from the next invoice out.
+ */
+test("a template saved over somebody else's change is refused", async () => {
+  const made = await json<{ template: { id: string } }>(
+    await call("/api/invoicing/templates", "POST", { name: "Letterhead" }),
+  );
+  const listed = await json<{
+    templates: { id: string; updatedAt: string }[];
+  }>(await call("/api/invoicing/templates", "GET"));
+  const bothSaw = listed.templates.find(
+    (t) => t.id === made.template.id,
+  )?.updatedAt;
+  expect(typeof bothSaw).toBe("string");
+
+  const first = await call(
+    `/api/invoicing/templates/${made.template.id}`,
+    "PATCH",
+    {
+      expectedUpdatedAt: bothSaw,
+      name: "Letterhead",
+      footerNote: "Payment by transfer, please.",
+    },
+  );
+  expect(first.status).toBe(200);
+
+  const second = await call(
+    `/api/invoicing/templates/${made.template.id}`,
+    "PATCH",
+    {
+      expectedUpdatedAt: bothSaw,
+      name: "Letterhead",
+      accentColor: "#b91c1c",
+    },
+  );
+  expect(second.status).toBe(409);
+  expect((await json<{ error: string }>(second)).error).toContain(
+    "Somebody else changed this",
+  );
+
+  const [stored] = await db
+    .select()
+    .from(schema.documentTemplates)
+    .where(eq(schema.documentTemplates.id, made.template.id));
+  expect(stored?.footerNote).toBe("Payment by transfer, please.");
+});

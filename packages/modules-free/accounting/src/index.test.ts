@@ -1295,3 +1295,43 @@ test("with no timezone set, a period is still measured in UTC", async () => {
   const utcTwentieth = await pnl("?from=2031-03-20&to=2031-03-20");
   expect(utcTwentieth.incomeCents).toBe(0);
 });
+
+/**
+ * Two corrections at once, and the row and the books still agreeing.
+ *
+ * Both started from one read of the row. One changed the amount; the other
+ * only reworded it, so it wrote the old amount back and — seeing no figure of
+ * its own change — posted nothing. The row said 100 and the profit and loss
+ * said 250. Several rounds, because the loss needed the rewording to land
+ * second.
+ */
+test("a correction and a rewording together leave the row and the books agreeing", async () => {
+  for (let round = 0; round < 5; round++) {
+    const before = await pnl();
+    const created = await post("/api/transactions", {
+      kind: "expense",
+      description: "Two hands",
+      amountCents: 10_000,
+    });
+    const { transaction } = (await created.json()) as {
+      transaction: { id: string };
+    };
+
+    const [moved, reworded] = await Promise.all([
+      patch(`/api/transactions/${transaction.id}`, { amountCents: 25_000 }),
+      patch(`/api/transactions/${transaction.id}`, {
+        description: "Two hands, reworded",
+      }),
+    ]);
+    expect(moved.status).toBe(200);
+    expect(reworded.status).toBe(200);
+
+    const [row] = await db
+      .select()
+      .from(schema.transactions)
+      .where(eq(schema.transactions.id, transaction.id));
+    expect(row?.amountCents).toBe(25_000);
+    expect(row?.description).toBe("Two hands, reworded");
+    expect((await pnl()).expenseCents).toBe(before.expenseCents + 25_000);
+  }
+});

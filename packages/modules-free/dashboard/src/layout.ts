@@ -1,11 +1,11 @@
-import { db, schema } from "@sentrello/db";
+import { type DbTx, db, schema } from "@sentrello/db";
 import {
   RequestFieldError,
   asTextOrNothing,
 } from "@sentrello/db/request-values";
 import type { ModuleWidget, RegisteredWidget } from "@sentrello/module-sdk";
 import { allSummaries, allWidgets, scopedId } from "@sentrello/module-sdk";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 /**
  * The tabs, and what is on them.
@@ -526,8 +526,9 @@ interface Stored {
 
 export async function readStored(
   organizationId: string,
+  tx: DbTx | typeof db = db,
 ): Promise<Stored | null> {
-  const [row] = await db
+  const [row] = await tx
     .select({ value: schema.organizationPreferences.value })
     .from(schema.organizationPreferences)
     .where(
@@ -560,9 +561,10 @@ export async function writeStored(
   organizationId: string,
   tabs: Tab[],
   known: string[],
+  tx: DbTx | typeof db = db,
 ): Promise<void> {
   const value = { tabs, known: known.slice(-MAX_KNOWN) };
-  await db
+  await tx
     .insert(schema.organizationPreferences)
     .values({ organizationId, key: "dashboard", value })
     // Saving twice is the normal case — every rearrange is a save.
@@ -575,9 +577,27 @@ export async function writeStored(
     });
 }
 
+/**
+ * Holds the business's arrangement until the transaction ends.
+ *
+ * An advisory lock rather than `for update`, because the first save has no row
+ * to lock yet, and two first saves are exactly the pair that would race.
+ */
+export async function lockArrangement(
+  tx: DbTx,
+  organizationId: string,
+): Promise<void> {
+  await tx.execute(
+    sql`select pg_advisory_xact_lock(hashtext(${`dashboard:${organizationId}`}))`,
+  );
+}
+
 /** An empty save resets rather than empties. */
-export async function clearStored(organizationId: string): Promise<void> {
-  await db
+export async function clearStored(
+  organizationId: string,
+  tx: DbTx | typeof db = db,
+): Promise<void> {
+  await tx
     .delete(schema.organizationPreferences)
     .where(
       and(

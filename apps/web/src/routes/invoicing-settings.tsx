@@ -941,11 +941,17 @@ function BillingRules() {
     onSuccess: refresh,
   });
 
+  /*
+   * Only what changed. This sent every field the screen had loaded with the
+   * one that moved, so a second change made before the first save came back
+   * carried the first field's old value and quietly undid it. The server keeps
+   * whatever a save leaves out.
+   */
   const saveSettings = useMutation({
     mutationFn: (patch: Partial<BillingSettings>) =>
       api("/api/invoicing/settings", {
         method: "PUT",
-        body: JSON.stringify({ ...data?.settings, ...patch }),
+        body: JSON.stringify(patch),
       }),
     onSuccess: refresh,
   });
@@ -1375,6 +1381,7 @@ interface DocumentTemplate {
   layout: string;
   logoPath: string | null;
   isDefault: boolean;
+  updatedAt?: string;
 }
 
 /**
@@ -1696,6 +1703,12 @@ function TemplateForm({
   const [layout, setLayout] = useState(template?.layout ?? "classic");
   const [headerNote, setHeader] = useState(template?.headerNote ?? "");
   const [footerNote, setFooter] = useState(template?.footerNote ?? "");
+  /*
+   * The version this form opened, held rather than read from the prop: a list
+   * refetched in the background would hand it a colleague's newer version and
+   * the save would claim to have seen what it never showed.
+   */
+  const [seenUpdatedAt] = useState(template?.updatedAt ?? null);
 
   const save = useMutation({
     mutationFn: () =>
@@ -1712,6 +1725,11 @@ function TemplateForm({
             layout,
             headerNote,
             footerNote,
+            // Refused, with a sentence saying so, if somebody else saved this
+            // template since the form opened.
+            ...(template && seenUpdatedAt
+              ? { expectedUpdatedAt: seenUpdatedAt }
+              : {}),
           }),
         },
       ),

@@ -80,230 +80,259 @@ export function registerAuthentication(ctx: ModuleContext) {
     async (c: RouteContext) => {
       const session = c.get("session");
       const orgId = activeOrganizationId(session);
-      const current = await policyFor(orgId);
       const body = (await c.req.json().catch(() => ({}))) as Record<
         string,
         unknown
       >;
+      // So there is a row to lock, on an instance that has never saved one.
+      await policyFor(orgId);
 
-      const allowed = await knownRoles(orgId);
-      /**
-       * Refused unless mail is configured, which is the whole safety of this
-       * setting. A business that cannot send a verification link and requires
-       * one has locked itself out of its own software, and the only way back
-       * would be the host — which is a worse answer than not letting them
-       * switch it on.
+      /*
+       * Read under a lock, and written in the same transaction.
        *
-       * Turning it *off* is always allowed, including with no mail, because
-       * that is the way out if it was ever on.
+       * The screen saves one field at a time — a tick here, a number there —
+       * and every field this request does not mention is written back as it
+       * was read. Two saves arriving together both read the policy before
+       * either wrote, so the second put the first one's field back: a second
+       * factor required of the office, undone by somebody changing the
+       * password length a moment later, with both answering 200. Locked, the
+       * second read waits for the first write and carries it forward.
        */
-      if (
-        asFlag(body.requireEmailVerified, "requireEmailVerified", false) &&
-        !mailConfigured()
-      ) {
-        return refuse(
-          c,
-          "requireEmailVerified",
-          "cannot be switched on until email is configured — otherwise nobody could confirm an address, including you",
+      return db.transaction(async (tx) => {
+        const [current] = await tx
+          .select()
+          .from(schema.securityPolicy)
+          .where(eq(schema.securityPolicy.organizationId, orgId))
+          .for("update");
+        if (!current) throw new Error("could not resolve the security policy");
+
+        const allowed = await knownRoles(orgId);
+        /**
+         * Refused unless mail is configured, which is the whole safety of this
+         * setting. A business that cannot send a verification link and requires
+         * one has locked itself out of its own software, and the only way back
+         * would be the host — which is a worse answer than not letting them
+         * switch it on.
+         *
+         * Turning it *off* is always allowed, including with no mail, because
+         * that is the way out if it was ever on.
+         */
+        if (
+          asFlag(body.requireEmailVerified, "requireEmailVerified", false) &&
+          !mailConfigured()
+        ) {
+          return refuse(
+            c,
+            "requireEmailVerified",
+            "cannot be switched on until email is configured — otherwise nobody could confirm an address, including you",
+          );
+        }
+        const requireEmailVerified =
+          body.requireEmailVerified !== undefined
+            ? asFlag(body.requireEmailVerified, "requireEmailVerified")
+            : current.requireEmailVerified;
+
+        /*
+         * A role nobody defined is refused, not dropped.
+         *
+         * This filtered, and answered 200 with the setting saved as something
+         * narrower than what was asked for: a business demanding a second
+         * factor of a role whose name had since changed got no second factor
+         * from anybody and nothing anywhere saying so. Every other field on
+         * this route refuses rather than clamps, and `PATCH
+         * /api/users/groups/:id` refuses an undefined role in the same words.
+         */
+        const wantedTwoFactor = Array.isArray(body.requireTwoFactorFor)
+          ? [...new Set(body.requireTwoFactorFor.map(String))]
+          : null;
+        const undefinedRole = wantedTwoFactor?.find(
+          (r) => !allowed.includes(r),
         );
-      }
-      const requireEmailVerified =
-        body.requireEmailVerified !== undefined
-          ? asFlag(body.requireEmailVerified, "requireEmailVerified")
-          : current.requireEmailVerified;
+        if (undefinedRole) {
+          return refuse(
+            c,
+            "requireTwoFactorFor",
+            `names a role that does not exist here: ${undefinedRole}`,
+          );
+        }
+        const requireTwoFactorFor =
+          wantedTwoFactor ?? current.requireTwoFactorFor;
 
-      /*
-       * A role nobody defined is refused, not dropped.
-       *
-       * This filtered, and answered 200 with the setting saved as something
-       * narrower than what was asked for: a business demanding a second
-       * factor of a role whose name had since changed got no second factor
-       * from anybody and nothing anywhere saying so. Every other field on
-       * this route refuses rather than clamps, and `PATCH
-       * /api/users/groups/:id` refuses an undefined role in the same words.
-       */
-      const wantedTwoFactor = Array.isArray(body.requireTwoFactorFor)
-        ? [...new Set(body.requireTwoFactorFor.map(String))]
-        : null;
-      const undefinedRole = wantedTwoFactor?.find((r) => !allowed.includes(r));
-      if (undefinedRole) {
-        return refuse(
-          c,
-          "requireTwoFactorFor",
-          `names a role that does not exist here: ${undefinedRole}`,
+        /*
+         * Twelve at the bottom, not eight.
+         *
+         * The clamp said eight and the thing that enforces passwords has always
+         * asked for twelve, so a business that set eight was shown eight,
+         * stored eight, and had twelve. Two floors that disagree is one of them
+         * lying to somebody, and the number on the screen is the one people
+         * make decisions from. Twelve is also what 800-63B asks of a memorised
+         * secret standing on its own, which is not a business's to waive.
+         */
+        const askedLength = asWholeNumberOrNothing(
+          body.minPasswordLength,
+          "minPasswordLength",
         );
-      }
-      const requireTwoFactorFor =
-        wantedTwoFactor ?? current.requireTwoFactorFor;
+        const minPasswordLength =
+          askedLength === null
+            ? current.minPasswordLength
+            : Math.min(Math.max(askedLength, 12), 72);
 
-      /*
-       * Twelve at the bottom, not eight.
-       *
-       * The clamp said eight and the thing that enforces passwords has always
-       * asked for twelve, so a business that set eight was shown eight,
-       * stored eight, and had twelve. Two floors that disagree is one of them
-       * lying to somebody, and the number on the screen is the one people
-       * make decisions from. Twelve is also what 800-63B asks of a memorised
-       * secret standing on its own, which is not a business's to waive.
-       */
-      const askedLength = asWholeNumberOrNothing(
-        body.minPasswordLength,
-        "minPasswordLength",
-      );
-      const minPasswordLength =
-        askedLength === null
-          ? current.minPasswordLength
-          : Math.min(Math.max(askedLength, 12), 72);
+        /*
+         * Thirty days at the top, not a year.
+         *
+         * The number is enforced per request now rather than ignored, and the
+         * library's own session ceiling is thirty days — so anything above
+         * that would be a figure on the screen the product could not honour,
+         * which is the mistake this whole setting was an instance of. Null
+         * still means "leave it alone", and the default is thirty minutes.
+         */
+        const askedDays = asWholeNumberOrNothing(
+          body.sessionDays,
+          "sessionDays",
+        );
+        const sessionDays =
+          body.sessionDays === null
+            ? null
+            : askedDays === null
+              ? current.sessionDays
+              : Math.min(Math.max(askedDays, 1), 30);
 
-      /*
-       * Thirty days at the top, not a year.
-       *
-       * The number is enforced per request now rather than ignored, and the
-       * library's own session ceiling is thirty days — so anything above
-       * that would be a figure on the screen the product could not honour,
-       * which is the mistake this whole setting was an instance of. Null
-       * still means "leave it alone", and the default is thirty minutes.
-       */
-      const askedDays = asWholeNumberOrNothing(body.sessionDays, "sessionDays");
-      const sessionDays =
-        body.sessionDays === null
-          ? null
-          : askedDays === null
-            ? current.sessionDays
-            : Math.min(Math.max(askedDays, 1), 30);
-
-      /**
-       * Bounded at both ends, like `minPasswordLength` and `sessionDays`
-       * above.
-       *
-       * All three of these columns are `integer` — pg `int4` — so a value
-       * past 2^31-1 is not a large setting, it is a database error: the
-       * update throws out of range and the route answers 500 to a request it
-       * should have refused with a reason. The upper bounds below are chosen
-       * to be far past any real instance and far short of that: a thousand
-       * attempts, a year of lockout, and a century of retention.
-       *
-       * Zero attempts is documented as off. A negative number was never a
-       * choice to mean that — clamping it to 0 would hide the difference
-       * between "turned off on purpose" and "typo" — so every one of these
-       * is refused outright rather than clamped, matching the
-       * retention-vs-lockout check below.
-       */
-      const whole = (v: unknown): v is number => Number.isInteger(v);
-      if (body.lockoutAfterAttempts !== undefined) {
-        if (!whole(body.lockoutAfterAttempts)) {
-          return refuse(c, "lockoutAfterAttempts", "must be a whole number");
+        /**
+         * Bounded at both ends, like `minPasswordLength` and `sessionDays`
+         * above.
+         *
+         * All three of these columns are `integer` — pg `int4` — so a value
+         * past 2^31-1 is not a large setting, it is a database error: the
+         * update throws out of range and the route answers 500 to a request it
+         * should have refused with a reason. The upper bounds below are chosen
+         * to be far past any real instance and far short of that: a thousand
+         * attempts, a year of lockout, and a century of retention.
+         *
+         * Zero attempts is documented as off. A negative number was never a
+         * choice to mean that — clamping it to 0 would hide the difference
+         * between "turned off on purpose" and "typo" — so every one of these
+         * is refused outright rather than clamped, matching the
+         * retention-vs-lockout check below.
+         */
+        const whole = (v: unknown): v is number => Number.isInteger(v);
+        if (body.lockoutAfterAttempts !== undefined) {
+          if (!whole(body.lockoutAfterAttempts)) {
+            return refuse(c, "lockoutAfterAttempts", "must be a whole number");
+          }
+          if (
+            body.lockoutAfterAttempts < 0 ||
+            body.lockoutAfterAttempts > 1000
+          ) {
+            return refuse(
+              c,
+              "lockoutAfterAttempts",
+              "must be between 0 (off) and 1000",
+            );
+          }
         }
-        if (body.lockoutAfterAttempts < 0 || body.lockoutAfterAttempts > 1000) {
-          return refuse(
-            c,
-            "lockoutAfterAttempts",
-            "must be between 0 (off) and 1000",
+        const lockoutAfterAttempts =
+          (body.lockoutAfterAttempts as number | undefined) ??
+          current.lockoutAfterAttempts;
+
+        // A zero or negative window would count every failure ever made
+        // against an address as still inside it — not a smaller number, a
+        // meaningless one.
+        if (body.lockoutMinutes !== undefined) {
+          if (!whole(body.lockoutMinutes)) {
+            return refuse(c, "lockoutMinutes", "must be a whole number");
+          }
+          if (body.lockoutMinutes < 1 || body.lockoutMinutes > 525_600) {
+            return refuse(
+              c,
+              "lockoutMinutes",
+              "must be between 1 and 525600 (a year)",
+            );
+          }
+        }
+        const lockoutMinutes =
+          (body.lockoutMinutes as number | undefined) ?? current.lockoutMinutes;
+
+        if (body.eventRetentionDays !== undefined) {
+          if (!whole(body.eventRetentionDays)) {
+            return refuse(c, "eventRetentionDays", "must be a whole number");
+          }
+          if (body.eventRetentionDays < 0 || body.eventRetentionDays > 36_500) {
+            return refuse(
+              c,
+              "eventRetentionDays",
+              "must be between 0 (keep forever) and 36500",
+            );
+          }
+        }
+        const eventRetentionDays =
+          (body.eventRetentionDays as number | undefined) ??
+          current.eventRetentionDays;
+
+        // The interaction worth naming: zero retention means
+        // "keep forever", which by definition cannot be shorter than any
+        // window, so only a positive retention is checked against the lockout
+        // window it has to outlast.
+        if (
+          eventRetentionDays > 0 &&
+          eventRetentionDays * 24 * 60 < lockoutMinutes
+        ) {
+          return c.json(
+            {
+              // Names both settings, because the refusal is about the pair
+              // and either one is the fix. `field` points at retention, which
+              // is the one the caller just sent.
+              error: `Keep history for (${eventRetentionDays} days) must be at least as long as Locked for (${lockoutMinutes} minutes)`,
+              field: "eventRetentionDays",
+            },
+            400,
           );
         }
-      }
-      const lockoutAfterAttempts =
-        (body.lockoutAfterAttempts as number | undefined) ??
-        current.lockoutAfterAttempts;
 
-      // A zero or negative window would count every failure ever made
-      // against an address as still inside it — not a smaller number, a
-      // meaningless one.
-      if (body.lockoutMinutes !== undefined) {
-        if (!whole(body.lockoutMinutes)) {
-          return refuse(c, "lockoutMinutes", "must be a whole number");
-        }
-        if (body.lockoutMinutes < 1 || body.lockoutMinutes > 525_600) {
-          return refuse(
-            c,
-            "lockoutMinutes",
-            "must be between 1 and 525600 (a year)",
-          );
-        }
-      }
-      const lockoutMinutes =
-        (body.lockoutMinutes as number | undefined) ?? current.lockoutMinutes;
+        const [updated] = await tx
+          .update(schema.securityPolicy)
+          .set({
+            requireEmailVerified,
+            requireTwoFactorFor,
+            minPasswordLength,
+            sessionDays,
+            lockoutAfterAttempts,
+            lockoutMinutes,
+            eventRetentionDays,
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.securityPolicy.organizationId, orgId))
+          .returning();
 
-      if (body.eventRetentionDays !== undefined) {
-        if (!whole(body.eventRetentionDays)) {
-          return refuse(c, "eventRetentionDays", "must be a whole number");
-        }
-        if (body.eventRetentionDays < 0 || body.eventRetentionDays > 36_500) {
-          return refuse(
-            c,
-            "eventRetentionDays",
-            "must be between 0 (keep forever) and 36500",
-          );
-        }
-      }
-      const eventRetentionDays =
-        (body.eventRetentionDays as number | undefined) ??
-        current.eventRetentionDays;
+        /*
+         * So the session guard sees it now rather than in ten seconds.
+         *
+         * The same arrangement the compliance screen has with its own rules: a
+         * safeguard switched on and not in force for the next ten seconds is
+         * the sort of gap somebody notices while testing it and concludes the
+         * feature is broken.
+         */
+        forgetTwoFactorPolicy(orgId);
+        // And the password floor, which is read on every sign-up and reset.
+        forgetPasswordFloor();
+        // And how long a session may sit idle, read on every request.
+        forgetSessionLength(orgId);
 
-      // The interaction worth naming: zero retention means
-      // "keep forever", which by definition cannot be shorter than any
-      // window, so only a positive retention is checked against the lockout
-      // window it has to outlast.
-      if (
-        eventRetentionDays > 0 &&
-        eventRetentionDays * 24 * 60 < lockoutMinutes
-      ) {
-        return c.json(
-          {
-            // Names both settings, because the refusal is about the pair
-            // and either one is the fix. `field` points at retention, which
-            // is the one the caller just sent.
-            error: `Keep history for (${eventRetentionDays} days) must be at least as long as Locked for (${lockoutMinutes} minutes)`,
-            field: "eventRetentionDays",
+        await record({
+          organizationId: orgId,
+          actor: session.user,
+          subject: { id: orgId, name: "this business", email: null },
+          action: "policy.changed",
+          detail: {
+            requireTwoFactorFor,
+            minPasswordLength,
+            sessionDays,
+            lockoutAfterAttempts,
+            lockoutMinutes,
+            eventRetentionDays,
           },
-          400,
-        );
-      }
-
-      const [updated] = await db
-        .update(schema.securityPolicy)
-        .set({
-          requireEmailVerified,
-          requireTwoFactorFor,
-          minPasswordLength,
-          sessionDays,
-          lockoutAfterAttempts,
-          lockoutMinutes,
-          eventRetentionDays,
-          updatedAt: new Date(),
-        })
-        .where(eq(schema.securityPolicy.organizationId, orgId))
-        .returning();
-
-      /*
-       * So the session guard sees it now rather than in ten seconds.
-       *
-       * The same arrangement the compliance screen has with its own rules: a
-       * safeguard switched on and not in force for the next ten seconds is
-       * the sort of gap somebody notices while testing it and concludes the
-       * feature is broken.
-       */
-      forgetTwoFactorPolicy(orgId);
-      // And the password floor, which is read on every sign-up and reset.
-      forgetPasswordFloor();
-      // And how long a session may sit idle, read on every request.
-      forgetSessionLength(orgId);
-
-      await record({
-        organizationId: orgId,
-        actor: session.user,
-        subject: { id: orgId, name: "this business", email: null },
-        action: "policy.changed",
-        detail: {
-          requireTwoFactorFor,
-          minPasswordLength,
-          sessionDays,
-          lockoutAfterAttempts,
-          lockoutMinutes,
-          eventRetentionDays,
-        },
+        });
+        return c.json({ policy: updated });
       });
-      return c.json({ policy: updated });
     },
   );
 

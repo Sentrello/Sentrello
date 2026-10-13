@@ -1821,3 +1821,63 @@ test("a reader who cannot see a panel does not delete it by saving", async () =>
     restoreWidgets(before);
   }
 });
+
+/**
+ * Two saves at once, and the second merging into what the first wrote.
+ *
+ * The merge is done in JavaScript, so it read the arrangement, worked, and
+ * wrote — and two saves arriving together both read it before either wrote.
+ * Here the manager takes the cellar panel off the dashboard while a colleague
+ * who cannot see it renames a tab; the colleague's save carried the panel back
+ * from its stale read, so a removal somebody made on purpose was undone by a
+ * save that was never about it. Several rounds, because which one lands second
+ * is up to the scheduler and the loss needed the colleague's to.
+ */
+test("a removal survives a colleague's save arriving at the same moment", async () => {
+  const before = allWidgets();
+  addWidget({
+    moduleId: "cellar",
+    id: "cellar-stock",
+    label: "Cellar",
+    entitlement: { module: "cellar" },
+    load: async () => [{ label: "Bottles", value: 12, kind: "count" }],
+  });
+  const narrow = registerForTest(dashboard, undefined, () => false);
+  const put = (on: typeof app, tabs: unknown) =>
+    on.request("http://localhost/api/dashboard/layout", {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({ tabs }),
+    });
+
+  try {
+    for (let round = 0; round < 6; round++) {
+      // A fresh start, so the cellar panel is something the manager placed.
+      await put(app, []);
+      await put(app, [
+        {
+          name: "Everything",
+          widgets: ["dashboard:money", "cellar:cellar-stock"],
+        },
+      ]);
+      const theirs = await readLayoutAs(narrow);
+
+      const [removed, renamed] = await Promise.all([
+        put(app, [{ name: "Everything", widgets: ["dashboard:money"] }]),
+        put(
+          narrow,
+          theirs.tabs.map((tab) => ({ ...tab, name: "Our week" })),
+        ),
+      ]);
+      expect(removed.status).toBe(200);
+      expect(renamed.status).toBe(200);
+
+      const mine = await readLayoutAs(app);
+      expect(mine.tabs.flatMap((t) => t.widgets)).not.toContain(
+        "cellar:cellar-stock",
+      );
+    }
+  } finally {
+    restoreWidgets(before);
+  }
+});

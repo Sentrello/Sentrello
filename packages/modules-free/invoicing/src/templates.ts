@@ -5,7 +5,8 @@ import {
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
-import { and, db, eq, schema } from "@sentrello/db";
+import { and, at, db, eq, isUuid, schema, sql } from "@sentrello/db";
+import { MOVED, UNUSABLE_CLAIM, versionClaim } from "@sentrello/db/concurrency";
 import {
   asChoice,
   asIdOrNothing,
@@ -291,17 +292,50 @@ export function registerTemplates(ctx: ModuleContext) {
         return c.json({ error: checked.error }, 400);
       }
 
+      /*
+       * The whole template is saved at once, every field from the form as it
+       * was opened — so a colleague's change made in the meantime was written
+       * over with nothing said. The form sends the version it loaded, and a
+       * template that has moved since is refused rather than replaced. A
+       * caller that sends no version keeps the behaviour it had.
+       */
+      const id = c.req.param("id") ?? "";
+      if (!isUuid(id)) return c.json({ error: "not found" }, 404);
+      const [current] = await db
+        .select({ updatedAt: schema.documentTemplates.updatedAt })
+        .from(schema.documentTemplates)
+        .where(
+          and(
+            eq(schema.documentTemplates.id, id),
+            eq(schema.documentTemplates.organizationId, orgId),
+          ),
+        )
+        .limit(1);
+      if (!current) return c.json({ error: "not found" }, 404);
+      const claim = versionClaim(current, body);
+      if (claim === "moved") return c.json({ error: MOVED }, 409);
+      if (claim === "unusable") return c.json({ error: UNUSABLE_CLAIM }, 400);
+
       const [updated] = await db
         .update(schema.documentTemplates)
         .set({ ...checked.values, updatedAt: new Date() })
         .where(
           and(
-            eq(schema.documentTemplates.id, c.req.param("id") ?? ""),
+            eq(schema.documentTemplates.id, id),
             eq(schema.documentTemplates.organizationId, orgId),
+            // And again in the statement that writes, to the millisecond as
+            // it was read: two saves of one version must not both pass.
+            claim === "current"
+              ? sql`date_trunc('milliseconds', ${schema.documentTemplates.updatedAt}) = ${at(current.updatedAt)}`
+              : undefined,
           ),
         )
         .returning();
-      if (!updated) return c.json({ error: "not found" }, 404);
+      if (!updated) {
+        return claim === "current"
+          ? c.json({ error: MOVED }, 409)
+          : c.json({ error: "not found" }, 404);
+      }
       return c.json({ template: updated });
     },
   );

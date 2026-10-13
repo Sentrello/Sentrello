@@ -38,6 +38,7 @@ import {
   declaredWidgets,
   defaultLayout,
   layoutFrom,
+  lockArrangement,
   mergeLayout,
   readStored,
   shownTabs,
@@ -863,36 +864,53 @@ export default defineModule({
               403,
             );
           }
-          await clearStored(orgId);
+          await db.transaction(async (tx) => {
+            await lockArrangement(tx, orgId);
+            await clearStored(orgId, tx);
+          });
         } else {
           /*
-           * `known` is what suppresses the day-200 append: everything this
-           * arrangement had the chance to place. The union with what was
-           * known before matters — this writer may lack a permission a
-           * colleague holds, and their save must not turn a colleague's
-           * deliberately-removed widget back into a new arrival.
+           * Read, merged and written under one lock.
+           *
+           * The merge happens in JavaScript, so two saves arriving together —
+           * two colleagues arranging at once, or one person dragging twice
+           * before the first save came back — both read the arrangement before
+           * either wrote, and the second wrote back the first one's tabs as
+           * they had been. The lock makes the second read wait for the first
+           * write, so it merges into what is actually there.
            */
-          const stored = await readStored(orgId);
-          /*
-           * Merged into what is there, never replacing it. A reader is only ever
-           * shown the panels they may have, so a save from somebody whose policy
-           * covers one module would otherwise delete every panel they were never
-           * told about — for the whole business, permanently. See `mergeLayout`.
-           */
-          const kept = mergeLayout(
-            stored?.tabs ?? [],
-            tabs,
-            new Set(visible.map((w) => w.key)),
-            new Set(declaredWidgets().map((w) => w.key)),
-          );
-          const known = [
-            ...new Set([
-              ...(stored?.known ?? []),
-              ...visible.map((w) => w.key),
-              ...kept.flatMap((t) => t.widgets),
-            ]),
-          ];
-          await writeStored(orgId, kept, known);
+          await db.transaction(async (tx) => {
+            await lockArrangement(tx, orgId);
+            const stored = await readStored(orgId, tx);
+            /*
+             * Merged into what is there, never replacing it. A reader is only
+             * ever shown the panels they may have, so a save from somebody
+             * whose policy covers one module would otherwise delete every
+             * panel they were never told about — for the whole business,
+             * permanently. See `mergeLayout`.
+             */
+            const kept = mergeLayout(
+              stored?.tabs ?? [],
+              tabs,
+              new Set(visible.map((w) => w.key)),
+              new Set(declaredWidgets().map((w) => w.key)),
+            );
+            /*
+             * `known` is what suppresses the day-200 append: everything this
+             * arrangement had the chance to place. The union with what was
+             * known before matters — this writer may lack a permission a
+             * colleague holds, and their save must not turn a colleague's
+             * deliberately-removed widget back into a new arrival.
+             */
+            const known = [
+              ...new Set([
+                ...(stored?.known ?? []),
+                ...visible.map((w) => w.key),
+                ...kept.flatMap((t) => t.widgets),
+              ]),
+            ];
+            await writeStored(orgId, kept, known, tx);
+          });
         }
 
         // Answer with what this reader now sees, which is also the rule that

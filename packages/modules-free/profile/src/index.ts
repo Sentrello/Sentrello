@@ -5,8 +5,8 @@ import { asTextOrNothing } from "@sentrello/db/request-values";
 import { asText } from "@sentrello/db/text-columns";
 import { NO_MAIL_SERVER, mailConfigured } from "@sentrello/email";
 import { defineModule, rateLimit } from "@sentrello/module-sdk";
-import { and, desc, eq } from "drizzle-orm";
-import { type Columns, normalizeColumns } from "./columns";
+import { and, desc, eq, sql } from "drizzle-orm";
+import { type Columns, MAX_LISTS, normalizeColumns } from "./columns";
 import {
   DEFAULTS,
   type Preferences,
@@ -226,19 +226,39 @@ export default defineModule({
         return c.json({ error: "which list?" }, 400);
       }
 
-      const columns = await readColumns(orgId, session.user.id);
-      const next = normalizeColumns({ ...columns, ...asked });
-      // Nothing hidden is no entry, so "show them all" removes the list rather
-      // than storing an empty array for ever.
-      if (!(list in asked)) delete next[list];
+      /*
+       * The one entry changed in the statement that writes, never the whole map
+       * from a copy read a moment earlier.
+       *
+       * This read the row, replaced the entry in JavaScript and wrote the map
+       * back, so two lists saved together — two tabs, or one quick hand on two
+       * column menus — both read the map before either wrote, and the second
+       * write put back the first list as it was. One column choice silently
+       * undone, by the person who made it.
+       *
+       * Nothing hidden is no entry, so "show them all" removes the list rather
+       * than storing an empty array for ever. A new list past the bound is not
+       * added, which is what the bound on the whole map did before.
+       */
+      const stored = sql`case when jsonb_typeof(${schema.userPreferences.value}) = 'object' then ${schema.userPreferences.value} else '{}'::jsonb end`;
+      const entry = list in asked ? { [list]: asked[list] } : {};
+      const value =
+        list in asked
+          ? sql`case
+              when ${stored} ? ${list}
+                or (select count(*) from jsonb_object_keys(${stored})) < ${MAX_LISTS}
+              then ${stored} || ${JSON.stringify(entry)}::jsonb
+              else ${stored}
+            end`
+          : sql`${stored} - ${list}`;
 
-      await db
+      const [saved] = await db
         .insert(schema.userPreferences)
         .values({
           organizationId: orgId,
           userId: session.user.id,
           key: COLUMNS_KEY,
-          value: next,
+          value: entry,
         })
         .onConflictDoUpdate({
           target: [
@@ -246,9 +266,10 @@ export default defineModule({
             schema.userPreferences.userId,
             schema.userPreferences.key,
           ],
-          set: { value: next, updatedAt: new Date() },
-        });
-      return c.json({ columns: next });
+          set: { value, updatedAt: new Date() },
+        })
+        .returning({ value: schema.userPreferences.value });
+      return c.json({ columns: normalizeColumns(saved?.value) });
     });
 
     ctx.app.delete("/api/profile/sessions/:id", requireSession(), async (c) => {

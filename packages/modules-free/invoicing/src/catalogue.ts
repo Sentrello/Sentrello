@@ -3,7 +3,7 @@ import {
   requirePermission,
   requireSession,
 } from "@sentrello/auth/hono";
-import { and, asc, db, eq, schema } from "@sentrello/db";
+import { and, asc, db, eq, schema, sql } from "@sentrello/db";
 import { baseCurrency } from "@sentrello/db/currency";
 import {
   RequestFieldError,
@@ -361,70 +361,84 @@ export function registerCatalogue(ctx: ModuleContext) {
         unknown
       >;
 
-      const patch: Record<string, unknown> = {};
-      if (
-        body.name !== undefined ||
-        body.ratePpm !== undefined ||
-        body.rateBp !== undefined ||
-        body.jurisdiction !== undefined
-      ) {
-        // Re-read the row so a partial edit is validated as a whole: changing
-        // only the category on a 20% rate has to be refused the same way.
-        const [current] = await db
-          .select()
-          .from(schema.taxDefinitions)
+      /*
+       * Read under a lock and written in the same transaction.
+       *
+       * A partial edit is validated as a whole, so the fields it leaves out are
+       * read from the row and written back. Two edits together both read the
+       * row first, and the second wrote back the first one's field as it had
+       * been: a rate corrected to 8.25% put back to 8% by somebody renaming
+       * it in the same second, with both answering 200.
+       */
+      const written = await db.transaction(async (tx) => {
+        const patch: Record<string, unknown> = {};
+        if (
+          body.name !== undefined ||
+          body.ratePpm !== undefined ||
+          body.rateBp !== undefined ||
+          body.jurisdiction !== undefined
+        ) {
+          // Re-read the row so a partial edit is validated as a whole: changing
+          // only the category on a 20% rate has to be refused the same way.
+          const [current] = await tx
+            .select()
+            .from(schema.taxDefinitions)
+            .where(
+              and(
+                eq(schema.taxDefinitions.id, id),
+                eq(schema.taxDefinitions.organizationId, orgId),
+              ),
+            )
+            .for("update");
+          if (!current) return c.json({ error: "not found" }, 404);
+
+          try {
+            Object.assign(
+              patch,
+              parseTaxDefinition({
+                name: body.name ?? current.name,
+                // Handed over as sent, so the parser checks basis points
+                // before it multiplies them: `["5"] * 100` is a whole 500.
+                ...(body.ratePpm !== undefined && body.ratePpm !== null
+                  ? { ratePpm: body.ratePpm }
+                  : body.rateBp !== undefined
+                    ? { rateBp: body.rateBp }
+                    : { ratePpm: current.ratePpm ?? current.rateBp * 100 }),
+                categoryCode: body.categoryCode ?? current.categoryCode,
+                description: body.description ?? current.description,
+                jurisdiction: body.jurisdiction ?? current.jurisdiction,
+              }),
+            );
+            // A regime set some other way — a preset, an import — survives an
+            // edit that only touched the name or the rate.
+            if (patch.regime === null && current.regime !== null) {
+              patch.regime = current.regime;
+            }
+          } catch (err) {
+            if (err instanceof CatalogueError) {
+              return c.json({ error: err.message }, 400);
+            }
+            throw err;
+          }
+        }
+        if (body.active !== undefined)
+          patch.active = asFlag(body.active, "active");
+
+        const [row] = await tx
+          .update(schema.taxDefinitions)
+          .set(patch)
           .where(
             and(
               eq(schema.taxDefinitions.id, id),
               eq(schema.taxDefinitions.organizationId, orgId),
             ),
           )
-          .limit(1);
-        if (!current) return c.json({ error: "not found" }, 404);
-
-        try {
-          Object.assign(
-            patch,
-            parseTaxDefinition({
-              name: body.name ?? current.name,
-              // Handed over as sent, so the parser checks basis points
-              // before it multiplies them: `["5"] * 100` is a whole 500.
-              ...(body.ratePpm !== undefined && body.ratePpm !== null
-                ? { ratePpm: body.ratePpm }
-                : body.rateBp !== undefined
-                  ? { rateBp: body.rateBp }
-                  : { ratePpm: current.ratePpm ?? current.rateBp * 100 }),
-              categoryCode: body.categoryCode ?? current.categoryCode,
-              description: body.description ?? current.description,
-              jurisdiction: body.jurisdiction ?? current.jurisdiction,
-            }),
-          );
-          // A regime set some other way — a preset, an import — survives an
-          // edit that only touched the name or the rate.
-          if (patch.regime === null && current.regime !== null) {
-            patch.regime = current.regime;
-          }
-        } catch (err) {
-          if (err instanceof CatalogueError) {
-            return c.json({ error: err.message }, 400);
-          }
-          throw err;
-        }
-      }
-      if (body.active !== undefined)
-        patch.active = asFlag(body.active, "active");
-
-      const [row] = await db
-        .update(schema.taxDefinitions)
-        .set(patch)
-        .where(
-          and(
-            eq(schema.taxDefinitions.id, id),
-            eq(schema.taxDefinitions.organizationId, orgId),
-          ),
-        )
-        .returning();
-      if (!row) return c.json({ error: "not found" }, 404);
+          .returning();
+        if (!row) return c.json({ error: "not found" }, 404);
+        return row;
+      });
+      if (written instanceof Response) return written;
+      const row = written;
 
       if (asFlag(body.isDefault, "isDefault", false))
         await clearOtherDefaults(orgId, row.id);
@@ -698,86 +712,117 @@ export function registerBillingRules(ctx: ModuleContext) {
     requirePermission({ invoicing: ["update"] }),
     async (c) => {
       const orgId = activeOrganizationId(c.get("session"));
-      const body = (await c.req.json().catch(() => ({}))) as Record<
+      const sent = (await c.req.json().catch(() => ({}))) as Record<
         string,
         unknown
       >;
 
-      const defaultDueDays = Math.max(
-        0,
-        Math.min(365, asWholeNumber(body.defaultDueDays, "defaultDueDays", 30)),
-      );
-
-      // No late fee is a choice too, said with null or nothing at all.
-      const lateFeeType =
-        body.lateFeeType === undefined ||
-        body.lateFeeType === null ||
-        body.lateFeeType === ""
-          ? null
-          : asChoice(body.lateFeeType, "lateFeeType", ["percent", "amount"]);
-      const lateFeeValue = asWholeNumber(body.lateFeeValue, "lateFeeValue", 0);
-      if (lateFeeType && lateFeeValue <= 0) {
-        return c.json(
-          { error: "a late fee of nothing is not a late fee" },
-          400,
-        );
-      }
-      // A percentage over 100 is a typo, not a policy anybody wrote down.
-      if (lateFeeType === "percent" && lateFeeValue > 100_00) {
-        return c.json({ error: "that is not a percentage" }, 400);
-      }
-
-      const overpaymentPolicy = asChoice(
-        body.overpaymentPolicy,
-        "overpaymentPolicy",
-        ["credit", "refuse"],
-        "refuse",
-      );
-
       /*
-       * Gross or net, for documents raised from here on.
+       * What was sent, laid over what is stored — read under a lock.
        *
-       * Changing it never reaches a document that already exists: each one
-       * carries its own answer, so February's invoices keep meaning what they
-       * meant after a business switches in March.
+       * The screen saves one field at a time, and this route used to read a
+       * field left out as its default: the screen made up for it by sending
+       * back every field it had loaded, so two changes in quick succession —
+       * the grace days, then the overpayment rule before the first save came
+       * back — sent the first one's old value with the second and undid it.
+       * Now a field left out is a field left alone, and the lock makes a second
+       * save read what the first one wrote. Advisory rather than `for update`
+       * because a business that has never saved has no row to lock.
        */
-      const pricesIncludeTax = asFlag(
-        body.pricesIncludeTax,
-        "pricesIncludeTax",
-        false,
-      );
+      return db.transaction(async (tx) => {
+        await tx.execute(
+          sql`select pg_advisory_xact_lock(hashtext(${`invoicing-settings:${orgId}`}))`,
+        );
+        const [stored] = await tx
+          .select()
+          .from(schema.invoicingSettings)
+          .where(eq(schema.invoicingSettings.organizationId, orgId))
+          .limit(1);
+        const body: Record<string, unknown> = { ...stored, ...sent };
 
-      const values = {
-        defaultDueDays,
-        defaultPaymentTerms:
-          asText(body.defaultPaymentTerms, "defaultPaymentTerms").trim() ||
-          null,
-        paymentTermOptions: cleanTerms(body.paymentTermOptions),
-        units: cleanUnits(body.units),
-        lateFeeType,
-        lateFeeValue: lateFeeType ? lateFeeValue : 0,
-        lateFeeGraceDays: Math.max(
+        const defaultDueDays = Math.max(
           0,
           Math.min(
-            180,
-            asWholeNumber(body.lateFeeGraceDays, "lateFeeGraceDays", 7),
+            365,
+            asWholeNumber(body.defaultDueDays, "defaultDueDays", 30),
           ),
-        ),
-        overpaymentPolicy,
-        pricesIncludeTax,
-        updatedAt: new Date(),
-      };
+        );
 
-      const [saved] = await db
-        .insert(schema.invoicingSettings)
-        .values({ organizationId: orgId, ...values })
-        .onConflictDoUpdate({
-          target: schema.invoicingSettings.organizationId,
-          set: values,
-        })
-        .returning();
+        // No late fee is a choice too, said with null or nothing at all.
+        const lateFeeType =
+          body.lateFeeType === undefined ||
+          body.lateFeeType === null ||
+          body.lateFeeType === ""
+            ? null
+            : asChoice(body.lateFeeType, "lateFeeType", ["percent", "amount"]);
+        const lateFeeValue = asWholeNumber(
+          body.lateFeeValue,
+          "lateFeeValue",
+          0,
+        );
+        if (lateFeeType && lateFeeValue <= 0) {
+          return c.json(
+            { error: "a late fee of nothing is not a late fee" },
+            400,
+          );
+        }
+        // A percentage over 100 is a typo, not a policy anybody wrote down.
+        if (lateFeeType === "percent" && lateFeeValue > 100_00) {
+          return c.json({ error: "that is not a percentage" }, 400);
+        }
 
-      return c.json({ settings: saved, usingDefaults: false });
+        const overpaymentPolicy = asChoice(
+          body.overpaymentPolicy,
+          "overpaymentPolicy",
+          ["credit", "refuse"],
+          "refuse",
+        );
+
+        /*
+         * Gross or net, for documents raised from here on.
+         *
+         * Changing it never reaches a document that already exists: each one
+         * carries its own answer, so February's invoices keep meaning what they
+         * meant after a business switches in March.
+         */
+        const pricesIncludeTax = asFlag(
+          body.pricesIncludeTax,
+          "pricesIncludeTax",
+          false,
+        );
+
+        const values = {
+          defaultDueDays,
+          defaultPaymentTerms:
+            asText(body.defaultPaymentTerms, "defaultPaymentTerms").trim() ||
+            null,
+          paymentTermOptions: cleanTerms(body.paymentTermOptions),
+          units: cleanUnits(body.units),
+          lateFeeType,
+          lateFeeValue: lateFeeType ? lateFeeValue : 0,
+          lateFeeGraceDays: Math.max(
+            0,
+            Math.min(
+              180,
+              asWholeNumber(body.lateFeeGraceDays, "lateFeeGraceDays", 7),
+            ),
+          ),
+          overpaymentPolicy,
+          pricesIncludeTax,
+          updatedAt: new Date(),
+        };
+
+        const [saved] = await tx
+          .insert(schema.invoicingSettings)
+          .values({ organizationId: orgId, ...values })
+          .onConflictDoUpdate({
+            target: schema.invoicingSettings.organizationId,
+            set: values,
+          })
+          .returning();
+
+        return c.json({ settings: saved, usingDefaults: false });
+      });
     },
   );
 
