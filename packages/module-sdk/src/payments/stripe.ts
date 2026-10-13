@@ -607,7 +607,12 @@ export function stripeProvider(credentials: Credentials): PaymentProvider {
       );
     },
 
-    async refund(reference: string, amountCents: number, _currency: string) {
+    async refund(
+      reference: string,
+      amountCents: number,
+      _currency: string,
+      idempotencyKey?: string,
+    ) {
       /*
        * A refund is against the payment intent. A shop that took the money in
        * its own page already holds one; a shop that sent the buyer to Stripe
@@ -632,6 +637,7 @@ export function stripeProvider(credentials: Credentials): PaymentProvider {
           payment_intent: intent,
           amount: String(amountCents),
         }),
+        idempotencyKey,
       });
       if (!res.ok) {
         const error = res.body.error as { message?: string } | undefined;

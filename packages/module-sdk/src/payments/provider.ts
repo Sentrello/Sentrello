@@ -283,11 +283,22 @@ export interface PaymentProvider {
    */
   cancelReaderPayment?(readerId: string): Promise<void>;
 
-  /** Sends money back. Returns what was actually refunded. */
+  /**
+   * Sends money back. Returns what was actually refunded.
+   *
+   * `idempotencyKey` names this refund, and the same key asked twice is one
+   * refund. A refund the processor made and did not answer within the deadline
+   * comes back here as a failure, and the person who pressed Refund presses it
+   * again — without a key, that sends the customer the money twice. Ours and
+   * stable for the one refund (the refund row's id, say), never a fresh uuid
+   * per attempt and never built from the amount: two equal part-refunds are
+   * two refunds.
+   */
   refund?(
     reference: string,
     amountCents: number,
     currency: string,
+    idempotencyKey?: string,
   ): Promise<{ ok: boolean; amountCents: number; message?: string }>;
 }
 

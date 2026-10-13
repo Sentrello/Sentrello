@@ -139,6 +139,7 @@ const SET_BY_THE_SERVER: Record<string, string> = {
   doneAt: "completing a task",
   authorId: "the session that wrote the note",
   sourceSubmissionId: "the public form pipeline",
+  inboundMessageId: "the inbound email webhook, from the message itself",
   taxIdentifierValid: "the VAT-number check",
   taxIdentifierCheckedAt: "the VAT-number check",
   taxIdentifierCheckedName: "the VAT-number check",

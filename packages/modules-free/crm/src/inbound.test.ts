@@ -284,6 +284,52 @@ test("mail to an address beside the primary one is still that person's", async (
 });
 
 /**
+ * The provider asks again because the first answer was slow.
+ *
+ * Every inbound provider retries a delivery it did not hear back from, and a
+ * message carrying ten megabytes of attachments is the one that takes long
+ * enough to be retried. Each retry filed the conversation again: the same
+ * note, the same files on disk, the same line on the timeline.
+ */
+test("one message delivered twice, or at once, is filed once", async () => {
+  const [contact] = await db
+    .insert(schema.contacts)
+    .values({
+      organizationId: orgId,
+      name: "Teodor Lind",
+      email: `teodor-${suffix}@home.test`,
+    })
+    .returning();
+  if (!contact) throw new Error("could not create the contact");
+
+  const message = {
+    From: `Teodor Lind <teodor-${suffix}@home.test>`,
+    To: `capture-${suffix}@ours.test`,
+    Subject: "The second invoice",
+    TextBody: "Sent twice by the provider.",
+    MessageID: `pm-${suffix}`,
+    Headers: [{ Name: "Message-ID", Value: `<twice-${suffix}@home.test>` }],
+  };
+  await Promise.all([deliver(message), deliver(message)]);
+  await deliver(message);
+
+  expect(await notesOn(contact.id)).toHaveLength(1);
+  const timeline = await db
+    .select()
+    .from(schema.activities)
+    .where(eq(schema.activities.contactId, contact.id));
+  expect(timeline).toHaveLength(1);
+
+  // A different message from the same person is a different note.
+  await deliver({
+    ...message,
+    MessageID: `pm-other-${suffix}`,
+    Headers: [{ Name: "Message-ID", Value: `<other-${suffix}@home.test>` }],
+  });
+  expect(await notesOn(contact.id)).toHaveLength(2);
+});
+
+/**
  * Two different nothings, and they have to read differently.
  *
  * A message with nobody to file it against is the correct outcome for mail

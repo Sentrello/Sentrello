@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { auth } from "@sentrello/auth";
 import { signUpAsOwner } from "@sentrello/auth/testing";
-import { and, db, desc, eq, inArray, isNull, schema } from "@sentrello/db";
+import { and, db, desc, eq, inArray, isNull, schema, sql } from "@sentrello/db";
 import { dropOrganization, makeOrganization } from "@sentrello/db/testing";
 import { registerForTest } from "@sentrello/module-sdk";
 import { HONEYPOT_FIELD, resetRateLimits } from "@sentrello/module-sdk";
@@ -159,6 +159,55 @@ test("a second enquiry from the same address reuses the contact", async () => {
     .select()
     .from(schema.contacts)
     .where(eq(schema.contacts.email, "dana@buyer.example"));
+  expect(rows).toHaveLength(1);
+});
+
+/**
+ * Send pressed twice, on the form that works without JavaScript.
+ *
+ * The snippet disables its button; a plain HTML post does not, and neither
+ * does somebody with the form open in two tabs. Both requests looked the
+ * address up before either wrote it, so both made a contact.
+ */
+test("two enquiries from a new address at once make one contact", async () => {
+  const address = `twice-${suffix}@buyer.example`;
+  /*
+   * The window is a few milliseconds on this machine and wider on a busy
+   * database, so it is held open: writes to contacts wait while every request
+   * gets as far as it can, then all of them are let go together.
+   */
+  let release = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let locked = () => {};
+  const lockTaken = new Promise<void>((resolve) => {
+    locked = resolve;
+  });
+  const holding = db.transaction(async (tx) => {
+    await tx.execute(sql`lock table contacts in share mode`);
+    locked();
+    await held;
+  });
+  await lockTaken;
+  const pending = Promise.all(
+    Array.from({ length: 4 }, () =>
+      submit(contactFormKey, {
+        name: "Ana Twice",
+        email: address,
+        message: "Pressed twice",
+      }),
+    ),
+  );
+  await Bun.sleep(300);
+  release();
+  await holding;
+  const results = await pending;
+  expect(results.every((r) => r.status === 201)).toBe(true);
+  const rows = await db
+    .select({ id: schema.contacts.id })
+    .from(schema.contacts)
+    .where(eq(schema.contacts.email, address));
   expect(rows).toHaveLength(1);
 });
 

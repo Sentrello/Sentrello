@@ -198,6 +198,36 @@ test("a contact change reaches the endpoint, signed verifiably", async () => {
   expect(v1).toBe(`v1=${mac}`);
 });
 
+/**
+ * Two sweeps over the same minute, as two instances or a sweep that overran.
+ *
+ * A hundred slow receivers at ten seconds each is longer than pg-boss lets one
+ * job run, so it hands the same minute to another worker while the first is
+ * still sending. Both read the delivery as pending and both posted it.
+ */
+test("two sweeps at once deliver one change once", async () => {
+  const created = await app.request("http://localhost/api/contacts", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name: "Sent Once", email: "once@example.test" }),
+  });
+  expect(created.status).toBe(201);
+  const { contact } = (await created.json()) as { contact: { id: string } };
+
+  const calls: string[] = [];
+  const slow = async (_url: string, init: RequestInit) => {
+    calls.push(String(init.body));
+    await Bun.sleep(50);
+    return new Response("ok", { status: 200 });
+  };
+  await fanOutDue();
+  const now = new Date();
+  await Promise.all([deliverDue(now, slow), deliverDue(now, slow)]);
+
+  const mine = calls.filter((body) => body.includes(contact.id));
+  expect(mine).toHaveLength(1);
+});
+
 test("an entity the endpoint did not ask about is not delivered", async () => {
   const created = await app.request("http://localhost/api/companies", {
     method: "POST",

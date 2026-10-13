@@ -167,6 +167,15 @@ export interface PaymentRequest {
     /** Whether the receiving account is a business or a person. */
     kind: "business" | "personal";
   };
+  /**
+   * The same for every attempt at this one payment, at most 50 characters.
+   *
+   * A request that times out after the bank acted is asked again, and without
+   * a key the bank cannot tell the second asking from a second payment. The
+   * caller's own row id is the right one: a key built from the amount would
+   * make two equal payments one.
+   */
+  idempotencyKey?: string;
   /** When it repeats, if it does. */
   schedule?: {
     /** week | month | quarter | year */

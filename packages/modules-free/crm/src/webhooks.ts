@@ -42,6 +42,14 @@ export const RETRY_MINUTES = [1, 5, 30, 120, 720] as const;
 /** How long a webhook may wait for somebody else's server. */
 const TIMEOUT_MS = 10_000;
 
+/**
+ * How long a sweep holds a delivery it is sending.
+ *
+ * Longer than one attempt can take, so nobody else picks it up mid-send, and
+ * short enough that a sweep which died holding it is retried within minutes.
+ */
+const CLAIM_MS = 5 * 60_000;
+
 /** How many events one endpoint takes off the feed per sweep. */
 const FAN_OUT_LIMIT = 500;
 
@@ -165,6 +173,30 @@ export async function deliverDue(
   const outcome = { delivered: 0, retried: 0, abandoned: 0 };
 
   for (const { delivery, hook } of due) {
+    /*
+     * Claimed before it is sent, by moving its next try out of reach.
+     *
+     * The read above is a read, so two sweeps at once — two instances, or a
+     * sweep of a hundred slow receivers outrunning the time pg-boss gives one
+     * job and being handed to a second worker — both found it pending and
+     * both posted it. Only the sweep whose update still finds it due sends;
+     * the other moves on. A process that dies holding the claim leaves the
+     * delivery due again once the lease is up, which is a retry like any
+     * other, with the same delivery id for the receiver to recognise.
+     */
+    const [claimed] = await db
+      .update(schema.crmWebhookDeliveries)
+      .set({ nextAttemptAt: new Date(now.getTime() + CLAIM_MS) })
+      .where(
+        and(
+          eq(schema.crmWebhookDeliveries.id, delivery.id),
+          eq(schema.crmWebhookDeliveries.status, "pending"),
+          lte(schema.crmWebhookDeliveries.nextAttemptAt, now),
+        ),
+      )
+      .returning({ id: schema.crmWebhookDeliveries.id });
+    if (!claimed) continue;
+
     const answer = await attempt(delivery, hook, send);
 
     if (answer.ok) {

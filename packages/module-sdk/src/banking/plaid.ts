@@ -294,7 +294,9 @@ export const plaid: BankProvider = {
     }>(credentials, "/transfer/recurring/create", {
       access_token: accessToken,
       account_id: request.fromAccountReference,
-      idempotency_key: crypto.randomUUID(),
+      // The caller's key, so its retry is recognised; a fresh one only when
+      // the caller has none to give.
+      idempotency_key: request.idempotencyKey ?? crypto.randomUUID(),
       type: "credit",
       network: "ach",
       // Paying a business rather than a person. The class is not decoration:
@@ -349,6 +351,9 @@ async function authorise(
     amount: (request.amountCents / 100).toFixed(2),
     ach_class: request.payee.kind === "business" ? "ccd" : "ppd",
     user: { legal_name: request.payee.name },
+    ...(request.idempotencyKey
+      ? { idempotency_key: request.idempotencyKey }
+      : {}),
   });
 
   if (decided.authorization.decision !== "approved") {

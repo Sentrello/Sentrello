@@ -1242,6 +1242,46 @@ test("a quote cannot be accepted twice", async () => {
   expect(invoices).toHaveLength(1);
 });
 
+// And pressed several times at once, which the portal's plain form allows:
+// every press reads the quote as still "sent" before any of them writes.
+test("a quote accepted four times at once raises one invoice and one note", async () => {
+  const quoteId = await sentQuote(contactId, 13000);
+  const minted = await app.request(
+    `http://localhost/api/contacts/${contactId}/portal-link`,
+    { method: "POST", headers },
+  );
+  const token = new URL(((await minted.json()) as { url: string }).url).pathname
+    .split("/")
+    .pop() as string;
+
+  const results = await Promise.all(
+    [1, 2, 3, 4].map(() =>
+      app.request(`http://localhost/portal/${token}/quotes/${quoteId}/accept`, {
+        method: "POST",
+      }),
+    ),
+  );
+  expect(results.filter((r) => r.status === 303)).toHaveLength(1);
+
+  const invoices = await db
+    .select()
+    .from(schema.invoices)
+    .where(eq(schema.invoices.quoteId, quoteId));
+  expect(invoices).toHaveLength(1);
+
+  const [quote] = await db
+    .select({ number: schema.quotes.number })
+    .from(schema.quotes)
+    .where(eq(schema.quotes.id, quoteId));
+  const notes = await db
+    .select({ body: schema.activities.body })
+    .from(schema.activities)
+    .where(eq(schema.activities.contactId, contactId));
+  expect(
+    notes.filter((n) => n.body?.startsWith(`Accepted quote ${quote?.number} `)),
+  ).toHaveLength(1);
+});
+
 /**
  * A price the business stopped standing behind cannot be taken.
  *

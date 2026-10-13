@@ -1110,6 +1110,8 @@ const CREDENTIAL_FIELDS = [
    * another business's included. `authorId` let an edit say a note was written
    * by somebody else, and the timeline then printed that person's name.
    * `sourceSubmissionId` is set by promoting a form reply, never by hand.
+   * `inboundMessageId` is the email a note was filed from, and one written by
+   * hand would turn that email away when it arrived.
    * Each has its own route; none is legitimately sent in a body.
    */
   "avatarPath",
@@ -1117,6 +1119,7 @@ const CREDENTIAL_FIELDS = [
   "portalUserId",
   "authorId",
   "sourceSubmissionId",
+  "inboundMessageId",
 ] as const;
 
 function withoutCredentials<T extends Record<string, unknown>>(row: T): T {

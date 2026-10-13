@@ -1333,32 +1333,46 @@ async function upsertContact(
   email: string,
   payload: Record<string, string>,
 ): Promise<string> {
-  if (email) {
-    /*
-     * Any address this person is known by, not the primary column compared
-     * exactly. `Jane@Example.com` used to make a second contact beside
-     * `jane@example.com`, and an enquiry from somebody's work address made one
-     * beside the record that already held it.
-     */
-    const existing = await contactIdByEmail(orgId, [email]);
-    if (existing) return existing;
-  }
+  /*
+   * One enquirer, one contact, however many times Send was pressed.
+   *
+   * The look-up and the insert were two statements, so a double press on the
+   * form that works without JavaScript — or the same form open in two tabs —
+   * had both requests find nobody and both create somebody. The lock is on the
+   * address within this business and lasts the transaction, so the second
+   * request looks only once the first has written.
+   */
+  return db.transaction(async (tx) => {
+    if (email) {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtext(${`form-contact:${orgId}:${email}`}))`,
+      );
+      /*
+       * Any address this person is known by, not the primary column compared
+       * exactly. `Jane@Example.com` used to make a second contact beside
+       * `jane@example.com`, and an enquiry from somebody's work address made
+       * one beside the record that already held it.
+       */
+      const existing = await contactIdByEmail(orgId, [email], tx);
+      if (existing) return existing;
+    }
 
-  const [created] = await db
-    .insert(schema.contacts)
-    .values({
-      organizationId: orgId,
-      // Both: `name` is what quotes, invoices and the portal read, and the
-      // split is what the CRM's own screens edit.
-      name: name || email || "Website enquiry",
-      ...splitName(name),
-      email: email || null,
-      phone: payload.phone ?? null,
-      kind: "lead",
-    })
-    .returning();
-  if (!created) throw new Error("contact insert returned no row");
-  return created.id;
+    const [created] = await tx
+      .insert(schema.contacts)
+      .values({
+        organizationId: orgId,
+        // Both: `name` is what quotes, invoices and the portal read, and the
+        // split is what the CRM's own screens edit.
+        name: name || email || "Website enquiry",
+        ...splitName(name),
+        email: email || null,
+        phone: payload.phone ?? null,
+        kind: "lead",
+      })
+      .returning();
+    if (!created) throw new Error("contact insert returned no row");
+    return created.id;
+  });
 }
 
 /** A quote request becomes a draft quote for someone to price up. */

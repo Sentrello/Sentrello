@@ -1,7 +1,7 @@
 import type { CustomField } from "@sentrello/module-sdk/custom-fields";
 import { coerceCustomValues } from "@sentrello/module-sdk/custom-fields";
 import { type SQL, and, eq, inArray, or, sql } from "drizzle-orm";
-import { db } from "./client";
+import { type DbTx, db } from "./client";
 import * as schema from "./schema";
 
 /**
@@ -132,10 +132,12 @@ export function contactHasEmail(email: string): SQL {
 export async function contactIdByEmail(
   organizationId: string,
   addresses: string[],
+  /** A caller's transaction, so a look-up and the write it decides share it. */
+  on: DbTx | typeof db = db,
 ): Promise<string | null> {
   if (addresses.length === 0) return null;
   const find = async (match: SQL | undefined) => {
-    const [row] = await db
+    const [row] = await on
       .select({ id: schema.contacts.id })
       .from(schema.contacts)
       .where(and(eq(schema.contacts.organizationId, organizationId), match))

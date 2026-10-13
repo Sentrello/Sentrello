@@ -110,7 +110,12 @@ export async function runReminders(
      * no mail is configured at all.
      */
     mailer?: {
-      send: (m: { to: string; subject: string; html: string }) => Promise<void>;
+      send: (m: {
+        to: string;
+        subject: string;
+        html: string;
+        idempotencyKey?: string;
+      }) => Promise<void>;
     };
   } = {},
 ): Promise<Outcome> {
@@ -492,6 +497,15 @@ export async function runReminders(
       try {
         await mailer.send({
           to: contact.email,
+          /*
+           * This week's letter, named by the chase before it. A send that
+           * timed out puts that stamp back, so the retry an hour later asks
+           * under the same key and a provider that did deliver the first
+           * does not deliver it again.
+           */
+          idempotencyKey: `overdue-weekly/${invoice.id}/${
+            invoice.lastReminderAt?.getTime() ?? 0
+          }`,
           ...overdueReminderEmail({
             number: invoice.number,
             /*
@@ -622,6 +636,9 @@ export async function runReminders(
     try {
       await mailer.send({
         to: contact.email,
+        // One letter per rule per invoice, as the log's unique key says, so
+        // the retry after a release below is recognised as the same letter.
+        idempotencyKey: `overdue-rule/${invoice.id}/${rule.id}`,
         subject: filled(rule.subject, (s) => s),
         html: `<p>${filled(rule.body).replace(/\n/g, "<br>")}</p>`,
       });
@@ -631,9 +648,9 @@ export async function runReminders(
        *
        * Keeping it would mean a mail server down for an hour loses that
        * reminder for ever — the rule is marked as fired and never fires
-       * again. The cost of releasing it is a duplicate if the process dies
-       * between the send and this delete, which is the rarer and the cheaper
-       * of the two failures.
+       * again. A send that timed out after the provider took it is the case
+       * that would cost a duplicate, and the key on the send is what makes
+       * the provider answer the retry with the letter it already sent.
        */
       await db
         .delete(schema.reminderLog)

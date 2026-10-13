@@ -33,6 +33,19 @@ export interface EmailMessage {
    * gradually stops arriving.
    */
   headers?: Record<string, string>;
+  /**
+   * The same message asked for twice is one message.
+   *
+   * A send that times out may still have been delivered, and a caller that
+   * retries — the overdue chase does, an hour later — would ask the customer
+   * twice. Given a key, the provider recognises the second ask and answers it
+   * with the first. Stable across every retry of one letter, and different for
+   * the next letter: `overdue-rule/<invoice>/<rule>`, never a fresh uuid.
+   *
+   * Known limit: only Resend's API honours it, for twenty-four hours. SMTP has
+   * no such thing, so over SMTP a timed-out send can still arrive twice.
+   */
+  idempotencyKey?: string;
 }
 
 /**
@@ -193,6 +206,7 @@ class ResendAdapter implements EmailAdapter {
       headers: {
         authorization: `Bearer ${this.key}`,
         "content-type": "application/json",
+        ...(m.idempotencyKey ? { "idempotency-key": m.idempotencyKey } : {}),
       },
       body: JSON.stringify({
         from: m.from ?? this.from,
@@ -203,9 +217,23 @@ class ResendAdapter implements EmailAdapter {
         ...(headers ? { headers } : {}),
       }),
     });
-    if (!res.ok) {
-      throw new Error(`resend send failed: ${res.status} ${await res.text()}`);
+    if (res.ok) return;
+    const said = await res.text();
+    /*
+     * The key was used before, by a request that was not word for word this
+     * one. The first was accepted — that is the only way the key is known — so
+     * the letter is with the customer already. What differs is what changed in
+     * between, like the balance after a part-payment, and a second copy saying
+     * so is exactly the duplicate the key is there to stop.
+     */
+    if (
+      res.status === 409 &&
+      m.idempotencyKey &&
+      said.includes("invalid_idempotent_request")
+    ) {
+      return;
     }
+    throw new Error(`resend send failed: ${res.status} ${said}`);
   }
 }
 

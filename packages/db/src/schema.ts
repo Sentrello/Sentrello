@@ -425,6 +425,15 @@ export const notes = pgTable(
       .$type<{ name: string; path: string; size: number; type: string }[]>()
       .default([]),
     authorId: text("author_id"),
+    /**
+     * The email a note was filed from, when one was.
+     *
+     * Every inbound provider retries a delivery it did not hear back from, and
+     * each retry filed the conversation again. Unique within the business, so
+     * the second delivery of one message loses the insert and files nothing;
+     * a note somebody typed has none, and any number of those may exist.
+     */
+    inboundMessageId: text("inbound_message_id"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     /** When the row last changed. Set by a trigger; see `companies`. */
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -432,6 +441,10 @@ export const notes = pgTable(
   (t) => [
     index("notes_org_idx").on(t.organizationId),
     index("notes_entity_idx").on(t.entityType, t.entityId),
+    uniqueIndex("notes_inbound_message_uidx").on(
+      t.organizationId,
+      t.inboundMessageId,
+    ),
   ],
 );
 

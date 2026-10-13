@@ -336,7 +336,12 @@ export function paypalProvider(credentials: Credentials): PaymentProvider {
       }
     },
 
-    async refund(reference: string, amountCents: number, currency: string) {
+    async refund(
+      reference: string,
+      amountCents: number,
+      currency: string,
+      idempotencyKey?: string,
+    ) {
       try {
         const token = await accessToken();
         const order = await send(`${base}/v2/checkout/orders/${reference}`, {
@@ -365,6 +370,10 @@ export function paypalProvider(credentials: Credentials): PaymentProvider {
             headers: {
               authorization: `Bearer ${token}`,
               "content-type": "application/json",
+              // PayPal's own replay protection, as on the capture above.
+              ...(idempotencyKey
+                ? { "paypal-request-id": idempotencyKey }
+                : {}),
             },
             body: JSON.stringify({
               amount: {

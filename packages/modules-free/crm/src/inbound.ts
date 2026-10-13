@@ -1,5 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import {
   activeOrganizationId,
@@ -117,6 +117,15 @@ export interface InboundMessage {
   subject: string;
   body: string;
   attachments: { name: string; type: string; content: string }[];
+  /**
+   * What the message calls itself, for telling a retry from a new message.
+   *
+   * The `Message-ID` header where the provider passes headers on, which is the
+   * sender's own name for it and the same whoever relays it; otherwise the
+   * provider's id for the delivery. Null when neither is there, and a message
+   * with neither cannot be told from its own retry.
+   */
+  messageId: string | null;
 }
 
 /**
@@ -172,7 +181,24 @@ export function parseInbound(payload: Record<string, unknown>): InboundMessage {
     subject: String(pick("Subject", "subject") ?? "").slice(0, 200),
     body: body.slice(0, MAX_INBOUND_BODY),
     attachments,
+    messageId: messageIdOf(payload, pick),
   };
+}
+
+function messageIdOf(
+  payload: Record<string, unknown>,
+  pick: (...keys: string[]) => unknown,
+): string | null {
+  const headers = payload.Headers ?? payload.headers;
+  const header = Array.isArray(headers)
+    ? (headers as { Name?: unknown; Value?: unknown }[]).find(
+        (h) =>
+          typeof h?.Name === "string" && h.Name.toLowerCase() === "message-id",
+      )?.Value
+    : undefined;
+  const id =
+    header ?? pick("Message-Id", "message-id", "MessageID", "messageId");
+  return typeof id === "string" && id.trim() ? id.trim().slice(0, 998) : null;
 }
 
 /**
@@ -340,35 +366,19 @@ export function registerInboundEmail(ctx: ModuleContext) {
         return c.json({ matched: false, reason: "no contact at that address" });
       }
 
-      const attachments: {
-        name: string;
-        path: string;
-        size: number;
-        type: string;
-      }[] = [];
-      for (const file of message.attachments) {
-        const bytes = Buffer.from(file.content, "base64");
-        if (bytes.length === 0 || bytes.length > MAX_INBOUND_ATTACHMENT) {
-          continue;
-        }
-        // Generated name, as everywhere else: nothing a sender chose ever
-        // reaches the filesystem.
-        const stored = `${crypto.randomUUID()}${safeExtension(file.name)}`;
-        const dir = join(attachmentsDir(), orgId);
-        await mkdir(dir, { recursive: true });
-        await writeFile(join(dir, stored), bytes, { mode: 0o600 });
-        attachments.push({
-          name: displayFilename(file.name),
-          path: `${orgId}/${stored}`,
-          size: bytes.length,
-          type: file.type || "application/octet-stream",
-        });
-      }
-
       const text = [message.subject, message.body]
         .filter((part) => part !== "")
         .join("\n\n");
 
+      /*
+       * Written down before anything else is, and the unique index decides.
+       *
+       * A provider that did not hear back in time sends the message again, and
+       * a large attachment is exactly what makes the answer slow — so the
+       * retry often arrives while the first is still writing files. Claiming
+       * the message id first means only one of them files anything; the other
+       * is told it was seen and the provider stops asking.
+       */
       const [note] = await db
         .insert(schema.notes)
         .values({
@@ -376,19 +386,69 @@ export function registerInboundEmail(ctx: ModuleContext) {
           entityType: "contact",
           entityId: contactId,
           text: text || "(an email with no subject or body)",
-          attachments,
+          attachments: [],
+          inboundMessageId: message.messageId,
+        })
+        .onConflictDoNothing({
+          target: [schema.notes.organizationId, schema.notes.inboundMessageId],
         })
         .returning();
+      if (!note) return c.json({ matched: true, duplicate: true });
 
-      // And on the timeline, so the contact's history shows the conversation
-      // rather than only the note body.
-      await db.insert(schema.activities).values({
-        organizationId: orgId,
-        contactId,
-        type: "email",
-        body: message.subject || "Email",
-        occurredAt: new Date(),
-      });
+      const attachments: {
+        name: string;
+        path: string;
+        size: number;
+        type: string;
+      }[] = [];
+      try {
+        for (const file of message.attachments) {
+          const bytes = Buffer.from(file.content, "base64");
+          if (bytes.length === 0 || bytes.length > MAX_INBOUND_ATTACHMENT) {
+            continue;
+          }
+          // Generated name, as everywhere else: nothing a sender chose ever
+          // reaches the filesystem.
+          const stored = `${crypto.randomUUID()}${safeExtension(file.name)}`;
+          const dir = join(attachmentsDir(), orgId);
+          await mkdir(dir, { recursive: true });
+          await writeFile(join(dir, stored), bytes, { mode: 0o600 });
+          attachments.push({
+            name: displayFilename(file.name),
+            path: `${orgId}/${stored}`,
+            size: bytes.length,
+            type: file.type || "application/octet-stream",
+          });
+        }
+        if (attachments.length > 0) {
+          await db
+            .update(schema.notes)
+            .set({ attachments })
+            .where(eq(schema.notes.id, note.id));
+        }
+
+        // And on the timeline, so the contact's history shows the
+        // conversation rather than only the note body.
+        await db.insert(schema.activities).values({
+          organizationId: orgId,
+          contactId,
+          type: "email",
+          body: message.subject || "Email",
+          occurredAt: new Date(),
+        });
+      } catch (err) {
+        /*
+         * The claim is the promise that this message was filed, so a failure
+         * takes it back — otherwise the provider's retry is turned away by a
+         * note that never got its files. A 500 so that it does retry.
+         */
+        await db.delete(schema.notes).where(eq(schema.notes.id, note.id));
+        for (const held of attachments) {
+          await rm(join(attachmentsDir(), held.path), { force: true });
+        }
+        console.error("[crm] filing an inbound email failed", err);
+        return c.json({ error: "could not file it" }, 500);
+      }
 
       return c.json({ matched: true, noteId: note?.id });
     },

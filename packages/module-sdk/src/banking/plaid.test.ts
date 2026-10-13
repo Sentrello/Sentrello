@@ -288,3 +288,52 @@ test("the sandbox and the live host are not the same place", async () => {
   expect(seen[0]).toContain("sandbox");
   expect(seen[1]).not.toContain("sandbox");
 });
+
+/**
+ * A payment asked for again carries the key it was first asked with.
+ *
+ * The standing payment sent a fresh random key every time, so a retry after
+ * a timeout was, to the bank, a second standing payment; the one-off sent
+ * none at all.
+ */
+test("a payment asked for again carries the caller's key", async () => {
+  stub((path) =>
+    path.endsWith("/transfer/authorization/create")
+      ? { authorization: { id: "auth-1", decision: "approved" } }
+      : path.endsWith("/transfer/recurring/create")
+        ? {
+            recurring_transfer: {
+              recurring_transfer_id: "r-1",
+              status: "active",
+            },
+          }
+        : { transfer: { id: "tr-1", status: "pending" } },
+  );
+  const request = {
+    fromAccountReference: "a1",
+    amountCents: 100,
+    currency: "USD",
+    description: "Rent",
+    payee: {
+      name: "Somebody",
+      accountNumber: "1",
+      routingNumber: "2",
+      kind: "business" as const,
+    },
+    idempotencyKey: "pay-1",
+  };
+  await plaid.pay?.(CREDENTIALS, "access-1", request);
+  await plaid.payRepeatedly?.(CREDENTIALS, "access-1", {
+    ...request,
+    idempotencyKey: "schedule-1",
+    schedule: {
+      every: "month",
+      startsOn: new Date("2026-11-01"),
+      endsOn: null,
+    },
+  });
+  const sent = (end: string) =>
+    calls.find((c) => c.path.endsWith(end))?.body.idempotency_key;
+  expect(sent("/transfer/authorization/create")).toBe("pay-1");
+  expect(sent("/transfer/recurring/create")).toBe("schedule-1");
+});
