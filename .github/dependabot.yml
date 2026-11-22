@@ -1,0 +1,14 @@
+# Weekly, for the actions every workflow here pins by commit and for the
+# packages in bun.lock. A pinned SHA never moves on its own, so without this
+# a fixed action stays unfixed until somebody remembers to look.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: bun
+    directory: /
+    schedule:
+      interval: weekly
